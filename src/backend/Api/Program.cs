@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using Hangfire;
 using Hangfire.PostgreSql;
@@ -58,6 +59,14 @@ builder.Services.AddHangfire(config => config
     .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
 builder.Services.AddHangfireServer();
 
+// Password-reset tokens get their own short lifespan (docs/security/SECURITY-ARCHITECTURE.md §1.7:
+// 30-minute window) separate from the default provider's 24h, which is intentionally kept for
+// email-confirmation links (ASVS L2 review 2026-08-26, finding #8 - the default provider was
+// wrongly reused for both, leaving reset links valid 48x longer than the documented design).
+const string PasswordResetTokenProviderName = "PasswordReset";
+builder.Services.Configure<DataProtectionTokenProviderOptions>(PasswordResetTokenProviderName, options =>
+    options.TokenLifespan = TimeSpan.FromMinutes(30));
+
 // Identity: local ASP.NET Core Identity now, MFA-ready, IdP-swappable later (00-foundational-decisions.md §2)
 builder.Services
     .AddIdentityCore<AppUser>(options =>
@@ -71,11 +80,13 @@ builder.Services
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         options.User.RequireUniqueEmail = true;
         options.SignIn.RequireConfirmedEmail = false; // enforced manually post-login (AccountNotUsable)
+        options.Tokens.PasswordResetTokenProvider = PasswordResetTokenProviderName;
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddSignInManager()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    .AddTokenProvider<DataProtectorTokenProvider<AppUser>>(PasswordResetTokenProviderName);
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
@@ -141,6 +152,25 @@ builder.Services.AddCors(options =>
         .AllowCredentials()); // required so the refresh-token HttpOnly cookie is sent cross-port
 });
 
+// Per-IP anti-automation on unauthenticated auth/registration endpoints (docs/security/
+// SECURITY-ARCHITECTURE.md §4; ASVS L2 review 2026-08-26, finding #3 - previously there was no
+// rate limiting anywhere, leaving login/forgot-password/registration open to unthrottled
+// credential-stuffing and enumeration probing beyond ASP.NET Identity's per-account lockout).
+const string AuthRateLimitPolicy = "auth-strict";
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(AuthRateLimitPolicy, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = 10,
+                QueueLimit = 0,
+            }));
+});
+
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
@@ -156,6 +186,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

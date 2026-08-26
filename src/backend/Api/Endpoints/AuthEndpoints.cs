@@ -73,7 +73,8 @@ public static class AuthEndpoints
                 _ => Results.Problem(),
             };
         })
-        .WithName("Login");
+        .WithName("Login")
+        .RequireRateLimiting("auth-strict");
 
         group.MapPost("/refresh", async (
             HttpContext httpContext,
@@ -124,7 +125,8 @@ public static class AuthEndpoints
             await handler.HandleAsync(new ForgotPasswordCommand(request.Email), ct);
             return Results.Ok(new { message = "if_account_exists_email_sent" });
         })
-        .WithName("ForgotPassword");
+        .WithName("ForgotPassword")
+        .RequireRateLimiting("auth-strict");
 
         group.MapPost("/reset-password", async (
             ResetPasswordRequest request,
@@ -149,7 +151,8 @@ public static class AuthEndpoints
                 _ => Results.Problem(),
             };
         })
-        .WithName("ResetPassword");
+        .WithName("ResetPassword")
+        .RequireRateLimiting("auth-strict");
     }
 
     /// <summary>

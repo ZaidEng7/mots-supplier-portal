@@ -29,7 +29,7 @@ public static class RegistrationEndpoints
 {
     public static void MapRegistrationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/registrations").WithTags("Registrations");
+        var group = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting("auth-strict");
 
         group.MapPost("/", async (
             RegisterSupplierRequest request,
