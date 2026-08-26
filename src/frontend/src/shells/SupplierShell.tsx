@@ -35,6 +35,9 @@ export function SupplierShell({ children }: Props) {
             <Link to="/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.dashboard')}
             </Link>
+            <Link to="/onboarding" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.onboarding')}
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">

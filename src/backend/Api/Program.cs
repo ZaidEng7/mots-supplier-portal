@@ -132,6 +132,8 @@ builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHan
 builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
 builder.Services.AddScoped<EmailJobs>();
 builder.Services.AddScoped<IGetSupplierHandler, GetSupplierHandler>();
+builder.Services.AddScoped<IUpdateProfileHandler, UpdateProfileHandler>();
+builder.Services.AddScoped<ISubmitApplicationHandler, SubmitApplicationHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Audit.IGetAuditLogHandler, MotsSupplierPortal.Infrastructure.Audit.GetAuditLogHandler>();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();

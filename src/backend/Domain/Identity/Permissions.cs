@@ -6,6 +6,8 @@ namespace MotsSupplierPortal.Domain.Identity;
 /// </summary>
 public static class Permissions
 {
+    public const string SupplierEdit = "supplier.edit";
+    public const string SupplierSubmit = "supplier.submit";
     public const string SupplierApprove = "supplier.approve";
     public const string RfqPublish = "rfq.publish";
     public const string ProposalSubmit = "proposal.submit";
@@ -16,7 +18,7 @@ public static class Permissions
 
     public static readonly IReadOnlyList<string> All =
     [
-        SupplierApprove, RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
+        SupplierEdit, SupplierSubmit, SupplierApprove, RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
     ];
 }
 
@@ -35,8 +37,8 @@ public static class Roles
     /// <summary>Default permission set per persona at seed time (admin-editable thereafter).</summary>
     public static readonly IReadOnlyDictionary<string, string[]> DefaultPermissions = new Dictionary<string, string[]>
     {
-        [SupplierAdmin] = [Permissions.ProposalSubmit],
-        [SupplierUser] = [Permissions.ProposalSubmit],
+        [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit],
+        [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove],
         [ProcurementOfficer] = [Permissions.RfqPublish],
         [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove],

@@ -19,12 +19,28 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         }
 
         var supplier = await db.Suppliers
+            .Include(s => s.Representatives)
             .Where(s => s.ReferenceCode == referenceCode && s.Id == scope.SupplierId)
-            .Select(s => new SupplierDto(s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, s.OnboardingState.ToString()))
             .FirstOrDefaultAsync(ct);
 
         return supplier is null
             ? new GetSupplierResult.NotFoundOrOutOfScope()
-            : new GetSupplierResult.Found(supplier);
+            : new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier));
+    }
+
+    public async Task<GetSupplierResult> HandleOwnAsync(CancellationToken ct)
+    {
+        if (scope.SupplierId is null)
+        {
+            return new GetSupplierResult.NotFoundOrOutOfScope();
+        }
+
+        var supplier = await db.Suppliers
+            .Include(s => s.Representatives)
+            .FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
+
+        return supplier is null
+            ? new GetSupplierResult.NotFoundOrOutOfScope()
+            : new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier));
     }
 }

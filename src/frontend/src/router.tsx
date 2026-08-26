@@ -17,6 +17,7 @@ const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then
 const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
 const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
 const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
+const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
@@ -136,6 +137,12 @@ const supplierDashboardRoute = createRoute({
   component: SupplierDashboardPage,
 })
 
+const onboardingRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/onboarding',
+  component: OnboardingPage,
+})
+
 // --- Back-office app shell (protected, staff-only: no supplierId claim) ---
 const backOfficeLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -166,7 +173,7 @@ const routeTree = rootRoute.addChildren([
   forgotPasswordRoute,
   resetPasswordRoute,
   verifyEmailRoute,
-  supplierLayoutRoute.addChildren([supplierDashboardRoute]),
+  supplierLayoutRoute.addChildren([supplierDashboardRoute, onboardingRoute]),
   backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute]),
 ])
 
