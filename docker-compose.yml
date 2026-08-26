@@ -34,6 +34,21 @@ services:
       timeout: 5s
       retries: 10
 
+  clamav:
+    image: clamav/clamav:stable
+    platform: linux/amd64
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "echo PING | nc -w 3 localhost 3310 | grep -q PONG"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+
 volumes:
   postgres-data:
   minio-data:
+  clamav-data:

@@ -26,7 +26,9 @@ public sealed class SubmitApplicationHandler(AppDbContext db, IScopeContext scop
             return new SubmitApplicationResult.NotFoundOrOutOfScope();
         }
 
-        var missing = supplier.GetMissingProfileFields();
+        var missingProfileFields = supplier.GetMissingProfileFields();
+        var missingDocumentTypes = await DocumentCompletenessEvaluator.GetMissingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct);
+        var missing = missingProfileFields.Concat(missingDocumentTypes).ToList();
         if (missing.Count > 0)
         {
             return new SubmitApplicationResult.Incomplete(missing);
@@ -34,7 +36,7 @@ public sealed class SubmitApplicationHandler(AppDbContext db, IScopeContext scop
 
         try
         {
-            supplier.Submit();
+            supplier.Submit(missingDocumentTypes);
         }
         catch (DomainException ex)
         {

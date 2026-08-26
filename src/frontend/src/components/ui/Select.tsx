@@ -21,7 +21,11 @@ interface SelectProps {
  * trigger needs an explicit aria-label (falls back to the placeholder when no Field label wraps it). */
 export function Select({ id, value, onValueChange, options, placeholder, ...aria }: SelectProps) {
   return (
-    <RadixSelect.Root value={value} onValueChange={onValueChange}>
+    // Radix's hidden native <select> (mounted for form/autofill semantics) can emit a spurious
+    // "" change once while the Portal content is still mounting, which would otherwise clobber a
+    // just-restored controlled value - ignore empty emissions since none of our option sets
+    // include a blank value to legitimately select.
+    <RadixSelect.Root value={value} onValueChange={(v) => v && onValueChange(v)}>
       <RadixSelect.Trigger
         id={id}
         aria-label={placeholder}
@@ -33,7 +37,7 @@ export function Select({ id, value, onValueChange, options, placeholder, ...aria
           border: '1px solid var(--color-border-input)',
         }}
       >
-        <RadixSelect.Value placeholder={placeholder} />
+        <RadixSelect.Value placeholder={placeholder}>{options.find((o) => o.value === value)?.label}</RadixSelect.Value>
         <RadixSelect.Icon>
           <ChevronDown size={16} aria-hidden="true" />
         </RadixSelect.Icon>

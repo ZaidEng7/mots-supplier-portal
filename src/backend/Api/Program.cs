@@ -22,6 +22,7 @@ using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
+using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -137,6 +138,27 @@ builder.Services.AddScoped<EmailJobs>();
 builder.Services.AddScoped<IGetSupplierHandler, GetSupplierHandler>();
 builder.Services.AddScoped<IUpdateProfileHandler, UpdateProfileHandler>();
 builder.Services.AddScoped<ISubmitApplicationHandler, SubmitApplicationHandler>();
+builder.Services.AddScoped<IListSupplierDocumentsHandler, ListSupplierDocumentsHandler>();
+builder.Services.AddScoped<IReviewerListDocumentsHandler, ReviewerListDocumentsHandler>();
+builder.Services.AddScoped<IUploadDocumentHandler, UploadDocumentHandler>();
+builder.Services.AddScoped<IGetDocumentDownloadUrlHandler, GetDocumentDownloadUrlHandler>();
+builder.Services.AddScoped<IApproveDocumentHandler, ApproveDocumentHandler>();
+builder.Services.AddScoped<IRejectDocumentHandler, RejectDocumentHandler>();
+builder.Services.AddScoped<DocumentScanJob>();
+builder.Services.AddScoped<DocumentExpiryJob>();
+builder.Services.AddScoped<IListReviewQueueHandler, ListReviewQueueHandler>();
+builder.Services.AddScoped<IGetReviewerSupplierViewHandler, GetReviewerSupplierViewHandler>();
+builder.Services.AddScoped<IPickUpApplicationHandler, PickUpApplicationHandler>();
+builder.Services.AddScoped<IApproveApplicationHandler, ApproveApplicationHandler>();
+builder.Services.AddScoped<IRejectApplicationHandler, RejectApplicationHandler>();
+builder.Services.AddScoped<IRequestInfoHandler, RequestInfoHandler>();
+builder.Services.AddScoped<IResubmitApplicationHandler, ResubmitApplicationHandler>();
+builder.Services.AddScoped<IGetOwnActiveAnnotationHandler, GetOwnActiveAnnotationHandler>();
+builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection(MinioOptions.SectionName));
+builder.Services.AddSingleton<MinioFileStorage>();
+builder.Services.AddScoped<IFileStorage>(sp => sp.GetRequiredService<MinioFileStorage>());
+builder.Services.Configure<ClamAvOptions>(builder.Configuration.GetSection(ClamAvOptions.SectionName));
+builder.Services.AddScoped<IVirusScanner, ClamAvScanner>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Audit.IGetAuditLogHandler, MotsSupplierPortal.Infrastructure.Audit.GetAuditLogHandler>();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -210,11 +232,22 @@ app.MapAuthEndpoints();
 app.MapMfaEndpoints();
 app.MapSupplierEndpoints();
 app.MapAuditEndpoints();
+app.MapDocumentEndpoints();
+app.MapReviewEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
     app.MapHangfireDashboard("/hangfire");
 }
+
+using (var storageScope = app.Services.CreateScope())
+{
+    var minioStorage = storageScope.ServiceProvider.GetRequiredService<MinioFileStorage>();
+    await minioStorage.EnsureBucketExistsAsync(CancellationToken.None);
+}
+
+RecurringJob.AddOrUpdate<DocumentExpiryJob>(
+    "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
 app.Run();
 

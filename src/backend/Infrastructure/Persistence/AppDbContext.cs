@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Audit;
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Domain.Suppliers;
@@ -16,6 +17,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Representative> Representatives => Set<Representative>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Domain.ReferenceData.DocumentType> DocumentTypes => Set<Domain.ReferenceData.DocumentType>();
+    public DbSet<SupplierDocument> SupplierDocuments => Set<SupplierDocument>();
+    public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -99,6 +104,81 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(a => new { a.AggregateType, a.AggregateId, a.OccurredAt });
             entity.HasIndex(a => new { a.ActorUserId, a.OccurredAt });
             entity.HasIndex(a => a.CorrelationId);
+        });
+
+        modelBuilder.Entity<Domain.ReferenceData.DocumentType>(entity =>
+        {
+            entity.ToTable("document_type", "reference");
+            entity.HasKey(d => d.Id);
+            entity.Property(d => d.Code).HasMaxLength(50).IsRequired();
+            entity.HasIndex(d => d.Code).IsUnique();
+            entity.Property(d => d.NameAr).HasMaxLength(200).IsRequired();
+            entity.Property(d => d.NameEn).HasMaxLength(200).IsRequired();
+
+            // Generic types only - no invented Syrian-specific document rules (FR-REG-006 pattern).
+            entity.HasData(
+                new Domain.ReferenceData.DocumentType
+                {
+                    Id = Guid.Parse("00000000-0000-0000-0000-000000000101"),
+                    Code = "commercial_registration",
+                    NameAr = "السجل التجاري",
+                    NameEn = "Commercial Registration",
+                    IsRequired = true,
+                    ExpiryTracked = false,
+                },
+                new Domain.ReferenceData.DocumentType
+                {
+                    Id = Guid.Parse("00000000-0000-0000-0000-000000000102"),
+                    Code = "tax_certificate",
+                    NameAr = "الشهادة الضريبية",
+                    NameEn = "Tax Certificate",
+                    IsRequired = true,
+                    ExpiryTracked = true,
+                },
+                new Domain.ReferenceData.DocumentType
+                {
+                    Id = Guid.Parse("00000000-0000-0000-0000-000000000103"),
+                    Code = "chamber_membership",
+                    NameAr = "عضوية الغرفة التجارية",
+                    NameEn = "Chamber of Commerce Membership",
+                    IsRequired = false,
+                    ExpiryTracked = true,
+                }
+            );
+        });
+
+        modelBuilder.Entity<SupplierDocument>(entity =>
+        {
+            entity.ToTable("supplier_document", "supplier");
+            entity.HasKey(d => d.Id);
+            entity.Property(d => d.State).HasConversion<string>().HasMaxLength(20);
+            entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();
+            entity.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();
+            entity.Property(d => d.ContentType).HasMaxLength(150).IsRequired();
+            entity.Property(d => d.RejectReason).HasMaxLength(1000);
+            entity.HasIndex(d => new { d.SupplierId, d.DocumentTypeId, d.IsLatestVersion });
+            entity.HasOne<Supplier>().WithMany().HasForeignKey(d => d.SupplierId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Domain.ReferenceData.DocumentType>().WithMany().HasForeignKey(d => d.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SupplierReviewAnnotation>(entity =>
+        {
+            entity.ToTable("supplier_review_annotation", "supplier");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Reason).HasMaxLength(2000).IsRequired();
+            entity.Property(a => a.FlaggedProfileFields).HasColumnType("text[]");
+            entity.Property(a => a.FlaggedDocumentTypeIds).HasColumnType("uuid[]");
+            entity.HasIndex(a => new { a.SupplierId, a.ResolvedAt });
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("outbox_message", "ops");
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.Type).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.PayloadJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(o => o.SyncStatus).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(o => o.SyncStatus);
         });
     }
 }

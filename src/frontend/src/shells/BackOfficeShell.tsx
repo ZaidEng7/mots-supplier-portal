@@ -33,6 +33,9 @@ export function BackOfficeShell({ children }: Props) {
             <Link to="/back-office/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.dashboard')}
             </Link>
+            <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('review.title')}
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">

@@ -75,36 +75,23 @@ public sealed class Supplier
         OnboardingState = SupplierOnboardingState.EmailVerified;
     }
 
-    /// <summary>
-    /// UnderReview -> Approved. Only reachable via reviewer action carrying supplier.approve
-    /// permission (enforced at the API); raises the ERP supplier-master sync obligation.
-    /// </summary>
-    public void Approve()
-    {
-        if (OnboardingState != SupplierOnboardingState.UnderReview)
-        {
-            throw new DomainException(
-                $"Cannot approve from state '{OnboardingState}'; only 'UnderReview' is valid.");
-        }
-
-        OnboardingState = SupplierOnboardingState.Approved;
-        LifecycleState = SupplierLifecycleState.Active;
-    }
-
     public bool IsEmailVerifiedOrLater =>
         OnboardingState is not SupplierOnboardingState.Draft;
 
     /// <summary>
-    /// FEAT-04.1/04.3 core profile fields, editable while EmailVerified or ProfileInProgress
-    /// (STORY-03.1.1 AC3: the application becomes read-only once Submitted). The first call
-    /// advances EmailVerified -> ProfileInProgress.
+    /// FEAT-04.1/04.3 core profile fields, editable while EmailVerified/ProfileInProgress, or
+    /// InfoRequested (STORY-03.3.1: only the fields flagged by the active
+    /// SupplierReviewAnnotation may actually change while InfoRequested - that field-level
+    /// restriction is enforced by the handler, which knows the annotation; the domain only gates
+    /// which *states* allow editing at all). Read-only once Submitted/UnderReview/Approved/Rejected.
+    /// The first EmailVerified call advances to ProfileInProgress.
     /// </summary>
     public void UpdateProfile(string? registrationNumber, string? taxId, string? addressLine, string? city, string? country, string? currencyCode)
     {
-        if (OnboardingState is not (SupplierOnboardingState.EmailVerified or SupplierOnboardingState.ProfileInProgress))
+        if (OnboardingState is not (SupplierOnboardingState.EmailVerified or SupplierOnboardingState.ProfileInProgress or SupplierOnboardingState.InfoRequested))
         {
             throw new DomainException(
-                $"Cannot edit profile from state '{OnboardingState}'; only 'EmailVerified' or 'ProfileInProgress' allow edits.");
+                $"Cannot edit profile from state '{OnboardingState}'; only 'EmailVerified', 'ProfileInProgress', or 'InfoRequested' allow edits.");
         }
 
         RegistrationNumber = registrationNumber;
@@ -121,8 +108,7 @@ public sealed class Supplier
     }
 
     /// <summary>
-    /// Core-profile completeness (STORY-03.1.1 AC1/AC2). Document requirements (EPIC-05) are not
-    /// yet part of this evaluation - MSP-49 will fold them in once document upload exists.
+    /// Core-profile completeness (STORY-03.1.1 AC1/AC2).
     /// </summary>
     public IReadOnlyList<string> GetMissingProfileFields()
     {
@@ -140,9 +126,12 @@ public sealed class Supplier
         return missing;
     }
 
-    /// <summary>ProfileInProgress -> Submitted. Refuses the transition server-side if the
-    /// checklist is incomplete - the UI cannot bypass this (STORY-03.1.1 AC2).</summary>
-    public void Submit()
+    /// <summary>ProfileInProgress -> Submitted. Refuses the transition server-side if the profile
+    /// checklist is incomplete OR any required DocumentType lacks a satisfying uploaded version
+    /// (docs/architecture/DOMAIN-MODEL.md §5.3 invariant) - the UI cannot bypass this (STORY-03.1.1
+    /// AC2). <paramref name="missingRequiredDocumentTypeCodes"/> is computed by the handler, which
+    /// owns the SupplierDocument query the aggregate itself doesn't have access to.</summary>
+    public void Submit(IReadOnlyList<string> missingRequiredDocumentTypeCodes)
     {
         if (OnboardingState != SupplierOnboardingState.ProfileInProgress)
         {
@@ -150,12 +139,94 @@ public sealed class Supplier
                 $"Cannot submit from state '{OnboardingState}'; only 'ProfileInProgress' is valid.");
         }
 
-        var missing = GetMissingProfileFields();
+        var missing = GetMissingProfileFields().Concat(missingRequiredDocumentTypeCodes).ToList();
         if (missing.Count > 0)
         {
-            throw new DomainException($"Cannot submit: missing required fields: {string.Join(", ", missing)}.");
+            throw new DomainException($"Cannot submit: missing required items: {string.Join(", ", missing)}.");
         }
 
         OnboardingState = SupplierOnboardingState.Submitted;
+    }
+
+    /// <summary>Submitted -> UnderReview. Reviewer picks up the application (STORY-03.2.1 AC1).</summary>
+    public void PickUpForReview()
+    {
+        if (OnboardingState is not (SupplierOnboardingState.Submitted or SupplierOnboardingState.Resubmitted))
+        {
+            throw new DomainException(
+                $"Cannot pick up for review from state '{OnboardingState}'; only 'Submitted' or 'Resubmitted' is valid.");
+        }
+
+        OnboardingState = SupplierOnboardingState.UnderReview;
+    }
+
+    /// <summary>
+    /// UnderReview -> Approved -> Active. Only reachable via reviewer action carrying
+    /// supplier.approve permission (enforced at the API); raises the ERP supplier-master sync
+    /// obligation (FEAT-03.5). <paramref name="blockingRequiredDocumentTypeCodes"/> is the
+    /// product-owner-decided approval gate (2026-08-26): approval is refused only if a required
+    /// document is currently Rejected/ScanRejected/Expired - it does NOT require every document to
+    /// already be individually Approved.
+    /// </summary>
+    public void Approve(IReadOnlyList<string> blockingRequiredDocumentTypeCodes)
+    {
+        if (OnboardingState != SupplierOnboardingState.UnderReview)
+        {
+            throw new DomainException(
+                $"Cannot approve from state '{OnboardingState}'; only 'UnderReview' is valid.");
+        }
+
+        if (blockingRequiredDocumentTypeCodes.Count > 0)
+        {
+            throw new DomainException(
+                $"Cannot approve: required documents need attention: {string.Join(", ", blockingRequiredDocumentTypeCodes)}.");
+        }
+
+        OnboardingState = SupplierOnboardingState.Approved;
+        LifecycleState = SupplierLifecycleState.Active;
+    }
+
+    /// <summary>UnderReview -> Rejected. Reason is mandatory (STORY-03.2.1 AC3).</summary>
+    public void Reject(string reason)
+    {
+        if (OnboardingState != SupplierOnboardingState.UnderReview)
+        {
+            throw new DomainException(
+                $"Cannot reject from state '{OnboardingState}'; only 'UnderReview' is valid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A rejection reason is required.");
+        }
+
+        OnboardingState = SupplierOnboardingState.Rejected;
+    }
+
+    /// <summary>UnderReview -> InfoRequested (STORY-03.3.1 AC1). The annotation carrying the
+    /// reason and flagged sections/documents is created by the handler.</summary>
+    public void RequestInfo()
+    {
+        if (OnboardingState != SupplierOnboardingState.UnderReview)
+        {
+            throw new DomainException(
+                $"Cannot request info from state '{OnboardingState}'; only 'UnderReview' is valid.");
+        }
+
+        OnboardingState = SupplierOnboardingState.InfoRequested;
+    }
+
+    /// <summary>InfoRequested -> Resubmitted (STORY-03.3.1 AC2), an intermediate, individually
+    /// audited state before the handler immediately advances it back to UnderReview via
+    /// <see cref="PickUpForReview"/> for the reviewer's next pass.</summary>
+    public void Resubmit()
+    {
+        if (OnboardingState != SupplierOnboardingState.InfoRequested)
+        {
+            throw new DomainException(
+                $"Cannot resubmit from state '{OnboardingState}'; only 'InfoRequested' is valid.");
+        }
+
+        OnboardingState = SupplierOnboardingState.Resubmitted;
     }
 }

@@ -62,3 +62,8 @@ export async function submitApplication(): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/submit-application', { method: 'POST' })
   return parseOrThrow(res)
 }
+
+export async function resubmitApplication(): Promise<SupplierProfile> {
+  const res = await apiFetch('/api/v1/suppliers/me/resubmit-application', { method: 'POST' })
+  return parseOrThrow(res)
+}

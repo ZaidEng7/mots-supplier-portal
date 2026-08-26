@@ -1,0 +1,72 @@
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Suppliers;
+using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Persistence;
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
+/// <summary>FEAT-05.4/FR-DOC-005: document-level approve/reject - simpler than the application-level
+/// three-way decision (STORY-03.2.1/03.3.1), part of the document lifecycle rather than a separate
+/// review flow.</summary>
+public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IApproveDocumentHandler
+{
+    public async Task<ReviewDocumentResult> HandleAsync(Guid documentId, CancellationToken ct)
+    {
+        if (scope.UserId is null)
+        {
+            return new ReviewDocumentResult.NotFoundOrForbidden();
+        }
+
+        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        if (document is null)
+        {
+            return new ReviewDocumentResult.NotFoundOrForbidden();
+        }
+
+        try
+        {
+            document.Approve(scope.UserId.Value);
+        }
+        catch (DomainException ex)
+        {
+            return new ReviewDocumentResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_approved", Guid.NewGuid(), scope.UserId, ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
+    }
+}
+
+public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRejectDocumentHandler
+{
+    public async Task<ReviewDocumentResult> HandleAsync(Guid documentId, string reason, CancellationToken ct)
+    {
+        if (scope.UserId is null)
+        {
+            return new ReviewDocumentResult.NotFoundOrForbidden();
+        }
+
+        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        if (document is null)
+        {
+            return new ReviewDocumentResult.NotFoundOrForbidden();
+        }
+
+        try
+        {
+            document.Reject(scope.UserId.Value, reason);
+        }
+        catch (DomainException ex)
+        {
+            return new ReviewDocumentResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", Guid.NewGuid(), scope.UserId, reason: reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
+    }
+}

@@ -1,0 +1,141 @@
+namespace MotsSupplierPortal.Domain.Suppliers;
+
+/// <summary>
+/// A single uploaded version of a compliance document (FR-DOC-002/006/007). Versioning is
+/// append-only: a re-upload creates a new row and flips <see cref="IsLatestVersion"/> on the old
+/// one rather than mutating history (FEAT-05.6).
+/// </summary>
+public sealed class SupplierDocument
+{
+    public Guid Id { get; private init; }
+    public Guid SupplierId { get; private init; }
+    public Guid DocumentTypeId { get; private init; }
+    public int Version { get; private init; }
+    public bool IsLatestVersion { get; private set; }
+    public DocumentState State { get; private set; }
+    public string StorageKey { get; private set; } = null!;
+    public required string OriginalFileName { get; init; }
+    public required string ContentType { get; init; }
+    public long SizeBytes { get; init; }
+    public DateOnly? IssueDate { get; init; }
+    public DateOnly? ExpiryDate { get; init; }
+    public string? RejectReason { get; private set; }
+    public Guid UploadedByUserId { get; private init; }
+    public DateTimeOffset UploadedAt { get; private init; }
+    public Guid? ReviewedByUserId { get; private set; }
+    public DateTimeOffset? ReviewedAt { get; private set; }
+
+    private SupplierDocument() { }
+
+    public static SupplierDocument CreatePendingScan(
+        Guid supplierId, Guid documentTypeId, int version, string quarantineKey,
+        string originalFileName, string contentType, long sizeBytes, Guid uploadedByUserId,
+        DateOnly? issueDate, DateOnly? expiryDate)
+    {
+        return new SupplierDocument
+        {
+            Id = Guid.CreateVersion7(),
+            SupplierId = supplierId,
+            DocumentTypeId = documentTypeId,
+            Version = version,
+            IsLatestVersion = true,
+            State = DocumentState.PendingScan,
+            StorageKey = quarantineKey,
+            OriginalFileName = originalFileName,
+            ContentType = contentType,
+            SizeBytes = sizeBytes,
+            IssueDate = issueDate,
+            ExpiryDate = expiryDate,
+            UploadedByUserId = uploadedByUserId,
+            UploadedAt = DateTimeOffset.UtcNow,
+        };
+    }
+
+    public void SupersedeWithNewVersion() => IsLatestVersion = false;
+
+    /// <summary>Scan came back clean: object was moved to the clean prefix, the document becomes
+    /// visible/downloadable and counts toward completeness (docs/security §4.1).</summary>
+    public void MarkScanClean(string cleanKey)
+    {
+        if (State != DocumentState.PendingScan)
+        {
+            throw new DomainException($"Cannot mark scan clean from state '{State}'; only 'PendingScan' is valid.");
+        }
+
+        StorageKey = cleanKey;
+        State = DocumentState.Uploaded;
+    }
+
+    /// <summary>Scan found malware: the object itself is deleted by the caller; this row is kept
+    /// (ScanRejected) purely as an audit trail so the supplier sees why re-upload is required.</summary>
+    public void MarkScanRejected()
+    {
+        if (State != DocumentState.PendingScan)
+        {
+            throw new DomainException($"Cannot reject scan from state '{State}'; only 'PendingScan' is valid.");
+        }
+
+        State = DocumentState.ScanRejected;
+    }
+
+    public void Approve(Guid reviewerUserId)
+    {
+        if (State is not (DocumentState.Uploaded or DocumentState.UnderReview))
+        {
+            throw new DomainException($"Cannot approve from state '{State}'; only 'Uploaded' or 'UnderReview' is valid.");
+        }
+
+        State = DocumentState.Approved;
+        ReviewedByUserId = reviewerUserId;
+        ReviewedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Reject(Guid reviewerUserId, string reason)
+    {
+        if (State is not (DocumentState.Uploaded or DocumentState.UnderReview))
+        {
+            throw new DomainException($"Cannot reject from state '{State}'; only 'Uploaded' or 'UnderReview' is valid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A rejection reason is required.");
+        }
+
+        State = DocumentState.Rejected;
+        RejectReason = reason;
+        ReviewedByUserId = reviewerUserId;
+        ReviewedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkExpiringSoon()
+    {
+        if (State != DocumentState.Approved)
+        {
+            throw new DomainException($"Cannot mark expiring-soon from state '{State}'; only 'Approved' is valid.");
+        }
+
+        State = DocumentState.ExpiringSoon;
+    }
+
+    public void MarkExpired()
+    {
+        if (State is not (DocumentState.Approved or DocumentState.ExpiringSoon))
+        {
+            throw new DomainException($"Cannot mark expired from state '{State}'; only 'Approved' or 'ExpiringSoon' is valid.");
+        }
+
+        State = DocumentState.Expired;
+    }
+
+    /// <summary>Whether this version currently satisfies its DocumentType requirement for the
+    /// onboarding-submit completeness gate (docs/architecture/DOMAIN-MODEL.md §5.3 invariant).</summary>
+    public bool SatisfiesSubmitRequirement =>
+        State is DocumentState.Uploaded or DocumentState.UnderReview or DocumentState.Approved or DocumentState.ExpiringSoon;
+
+    /// <summary>Whether this version currently blocks reviewer approval of the whole application
+    /// (product-owner decision 2026-08-26: approval requires "no unresolved required docs
+    /// Rejected/Expired" - it does NOT require every document to already be Approved).</summary>
+    public bool BlocksApplicationApproval =>
+        State is DocumentState.Rejected or DocumentState.ScanRejected or DocumentState.Expired;
+}

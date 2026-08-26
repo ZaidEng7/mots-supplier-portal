@@ -9,6 +9,15 @@ public static class Permissions
     public const string SupplierEdit = "supplier.edit";
     public const string SupplierSubmit = "supplier.submit";
     public const string SupplierApprove = "supplier.approve";
+    /// <summary>Pick up an application and reject it (STORY-03.2.1) - distinct from
+    /// SupplierApprove per product-owner decision 2026-08-26, so approval and the
+    /// review/reject workflow can be granted independently if a role ever needs one without
+    /// the other.</summary>
+    public const string SupplierReview = "supplier.review";
+    public const string SupplierRequestInfo = "supplier.requestInfo";
+    /// <summary>Document-level approve/reject (FEAT-05.4) - simpler than, and distinct from, the
+    /// application-level three-way decision above.</summary>
+    public const string DocumentReview = "document.review";
     public const string RfqPublish = "rfq.publish";
     public const string ProposalSubmit = "proposal.submit";
     public const string EvaluationScore = "evaluation.score";
@@ -18,7 +27,8 @@ public static class Permissions
 
     public static readonly IReadOnlyList<string> All =
     [
-        SupplierEdit, SupplierSubmit, SupplierApprove, RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
+        SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierRequestInfo, DocumentReview,
+        RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
     ];
 }
 
@@ -39,7 +49,7 @@ public static class Roles
     {
         [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit],
         [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
-        [OnboardingReviewer] = [Permissions.SupplierApprove],
+        [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierRequestInfo, Permissions.DocumentReview],
         [ProcurementOfficer] = [Permissions.RfqPublish],
         [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove],
         [Evaluator] = [Permissions.EvaluationScore],
