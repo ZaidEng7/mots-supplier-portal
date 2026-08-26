@@ -1,0 +1,150 @@
+/* Design tokens — MOTS Supplier Portal
+   Source of truth: docs/ux/DESIGN-SYSTEM.md §2-3
+   Two-layer model: primitives (--brand-500) -> semantics (--color-*).
+   Components must only ever consume semantic tokens. */
+
+:root {
+  /* Primitive — Brand (evergreen-teal) */
+  --brand-50: #ECF6F3;
+  --brand-100: #D2EBE4;
+  --brand-200: #A6D6C9;
+  --brand-300: #6FBAA8;
+  --brand-400: #3E9A85;
+  --brand-500: #1F8069;
+  --brand-600: #136A57;
+  --brand-700: #0F5647;
+  --brand-800: #0D453A;
+  --brand-900: #0A3730;
+
+  /* Primitive — Neutrals (warm stone) */
+  --n-50: #FAF9F7;
+  --n-100: #F3F1ED;
+  --n-200: #E7E3DC;
+  --n-300: #D6D0C6;
+  --n-400: #B4AB9D;
+  --n-500: #8B8173;
+  --n-600: #6B6255;
+  --n-700: #4C463B;
+  --n-800: #302B24;
+  --n-900: #1C1B19;
+
+  /* Primitive — Accent & semantic */
+  --accent-gold-500: #C8A045;
+  --accent-gold-600: #A98633;
+  --success-500: #1E874B;
+  --success-600: #166B3B;
+  --success-50: #E9F5EE;
+  --warning-500: #B7791F;
+  --warning-600: #8F5E17;
+  --warning-50: #FBF2E1;
+  --danger-500: #C0392B;
+  --danger-600: #9C2C20;
+  --danger-50: #FBEAE7;
+  --info-500: #2563A6;
+  --info-600: #1D4E82;
+  --info-50: #E8F0F8;
+
+  color-scheme: light;
+
+  /* Semantic — Surfaces */
+  --color-bg-app: var(--n-50);
+  --color-bg-surface: #FFFFFF;
+  --color-bg-sunken: var(--n-100);
+  --color-bg-inset: var(--n-100);
+  --color-bg-hover: var(--n-100);
+  --color-bg-selected: var(--brand-100);
+  --color-bg-overlay: rgba(28, 27, 25, 0.48);
+
+  /* Semantic — Text */
+  --color-text-primary: var(--n-900);
+  --color-text-secondary: var(--n-600);
+  --color-text-muted: var(--n-500);
+  --color-text-disabled: var(--n-400);
+  --color-text-inverse: #FFFFFF;
+  --color-text-link: var(--brand-600);
+  --color-text-brand: var(--brand-700);
+
+  /* Semantic — Borders */
+  --color-border: var(--n-200);
+  --color-border-strong: var(--n-300);
+  --color-border-focus: var(--brand-500);
+  --color-border-input: var(--n-300);
+
+  /* Semantic — Brand / interactive */
+  --color-brand-solid: var(--brand-600);
+  --color-brand-solid-hover: var(--brand-700);
+  --color-brand-solid-active: var(--brand-800);
+  --color-brand-subtle: var(--brand-50);
+
+  --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--brand-500);
+
+  --color-success-fg: var(--success-600); --color-success-bg: var(--success-50); --color-success-solid: var(--success-500);
+  --color-warning-fg: var(--warning-600); --color-warning-bg: var(--warning-50); --color-warning-solid: var(--warning-500);
+  --color-danger-fg: var(--danger-600);  --color-danger-bg: var(--danger-50);  --color-danger-solid: var(--danger-500);
+  --color-info-fg: var(--info-600);    --color-info-bg: var(--info-50);    --color-info-solid: var(--info-500);
+  --color-gold-fg: var(--accent-gold-600); --color-gold-solid: var(--accent-gold-500);
+
+  /* Typography */
+  --font-sans-ar: "IBM Plex Sans Arabic", "Inter", system-ui, sans-serif;
+  --font-sans-latin: "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-numeric: "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-display: 2.25rem; --text-h1: 1.875rem; --text-h2: 1.5rem; --text-h3: 1.25rem;
+  --text-h4: 1.125rem; --text-body-lg: 1rem; --text-body: 0.875rem; --text-body-sm: 0.8125rem;
+  --text-caption: 0.75rem;
+  --lh-tight: 1.25; --lh-normal: 1.5; --lh-relaxed: 1.6;
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+}
+
+:root[dir="rtl"] { --font-ui: var(--font-sans-ar); --lh-body: var(--lh-relaxed); }
+:root[dir="ltr"] { --font-ui: var(--font-sans-latin); --lh-body: var(--lh-normal); }
+
+.theme-dark, :root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg-app: var(--n-900);
+  --color-bg-surface: #26241F;
+  --color-bg-sunken: #1F1D19;
+  --color-bg-inset: #201E1A;
+  --color-bg-hover: #2F2C26;
+  --color-bg-selected: rgba(31, 128, 105, 0.22);
+  --color-bg-overlay: rgba(0, 0, 0, 0.60);
+
+  --color-text-primary: #F4F1EC;
+  --color-text-secondary: #C4BDB1;
+  --color-text-muted: #948C7E;
+  --color-text-disabled: #6B6357;
+  --color-text-inverse: var(--n-900);
+  --color-text-link: var(--brand-300);
+  --color-text-brand: var(--brand-300);
+
+  --color-border: #3A362F;
+  --color-border-strong: #4A453C;
+  --color-border-focus: var(--brand-300);
+  --color-border-input: #4A453C;
+
+  --color-brand-solid: var(--brand-500);
+  --color-brand-solid-hover: var(--brand-400);
+  --color-brand-solid-active: var(--brand-300);
+  --color-brand-subtle: rgba(31, 128, 105, 0.16);
+
+  --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--brand-300);
+
+  --color-success-fg: #6FCF97; --color-success-bg: rgba(30,135,75,0.16);  --color-success-solid: var(--success-500);
+  --color-warning-fg: #E3B15C; --color-warning-bg: rgba(183,121,31,0.16); --color-warning-solid: var(--warning-500);
+  --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: var(--danger-500);
+  --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: var(--info-500);
+  --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
+}
+
+body {
+  font-family: var(--font-ui);
+  background-color: var(--color-bg-app);
+  color: var(--color-text-primary);
+}
+
+.num, [data-numeric] {
+  font-family: var(--font-numeric);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
