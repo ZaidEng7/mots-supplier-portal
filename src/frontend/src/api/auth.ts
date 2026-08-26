@@ -35,13 +35,19 @@ export async function login(email: string, password: string): Promise<TokenRespo
   return parseJsonOrThrow<TokenResponse>(res)
 }
 
+/** Treats an unreachable API the same as "not authenticated" - a network failure here must not
+ * hang the caller (e.g. the router's auth guard) forever waiting on an uncaught rejection. */
 export async function refresh(): Promise<TokenResponse | null> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  })
-  if (!res.ok) return null
-  return res.json()
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
 }
 
 export async function logout(): Promise<void> {
