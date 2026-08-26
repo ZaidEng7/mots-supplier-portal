@@ -2,23 +2,27 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using Testcontainers.Minio;
 using Testcontainers.PostgreSql;
 
 namespace MotsSupplierPortal.Tests.Integration;
 
 /// <summary>
-/// Spins up a real PostgreSQL container (Testcontainers) and boots the actual API host
-/// (WebApplicationFactory&lt;Program&gt;) against it, applying the real EF Core migrations -
+/// Spins up real PostgreSQL and MinIO containers (Testcontainers) and boots the actual API host
+/// (WebApplicationFactory&lt;Program&gt;) against them, applying the real EF Core migrations -
 /// no mocked persistence, matching docs/backlog gap item 3's "Testcontainers-backed
-/// integration tests" requirement.
+/// integration tests" requirement. MinIO is required because Program.cs calls
+/// EnsureBucketExistsAsync at startup (MSP-49's document storage) - without a real endpoint the
+/// whole host fails to boot, failing every test in this fixture, not just document ones.
 /// </summary>
 public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder().Build();
+    private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
 
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
+        await Task.WhenAll(_postgres.StartAsync(), _minio.StartAsync());
 
         // Migrate with a standalone DbContext BEFORE the host boots: Program.cs seeds Identity
         // roles as part of startup (Development-only), which needs the identity schema to
@@ -40,11 +44,17 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Default", _postgres.GetConnectionString());
+
+        var minioEndpoint = new Uri(_minio.GetConnectionString());
+        builder.UseSetting("Minio:Endpoint", $"{minioEndpoint.Host}:{minioEndpoint.Port}");
+        builder.UseSetting("Minio:AccessKey", _minio.GetAccessKey());
+        builder.UseSetting("Minio:SecretKey", _minio.GetSecretKey());
+        builder.UseSetting("Minio:UseSsl", "false");
     }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        await _postgres.DisposeAsync();
+        await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _minio.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }
