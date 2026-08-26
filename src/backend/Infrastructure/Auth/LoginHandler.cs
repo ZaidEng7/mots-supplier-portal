@@ -75,6 +75,7 @@ public sealed class LoginHandler(
             UserId = user.Id,
             TokenHash = TokenHasher.Hash(refreshPlainText),
             FamilyId = familyId,
+            CreatedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddDays(_jwtOptions.RefreshTokenDays),
             Ip = ip,
             UserAgent = userAgent,

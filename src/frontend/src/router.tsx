@@ -13,11 +13,13 @@ import { refresh } from './api/auth'
 // component means the initial chunk only needs the router shell.
 const HomePage = lazy(() => import('./routes/HomePage').then((m) => ({ default: m.HomePage })))
 const LoginPage = lazy(() => import('./routes/LoginPage').then((m) => ({ default: m.LoginPage })))
+const RegisterPage = lazy(() => import('./routes/RegisterPage').then((m) => ({ default: m.RegisterPage })))
 const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
 const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
 const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
 const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
 const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
+const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
@@ -56,6 +58,12 @@ const loginRoute = createRoute({
     redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
   }),
   component: LoginPage,
+})
+
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/register',
+  component: RegisterPage,
 })
 
 const forgotPasswordRoute = createRoute({
@@ -143,6 +151,12 @@ const onboardingRoute = createRoute({
   component: OnboardingPage,
 })
 
+const settingsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/settings',
+  component: SettingsPage,
+})
+
 // --- Back-office app shell (protected, staff-only: no supplierId claim) ---
 const backOfficeLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -170,10 +184,11 @@ const backOfficeDashboardRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  registerRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
   verifyEmailRoute,
-  supplierLayoutRoute.addChildren([supplierDashboardRoute, onboardingRoute]),
+  supplierLayoutRoute.addChildren([supplierDashboardRoute, onboardingRoute, settingsRoute]),
   backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute]),
 ])
 

@@ -11,6 +11,7 @@ public sealed class RefreshToken
     public Guid UserId { get; init; }
     public required string TokenHash { get; init; }
     public Guid FamilyId { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset ExpiresAt { get; init; }
     public DateTimeOffset? RevokedAt { get; set; }
     public string? Ip { get; init; }

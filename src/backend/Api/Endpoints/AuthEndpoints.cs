@@ -153,6 +153,42 @@ public static class AuthEndpoints
         })
         .WithName("ResetPassword")
         .RequireRateLimiting("auth-strict");
+
+        // FR-IAM-007: session management - view active sessions, revoke one or all.
+        group.MapGet("/sessions", async (
+            HttpContext httpContext,
+            IListSessionsHandler handler,
+            CancellationToken ct) =>
+        {
+            httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
+            var sessions = await handler.HandleAsync(currentToken, ct);
+            return Results.Ok(sessions);
+        })
+        .RequireAuthorization()
+        .WithName("ListSessions");
+
+        group.MapPost("/sessions/{familyId:guid}/revoke", async (
+            Guid familyId,
+            IRevokeSessionHandler handler,
+            CancellationToken ct) =>
+        {
+            var revoked = await handler.HandleAsync(familyId, ct);
+            return revoked ? Results.NoContent() : Results.NotFound();
+        })
+        .RequireAuthorization()
+        .WithName("RevokeSession");
+
+        group.MapPost("/sessions/revoke-all", async (
+            HttpContext httpContext,
+            IRevokeAllSessionsHandler handler,
+            CancellationToken ct) =>
+        {
+            httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
+            var count = await handler.HandleAsync(currentToken, excludeCurrent: true, ct);
+            return Results.Ok(new { revokedCount = count });
+        })
+        .RequireAuthorization()
+        .WithName("RevokeAllOtherSessions");
     }
 
     /// <summary>

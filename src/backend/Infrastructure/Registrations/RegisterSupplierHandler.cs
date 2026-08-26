@@ -45,7 +45,8 @@ public sealed class RegisterSupplierHandler(
                 command.DisplayNameEn,
                 command.RegistrationNumber,
                 command.RepresentativeName,
-                normalizedEmail);
+                normalizedEmail,
+                command.RepresentativePhone);
 
             db.Suppliers.Add(supplier);
             await db.SaveChangesAsync(ct);

@@ -5,6 +5,7 @@ public sealed record RegisterSupplierCommand(
     string DisplayNameEn,
     string? RegistrationNumber,
     string RepresentativeName,
+    string RepresentativePhone,
     string Email,
     string Password);
 

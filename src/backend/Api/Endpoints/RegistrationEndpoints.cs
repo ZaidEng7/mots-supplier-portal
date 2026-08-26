@@ -8,6 +8,7 @@ public sealed record RegisterSupplierRequest(
     string DisplayNameEn,
     string? RegistrationNumber,
     string RepresentativeName,
+    string RepresentativePhone,
     string Email,
     string Password);
 
@@ -18,6 +19,7 @@ public sealed class RegisterSupplierRequestValidator : AbstractValidator<Registe
         RuleFor(x => x.DisplayNameAr).NotEmpty().MaximumLength(200);
         RuleFor(x => x.DisplayNameEn).NotEmpty().MaximumLength(200);
         RuleFor(x => x.RepresentativeName).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.RepresentativePhone).NotEmpty().MaximumLength(30);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(320);
         RuleFor(x => x.Password).NotEmpty();
     }
@@ -49,6 +51,7 @@ public static class RegistrationEndpoints
                     request.DisplayNameEn,
                     request.RegistrationNumber,
                     request.RepresentativeName,
+                    request.RepresentativePhone,
                     request.Email,
                     request.Password),
                 ct);

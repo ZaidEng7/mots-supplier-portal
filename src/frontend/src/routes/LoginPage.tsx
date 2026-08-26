@@ -77,6 +77,13 @@ export function LoginPage() {
         >
           {t('auth.forgotPassword')}
         </Link>
+        <Link
+          to="/register"
+          className="mt-2 block text-center text-[length:var(--text-body-sm)]"
+          style={{ color: 'var(--color-text-link)' }}
+        >
+          {t('register.createAccount')}
+        </Link>
       </div>
     </div>
   )

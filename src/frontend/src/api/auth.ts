@@ -77,6 +77,7 @@ export interface RegisterSupplierPayload {
   displayNameEn: string
   registrationNumber?: string
   representativeName: string
+  representativePhone: string
   email: string
   password: string
 }

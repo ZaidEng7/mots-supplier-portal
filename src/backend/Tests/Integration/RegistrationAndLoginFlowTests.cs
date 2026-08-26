@@ -28,6 +28,7 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture) : 
             displayNameEn = "Integration Test Co",
             registrationNumber = "RC-9999",
             representativeName = "Integration Tester",
+            representativePhone = "+963900000001",
             email,
             password = "IntegrationTest#2026!",
         });
@@ -56,6 +57,7 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture) : 
             displayNameEn = "Integration Test Co 2",
             registrationNumber = "RC-9998",
             representativeName = "Integration Tester Two",
+            representativePhone = "+963900000002",
             email,
             password,
         });

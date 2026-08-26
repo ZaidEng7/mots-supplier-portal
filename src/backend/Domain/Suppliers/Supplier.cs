@@ -37,7 +37,8 @@ public sealed class Supplier
         string displayNameEn,
         string? registrationNumber,
         string primaryRepresentativeName,
-        string primaryRepresentativeEmail)
+        string primaryRepresentativeEmail,
+        string? primaryRepresentativePhone = null)
     {
         var supplier = new Supplier
         {
@@ -55,6 +56,7 @@ public sealed class Supplier
             SupplierId = supplier.Id,
             FullName = primaryRepresentativeName,
             Email = primaryRepresentativeEmail,
+            Phone = primaryRepresentativePhone,
             IsPrimary = true,
         });
 
