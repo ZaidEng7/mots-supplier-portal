@@ -1,0 +1,34 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "npx sirv-cli dist --single --compress --port 4173",
+      "startServerReadyPattern": "Your application is ready",
+      "startServerReadyTimeout": 20000,
+      "url": ["http://localhost:4173/", "http://localhost:4173/login"],
+      "numberOfRuns": 2,
+      "settings": {
+        "formFactor": "mobile",
+        "screenEmulation": { "mobile": true, "width": 412, "height": 823, "deviceScaleFactor": 2.625, "disabled": false },
+        "throttlingMethod": "simulate",
+        "throttling": {
+          "rttMs": 150,
+          "throughputKbps": 9000,
+          "cpuSlowdownMultiplier": 4,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 0,
+          "uploadThroughputKbps": 0
+        }
+      }
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./lhci-reports"
+    }
+  }
+}

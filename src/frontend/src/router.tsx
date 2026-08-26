@@ -1,18 +1,25 @@
+import { lazy, Suspense } from 'react'
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { HomePage } from './routes/HomePage'
 import { LanguageSwitch } from './components/LanguageSwitch'
-import { LoginPage } from './routes/LoginPage'
-import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
-import { ResetPasswordPage } from './routes/ResetPasswordPage'
-import { VerifyEmailPage } from './routes/VerifyEmailPage'
-import { SupplierDashboardPage } from './routes/SupplierDashboardPage'
-import { BackOfficeDashboardPage } from './routes/BackOfficeDashboardPage'
-import { SupplierShell } from './shells/SupplierShell'
-import { BackOfficeShell } from './shells/BackOfficeShell'
 import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
 import { useAuthStore } from './lib/authStore'
 import { refresh } from './api/auth'
+
+// Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
+// 2.5s ... route-level code splitting"). A single unsplit bundle measured ~3.4s LCP under
+// Lighthouse's mobile/4G throttling - well over budget - because every route pulled in every
+// other route's code (Radix, react-hook-form, zod) on first paint. Lazy-loading each route
+// component means the initial chunk only needs the router shell.
+const HomePage = lazy(() => import('./routes/HomePage').then((m) => ({ default: m.HomePage })))
+const LoginPage = lazy(() => import('./routes/LoginPage').then((m) => ({ default: m.LoginPage })))
+const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
+const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
+const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
+const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
+const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
+const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
+const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
 /** Ensures a valid access token is in memory before a protected route renders — on a cold load
  * (page refresh) the store is empty, so this silently exchanges the httpOnly refresh cookie for a
@@ -32,7 +39,11 @@ async function ensureAuthenticated(currentPath: string) {
 }
 
 const rootRoute = createRootRoute({
-  component: () => <Outlet />,
+  component: () => (
+    <Suspense fallback={null}>
+      <Outlet />
+    </Suspense>
+  ),
   notFoundComponent: () => <ErrorBoundaryScreen code="404" />,
   errorComponent: () => <ErrorBoundaryScreen code="500" />,
 })

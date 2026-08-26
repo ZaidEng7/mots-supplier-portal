@@ -31,3 +31,7 @@ src/frontend/.impeccable/
 test-results/
 playwright-report/
 storybook-static/
+
+# Lighthouse CI
+lhci-reports/
+.lighthouseci/
