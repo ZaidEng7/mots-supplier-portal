@@ -1,9 +1,12 @@
 using System.Text;
 using FluentValidation;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Api.Endpoints;
 using MotsSupplierPortal.Application.Auth;
@@ -46,6 +49,15 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
+// Hangfire: durable background jobs (verification email, password-reset email) backed by Postgres
+// so a queued send survives an app restart (docs/architecture/00-foundational-decisions.md §2).
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
+builder.Services.AddHangfireServer();
+
 // Identity: local ASP.NET Core Identity now, MFA-ready, IdP-swappable later (00-foundational-decisions.md §2)
 builder.Services
     .AddIdentityCore<AppUser>(options =>
@@ -76,6 +88,9 @@ builder.Services
     })
     .AddJwtBearer(options =>
     {
+        // Keep JWT claim names verbatim (e.g. "sub") instead of ASP.NET Core's default
+        // remap to long XML-namespace claim types - HttpScopeContext reads "sub" directly.
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -99,6 +114,12 @@ builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<ILoginHandler>(sp => sp.GetRequiredService<LoginHandler>());
 builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
+builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
+builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
+builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
+builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
+builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+builder.Services.AddScoped<EmailJobs>();
 builder.Services.AddScoped<IGetSupplierHandler, GetSupplierHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Audit.IGetAuditLogHandler, MotsSupplierPortal.Infrastructure.Audit.GetAuditLogHandler>();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
@@ -116,7 +137,8 @@ builder.Services.AddCors(options =>
         .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
             ?? ["http://localhost:5173"])
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials()); // required so the refresh-token HttpOnly cookie is sent cross-port
 });
 
 var app = builder.Build();
@@ -149,8 +171,14 @@ app.MapGet("/api/v1/reference/currencies", async (IGetCurrenciesHandler handler,
 
 app.MapRegistrationEndpoints();
 app.MapAuthEndpoints();
+app.MapMfaEndpoints();
 app.MapSupplierEndpoints();
 app.MapAuditEndpoints();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapHangfireDashboard("/hangfire");
+}
 
 app.Run();
 

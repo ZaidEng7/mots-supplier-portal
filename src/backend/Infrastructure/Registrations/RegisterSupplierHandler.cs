@@ -1,12 +1,14 @@
+using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Registrations;
@@ -20,7 +22,8 @@ public sealed class RegisterSupplierHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
     IAuditLogger auditLogger,
-    ILogger<RegisterSupplierHandler> logger) : IRegisterSupplierHandler
+    IBackgroundJobClient backgroundJobs,
+    IConfiguration configuration) : IRegisterSupplierHandler
 {
     public async Task<RegisterSupplierResult> HandleAsync(RegisterSupplierCommand command, CancellationToken ct)
     {
@@ -72,13 +75,15 @@ public sealed class RegisterSupplierHandler(
 
             await transaction.CommitAsync(ct);
 
-            // Verification email (STORY-02.2.1). EPIC-15 (Notifications) owns real delivery;
-            // for now the token is logged so the flow is testable end-to-end without a mailer.
+            // Verification email (STORY-02.2.1): queued on Hangfire as a durable job, not sent
+            // inline. EPIC-15 (Notifications) owns the real SMTP/SES transport; IEmailSender is
+            // stubbed to a logger until then, but the queuing/retry behavior is real.
             var confirmationToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
             var encodedToken = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(confirmationToken));
-            logger.LogInformation(
-                "Verification link for {Email}: /api/v1/registrations/verify?userId={UserId}&token={Token}",
-                user.Email, user.Id, encodedToken);
+            var frontendUrl = configuration["App:PublicUrl"] ?? "http://localhost:5173";
+            var verifyUrl = $"{frontendUrl}/verify-email?userId={user.Id}&token={Uri.EscapeDataString(encodedToken)}";
+
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Email!, verifyUrl, CancellationToken.None));
 
             await auditLogger.LogAsync(
                 aggregateType: "Supplier",

@@ -442,7 +442,8 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
             migrationBuilder.RenameTable(
                 name: "currencies",
                 schema: "reference",
-                newName: "currencies");
+                newName: "currencies",
+                newSchema: "public");
         }
     }
 }
