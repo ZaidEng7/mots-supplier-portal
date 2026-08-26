@@ -29,6 +29,28 @@ jobs:
       - name: Unit tests
         run: dotnet test Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal"
 
+      - name: Architecture tests (NetArchTest)
+        run: dotnet test Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal"
+
+  backend-integration:
+    name: Backend integration (Testcontainers)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Integration tests (real Postgres via Testcontainers)
+        run: dotnet test Tests/Integration/MotsSupplierPortal.Tests.Integration.csproj --configuration Release --logger "console;verbosity=normal"
+
   frontend:
     name: Frontend (React)
     runs-on: ubuntu-latest
@@ -55,6 +77,25 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Build Storybook
+        run: npm run build-storybook
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright smoke + axe a11y checks
+        run: npx playwright test
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: src/frontend/playwright-report/
+          retention-days: 7
 
   docker-build:
     name: Container image build
