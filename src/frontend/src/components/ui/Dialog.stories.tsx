@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { ComponentProps } from 'react'
 import { Dialog } from './Dialog'
 import { Button } from './Button'
+
+function DialogStoryRender(args: ComponentProps<typeof Dialog>) {
+  const [open, setOpen] = useState(true)
+  return <Dialog {...args} open={open} onOpenChange={setOpen} />
+}
 
 const meta = {
   title: 'UI/Dialog',
   component: Dialog,
-  render: (args) => {
-    const [open, setOpen] = useState(true)
-    return <Dialog {...args} open={open} onOpenChange={setOpen} />
-  },
+  render: DialogStoryRender,
   args: {
     open: true,
     onOpenChange: () => {},

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { ComponentProps } from 'react'
 import { Select } from './Select'
 
 const options = [
@@ -8,13 +9,15 @@ const options = [
   { value: 'EUR', label: 'Euro' },
 ]
 
+function SelectStoryRender(args: ComponentProps<typeof Select>) {
+  const [value, setValue] = useState(args.value)
+  return <Select {...args} value={value} onValueChange={setValue} />
+}
+
 const meta = {
   title: 'UI/Select',
   component: Select,
-  render: (args) => {
-    const [value, setValue] = useState(args.value)
-    return <Select {...args} value={value} onValueChange={setValue} />
-  },
+  render: SelectStoryRender,
   args: { options, placeholder: 'Select a currency', onValueChange: () => {} },
 } satisfies Meta<typeof Select>
 
