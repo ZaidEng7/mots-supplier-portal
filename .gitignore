@@ -26,3 +26,8 @@ dist-ssr/
 # Logs
 *.log
 src/frontend/.impeccable/
+
+# Playwright
+test-results/
+playwright-report/
+storybook-static/

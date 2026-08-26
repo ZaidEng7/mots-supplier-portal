@@ -19,7 +19,7 @@ export function HomePage() {
         <h2 className="mb-2 text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
           {t('health.title')}
         </h2>
-        {health.isLoading && <p style={{ color: 'var(--color-text-muted)' }}>...</p>}
+        {health.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>...</p>}
         {health.isSuccess && (
           <span
             className="inline-flex rounded-full px-3 py-1 text-sm font-medium"

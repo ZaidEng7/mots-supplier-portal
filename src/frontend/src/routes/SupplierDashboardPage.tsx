@@ -18,7 +18,7 @@ export function SupplierDashboardPage() {
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
       >
         <div>
-          <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('dashboard.supplierId')}
           </p>
           <p className="num text-[length:var(--text-body)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -26,7 +26,7 @@ export function SupplierDashboardPage() {
           </p>
         </div>
         <div>
-          <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('dashboard.permission')}
           </p>
           <div className="flex flex-wrap gap-1">

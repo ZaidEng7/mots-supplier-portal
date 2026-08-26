@@ -34,7 +34,9 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
       </Label.Root>
       {children({ id, 'aria-describedby': describedBy, 'aria-invalid': !!error })}
       {hint && !error ? (
-        <p id={hintId} className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
+        // --color-text-muted fails WCAG AA at caption size (3.83:1 vs the 4.5:1 required for
+        // small text) - use --color-text-secondary here, which clears AA at 5.99:1.
+        <p id={hintId} className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
           {hint}
         </p>
       ) : null}

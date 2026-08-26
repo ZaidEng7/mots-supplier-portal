@@ -16,12 +16,15 @@ interface SelectProps {
   'aria-invalid'?: boolean
 }
 
-/** Accessible select built on Radix — keyboard nav, typeahead, and screen-reader semantics for free. */
+/** Accessible select built on Radix — keyboard nav, typeahead, and screen-reader semantics for free.
+ * Radix's placeholder text is visual only and does not contribute an accessible name, so the
+ * trigger needs an explicit aria-label (falls back to the placeholder when no Field label wraps it). */
 export function Select({ id, value, onValueChange, options, placeholder, ...aria }: SelectProps) {
   return (
     <RadixSelect.Root value={value} onValueChange={onValueChange}>
       <RadixSelect.Trigger
         id={id}
+        aria-label={placeholder}
         {...aria}
         className="flex w-full items-center justify-between gap-2 rounded-[0.375rem] px-3 py-2 text-[length:var(--text-body)] outline-none"
         style={{
