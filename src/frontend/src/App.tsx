@@ -1,17 +1,18 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { AppShell } from './components/AppShell'
+import { RouterProvider } from '@tanstack/react-router'
 import { useDirection } from './i18n/useDirection'
 import { queryClient } from './lib/queryClient'
-import { HomePage } from './routes/HomePage'
+import { ToastProvider } from './components/ui'
+import { router } from './router'
 
 function App() {
   useDirection()
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell>
-        <HomePage />
-      </AppShell>
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
     </QueryClientProvider>
   )
 }
