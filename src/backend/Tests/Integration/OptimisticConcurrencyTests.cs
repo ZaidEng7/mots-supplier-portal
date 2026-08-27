@@ -1,12 +1,7 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
-using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Tests.Integration;
 
@@ -22,40 +17,6 @@ namespace MotsSupplierPortal.Tests.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
 {
-    private async Task<HttpClient> CreateVerifiedSupplierClientAsync()
-    {
-        var client = fixture.CreateClient();
-        var email = $"concurrency-{Guid.NewGuid():N}@example.com";
-        const string password = "IntegrationTest#2026!";
-
-        await client.PostAsJsonAsync("/api/v1/registrations", new
-        {
-            displayNameAr = "شركة اختبار التزامن",
-            displayNameEn = "Concurrency Test Co",
-            registrationNumber = $"RC-{Guid.NewGuid():N}"[..12],
-            representativeName = "Concurrency Tester",
-            representativePhone = "+963900000123",
-            email,
-            password,
-        });
-
-        using (var scope = fixture.Services.CreateScope())
-        {
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-            var tokens = scope.ServiceProvider.GetRequiredService<ISecurityTokenService>();
-            var user = await userManager.FindByEmailAsync(email);
-            var raw = await tokens.IssueAsync(user!.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), CancellationToken.None);
-            await client.PostAsJsonAsync("/api/v1/registrations/verify", new { token = raw });
-        }
-
-        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
-        var body = await login.Content.ReadFromJsonAsync<JsonElement>();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", body.GetProperty("accessToken").GetString());
-
-        return client;
-    }
-
     private static HttpRequestMessage PatchProfile(string description, uint? ifMatch)
     {
         var request = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
@@ -74,7 +35,7 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Second_writer_with_a_stale_row_version_is_rejected_with_a_conflict()
     {
-        var client = await CreateVerifiedSupplierClientAsync();
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Concurrency Test Co");
 
         // Both "editors" read the same version — the real-world setup for a lost update.
         var read = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
@@ -105,7 +66,7 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Writer_holding_the_current_row_version_succeeds()
     {
-        var client = await CreateVerifiedSupplierClientAsync();
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Concurrency Test Co");
 
         var read = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         var version = read.GetProperty("rowVersion").GetUInt32();
