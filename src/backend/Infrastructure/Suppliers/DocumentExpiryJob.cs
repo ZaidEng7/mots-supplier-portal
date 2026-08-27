@@ -1,6 +1,8 @@
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -11,7 +13,7 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// target state, so re-running (e.g. after a host restart) never double-transitions or
 /// double-notifies.
 /// </summary>
-public sealed class DocumentExpiryJob(AppDbContext db, IAuditLogger auditLogger)
+public sealed class DocumentExpiryJob(AppDbContext db, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
 {
     private static readonly TimeSpan ExpiringSoonWindow = TimeSpan.FromDays(30); // [ASSUMPTION] matches FEAT-05.5's "configurable window"
 
@@ -43,6 +45,26 @@ public sealed class DocumentExpiryJob(AppDbContext db, IAuditLogger auditLogger)
         if (expiringSoon.Count > 0 || expired.Count > 0)
         {
             await db.SaveChangesAsync(ct);
+        }
+
+        // Notifications are enqueued after the state-change transaction commits, and only for
+        // documents this run actually transitioned - re-running the idempotent job never re-notifies.
+        foreach (var doc in expiringSoon)
+        {
+            var email = await db.Users.Where(u => u.SupplierId == doc.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+            if (email is not null)
+            {
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiringEmailAsync(email, doc.OriginalFileName, CancellationToken.None));
+            }
+        }
+
+        foreach (var doc in expired)
+        {
+            var email = await db.Users.Where(u => u.SupplierId == doc.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+            if (email is not null)
+            {
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiredEmailAsync(email, doc.OriginalFileName, CancellationToken.None));
+            }
         }
     }
 }

@@ -59,6 +59,15 @@ const DOC_STATE_TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' |
   Expired: 'danger',
 }
 
+// FEAT-05.8: "N days" countdown for documents approaching/past expiry, next to the state chip.
+// Western digits (numberingSystem latn) to match the rest of the app's tabular-numeral convention
+// (ASSUMPTIONS.md FEAT-27.3), not the locale's native digits.
+function expiryCountdownLabel(expiryDate: string, locale: string): string {
+  const days = Math.round((new Date(expiryDate + 'T00:00:00Z').getTime() - Date.now()) / 86_400_000)
+  const rtf = new Intl.RelativeTimeFormat(`${locale}-u-nu-latn`, { numeric: 'auto' })
+  return rtf.format(days, 'day')
+}
+
 function LogoUploader({ profile, canEdit, onProfile }: { profile: SupplierProfile; canEdit: boolean; onProfile: (p: SupplierProfile) => void }) {
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -138,6 +147,11 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
     <li className="flex items-center justify-between gap-3 rounded-[0.375rem] p-3" style={{ border: '1px solid var(--color-border)' }}>
       <div className="flex items-center gap-2">
         <Badge tone={state ? DOC_STATE_TONE[state] : 'warning'}>{state ? t(`onboarding.docState.${state}`) : t('onboarding.missing')}</Badge>
+        {doc.latestDocument?.expiryDate && (state === 'Approved' || state === 'ExpiringSoon') ? (
+          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
+            {expiryCountdownLabel(doc.latestDocument.expiryDate, i18n.language)}
+          </span>
+        ) : null}
         <span style={{ color: 'var(--color-text-primary)' }}>{label}</span>
         {doc.isRequired ? null : (
           <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>

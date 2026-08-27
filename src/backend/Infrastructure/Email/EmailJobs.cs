@@ -38,6 +38,10 @@ public sealed class EmailJobs(IEmailSender emailSender)
         emailSender.SendAsync(toEmail, $"Supplier application {referenceCode} resubmitted",
             $"<p>Supplier application {referenceCode} has addressed the flagged items and been resubmitted for review.</p>", ct);
 
+    public Task SendDocumentRejectedEmailAsync(string toEmail, string documentName, string reason, CancellationToken ct) =>
+        emailSender.SendAsync(toEmail, "A document on your supplier profile was rejected",
+            $"<p>Your document \"{documentName}\" was rejected for the following reason:</p><p>{reason}</p><p>Please correct the issue and re-upload it.</p>", ct);
+
     public Task SendDocumentExpiringEmailAsync(string toEmail, string documentName, CancellationToken ct) =>
         emailSender.SendAsync(toEmail, "A document on your supplier profile is expiring soon",
             $"<p>Your document \"{documentName}\" will expire soon. Please renew and re-upload it.</p>", ct);

@@ -1,7 +1,9 @@
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -40,7 +42,7 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
     }
 }
 
-public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRejectDocumentHandler
+public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IRejectDocumentHandler
 {
     public async Task<ReviewDocumentResult> HandleAsync(Guid documentId, string reason, CancellationToken ct)
     {
@@ -66,6 +68,12 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
 
         await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", Guid.NewGuid(), scope.UserId, reason: reason, ct: ct);
         await db.SaveChangesAsync(ct);
+
+        var email = await db.Users.Where(u => u.SupplierId == document.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+        if (email is not null)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentRejectedEmailAsync(email, document.OriginalFileName, reason, CancellationToken.None));
+        }
 
         return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
     }

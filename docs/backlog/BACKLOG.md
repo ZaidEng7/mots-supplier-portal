@@ -925,18 +925,26 @@ feeding onboarding completeness and compliance.
 machine:** `Required → Uploaded → UnderReview → Approved | Rejected(reason)`; time-based `Approved →
 ExpiringSoon → Expired`. **Roadmap:** Phase 2. **Domain:** SupplierDocument / Document · DocumentType.
 
+> **Build status (2026-08-27, verified against code, not self-reported):** fully built. Secure
+> upload with real magic-byte validation and real ClamAV scanning, versioning, authorized/audited
+> signed-URL download, approve/reject with mandatory reject-reason, a real idempotent daily
+> Hangfire expiry job (`DocumentExpiryJob`), reject/expiry supplier notifications (MSP-58, same
+> durable Hangfire-enqueued email pattern as verify-email/application-decision emails), and an
+> expiry countdown on the document list (MSP-59, `Intl.RelativeTimeFormat`, Western digits, both
+> AR/EN + RTL verified) all exist and match their ACs.
+
 ### Features
 
-| Feature | Name | Priority | Notes |
-|---|---|---|---|
-| FEAT-05.1 | Required document set from DocumentType | M | `FR-DOC-001` |
-| FEAT-05.2 | Secure upload with validation + virus scan | M | `FR-DOC-002,003` |
-| FEAT-05.3 | Issue/expiry capture | M | `FR-DOC-004` `[ASSUMPTION]` |
-| FEAT-05.4 | Reviewer document review (approve/reject) | M | `FR-DOC-005` |
-| FEAT-05.5 | Expiry lifecycle job (ExpiringSoon/Expired) | M | `FR-DOC-006` |
-| FEAT-05.6 | Versioned re-upload | M | `FR-DOC-007` |
-| FEAT-05.7 | Authorized, audited download | M | `FR-DOC-008` |
-| FEAT-05.8 | Localized document list (chips, countdowns) | S | `FR-DOC-009` |
+| Feature | Name | Priority | Notes | Built? |
+|---|---|---|---|---|
+| FEAT-05.1 | Required document set from DocumentType | M | `FR-DOC-001` | Built — required set derived live from `DocumentType` ref data on every read, so admin changes apply retroactively to not-yet-submitted suppliers |
+| FEAT-05.2 | Secure upload with validation + virus scan | M | `FR-DOC-002,003` | Built — magic-byte sniffing (not just extension/Content-Type), quarantine-first storage, real ClamAV scan before acceptance |
+| FEAT-05.3 | Issue/expiry capture | M | `FR-DOC-004` `[ASSUMPTION]` | Built — optional issue/expiry dates captured on upload |
+| FEAT-05.4 | Reviewer document review (approve/reject) | M | `FR-DOC-005` | Built — approve/reject transitions, mandatory reject-reason, and supplier notification on reject (MSP-58) |
+| FEAT-05.5 | Expiry lifecycle job (ExpiringSoon/Expired) | M | `FR-DOC-006` | Built — real idempotent daily Hangfire job transitions, audits, and notifies the supplier on both ExpiringSoon and Expired (MSP-58) |
+| FEAT-05.6 | Versioned re-upload | M | `FR-DOC-007` | Built — version chain with supersede-on-reupload, full history retained |
+| FEAT-05.7 | Authorized, audited download | M | `FR-DOC-008` | Built — signed, time-limited URLs; every access audited; scope-checked (owner or staff) |
+| FEAT-05.8 | Localized document list (chips, countdowns) | S | `FR-DOC-009` | Built — state chips plus expiry countdown next to the chip (MSP-59) |
 
 ---
 
