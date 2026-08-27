@@ -259,7 +259,7 @@ export function OnboardingPage() {
         taxId: values.taxId || null,
         supplierType: values.supplierType,
         establishedOn: values.establishedOn || null,
-      }, profile.rowVersion),
+      }, profileQuery.data?.rowVersion),
     onSuccess: (data) => {
       onProfile(data)
       notify({ kind: 'success', title: t('onboarding.saved') })
@@ -275,7 +275,7 @@ export function OnboardingPage() {
         supplierGroup: values.supplierGroup || null,
         currencyCode: values.currencyCode || null,
         primaryContactPhone: values.primaryContactPhone || null,
-      }, profile.rowVersion),
+      }, profileQuery.data?.rowVersion),
     onSuccess: (data) => {
       onProfile(data)
       notify({ kind: 'success', title: t('onboarding.saved') })
