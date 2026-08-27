@@ -21,7 +21,13 @@ public sealed class Supplier
     public SupplierOnboardingState OnboardingState { get; private set; }
     public SupplierLifecycleState LifecycleState { get; private set; } = SupplierLifecycleState.None;
     public string? ExternalId { get; private set; }
+    public string? TermsAcceptedVersion { get; private set; }
+    public DateTimeOffset? TermsAcceptedAt { get; private set; }
     public uint RowVersion { get; private set; }
+
+    /// <summary>BRULE-009: T&C content is owned by business; version string is an
+    /// [ASSUMPTION] placeholder until that content and its versioning process exist.</summary>
+    public const string CurrentTermsVersion = "1.0";
 
     public IReadOnlyList<Representative> Representatives => _representatives;
 
@@ -108,7 +114,7 @@ public sealed class Supplier
     }
 
     /// <summary>
-    /// Core-profile completeness (STORY-03.1.1 AC1/AC2).
+    /// Core-profile completeness (STORY-03.1.1 AC1/AC2) plus BRULE-009's T&C-acceptance gate.
     /// </summary>
     public IReadOnlyList<string> GetMissingProfileFields()
     {
@@ -123,7 +129,23 @@ public sealed class Supplier
         {
             missing.Add("primaryContactPhone");
         }
+        if (TermsAcceptedAt is null) missing.Add("termsAccepted");
         return missing;
+    }
+
+    /// <summary>BRULE-009: records T&C acceptance with the version and a timestamp - the consent
+    /// record the submit gate checks for. Accepting again (e.g. after a later version ships)
+    /// simply overwrites the record; only the latest acceptance needs to be current at submit
+    /// time, matching the rule's "before first submission" wording.</summary>
+    public void AcceptTerms(string version)
+    {
+        if (OnboardingState is SupplierOnboardingState.Draft)
+        {
+            throw new DomainException("Cannot accept terms before the email is verified.");
+        }
+
+        TermsAcceptedVersion = version;
+        TermsAcceptedAt = DateTimeOffset.UtcNow;
     }
 
     /// <summary>ProfileInProgress -> Submitted. Refuses the transition server-side if the profile

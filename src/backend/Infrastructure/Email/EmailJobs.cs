@@ -34,6 +34,10 @@ public sealed class EmailJobs(IEmailSender emailSender)
         emailSender.SendAsync(toEmail, "Action needed on your supplier application",
             $"<p>The reviewer has requested more information:</p><p>{reason}</p><p>Please log in to address the flagged items and resubmit.</p>", ct);
 
+    public Task SendApplicationResubmittedEmailAsync(string toEmail, string referenceCode, CancellationToken ct) =>
+        emailSender.SendAsync(toEmail, $"Supplier application {referenceCode} resubmitted",
+            $"<p>Supplier application {referenceCode} has addressed the flagged items and been resubmitted for review.</p>", ct);
+
     public Task SendDocumentExpiringEmailAsync(string toEmail, string documentName, CancellationToken ct) =>
         emailSender.SendAsync(toEmail, "A document on your supplier profile is expiring soon",
             $"<p>Your document \"{documentName}\" will expire soon. Please renew and re-upload it.</p>", ct);

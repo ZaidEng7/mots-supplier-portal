@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Hangfire;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -71,6 +73,19 @@ file static class ReviewerNotify
 {
     public static async Task<string?> GetPrimaryEmailAsync(AppDbContext db, Guid supplierId, CancellationToken ct) =>
         await db.Users.Where(u => u.SupplierId == supplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+
+    /// <summary>BUSINESS-PROCESSES.md: InfoRequested -> Resubmitted notifies "reviewer" - there is
+    /// no per-application reviewer assignment (pickup doesn't record who), so this notifies the
+    /// whole onboarding_reviewer pool, matching how Submit already "queue[s] to onboarding review
+    /// pool" rather than a named individual.</summary>
+    public static async Task<IReadOnlyList<string>> GetReviewerPoolEmailsAsync(AppDbContext db, CancellationToken ct) =>
+        await (from ur in db.UserRoles
+               join r in db.Roles on ur.RoleId equals r.Id
+               join u in db.Users on ur.UserId equals u.Id
+               where r.Name == Roles.OnboardingReviewer
+               select u.Email!)
+            .Distinct()
+            .ToListAsync(ct);
 }
 
 public sealed class PickUpApplicationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IPickUpApplicationHandler
@@ -186,7 +201,7 @@ public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAu
     }
 }
 
-public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IResubmitApplicationHandler
+public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IResubmitApplicationHandler
 {
     public async Task<ReviewDecisionResult> HandleAsync(CancellationToken ct)
     {
@@ -219,6 +234,13 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
         }
 
         await db.SaveChangesAsync(ct);
+
+        var reviewerEmails = await ReviewerNotify.GetReviewerPoolEmailsAsync(db, ct);
+        foreach (var email in reviewerEmails)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationResubmittedEmailAsync(email, supplier.ReferenceCode, CancellationToken.None));
+        }
+
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
 }

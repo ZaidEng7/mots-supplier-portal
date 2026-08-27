@@ -13,6 +13,8 @@ export interface SupplierProfile {
   currencyCode: string | null
   primaryContactPhone: string | null
   missingProfileFields: string[]
+  termsAcceptedVersion: string | null
+  termsAcceptedAt: string | null
 }
 
 export interface UpdateProfilePayload {
@@ -55,6 +57,11 @@ export async function updateProfile(payload: UpdateProfilePayload): Promise<Supp
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
+  return parseOrThrow(res)
+}
+
+export async function acceptTerms(): Promise<SupplierProfile> {
+  const res = await apiFetch('/api/v1/suppliers/me/accept-terms', { method: 'POST' })
   return parseOrThrow(res)
 }
 

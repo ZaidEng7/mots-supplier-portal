@@ -12,7 +12,9 @@ public sealed record SupplierDto(
     string? Country,
     string? CurrencyCode,
     string? PrimaryContactPhone,
-    IReadOnlyList<string> MissingProfileFields);
+    IReadOnlyList<string> MissingProfileFields,
+    string? TermsAcceptedVersion,
+    DateTimeOffset? TermsAcceptedAt);
 
 public abstract record GetSupplierResult
 {

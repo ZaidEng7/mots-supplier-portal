@@ -137,6 +137,7 @@ builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
 builder.Services.AddScoped<EmailJobs>();
 builder.Services.AddScoped<IGetSupplierHandler, GetSupplierHandler>();
 builder.Services.AddScoped<IUpdateProfileHandler, UpdateProfileHandler>();
+builder.Services.AddScoped<IAcceptTermsHandler, AcceptTermsHandler>();
 builder.Services.AddScoped<ISubmitApplicationHandler, SubmitApplicationHandler>();
 builder.Services.AddScoped<IListSupplierDocumentsHandler, ListSupplierDocumentsHandler>();
 builder.Services.AddScoped<IReviewerListDocumentsHandler, ReviewerListDocumentsHandler>();

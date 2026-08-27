@@ -78,6 +78,7 @@ public class SupplierTests
         supplier.MarkEmailVerified();
         supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
         supplier.Representatives[0].Phone = "+963000000";
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
         supplier.Submit([]);
 
         var act = () => supplier.UpdateProfile("CR-1", "TAX-1", "changed", "Damascus", "Syria", "SYP");
@@ -117,11 +118,49 @@ public class SupplierTests
         supplier.MarkEmailVerified();
         supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
         supplier.Representatives[0].Phone = "+963000000";
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
 
         supplier.Submit([]);
 
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.Submitted);
         supplier.GetMissingProfileFields().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Submit_without_accepting_terms_is_rejected_by_the_domain()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+        supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
+        supplier.Representatives[0].Phone = "+963000000";
+
+        var act = () => supplier.Submit([]);
+
+        act.Should().Throw<DomainException>().WithMessage("*termsAccepted*");
+        supplier.OnboardingState.Should().Be(SupplierOnboardingState.ProfileInProgress);
+    }
+
+    [Fact]
+    public void AcceptTerms_records_version_and_timestamp()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
+
+        supplier.TermsAcceptedVersion.Should().Be(Supplier.CurrentTermsVersion);
+        supplier.TermsAcceptedAt.Should().NotBeNull();
+        supplier.GetMissingProfileFields().Should().NotContain("termsAccepted");
+    }
+
+    [Fact]
+    public void AcceptTerms_before_email_verified_is_rejected_by_the_domain()
+    {
+        var supplier = CreateDraftSupplier();
+
+        var act = () => supplier.AcceptTerms(Supplier.CurrentTermsVersion);
+
+        act.Should().Throw<DomainException>();
     }
 
     private static Supplier CreateSubmittedSupplier()
@@ -130,6 +169,7 @@ public class SupplierTests
         supplier.MarkEmailVerified();
         supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
         supplier.Representatives[0].Phone = "+963000000";
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
         supplier.Submit([]);
         return supplier;
     }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,6 +9,7 @@ import { useToast } from '../components/ui'
 import {
   getOwnSupplier,
   updateProfile,
+  acceptTerms,
   submitApplication,
   resubmitApplication,
   SupplierApiError,
@@ -119,6 +120,7 @@ export function OnboardingPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { notify } = useToast()
+  const [termsChecked, setTermsChecked] = useState(false)
 
   const profileQuery = useQuery({ queryKey: ['own-supplier'], queryFn: getOwnSupplier })
   const currenciesQuery = useQuery({ queryKey: ['currencies'], queryFn: fetchCurrencies })
@@ -171,6 +173,15 @@ export function OnboardingPage() {
         notify({ kind: 'danger', title: t('onboarding.submitFailed') })
       }
     },
+  })
+
+  const acceptTermsMutation = useMutation({
+    mutationFn: acceptTerms,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['own-supplier'], data)
+      notify({ kind: 'success', title: t('onboarding.termsAccepted') })
+    },
+    onError: () => notify({ kind: 'danger', title: t('onboarding.termsAcceptFailed') }),
   })
 
   const resubmitMutation = useMutation({
@@ -236,6 +247,12 @@ export function OnboardingPage() {
               {isInfoRequested && flaggedFields.has(field) ? <Badge tone="danger">{t('onboarding.flagged')}</Badge> : null}
             </li>
           ))}
+          <li className="flex items-center gap-2 text-[length:var(--text-body-sm)]">
+            <Badge tone={missing.has('termsAccepted') ? 'warning' : 'success'}>
+              {missing.has('termsAccepted') ? t('onboarding.missing') : t('onboarding.complete')}
+            </Badge>
+            <span style={{ color: 'var(--color-text-secondary)' }}>{t('onboarding.termsLabel')}</span>
+          </li>
         </ul>
       </div>
 
@@ -287,6 +304,41 @@ export function OnboardingPage() {
           </p>
         )}
       </form>
+
+      <div
+        className="rounded-[0.75rem] p-6"
+        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+      >
+        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('onboarding.termsTitle')}
+        </h2>
+        {profile?.termsAcceptedAt ? (
+          <p style={{ color: 'var(--success-600)' }}>
+            {t('onboarding.termsAcceptedNotice', {
+              date: new Date(profile.termsAcceptedAt).toLocaleString(),
+              version: profile.termsAcceptedVersion,
+            })}
+          </p>
+        ) : isReadOnly ? null : (
+          <div className="flex flex-col gap-3">
+            <label className="flex items-start gap-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
+              <input type="checkbox" checked={termsChecked} onChange={(e) => setTermsChecked(e.target.checked)} className="mt-1" />
+              {t('onboarding.termsCheckboxLabel')}
+            </label>
+            <div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!termsChecked}
+                isLoading={acceptTermsMutation.isPending}
+                onClick={() => acceptTermsMutation.mutate()}
+              >
+                {t('onboarding.termsAccept')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div
         className="rounded-[0.75rem] p-6"

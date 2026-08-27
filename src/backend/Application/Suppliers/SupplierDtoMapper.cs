@@ -20,6 +20,8 @@ public static class SupplierDtoMapper
             supplier.Country,
             supplier.CurrencyCode,
             primaryPhone,
-            supplier.GetMissingProfileFields());
+            supplier.GetMissingProfileFields(),
+            supplier.TermsAcceptedVersion,
+            supplier.TermsAcceptedAt);
     }
 }

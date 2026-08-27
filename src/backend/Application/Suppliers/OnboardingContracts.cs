@@ -21,6 +21,18 @@ public interface IUpdateProfileHandler
     Task<UpdateProfileResult> HandleAsync(UpdateProfileCommand command, CancellationToken ct);
 }
 
+public abstract record AcceptTermsResult
+{
+    public sealed record Success(SupplierDto Supplier) : AcceptTermsResult;
+    public sealed record NotFoundOrOutOfScope : AcceptTermsResult;
+    public sealed record InvalidState(string Reason) : AcceptTermsResult;
+}
+
+public interface IAcceptTermsHandler
+{
+    Task<AcceptTermsResult> HandleAsync(CancellationToken ct);
+}
+
 public abstract record SubmitApplicationResult
 {
     public sealed record Success(SupplierDto Supplier) : SubmitApplicationResult;

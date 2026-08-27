@@ -69,6 +69,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(s => s.City).HasMaxLength(100);
             entity.Property(s => s.Country).HasMaxLength(100);
             entity.Property(s => s.CurrencyCode).HasMaxLength(3);
+            entity.Property(s => s.TermsAcceptedVersion).HasMaxLength(20);
             entity.Property(s => s.OnboardingState).HasConversion<string>().HasMaxLength(30);
             entity.Property(s => s.LifecycleState).HasConversion<string>().HasMaxLength(30);
             entity.Property(s => s.RowVersion).IsRowVersion();

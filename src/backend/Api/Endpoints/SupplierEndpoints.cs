@@ -93,6 +93,25 @@ public static class SupplierEndpoints
         .RequirePermission(Permissions.SupplierEdit)
         .WithName("UpdateSupplierProfile");
 
+        // BRULE-009: explicit T&C acceptance, recorded with version + timestamp, gating
+        // submit alongside profile completeness and required documents (BRULE-004).
+        group.MapPost("/me/accept-terms", async (
+            IAcceptTermsHandler handler,
+            CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(ct);
+
+            return result switch
+            {
+                AcceptTermsResult.Success s => Results.Ok(s.Supplier),
+                AcceptTermsResult.NotFoundOrOutOfScope => Results.NotFound(),
+                AcceptTermsResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
+                _ => Results.Problem(),
+            };
+        })
+        .RequirePermission(Permissions.SupplierEdit)
+        .WithName("AcceptTerms");
+
         group.MapPost("/me/submit-application", async (
             ISubmitApplicationHandler handler,
             CancellationToken ct) =>
