@@ -3,6 +3,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -19,6 +20,7 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "legalInfo", defaultValue: true, ct);
 
+        var before = supplier.LegalInfo;
         var stateBefore = supplier.OnboardingState;
         try
         {
@@ -29,7 +31,15 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
             return new UpdateProfileResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(
+            ("legalNameAr", before?.LegalNameAr, command.LegalNameAr),
+            ("legalNameEn", before?.LegalNameEn, command.LegalNameEn),
+            ("registrationNumber", before?.RegistrationNumber, command.RegistrationNumber),
+            ("taxId", before?.TaxId, command.TaxId),
+            ("supplierType", before?.SupplierType.ToString(), command.SupplierType.ToString()),
+            ("establishedOn", before?.EstablishedOn, command.EstablishedOn));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "legalInfo", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
 

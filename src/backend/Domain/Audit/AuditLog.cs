@@ -25,6 +25,10 @@ public sealed class AuditLog
     public string? FromState { get; init; }
     public string? ToState { get; init; }
     public string? Reason { get; init; }
+    /// <summary>DATABASE-MODEL.md §5: field-level before/after diff as JSON, redacted for PII/
+    /// secrets before persistence (see AuditChangeBuilder) - null when the action has no
+    /// meaningful field diff (e.g. a state-only transition already captured by FromState/ToState).</summary>
+    public string? Changes { get; init; }
     public Guid CorrelationId { get; init; }
     public string? IpAddress { get; init; }
 }

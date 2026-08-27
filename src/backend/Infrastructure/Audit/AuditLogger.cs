@@ -17,6 +17,7 @@ public sealed class AuditLogger(AppDbContext db) : IAuditLogger
         string? toState = null,
         string? reason = null,
         string? referenceCode = null,
+        string? changes = null,
         CancellationToken ct = default)
     {
         db.AuditLogs.Add(new AuditLog
@@ -33,6 +34,7 @@ public sealed class AuditLogger(AppDbContext db) : IAuditLogger
             FromState = fromState,
             ToState = toState,
             Reason = reason,
+            Changes = changes,
             CorrelationId = correlationId,
         });
 

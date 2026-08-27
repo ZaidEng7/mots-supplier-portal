@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -29,7 +30,12 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
         // would otherwise mark it Modified (no-op UPDATE) instead of Added - track it explicitly.
         db.Branches.Add(branch);
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_added", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(
+            ("nameAr", null, command.NameAr),
+            ("nameEn", null, command.NameEn),
+            ("addressId", null, command.AddressId?.ToString()));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_added", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -40,6 +46,7 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var before = supplier.Branches.FirstOrDefault(b => b.Id == command.BranchId);
         try
         {
             supplier.UpdateBranch(command.BranchId, command.NameAr, command.NameEn, command.AddressId, command.IsActive);
@@ -49,7 +56,13 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(
+            ("nameAr", before?.NameAr, command.NameAr),
+            ("nameEn", before?.NameEn, command.NameEn),
+            ("addressId", before?.AddressId?.ToString(), command.AddressId?.ToString()),
+            ("isActive", before?.IsActive, command.IsActive));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -60,6 +73,7 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var before = supplier.Branches.FirstOrDefault(b => b.Id == command.BranchId);
         try
         {
             supplier.RemoveBranch(command.BranchId);
@@ -69,7 +83,11 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(
+            ("nameAr", before?.NameAr, null),
+            ("nameEn", before?.NameEn, null));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

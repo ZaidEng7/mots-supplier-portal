@@ -3,6 +3,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -37,7 +38,9 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
         // explicitly. Null means LinkCategory was a no-op (already linked).
         if (link is not null) db.CategoryLinks.Add(link);
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "category_linked", Guid.NewGuid(), scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(("categoryCode", null, command.CategoryCode));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "category_linked", Guid.NewGuid(), scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "categoryLink", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -61,7 +64,9 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "category_unlinked", Guid.NewGuid(), scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(("categoryCode", command.CategoryCode, null));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "category_unlinked", Guid.NewGuid(), scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "categoryLink", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));

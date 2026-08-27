@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي' },
       common: { loading: 'جاري التحميل...' },
       health: { title: 'حالة النظام', healthy: 'يعمل بشكل طبيعي', unhealthy: 'غير متاح' },
       reference: { currencies: 'العملات' },
@@ -304,7 +304,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation' },
       common: { loading: 'Loading...' },
       health: { title: 'System status', healthy: 'Healthy', unhealthy: 'Unavailable' },
       reference: { currencies: 'Currencies' },

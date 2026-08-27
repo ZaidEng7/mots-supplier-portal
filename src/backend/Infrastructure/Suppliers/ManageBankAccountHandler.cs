@@ -3,6 +3,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Security;
 
@@ -10,7 +11,8 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>FEAT-04.6/FR-PROF-006. The account number is never stored or logged in plaintext -
 /// see FieldEncryptionService and BankAccount for the encrypt/mask split. Reveal is a distinct,
-/// separately-permissioned, audited action (BRULE-014/090/091).</summary>
+/// separately-permissioned, audited action (BRULE-014/090/091). The `changes` audit diff only
+/// ever carries the masked account number, never the encrypted bytes or plaintext.</summary>
 public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, FieldEncryptionService encryption) : IManageBankAccountHandler
 {
     public async Task<ProfileMutationResult> AddAsync(AddBankAccountCommand command, CancellationToken ct)
@@ -40,9 +42,16 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         // explicitly.
         db.BankAccounts.Add(account);
 
+        var changes = AuditChangeBuilder.Build(
+            ("accountHolderName", null, command.AccountHolderName),
+            ("bankName", null, command.BankName),
+            ("branchName", null, command.BranchName),
+            ("maskedAccountNumber", null, masked),
+            ("currencyCode", null, command.CurrencyCode));
+
         // Never log/audit the raw account number - only that a bank account was added, and the
         // masked value (BRULE-091: no PII in logs).
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_added", Guid.NewGuid(), scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_added", Guid.NewGuid(), scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -53,6 +62,8 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var before = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId);
 
         // AccountNumber is optional on edit - only re-encrypt/re-mask when the caller is actually
         // changing it, so correcting the holder name doesn't force re-entering the account number.
@@ -76,9 +87,16 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
+        var changes = AuditChangeBuilder.Build(
+            ("accountHolderName", before?.AccountHolderName, command.AccountHolderName),
+            ("bankName", before?.BankName, command.BankName),
+            ("branchName", before?.BranchName, command.BranchName),
+            ("maskedAccountNumber", before?.MaskedAccountNumber, masked ?? before?.MaskedAccountNumber),
+            ("currencyCode", before?.CurrencyCode, command.CurrencyCode));
+
         // Never log/audit the raw account number - only that it changed, and the masked value if
         // the account number itself was part of the edit (BRULE-091: no PII in logs).
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_updated", Guid.NewGuid(), scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_updated", Guid.NewGuid(), scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -90,6 +108,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var before = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId);
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "bankAccount", defaultValue: true, ct);
 
         var stateBefore = supplier.OnboardingState;
@@ -102,7 +121,11 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(
+            ("bankName", before?.BankName, null),
+            ("maskedAccountNumber", before?.MaskedAccountNumber, null));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -114,6 +137,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var wasDefault = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId)?.IsDefault;
         try
         {
             supplier.SetDefaultBankAccount(command.BankAccountId);
@@ -123,7 +147,9 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_set_default", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        var changes = AuditChangeBuilder.Build(("isDefault", wasDefault, true));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_set_default", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

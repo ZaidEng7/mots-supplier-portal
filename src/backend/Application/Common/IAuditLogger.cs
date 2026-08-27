@@ -13,5 +13,8 @@ public interface IAuditLogger
         string? toState = null,
         string? reason = null,
         string? referenceCode = null,
+        // DATABASE-MODEL.md §5 `changes` column: pre-built, pre-redacted JSON diff - build it
+        // with AuditChangeBuilder, never pass raw field values directly.
+        string? changes = null,
         CancellationToken ct = default);
 }

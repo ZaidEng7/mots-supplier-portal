@@ -62,7 +62,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             ) : null}
           </RadixToast.Root>
         ))}
-        <RadixToast.Viewport className="fixed bottom-4 end-4 z-50 flex w-96 max-w-full flex-col gap-2 outline-none" />
+        {/* bottom-20 on mobile clears the fixed MobileTabBar (SupplierShell, DESIGN-SYSTEM.md
+            §5.5); back to bottom-4 at md+ where that bar doesn't render. */}
+        <RadixToast.Viewport className="fixed bottom-20 end-4 z-50 flex w-96 max-w-full flex-col gap-2 outline-none md:bottom-4" />
       </RadixToast.Provider>
     </ToastContext.Provider>
   )

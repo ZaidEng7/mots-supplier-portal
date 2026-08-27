@@ -260,6 +260,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(a => a.ActorKind).HasConversion<string>().HasMaxLength(20);
             entity.Property(a => a.AggregateType).HasMaxLength(100).IsRequired();
             entity.Property(a => a.Action).HasMaxLength(100).IsRequired();
+            entity.Property(a => a.Changes).HasColumnType("jsonb");
             entity.HasIndex(a => new { a.AggregateType, a.AggregateId, a.OccurredAt });
             entity.HasIndex(a => new { a.ActorUserId, a.OccurredAt });
             entity.HasIndex(a => a.CorrelationId);
