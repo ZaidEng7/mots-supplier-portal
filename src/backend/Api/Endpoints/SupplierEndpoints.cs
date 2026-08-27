@@ -197,6 +197,20 @@ public static class SupplierEndpoints
         .RequireAuthorization()
         .WithName("GetOwnSupplier");
 
+        // MSP-65: `concurrency_conflict` is a stable machine code the SPA maps to a localized
+        // message (NFR-USE-004) - the raw 409 body is never shown to a user. currentRowVersion
+        // lets the client re-read and retry deliberately rather than blind-retrying.
+        static IResult MapProfileResult(UpdateProfileResult result) => result switch
+        {
+            UpdateProfileResult.Success s => Results.Ok(s.Supplier),
+            UpdateProfileResult.NotFoundOrOutOfScope => Results.NotFound(),
+            UpdateProfileResult.Conflict c => Results.Json(
+                new { error = "concurrency_conflict", currentRowVersion = c.CurrentRowVersion },
+                statusCode: StatusCodes.Status409Conflict),
+            UpdateProfileResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
+            _ => Results.Problem(),
+        };
+
         static IResult MapMutation(ProfileMutationResult result) => result switch
         {
             ProfileMutationResult.Success s => Results.Ok(s.Supplier),
@@ -219,13 +233,7 @@ public static class SupplierEndpoints
 
             var result = await handler.HandleAsync(new UpdateProfileCommand(request.Description, request.Website, request.SupplierGroup, request.CurrencyCode, request.PrimaryContactPhone), ct);
 
-            return result switch
-            {
-                UpdateProfileResult.Success s => Results.Ok(s.Supplier),
-                UpdateProfileResult.NotFoundOrOutOfScope => Results.NotFound(),
-                UpdateProfileResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
-                _ => Results.Problem(),
-            };
+            return MapProfileResult(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .WithName("UpdateSupplierProfile");
@@ -242,13 +250,7 @@ public static class SupplierEndpoints
 
             var result = await handler.HandleAsync(new UpdateLegalInfoCommand(request.LegalNameAr, request.LegalNameEn, request.RegistrationNumber, request.TaxId, request.SupplierType, request.EstablishedOn), ct);
 
-            return result switch
-            {
-                UpdateProfileResult.Success s => Results.Ok(s.Supplier),
-                UpdateProfileResult.NotFoundOrOutOfScope => Results.NotFound(),
-                UpdateProfileResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
-                _ => Results.Problem(),
-            };
+            return MapProfileResult(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .WithName("UpdateLegalInfo");

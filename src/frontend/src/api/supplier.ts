@@ -104,6 +104,9 @@ export class SupplierApiError extends Error {
   status: number
   missingFields?: string[]
   fieldErrors?: Record<string, string[]>
+  /** MSP-65: someone else saved this supplier since we read it. Callers surface a localized
+   * message (NFR-USE-004) rather than the raw 409 - see `errors.concurrencyConflict`. */
+  isConcurrencyConflict: boolean
 
   constructor(status: number, body: unknown) {
     const b = body as { error?: string; missingFields?: string[]; errors?: Record<string, string[]> } | null
@@ -111,7 +114,14 @@ export class SupplierApiError extends Error {
     this.status = status
     this.missingFields = b?.missingFields
     this.fieldErrors = b?.errors
+    this.isConcurrencyConflict = status === 409 && b?.error === 'concurrency_conflict'
   }
+}
+
+/** MSP-65: the row version we last read travels as the standard `If-Match` header, so the server
+ * can reject a write built on stale data instead of silently overwriting the other editor. */
+function ifMatch(rowVersion?: number): Record<string, string> {
+  return rowVersion === undefined ? {} : { 'If-Match': `"${rowVersion}"` }
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {
@@ -126,19 +136,19 @@ export async function getOwnSupplier(): Promise<SupplierProfile> {
   return parseOrThrow(res)
 }
 
-export async function updateProfile(payload: UpdateProfilePayload): Promise<SupplierProfile> {
+export async function updateProfile(payload: UpdateProfilePayload, rowVersion?: number): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/profile', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...ifMatch(rowVersion) },
     body: JSON.stringify(payload),
   })
   return parseOrThrow(res)
 }
 
-export async function updateLegalInfo(payload: UpdateLegalInfoPayload): Promise<SupplierProfile> {
+export async function updateLegalInfo(payload: UpdateLegalInfoPayload, rowVersion?: number): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/legal-info', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...ifMatch(rowVersion) },
     body: JSON.stringify(payload),
   })
   return parseOrThrow(res)

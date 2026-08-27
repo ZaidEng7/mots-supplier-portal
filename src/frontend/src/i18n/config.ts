@@ -111,6 +111,8 @@ const resources = {
         termsAccepted: 'تم تسجيل الموافقة على الشروط والأحكام',
         termsAcceptFailed: 'تعذر تسجيل الموافقة',
         termsAcceptedNotice: 'تمت الموافقة على الإصدار {{version}} من الشروط والأحكام بتاريخ {{date}}.',
+        conflictTitle: 'لم يتم الحفظ — تم تعديل البيانات من مستخدم آخر',
+        conflictBody: 'قام مستخدم آخر بحفظ تغييرات على هذا الملف أثناء تحريرك له. أعد تحميل الصفحة للاطلاع على أحدث البيانات ثم أعد إدخال تعديلاتك.',
       },
       contacts: {
         title: 'جهات الاتصال والممثلون',
@@ -409,6 +411,8 @@ const resources = {
         termsAccepted: 'Terms & Conditions acceptance recorded',
         termsAcceptFailed: 'Could not record acceptance',
         termsAcceptedNotice: 'Version {{version}} of the Terms & Conditions was accepted on {{date}}.',
+        conflictTitle: 'Not saved — someone else changed this first',
+        conflictBody: 'Another user saved changes to this profile while you were editing. Reload to see the latest data, then re-apply your changes.',
       },
       contacts: {
         title: 'Contacts & Representatives',

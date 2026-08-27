@@ -149,10 +149,15 @@ public sealed class Supplier
     }
 
     /// <summary>FEAT-04.1 core profile fields (description/website/group/currency). Editable while
-    /// EmailVerified/ProfileInProgress, or InfoRequested (field-level restriction while
-    /// InfoRequested is enforced by the handler, which knows the active annotation - the domain
-    /// only gates which *states* allow editing at all). The first EmailVerified call advances to
-    /// ProfileInProgress.</summary>
+    /// EmailVerified/ProfileInProgress, or InfoRequested. The domain only gates which *states*
+    /// allow editing at all.
+    ///
+    /// [KNOWN GAP - MSP-77] STORY-03.3.1 AC1 requires that while InfoRequested only the reviewer's
+    /// flagged fields are editable. That per-field restriction is currently enforced ONLY in the
+    /// UI (OnboardingPage.tsx `fieldEditable`); of the profile mutation handlers only
+    /// UploadDocumentHandler checks the active annotation server-side. A direct API call can
+    /// therefore edit non-flagged fields. Do not read this comment as describing an implemented
+    /// control - it previously did, incorrectly.</summary>
     public void UpdateCoreProfile(string? description, string? website, string? supplierGroup, string? currencyCode)
     {
         EnsureEditable();

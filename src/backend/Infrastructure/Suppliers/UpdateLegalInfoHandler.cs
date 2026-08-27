@@ -9,7 +9,7 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>FEAT-04.2/FR-PROF-002.</summary>
-public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUpdateLegalInfoHandler
+public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IConcurrencyContext concurrency) : IUpdateLegalInfoHandler
 {
     public async Task<UpdateProfileResult> HandleAsync(UpdateLegalInfoCommand command, CancellationToken ct)
     {
@@ -19,6 +19,8 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
         if (supplier is null) return new UpdateProfileResult.NotFoundOrOutOfScope();
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "legalInfo", defaultValue: true, ct);
+
+        SupplierConcurrency.ApplyExpectedVersion(db, supplier, concurrency);
 
         var before = supplier.LegalInfo;
         var stateBefore = supplier.OnboardingState;
@@ -39,9 +41,17 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
             ("supplierType", before?.SupplierType.ToString(), command.SupplierType.ToString()),
             ("establishedOn", before?.EstablishedOn, command.EstablishedOn));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "legalInfo", scope.UserId, ct);
-        await db.SaveChangesAsync(ct);
+        var persisted = await SupplierConcurrency.TryPersistAsync(async () =>
+        {
+            await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+            await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "legalInfo", scope.UserId, ct);
+            await db.SaveChangesAsync(ct);
+        });
+
+        if (!persisted)
+        {
+            return new UpdateProfileResult.Conflict(await SupplierConcurrency.CurrentVersionAsync(db, supplier.Id, ct));
+        }
 
         return new UpdateProfileResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

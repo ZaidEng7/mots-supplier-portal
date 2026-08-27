@@ -14,6 +14,10 @@ public abstract record UpdateProfileResult
     public sealed record Success(SupplierDto Supplier) : UpdateProfileResult;
     public sealed record NotFoundOrOutOfScope : UpdateProfileResult;
     public sealed record InvalidState(string Reason) : UpdateProfileResult;
+    /// <summary>BRULE-098/MSP-65: someone else changed this supplier since the caller read it.
+    /// The write was refused, not merged and not overwritten. <paramref name="CurrentRowVersion"/>
+    /// is the version now in the database so a client can re-read and retry deliberately.</summary>
+    public sealed record Conflict(uint CurrentRowVersion) : UpdateProfileResult;
 }
 
 public interface IUpdateProfileHandler

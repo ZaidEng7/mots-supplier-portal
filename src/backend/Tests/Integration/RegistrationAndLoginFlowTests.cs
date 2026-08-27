@@ -14,7 +14,8 @@ namespace MotsSupplierPortal.Tests.Integration;
 /// full stack (API -> Identity -> EF Core -> Postgres) works together, not just that each
 /// layer compiles against mocks.
 /// </summary>
-public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture) : IClassFixture<PostgresApiFixture>
+[Collection(IntegrationTestCollection.Name)]
+public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
 {
     [Fact]
     public async Task Register_then_login_before_verification_is_rejected()

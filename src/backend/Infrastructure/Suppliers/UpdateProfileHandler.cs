@@ -8,7 +8,7 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>STORY-03.1.1/STORY-04.1.1: edits are row-scoped and only legal while EmailVerified/
 /// ProfileInProgress/InfoRequested - the domain itself refuses edits once Submitted (read-only).</summary>
-public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUpdateProfileHandler
+public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IConcurrencyContext concurrency) : IUpdateProfileHandler
 {
     public async Task<UpdateProfileResult> HandleAsync(UpdateProfileCommand command, CancellationToken ct)
     {
@@ -26,6 +26,8 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
             return new UpdateProfileResult.NotFoundOrOutOfScope();
         }
 
+        SupplierConcurrency.ApplyExpectedVersion(db, supplier, concurrency);
+
         try
         {
             supplier.UpdateCoreProfile(command.Description, command.Website, command.SupplierGroup, command.CurrencyCode);
@@ -41,8 +43,18 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
             primary.Phone = command.PrimaryContactPhone;
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "profile_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
-        await db.SaveChangesAsync(ct);
+        // The audit write and the supplier UPDATE commit together (AuditLogger owns the
+        // SaveChanges), so both live inside the guard.
+        var persisted = await SupplierConcurrency.TryPersistAsync(async () =>
+        {
+            await auditLogger.LogAsync("Supplier", supplier.Id, "profile_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+            await db.SaveChangesAsync(ct);
+        });
+
+        if (!persisted)
+        {
+            return new UpdateProfileResult.Conflict(await SupplierConcurrency.CurrentVersionAsync(db, supplier.Id, ct));
+        }
 
         return new UpdateProfileResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

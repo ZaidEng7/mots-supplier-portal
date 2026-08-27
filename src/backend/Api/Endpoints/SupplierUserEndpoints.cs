@@ -93,6 +93,8 @@ public static class SupplierUserEndpoints
         })
         .WithTags("SupplierUsers")
         .WithName("AcceptSupplierUserInvite")
-        .RequireRateLimiting("auth-strict");
+        .RequireRateLimiting("auth-strict")
+        // Public by design: the invitee has no session yet - the invite token is the credential.
+        .AllowAnonymous();
     }
 }

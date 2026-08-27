@@ -39,7 +39,10 @@ public static class RegistrationEndpoints
 {
     public static void MapRegistrationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting("auth-strict");
+        // Public by design: this is the unauthenticated front door (STORY-02.1.1). Declared
+        // explicitly so the deny-by-default FallbackPolicy (MSP-67) does not silently close it,
+        // and so the intent is visible rather than inferred from a missing guard.
+        var group = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting("auth-strict").AllowAnonymous();
 
         group.MapPost("/", async (
             RegisterSupplierRequest request,

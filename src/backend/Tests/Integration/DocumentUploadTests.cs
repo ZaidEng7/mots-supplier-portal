@@ -17,7 +17,8 @@ namespace MotsSupplierPortal.Tests.Integration;
 /// the host's OS/container locale defaulted to a non-Gregorian calendar (e.g. en-SA), even though
 /// the raw multipart field arrived correctly formatted.
 /// </summary>
-public sealed class DocumentUploadTests(PostgresApiFixture fixture) : IClassFixture<PostgresApiFixture>
+[Collection(IntegrationTestCollection.Name)]
+public sealed class DocumentUploadTests(PostgresApiFixture fixture)
 {
     private static readonly Guid TaxCertificateDocumentTypeId = Guid.Parse("00000000-0000-0000-0000-000000000102");
 

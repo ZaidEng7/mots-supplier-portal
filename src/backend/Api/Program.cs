@@ -29,10 +29,13 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Serilog: structured JSON logging (docs/architecture/OBSERVABILITY-ARCHITECTURE.md)
+// Serilog: structured JSON logging (docs/architecture/OBSERVABILITY-ARCHITECTURE.md).
+// RedactingEnricher is the NFR-PRIV-004 redaction stage (MSP-61) - it must stay registered
+// before the sink so no deny-listed property value can reach the console/aggregator.
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .Enrich.FromLogContext()
+    .Enrich.With(new MotsSupplierPortal.Infrastructure.Observability.RedactingEnricher())
     .Enrich.WithProperty("Application", "MotsSupplierPortal.Api")
     .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter()));
 
@@ -136,7 +139,17 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+// NFR-SEC-004 deny-by-default (MSP-67): with no FallbackPolicy, an endpoint that simply forgets
+// .RequirePermission()/.RequireAuthorization() was served anonymously. Now the default is a
+// denial and public endpoints must say so out loud with .AllowAnonymous(), so the intent is
+// visible in code rather than inferred from an omission. LayerDependencyTests enforces that
+// every mapped endpoint declares one or the other, so this cannot silently regress.
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 builder.Services.AddHttpContextAccessor();
 
 // Application services
@@ -207,6 +220,7 @@ builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<PermissionResolver>();
 builder.Services.AddScoped<IScopeContext, HttpScopeContext>();
+builder.Services.AddScoped<IConcurrencyContext, HttpConcurrencyContext>();
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestValidator>();
 
 builder.Services.AddHealthChecks()
@@ -236,7 +250,11 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 Window = TimeSpan.FromMinutes(1),
-                PermitLimit = 10,
+                // Configurable so the integration host can raise it: all tests share one
+                // WebApplicationFactory and therefore one per-IP partition, so the production
+                // default of 10/min throttles the suite itself and surfaces as empty 429 bodies
+                // that look like unrelated failures.
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 10),
                 QueueLimit = 0,
             }));
 });
@@ -289,23 +307,31 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+// Probe endpoint: must answer before/without authentication or it is useless to an orchestrator.
+app.MapHealthChecks("/health").AllowAnonymous();
 
+// Reference data is deliberately public: the registration form (itself unauthenticated) needs
+// regions/currencies to render. These were previously anonymous only because no guard had been
+// attached - now it is a stated decision (MSP-67). Contents are non-sensitive seed lists with no
+// supplier or personal data.
 app.MapGet("/api/v1/reference/currencies", async (IGetCurrenciesHandler handler, CancellationToken ct) =>
     {
         var currencies = await handler.HandleAsync(ct);
         return Results.Ok(currencies);
     })
+    .AllowAnonymous()
     .WithName("GetCurrencies")
     .WithTags("Reference");
 
 app.MapGet("/api/v1/reference/regions", async (IGetRegionsHandler handler, CancellationToken ct) =>
     Results.Ok(await handler.HandleAsync(ct)))
+    .AllowAnonymous()
     .WithName("GetRegions")
     .WithTags("Reference");
 
 app.MapGet("/api/v1/reference/categories", async (IGetCategoriesHandler handler, CancellationToken ct) =>
     Results.Ok(await handler.HandleAsync(ct)))
+    .AllowAnonymous()
     .WithName("GetCategories")
     .WithTags("Reference");
 

@@ -55,6 +55,11 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         // an external API - fine to fail open in prod/dev, but a flaky/offline network shouldn't
         // ever be why an integration test fails.
         builder.UseSetting("Password:BreachCheckEnabled", "false");
+
+        // Every test class shares this one host (IntegrationTestCollection), so they also share the
+        // per-IP auth rate-limit partition. At the production default of 10/min the suite throttles
+        // itself and the resulting empty 429 bodies present as JSON parse errors far from the cause.
+        builder.UseSetting("RateLimiting:AuthPermitLimit", "10000");
     }
 
     async Task IAsyncLifetime.DisposeAsync()
