@@ -759,20 +759,30 @@ Arabic/English content correct — feeding onboarding completeness and future ER
 Phase 2. **Domain:** Supplier — SupplierProfile, LegalInfo(VO), Address[], Contact[], Representative[],
 Branch[], BankAccount[], CategoryLink[].
 
+> **Build status (2026-08-27, verified against code, not self-reported):** the "✅" in the epic index
+> table above means this epic's stories are **fully written out below** — it is a documentation-
+> completeness marker, not an implementation-status one, and it is accurate: every story below is
+> fully specified. Actual implementation is **partial**. `Supplier.cs` today has only
+> `DisplayNameAr/En, RegistrationNumber, TaxId, AddressLine, City, Country, CurrencyCode` — a single
+> flat address, no `Description`/`Logo`/`Website`/type/group, and none of `LegalInfo`, `Address[]`,
+> `Contact[]`, `Branch[]`, `BankAccount[]`, `CategoryLink[]`, delegated `supplier_user` management, or
+> `SyncStatus`/`LastSyncedAt` exist. See the per-feature status below; MSP-51..56 (Jira) scope the
+> remaining work.
+
 ### Features
 
-| Feature | Name | Priority | Notes |
-|---|---|---|---|
-| FEAT-04.1 | Core profile (names AR/EN, type/group, currency, logo) | M | `FR-PROF-001,011` |
-| FEAT-04.2 | LegalInfo VO (generic) | M | `FR-PROF-002` `[ASSUMPTION]` |
-| FEAT-04.3 | Addresses (HQ/billing/branch) | M | `FR-PROF-003` |
-| FEAT-04.4 | Contacts & Representatives (primary designate) | M | `FR-PROF-004` |
-| FEAT-04.5 | Branches | S | `FR-PROF-005` |
-| FEAT-04.6 | Bank accounts (generic) | M | `FR-PROF-006` `[ASSUMPTION]` |
-| FEAT-04.7 | Category links to buyer Category tree | M | `FR-PROF-007` |
-| FEAT-04.8 | Delegated `supplier_user` management | M | `FR-PROF-008` |
-| FEAT-04.9 | Post-approval compliance-critical edits re-trigger review/sync | S | `FR-PROF-009` `[ASSUMPTION]` |
-| FEAT-04.10 | ERP mapping fields (read-only to staff) | M | `FR-PROF-010` |
+| Feature | Name | Priority | Notes | Built? |
+|---|---|---|---|---|
+| FEAT-04.1 | Core profile (names AR/EN, type/group, currency, logo) | M | `FR-PROF-001,011` | Partial — AR/EN names, currency, one flat address done; `Description`/`Logo`/`Website`/type/group not done (MSP-51) |
+| FEAT-04.2 | LegalInfo VO (generic) | M | `FR-PROF-002` `[ASSUMPTION]` | Not built (MSP-51) |
+| FEAT-04.3 | Addresses (HQ/billing/branch) | M | `FR-PROF-003` | Not built — today's one `AddressLine` field is not a multi-valued `Address[]` (MSP-52) |
+| FEAT-04.4 | Contacts & Representatives (primary designate) | M | `FR-PROF-004` | Partial — one primary `Representative` from registration exists; no additional `Contact[]` (MSP-52) |
+| FEAT-04.5 | Branches | S | `FR-PROF-005` | Not built (MSP-53) |
+| FEAT-04.6 | Bank accounts (generic) | M | `FR-PROF-006` `[ASSUMPTION]` | Not built (MSP-53) |
+| FEAT-04.7 | Category links to buyer Category tree | M | `FR-PROF-007` | Not built — blocked on Category reference data, which also doesn't exist yet (MSP-54) |
+| FEAT-04.8 | Delegated `supplier_user` management | M | `FR-PROF-008` | Not built (MSP-55) |
+| FEAT-04.9 | Post-approval compliance-critical edits re-trigger review/sync | S | `FR-PROF-009` `[ASSUMPTION]` | Not built (MSP-56) |
+| FEAT-04.10 | ERP mapping fields (read-only to staff) | M | `FR-PROF-010` | Not built — only `ExternalId` exists; no `SyncStatus`/`LastSyncedAt` (MSP-56) |
 
 ---
 
