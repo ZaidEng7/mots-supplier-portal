@@ -1,3 +1,4 @@
+using System.Globalization;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
@@ -43,8 +44,12 @@ public static class DocumentEndpoints
                 return Results.BadRequest(new { error = "documentTypeId_required" });
             }
 
-            DateOnly? issueDate = DateOnly.TryParse(form["issueDate"], out var issue) ? issue : null;
-            DateOnly? expiryDate = DateOnly.TryParse(form["expiryDate"], out var expiry) ? expiry : null;
+            // Invariant culture, not CurrentCulture: the host's OS/container locale (e.g. an
+            // Arabic-region default) can default to a non-Gregorian calendar, silently failing
+            // TryParse on the ISO "yyyy-MM-dd" string the frontend's <input type="date"> always
+            // sends (HTML5 date inputs are locale-independent by spec).
+            DateOnly? issueDate = DateOnly.TryParse(form["issueDate"], CultureInfo.InvariantCulture, out var issue) ? issue : null;
+            DateOnly? expiryDate = DateOnly.TryParse(form["expiryDate"], CultureInfo.InvariantCulture, out var expiry) ? expiry : null;
 
             await using var stream = file.OpenReadStream();
             var command = new UploadDocumentCommand(
