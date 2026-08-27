@@ -45,6 +45,12 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services.AddOpenApi();
 
+// Global: every enum (AddressKind, OnboardingState, SupplierLegalType, DocumentTypeKind, ...)
+// reads/writes its string name on the wire, not a raw integer - applies to every Minimal API
+// endpoint's request/response JSON binding, not just one handler.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres";
 
@@ -135,6 +141,24 @@ builder.Services.AddHttpContextAccessor();
 
 // Application services
 builder.Services.AddScoped<IGetCurrenciesHandler, GetCurrenciesHandler>();
+builder.Services.AddScoped<IGetRegionsHandler, GetRegionsHandler>();
+builder.Services.AddScoped<IGetCategoriesHandler, GetCategoriesHandler>();
+builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
+builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
+builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
+builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
+builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
+builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
+builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();
+builder.Services.AddScoped<IManageAddressHandler, ManageAddressHandler>();
+builder.Services.AddScoped<IManageContactHandler, ManageContactHandler>();
+builder.Services.AddScoped<IManageBranchHandler, ManageBranchHandler>();
+builder.Services.AddScoped<IManageBankAccountHandler, ManageBankAccountHandler>();
+builder.Services.AddScoped<IManageCategoryLinkHandler, ManageCategoryLinkHandler>();
+builder.Services.AddScoped<IInviteSupplierUserHandler, InviteSupplierUserHandler>();
+builder.Services.AddScoped<IListSupplierUsersHandler, ListSupplierUsersHandler>();
+builder.Services.AddScoped<IDisableSupplierUserHandler, DisableSupplierUserHandler>();
+builder.Services.AddScoped<IAcceptSupplierUserInviteHandler, AcceptSupplierUserInviteHandler>();
 builder.Services.AddScoped<ISecurityTokenService, SecurityTokenService>();
 builder.Services.AddScoped<IRegisterSupplierHandler, RegisterSupplierHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
@@ -275,11 +299,23 @@ app.MapGet("/api/v1/reference/currencies", async (IGetCurrenciesHandler handler,
     .WithName("GetCurrencies")
     .WithTags("Reference");
 
+app.MapGet("/api/v1/reference/regions", async (IGetRegionsHandler handler, CancellationToken ct) =>
+    Results.Ok(await handler.HandleAsync(ct)))
+    .WithName("GetRegions")
+    .WithTags("Reference");
+
+app.MapGet("/api/v1/reference/categories", async (IGetCategoriesHandler handler, CancellationToken ct) =>
+    Results.Ok(await handler.HandleAsync(ct)))
+    .WithName("GetCategories")
+    .WithTags("Reference");
+
 app.MapRegistrationEndpoints();
 app.MapAuthEndpoints();
 app.MapMfaEndpoints();
 app.MapSupplierEndpoints();
+app.MapSupplierUserEndpoints();
 app.MapAuditEndpoints();
+app.MapAdminEndpoints();
 app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
 

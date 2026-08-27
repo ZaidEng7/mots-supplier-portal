@@ -29,7 +29,7 @@ public sealed class GetReviewerSupplierViewHandler(AppDbContext db) : IGetReview
 {
     public async Task<ReviewerSupplierViewDto?> HandleAsync(string referenceCode, CancellationToken ct)
     {
-        var supplier = await db.Suppliers.Include(s => s.Representatives)
+        var supplier = await db.Suppliers.IncludeProfile()
             .FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
         if (supplier is null) return null;
 
@@ -45,7 +45,8 @@ public sealed class GetReviewerSupplierViewHandler(AppDbContext db) : IGetReview
                 a.ResolvedAt))
             .ToListAsync(ct);
 
-        return new ReviewerSupplierViewDto(SupplierDtoMapper.ToDto(supplier), documents, annotations);
+        var erpSync = new ErpSyncDto(supplier.ExternalId, supplier.SyncStatus.ToString(), supplier.LastSyncedAt);
+        return new ReviewerSupplierViewDto(SupplierDtoMapper.ToDto(supplier), erpSync, documents, annotations);
     }
 }
 
@@ -92,7 +93,7 @@ public sealed class PickUpApplicationHandler(AppDbContext db, IScopeContext scop
 {
     public async Task<ReviewDecisionResult> HandleAsync(string referenceCode, CancellationToken ct)
     {
-        var supplier = await db.Suppliers.Include(s => s.Representatives).FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
         if (supplier is null) return new ReviewDecisionResult.NotFound();
 
         try { supplier.PickUpForReview(); }
@@ -108,7 +109,7 @@ public sealed class ApproveApplicationHandler(AppDbContext db, IScopeContext sco
 {
     public async Task<ReviewDecisionResult> HandleAsync(string referenceCode, CancellationToken ct)
     {
-        var supplier = await db.Suppliers.Include(s => s.Representatives).FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
         if (supplier is null) return new ReviewDecisionResult.NotFound();
 
         var blocking = await DocumentCompletenessEvaluator.GetBlockingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct);
@@ -149,7 +150,7 @@ public sealed class RejectApplicationHandler(AppDbContext db, IScopeContext scop
 {
     public async Task<ReviewDecisionResult> HandleAsync(string referenceCode, string reason, CancellationToken ct)
     {
-        var supplier = await db.Suppliers.Include(s => s.Representatives).FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
         if (supplier is null) return new ReviewDecisionResult.NotFound();
 
         try { supplier.Reject(reason); }
@@ -169,7 +170,7 @@ public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAu
 {
     public async Task<ReviewDecisionResult> HandleAsync(RequestInfoCommand command, CancellationToken ct)
     {
-        var supplier = await db.Suppliers.Include(s => s.Representatives).FirstOrDefaultAsync(s => s.ReferenceCode == command.ReferenceCode, ct);
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.ReferenceCode == command.ReferenceCode, ct);
         if (supplier is null) return new ReviewDecisionResult.NotFound();
 
         try { supplier.RequestInfo(); }
@@ -207,7 +208,7 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
     {
         if (scope.SupplierId is null) return new ReviewDecisionResult.NotFound();
 
-        var supplier = await db.Suppliers.Include(s => s.Representatives).FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ReviewDecisionResult.NotFound();
 
         var activeAnnotation = await db.SupplierReviewAnnotations

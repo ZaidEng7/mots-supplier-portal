@@ -19,7 +19,7 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         }
 
         var supplier = await db.Suppliers
-            .Include(s => s.Representatives)
+            .IncludeProfile()
             .Where(s => s.ReferenceCode == referenceCode && s.Id == scope.SupplierId)
             .FirstOrDefaultAsync(ct);
 
@@ -36,7 +36,7 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         }
 
         var supplier = await db.Suppliers
-            .Include(s => s.Representatives)
+            .IncludeProfile()
             .FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
 
         return supplier is null

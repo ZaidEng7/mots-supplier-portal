@@ -18,7 +18,7 @@ public sealed class SubmitApplicationHandler(AppDbContext db, IScopeContext scop
         }
 
         var supplier = await db.Suppliers
-            .Include(s => s.Representatives)
+            .IncludeProfile()
             .FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
 
         if (supplier is null)

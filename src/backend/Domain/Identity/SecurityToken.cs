@@ -4,6 +4,7 @@ public enum SecurityTokenPurpose
 {
     EmailVerification,
     PasswordReset,
+    SupplierUserInvite,
 }
 
 /// <summary>

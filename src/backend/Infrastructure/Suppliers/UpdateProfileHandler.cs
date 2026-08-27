@@ -6,8 +6,8 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
-/// <summary>STORY-03.1.1: edits are row-scoped and only legal while EmailVerified/ProfileInProgress
-/// - the domain itself refuses edits once Submitted (read-only, AC3).</summary>
+/// <summary>STORY-03.1.1/STORY-04.1.1: edits are row-scoped and only legal while EmailVerified/
+/// ProfileInProgress/InfoRequested - the domain itself refuses edits once Submitted (read-only).</summary>
 public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUpdateProfileHandler
 {
     public async Task<UpdateProfileResult> HandleAsync(UpdateProfileCommand command, CancellationToken ct)
@@ -18,7 +18,7 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
         }
 
         var supplier = await db.Suppliers
-            .Include(s => s.Representatives)
+            .IncludeProfile()
             .FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
 
         if (supplier is null)
@@ -28,13 +28,7 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
 
         try
         {
-            supplier.UpdateProfile(
-                command.RegistrationNumber,
-                command.TaxId,
-                command.AddressLine,
-                command.City,
-                command.Country,
-                command.CurrencyCode);
+            supplier.UpdateCoreProfile(command.Description, command.Website, command.SupplierGroup, command.CurrencyCode);
         }
         catch (DomainException ex)
         {

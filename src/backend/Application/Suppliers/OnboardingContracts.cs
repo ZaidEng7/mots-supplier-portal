@@ -1,11 +1,11 @@
+using MotsSupplierPortal.Domain.Suppliers;
+
 namespace MotsSupplierPortal.Application.Suppliers;
 
 public sealed record UpdateProfileCommand(
-    string? RegistrationNumber,
-    string? TaxId,
-    string? AddressLine,
-    string? City,
-    string? Country,
+    string? Description,
+    string? Website,
+    string? SupplierGroup,
     string? CurrencyCode,
     string? PrimaryContactPhone);
 
@@ -19,6 +19,19 @@ public abstract record UpdateProfileResult
 public interface IUpdateProfileHandler
 {
     Task<UpdateProfileResult> HandleAsync(UpdateProfileCommand command, CancellationToken ct);
+}
+
+public sealed record UpdateLegalInfoCommand(
+    string LegalNameAr,
+    string LegalNameEn,
+    string? RegistrationNumber,
+    string? TaxId,
+    SupplierLegalType SupplierType,
+    DateOnly? EstablishedOn);
+
+public interface IUpdateLegalInfoHandler
+{
+    Task<UpdateProfileResult> HandleAsync(UpdateLegalInfoCommand command, CancellationToken ct);
 }
 
 public abstract record AcceptTermsResult

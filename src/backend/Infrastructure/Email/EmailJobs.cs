@@ -45,4 +45,8 @@ public sealed class EmailJobs(IEmailSender emailSender)
     public Task SendDocumentExpiredEmailAsync(string toEmail, string documentName, CancellationToken ct) =>
         emailSender.SendAsync(toEmail, "A document on your supplier profile has expired",
             $"<p>Your document \"{documentName}\" has expired and your profile is now flagged incomplete. Please re-upload it.</p>", ct);
+
+    public Task SendSupplierUserInviteEmailAsync(string toEmail, string acceptUrl, CancellationToken ct) =>
+        emailSender.SendAsync(toEmail, "You've been invited to the MOTS Supplier Portal",
+            $"<p>You've been invited to join your organization's supplier account. Click to set your password and get started:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>", ct);
 }

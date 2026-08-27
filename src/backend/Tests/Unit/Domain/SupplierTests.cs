@@ -8,6 +8,33 @@ public class SupplierTests
     private static Supplier CreateDraftSupplier() => Supplier.Register(
         "SUP-2026-000001", "شركة الاختبار", "Test Co", "CR-1", "Zaid", "zaid@example.com");
 
+    /// <summary>Fills every EPIC-04 field the submit gate checks (STORY-04.3.1/04.7.1's minimums
+    /// included), mirroring the shape a real onboarding flow ends up with.</summary>
+    private static void CompleteProfile(Supplier supplier)
+    {
+        supplier.UpdateCoreProfile("A tourism supplier", "https://example.com", "SME", "SYP");
+        supplier.UpdateLegalInfo("شركة الاختبار", "Test Co", "CR-1", "TAX-1", SupplierLegalType.Company, null, isComplianceCritical: true);
+        supplier.AddAddress(AddressKind.HeadOffice, "123 Main St", null, "Damascus", "DIM", "Syria", null, null, null);
+        supplier.LinkCategory("catering", isComplianceCritical: true);
+        supplier.Representatives[0].Phone = "+963000000";
+    }
+
+    private static Supplier CreateProfileInProgressSupplier()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+        CompleteProfile(supplier);
+        return supplier;
+    }
+
+    private static Supplier CreateSubmittedSupplier()
+    {
+        var supplier = CreateProfileInProgressSupplier();
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
+        supplier.Submit([]);
+        return supplier;
+    }
+
     [Fact]
     public void Register_creates_supplier_in_draft_with_one_primary_representative()
     {
@@ -15,6 +42,7 @@ public class SupplierTests
 
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.Draft);
         supplier.Representatives.Should().ContainSingle(r => r.IsPrimary);
+        supplier.LegalInfo.Should().NotBeNull();
     }
 
     [Fact]
@@ -50,38 +78,33 @@ public class SupplierTests
     }
 
     [Fact]
-    public void UpdateProfile_from_EmailVerified_transitions_to_ProfileInProgress()
+    public void UpdateCoreProfile_from_EmailVerified_transitions_to_ProfileInProgress()
     {
         var supplier = CreateDraftSupplier();
         supplier.MarkEmailVerified();
 
-        supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
+        supplier.UpdateCoreProfile("desc", "https://example.com", "SME", "SYP");
 
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.ProfileInProgress);
-        supplier.AddressLine.Should().Be("123 Main St");
+        supplier.CurrencyCode.Should().Be("SYP");
     }
 
     [Fact]
-    public void UpdateProfile_before_email_verified_is_rejected_by_the_domain()
+    public void UpdateCoreProfile_before_email_verified_is_rejected_by_the_domain()
     {
         var supplier = CreateDraftSupplier();
 
-        var act = () => supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
+        var act = () => supplier.UpdateCoreProfile("desc", null, null, "SYP");
 
         act.Should().Throw<DomainException>();
     }
 
     [Fact]
-    public void UpdateProfile_after_submission_is_rejected_by_the_domain_read_only()
+    public void UpdateCoreProfile_after_submission_is_rejected_by_the_domain_read_only()
     {
-        var supplier = CreateDraftSupplier();
-        supplier.MarkEmailVerified();
-        supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
-        supplier.Representatives[0].Phone = "+963000000";
-        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
-        supplier.Submit([]);
+        var supplier = CreateSubmittedSupplier();
 
-        var act = () => supplier.UpdateProfile("CR-1", "TAX-1", "changed", "Damascus", "Syria", "SYP");
+        var act = () => supplier.UpdateCoreProfile("changed", null, null, "SYP");
 
         act.Should().Throw<DomainException>();
     }
@@ -94,8 +117,8 @@ public class SupplierTests
 
         var missing = supplier.GetMissingProfileFields();
 
-        missing.Should().Contain(["taxId", "addressLine", "city", "country", "currencyCode", "primaryContactPhone"]);
-        missing.Should().NotContain("registrationNumber"); // set at Register()
+        missing.Should().Contain(["currencyCode", "address", "categoryLink", "primaryContactPhone", "termsAccepted"]);
+        missing.Should().NotContain("legalInfo"); // set at Register() from the trade name
     }
 
     [Fact]
@@ -103,7 +126,7 @@ public class SupplierTests
     {
         var supplier = CreateDraftSupplier();
         supplier.MarkEmailVerified();
-        supplier.UpdateProfile("CR-1", null, null, null, null, null);
+        supplier.UpdateCoreProfile(null, null, null, null);
 
         var act = () => supplier.Submit([]);
 
@@ -114,10 +137,7 @@ public class SupplierTests
     [Fact]
     public void Submit_with_complete_profile_transitions_to_Submitted()
     {
-        var supplier = CreateDraftSupplier();
-        supplier.MarkEmailVerified();
-        supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
-        supplier.Representatives[0].Phone = "+963000000";
+        var supplier = CreateProfileInProgressSupplier();
         supplier.AcceptTerms(Supplier.CurrentTermsVersion);
 
         supplier.Submit([]);
@@ -127,12 +147,39 @@ public class SupplierTests
     }
 
     [Fact]
-    public void Submit_without_accepting_terms_is_rejected_by_the_domain()
+    public void Submit_without_at_least_one_address_is_rejected_by_the_domain()
     {
         var supplier = CreateDraftSupplier();
         supplier.MarkEmailVerified();
-        supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
+        supplier.UpdateCoreProfile(null, null, null, "SYP");
+        supplier.LinkCategory("catering", isComplianceCritical: true);
         supplier.Representatives[0].Phone = "+963000000";
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
+
+        var act = () => supplier.Submit([]);
+
+        act.Should().Throw<DomainException>().WithMessage("*address*");
+    }
+
+    [Fact]
+    public void Submit_without_at_least_one_category_link_is_rejected_by_the_domain()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+        supplier.UpdateCoreProfile(null, null, null, "SYP");
+        supplier.AddAddress(AddressKind.HeadOffice, "123 Main St", null, "Damascus", "DIM", "Syria", null, null, null);
+        supplier.Representatives[0].Phone = "+963000000";
+        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
+
+        var act = () => supplier.Submit([]);
+
+        act.Should().Throw<DomainException>().WithMessage("*categoryLink*");
+    }
+
+    [Fact]
+    public void Submit_without_accepting_terms_is_rejected_by_the_domain()
+    {
+        var supplier = CreateProfileInProgressSupplier();
 
         var act = () => supplier.Submit([]);
 
@@ -161,17 +208,6 @@ public class SupplierTests
         var act = () => supplier.AcceptTerms(Supplier.CurrentTermsVersion);
 
         act.Should().Throw<DomainException>();
-    }
-
-    private static Supplier CreateSubmittedSupplier()
-    {
-        var supplier = CreateDraftSupplier();
-        supplier.MarkEmailVerified();
-        supplier.UpdateProfile("CR-1", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
-        supplier.Representatives[0].Phone = "+963000000";
-        supplier.AcceptTerms(Supplier.CurrentTermsVersion);
-        supplier.Submit([]);
-        return supplier;
     }
 
     [Fact]
@@ -252,16 +288,16 @@ public class SupplierTests
     }
 
     [Fact]
-    public void UpdateProfile_while_InfoRequested_is_allowed()
+    public void UpdateCoreProfile_while_InfoRequested_is_allowed()
     {
         var supplier = CreateSubmittedSupplier();
         supplier.PickUpForReview();
         supplier.RequestInfo();
 
-        var act = () => supplier.UpdateProfile("CR-2", "TAX-1", "123 Main St", "Damascus", "Syria", "SYP");
+        var act = () => supplier.UpdateCoreProfile("changed", null, null, "USD");
 
         act.Should().NotThrow();
-        supplier.RegistrationNumber.Should().Be("CR-2");
+        supplier.CurrencyCode.Should().Be("USD");
     }
 
     [Fact]
@@ -297,5 +333,46 @@ public class SupplierTests
         supplier.PickUpForReview();
 
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.UnderReview);
+    }
+
+    [Fact]
+    public void AddAddress_first_one_becomes_primary_and_removing_it_promotes_the_next()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+
+        var first = supplier.AddAddress(AddressKind.HeadOffice, "A", null, "Damascus", "DIM", "Syria", null, null, null);
+        var second = supplier.AddAddress(AddressKind.Branch, "B", null, "Aleppo", "ALP", "Syria", null, null, null);
+
+        first.IsPrimary.Should().BeTrue();
+        second.IsPrimary.Should().BeFalse();
+
+        supplier.RemoveAddress(first.Id);
+
+        supplier.Addresses.Should().ContainSingle(a => a.Id == second.Id && a.IsPrimary);
+    }
+
+    [Fact]
+    public void LinkCategory_is_idempotent()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+
+        supplier.LinkCategory("catering", isComplianceCritical: true);
+        supplier.LinkCategory("catering", isComplianceCritical: true);
+
+        supplier.CategoryLinks.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void AddBankAccount_stores_only_the_encrypted_and_masked_values_never_plaintext()
+    {
+        var supplier = CreateDraftSupplier();
+        supplier.MarkEmailVerified();
+
+        var account = supplier.AddBankAccount("Test Co", "Test Bank", null, [1, 2, 3], "****1234", null, "SYP", isComplianceCritical: true);
+
+        supplier.BankAccounts.Should().ContainSingle();
+        account.MaskedAccountNumber.Should().Be("****1234");
     }
 }

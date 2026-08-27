@@ -22,6 +22,13 @@ public static class Permissions
     /// <summary>Document-level approve/reject (FEAT-05.4) - simpler than, and distinct from, the
     /// application-level three-way decision above.</summary>
     public const string DocumentReview = "supplier.document.review";
+    /// <summary>FEAT-04.6/MSP-53: bank accounts are the most sensitive profile field (BRULE-014/
+    /// 090/091) - scoped tighter than general SupplierEdit, supplier_admin only, not
+    /// supplier_user.</summary>
+    public const string SupplierBankAccountManage = "supplier.bankAccount.manage";
+    /// <summary>FEAT-04.8/MSP-55: supplier_admin only, not supplier_user - a delegated user must
+    /// not be able to invite/disable other delegated users.</summary>
+    public const string SupplierUserManage = "supplier.user.manage";
     public const string RfqPublish = "rfq.publish";
     public const string ProposalSubmit = "proposal.submit";
     public const string EvaluationScore = "evaluation.score";
@@ -32,6 +39,7 @@ public static class Permissions
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
+        SupplierBankAccountManage, SupplierUserManage,
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
     ];
 }
@@ -51,7 +59,7 @@ public static class Roles
     /// <summary>Default permission set per persona at seed time (admin-editable thereafter).</summary>
     public static readonly IReadOnlyDictionary<string, string[]> DefaultPermissions = new Dictionary<string, string[]>
     {
-        [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit],
+        [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview],
         [ProcurementOfficer] = [Permissions.RfqPublish],

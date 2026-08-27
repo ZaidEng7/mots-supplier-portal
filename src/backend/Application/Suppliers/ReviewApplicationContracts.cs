@@ -10,7 +10,11 @@ public interface IListReviewQueueHandler
 
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);
 
-public sealed record ReviewerSupplierViewDto(SupplierDto Supplier, IReadOnlyList<DocumentTypeStatusDto> Documents, IReadOnlyList<ReviewAnnotationDto> AnnotationHistory);
+/// <summary>FEAT-04.10: ERP mapping fields - read-only to staff, never exposed to the supplier
+/// (see SupplierDto's own doc comment for the other half of that split).</summary>
+public sealed record ErpSyncDto(string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt);
+
+public sealed record ReviewerSupplierViewDto(SupplierDto Supplier, ErpSyncDto ErpSync, IReadOnlyList<DocumentTypeStatusDto> Documents, IReadOnlyList<ReviewAnnotationDto> AnnotationHistory);
 
 public interface IGetReviewerSupplierViewHandler
 {

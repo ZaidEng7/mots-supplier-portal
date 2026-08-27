@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260827094654_MSP51_56_Followups")]
+    partial class MSP51_56_Followups
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -245,98 +248,6 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.HasIndex("SyncStatus");
 
                     b.ToTable("outbox_message", "ops");
-                });
-
-            modelBuilder.Entity("MotsSupplierPortal.Domain.Configuration.SupplierFieldConfig", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("FieldCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Category", "FieldCode")
-                        .IsUnique();
-
-                    b.ToTable("supplier_field_config", "ops");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000401"),
-                            Category = "ComplianceRetrigger",
-                            FieldCode = "legalInfo",
-                            IsEnabled = true
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000402"),
-                            Category = "ComplianceRetrigger",
-                            FieldCode = "bankAccount",
-                            IsEnabled = true
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000403"),
-                            Category = "ComplianceRetrigger",
-                            FieldCode = "categoryLink",
-                            IsEnabled = true
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000411"),
-                            Category = "LegalInfoRequired",
-                            FieldCode = "legalNameAr",
-                            IsEnabled = true
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000412"),
-                            Category = "LegalInfoRequired",
-                            FieldCode = "legalNameEn",
-                            IsEnabled = true
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000413"),
-                            Category = "LegalInfoRequired",
-                            FieldCode = "registrationNumber",
-                            IsEnabled = false
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000414"),
-                            Category = "LegalInfoRequired",
-                            FieldCode = "taxId",
-                            IsEnabled = false
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000415"),
-                            Category = "LegalInfoRequired",
-                            FieldCode = "supplierType",
-                            IsEnabled = false
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000416"),
-                            Category = "LegalInfoRequired",
-                            FieldCode = "establishedOn",
-                            IsEnabled = false
-                        });
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.Identity.AppUser", b =>
