@@ -102,7 +102,7 @@ public static class ReviewEndpoints
                 _ => Results.Problem(),
             };
         })
-        .RequirePermission(Permissions.SupplierReview)
+        .RequirePermission(Permissions.SupplierReject)
         .WithName("RejectApplication");
 
         group.MapPost("/{referenceCode}/request-info", async (
