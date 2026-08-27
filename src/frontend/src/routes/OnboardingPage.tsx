@@ -4,11 +4,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Field, Input, Select } from '../components/ui'
+import { Badge, Button, Card, Field, Input, Select } from '../components/ui'
 import { useToast } from '../components/ui'
+import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
   getOwnSupplier,
   updateProfile,
+  updateLegalInfo,
+  uploadLogo,
+  getLogoDownloadUrl,
   acceptTerms,
   submitApplication,
   resubmitApplication,
@@ -19,19 +23,30 @@ import { fetchCurrencies } from '../api/reference'
 import { listOwnDocuments, uploadDocument, getDocumentDownloadUrl, DocumentApiError, type DocumentTypeStatus } from '../api/documents'
 import { getOwnActiveAnnotation } from '../api/review'
 
-const schema = z.object({
+const SUPPLIER_TYPES = ['Company', 'Individual', 'Partnership'] as const
+
+const legalSchema = z.object({
+  legalNameAr: z.string().min(1),
+  legalNameEn: z.string().min(1),
   registrationNumber: z.string().optional(),
   taxId: z.string().optional(),
-  addressLine: z.string().optional(),
-  city: z.string().optional(),
-  country: z.string().optional(),
+  supplierType: z.enum(SUPPLIER_TYPES),
+  establishedOn: z.string().optional(),
+})
+type LegalFormValues = z.infer<typeof legalSchema>
+
+const profileSchema = z.object({
+  description: z.string().optional(),
+  website: z.string().optional(),
+  supplierGroup: z.string().optional(),
   currencyCode: z.string().optional(),
   primaryContactPhone: z.string().optional(),
 })
+type ProfileFormValues = z.infer<typeof profileSchema>
 
-type FormValues = z.infer<typeof schema>
-
-const REQUIRED_FIELDS = ['registrationNumber', 'taxId', 'addressLine', 'city', 'country', 'currencyCode', 'primaryContactPhone'] as const
+// Matches SupplierDto.missingProfileFields' exact string values (Domain/Suppliers/Supplier.cs
+// GetMissingProfileFields), not arbitrary display keys - keep in sync if the backend list changes.
+const REQUIRED_FIELDS = ['legalInfo', 'currencyCode', 'address', 'categoryLink', 'primaryContactPhone'] as const
 
 const DOC_STATE_TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
   PendingScan: 'info',
@@ -42,6 +57,54 @@ const DOC_STATE_TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' |
   ScanRejected: 'danger',
   ExpiringSoon: 'warning',
   Expired: 'danger',
+}
+
+function LogoUploader({ profile, canEdit, onProfile }: { profile: SupplierProfile; canEdit: boolean; onProfile: (p: SupplierProfile) => void }) {
+  const { t } = useTranslation()
+  const { notify } = useToast()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const logoUrlQuery = useQuery({ queryKey: ['logo-url', profile.logoStorageKey], queryFn: getLogoDownloadUrl, enabled: !!profile.logoStorageKey })
+
+  const uploadMutation = useMutation({
+    mutationFn: uploadLogo,
+    onSuccess: (data) => { onProfile(data); notify({ kind: 'success', title: t('onboarding.logoUploaded') }) },
+    onError: (err) => notify({ kind: 'danger', title: t('onboarding.logoUploadFailed'), description: err instanceof SupplierApiError ? err.message : undefined }),
+  })
+
+  return (
+    <div className="flex items-center gap-4">
+      <div
+        className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[0.5rem]"
+        style={{ backgroundColor: 'var(--color-bg-sunken)', border: '1px solid var(--color-border)' }}
+      >
+        {logoUrlQuery.data ? (
+          <img src={logoUrlQuery.data} alt={t('onboarding.logoAlt')} className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
+            {t('onboarding.noLogo')}
+          </span>
+        )}
+      </div>
+      {canEdit ? (
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".png,.jpg,.jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) uploadMutation.mutate(file)
+              e.target.value = ''
+            }}
+          />
+          <Button variant="secondary" size="sm" isLoading={uploadMutation.isPending} onClick={() => fileRef.current?.click()}>
+            {profile.logoStorageKey ? t('onboarding.logoReplace') : t('onboarding.logoUpload')}
+          </Button>
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boolean }) {
@@ -127,45 +190,69 @@ export function OnboardingPage() {
   const documentsQuery = useQuery({ queryKey: ['own-documents'], queryFn: listOwnDocuments })
   const annotationQuery = useQuery({ queryKey: ['own-annotation'], queryFn: getOwnActiveAnnotation })
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) })
-  const currencyCode = watch('currencyCode')
+  const onProfile = (data: SupplierProfile) => queryClient.setQueryData(['own-supplier'], data)
+
+  const legalForm = useForm<LegalFormValues>({ resolver: zodResolver(legalSchema) })
+  const profileForm = useForm<ProfileFormValues>({ resolver: zodResolver(profileSchema) })
 
   useEffect(() => {
     if (profileQuery.data) {
-      reset({
-        registrationNumber: profileQuery.data.registrationNumber ?? '',
-        taxId: profileQuery.data.taxId ?? '',
-        addressLine: profileQuery.data.addressLine ?? '',
-        city: profileQuery.data.city ?? '',
-        country: profileQuery.data.country ?? '',
-        currencyCode: profileQuery.data.currencyCode ?? '',
-        primaryContactPhone: profileQuery.data.primaryContactPhone ?? '',
+      const p = profileQuery.data
+      legalForm.reset({
+        legalNameAr: p.legalInfo?.legalNameAr ?? '',
+        legalNameEn: p.legalInfo?.legalNameEn ?? '',
+        registrationNumber: p.legalInfo?.registrationNumber ?? '',
+        taxId: p.legalInfo?.taxId ?? '',
+        supplierType: (p.legalInfo?.supplierType as (typeof SUPPLIER_TYPES)[number]) ?? 'Company',
+        establishedOn: p.legalInfo?.establishedOn ?? '',
+      })
+      profileForm.reset({
+        description: p.description ?? '',
+        website: p.website ?? '',
+        supplierGroup: p.supplierGroup ?? '',
+        currencyCode: p.currencyCode ?? '',
+        primaryContactPhone: p.primaryContactPhone ?? '',
       })
     }
-  }, [profileQuery.data, reset])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileQuery.data])
 
-  const saveMutation = useMutation({
-    mutationFn: (values: FormValues) => updateProfile(values),
+  const saveLegalMutation = useMutation({
+    mutationFn: (values: LegalFormValues) =>
+      updateLegalInfo({
+        legalNameAr: values.legalNameAr,
+        legalNameEn: values.legalNameEn,
+        registrationNumber: values.registrationNumber || null,
+        taxId: values.taxId || null,
+        supplierType: values.supplierType,
+        establishedOn: values.establishedOn || null,
+      }),
     onSuccess: (data) => {
-      queryClient.setQueryData(['own-supplier'], data)
+      onProfile(data)
       notify({ kind: 'success', title: t('onboarding.saved') })
     },
-    onError: () => notify({ kind: 'danger', title: t('onboarding.saveFailed') }),
+    onError: (err) => notify({ kind: 'danger', title: t('onboarding.saveFailed'), description: err instanceof SupplierApiError ? err.message : undefined }),
+  })
+
+  const saveProfileMutation = useMutation({
+    mutationFn: (values: ProfileFormValues) =>
+      updateProfile({
+        description: values.description || null,
+        website: values.website || null,
+        supplierGroup: values.supplierGroup || null,
+        currencyCode: values.currencyCode || null,
+        primaryContactPhone: values.primaryContactPhone || null,
+      }),
+    onSuccess: (data) => {
+      onProfile(data)
+      notify({ kind: 'success', title: t('onboarding.saved') })
+    },
+    onError: (err) => notify({ kind: 'danger', title: t('onboarding.saveFailed'), description: err instanceof SupplierApiError ? err.message : undefined }),
   })
 
   const submitMutation = useMutation({
     mutationFn: submitApplication,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['own-supplier'], data)
-      notify({ kind: 'success', title: t('onboarding.submitted') })
-    },
+    onSuccess: onProfile,
     onError: (err) => {
       if (err instanceof SupplierApiError && err.missingFields) {
         notify({ kind: 'danger', title: t('onboarding.incomplete'), description: err.missingFields.join(', ') })
@@ -177,25 +264,21 @@ export function OnboardingPage() {
 
   const acceptTermsMutation = useMutation({
     mutationFn: acceptTerms,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['own-supplier'], data)
-      notify({ kind: 'success', title: t('onboarding.termsAccepted') })
-    },
+    onSuccess: onProfile,
     onError: () => notify({ kind: 'danger', title: t('onboarding.termsAcceptFailed') }),
   })
 
   const resubmitMutation = useMutation({
     mutationFn: resubmitApplication,
     onSuccess: (data) => {
-      queryClient.setQueryData(['own-supplier'], data)
+      onProfile(data)
       queryClient.invalidateQueries({ queryKey: ['own-annotation'] })
-      notify({ kind: 'success', title: t('onboarding.resubmitted') })
     },
     onError: () => notify({ kind: 'danger', title: t('onboarding.resubmitFailed') }),
   })
 
   if (profileQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
+    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
   }
 
   const profile = profileQuery.data as SupplierProfile | undefined
@@ -207,10 +290,14 @@ export function OnboardingPage() {
   const annotation = annotationQuery.data
   const flaggedFields = new Set(annotation?.flaggedProfileFields ?? [])
   const flaggedDocCodes = new Set(annotation?.flaggedDocumentTypeCodes ?? [])
-  const currencyOptions = (currenciesQuery.data ?? []).map((c) => ({ value: c.code, label: `${c.code}` }))
+  const currencyOptions = (currenciesQuery.data ?? []).map((c) => ({ value: c.code, label: c.code }))
   const documents = documentsQuery.data ?? []
+  const currencyCode = profileForm.watch('currencyCode')
+  const supplierType = legalForm.watch('supplierType')
 
   const fieldEditable = (field: string) => !isReadOnly && (!isInfoRequested || flaggedFields.has(field))
+
+  if (!profile) return null
 
   return (
     <div className="flex flex-col gap-6">
@@ -218,8 +305,10 @@ export function OnboardingPage() {
         <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('onboarding.title')}
         </h1>
-        {profile ? <Badge tone={profile.onboardingState === 'Approved' ? 'success' : 'brand'}>{profile.onboardingState}</Badge> : null}
+        <Badge tone={profile.onboardingState === 'Approved' ? 'success' : 'brand'}>{profile.onboardingState}</Badge>
       </div>
+
+      <OnboardingStepNav />
 
       {isInfoRequested && annotation ? (
         <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--warning-500)' }}>
@@ -230,13 +319,7 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      <div
-        className="rounded-[0.75rem] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-      >
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.checklist')}
-        </h2>
+      <Card title={t('onboarding.checklist')}>
         <ul className="flex flex-col gap-1.5">
           {REQUIRED_FIELDS.map((field) => (
             <li key={field} className="flex items-center gap-2 text-[length:var(--text-body-sm)]">
@@ -254,47 +337,94 @@ export function OnboardingPage() {
             <span style={{ color: 'var(--color-text-secondary)' }}>{t('onboarding.termsLabel')}</span>
           </li>
         </ul>
-      </div>
+      </Card>
+
+      <Card title={t('onboarding.logoTitle')}>
+        <LogoUploader profile={profile} canEdit={!isReadOnly} onProfile={onProfile} />
+      </Card>
 
       <form
         className="flex flex-col gap-4 rounded-[0.75rem] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-        onSubmit={handleSubmit((values) => saveMutation.mutate(values))}
+        onSubmit={legalForm.handleSubmit((values) => saveLegalMutation.mutate(values))}
       >
+        <h2 className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('onboarding.legalTitle')}
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label={t('onboarding.fields.legalNameAr')} error={legalForm.formState.errors.legalNameAr ? t('onboarding.errors.legalNameArRequired') : undefined} required>
+            {(p) => <Input dir="rtl" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('legalNameAr')} />}
+          </Field>
+          <Field label={t('onboarding.fields.legalNameEn')} error={legalForm.formState.errors.legalNameEn ? t('onboarding.errors.legalNameEnRequired') : undefined} required>
+            {(p) => <Input dir="ltr" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('legalNameEn')} />}
+          </Field>
           <Field label={t('onboarding.fields.registrationNumber')}>
-            {(p) => <Input disabled={!fieldEditable('registrationNumber')} {...p} {...register('registrationNumber')} />}
+            {(p) => <Input disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('registrationNumber')} />}
           </Field>
           <Field label={t('onboarding.fields.taxId')}>
-            {(p) => <Input disabled={!fieldEditable('taxId')} {...p} {...register('taxId')} />}
+            {(p) => <Input disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('taxId')} />}
           </Field>
-          <Field label={t('onboarding.fields.addressLine')}>
-            {(p) => <Input disabled={!fieldEditable('addressLine')} {...p} {...register('addressLine')} />}
+          <Field label={t('onboarding.fields.supplierType')} required>
+            {(p) => (
+              <Select
+                id={p.id}
+                value={supplierType}
+                onValueChange={(v) => legalForm.setValue('supplierType', v as (typeof SUPPLIER_TYPES)[number])}
+                options={SUPPLIER_TYPES.map((v) => ({ value: v, label: t(`onboarding.supplierTypes.${v}`) }))}
+              />
+            )}
           </Field>
-          <Field label={t('onboarding.fields.city')}>{(p) => <Input disabled={!fieldEditable('city')} {...p} {...register('city')} />}</Field>
-          <Field label={t('onboarding.fields.country')}>
-            {(p) => <Input disabled={!fieldEditable('country')} {...p} {...register('country')} />}
+          <Field label={t('onboarding.fields.establishedOn')}>
+            {(p) => <Input type="date" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('establishedOn')} />}
           </Field>
-          <Field label={t('onboarding.fields.currencyCode')}>
+        </div>
+        {!isReadOnly ? (
+          <div>
+            <Button type="submit" variant="secondary" isLoading={saveLegalMutation.isPending}>
+              {t('onboarding.save')}
+            </Button>
+          </div>
+        ) : null}
+      </form>
+
+      <form
+        className="flex flex-col gap-4 rounded-[0.75rem] p-6"
+        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+        onSubmit={profileForm.handleSubmit((values) => saveProfileMutation.mutate(values))}
+      >
+        <h2 className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('onboarding.profileTitle')}
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label={t('onboarding.fields.description')}>
+            {(p) => <Input disabled={!fieldEditable('description')} {...p} {...profileForm.register('description')} />}
+          </Field>
+          <Field label={t('onboarding.fields.website')}>
+            {(p) => <Input disabled={!fieldEditable('website')} {...p} {...profileForm.register('website')} />}
+          </Field>
+          <Field label={t('onboarding.fields.supplierGroup')}>
+            {(p) => <Input disabled={!fieldEditable('supplierGroup')} {...p} {...profileForm.register('supplierGroup')} />}
+          </Field>
+          <Field label={t('onboarding.fields.currencyCode')} required>
             {(p) => (
               <Select
                 id={p.id}
                 aria-describedby={p['aria-describedby']}
                 aria-invalid={p['aria-invalid']}
                 value={currencyCode || undefined}
-                onValueChange={(v) => setValue('currencyCode', v)}
+                onValueChange={(v) => profileForm.setValue('currencyCode', v)}
                 options={currencyOptions}
                 placeholder={t('onboarding.fields.currencyCode')}
               />
             )}
           </Field>
-          <Field label={t('onboarding.fields.primaryContactPhone')}>
-            {(p) => <Input disabled={!fieldEditable('primaryContactPhone')} {...p} {...register('primaryContactPhone')} />}
+          <Field label={t('onboarding.fields.primaryContactPhone')} required>
+            {(p) => <Input disabled={!fieldEditable('primaryContactPhone')} {...p} {...profileForm.register('primaryContactPhone')} />}
           </Field>
         </div>
         {!isReadOnly ? (
           <div>
-            <Button type="submit" variant="secondary" isLoading={isSubmitting || saveMutation.isPending}>
+            <Button type="submit" variant="secondary" isLoading={saveProfileMutation.isPending}>
               {t('onboarding.save')}
             </Button>
           </div>
@@ -305,14 +435,8 @@ export function OnboardingPage() {
         )}
       </form>
 
-      <div
-        className="rounded-[0.75rem] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-      >
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.termsTitle')}
-        </h2>
-        {profile?.termsAcceptedAt ? (
+      <Card title={t('onboarding.termsTitle')}>
+        {profile.termsAcceptedAt ? (
           <p style={{ color: 'var(--success-600)' }}>
             {t('onboarding.termsAcceptedNotice', {
               date: new Date(profile.termsAcceptedAt).toLocaleString(),
@@ -338,15 +462,9 @@ export function OnboardingPage() {
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
-      <div
-        className="rounded-[0.75rem] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-      >
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.documents')}
-        </h2>
+      <Card title={t('onboarding.documents')}>
         <ul className="flex flex-col gap-2">
           {documents.map((doc) => (
             <DocumentRow
@@ -356,7 +474,7 @@ export function OnboardingPage() {
             />
           ))}
         </ul>
-      </div>
+      </Card>
 
       {!isReadOnly ? (
         <div className="flex gap-3">

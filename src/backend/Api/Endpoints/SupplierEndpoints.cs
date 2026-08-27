@@ -486,6 +486,11 @@ public static class SupplierEndpoints
         .RequirePermission(Permissions.SupplierBankAccountManage)
         .WithName("RemoveBankAccount");
 
+        group.MapPost("/me/bank-accounts/{bankAccountId:guid}/set-default", async (Guid bankAccountId, IManageBankAccountHandler handler, CancellationToken ct) =>
+            MapMutation(await handler.SetDefaultAsync(new SetDefaultBankAccountCommand(bankAccountId), ct)))
+        .RequirePermission(Permissions.SupplierBankAccountManage)
+        .WithName("SetDefaultBankAccount");
+
         group.MapPost("/me/bank-accounts/{bankAccountId:guid}/reveal", async (Guid bankAccountId, IManageBankAccountHandler handler, CancellationToken ct) =>
         {
             var result = await handler.RevealAsync(new RevealBankAccountCommand(bankAccountId), ct);

@@ -17,8 +17,14 @@ const RegisterPage = lazy(() => import('./routes/RegisterPage').then((m) => ({ d
 const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
 const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
 const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
+const AcceptTeamInvitePage = lazy(() => import('./routes/AcceptTeamInvitePage').then((m) => ({ default: m.AcceptTeamInvitePage })))
 const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
 const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
+const ContactsPage = lazy(() => import('./routes/onboarding/ContactsPage').then((m) => ({ default: m.ContactsPage })))
+const AddressesPage = lazy(() => import('./routes/onboarding/AddressesPage').then((m) => ({ default: m.AddressesPage })))
+const BankingPage = lazy(() => import('./routes/onboarding/BankingPage').then((m) => ({ default: m.BankingPage })))
+const OfferingsPage = lazy(() => import('./routes/onboarding/OfferingsPage').then((m) => ({ default: m.OfferingsPage })))
+const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: m.TeamPage })))
 const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
@@ -92,6 +98,15 @@ const verifyEmailRoute = createRoute({
   component: VerifyEmailPage,
 })
 
+const acceptTeamInviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/accept-invite',
+  validateSearch: (search: Record<string, unknown>): { token?: string } => ({
+    token: typeof search.token === 'string' ? search.token : undefined,
+  }),
+  component: AcceptTeamInvitePage,
+})
+
 function IndexPage() {
   const { t } = useTranslation()
   return (
@@ -151,6 +166,36 @@ const onboardingRoute = createRoute({
   component: OnboardingPage,
 })
 
+const onboardingContactsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/onboarding/contacts',
+  component: ContactsPage,
+})
+
+const onboardingAddressesRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/onboarding/addresses',
+  component: AddressesPage,
+})
+
+const onboardingBankingRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/onboarding/banking',
+  component: BankingPage,
+})
+
+const onboardingOfferingsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/onboarding/offerings',
+  component: OfferingsPage,
+})
+
+const teamRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/team',
+  component: TeamPage,
+})
+
 const settingsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/settings',
@@ -200,7 +245,17 @@ const routeTree = rootRoute.addChildren([
   forgotPasswordRoute,
   resetPasswordRoute,
   verifyEmailRoute,
-  supplierLayoutRoute.addChildren([supplierDashboardRoute, onboardingRoute, settingsRoute]),
+  acceptTeamInviteRoute,
+  supplierLayoutRoute.addChildren([
+    supplierDashboardRoute,
+    onboardingRoute,
+    onboardingContactsRoute,
+    onboardingAddressesRoute,
+    onboardingBankingRoute,
+    onboardingOfferingsRoute,
+    teamRoute,
+    settingsRoute,
+  ]),
   backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute]),
 ])
 

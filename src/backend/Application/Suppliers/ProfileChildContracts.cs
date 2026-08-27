@@ -71,6 +71,7 @@ public sealed record AddBankAccountCommand(string AccountHolderName, string Bank
 /// re-encrypt/re-mask it - same as Add, never stored/logged in plaintext.</summary>
 public sealed record UpdateBankAccountCommand(Guid BankAccountId, string AccountHolderName, string BankName, string? BranchName, string? AccountNumber, string? SwiftBic, string CurrencyCode);
 public sealed record RemoveBankAccountCommand(Guid BankAccountId);
+public sealed record SetDefaultBankAccountCommand(Guid BankAccountId);
 public sealed record RevealBankAccountCommand(Guid BankAccountId);
 
 public abstract record RevealBankAccountResult
@@ -84,6 +85,7 @@ public interface IManageBankAccountHandler
     Task<ProfileMutationResult> AddAsync(AddBankAccountCommand command, CancellationToken ct);
     Task<ProfileMutationResult> UpdateAsync(UpdateBankAccountCommand command, CancellationToken ct);
     Task<ProfileMutationResult> RemoveAsync(RemoveBankAccountCommand command, CancellationToken ct);
+    Task<ProfileMutationResult> SetDefaultAsync(SetDefaultBankAccountCommand command, CancellationToken ct);
     Task<RevealBankAccountResult> RevealAsync(RevealBankAccountCommand command, CancellationToken ct);
 }
 

@@ -401,6 +401,17 @@ public sealed class Supplier
         }
     }
 
+    /// <summary>DOMAIN-MODEL.md: lets the supplier explicitly pick which bank account is default,
+    /// on top of the automatic first-added/reassign-on-remove behavior in AddBankAccount/
+    /// RemoveBankAccount.</summary>
+    public void SetDefaultBankAccount(Guid bankAccountId)
+    {
+        EnsureEditable();
+        var account = _bankAccounts.FirstOrDefault(b => b.Id == bankAccountId) ?? throw new DomainException("Bank account not found.");
+        foreach (var b in _bankAccounts) b.IsDefault = false;
+        account.IsDefault = true;
+    }
+
     public CategoryLink? LinkCategory(string categoryCode, bool isComplianceCritical)
     {
         EnsureEditableForComplianceField(isComplianceCritical);

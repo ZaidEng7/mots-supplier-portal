@@ -108,6 +108,26 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
 
+    public async Task<ProfileMutationResult> SetDefaultAsync(SetDefaultBankAccountCommand command, CancellationToken ct)
+    {
+        if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
+        if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            supplier.SetDefaultBankAccount(command.BankAccountId);
+        }
+        catch (DomainException ex)
+        {
+            return new ProfileMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_set_default", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
+    }
+
     public async Task<RevealBankAccountResult> RevealAsync(RevealBankAccountCommand command, CancellationToken ct)
     {
         if (scope.SupplierId is null) return new RevealBankAccountResult.NotFoundOrOutOfScope();

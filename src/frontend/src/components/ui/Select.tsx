@@ -44,7 +44,11 @@ export function Select({ id, value, onValueChange, options, placeholder, ...aria
       </RadixSelect.Trigger>
       <RadixSelect.Portal>
         <RadixSelect.Content
-          className="overflow-hidden rounded-[0.375rem] shadow-lg"
+          // Explicit z-index: this Portal renders independently of any ancestor Dialog's own
+          // Portal, so without this the popper has no stacking-context guarantee against
+          // Dialog's overlay (z-40) or content (z-50) - it rendered correctly positioned but
+          // visually behind the Dialog overlay, silently swallowing every click.
+          className="z-[60] overflow-hidden rounded-[0.375rem] shadow-lg"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
         >
           <RadixSelect.Viewport className="p-1">

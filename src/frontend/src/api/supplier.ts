@@ -1,41 +1,116 @@
 import { apiFetch } from './auth'
 
+export interface LegalInfo {
+  legalNameAr: string | null
+  legalNameEn: string | null
+  registrationNumber: string | null
+  taxId: string | null
+  supplierType: string | null
+  establishedOn: string | null
+}
+
+export interface Representative {
+  id: string
+  fullName: string
+  email: string
+  phone: string | null
+  position: string | null
+  isPrimary: boolean
+}
+
+export interface Address {
+  id: string
+  kind: string
+  line1: string
+  line2: string | null
+  city: string
+  regionCode: string
+  country: string
+  postalCode: string | null
+  latitude: number | null
+  longitude: number | null
+  isPrimary: boolean
+}
+
+export interface Contact {
+  id: string
+  fullName: string
+  email: string
+  phone: string | null
+  role: string | null
+}
+
+export interface Branch {
+  id: string
+  nameAr: string
+  nameEn: string
+  addressId: string | null
+  isActive: boolean
+}
+
+export interface BankAccount {
+  id: string
+  accountHolderName: string
+  bankName: string
+  branchName: string | null
+  maskedAccountNumber: string
+  swiftBic: string | null
+  currencyCode: string
+  isDefault: boolean
+}
+
 export interface SupplierProfile {
   referenceCode: string
   displayNameAr: string
   displayNameEn: string
+  description: string | null
+  website: string | null
+  logoStorageKey: string | null
+  supplierGroup: string | null
   onboardingState: string
-  registrationNumber: string | null
-  taxId: string | null
-  addressLine: string | null
-  city: string | null
-  country: string | null
   currencyCode: string | null
+  legalInfo: LegalInfo | null
   primaryContactPhone: string | null
+  representatives: Representative[]
+  addresses: Address[]
+  contacts: Contact[]
+  branches: Branch[]
+  bankAccounts: BankAccount[]
+  categoryCodes: string[]
   missingProfileFields: string[]
   termsAcceptedVersion: string | null
   termsAcceptedAt: string | null
+  rowVersion: number
 }
 
 export interface UpdateProfilePayload {
-  registrationNumber?: string | null
-  taxId?: string | null
-  addressLine?: string | null
-  city?: string | null
-  country?: string | null
+  description?: string | null
+  website?: string | null
+  supplierGroup?: string | null
   currencyCode?: string | null
   primaryContactPhone?: string | null
+}
+
+export interface UpdateLegalInfoPayload {
+  legalNameAr: string
+  legalNameEn: string
+  registrationNumber?: string | null
+  taxId?: string | null
+  supplierType: string
+  establishedOn?: string | null
 }
 
 export class SupplierApiError extends Error {
   status: number
   missingFields?: string[]
+  fieldErrors?: Record<string, string[]>
 
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string; missingFields?: string[] } | null
+    const b = body as { error?: string; missingFields?: string[]; errors?: Record<string, string[]> } | null
     super(b?.error ?? `Request failed: ${status}`)
     this.status = status
     this.missingFields = b?.missingFields
+    this.fieldErrors = b?.errors
   }
 }
 
@@ -58,6 +133,28 @@ export async function updateProfile(payload: UpdateProfilePayload): Promise<Supp
     body: JSON.stringify(payload),
   })
   return parseOrThrow(res)
+}
+
+export async function updateLegalInfo(payload: UpdateLegalInfoPayload): Promise<SupplierProfile> {
+  const res = await apiFetch('/api/v1/suppliers/me/legal-info', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return parseOrThrow(res)
+}
+
+export async function uploadLogo(file: File): Promise<SupplierProfile> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await apiFetch('/api/v1/suppliers/me/logo', { method: 'POST', body: form })
+  return parseOrThrow(res)
+}
+
+export async function getLogoDownloadUrl(): Promise<string> {
+  const res = await apiFetch('/api/v1/suppliers/me/logo/download-url')
+  const body = await parseOrThrow<{ url: string }>(res)
+  return body.url
 }
 
 export async function acceptTerms(): Promise<SupplierProfile> {
