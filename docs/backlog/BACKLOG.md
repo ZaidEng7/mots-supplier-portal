@@ -759,30 +759,35 @@ Arabic/English content correct — feeding onboarding completeness and future ER
 Phase 2. **Domain:** Supplier — SupplierProfile, LegalInfo(VO), Address[], Contact[], Representative[],
 Branch[], BankAccount[], CategoryLink[].
 
-> **Build status (2026-08-27, verified against code, not self-reported):** the "✅" in the epic index
-> table above means this epic's stories are **fully written out below** — it is a documentation-
-> completeness marker, not an implementation-status one, and it is accurate: every story below is
-> fully specified. Actual implementation is **partial**. `Supplier.cs` today has only
-> `DisplayNameAr/En, RegistrationNumber, TaxId, AddressLine, City, Country, CurrencyCode` — a single
-> flat address, no `Description`/`Logo`/`Website`/type/group, and none of `LegalInfo`, `Address[]`,
-> `Contact[]`, `Branch[]`, `BankAccount[]`, `CategoryLink[]`, delegated `supplier_user` management, or
-> `SyncStatus`/`LastSyncedAt` exist. See the per-feature status below; MSP-51..56 (Jira) scope the
-> remaining work.
+> **Build status (2026-08-27, verified against code and CI, not self-reported):** fully built,
+> backend and frontend, end-to-end. `Supplier.cs` now has `LegalInfo` (VO), `Address[]`, `Contact[]`,
+> `Representative[]` (add/edit/remove/set-primary), `Branch[]`, `BankAccount[]` (AES-256-GCM
+> encrypted, masked, audited reveal, default-account selection), `CategoryLink[]`, delegated
+> `supplier_user` management (invite/list/disable), and `SyncStatus`/`LastSyncedAt` (staff-only,
+> served via a genuinely non-row-scoped reviewer endpoint, never exposed to the supplier). Frontend:
+> SCR-102 (contacts/representatives), SCR-103 (addresses/branches), SCR-104 (banking), SCR-105
+> (category offerings), plus a team-management screen, all in Arabic/English with RTL mirroring,
+> live-verified by product owner click-through. MSP-57 (audit log `changes` diff column, per
+> DATABASE-MODEL.md §5) and the SupplierShell mobile-nav overflow (DESIGN-SYSTEM.md §5.5 bottom tab
+> bar) are also closed — see their own rows below. Commit `2482ce7` on `main`, CI-green. MSP-51..56
+> (Jira) plus MSP-57 track the work; all Done.
 
 ### Features
 
 | Feature | Name | Priority | Notes | Built? |
 |---|---|---|---|---|
-| FEAT-04.1 | Core profile (names AR/EN, type/group, currency, logo) | M | `FR-PROF-001,011` | Partial — AR/EN names, currency, one flat address done; `Description`/`Logo`/`Website`/type/group not done (MSP-51) |
-| FEAT-04.2 | LegalInfo VO (generic) | M | `FR-PROF-002` `[ASSUMPTION]` | Not built (MSP-51) |
-| FEAT-04.3 | Addresses (HQ/billing/branch) | M | `FR-PROF-003` | Not built — today's one `AddressLine` field is not a multi-valued `Address[]` (MSP-52) |
-| FEAT-04.4 | Contacts & Representatives (primary designate) | M | `FR-PROF-004` | Partial — one primary `Representative` from registration exists; no additional `Contact[]` (MSP-52) |
-| FEAT-04.5 | Branches | S | `FR-PROF-005` | Not built (MSP-53) |
-| FEAT-04.6 | Bank accounts (generic) | M | `FR-PROF-006` `[ASSUMPTION]` | Not built (MSP-53) |
-| FEAT-04.7 | Category links to buyer Category tree | M | `FR-PROF-007` | Not built — blocked on Category reference data, which also doesn't exist yet (MSP-54) |
-| FEAT-04.8 | Delegated `supplier_user` management | M | `FR-PROF-008` | Not built (MSP-55) |
-| FEAT-04.9 | Post-approval compliance-critical edits re-trigger review/sync | S | `FR-PROF-009` `[ASSUMPTION]` | Not built (MSP-56) |
-| FEAT-04.10 | ERP mapping fields (read-only to staff) | M | `FR-PROF-010` | Not built — only `ExternalId` exists; no `SyncStatus`/`LastSyncedAt` (MSP-56) |
+| FEAT-04.1 | Core profile (names AR/EN, type/group, currency, logo) | M | `FR-PROF-001,011` | Built — description/website/group/currency/logo upload (signed-URL preview) all live (MSP-51) |
+| FEAT-04.2 | LegalInfo VO (generic) | M | `FR-PROF-002` `[ASSUMPTION]` | Built — absorbs RegistrationNumber/TaxId per DOMAIN-MODEL.md; requiredness config-driven via `SupplierFieldConfig` (MSP-51) |
+| FEAT-04.3 | Addresses (HQ/billing/branch) | M | `FR-PROF-003` | Built — `Address[]` with add/edit/remove; submit gate specifically requires a `HeadOffice` kind, not just any address (MSP-52) |
+| FEAT-04.4 | Contacts & Representatives (primary designate) | M | `FR-PROF-004` | Built — full `Representative[]` CRUD + set-primary (last-primary removal blocked), plus separate `Contact[]` (MSP-52) |
+| FEAT-04.5 | Branches | S | `FR-PROF-005` | Built — `Branch[]` add/edit/remove; `AddressId` validated to belong to the same supplier (MSP-53) |
+| FEAT-04.6 | Bank accounts (generic) | M | `FR-PROF-006` `[ASSUMPTION]` | Built — AES-256-GCM encrypted, masked by default, audited reveal (BRULE-014/090/091), explicit default-account selection (MSP-53) |
+| FEAT-04.7 | Category links to buyer Category tree | M | `FR-PROF-007` | Built — interim flat `Category` reference table (`[ASSUMPTION]` pending EPIC-21's real tree), link/unlink validated against it (MSP-54) |
+| FEAT-04.8 | Delegated `supplier_user` management | M | `FR-PROF-008` | Built — invite/accept-invite/list/disable, disable immediately revokes active sessions, row-scoped and permission-scoped (MSP-55) |
+| FEAT-04.9 | Post-approval compliance-critical edits re-trigger review/sync | S | `FR-PROF-009` `[ASSUMPTION]` | Built — legal info/bank account/category-link edits re-trigger review; field list is config-driven, not hardcoded (MSP-56) |
+| FEAT-04.10 | ERP mapping fields (read-only to staff) | M | `FR-PROF-010` | Built — `ExternalId`/`SyncStatus`/`LastSyncedAt` served only via the staff-facing reviewer endpoint, hidden from the supplier's own profile view; `RowVersion` exposed for optimistic-concurrency detection (MSP-56) |
+| MSP-57 | Audit log old/new-value diffs (`ops.audit_log.changes`) | — | System-wide gap found during EPIC-04 review, tracked separately from FEAT-04.x | Built — `changes jsonb` column per DATABASE-MODEL.md §5, wired through all six MSP-51–56 `IAuditLogger` call sites, bank-account diffs masked-only |
+| — | Mobile nav overflow (`SupplierShell.tsx`) | — | Tracked as conversational debt during the frontend round, not a numbered ticket | Built — DESIGN-SYSTEM.md §5.5 bottom tab bar (≤`md`), verified at 375px in both languages |
 
 ---
 
