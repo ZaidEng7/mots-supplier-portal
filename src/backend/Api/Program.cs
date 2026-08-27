@@ -1,4 +1,3 @@
-using System.Text;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Hangfire;
@@ -72,11 +71,15 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>(PasswordResetToke
 builder.Services
     .AddIdentityCore<AppUser>(options =>
     {
-        options.Password.RequiredLength = 10;
-        options.Password.RequireNonAlphanumeric = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireDigit = true;
+        // SECURITY-ARCHITECTURE.md §1.4/FR-IAM-003: length over composition (NIST 800-63B) - a
+        // 12-char minimum with no forced symbol/case/digit rules, so passphrases aren't punished
+        // in favor of predictable patterns like "Password1!". Previously 10 chars WITH forced
+        // composition, backwards from the documented design.
+        options.Password.RequiredLength = 12;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireDigit = false;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         options.User.RequireUniqueEmail = true;
@@ -87,10 +90,21 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders()
-    .AddTokenProvider<DataProtectorTokenProvider<AppUser>>(PasswordResetTokenProviderName);
+    .AddTokenProvider<DataProtectorTokenProvider<AppUser>>(PasswordResetTokenProviderName)
+    .AddPasswordValidator<HibpBreachedPasswordValidator>();
+
+builder.Services.AddHttpClient(nameof(HibpBreachedPasswordValidator));
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+
+// SECURITY-ARCHITECTURE.md §1.1: RS256 (asymmetric), not a shared HMAC secret - workers/services
+// can verify tokens holding only the public key. Built directly (not via DI) because
+// AddJwtBearer's options delegate needs the validation key synchronously at registration time;
+// registered as a singleton afterward so JwtTokenService (signing) shares the exact same key.
+var jwtSigningKeyProvider = new JwtSigningKeyProvider(Microsoft.Extensions.Options.Options.Create(
+    jwtSection.Get<JwtOptions>() ?? throw new InvalidOperationException("Jwt configuration section is missing.")));
+builder.Services.AddSingleton(jwtSigningKeyProvider);
 
 builder.Services
     .AddAuthentication(options =>
@@ -111,7 +125,7 @@ builder.Services
             ValidAudience = jwtSection["Audience"],
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["SigningKey"]!)),
+            IssuerSigningKey = jwtSigningKeyProvider.GetValidationKey(),
             ClockSkew = TimeSpan.FromSeconds(30),
         };
     });
@@ -121,8 +135,12 @@ builder.Services.AddHttpContextAccessor();
 
 // Application services
 builder.Services.AddScoped<IGetCurrenciesHandler, GetCurrenciesHandler>();
+builder.Services.AddScoped<ISecurityTokenService, SecurityTokenService>();
 builder.Services.AddScoped<IRegisterSupplierHandler, RegisterSupplierHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
+builder.Services.AddScoped<IResendVerificationHandler, ResendVerificationHandler>();
+builder.Services.AddScoped<DraftCleanupJob>();
+builder.Services.AddSingleton<MotsSupplierPortal.Api.Authorization.PerTargetRateLimiter>();
 builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<ILoginHandler>(sp => sp.GetRequiredService<LoginHandler>());
 builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
@@ -203,6 +221,35 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 
+// SECURITY-ARCHITECTURE.md §5.5: full secure-header set on every response. Applied first so it
+// covers error responses too, not just successful ones.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers.Append("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    headers.Append("Content-Security-Policy",
+        "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; " +
+        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; " +
+        "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    headers.Append("X-Content-Type-Options", "nosniff");
+    headers.Append("X-Frame-Options", "DENY");
+    headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    headers.Append("Cross-Origin-Opener-Policy", "same-origin");
+    headers.Append("Cross-Origin-Resource-Policy", "same-origin");
+
+    var path = context.Request.Path.Value ?? "";
+    if (path.StartsWith("/api/v1/auth", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/api/v1/registrations", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/api/v1/documents", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/api/v1/review", StringComparison.OrdinalIgnoreCase))
+    {
+        headers.Append("Cache-Control", "no-store");
+    }
+
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -249,6 +296,9 @@ using (var storageScope = app.Services.CreateScope())
 
 RecurringJob.AddOrUpdate<DocumentExpiryJob>(
     "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+
+RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
+    "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
 app.Run();
 

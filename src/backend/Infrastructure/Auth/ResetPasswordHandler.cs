@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
@@ -10,32 +9,32 @@ namespace MotsSupplierPortal.Infrastructure.Auth;
 
 /// <summary>
 /// FR-IAM-005: on success, all existing sessions (refresh token families) are invalidated -
-/// resetting a password must not leave old sessions alive.
+/// resetting a password must not leave old sessions alive. The opaque reset-link token
+/// (SecurityTokenService) is the sole lookup key; once it resolves a user, a fresh Identity
+/// reset token is generated and consumed internally to perform the actual password change.
 /// </summary>
 public sealed class ResetPasswordHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
+    ISecurityTokenService securityTokenService,
     IAuditLogger auditLogger) : IResetPasswordHandler
 {
     public async Task<ResetPasswordResult> HandleAsync(ResetPasswordCommand command, CancellationToken ct)
     {
-        var user = await userManager.FindByIdAsync(command.UserId);
+        var consumed = await securityTokenService.ConsumeAsync(command.Token, SecurityTokenPurpose.PasswordReset, ct);
+        if (consumed is not ConsumeSecurityTokenResult.Success success)
+        {
+            return new ResetPasswordResult.InvalidOrExpiredToken();
+        }
+
+        var user = await userManager.FindByIdAsync(success.UserId.ToString());
         if (user is null)
         {
             return new ResetPasswordResult.InvalidOrExpiredToken();
         }
 
-        string decodedToken;
-        try
-        {
-            decodedToken = System.Text.Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(command.Token));
-        }
-        catch (FormatException)
-        {
-            return new ResetPasswordResult.InvalidOrExpiredToken();
-        }
-
-        var result = await userManager.ResetPasswordAsync(user, decodedToken, command.NewPassword);
+        var identityToken = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, identityToken, command.NewPassword);
         if (!result.Succeeded)
         {
             var isTokenError = result.Errors.Any(e => e.Code is "InvalidToken");

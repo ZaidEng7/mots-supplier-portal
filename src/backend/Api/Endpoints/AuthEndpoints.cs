@@ -1,4 +1,5 @@
 using FluentValidation;
+using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 
 namespace MotsSupplierPortal.Api.Endpoints;
@@ -24,13 +25,12 @@ public sealed class ForgotPasswordRequestValidator : AbstractValidator<ForgotPas
     }
 }
 
-public sealed record ResetPasswordRequest(string UserId, string Token, string NewPassword);
+public sealed record ResetPasswordRequest(string Token, string NewPassword);
 
 public sealed class ResetPasswordRequestValidator : AbstractValidator<ResetPasswordRequest>
 {
     public ResetPasswordRequestValidator()
     {
-        RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.Token).NotEmpty();
         RuleFor(x => x.NewPassword).NotEmpty();
     }
@@ -51,12 +51,20 @@ public static class AuthEndpoints
             ILoginHandler handler,
             HttpContext httpContext,
             IWebHostEnvironment env,
+            PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
                 return Results.ValidationProblem(validation.ToDictionary());
+            }
+
+            // Per-IP is the "auth-strict" policy below; per-account here (SECURITY-ARCHITECTURE
+            // §5.1) so a distributed-IP attacker targeting one account is still throttled.
+            if (!perTargetRateLimiter.TryAcquire("login", request.Email.Trim().ToLowerInvariant()))
+            {
+                return RateLimitResults.TooManyRequests(httpContext);
             }
 
             var ip = httpContext.Connection.RemoteIpAddress?.ToString();
@@ -113,12 +121,22 @@ public static class AuthEndpoints
             ForgotPasswordRequest request,
             IValidator<ForgotPasswordRequest> validator,
             IForgotPasswordHandler handler,
+            HttpContext httpContext,
+            PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
                 return Results.ValidationProblem(validation.ToDictionary());
+            }
+
+            // Per-target on top of the per-IP "auth-strict" policy (SECURITY-ARCHITECTURE §5.1) -
+            // checked (and consumes budget) even for a non-existent address, same anti-enumeration
+            // shape as the handler's own identical-response behavior below.
+            if (!perTargetRateLimiter.TryAcquire("forgot-password", request.Email.Trim().ToLowerInvariant()))
+            {
+                return RateLimitResults.TooManyRequests(httpContext);
             }
 
             // Identical response regardless of whether the account exists (no enumeration).
@@ -141,7 +159,7 @@ public static class AuthEndpoints
             }
 
             var result = await handler.HandleAsync(
-                new ResetPasswordCommand(request.UserId, request.Token, request.NewPassword), ct);
+                new ResetPasswordCommand(request.Token, request.NewPassword), ct);
 
             return result switch
             {

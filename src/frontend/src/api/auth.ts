@@ -63,11 +63,20 @@ export async function forgotPassword(email: string): Promise<void> {
   await parseJsonOrThrow(res)
 }
 
-export async function resetPassword(userId: string, token: string, newPassword: string): Promise<void> {
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, token, newPassword }),
+    body: JSON.stringify({ token, newPassword }),
+  })
+  await parseJsonOrThrow(res)
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/registrations/resend-verification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
   })
   await parseJsonOrThrow(res)
 }

@@ -16,6 +16,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<Representative> Representatives => Set<Representative>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<SecurityToken> SecurityTokens => Set<SecurityToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Domain.ReferenceData.DocumentType> DocumentTypes => Set<Domain.ReferenceData.DocumentType>();
     public DbSet<SupplierDocument> SupplierDocuments => Set<SupplierDocument>();
@@ -93,6 +94,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(t => t.TokenHash).HasMaxLength(200).IsRequired();
             entity.HasIndex(t => t.UserId);
             entity.HasIndex(t => t.FamilyId);
+        });
+
+        modelBuilder.Entity<SecurityToken>(entity =>
+        {
+            entity.ToTable("security_token", "identity");
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();
+            entity.Property(t => t.Purpose).HasConversion<string>().HasMaxLength(30);
+            entity.HasIndex(t => t.TokenHash).IsUnique();
+            entity.HasIndex(t => t.UserId);
         });
 
         modelBuilder.Entity<AuditLog>(entity =>

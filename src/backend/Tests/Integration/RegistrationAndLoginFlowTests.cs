@@ -3,8 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Tests.Integration;
@@ -62,17 +62,18 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture) : 
             password,
         });
 
-        // Generate + encode the confirmation token the same way RegisterSupplierHandler does,
-        // using the real UserManager against the real database (no mocking the token provider).
+        // Issue the same opaque verification token RegisterSupplierHandler issues, using the real
+        // ISecurityTokenService against the real database (no mocking). SECURITY-ARCHITECTURE.md
+        // §1.6: the link/request carries only this token, never the user id.
         using var scope = fixture.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var securityTokenService = scope.ServiceProvider.GetRequiredService<ISecurityTokenService>();
         var user = await userManager.FindByEmailAsync(email);
         user.Should().NotBeNull();
 
-        var rawToken = await userManager.GenerateEmailConfirmationTokenAsync(user!);
-        var encodedToken = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(rawToken));
+        var rawToken = await securityTokenService.IssueAsync(user!.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), CancellationToken.None);
 
-        var verifyResponse = await client.PostAsJsonAsync("/api/v1/registrations/verify", new { userId = user!.Id, token = encodedToken });
+        var verifyResponse = await client.PostAsJsonAsync("/api/v1/registrations/verify", new { token = rawToken });
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });

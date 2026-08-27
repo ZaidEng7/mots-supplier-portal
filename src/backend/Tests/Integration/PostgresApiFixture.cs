@@ -50,6 +50,11 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         builder.UseSetting("Minio:AccessKey", _minio.GetAccessKey());
         builder.UseSetting("Minio:SecretKey", _minio.GetSecretKey());
         builder.UseSetting("Minio:UseSsl", "false");
+
+        // Keep CI hermetic: the HIBP breach-password check (HibpBreachedPasswordValidator) calls
+        // an external API - fine to fail open in prod/dev, but a flaky/offline network shouldn't
+        // ever be why an integration test fails.
+        builder.UseSetting("Password:BreachCheckEnabled", "false");
     }
 
     async Task IAsyncLifetime.DisposeAsync()

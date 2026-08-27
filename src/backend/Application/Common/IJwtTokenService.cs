@@ -4,5 +4,12 @@ public sealed record AccessTokenResult(string Token, DateTimeOffset ExpiresAt);
 
 public interface IJwtTokenService
 {
-    AccessTokenResult IssueAccessToken(Guid userId, string email, Guid? supplierId, Guid? organizationId, IReadOnlyList<string> permissions);
+    AccessTokenResult IssueAccessToken(
+        Guid userId,
+        string email,
+        Guid? supplierId,
+        Guid? organizationId,
+        IReadOnlyList<string> roles,
+        IReadOnlyList<string> permissions,
+        IReadOnlyList<string> amr);
 }

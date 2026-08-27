@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Api\MotsSupplierPortal.Api.csproj" />
     <ProjectReference Include="..\..\Application\MotsSupplierPortal.Application.csproj" />
     <ProjectReference Include="..\..\Domain\MotsSupplierPortal.Domain.csproj" />
     <ProjectReference Include="..\..\Infrastructure\MotsSupplierPortal.Infrastructure.csproj" />

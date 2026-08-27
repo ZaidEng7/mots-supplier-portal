@@ -29,7 +29,9 @@ const resources = {
         resetInvalid: 'الرابط غير صالح أو منتهي الصلاحية',
         verifyingEmail: 'جاري تفعيل البريد الإلكتروني...',
         verifySuccess: 'تم تفعيل بريدك الإلكتروني بنجاح',
-        verifyFailed: 'تعذر تفعيل البريد الإلكتروني',
+        verifyFailed: 'تعذر تفعيل البريد الإلكتروني، الرابط غير صالح أو منتهي الصلاحية أو تم استخدامه من قبل',
+        resendVerification: 'إعادة إرسال رابط التفعيل',
+        resendSent: 'إذا كان الحساب موجوداً وغير مفعّل، تم إرسال رابط تفعيل جديد',
       },
       dashboard: {
         welcome: 'مرحباً، {{email}}',
@@ -178,7 +180,9 @@ const resources = {
         resetInvalid: 'This link is invalid or has expired',
         verifyingEmail: 'Verifying your email...',
         verifySuccess: 'Your email has been verified',
-        verifyFailed: 'Could not verify this email',
+        verifyFailed: 'Could not verify this email - the link is invalid, expired, or already used',
+        resendVerification: 'Resend verification link',
+        resendSent: 'If that account exists and is unverified, a new verification link has been sent',
       },
       dashboard: {
         welcome: 'Welcome, {{email}}',

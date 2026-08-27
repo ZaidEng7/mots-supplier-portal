@@ -1,33 +1,45 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MotsSupplierPortal.Application.Common;
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
-public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
+/// <summary>SECURITY-ARCHITECTURE.md §1.1 token-contents table: sub, roles, perms (compact
+/// permission set), supplierId?, orgId?, scope, amr, jti, iat/exp, iss, aud - signed RS256.</summary>
+public sealed class JwtTokenService(JwtSigningKeyProvider signingKeyProvider, IOptions<JwtOptions> options) : IJwtTokenService
 {
     private readonly JwtOptions _options = options.Value;
 
-    public AccessTokenResult IssueAccessToken(Guid userId, string email, Guid? supplierId, Guid? organizationId, IReadOnlyList<string> permissions)
+    public AccessTokenResult IssueAccessToken(
+        Guid userId,
+        string email,
+        Guid? supplierId,
+        Guid? organizationId,
+        IReadOnlyList<string> roles,
+        IReadOnlyList<string> permissions,
+        IReadOnlyList<string> amr)
     {
-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(_options.AccessTokenMinutes);
+        var issuedAt = DateTimeOffset.UtcNow;
+        var expiresAt = issuedAt.AddMinutes(_options.AccessTokenMinutes);
 
         List<Claim> claims =
         [
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(JwtRegisteredClaimNames.Email, email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Iat, issuedAt.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            new("scope", string.Join(' ', permissions)),
         ];
 
         if (supplierId is not null) claims.Add(new Claim("supplierId", supplierId.Value.ToString()));
         if (organizationId is not null) claims.Add(new Claim("organizationId", organizationId.Value.ToString()));
-        claims.AddRange(permissions.Select(p => new Claim("permission", p)));
+        claims.AddRange(roles.Select(r => new Claim("roles", r)));
+        claims.AddRange(permissions.Select(p => new Claim("perms", p)));
+        claims.AddRange(amr.Select(a => new Claim("amr", a)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var creds = new SigningCredentials(signingKeyProvider.GetSigningKey(), SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,

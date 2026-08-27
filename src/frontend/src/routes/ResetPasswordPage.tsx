@@ -8,13 +8,13 @@ import { Button, Field, Input } from '../components/ui'
 import { resetPassword } from '../api/auth'
 
 const schema = z.object({
-  newPassword: z.string().min(10),
+  newPassword: z.string().min(12),
 })
 type FormValues = z.infer<typeof schema>
 
 export function ResetPasswordPage() {
   const { t } = useTranslation()
-  const search = useSearch({ strict: false }) as { userId?: string; token?: string }
+  const search = useSearch({ strict: false }) as { token?: string }
   const [status, setStatus] = useState<'idle' | 'success' | 'invalid'>('idle')
 
   const {
@@ -24,12 +24,12 @@ export function ResetPasswordPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   const onSubmit = async (values: FormValues) => {
-    if (!search.userId || !search.token) {
+    if (!search.token) {
       setStatus('invalid')
       return
     }
     try {
-      await resetPassword(search.userId, search.token, values.newPassword)
+      await resetPassword(search.token, values.newPassword)
       setStatus('success')
     } catch {
       setStatus('invalid')

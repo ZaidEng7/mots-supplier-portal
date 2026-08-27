@@ -77,8 +77,7 @@ const forgotPasswordRoute = createRoute({
 const resetPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reset-password',
-  validateSearch: (search: Record<string, unknown>): { userId?: string; token?: string } => ({
-    userId: typeof search.userId === 'string' ? search.userId : undefined,
+  validateSearch: (search: Record<string, unknown>): { token?: string } => ({
     token: typeof search.token === 'string' ? search.token : undefined,
   }),
   component: ResetPasswordPage,
@@ -87,8 +86,7 @@ const resetPasswordRoute = createRoute({
 const verifyEmailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/verify-email',
-  validateSearch: (search: Record<string, unknown>): { userId?: string; token?: string } => ({
-    userId: typeof search.userId === 'string' ? search.userId : undefined,
+  validateSearch: (search: Record<string, unknown>): { token?: string } => ({
     token: typeof search.token === 'string' ? search.token : undefined,
   }),
   component: VerifyEmailPage,

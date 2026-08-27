@@ -11,7 +11,7 @@ public interface IForgotPasswordHandler
     Task HandleAsync(ForgotPasswordCommand command, CancellationToken ct);
 }
 
-public sealed record ResetPasswordCommand(string UserId, string Token, string NewPassword);
+public sealed record ResetPasswordCommand(string Token, string NewPassword);
 
 public abstract record ResetPasswordResult
 {

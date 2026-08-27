@@ -1,4 +1,5 @@
 using FluentValidation;
+using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Registrations;
 
 namespace MotsSupplierPortal.Api.Endpoints;
@@ -25,7 +26,14 @@ public sealed class RegisterSupplierRequestValidator : AbstractValidator<Registe
     }
 }
 
-public sealed record VerifyEmailRequest(string UserId, string Token);
+public sealed record VerifyEmailRequest(string Token);
+
+public sealed record ResendVerificationRequest(string Email);
+
+public sealed class ResendVerificationRequestValidator : AbstractValidator<ResendVerificationRequest>
+{
+    public ResendVerificationRequestValidator() => RuleFor(x => x.Email).NotEmpty().EmailAddress();
+}
 
 public static class RegistrationEndpoints
 {
@@ -37,12 +45,21 @@ public static class RegistrationEndpoints
             RegisterSupplierRequest request,
             IValidator<RegisterSupplierRequest> validator,
             IRegisterSupplierHandler handler,
+            HttpContext httpContext,
+            PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
                 return Results.ValidationProblem(validation.ToDictionary());
+            }
+
+            // Per-target on top of the group's per-IP "auth-strict" policy (SECURITY-ARCHITECTURE
+            // §5.1) - a distributed-IP attacker spamming one target email is still throttled.
+            if (!perTargetRateLimiter.TryAcquire("register", request.Email.Trim().ToLowerInvariant()))
+            {
+                return RateLimitResults.TooManyRequests(httpContext);
             }
 
             var result = await handler.HandleAsync(
@@ -71,7 +88,7 @@ public static class RegistrationEndpoints
             IVerifyEmailHandler handler,
             CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(new VerifyEmailCommand(request.UserId, request.Token), ct);
+            var result = await handler.HandleAsync(new VerifyEmailCommand(request.Token), ct);
 
             return result switch
             {
@@ -81,5 +98,30 @@ public static class RegistrationEndpoints
             };
         })
         .WithName("VerifyEmail");
+
+        // STORY-02.2.1 AC3: resend is rate-limited per-IP (group policy above) + per-target.
+        group.MapPost("/resend-verification", async (
+            ResendVerificationRequest request,
+            IValidator<ResendVerificationRequest> validator,
+            IResendVerificationHandler handler,
+            HttpContext httpContext,
+            PerTargetRateLimiter perTargetRateLimiter,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid)
+            {
+                return Results.ValidationProblem(validation.ToDictionary());
+            }
+
+            if (!perTargetRateLimiter.TryAcquire("resend-verification", request.Email.Trim().ToLowerInvariant()))
+            {
+                return RateLimitResults.TooManyRequests(httpContext);
+            }
+
+            await handler.HandleAsync(new ResendVerificationCommand(request.Email), ct);
+            return Results.Ok(new { message = "if_account_exists_email_sent" });
+        })
+        .WithName("ResendVerification");
     }
 }

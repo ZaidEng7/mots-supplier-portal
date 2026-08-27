@@ -14,7 +14,7 @@ public sealed class PermissionEndpointFilter(string permission) : IEndpointFilte
             return Results.Unauthorized();
         }
 
-        var hasPermission = user.Claims.Any(c => c.Type == "permission" && c.Value == permission);
+        var hasPermission = user.Claims.Any(c => c.Type == "perms" && c.Value == permission);
         if (!hasPermission)
         {
             return Results.Forbid();

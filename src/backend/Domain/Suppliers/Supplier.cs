@@ -23,6 +23,7 @@ public sealed class Supplier
     public string? ExternalId { get; private set; }
     public string? TermsAcceptedVersion { get; private set; }
     public DateTimeOffset? TermsAcceptedAt { get; private set; }
+    public DateTimeOffset CreatedAt { get; private init; }
     public uint RowVersion { get; private set; }
 
     /// <summary>BRULE-009: T&C content is owned by business; version string is an
@@ -54,6 +55,7 @@ public sealed class Supplier
             DisplayNameEn = displayNameEn,
             RegistrationNumber = registrationNumber,
             OnboardingState = SupplierOnboardingState.Draft,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
 
         supplier._representatives.Add(new Representative

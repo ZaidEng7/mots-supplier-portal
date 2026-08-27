@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Registrations;
@@ -10,33 +9,33 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 namespace MotsSupplierPortal.Infrastructure.Registrations;
 
 /// <summary>
-/// STORY-02.2.1: single-use, time-limited token (Identity's DataProtector email-confirmation
-/// provider) transitions Draft -> EmailVerified. Domain refuses if not currently Draft.
+/// STORY-02.2.1: the opaque link token (SecurityTokenService) is the sole lookup key - single-use,
+/// 24h TTL, hashed, resolves the user without a userId ever appearing in the URL
+/// (SECURITY-ARCHITECTURE.md §1.6). Once resolved, an Identity email-confirmation token is
+/// generated and consumed internally, server-side only, to perform the actual state change.
 /// </summary>
 public sealed class VerifyEmailHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
+    ISecurityTokenService securityTokenService,
     IAuditLogger auditLogger) : IVerifyEmailHandler
 {
     public async Task<VerifyEmailResult> HandleAsync(VerifyEmailCommand command, CancellationToken ct)
     {
-        var user = await userManager.FindByIdAsync(command.UserId);
+        var consumed = await securityTokenService.ConsumeAsync(command.Token, SecurityTokenPurpose.EmailVerification, ct);
+        if (consumed is not ConsumeSecurityTokenResult.Success success)
+        {
+            return new VerifyEmailResult.InvalidOrExpiredToken();
+        }
+
+        var user = await userManager.FindByIdAsync(success.UserId.ToString());
         if (user is null || user.SupplierId is null)
         {
             return new VerifyEmailResult.InvalidOrExpiredToken();
         }
 
-        string decodedToken;
-        try
-        {
-            decodedToken = System.Text.Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(command.Token));
-        }
-        catch (FormatException)
-        {
-            return new VerifyEmailResult.InvalidOrExpiredToken();
-        }
-
-        var confirmResult = await userManager.ConfirmEmailAsync(user, decodedToken);
+        var identityToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+        var confirmResult = await userManager.ConfirmEmailAsync(user, identityToken);
         if (!confirmResult.Succeeded)
         {
             return new VerifyEmailResult.InvalidOrExpiredToken();
@@ -57,7 +56,9 @@ public sealed class VerifyEmailHandler(
         }
         catch (DomainException)
         {
-            // Already verified (token replayed after success) - idempotent no-op, not an error.
+            // Already verified via a different (still-valid) token issued earlier - idempotent,
+            // not an error. The opaque token itself can never be replayed (ConsumeAsync is
+            // single-use), so this only fires if the account somehow had two live tokens.
             return new VerifyEmailResult.Success();
         }
 

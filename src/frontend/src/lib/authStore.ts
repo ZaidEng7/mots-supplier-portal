@@ -22,7 +22,7 @@ function decodeClaims(accessToken: string): AuthClaims | null {
   try {
     const payload = accessToken.split('.')[1]
     const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-    const permissions: string[] = Array.isArray(json.permission) ? json.permission : json.permission ? [json.permission] : []
+    const permissions: string[] = Array.isArray(json.perms) ? json.perms : json.perms ? [json.perms] : []
     return {
       userId: json.sub,
       email: json.email,

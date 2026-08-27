@@ -66,7 +66,11 @@ public sealed class LoginHandler(
     internal async Task<TokenPair> IssueTokenPairAsync(AppUser user, Guid familyId, string? ip, string? userAgent, CancellationToken ct)
     {
         var permissions = await permissionResolver.ResolveAsync(user);
-        var access = jwtTokenService.IssueAccessToken(user.Id, user.Email!, user.SupplierId, user.OrganizationId, permissions);
+        var roles = (IReadOnlyList<string>)await userManager.GetRolesAsync(user);
+        // amr = "authentication methods reference" (SECURITY-ARCHITECTURE §1.1/§1.5): only
+        // password today - MFA isn't enforced at login yet (enrollment exists, step-up doesn't),
+        // so step-up policies reading this claim can already tell a token was never MFA-verified.
+        var access = jwtTokenService.IssueAccessToken(user.Id, user.Email!, user.SupplierId, user.OrganizationId, roles, permissions, ["pwd"]);
 
         var refreshPlainText = TokenHasher.GenerateOpaqueToken();
         db.RefreshTokens.Add(new Domain.Identity.RefreshToken
