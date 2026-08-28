@@ -9,10 +9,13 @@ import {
   pickUpApplication,
   approveApplication,
   rejectApplication,
+  changeSupplierLifecycle,
+  type SupplierLifecycleAction,
   requestApplicationInfo,
   ReviewApiError,
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
+import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
 
 // MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
 // unknown codes, and these are the codes the server enforces the supplier's edit restriction
@@ -43,6 +46,55 @@ function RejectDialog({ open, onOpenChange, onSubmit, isLoading }: { open: boole
           </Button>
           <Button variant="danger" isLoading={isLoading} disabled={!reason.trim()} onClick={() => onSubmit(reason)}>
             {t('review.reject')}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+/**
+ * MSP-63: suspend / reactivate / deactivate all need a mandatory reason (BRULE-096), which is the
+ * same shape as RejectDialog. Generalised rather than copied three more times - and the confirm
+ * variant is a prop because deactivation is terminal and should not look like the reversible two.
+ */
+function ReasonDialog({
+  open, onOpenChange, onSubmit, isLoading, title, confirmLabel, variant, warning,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onSubmit: (reason: string) => void
+  isLoading: boolean
+  title: string
+  confirmLabel: string
+  variant: 'danger' | 'primary'
+  warning?: string
+}) {
+  const { t } = useTranslation()
+  const [reason, setReason] = useState('')
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title={title}>
+      <div className="flex flex-col gap-4">
+        {warning ? (
+          <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-danger)' }}>
+            {warning}
+          </p>
+        ) : null}
+        <textarea
+          className="rounded-[0.375rem] p-2"
+          style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
+          rows={4}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder={t('review.reason')}
+          aria-label={t('review.reason')}
+        />
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            {t('review.cancel')}
+          </Button>
+          <Button variant={variant} isLoading={isLoading} disabled={!reason.trim()} onClick={() => onSubmit(reason)}>
+            {confirmLabel}
           </Button>
         </div>
       </div>
@@ -89,6 +141,9 @@ function RequestInfoDialog({
           <legend className="text-[length:var(--text-body-sm)] font-[var(--fw-medium)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('review.flagProfileFields')}
           </legend>
+          {/* The flagged-field CODES, not the display fields - these are what the supplier is asked
+              to correct, and they must match ProfileFieldCodes.cs exactly (MSP-77). Conflating the
+              two lists is what crashed the profile grid below. */}
           {PROFILE_FIELDS.map((f) => (
             <label key={f} className="flex items-center gap-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
               <input type="checkbox" checked={fields.includes(f)} onChange={() => toggle(fields, setFields, f)} />
@@ -128,6 +183,7 @@ export function ReviewApplicationPage() {
   const queryClient = useQueryClient()
   const [rejectOpen, setRejectOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [lifecycleAction, setLifecycleAction] = useState<SupplierLifecycleAction | null>(null)
 
   const viewQuery = useQuery({
     queryKey: ['review-application', referenceCode],
@@ -175,6 +231,20 @@ export function ReviewApplicationPage() {
     onError: (err) => notify({ kind: 'danger', title: t('review.requestInfoFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
   })
 
+  const lifecycleMutation = useMutation({
+    mutationFn: ({ action, reason }: { action: SupplierLifecycleAction; reason: string }) =>
+      changeSupplierLifecycle(referenceCode, action, reason),
+    onSuccess: () => {
+      invalidate()
+      setLifecycleAction(null)
+      notify({ kind: 'success', title: t('review.decisionSuccess') })
+    },
+    // The server's 409 message names which state is required (NFR-CMP-003/BRULE-097). Surfaced
+    // rather than swallowed: the UI hides inapplicable actions, but if one is somehow attempted the
+    // reviewer should see why it was refused.
+    onError: (err) => notify({ kind: 'danger', title: t('review.lifecycleFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
+  })
+
   const downloadMutation = useMutation({
     mutationFn: getDocumentDownloadUrl,
     onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
@@ -201,6 +271,13 @@ export function ReviewApplicationPage() {
   const canPickUp = state === 'Submitted' || state === 'Resubmitted'
   const canDecide = state === 'UnderReview'
 
+  // FR-ONB-009 lifecycle actions, offered only where the domain would accept them. This mirrors the
+  // server's rules; it does not replace them - the endpoints reject illegal transitions regardless.
+  const lifecycle = supplier.lifecycleState
+  const canSuspend = lifecycle === 'Active'
+  const canReactivate = lifecycle === 'Suspended'
+  const canDeactivate = lifecycle === 'Suspended'
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -212,7 +289,14 @@ export function ReviewApplicationPage() {
             {isArabic ? supplier.displayNameAr : supplier.displayNameEn}
           </h1>
         </div>
-        <Badge tone={state === 'InfoRequested' ? 'warning' : 'info'}>{state}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge tone={state === 'InfoRequested' ? 'warning' : 'info'}>{state}</Badge>
+          {/* Lifecycle is shown only once it has begun; None would be noise on an application
+              that has not been approved yet. */}
+          {lifecycle !== 'None' ? (
+            <Badge tone={lifecycle === 'Active' ? 'success' : 'danger'}>{lifecycle}</Badge>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex gap-3">
@@ -234,6 +318,21 @@ export function ReviewApplicationPage() {
             </Button>
           </>
         ) : null}
+        {canSuspend ? (
+          <Button variant="secondary" onClick={() => setLifecycleAction('suspend')}>
+            {t('review.suspend')}
+          </Button>
+        ) : null}
+        {canReactivate ? (
+          <Button variant="secondary" onClick={() => setLifecycleAction('reactivate')}>
+            {t('review.reactivate')}
+          </Button>
+        ) : null}
+        {canDeactivate ? (
+          <Button variant="danger" onClick={() => setLifecycleAction('deactivate')}>
+            {t('review.deactivate')}
+          </Button>
+        ) : null}
       </div>
 
       <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
@@ -241,12 +340,12 @@ export function ReviewApplicationPage() {
           {t('review.profile')}
         </h2>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {PROFILE_FIELDS.map((f) => (
+          {PROFILE_DISPLAY_FIELDS.map((f) => (
             <div key={f}>
               <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {t(`onboarding.fields.${f}`)}
               </dt>
-              <dd style={{ color: 'var(--color-text-primary)' }}>{(supplier as unknown as Record<string, string | null>)[f] ?? '—'}</dd>
+              <dd style={{ color: 'var(--color-text-primary)' }}>{profileDisplayValue(supplier, f)}</dd>
             </div>
           ))}
         </dl>
@@ -313,6 +412,23 @@ export function ReviewApplicationPage() {
           </ul>
         </div>
       ) : null}
+
+      {/* Keyed by action so React REMOUNTS it on each open. Without this the dialog keeps its
+          previous reason: opening Deactivate straight after a Suspend pre-fills the suspension's
+          text, and the reviewer can commit it without noticing. The reason is the audit record
+          (BRULE-096), so a stale one is a false record, not a cosmetic annoyance. Found by opening
+          the page rather than by any test. */}
+      <ReasonDialog
+        key={lifecycleAction ?? 'none'}
+        open={lifecycleAction !== null}
+        onOpenChange={(v) => setLifecycleAction(v ? lifecycleAction : null)}
+        isLoading={lifecycleMutation.isPending}
+        title={lifecycleAction ? t(`review.${lifecycleAction}`) : ''}
+        confirmLabel={lifecycleAction ? t(`review.${lifecycleAction}`) : ''}
+        variant={lifecycleAction === 'reactivate' ? 'primary' : 'danger'}
+        warning={lifecycleAction === 'deactivate' ? t('review.deactivateWarning') : undefined}
+        onSubmit={(reason) => lifecycleAction && lifecycleMutation.mutate({ action: lifecycleAction, reason })}
+      />
 
       <RejectDialog open={rejectOpen} onOpenChange={setRejectOpen} isLoading={rejectMutation.isPending} onSubmit={(reason) => rejectMutation.mutate(reason)} />
       <RequestInfoDialog

@@ -87,3 +87,26 @@ export async function requestApplicationInfo(
   })
   return parseOrThrow(res)
 }
+
+/**
+ * MSP-63 / FR-ONB-009: post-approval lifecycle. Suspend and reactivate are reversible;
+ * deactivate is terminal, and the API refuses it unless the supplier is already suspended.
+ *
+ * The server returns 409 with the domain's own message for an illegal transition
+ * (NFR-CMP-003/BRULE-097). The UI hides actions that do not apply, but hiding is a
+ * convenience - the rule is enforced server-side and the message is surfaced, not swallowed.
+ */
+export type SupplierLifecycleAction = 'suspend' | 'reactivate' | 'deactivate'
+
+export async function changeSupplierLifecycle(
+  referenceCode: string,
+  action: SupplierLifecycleAction,
+  reason: string,
+): Promise<{ lifecycleState: string }> {
+  const res = await apiFetch(`/api/v1/review/${referenceCode}/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  return parseOrThrow(res)
+}

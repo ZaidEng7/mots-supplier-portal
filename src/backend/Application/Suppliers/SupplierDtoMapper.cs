@@ -17,6 +17,7 @@ public static class SupplierDtoMapper
             supplier.LogoStorageKey,
             supplier.SupplierGroup,
             supplier.OnboardingState.ToString(),
+            supplier.LifecycleState.ToString(),
             supplier.CurrencyCode,
             supplier.LegalInfo is null
                 ? null
