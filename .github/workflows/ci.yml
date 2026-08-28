@@ -20,17 +20,75 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # MSP-78: SonarCloud has never analyzed C# in this project - its language distribution was
+      # css/docker/json/ts/web/yaml only, so a passing "Security A" covered ~5% of the codebase and
+      # none of the auth, crypto or data-access code. Automatic Analysis cannot analyze C#; it needs
+      # the MSBuild scanner wrapping the build, which is what these steps add.
+      #
+      # Gated on SONAR_TOKEN so a fork or a token-less run still builds and tests normally rather
+      # than failing on a missing secret.
+      - name: Check for Sonar token
+        id: sonar
+        run: echo "enabled=${{ secrets.SONAR_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Java (required by the Sonar scanner)
+        if: steps.sonar.outputs.enabled == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Sonar scanner
+        if: steps.sonar.outputs.enabled == 'true'
+        run: dotnet tool install --global dotnet-sonarscanner --version 10.4.0
+
       - name: Restore
         run: dotnet restore
+
+      # Analysis must wrap the build: the scanner hooks MSBuild to see the compiled C#. A build
+      # that has already happened cannot be analyzed retrospectively, which is why --no-build is
+      # NOT used on the build step below when Sonar is enabled.
+      # Run from the repository ROOT, not src/backend. Switching to CI analysis disables
+      # SonarCloud's Automatic Analysis, and Automatic Analysis is currently the only thing
+      # scanning the frontend - so a scanner scoped to src/backend would silently drop TypeScript
+      # from the project and trade one blind spot for another.
+      - name: Sonar begin
+        if: steps.sonar.outputs.enabled == 'true'
+        working-directory: .
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:"ZaidEng7_mots-supplier-portal" \
+            /o:"zaideng7" \
+            /d:sonar.sources="src" \
+            /d:sonar.tests="src/backend/Tests,src/frontend/tests" \
+            /d:sonar.javascript.lcov.reportsPaths="src/frontend/coverage/lcov.info" \
+            /d:sonar.token="$SONAR_TOKEN" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="**/Migrations/**,**/Program.cs,**/*.stories.tsx,**/tests/**" \
+            /d:sonar.cpd.exclusions="**/Tests/**,**/Migrations/**,**/*.spec.ts,**/*.stories.tsx" \
+            /d:sonar.exclusions="**/Migrations/**,**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,**/storybook-static/**"
 
       - name: Build
         run: dotnet build --no-restore --configuration Release
 
+      # Coverage in opencover format because that is what the C# scanner consumes; coverlet.collector
+      # is already referenced by all three test projects. Shared with MSP-70, which needs the same
+      # wiring to produce a coverage number at all - do it once here, not twice.
       - name: Unit tests
-        run: dotnet test Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal"
+        run: dotnet test Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
       - name: Architecture tests (NetArchTest)
-        run: dotnet test Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal"
+        run: dotnet test Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
+
+      - name: Sonar end
+        if: steps.sonar.outputs.enabled == 'true'
+        working-directory: .
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
   backend-integration:
     name: Backend integration (Testcontainers)
