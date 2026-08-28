@@ -55,7 +55,8 @@ public sealed class InviteSupplierUserHandler(
         await userManager.AddToRoleAsync(user, Roles.SupplierUser);
 
         var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.SupplierUserInvite, TimeSpan.FromDays(7), ct);
-        var frontendUrl = configuration["App:PublicUrl"] ?? "http://localhost:5173";
+        var frontendUrl = configuration["App:PublicUrl"]
+            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
         var acceptUrl = $"{frontendUrl}/accept-invite?token={Uri.EscapeDataString(rawToken)}";
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendSupplierUserInviteEmailAsync(user.Email!, acceptUrl, CancellationToken.None));
 

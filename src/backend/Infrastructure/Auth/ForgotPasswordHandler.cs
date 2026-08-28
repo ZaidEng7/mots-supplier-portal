@@ -28,7 +28,8 @@ public sealed class ForgotPasswordHandler(
         }
 
         var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.PasswordReset, TimeSpan.FromMinutes(30), ct);
-        var frontendUrl = configuration["App:PublicUrl"] ?? "http://localhost:5173";
+        var frontendUrl = configuration["App:PublicUrl"]
+            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
         var resetUrl = $"{frontendUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
 
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendPasswordResetEmailAsync(user.Email!, resetUrl, CancellationToken.None));

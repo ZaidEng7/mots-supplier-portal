@@ -56,7 +56,7 @@ public static class AuthEndpoints
             IValidator<LoginRequest> validator,
             ILoginHandler handler,
             HttpContext httpContext,
-            IWebHostEnvironment env,
+            IConfiguration configuration,
             PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
@@ -80,7 +80,7 @@ public static class AuthEndpoints
 
             return result switch
             {
-                LoginResult.Success s => LoginOk(httpContext, env, s.Tokens),
+                LoginResult.Success s => LoginOk(httpContext, configuration, s.Tokens),
                 LoginResult.LockedOut => Results.Json(new { error = "locked_out" }, statusCode: StatusCodes.Status423Locked),
                 // 401 + a distinct code, not 200: no session exists yet, so nothing here is a
                 // partial success the client could mistake for one.
@@ -98,7 +98,7 @@ public static class AuthEndpoints
         group.MapPost("/refresh", async (
             HttpContext httpContext,
             IRefreshTokenHandler handler,
-            IWebHostEnvironment env,
+            IConfiguration configuration,
             CancellationToken ct) =>
         {
             if (!httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken) || string.IsNullOrEmpty(refreshToken))
@@ -113,7 +113,7 @@ public static class AuthEndpoints
 
             return result switch
             {
-                RefreshTokenResult.Success s => LoginOk(httpContext, env, s.Tokens),
+                RefreshTokenResult.Success s => LoginOk(httpContext, configuration, s.Tokens),
                 RefreshTokenResult.ReuseDetected => ClearAndUnauthorized(httpContext),
                 RefreshTokenResult.Invalid => ClearAndUnauthorized(httpContext),
                 _ => Results.Problem(),
@@ -225,12 +225,19 @@ public static class AuthEndpoints
     /// /api/v1/auth - never in a JS-readable response body (OWASP ASVS L2 token-handling review).
     /// The access token is short-lived and returned in the body for the SPA to hold in memory.
     /// </summary>
-    private static IResult LoginOk(HttpContext httpContext, IWebHostEnvironment env, TokenPair tokens)
+    private static IResult LoginOk(HttpContext httpContext, IConfiguration configuration, TokenPair tokens)
     {
+        // Secure defaults to TRUE and is disabled only by an explicit opt-out, rather than being
+        // derived from the environment name. Previously `!env.IsDevelopment()` meant a leaked
+        // ASPNETCORE_ENVIRONMENT=Development was the only thing between a refresh token and
+        // plaintext - a silent downgrade with no signal, the same class as the localhost fallbacks.
+        // Now the insecure setting has to be written down somewhere a reviewer can see it.
+        var requireSecure = configuration.GetValue("Cookies:RequireSecure", true);
+
         httpContext.Response.Cookies.Append(RefreshCookieName, tokens.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = !env.IsDevelopment(),
+            Secure = requireSecure,
             SameSite = SameSiteMode.Strict,
             Path = RefreshCookiePath,
             Expires = DateTimeOffset.UtcNow.AddDays(30),

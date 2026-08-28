@@ -29,6 +29,10 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fail fast before any service reads a setting: a misconfigured non-Development deployment
+// must not boot. See RequiredConfiguration for why (three settings used to degrade silently).
+MotsSupplierPortal.Api.Configuration.RequiredConfiguration.Validate(builder.Configuration, builder.Environment);
+
 // Serilog: structured JSON logging (docs/architecture/OBSERVABILITY-ARCHITECTURE.md).
 // RedactingEnricher is the NFR-PRIV-004 redaction stage (MSP-61) - it must stay registered
 // before the sink so no deny-listed property value can reach the console/aggregator.
@@ -63,19 +67,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow;
 });
 
-// NFR-SEC-007: the dev fallback carries a credential, so it is confined to Development. Outside
-// it, a missing connection string must fail loudly at startup rather than silently fall back to a
-// hard-coded localhost credential - a silent fallback in production is how an app ends up quietly
-// pointing somewhere nobody intended.
-//
-// Note this line is the same class of finding as yaml:S2068 on docker-compose.yml, but SonarCloud
-// never reported it: it does not analyze C# in this project (MSP-78). It reads the Dockerfile and
-// the compose file in the same directory tree fine - the gap is language coverage, not paths.
+// Outside Development RequiredConfiguration has already guaranteed this is present, so the only
+// remaining fallback is the local-dev credential (NFR-SEC-007: dev-only, and weak on purpose).
 var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? (builder.Environment.IsDevelopment()
-        ? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres"
-        : throw new InvalidOperationException(
-            "ConnectionStrings:Default is not configured. Supply it from the environment or a secret store."));
+    ?? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres";
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
@@ -249,6 +244,9 @@ builder.Services.AddHealthChecks()
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy
+        // No fallback: RequiredConfiguration guarantees this outside Development, and
+        // appsettings.Development.json supplies it locally. A silent localhost default here
+        // blocked the real SPA in production while looking configured.
         .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
             ?? ["http://localhost:5173"])
         .AllowAnyHeader()
