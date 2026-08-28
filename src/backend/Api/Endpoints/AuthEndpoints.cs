@@ -4,7 +4,9 @@ using MotsSupplierPortal.Application.Auth;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-public sealed record LoginRequest(string Email, string Password);
+/// <summary><paramref name="TotpCode"/> is omitted on the first attempt; when the response is
+/// <c>mfa_required</c> the client re-posts the same credentials plus a code (MSP-67).</summary>
+public sealed record LoginRequest(string Email, string Password, string? TotpCode = null);
 
 public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
 {
@@ -43,7 +45,11 @@ public static class AuthEndpoints
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/auth").WithTags("Auth");
+        // Public by design: these are the endpoints you use precisely because you have no session
+        // yet. Declared explicitly against the deny-by-default FallbackPolicy (MSP-67). The
+        // session-management routes below re-add .RequireAuthorization() individually - group-level
+        // AllowAnonymous does not weaken them.
+        var group = app.MapGroup("/api/v1/auth").WithTags("Auth").AllowAnonymous();
 
         group.MapPost("/login", async (
             LoginRequest request,
@@ -70,12 +76,17 @@ public static class AuthEndpoints
             var ip = httpContext.Connection.RemoteIpAddress?.ToString();
             var userAgent = httpContext.Request.Headers.UserAgent.ToString();
 
-            var result = await handler.HandleAsync(new LoginCommand(request.Email, request.Password, ip, userAgent), ct);
+            var result = await handler.HandleAsync(new LoginCommand(request.Email, request.Password, ip, userAgent, request.TotpCode), ct);
 
             return result switch
             {
                 LoginResult.Success s => LoginOk(httpContext, env, s.Tokens),
                 LoginResult.LockedOut => Results.Json(new { error = "locked_out" }, statusCode: StatusCodes.Status423Locked),
+                // 401 + a distinct code, not 200: no session exists yet, so nothing here is a
+                // partial success the client could mistake for one.
+                LoginResult.MfaRequired => Results.Json(new { error = "mfa_required" }, statusCode: StatusCodes.Status401Unauthorized),
+                LoginResult.MfaInvalid => Results.Json(new { error = "mfa_invalid" }, statusCode: StatusCodes.Status401Unauthorized),
+                LoginResult.MfaEnrollmentRequired => Results.Json(new { error = "mfa_enrollment_required" }, statusCode: StatusCodes.Status403Forbidden),
                 LoginResult.AccountNotUsable a => Results.BadRequest(new { error = a.Reason }),
                 LoginResult.InvalidCredentials => Results.Unauthorized(),
                 _ => Results.Problem(),

@@ -231,6 +231,33 @@ export function OnboardingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileQuery.data])
 
+  // MSP-65 / NFR-USE-004: a concurrency conflict is a distinct, actionable situation - the user's
+  // work was NOT saved because someone else edited first - so it gets its own localized message
+  // telling them to reload, not the generic "could not save".
+  const notifySaveError = (err: unknown) => {
+    if (err instanceof SupplierApiError && err.isFieldNotFlagged) {
+      notify({
+        kind: 'danger',
+        title: t('onboarding.notFlaggedTitle'),
+        description: t('onboarding.notFlaggedBody'),
+      })
+      return
+    }
+    if (err instanceof SupplierApiError && err.isConcurrencyConflict) {
+      notify({
+        kind: 'danger',
+        title: t('onboarding.conflictTitle'),
+        description: t('onboarding.conflictBody'),
+      })
+      return
+    }
+    notify({
+      kind: 'danger',
+      title: t('onboarding.saveFailed'),
+      description: err instanceof SupplierApiError ? err.message : undefined,
+    })
+  }
+
   const saveLegalMutation = useMutation({
     mutationFn: (values: LegalFormValues) =>
       updateLegalInfo({
@@ -240,12 +267,12 @@ export function OnboardingPage() {
         taxId: values.taxId || null,
         supplierType: values.supplierType,
         establishedOn: values.establishedOn || null,
-      }),
+      }, profileQuery.data?.rowVersion),
     onSuccess: (data) => {
       onProfile(data)
       notify({ kind: 'success', title: t('onboarding.saved') })
     },
-    onError: (err) => notify({ kind: 'danger', title: t('onboarding.saveFailed'), description: err instanceof SupplierApiError ? err.message : undefined }),
+    onError: (err) => notifySaveError(err),
   })
 
   const saveProfileMutation = useMutation({
@@ -256,12 +283,12 @@ export function OnboardingPage() {
         supplierGroup: values.supplierGroup || null,
         currencyCode: values.currencyCode || null,
         primaryContactPhone: values.primaryContactPhone || null,
-      }),
+      }, profileQuery.data?.rowVersion),
     onSuccess: (data) => {
       onProfile(data)
       notify({ kind: 'success', title: t('onboarding.saved') })
     },
-    onError: (err) => notify({ kind: 'danger', title: t('onboarding.saveFailed'), description: err instanceof SupplierApiError ? err.message : undefined }),
+    onError: (err) => notifySaveError(err),
   })
 
   const submitMutation = useMutation({

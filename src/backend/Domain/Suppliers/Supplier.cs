@@ -149,10 +149,15 @@ public sealed class Supplier
     }
 
     /// <summary>FEAT-04.1 core profile fields (description/website/group/currency). Editable while
-    /// EmailVerified/ProfileInProgress, or InfoRequested (field-level restriction while
-    /// InfoRequested is enforced by the handler, which knows the active annotation - the domain
-    /// only gates which *states* allow editing at all). The first EmailVerified call advances to
-    /// ProfileInProgress.</summary>
+    /// EmailVerified/ProfileInProgress, or InfoRequested. The domain gates which *states* allow
+    /// editing at all; the per-field restriction that applies while InfoRequested (STORY-03.3.1
+    /// AC1) is enforced by <c>FlaggedFieldGuard</c> in the handler, which can read the reviewer's
+    /// open annotation - verified by <c>FlaggedFieldEnforcementTests</c> rather than asserted here
+    /// (MSP-77; this comment previously claimed an enforcement that did not exist).
+    ///
+    /// Callers pass already-merged values: for a PATCH the handler resolves each field to either
+    /// the supplied value or the current one, so this method never has to know which were
+    /// omitted.</summary>
     public void UpdateCoreProfile(string? description, string? website, string? supplierGroup, string? currencyCode)
     {
         EnsureEditable();

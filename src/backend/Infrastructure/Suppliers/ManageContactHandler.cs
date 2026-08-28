@@ -15,6 +15,9 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Contact, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         Domain.Suppliers.Contact contact;
         try
         {
@@ -40,6 +43,9 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Contact, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         try
         {
             supplier.UpdateContact(command.ContactId, command.FullName, command.Email, command.Phone, command.Role);
@@ -59,6 +65,9 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Contact, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         try
         {

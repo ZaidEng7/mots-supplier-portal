@@ -65,7 +65,15 @@ public static class Roles
         [ProcurementOfficer] = [Permissions.RfqPublish],
         [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove],
         [Evaluator] = [Permissions.EvaluationScore],
-        [MinistryViewer] = [Permissions.AuditRead],
+        // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
+        // Ministry "read-only, cross-organization access to aggregate/governance metrics only",
+        // and BRULE-087 defaults to aggregate-only where visibility is undecided. A raw audit-row
+        // read is neither aggregate nor a metric - it exposes named actors (ActorLabel) and
+        // reviewer free text (Reason) at line level for every supplier, which is the RISK-007
+        // exposure. The Ministry's legitimate governance view belongs to EPIC-18/EPIC-19, which
+        // are unbuilt; granting raw audit access as an interim stand-in grants strictly more than
+        // BRULE-086 allows. Re-add only if OQ-001 resolves in favour of line-level Ministry access.
+        [MinistryViewer] = [],
         [SystemAdmin] = [.. Permissions.All],
     };
 }

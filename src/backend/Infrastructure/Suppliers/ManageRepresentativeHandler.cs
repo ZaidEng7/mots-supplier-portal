@@ -18,6 +18,9 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Representative, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         Representative representative;
         try
         {
@@ -50,6 +53,9 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Representative, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var before = supplier.Representatives.FirstOrDefault(r => r.Id == command.RepresentativeId);
         try
         {
@@ -77,6 +83,9 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Representative, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var before = supplier.Representatives.FirstOrDefault(r => r.Id == command.RepresentativeId);
         try
         {
@@ -101,6 +110,9 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Representative, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var previousPrimary = supplier.Representatives.FirstOrDefault(r => r.IsPrimary);
         try

@@ -21,6 +21,9 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.BankAccount, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var encrypted = encryption.Encrypt(command.AccountNumber);
         var masked = FieldEncryptionService.Mask(command.AccountNumber);
 
@@ -62,6 +65,9 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.BankAccount, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var before = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId);
 
@@ -108,6 +114,9 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.BankAccount, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var before = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId);
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "bankAccount", defaultValue: true, ct);
 
@@ -136,6 +145,9 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.BankAccount, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var wasDefault = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId)?.IsDefault;
         try
