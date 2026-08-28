@@ -66,11 +66,18 @@ jobs:
           cache: "npm"
           cache-dependency-path: src/frontend/package-lock.json
 
+      # githubactions:S6505 - lifecycle scripts of dependencies execute arbitrary code during
+      # install. Verified the build still succeeds without them (esbuild's postinstall is not
+      # load-bearing here; the platform binary arrives via optionalDependencies).
       - name: Install
-        run: npm ci
+        run: npm ci --ignore-scripts
 
+      # githubactions:S6505/S8543 - every tool below is invoked through an npm script so it
+      # resolves from the lockfile-pinned node_modules. `npx` was fetching-and-executing whatever
+      # version happened to be published at build time, which in a CI pipeline is a supply-chain
+      # exposure, not a style preference.
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Lint
         run: npm run lint
@@ -82,10 +89,10 @@ jobs:
         run: npm run build-storybook
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npm run e2e:install
 
       - name: Playwright smoke + axe a11y checks
-        run: npx playwright test
+        run: npm run test:e2e
         env:
           CI: "true"
 

@@ -26,12 +26,14 @@ export default defineConfig({
     {
       name: 'storybook-axe',
       testMatch: 'storybook-axe.spec.ts',
-      // Serial: concurrent AxeBuilder.analyze() calls against the same origin can race
-      // ("Axe is already running") even across separate page/context instances. A retry
-      // absorbs the rare remaining race on a cold browser/page.
+      // Serial because each analyze() injects axe into the page; running them concurrently
+      // against one origin invites interference. The per-project `retries: 1` that used to sit
+      // here was masking the "Axe is already running" race rather than fixing it (MSP-79) - the
+      // race is now removed in the spec by waiting for the story to actually render, so a failure
+      // here is a real failure and must not be retried away.
       fullyParallel: false,
       workers: 1,
-      retries: 1,
+      retries: 0,
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:6007' },
     },
     {
