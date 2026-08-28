@@ -302,6 +302,9 @@ jobs:
           # drift out of step with the dashboard.
           api "https://sonarcloud.io/api/qualitygates/project_status?projectKey=ZaidEng7_mots-supplier-portal&$SCOPE" gate.json
 
+          # Whole-project measures, REPORTED ONLY - see the note in the python block below.
+          api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc" overall.json
+
           python3 - <<'PYEOF'
           import json, os, sys
 
@@ -396,9 +399,54 @@ jobs:
               if coverage < threshold:
                   failures.append(f"new-code coverage {coverage}% < {threshold}% floor - add tests, do not lower the floor")
 
+          # ---- Whole-project state: REPORTED, NOT ENFORCED ---------------------------------
+          # New-code conditions above are what stop things getting worse, and they are achievable
+          # today. These whole-project numbers cannot pass until the existing debt is actually
+          # fixed, and a gate that cannot pass gets ignored - the failure this project has already
+          # produced more than once. So they are printed, not enforced.
+          #
+          # They are printed at all because Phase 3 should be able to watch them move as fixes land,
+          # rather than working blind and finding out at the end. Same lesson as MSP-70 one level
+          # up: build the instrument before the repair work, not after.
+          #
+          # PHASE 4 EXIT CONDITION: flip these to blocking once they can pass on merit.
+          print("")
+          print("Whole project (reported, not enforced - Phase 4 flips these to blocking):")
+          LABELS = [
+              ("security_rating",          "Security rating",   True),
+              ("reliability_rating",       "Reliability rating", True),
+              ("sqale_rating",             "Maintainability",   True),
+              ("coverage",                 "Coverage",          False),
+              ("duplicated_lines_density", "Duplication",       False),
+              ("ncloc",                    "Lines of code",     False),
+          ]
+          try:
+              overall = {
+                  m["metric"]: m.get("value")
+                  for m in json.load(open("overall.json")).get("component", {}).get("measures", [])
+              }
+          except (OSError, ValueError):
+              overall = {}
+
+          if not overall:
+              # Not a failure - these are advisory. But say so, rather than printing nothing and
+              # letting an empty section read as "no problems".
+              print("  (whole-project measures unavailable this run)")
+          else:
+              for key, label, is_rating in LABELS:
+                  v = overall.get(key)
+                  if v is None:
+                      print(f"  {label}: unavailable")
+                  elif is_rating:
+                      print(f"  {label}: {RATINGS.get(str(int(float(v))), v)}")
+                  else:
+                      print(f"  {label}: {v}")
+
           if failures:
+              print("")
               for f in failures:
                   print(f"::error::{f}")
               sys.exit(1)
+          print("")
           print("Quality gate passed (Sonar ratings + 45% coverage floor).")
           PYEOF
