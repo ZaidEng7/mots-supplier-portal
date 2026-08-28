@@ -16,6 +16,7 @@ import {
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
+import { lifecycleActionsFor } from './lifecycleActions'
 
 // MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
 // unknown codes, and these are the codes the server enforces the supplier's edit restriction
@@ -26,36 +27,9 @@ const PROFILE_FIELDS = [
   'legalInfo', 'address', 'contact', 'representative', 'branch', 'bankAccount', 'categoryLink', 'logo',
 ] as const
 
-function RejectDialog({ open, onOpenChange, onSubmit, isLoading }: { open: boolean; onOpenChange: (v: boolean) => void; onSubmit: (reason: string) => void; isLoading: boolean }) {
-  const { t } = useTranslation()
-  const [reason, setReason] = useState('')
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={t('review.reject')}>
-      <div className="flex flex-col gap-4">
-        <textarea
-          className="rounded-[0.375rem] p-2"
-          style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
-          rows={4}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder={t('review.reason')}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t('review.cancel')}
-          </Button>
-          <Button variant="danger" isLoading={isLoading} disabled={!reason.trim()} onClick={() => onSubmit(reason)}>
-            {t('review.reject')}
-          </Button>
-        </div>
-      </div>
-    </Dialog>
-  )
-}
-
 /**
  * MSP-63: suspend / reactivate / deactivate all need a mandatory reason (BRULE-096), which is the
- * same shape as RejectDialog. Generalised rather than copied three more times - and the confirm
+ * same shape as the reject flow. One dialog for all four rather than four copies - and the confirm
  * variant is a prop because deactivation is terminal and should not look like the reversible two.
  */
 function ReasonDialog({
@@ -274,9 +248,7 @@ export function ReviewApplicationPage() {
   // FR-ONB-009 lifecycle actions, offered only where the domain would accept them. This mirrors the
   // server's rules; it does not replace them - the endpoints reject illegal transitions regardless.
   const lifecycle = supplier.lifecycleState
-  const canSuspend = lifecycle === 'Active'
-  const canReactivate = lifecycle === 'Suspended'
-  const canDeactivate = lifecycle === 'Suspended'
+  const { canSuspend, canReactivate, canDeactivate } = lifecycleActionsFor(lifecycle)
 
   return (
     <div className="flex flex-col gap-6">
@@ -430,7 +402,19 @@ export function ReviewApplicationPage() {
         onSubmit={(reason) => lifecycleAction && lifecycleMutation.mutate({ action: lifecycleAction, reason })}
       />
 
-      <RejectDialog open={rejectOpen} onOpenChange={setRejectOpen} isLoading={rejectMutation.isPending} onSubmit={(reason) => rejectMutation.mutate(reason)} />
+      {/* Reject uses the same ReasonDialog as the lifecycle actions. It had its own near-identical
+          component; keeping both would have meant two copies of the same mandatory-reason form
+          drifting apart, which Sonar flagged as duplication on this very PR. */}
+      <ReasonDialog
+        key="reject"
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        isLoading={rejectMutation.isPending}
+        title={t('review.reject')}
+        confirmLabel={t('review.reject')}
+        variant="danger"
+        onSubmit={(reason) => rejectMutation.mutate(reason)}
+      />
       <RequestInfoDialog
         open={infoOpen}
         onOpenChange={setInfoOpen}
