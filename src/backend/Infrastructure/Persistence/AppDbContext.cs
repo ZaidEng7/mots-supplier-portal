@@ -30,10 +30,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
+    public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<ReferenceCodeCounter>(entity =>
+        {
+            entity.ToTable("reference_code_counter", "supplier");
+            // The prefix is the natural key; there is no surrogate id because a second row for the
+            // same prefix would be a second, competing allocator.
+            entity.HasKey(c => c.Prefix);
+            entity.Property(c => c.Prefix).HasMaxLength(30);
+            entity.Property(c => c.LastValue).IsRequired();
+        });
 
         modelBuilder.Entity<Currency>(entity =>
         {
