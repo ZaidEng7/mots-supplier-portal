@@ -25,7 +25,8 @@ public sealed class ResendVerificationHandler(
         }
 
         var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), ct);
-        var frontendUrl = configuration["App:PublicUrl"] ?? "http://localhost:5173";
+        var frontendUrl = configuration["App:PublicUrl"]
+            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
         var verifyUrl = $"{frontendUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
 
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Email!, verifyUrl, CancellationToken.None));

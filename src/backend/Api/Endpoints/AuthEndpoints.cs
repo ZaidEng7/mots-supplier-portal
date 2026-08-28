@@ -56,7 +56,7 @@ public static class AuthEndpoints
             IValidator<LoginRequest> validator,
             ILoginHandler handler,
             HttpContext httpContext,
-            IWebHostEnvironment env,
+            IConfiguration configuration,
             PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
@@ -80,7 +80,7 @@ public static class AuthEndpoints
 
             return result switch
             {
-                LoginResult.Success s => LoginOk(httpContext, env, s.Tokens),
+                LoginResult.Success s => LoginOk(httpContext, configuration, s.Tokens),
                 LoginResult.LockedOut => Results.Json(new { error = "locked_out" }, statusCode: StatusCodes.Status423Locked),
                 // 401 + a distinct code, not 200: no session exists yet, so nothing here is a
                 // partial success the client could mistake for one.
@@ -98,7 +98,7 @@ public static class AuthEndpoints
         group.MapPost("/refresh", async (
             HttpContext httpContext,
             IRefreshTokenHandler handler,
-            IWebHostEnvironment env,
+            IConfiguration configuration,
             CancellationToken ct) =>
         {
             if (!httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken) || string.IsNullOrEmpty(refreshToken))
@@ -113,7 +113,7 @@ public static class AuthEndpoints
 
             return result switch
             {
-                RefreshTokenResult.Success s => LoginOk(httpContext, env, s.Tokens),
+                RefreshTokenResult.Success s => LoginOk(httpContext, configuration, s.Tokens),
                 RefreshTokenResult.ReuseDetected => ClearAndUnauthorized(httpContext),
                 RefreshTokenResult.Invalid => ClearAndUnauthorized(httpContext),
                 _ => Results.Problem(),
@@ -123,6 +123,22 @@ public static class AuthEndpoints
 
         group.MapPost("/logout", (HttpContext httpContext) =>
         {
+            // Sonar flags these Delete calls for omitting Secure/HttpOnly/SameSite, on the reasoning
+            // that they are set on the Append above. That reasoning does not hold, and this comment
+            // is the record of why - the marking in SonarCloud is only bookkeeping.
+            //
+            // A browser identifies a cookie by the triple (name, domain, path). Secure, HttpOnly and
+            // SameSite are attributes carried BY a cookie, not part of its identity, so they play no
+            // role in matching. Delete emits a Set-Cookie for the same name with an expiry in the
+            // past; the browser matches it on the triple alone and removes the cookie whatever its
+            // flags were. Repeating Secure/HttpOnly here would change nothing about which cookie is
+            // removed.
+            //
+            // Path IS part of that triple, which is the part that genuinely matters, and it is the
+            // one supplied: RefreshCookiePath is the same constant the Append uses. Were the paths
+            // to drift apart, the Delete would silently match nothing and logout would leave a live
+            // refresh token in the browser while reporting 204 - so the shared constant, not the
+            // flags, is what this call depends on for correctness.
             httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
             return Results.NoContent();
         })
@@ -225,12 +241,19 @@ public static class AuthEndpoints
     /// /api/v1/auth - never in a JS-readable response body (OWASP ASVS L2 token-handling review).
     /// The access token is short-lived and returned in the body for the SPA to hold in memory.
     /// </summary>
-    private static IResult LoginOk(HttpContext httpContext, IWebHostEnvironment env, TokenPair tokens)
+    private static IResult LoginOk(HttpContext httpContext, IConfiguration configuration, TokenPair tokens)
     {
+        // Secure defaults to TRUE and is disabled only by an explicit opt-out, rather than being
+        // derived from the environment name. Previously `!env.IsDevelopment()` meant a leaked
+        // ASPNETCORE_ENVIRONMENT=Development was the only thing between a refresh token and
+        // plaintext - a silent downgrade with no signal, the same class as the localhost fallbacks.
+        // Now the insecure setting has to be written down somewhere a reviewer can see it.
+        var requireSecure = configuration.GetValue("Cookies:RequireSecure", true);
+
         httpContext.Response.Cookies.Append(RefreshCookieName, tokens.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = !env.IsDevelopment(),
+            Secure = requireSecure,
             SameSite = SameSiteMode.Strict,
             Path = RefreshCookiePath,
             Expires = DateTimeOffset.UtcNow.AddDays(30),
@@ -245,6 +268,9 @@ public static class AuthEndpoints
 
     private static IResult ClearAndUnauthorized(HttpContext httpContext)
     {
+        // Same Sonar finding and same answer as the Delete in /logout above: Secure/HttpOnly/SameSite
+        // are not part of the (name, domain, path) triple a browser matches on, so omitting them
+        // does not affect which cookie is removed. Path is part of it, and is supplied.
         httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
         return Results.Unauthorized();
     }
