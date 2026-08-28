@@ -1,4 +1,5 @@
 using FluentValidation;
+using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
@@ -21,6 +22,14 @@ public sealed class RequestInfoRequestValidator : AbstractValidator<RequestInfoR
         RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
         RuleFor(x => x).Must(x => x.FlaggedProfileFields.Count > 0 || x.FlaggedDocumentTypeCodes.Count > 0)
             .WithMessage("At least one section or document must be flagged.");
+
+        // MSP-77: previously any string was accepted here, which is how the reviewer UI and the
+        // supplier UI ended up with two different vocabularies that overlapped on one code - a
+        // reviewer could flag "registrationNumber" and the supplier's screen would never unlock
+        // anything. Now the codes must be ones the enforcement actually understands.
+        RuleForEach(x => x.FlaggedProfileFields)
+            .Must(ProfileFieldCodes.IsKnown)
+            .WithMessage(f => $"'{f}' is not a known profile field code. Valid codes: {string.Join(", ", ProfileFieldCodes.All)}.");
     }
 }
 

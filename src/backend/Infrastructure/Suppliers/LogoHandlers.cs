@@ -22,6 +22,9 @@ public sealed class UploadLogoHandler(AppDbContext db, IScopeContext scope, IFil
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new UploadLogoResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Logo, ct);
+        if (refusal is not null) return new UploadLogoResult.NotEditable(refusal);
+
         if (command.SizeBytes <= 0 || command.SizeBytes > FileTypeSniffer.MaxSizeBytes)
         {
             return new UploadLogoResult.TooLarge();

@@ -107,6 +107,8 @@ export class SupplierApiError extends Error {
   /** MSP-65: someone else saved this supplier since we read it. Callers surface a localized
    * message (NFR-USE-004) rather than the raw 409 - see `errors.concurrencyConflict`. */
   isConcurrencyConflict: boolean
+  /** MSP-77: refused because the field is not in the reviewer's flagged set while InfoRequested. */
+  isFieldNotFlagged: boolean
 
   constructor(status: number, body: unknown) {
     const b = body as { error?: string; missingFields?: string[]; errors?: Record<string, string[]> } | null
@@ -115,6 +117,7 @@ export class SupplierApiError extends Error {
     this.missingFields = b?.missingFields
     this.fieldErrors = b?.errors
     this.isConcurrencyConflict = status === 409 && b?.error === 'concurrency_conflict'
+    this.isFieldNotFlagged = status === 403 && b?.error === 'field_not_flagged'
   }
 }
 

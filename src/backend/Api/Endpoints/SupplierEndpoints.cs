@@ -1,4 +1,5 @@
 using FluentValidation;
+using MotsSupplierPortal.Application.Common;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Suppliers;
@@ -9,17 +10,28 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-public sealed record UpdateProfileRequest(string? Description, string? Website, string? SupplierGroup, string? CurrencyCode, string? PrimaryContactPhone);
+/// <summary>True PATCH: every field is a <see cref="Patch{T}"/>, so omitting one leaves it
+/// untouched while sending it as null clears it. Previously these were plain nullables, which made
+/// an omitted field indistinguishable from an explicit null and silently wiped anything the caller
+/// did not resend (found in review 2026-08-28).</summary>
+public sealed record UpdateProfileRequest(
+    Patch<string?> Description,
+    Patch<string?> Website,
+    Patch<string?> SupplierGroup,
+    Patch<string?> CurrencyCode,
+    Patch<string?> PrimaryContactPhone);
 
 public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequest>
 {
     public UpdateProfileRequestValidator(AppDbContext db)
     {
-        RuleFor(x => x.CurrencyCode).Length(3).When(x => x.CurrencyCode is not null);
-        RuleFor(x => x.CurrencyCode)
+        // Only validate what was actually sent - an omitted currency is not an invalid currency.
+        RuleFor(x => x.CurrencyCode.Value).Length(3)
+            .When(x => x.CurrencyCode.IsSet && x.CurrencyCode.Value is not null);
+        RuleFor(x => x.CurrencyCode.Value)
             .MustAsync(async (code, ct) => await db.Currencies.AnyAsync(c => c.Code == code && c.IsActive, ct))
             .WithMessage("Unknown or inactive currency code.")
-            .When(x => x.CurrencyCode is not null);
+            .When(x => x.CurrencyCode.IsSet && x.CurrencyCode.Value is not null);
     }
 }
 
@@ -207,6 +219,11 @@ public static class SupplierEndpoints
             UpdateProfileResult.Conflict c => Results.Json(
                 new { error = "concurrency_conflict", currentRowVersion = c.CurrentRowVersion },
                 statusCode: StatusCodes.Status409Conflict),
+            // MSP-77: 403, not 409 - the caller is not permitted to edit this field right now,
+            // which is an authorization outcome rather than a state clash.
+            UpdateProfileResult.NotEditable n => Results.Json(
+                new { error = "field_not_flagged", detail = n.Reason },
+                statusCode: StatusCodes.Status403Forbidden),
             UpdateProfileResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
             _ => Results.Problem(),
         };
@@ -215,6 +232,9 @@ public static class SupplierEndpoints
         {
             ProfileMutationResult.Success s => Results.Ok(s.Supplier),
             ProfileMutationResult.NotFoundOrOutOfScope => Results.NotFound(),
+            ProfileMutationResult.NotEditable n => Results.Json(
+                new { error = "field_not_flagged", detail = n.Reason },
+                statusCode: StatusCodes.Status403Forbidden),
             ProfileMutationResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
             _ => Results.Problem(),
         };

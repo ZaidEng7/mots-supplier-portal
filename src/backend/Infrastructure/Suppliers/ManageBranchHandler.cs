@@ -16,6 +16,9 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Branch, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         Domain.Suppliers.Branch branch;
         try
         {
@@ -46,6 +49,9 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Branch, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var before = supplier.Branches.FirstOrDefault(b => b.Id == command.BranchId);
         try
         {
@@ -72,6 +78,9 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Branch, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var before = supplier.Branches.FirstOrDefault(b => b.Id == command.BranchId);
         try

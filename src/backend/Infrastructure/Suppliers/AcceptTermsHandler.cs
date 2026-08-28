@@ -8,6 +8,11 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>BRULE-009: records T&C acceptance with a version and timestamp - the consent record
 /// BRULE-004/BUSINESS-PROCESSES.md's submit gate checks for via Supplier.GetMissingProfileFields().</summary>
+/// <summary>MSP-77 note: deliberately NOT subject to FlaggedFieldGuard. Accepting the T&amp;C is a
+/// consent action, not a profile-field edit, and it is not a flaggable code in
+/// <see cref="MotsSupplierPortal.Domain.Suppliers.ProfileFieldCodes"/>. Guarding it would block a
+/// supplier under InfoRequested from satisfying the BRULE-009 submit gate and so from resubmitting
+/// at all - a lockout, not a restriction.</summary>
 public sealed class AcceptTermsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IAcceptTermsHandler
 {
     public async Task<AcceptTermsResult> HandleAsync(CancellationToken ct)

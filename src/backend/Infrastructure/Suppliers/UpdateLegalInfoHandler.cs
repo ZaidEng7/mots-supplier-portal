@@ -18,6 +18,9 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new UpdateProfileResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.LegalInfo, ct);
+        if (refusal is not null) return new UpdateProfileResult.NotEditable(refusal);
+
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "legalInfo", defaultValue: true, ct);
 
         SupplierConcurrency.ApplyExpectedVersion(db, supplier, concurrency);

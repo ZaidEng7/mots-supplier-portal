@@ -235,6 +235,14 @@ export function OnboardingPage() {
   // work was NOT saved because someone else edited first - so it gets its own localized message
   // telling them to reload, not the generic "could not save".
   const notifySaveError = (err: unknown) => {
+    if (err instanceof SupplierApiError && err.isFieldNotFlagged) {
+      notify({
+        kind: 'danger',
+        title: t('onboarding.notFlaggedTitle'),
+        description: t('onboarding.notFlaggedBody'),
+      })
+      return
+    }
     if (err instanceof SupplierApiError && err.isConcurrencyConflict) {
       notify({
         kind: 'danger',

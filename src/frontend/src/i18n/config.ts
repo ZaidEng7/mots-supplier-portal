@@ -113,6 +113,8 @@ const resources = {
         termsAcceptedNotice: 'تمت الموافقة على الإصدار {{version}} من الشروط والأحكام بتاريخ {{date}}.',
         conflictTitle: 'لم يتم الحفظ — تم تعديل البيانات من مستخدم آخر',
         conflictBody: 'قام مستخدم آخر بحفظ تغييرات على هذا الملف أثناء تحريرك له. أعد تحميل الصفحة للاطلاع على أحدث البيانات ثم أعد إدخال تعديلاتك.',
+        notFlaggedTitle: 'هذا الحقل غير مشمول بطلب المعلومات',
+        notFlaggedBody: 'طلب منك المراجع تعديل أقسام محددة فقط. لا يمكن تعديل هذا الحقل حتى تكتمل المراجعة.',
       },
       contacts: {
         title: 'جهات الاتصال والممثلون',
@@ -413,6 +415,8 @@ const resources = {
         termsAcceptedNotice: 'Version {{version}} of the Terms & Conditions was accepted on {{date}}.',
         conflictTitle: 'Not saved — someone else changed this first',
         conflictBody: 'Another user saved changes to this profile while you were editing. Reload to see the latest data, then re-apply your changes.',
+        notFlaggedTitle: 'This field is not part of the information request',
+        notFlaggedBody: 'The reviewer asked you to correct specific sections only. This field cannot be edited until the review is complete.',
       },
       contacts: {
         title: 'Contacts & Representatives',

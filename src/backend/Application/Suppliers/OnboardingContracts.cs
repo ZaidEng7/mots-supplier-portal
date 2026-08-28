@@ -1,13 +1,17 @@
+using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
+/// <summary>PATCH semantics: a field absent from the request is left untouched; a field present
+/// as null is explicitly cleared. Carried as Patch&lt;T&gt; because plain nullables cannot express
+/// that difference (see Patch{T}).</summary>
 public sealed record UpdateProfileCommand(
-    string? Description,
-    string? Website,
-    string? SupplierGroup,
-    string? CurrencyCode,
-    string? PrimaryContactPhone);
+    Patch<string?> Description,
+    Patch<string?> Website,
+    Patch<string?> SupplierGroup,
+    Patch<string?> CurrencyCode,
+    Patch<string?> PrimaryContactPhone);
 
 public abstract record UpdateProfileResult
 {
@@ -18,6 +22,9 @@ public abstract record UpdateProfileResult
     /// The write was refused, not merged and not overwritten. <paramref name="CurrentRowVersion"/>
     /// is the version now in the database so a client can re-read and retry deliberately.</summary>
     public sealed record Conflict(uint CurrentRowVersion) : UpdateProfileResult;
+    /// <summary>MSP-77: refused because the field is not flagged in the reviewer's open
+    /// information request (STORY-03.3.1 AC1).</summary>
+    public sealed record NotEditable(string Reason) : UpdateProfileResult;
 }
 
 public interface IUpdateProfileHandler

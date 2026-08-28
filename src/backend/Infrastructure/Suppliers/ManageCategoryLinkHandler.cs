@@ -17,6 +17,9 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.CategoryLink, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var categoryExists = await db.Categories.AnyAsync(c => c.Code == command.CategoryCode && c.IsActive, ct);
         if (!categoryExists) return new ProfileMutationResult.InvalidState("Unknown or inactive category code.");
 
@@ -51,6 +54,9 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.CategoryLink, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "categoryLink", defaultValue: true, ct);
 

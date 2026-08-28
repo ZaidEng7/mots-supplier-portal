@@ -14,7 +14,14 @@ import {
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
 
-const PROFILE_FIELDS = ['registrationNumber', 'taxId', 'addressLine', 'city', 'country', 'currencyCode', 'primaryContactPhone'] as const
+// MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
+// unknown codes, and these are the codes the server enforces the supplier's edit restriction
+// against. Previously this list and the supplier screen's list were invented independently and
+// overlapped on one entry, so flagging e.g. 'registrationNumber' unlocked nothing for the supplier.
+const PROFILE_FIELDS = [
+  'description', 'website', 'supplierGroup', 'currencyCode', 'primaryContactPhone',
+  'legalInfo', 'address', 'contact', 'representative', 'branch', 'bankAccount', 'categoryLink', 'logo',
+] as const
 
 function RejectDialog({ open, onOpenChange, onSubmit, isLoading }: { open: boolean; onOpenChange: (v: boolean) => void; onSubmit: (reason: string) => void; isLoading: boolean }) {
   const { t } = useTranslation()

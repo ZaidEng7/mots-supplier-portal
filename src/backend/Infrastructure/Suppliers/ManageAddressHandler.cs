@@ -16,6 +16,9 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Address, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         Domain.Suppliers.Address address;
         try
         {
@@ -50,6 +53,9 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
 
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Address, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
         var before = supplier.Addresses.FirstOrDefault(a => a.Id == command.AddressId);
         try
         {
@@ -77,6 +83,9 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
         if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
         var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
         if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.Address, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var before = supplier.Addresses.FirstOrDefault(a => a.Id == command.AddressId);
         try

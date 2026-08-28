@@ -52,7 +52,16 @@ builder.Services.AddOpenApi();
 // reads/writes its string name on the wire, not a raw integer - applies to every Minimal API
 // endpoint's request/response JSON binding, not just one handler.
 builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+
+    // NFR-SEC-005: reject payloads carrying fields we do not model, rather than silently ignoring
+    // them. System.Text.Json's default is to skip unknown members, which meant a typo'd or stale
+    // field name was swallowed and the caller told "200 OK" - a client could believe it had
+    // updated something it had not (found in review 2026-08-28). Applied globally so every
+    // endpoint inherits it, not just the one where it was noticed.
+    options.SerializerOptions.UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow;
+});
 
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres";
