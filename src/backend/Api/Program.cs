@@ -222,6 +222,7 @@ builder.Services.AddScoped<IGetReviewerSupplierViewHandler, GetReviewerSupplierV
 builder.Services.AddScoped<IPickUpApplicationHandler, PickUpApplicationHandler>();
 builder.Services.AddScoped<IApproveApplicationHandler, ApproveApplicationHandler>();
 builder.Services.AddScoped<IRejectApplicationHandler, RejectApplicationHandler>();
+builder.Services.AddScoped<ISupplierLifecycleHandler, SupplierLifecycleHandler>();
 builder.Services.AddScoped<IRequestInfoHandler, RequestInfoHandler>();
 builder.Services.AddScoped<IResubmitApplicationHandler, ResubmitApplicationHandler>();
 builder.Services.AddScoped<IGetOwnActiveAnnotationHandler, GetOwnActiveAnnotationHandler>();

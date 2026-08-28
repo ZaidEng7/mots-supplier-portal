@@ -8,6 +8,16 @@ namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record RejectApplicationRequest(string Reason);
 
+/// <summary>FR-ONB-009 / BRULE-096: reason mandatory on suspend, reactivate and deactivate alike.
+/// Validated here as well as in the domain - the validator gives the caller a field-level message,
+/// the domain guarantee holds regardless of which entry point is used.</summary>
+public sealed record SupplierLifecycleRequest(string Reason);
+
+public sealed class SupplierLifecycleRequestValidator : AbstractValidator<SupplierLifecycleRequest>
+{
+    public SupplierLifecycleRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
+}
+
 public sealed class RejectApplicationRequestValidator : AbstractValidator<RejectApplicationRequest>
 {
     public RejectApplicationRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
@@ -113,6 +123,42 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierReject)
         .WithName("RejectApplication");
+
+        // FR-ONB-009 post-approval lifecycle (MSP-63). Suspended and Deactivated were unreachable
+        // enum values until now - declared, persisted, and with no way to reach them.
+        //
+        // 409 Conflict for an illegal transition rather than 400: the request is well-formed, it
+        // conflicts with the supplier's current state, and the domain's message says which state.
+        foreach (var (segment, name, invoke) in new (string, string, Func<ISupplierLifecycleHandler, SupplierLifecycleCommand, CancellationToken, Task<SupplierLifecycleResult>>)[]
+        {
+            ("suspend", "SuspendSupplier", (h, c, ct) => h.SuspendAsync(c, ct)),
+            ("reactivate", "ReactivateSupplier", (h, c, ct) => h.ReactivateAsync(c, ct)),
+            ("deactivate", "DeactivateSupplier", (h, c, ct) => h.DeactivateAsync(c, ct)),
+        })
+        {
+            var handlerInvoke = invoke;
+            group.MapPost($"/{{referenceCode}}/{segment}", async (
+                string referenceCode,
+                SupplierLifecycleRequest request,
+                IValidator<SupplierLifecycleRequest> validator,
+                ISupplierLifecycleHandler handler,
+                CancellationToken ct) =>
+            {
+                var validation = await validator.ValidateAsync(request, ct);
+                if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
+                var result = await handlerInvoke(handler, new SupplierLifecycleCommand(referenceCode, request.Reason), ct);
+                return result switch
+                {
+                    SupplierLifecycleResult.Success s => Results.Ok(new { lifecycleState = s.LifecycleState }),
+                    SupplierLifecycleResult.NotFound => Results.NotFound(),
+                    SupplierLifecycleResult.Invalid i => Results.Conflict(new { error = i.Message }),
+                    _ => Results.Problem(),
+                };
+            })
+            .RequirePermission(Permissions.SupplierLifecycleManage)
+            .WithName(name);
+        }
 
         group.MapPost("/{referenceCode}/request-info", async (
             string referenceCode,

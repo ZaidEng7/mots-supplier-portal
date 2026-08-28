@@ -531,6 +531,101 @@ public sealed class Supplier
         LifecycleState = SupplierLifecycleState.Active;
     }
 
+    /// <summary>
+    /// FR-ONB-009: Active -> Suspended. Reversible, reason mandatory (BRULE-096).
+    ///
+    /// Suspension is a participation block, not a data change: the supplier keeps its profile, its
+    /// documents and its history, and BRULE-008's "historical records retained" applies from here
+    /// on. What it loses is eligibility (BRULE-006/007), which is answered in one place by
+    /// <see cref="IsEligibleToParticipate"/>.
+    /// </summary>
+    public void Suspend(string reason)
+    {
+        if (LifecycleState != SupplierLifecycleState.Active)
+        {
+            throw new DomainException(
+                $"Cannot suspend from lifecycle state '{LifecycleState}'; only 'Active' is valid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A suspension reason is required.");
+        }
+
+        LifecycleState = SupplierLifecycleState.Suspended;
+    }
+
+    /// <summary>
+    /// FR-ONB-009: Suspended -> Active. The reversible half; reason mandatory so the audit trail
+    /// records why participation was restored, not only why it was removed.
+    /// </summary>
+    public void Reactivate(string reason)
+    {
+        if (LifecycleState != SupplierLifecycleState.Suspended)
+        {
+            throw new DomainException(
+                $"Cannot reactivate from lifecycle state '{LifecycleState}'; only 'Suspended' is valid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A reactivation reason is required.");
+        }
+
+        LifecycleState = SupplierLifecycleState.Active;
+    }
+
+    /// <summary>
+    /// FR-ONB-009: Suspended -> Deactivated. TERMINAL - there is deliberately no transition out,
+    /// not even back to Suspended.
+    ///
+    /// Reachable only from Suspended, so deactivation is always a two-step decision. A direct
+    /// Active -> Deactivated path would make an irreversible action a single click on a live
+    /// supplier; requiring suspension first means participation has already stopped and someone has
+    /// already written down why.
+    ///
+    /// BRULE-008 also requires the supplier's users to lose access. That is NOT done here: revoking
+    /// logins and killing refresh-token families is an identity concern the domain has no reach
+    /// into. It belongs to the handler, and the tests assert it end to end rather than trusting the
+    /// state field to imply it - a deactivated supplier whose users can still refresh their way to
+    /// a valid session is the same defect class as MFA that never challenged.
+    /// </summary>
+    public void Deactivate(string reason)
+    {
+        if (LifecycleState != SupplierLifecycleState.Suspended)
+        {
+            throw new DomainException(
+                $"Cannot deactivate from lifecycle state '{LifecycleState}'; only 'Suspended' is valid. " +
+                "Deactivation is terminal and is reachable only via suspension.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A deactivation reason is required.");
+        }
+
+        LifecycleState = SupplierLifecycleState.Deactivated;
+    }
+
+    /// <summary>
+    /// BRULE-006/007/008, FR-ONB-010: the single answer to "may this supplier be invited to an RFQ
+    /// or submit a proposal?".
+    ///
+    /// This is the seam EPIC-08 (RFQ) and EPIC-09 (proposals) consume; it exists here, on the
+    /// aggregate, so those epics cannot each invent their own eligibility rule and drift apart.
+    /// Neither has consumers yet, which is exactly why the unit tests enumerate EVERY combination
+    /// of onboarding and lifecycle state rather than the interesting ones: a predicate with no
+    /// callers is trivially correct, and only exhaustive assertions stand in for the real ones.
+    ///
+    /// Both halves are required. Onboarding must have reached Approved (BRULE-006 - an applicant
+    /// mid-review is not eligible however healthy its lifecycle field looks), and lifecycle must be
+    /// Active (BRULE-007/008 - Suspended and Deactivated are both excluded from NEW selection,
+    /// while existing obligations are handled by policy elsewhere).
+    /// </summary>
+    public bool IsEligibleToParticipate =>
+        OnboardingState == SupplierOnboardingState.Approved
+        && LifecycleState == SupplierLifecycleState.Active;
+
     /// <summary>UnderReview -> Rejected. Reason is mandatory (STORY-03.2.1 AC3).</summary>
     public void Reject(string reason)
     {

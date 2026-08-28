@@ -29,6 +29,11 @@ public static class Permissions
     /// <summary>FEAT-04.8/MSP-55: supplier_admin only, not supplier_user - a delegated user must
     /// not be able to invite/disable other delegated users.</summary>
     public const string SupplierUserManage = "supplier.user.manage";
+    /// <summary>FR-ONB-009 (MSP-63): post-approval lifecycle - suspend, reactivate, deactivate.
+    /// Distinct from SupplierApprove because approving an application and suspending a live
+    /// supplier are different authorities: the first admits, the second removes an operating
+    /// supplier from all future selection, and deactivation is irreversible.</summary>
+    public const string SupplierLifecycleManage = "supplier.lifecycle.manage";
     public const string RfqPublish = "rfq.publish";
     public const string ProposalSubmit = "proposal.submit";
     public const string EvaluationScore = "evaluation.score";
@@ -39,7 +44,7 @@ public static class Permissions
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
-        SupplierBankAccountManage, SupplierUserManage,
+        SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
     ];
 }
@@ -61,9 +66,11 @@ public static class Roles
     {
         [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
-        [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview],
+        [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
         [ProcurementOfficer] = [Permissions.RfqPublish],
-        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove],
+        // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
+        // three roles permitted to move a supplier's post-approval lifecycle.
+        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage],
         [Evaluator] = [Permissions.EvaluationScore],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
         // Ministry "read-only, cross-organization access to aggregate/governance metrics only",
