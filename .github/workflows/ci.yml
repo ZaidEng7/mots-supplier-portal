@@ -373,17 +373,18 @@ jobs:
           # escapes it. The Sonar ratings above still run on main, because those are meaningful
           # there. Fixing the new-code period is a separate known follow-up; when it is fixed this
           # exemption should be revisited rather than left as scar tissue.
-          if not os.environ.get("PR_NUMBER"):
+          on_pull_request = bool(os.environ.get("PR_NUMBER"))
+          if not on_pull_request:
               print(f"Coverage: {coverage}% over {new_lines} new lines - floor not applied on main "
-                    f"(new-code period is 'Previous version'; see comment).")
-              coverage = None
-              new_lines = "0"
+                    f"(see comment above).")
 
           # A check that could not measure must not report a pass. The one genuine exception is an
           # empty new-code set - Sonar omits the measure when there is nothing to cover, and this
           # project also ignores coverage conditions below 20 new lines. That is an absent
           # measurement, not a failing one, so it is distinguished explicitly.
-          if coverage is None:
+          if not on_pull_request:
+              pass
+          elif coverage is None:
               if float(new_lines) == 0:
                   print("Coverage: no new lines to cover - ratchet not applicable.")
               else:
