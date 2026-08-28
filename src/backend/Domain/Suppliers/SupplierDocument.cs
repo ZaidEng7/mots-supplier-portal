@@ -27,11 +27,43 @@ public sealed class SupplierDocument
 
     private SupplierDocument() { }
 
+    /// <summary>
+    /// BRULE-020, both halves.
+    ///
+    /// A type that tracks expiry must be given a valid FUTURE expiry date at upload. Previously
+    /// `ExpiryTracked = true` silently accepted null and past dates, so a document could be filed
+    /// as current while already expired, or with no expiry at all - and the expiry job, which
+    /// filters on `ExpiryDate != null`, would never look at it again.
+    ///
+    /// The second half - "types without expiry never enter ExpiringSoon/Expired" - is enforced
+    /// structurally rather than by convention: a non-tracked type has its expiry date DISCARDED
+    /// here, so no such row can carry a date for the job to act on. Relying on callers not to send
+    /// one would be correctness by coincidence.
+    /// </summary>
     public static SupplierDocument CreatePendingScan(
         Guid supplierId, Guid documentTypeId, int version, string quarantineKey,
         string originalFileName, string contentType, long sizeBytes, Guid uploadedByUserId,
-        DateOnly? issueDate, DateOnly? expiryDate)
+        DateOnly? issueDate, DateOnly? expiryDate, bool expiryTracked, DateOnly today)
     {
+        if (expiryTracked)
+        {
+            if (expiryDate is null)
+            {
+                throw new DomainException("This document type requires an expiry date.");
+            }
+
+            if (expiryDate <= today)
+            {
+                throw new DomainException(
+                    $"The expiry date {expiryDate:yyyy-MM-dd} is not in the future; a document cannot be filed as current while already expired.");
+            }
+        }
+        else
+        {
+            // Discarded, not merely ignored - see the summary above.
+            expiryDate = null;
+        }
+
         return new SupplierDocument
         {
             Id = Guid.CreateVersion7(),

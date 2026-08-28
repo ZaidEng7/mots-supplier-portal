@@ -41,6 +41,9 @@ public abstract record UploadDocumentResult
     public sealed record InvalidDocumentType : UploadDocumentResult;
     public sealed record TooLarge : UploadDocumentResult;
     public sealed record UnsupportedType : UploadDocumentResult;
+    /// <summary>BRULE-020: a type that tracks expiry needs a valid future date. Carries the domain's
+    /// own message so the uploader is told what is wrong, not merely that something is.</summary>
+    public sealed record InvalidExpiry(string Message) : UploadDocumentResult;
     public sealed record ContentMismatch : UploadDocumentResult;
     public sealed record NotEditable(string Reason) : UploadDocumentResult;
 }

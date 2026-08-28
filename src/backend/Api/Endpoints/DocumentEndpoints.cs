@@ -64,6 +64,9 @@ public static class DocumentEndpoints
                 UploadDocumentResult.InvalidDocumentType => Results.BadRequest(new { error = "invalid_document_type" }),
                 UploadDocumentResult.TooLarge => Results.BadRequest(new { error = "file_too_large" }),
                 UploadDocumentResult.UnsupportedType => Results.BadRequest(new { error = "unsupported_file_type" }),
+                // BRULE-020: the domain's message names what is wrong with the date rather than
+                // leaving the uploader to guess which of null/past/format was rejected.
+                UploadDocumentResult.InvalidExpiry e => Results.BadRequest(new { error = "invalid_expiry", message = e.Message }),
                 UploadDocumentResult.ContentMismatch => Results.BadRequest(new { error = "content_type_mismatch" }),
                 UploadDocumentResult.NotEditable n => Results.Conflict(new { error = n.Reason }),
                 _ => Results.Problem(),
