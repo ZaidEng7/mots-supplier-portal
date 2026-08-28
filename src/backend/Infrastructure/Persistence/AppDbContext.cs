@@ -275,6 +275,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(a => new { a.AggregateType, a.AggregateId, a.OccurredAt });
             entity.HasIndex(a => new { a.ActorUserId, a.OccurredAt });
             entity.HasIndex(a => a.CorrelationId);
+            // Supports the keyset scan on the own-trail read (MSP-66). Without an index matching the
+            // (OccurredAt, Id) sort, keyset paging still returns correct rows but degrades at depth
+            // exactly like the OFFSET it replaced - the cost it exists to avoid.
+            entity.HasIndex(a => new { a.OccurredAt, a.Id });
         });
 
         modelBuilder.Entity<Domain.ReferenceData.DocumentType>(entity =>

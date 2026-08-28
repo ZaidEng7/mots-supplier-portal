@@ -1,6 +1,10 @@
+using MotsSupplierPortal.Application.Common;
+
 namespace MotsSupplierPortal.Application.Audit;
 
 public sealed record AuditLogEntryDto(
+    // Id is exposed because it is half the keyset cursor; without it a caller cannot page.
+    Guid Id,
     DateTimeOffset OccurredAt,
     string AggregateType,
     Guid AggregateId,
@@ -19,5 +23,5 @@ public interface IGetAuditLogHandler
 
     /// <summary>FR-AUD-003 second half: "suppliers see their own activity trail". The caller's own
     /// supplier's full trail across every aggregate it owns, with no aggregate id needed.</summary>
-    Task<IReadOnlyList<AuditLogEntryDto>> HandleOwnTrailAsync(CancellationToken ct);
+    Task<Page<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, CancellationToken ct);
 }
