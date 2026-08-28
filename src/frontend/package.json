@@ -11,7 +11,9 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
-    "lhci": "lhci autorun"
+    "lhci": "lhci autorun",
+    "typecheck": "tsc --noEmit",
+    "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -51,7 +53,7 @@
     "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
     "oxlint": "^1.79.0",
-    "playwright": "latest",
+    "playwright": "^1.62.1",
     "sirv-cli": "^3.0.1",
     "storybook": "^10.5.10",
     "tailwindcss": "^4.3.3",

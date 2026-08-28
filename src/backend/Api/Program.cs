@@ -63,8 +63,19 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow;
 });
 
+// NFR-SEC-007: the dev fallback carries a credential, so it is confined to Development. Outside
+// it, a missing connection string must fail loudly at startup rather than silently fall back to a
+// hard-coded localhost credential - a silent fallback in production is how an app ends up quietly
+// pointing somewhere nobody intended.
+//
+// Note this line is the same class of finding as yaml:S2068 on docker-compose.yml, but SonarCloud
+// never reported it: it does not analyze C# in this project (MSP-78). It reads the Dockerfile and
+// the compose file in the same directory tree fine - the gap is language coverage, not paths.
 var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres";
+    ?? (builder.Environment.IsDevelopment()
+        ? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres"
+        : throw new InvalidOperationException(
+            "ConnectionStrings:Default is not configured. Supply it from the environment or a secret store."));
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 

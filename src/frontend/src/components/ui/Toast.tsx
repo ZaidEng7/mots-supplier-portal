@@ -5,7 +5,7 @@ import * as RadixToast from '@radix-ui/react-toast'
 type ToastKind = 'info' | 'success' | 'danger'
 
 interface ToastItem {
-  id: number
+  id: string
   title: string
   description?: string
   kind: ToastKind
@@ -28,10 +28,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
   const notify = useCallback((toast: Omit<ToastItem, 'id'>) => {
-    setToasts((prev) => [...prev, { ...toast, id: Date.now() + Math.random() }])
+    // crypto.randomUUID rather than Date.now()+Math.random(): this id carries no security
+    // property (it keys a toast in a list), so Sonar's weak-PRNG finding is a false positive -
+    // but randomUUID is free, collision-free, and removes the ambiguity for the next reader.
+    setToasts((prev) => [...prev, { ...toast, id: crypto.randomUUID() }])
   }, [])
 
-  const dismiss = useCallback((id: number) => {
+  const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
