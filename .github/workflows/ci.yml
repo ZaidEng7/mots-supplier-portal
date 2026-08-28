@@ -19,6 +19,13 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # Node lives in this job too because frontend coverage has to be produced beside the scanner
+      # (MSP-70). Same version as the `frontend` job - two different Node versions producing the
+      # analysed artifacts would be its own quiet source of drift.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       # MSP-78: SonarCloud never analyzed C# here - Automatic Analysis cannot, it needs the
       # MSBuild scanner wrapping the build. Gated on SONAR_TOKEN so a fork still builds normally.
       - name: Check for Sonar token
@@ -38,6 +45,73 @@ jobs:
 
       - name: Restore
         run: dotnet restore src/backend/MotsSupplierPortal.slnx
+
+      # NFR-SEC-011 (MSP-70). Until now the build printed
+      #   NU1902 OpenTelemetry.Api 1.11.2 has a known moderate vulnerability
+      # on every single run and CI went green anyway - a scanner nobody could fail.
+      #
+      # Fails on High/Critical only. Moderate is reported but not blocking, deliberately: a gate
+      # that fires on every transitive moderate advisory gets switched off within a fortnight, and
+      # a gate that is off is worth less than one calibrated to what will actually be acted on.
+      # Moderates still surface in the log and in MSP-80's triage.
+      #
+      # --include-transitive because the advisory that prompted this was transitive: OpenTelemetry
+      # .Api arrived via three direct OpenTelemetry packages and would have been invisible to a
+      # direct-only scan.
+      - name: Dependency scan (.NET)
+        run: |
+          set -o pipefail
+          dotnet list src/backend/MotsSupplierPortal.slnx package --vulnerable --include-transitive 2>&1 | tee /tmp/dotnet-vuln.txt
+
+          # A scan that did not run must not read as a clean scan. Found while testing this gate:
+          # adding a deliberately vulnerable package broke restore (NU1605), `dotnet list` produced
+          # no findings because it had no assets to inspect, and the naive grep below reported
+          # "no High/Critical" - a green gate over an unscanned tree. Same shape as every other
+          # defect in this arc: absence of a signal presenting as a good signal.
+          # So: assert the scan actually enumerated projects before trusting that it found nothing.
+          if ! grep -qE 'has the following vulnerable|has no vulnerable packages' /tmp/dotnet-vuln.txt; then
+            echo "::error::Vulnerability scan produced no per-project verdict - it did not run. Treating as failure."
+            exit 1
+          fi
+
+          if grep -qE '\s(High|Critical)\s+https' /tmp/dotnet-vuln.txt; then
+            echo "::error::High or Critical severity vulnerability in a NuGet dependency"
+            grep -E '\s(High|Critical)\s+https' /tmp/dotnet-vuln.txt
+            exit 1
+          fi
+          echo "No High/Critical NuGet advisories."
+
+      # MSP-80 was triaged THROUGH this gate rather than by hand, and the result decided its shape.
+      #
+      # Full tree today: 10 findings - 7 high, 1 moderate, 2 low. Every one of them is a dev-only
+      # transitive of @lhci/cli (Lighthouse CI): extract-zip, tmp, puppeteer-core, @puppeteer/
+      # browsers, lighthouse, @lhci/utils, uuid, inquirer, external-editor.
+      #
+      # They cannot be fixed by upgrading. @lhci/cli is already at 0.15.1, the latest published
+      # version, and `npm audit fix --dry-run` reports added=0 changed=0 removed=0 with all 10
+      # still present. Upstream has not shipped a fix.
+      #
+      # Production dependencies - the code that actually reaches a user's browser - have ZERO
+      # findings at any severity. @lhci/cli is a devDependency and is not in the bundle.
+      #
+      # So the gate blocks on production high/critical, and reports the dev tree without blocking.
+      # Gating the full tree instead would mean a permanently red build over advisories we cannot
+      # act on, in a tool that never ships. That gate would be switched off within a fortnight, and
+      # we already know exactly what that looks like: `retries: 1` on the a11y suite, with a comment
+      # explaining why. A gate calibrated to what can be acted on is worth more than one calibrated
+      # to look strict.
+      #
+      # The residual risk is real and worth naming: a compromised dev dependency runs in CI with
+      # access to the build. It is accepted here because it is unfixable today, and it is printed on
+      # every run so it stays visible rather than becoming silence.
+      - name: Dependency scan (npm)
+        working-directory: src/frontend
+        run: |
+          echo "--- full tree (reported, not blocking; see comment above) ---"
+          npm audit || true
+
+          echo "--- production dependencies (blocking on high/critical) ---"
+          npm audit --omit=dev --audit-level=high
 
       # begin / build / end MUST share one working directory. The scanner writes .sonarqube
       # relative to where `begin` ran and the injected MSBuild targets look for it there; running
@@ -62,6 +136,8 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.scanner.scanAll=true \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
+            /d:sonar.javascript.lcov.reportPaths="src/frontend/coverage/lcov.info" \
+            /d:sonar.typescript.lcov.reportPaths="src/frontend/coverage/lcov.info" \
             /d:sonar.coverage.exclusions="**/Migrations/**,**/Program.cs,**/*.stories.tsx,**/tests/**" \
             /d:sonar.cpd.exclusions="**/Tests/**,**/Migrations/**,**/*.spec.ts,**/*.stories.tsx" \
             /d:sonar.exclusions="**/Migrations/**,**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,**/storybook-static/**"
@@ -77,30 +153,56 @@ jobs:
       - name: Architecture tests (NetArchTest)
         run: dotnet test src/backend/Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
+      # MSP-70. The integration suite runs HERE, in the same job as begin/end, rather than in its
+      # own job as before. Coverage reports cannot cross a job boundary without being uploaded and
+      # downloaded as artifacts, and `sonar end` only sees what is on disk beside it - so while the
+      # suite lived in a separate job it contributed nothing, no matter what flags it was given.
+      #
+      # That was not a small omission. Measured locally on this commit:
+      #   Unit          242 / 16101 sequence points =  1.5%
+      #   Architecture    0 / 16101                 =  0.0%
+      #   Integration 13703 / 16101                 = 85.1%
+      # The suite that carried effectively all backend coverage was the one suite not collected,
+      # which is why PR #5's four new integration tests reported 0.0% coverage on new code.
+      #
+      # Merging the jobs costs the parallelism the separate job bought (~1m40 added to this job's
+      # wall time). Passing artifacts between jobs would not have recovered it: `backend` would
+      # have to `needs:` the integration job and wait for it regardless, so the choice was between
+      # the same serialisation with artifact plumbing or without it.
+      - name: Integration tests (real Postgres via Testcontainers)
+        run: dotnet test src/backend/Tests/Integration/MotsSupplierPortal.Tests.Integration.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
+
+      # Each `dotnet test` writes to its own GUID subdirectory, so ./TestResults now holds three
+      # coverage.opencover.xml files that the scanner's existing wildcard picks up. Listed
+      # explicitly because "the wildcard matched three files" and "the scanner merged three files"
+      # are different claims, and only the second one is the thing being relied on.
+      # Frontend coverage is generated HERE for the same reason the integration suite moved: the
+      # scanner reads what is on disk beside it, and `frontend` is a different job. There are no
+      # frontend unit tests yet, so this reports 0% - which is the point. vitest is configured with
+      # `all: true`, so every source file enters the denominator at 0% instead of the frontend
+      # quietly contributing no data and shrinking the denominator it should be enlarging.
+      - name: Frontend coverage
+        working-directory: src/frontend
+        run: |
+          npm ci
+          npm run test:coverage
+
+      - name: Show collected coverage reports
+        run: |
+          echo "Backend coverage reports handed to the scanner:"
+          find ./TestResults -name coverage.opencover.xml -print
+          echo "Frontend lcov:"
+          wc -l src/frontend/coverage/lcov.info
+
       - name: Sonar end
         if: steps.sonar.outputs.enabled == 'true'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
-  backend-integration:
-    name: Backend integration (Testcontainers)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Integration tests (real Postgres via Testcontainers)
-        run: dotnet test Tests/Integration/MotsSupplierPortal.Tests.Integration.csproj --configuration Release --logger "console;verbosity=normal"
+  # The former `backend-integration` job was folded into `backend` above (MSP-70). Keeping it here
+  # as well would run the suite twice per CI run for no added signal; keeping it here INSTEAD would
+  # leave its coverage stranded in a job the scanner cannot see, which is the defect being fixed.
 
   frontend:
     name: Frontend (React)
