@@ -360,6 +360,25 @@ jobs:
           coverage = measure("coverage.json")
           new_lines = measure("newlines.json") or "0"
 
+          # The floor applies to PULL REQUESTS ONLY, and that is a correctness fix, not a softening.
+          #
+          # On a pull request, Sonar's "new code" is the diff - exactly what the floor is meant to
+          # judge. On main it is whatever the new-code period says, and this project's period is
+          # "Previous version" with no version tags, so main's new code is essentially the entire
+          # codebase: the first run of this check on main reported 28.9% over 4687 new lines to
+          # cover and failed. That is the OVERALL coverage number wearing a new-code label, and
+          # gating overall coverage is the one thing we explicitly agreed not to do yet.
+          #
+          # Every change reaches main through a pull request, where the floor did apply, so nothing
+          # escapes it. The Sonar ratings above still run on main, because those are meaningful
+          # there. Fixing the new-code period is a separate known follow-up; when it is fixed this
+          # exemption should be revisited rather than left as scar tissue.
+          if not os.environ.get("PR_NUMBER"):
+              print(f"Coverage: {coverage}% over {new_lines} new lines - floor not applied on main "
+                    f"(new-code period is 'Previous version'; see comment).")
+              coverage = None
+              new_lines = "0"
+
           # A check that could not measure must not report a pass. The one genuine exception is an
           # empty new-code set - Sonar omits the measure when there is nothing to cover, and this
           # project also ignores coverage conditions below 20 new lines. That is an absent
