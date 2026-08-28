@@ -1,3 +1,4 @@
+using System.Globalization;
 namespace MotsSupplierPortal.Domain.Suppliers;
 
 /// <summary>
@@ -54,8 +55,17 @@ public sealed class SupplierDocument
 
             if (expiryDate <= today)
             {
+                // InvariantCulture, and this is not defensive tidiness - it is a crash that was
+                // reproduced. Interpolating a DateOnly uses CurrentCulture, and on an Arabic-locale
+                // host that is the Umm al-Qura calendar, which only supports 1900-2077 Gregorian.
+                // Formatting anything outside that range throws ArgumentOutOfRangeException from
+                // INSIDE this exception's construction, so the guard that should have returned a
+                // clean 400 produced an unhandled 500 instead.
+                //
+                // Same family as MSP-60, which fixed the PARSING side at DocumentEndpoints.cs.
+                // This is the formatting side, and it was introduced by this very validation.
                 throw new DomainException(
-                    $"The expiry date {expiryDate:yyyy-MM-dd} is not in the future; a document cannot be filed as current while already expired.");
+                    $"The expiry date {expiryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} is not in the future; a document cannot be filed as current while already expired.");
             }
         }
         else

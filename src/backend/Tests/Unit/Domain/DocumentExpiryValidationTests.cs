@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Suppliers;
 
@@ -80,5 +81,39 @@ public sealed class DocumentExpiryValidationTests
         var act = () => Create(Today.AddDays(-100), expiryTracked: false);
 
         act.Should().NotThrow();
+    }
+
+    [Theory]
+    // Both are PAST dates outside Umm al-Qura's 1900-2077 window. Only the rejection path formats
+    // the date, so a far-future out-of-range date (2100) is simply valid and never reaches the
+    // formatter - including it here would assert a rejection that should not happen.
+    [InlineData(1899, 12, 31)]
+    [InlineData(1, 1, 1)]
+    public void A_past_or_out_of_range_expiry_is_rejected_without_crashing_on_any_host_culture(
+        int year, int month, int day)
+    {
+        // Reproduces a real 500. The rejection message interpolates the date, and interpolation
+        // uses CurrentCulture - which on an Arabic-locale host is the Umm al-Qura calendar,
+        // supporting only 1900-2077 Gregorian. Formatting outside that range threw
+        // ArgumentOutOfRangeException from inside the exception's own construction, so the guard
+        // that should have produced a clean 400 produced an unhandled 500.
+        //
+        // The dates here are chosen to sit outside that window, so this fails on ANY host if the
+        // formatting reverts to CurrentCulture - not only on an Arabic-locale one.
+        var culture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("ar-SA");
+
+            var act = () => Create(new DateOnly(year, month, day), expiryTracked: true);
+
+            act.Should().Throw<DomainException>()
+                .WithMessage("*not in the future*",
+                    "the guard must reject the date, not crash while explaining why it rejected it");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 }
