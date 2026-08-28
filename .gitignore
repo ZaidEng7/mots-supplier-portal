@@ -39,3 +39,6 @@ lhci-reports/
 # Coverage output (MSP-70)
 TestResults/
 **/coverage/
+
+# Local agent session state - machine-specific, never shared
+.claude/scheduled_tasks.lock
