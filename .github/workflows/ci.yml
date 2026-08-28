@@ -184,7 +184,12 @@ jobs:
       - name: Frontend coverage
         working-directory: src/frontend
         run: |
-          npm ci
+          # --ignore-scripts: dependency lifecycle scripts would otherwise execute here with access
+          # to the build. Sonar raised this against this exact line and it is a fair finding, doubly
+          # so given the dev tree carries seven unfixable advisories (see the npm scan above).
+          # Verified this step still produces identical coverage without them; nothing in the
+          # vitest path needs a postinstall.
+          npm ci --ignore-scripts
           npm run test:coverage
 
       - name: Show collected coverage reports
