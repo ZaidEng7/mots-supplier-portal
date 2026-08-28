@@ -80,7 +80,7 @@ public static class AuthEndpoints
 
             return result switch
             {
-                LoginResult.Success s => LoginOk(httpContext, configuration, s.Tokens),
+                LoginResult.Success s => LoginOk(httpContext, s.Tokens),
                 LoginResult.LockedOut => Results.Json(new { error = "locked_out" }, statusCode: StatusCodes.Status423Locked),
                 // 401 + a distinct code, not 200: no session exists yet, so nothing here is a
                 // partial success the client could mistake for one.
@@ -113,7 +113,7 @@ public static class AuthEndpoints
 
             return result switch
             {
-                RefreshTokenResult.Success s => LoginOk(httpContext, configuration, s.Tokens),
+                RefreshTokenResult.Success s => LoginOk(httpContext, s.Tokens),
                 RefreshTokenResult.ReuseDetected => ClearAndUnauthorized(httpContext),
                 RefreshTokenResult.Invalid => ClearAndUnauthorized(httpContext),
                 _ => Results.Problem(),
@@ -241,19 +241,29 @@ public static class AuthEndpoints
     /// /api/v1/auth - never in a JS-readable response body (OWASP ASVS L2 token-handling review).
     /// The access token is short-lived and returned in the body for the SPA to hold in memory.
     /// </summary>
-    private static IResult LoginOk(HttpContext httpContext, IConfiguration configuration, TokenPair tokens)
+    private static IResult LoginOk(HttpContext httpContext, TokenPair tokens)
     {
-        // Secure defaults to TRUE and is disabled only by an explicit opt-out, rather than being
-        // derived from the environment name. Previously `!env.IsDevelopment()` meant a leaked
-        // ASPNETCORE_ENVIRONMENT=Development was the only thing between a refresh token and
-        // plaintext - a silent downgrade with no signal, the same class as the localhost fallbacks.
-        // Now the insecure setting has to be written down somewhere a reviewer can see it.
-        var requireSecure = configuration.GetValue("Cookies:RequireSecure", true);
-
         httpContext.Response.Cookies.Append(RefreshCookieName, tokens.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = requireSecure,
+            // Secure is UNCONDITIONAL. Do not reintroduce a toggle here.
+            //
+            // This was `!env.IsDevelopment()`, then `Cookies:RequireSecure` defaulting to true.
+            // Both were an improvement on the last, and both left one setting standing between a
+            // refresh token and plaintext: first a leaked ASPNETCORE_ENVIRONMENT, then a config key.
+            // A config key is the same shape as the environment variable it replaced, so the same
+            // objection applies - which is why there is now no setting at all.
+            //
+            // This does not break local development. Browsers treat http://localhost as a
+            // trustworthy origin and accept Secure cookies over plain HTTP there (the "secure
+            // contexts" special case exists so developers are not forced into local TLS). Verified
+            // against the running stack over http://localhost, not assumed: login set the cookie
+            // and a subsequent refresh round-trip succeeded with it.
+            //
+            // If a future non-localhost dev setup needs this, the answer is TLS on that host, not a
+            // switch here. csharpsquid:S2092 flagged the previous conditional form; it is satisfied
+            // now because the value is genuinely constant rather than annotated away.
+            Secure = true,
             SameSite = SameSiteMode.Strict,
             Path = RefreshCookiePath,
             Expires = DateTimeOffset.UtcNow.AddDays(30),

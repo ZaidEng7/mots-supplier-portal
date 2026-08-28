@@ -44,6 +44,14 @@ public sealed class RefreshCookieLifecycleTests(PostgresApiFixture fixture)
         setCookie.Should().NotBeNull("login must issue the refresh cookie");
         setCookie.Should().Contain("httponly", "the refresh token must not be readable from script")
             .And.Contain("samesite=strict");
+
+        // Secure is unconditional as of the S2092 fix, and this assertion is what stops a toggle
+        // being reintroduced. Note the integration host runs over plain HTTP, so this ALSO pins the
+        // fact that emitting Secure does not depend on the transport - the browser-side half (that
+        // http://localhost accepts and returns a Secure cookie) was verified against a real browser
+        // and cannot be asserted from here.
+        setCookie.Should().Contain("secure",
+            "nothing in configuration may weaken transport security on the refresh token");
         setCookie.Should().Contain("path=/api/v1/auth",
             "Path is part of the (name, domain, path) triple the Delete on logout must match");
     }
