@@ -205,6 +205,119 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
+      # ---------------------------------------------------------------------------------------
+      # COVERAGE RATCHET - new code must be >= 45% covered.
+      #
+      # THIS IS A FLOOR THAT GOES UP, NEVER DOWN. If a pull request cannot meet it, the answer is
+      # tests, not an edit to this number. A gate nobody can meet gets waived, and this repository
+      # has already produced one of those: `retries: 1` on the a11y suite, with a comment
+      # explaining why it was there.
+      #
+      # Why 45%, on new code only:
+      #  - Overall coverage is 32.4% (MSP-70, the first honest measurement this project has had).
+      #    That figure is dragged down by a large existing untested surface - the frontend at 0%
+      #    and older backend code. Gating on it would punish work that is not the problem.
+      #  - Code written from here should be tested: every Phase 3 fix ships with a regression test.
+      #    A new-code floor at ~30% would permit new code that is mostly untested, which defeats
+      #    the point of having the floor at all.
+      #  - Not higher, because PR #4 measured 47.3% on genuinely honest work that included
+      #    Program.cs wiring which is awkward to cover. A bar at 50% would have failed it. 45% sits
+      #    just under a real, recent, good pull request.
+      #
+      # Overall coverage is deliberately NOT gated yet. 32.4% is recorded as the baseline; it
+      # should climb under its own weight as Phase 3 adds tests, and gets a gate once it is moving.
+      #
+      # Why this lives in CI rather than in the SonarCloud quality gate: the project is on the free
+      # plan, which cannot associate any gate other than the built-in "Sonar way". That gate
+      # requires 80% on new code and is not editable. Creating a custom gate is possible but it
+      # could never be attached to this project - an instrument that looks configured and does
+      # nothing, which is the failure mode this whole phase exists to remove. So the 80% condition
+      # stays as SonarCloud's own (currently unmeetable) opinion, and the number we actually hold
+      # ourselves to is enforced here, where we control it.
+      #
+      # NOTE this reads Sonar's own new_coverage measure rather than recomputing "new code", so it
+      # agrees with the dashboard by construction instead of drifting from it.
+      - name: Coverage ratchet (new code >= 45%)
+        if: steps.sonar.outputs.enabled == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          THRESHOLD: "45"
+        run: |
+          set -euo pipefail
+
+          # sonar end writes the analysis task URL here; using it avoids guessing branch/PR keys.
+          TASK_URL=$(grep '^ceTaskUrl=' .sonarqube/out/.sonar/report-task.txt | cut -d= -f2-)
+          [ -n "$TASK_URL" ] || { echo "::error::No ceTaskUrl - cannot verify coverage"; exit 1; }
+
+          # Server-side analysis is asynchronous; the measure does not exist until it finishes.
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s -u "$SONAR_TOKEN:" "$TASK_URL" | python3 -c "import sys,json;print(json.load(sys.stdin)['task']['status'])")
+            case "$STATUS" in
+              SUCCESS) break ;;
+              FAILED|CANCELED) echo "::error::Sonar analysis $STATUS"; exit 1 ;;
+              *) sleep 5 ;;
+            esac
+          done
+          [ "$STATUS" = "SUCCESS" ] || { echo "::error::Sonar analysis did not finish in time"; exit 1; }
+
+          ANALYSIS_ID=$(curl -s -u "$SONAR_TOKEN:" "$TASK_URL" | python3 -c "import sys,json;print(json.load(sys.stdin)['task'].get('analysisId',''))")
+          BRANCH_ARG=""
+          if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+            BRANCH_ARG="pullRequest=${{ github.event.pull_request.number }}"
+          else
+            BRANCH_ARG="branch=main"
+          fi
+
+          MEASURE=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/measures/component?component=ZaidEng7_mots-supplier-portal&metricKeys=new_coverage&$BRANCH_ARG")
+          echo "$MEASURE"
+
+          COVERAGE=$(echo "$MEASURE" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for m in d.get('component', {}).get('measures', []):
+              for p in ([m['period']] if 'period' in m else m.get('periods', [])):
+                  print(p['value']); raise SystemExit
+              if 'value' in m:
+                  print(m['value']); raise SystemExit
+          print('')
+          ")
+
+          # Same lesson as the dependency scan: a check that could not measure must not report a
+          # pass. The one exception is a genuinely empty new-code set - Sonar omits the measure
+          # when there are no new lines to cover, and the project also has "ignore coverage on
+          # small changes" enabled below 20 new lines. That is an absent measurement, not a
+          # failing one, so it is distinguished explicitly rather than lumped in with either.
+          NEW_LINES=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/measures/component?component=ZaidEng7_mots-supplier-portal&metricKeys=new_lines_to_cover&$BRANCH_ARG" \
+            | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for m in d.get('component', {}).get('measures', []):
+              for p in ([m['period']] if 'period' in m else m.get('periods', [])):
+                  print(p['value']); raise SystemExit
+          print('0')
+          ")
+
+          if [ -z "$COVERAGE" ]; then
+            if [ "${NEW_LINES:-0}" = "0" ]; then
+              echo "No new lines to cover - coverage ratchet not applicable."
+              exit 0
+            fi
+            echo "::error::new_coverage measure missing despite $NEW_LINES new lines to cover - the check did not run"
+            exit 1
+          fi
+
+          echo "New-code coverage: ${COVERAGE}%  (floor ${THRESHOLD}%, on ${NEW_LINES} new lines to cover)"
+          python3 -c "
+          import sys
+          cov, thr = float('$COVERAGE'), float('$THRESHOLD')
+          if cov < thr:
+              print(f'::error::New-code coverage {cov}% is below the {thr}% floor. Add tests - do not lower the floor.')
+              sys.exit(1)
+          print(f'Coverage ratchet passed: {cov}% >= {thr}%')
+          "
+
   # The former `backend-integration` job was folded into `backend` above (MSP-70). Keeping it here
   # as well would run the suite twice per CI run for no added signal; keeping it here INSTEAD would
   # leave its coverage stranded in a job the scanner cannot see, which is the defect being fixed.
