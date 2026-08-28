@@ -10,30 +10,24 @@ jobs:
   backend:
     name: Backend (.NET)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Sonar needs history for new-code/blame attribution
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      # MSP-78: SonarCloud has never analyzed C# in this project - its language distribution was
-      # css/docker/json/ts/web/yaml only, so a passing "Security A" covered ~5% of the codebase and
-      # none of the auth, crypto or data-access code. Automatic Analysis cannot analyze C#; it needs
-      # the MSBuild scanner wrapping the build, which is what these steps add.
-      #
-      # Gated on SONAR_TOKEN so a fork or a token-less run still builds and tests normally rather
-      # than failing on a missing secret.
+      # MSP-78: SonarCloud never analyzed C# here - Automatic Analysis cannot, it needs the
+      # MSBuild scanner wrapping the build. Gated on SONAR_TOKEN so a fork still builds normally.
       - name: Check for Sonar token
         id: sonar
         run: echo "enabled=${{ secrets.SONAR_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Java (required by the Sonar scanner)
         if: steps.sonar.outputs.enabled == 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -43,49 +37,48 @@ jobs:
         run: dotnet tool install --global dotnet-sonarscanner --version 10.4.0
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore src/backend/MotsSupplierPortal.slnx
 
-      # Analysis must wrap the build: the scanner hooks MSBuild to see the compiled C#. A build
-      # that has already happened cannot be analyzed retrospectively, which is why --no-build is
-      # NOT used on the build step below when Sonar is enabled.
-      # Run from the repository ROOT, not src/backend. Switching to CI analysis disables
-      # SonarCloud's Automatic Analysis, and Automatic Analysis is currently the only thing
-      # scanning the frontend - so a scanner scoped to src/backend would silently drop TypeScript
-      # from the project and trade one blind spot for another.
+      # begin / build / end MUST share one working directory. The scanner writes .sonarqube
+      # relative to where `begin` ran and the injected MSBuild targets look for it there; running
+      # begin at the root and the build in src/backend produced "unable to collect the required
+      # information about your projects" with every step reporting success.
+      #
+      # Root is the right shared directory: it makes the scanner's base dir cover src/ so the
+      # frontend stays in scope. Disabling Automatic Analysis removed the only thing scanning
+      # TypeScript, so a backend-only base dir would trade one blind spot for another.
+      #
+      # sonar.sources / sonar.tests are deliberately absent - the .NET scanner ignores them with
+      # a warning and derives scope from the MSBuild graph plus the base directory.
       - name: Sonar begin
         if: steps.sonar.outputs.enabled == 'true'
-        working-directory: .
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           dotnet sonarscanner begin \
             /k:"ZaidEng7_mots-supplier-portal" \
             /o:"zaideng7" \
-            /d:sonar.sources="src" \
-            /d:sonar.tests="src/backend/Tests,src/frontend/tests" \
-            /d:sonar.javascript.lcov.reportsPaths="src/frontend/coverage/lcov.info" \
             /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.scanner.scanAll=true \
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="**/Migrations/**,**/Program.cs,**/*.stories.tsx,**/tests/**" \
             /d:sonar.cpd.exclusions="**/Tests/**,**/Migrations/**,**/*.spec.ts,**/*.stories.tsx" \
             /d:sonar.exclusions="**/Migrations/**,**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,**/storybook-static/**"
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build src/backend/MotsSupplierPortal.slnx --no-restore --configuration Release
 
-      # Coverage in opencover format because that is what the C# scanner consumes; coverlet.collector
-      # is already referenced by all three test projects. Shared with MSP-70, which needs the same
-      # wiring to produce a coverage number at all - do it once here, not twice.
+      # opencover because that is the format the C# scanner consumes; coverlet.collector is already
+      # referenced by all three test projects. Shared wiring with MSP-70.
       - name: Unit tests
-        run: dotnet test Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
+        run: dotnet test src/backend/Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
       - name: Architecture tests (NetArchTest)
-        run: dotnet test Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
+        run: dotnet test src/backend/Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
       - name: Sonar end
         if: steps.sonar.outputs.enabled == 'true'
-        working-directory: .
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
