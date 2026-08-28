@@ -44,7 +44,7 @@ public sealed class SubmitApplicationHandler(AppDbContext db, IScopeContext scop
         }
 
         await auditLogger.LogAsync(
-            "Supplier", supplier.Id, "application_submitted", Guid.NewGuid(), scope.UserId,
+            "Supplier", supplier.Id, "application_submitted", scope.UserId,
             toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 

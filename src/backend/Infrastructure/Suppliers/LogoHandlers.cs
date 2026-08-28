@@ -60,7 +60,7 @@ public sealed class UploadLogoHandler(AppDbContext db, IScopeContext scope, IFil
         }
 
         await fileStorage.SaveAsync(key, buffered, expectedContentType, ct);
-        await auditLogger.LogAsync("Supplier", supplier.Id, "logo_uploaded", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "logo_uploaded", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         return new UploadLogoResult.Success(SupplierDtoMapper.ToDto(supplier));

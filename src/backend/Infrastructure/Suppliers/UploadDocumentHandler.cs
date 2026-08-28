@@ -80,7 +80,7 @@ public sealed class UploadDocumentHandler(
 
         if (!FileTypeSniffer.TryDetectContentType(header[..Math.Max(headerRead, 0)], out var sniffedContentType) || sniffedContentType != expectedContentType)
         {
-            await auditLogger.LogAsync("SupplierDocument", supplier.Id, "document_upload_content_mismatch", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", supplier.Id, "document_upload_content_mismatch", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
             return new UploadDocumentResult.ContentMismatch();
         }
 
@@ -115,7 +115,7 @@ public sealed class UploadDocumentHandler(
             _ = activeAnnotation;
         }
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_uploaded", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_uploaded", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         backgroundJobs.Enqueue<DocumentScanJob>(job => job.ScanAsync(document.Id, CancellationToken.None));

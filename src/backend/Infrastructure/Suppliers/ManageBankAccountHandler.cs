@@ -54,7 +54,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         // Never log/audit the raw account number - only that a bank account was added, and the
         // masked value (BRULE-091: no PII in logs).
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_added", Guid.NewGuid(), scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_added", scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -102,7 +102,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         // Never log/audit the raw account number - only that it changed, and the masked value if
         // the account number itself was part of the edit (BRULE-091: no PII in logs).
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_updated", Guid.NewGuid(), scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_updated", scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -134,7 +134,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             ("bankName", before?.BankName, null),
             ("maskedAccountNumber", before?.MaskedAccountNumber, null));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_removed", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
@@ -161,7 +161,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         var changes = AuditChangeBuilder.Build(("isDefault", wasDefault, true));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_set_default", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_set_default", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -176,7 +176,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         // The reveal itself is the sensitive event to audit (BRULE-014/090/091) - never the
         // plaintext value itself, only that it was accessed and by whom.
-        await auditLogger.LogAsync("Supplier", account.SupplierId, "bank_account_revealed", Guid.NewGuid(), scope.UserId, reason: account.MaskedAccountNumber, ct: ct);
+        await auditLogger.LogAsync("Supplier", account.SupplierId, "bank_account_revealed", scope.UserId, reason: account.MaskedAccountNumber, ct: ct);
 
         return new RevealBankAccountResult.Success(plaintext);
     }

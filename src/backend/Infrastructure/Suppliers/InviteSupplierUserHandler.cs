@@ -17,6 +17,11 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// only via AcceptSupplierUserInviteHandler, gated by the same opaque SecurityToken scheme as
 /// email-verification/password-reset (never a userId in the invite link).</summary>
 public sealed class InviteSupplierUserHandler(
+    // Re-added deliberately. This parameter was removed as unread when warnings became errors
+    // (CS9113); it is needed again now that AuditLogger no longer owns the save. The warning was
+    // correct at the time - the dependency really was unused - which is worth noting rather than
+    // reading as churn.
+    AppDbContext db,
     UserManager<AppUser> userManager,
     IScopeContext scope,
     ISecurityTokenService securityTokenService,
@@ -60,7 +65,11 @@ public sealed class InviteSupplierUserHandler(
         var acceptUrl = $"{frontendUrl}/accept-invite?token={Uri.EscapeDataString(rawToken)}";
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendSupplierUserInviteEmailAsync(user.Email!, acceptUrl, CancellationToken.None));
 
-        await auditLogger.LogAsync("Supplier", scope.SupplierId.Value, "supplier_user_invited", Guid.NewGuid(), scope.UserId, ct: ct);
+        await auditLogger.LogAsync("Supplier", scope.SupplierId.Value, "supplier_user_invited", scope.UserId, ct: ct);
+        // MSP-64: UserManager persists the new user; the audit row is on the AppDbContext and
+        // AuditLogger no longer saves. Without this, a user would be granted access to a
+        // supplier with no record of who invited them.
+        await db.SaveChangesAsync(ct);
 
         return new InviteSupplierUserResult.Success(new SupplierUserDto(user.Id, user.Email!, user.FullName, user.IsActive));
     }

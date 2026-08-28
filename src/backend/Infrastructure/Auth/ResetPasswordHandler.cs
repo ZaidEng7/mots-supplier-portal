@@ -53,7 +53,7 @@ public sealed class ResetPasswordHandler(
         }
         await db.SaveChangesAsync(ct);
 
-        await auditLogger.LogAsync("User", user.Id, "password_reset", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+        await auditLogger.LogAsync("User", user.Id, "password_reset", user.Id, user.FullName, ct: ct);
 
         return new ResetPasswordResult.Success();
     }

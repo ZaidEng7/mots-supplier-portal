@@ -29,7 +29,7 @@ public sealed class DocumentExpiryJob(AppDbContext db, IAuditLogger auditLogger,
         foreach (var doc in expiringSoon)
         {
             doc.MarkExpiringSoon();
-            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expiring_soon", Guid.NewGuid(), ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expiring_soon", ct: ct);
         }
 
         var expired = await db.SupplierDocuments
@@ -39,7 +39,7 @@ public sealed class DocumentExpiryJob(AppDbContext db, IAuditLogger auditLogger,
         foreach (var doc in expired)
         {
             doc.MarkExpired();
-            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expired", Guid.NewGuid(), ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expired", ct: ct);
         }
 
         if (expiringSoon.Count > 0 || expired.Count > 0)

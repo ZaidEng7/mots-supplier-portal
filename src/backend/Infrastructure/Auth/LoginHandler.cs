@@ -43,13 +43,13 @@ public sealed class LoginHandler(
 
         if (checkResult.IsLockedOut)
         {
-            await auditLogger.LogAsync("User", user.Id, "login_locked_out", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+            await auditLogger.LogAsync("User", user.Id, "login_locked_out", user.Id, user.FullName, ct: ct);
             return new LoginResult.LockedOut();
         }
 
         if (!checkResult.Succeeded)
         {
-            await auditLogger.LogAsync("User", user.Id, "login_failed", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+            await auditLogger.LogAsync("User", user.Id, "login_failed", user.Id, user.FullName, ct: ct);
             return new LoginResult.InvalidCredentials();
         }
 
@@ -72,7 +72,7 @@ public sealed class LoginHandler(
 
         if (mfaMandatoryForRole && !user.TwoFactorEnabled)
         {
-            await auditLogger.LogAsync("User", user.Id, "login_blocked_mfa_enrollment_required", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+            await auditLogger.LogAsync("User", user.Id, "login_blocked_mfa_enrollment_required", user.Id, user.FullName, ct: ct);
             return new LoginResult.MfaEnrollmentRequired();
         }
 
@@ -89,7 +89,7 @@ public sealed class LoginHandler(
 
             if (!await VerifySecondFactorAsync(user, command.TotpCode))
             {
-                await auditLogger.LogAsync("User", user.Id, "login_mfa_failed", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+                await auditLogger.LogAsync("User", user.Id, "login_mfa_failed", user.Id, user.FullName, ct: ct);
                 return new LoginResult.MfaInvalid();
             }
 
@@ -98,7 +98,7 @@ public sealed class LoginHandler(
 
         var tokens = await IssueTokenPairAsync(user, familyId: Guid.CreateVersion7(), command.Ip, command.UserAgent, ct, factors);
 
-        await auditLogger.LogAsync("User", user.Id, "login_succeeded", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+        await auditLogger.LogAsync("User", user.Id, "login_succeeded", user.Id, user.FullName, ct: ct);
 
         return new LoginResult.Success(tokens);
     }

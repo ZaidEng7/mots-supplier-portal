@@ -41,7 +41,7 @@ public sealed class AcceptTermsHandler(AppDbContext db, IScopeContext scope, IAu
         }
 
         await auditLogger.LogAsync(
-            "Supplier", supplier.Id, "terms_accepted", Guid.NewGuid(), scope.UserId,
+            "Supplier", supplier.Id, "terms_accepted", scope.UserId,
             reason: Supplier.CurrentTermsVersion, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 

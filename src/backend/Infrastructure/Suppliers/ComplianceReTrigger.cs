@@ -21,7 +21,7 @@ internal static class ComplianceReTrigger
         }
 
         await auditLogger.LogAsync(
-            "Supplier", supplier.Id, "compliance_field_changed_review_retriggered", Guid.NewGuid(), actorUserId,
+            "Supplier", supplier.Id, "compliance_field_changed_review_retriggered", actorUserId,
             fromState: nameof(SupplierOnboardingState.Approved), toState: nameof(SupplierOnboardingState.UnderReview),
             reason: fieldChanged, referenceCode: supplier.ReferenceCode, ct: ct);
 

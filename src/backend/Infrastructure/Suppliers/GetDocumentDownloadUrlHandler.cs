@@ -36,7 +36,11 @@ public sealed class GetDocumentDownloadUrlHandler(AppDbContext db, IScopeContext
 
         var url = await fileStorage.GetSignedDownloadUrlAsync(document.StorageKey, TimeSpan.FromMinutes(5), document.OriginalFileName, ct);
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_access_granted", Guid.NewGuid(), scope.UserId, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_access_granted", scope.UserId, ct: ct);
+        // MSP-64: AuditLogger no longer saves, and this handler is otherwise read-only, so
+        // without this the access-granted row would never be written. A download that leaves no
+        // audit trace is exactly the record a review would later go looking for.
+        await db.SaveChangesAsync(ct);
 
         return new DocumentDownloadUrlResult.Success(url);
     }

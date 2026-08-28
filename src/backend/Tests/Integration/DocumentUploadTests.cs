@@ -16,9 +16,9 @@ namespace MotsSupplierPortal.Tests.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class DocumentUploadTests(PostgresApiFixture fixture)
 {
-    private static readonly Guid TaxCertificateDocumentTypeId = Guid.Parse("00000000-0000-0000-0000-000000000102");
+    internal static readonly Guid TaxCertificateDocumentTypeId = Guid.Parse("00000000-0000-0000-0000-000000000102");
 
-    private static readonly byte[] MinimalPdfBytes =
+    internal static readonly byte[] MinimalPdfBytes =
         "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"u8.ToArray();
 
     [Fact]

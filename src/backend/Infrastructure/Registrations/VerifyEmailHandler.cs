@@ -68,7 +68,6 @@ public sealed class VerifyEmailHandler(
             aggregateType: "Supplier",
             aggregateId: supplier.Id,
             action: "state_change",
-            correlationId: Guid.NewGuid(),
             actorUserId: user.Id,
             actorLabel: user.FullName,
             fromState: nameof(SupplierOnboardingState.Draft),

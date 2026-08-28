@@ -36,7 +36,7 @@ public sealed class RefreshTokenHandler(
             foreach (var t in family) t.RevokedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
 
-            await auditLogger.LogAsync("User", presented.UserId, "refresh_reuse_detected", Guid.NewGuid(), presented.UserId, ct: ct);
+            await auditLogger.LogAsync("User", presented.UserId, "refresh_reuse_detected", presented.UserId, ct: ct);
             return new RefreshTokenResult.ReuseDetected();
         }
 
@@ -50,7 +50,7 @@ public sealed class RefreshTokenHandler(
         var tokens = await loginHandler.IssueTokenPairAsync(user, presented.FamilyId, command.Ip, command.UserAgent, ct);
         await db.SaveChangesAsync(ct);
 
-        await auditLogger.LogAsync("User", user.Id, "refresh_rotated", Guid.NewGuid(), user.Id, user.FullName, ct: ct);
+        await auditLogger.LogAsync("User", user.Id, "refresh_rotated", user.Id, user.FullName, ct: ct);
 
         return new RefreshTokenResult.Success(tokens);
     }

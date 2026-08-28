@@ -32,7 +32,7 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
         // would otherwise mark it Modified (no-op UPDATE) instead of Added - track it explicitly.
         db.Contacts.Add(contact);
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "contact_added", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "contact_added", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -55,7 +55,7 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "contact_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "contact_updated", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -78,7 +78,7 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "contact_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "contact_removed", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

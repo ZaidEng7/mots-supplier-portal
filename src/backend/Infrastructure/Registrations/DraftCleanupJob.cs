@@ -32,8 +32,7 @@ public sealed class DraftCleanupJob(AppDbContext db, UserManager<AppUser> userMa
         foreach (var supplier in abandoned)
         {
             await auditLogger.LogAsync(
-                "Supplier", supplier.Id, "draft_cleanup_deleted", Guid.NewGuid(),
-                actorLabel: "system", reason: $"abandoned draft older than {AbandonedDraftRetention.Days}d",
+                "Supplier", supplier.Id, "draft_cleanup_deleted", actorLabel: "system", reason: $"abandoned draft older than {AbandonedDraftRetention.Days}d",
                 referenceCode: supplier.ReferenceCode, ct: ct);
 
             var user = await userManager.Users.FirstOrDefaultAsync(u => u.SupplierId == supplier.Id, ct);
