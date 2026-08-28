@@ -42,7 +42,7 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
             ("regionCode", null, command.RegionCode),
             ("country", null, command.Country));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "address_added", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "address_added", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -73,7 +73,7 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
             ("regionCode", before?.RegionCode, command.RegionCode),
             ("country", before?.Country, command.Country));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "address_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "address_updated", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -102,7 +102,7 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
             ("line1", before?.Line1, null),
             ("city", before?.City, null));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "address_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "address_removed", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

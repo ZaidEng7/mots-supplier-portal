@@ -73,7 +73,7 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
         // SaveChanges), so both live inside the guard.
         var persisted = await SupplierConcurrency.TryPersistAsync(async () =>
         {
-            await auditLogger.LogAsync("Supplier", supplier.Id, "profile_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+            await auditLogger.LogAsync("Supplier", supplier.Id, "profile_updated", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
             await db.SaveChangesAsync(ct);
         });
 

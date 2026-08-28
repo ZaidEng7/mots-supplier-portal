@@ -25,14 +25,14 @@ public sealed class DocumentScanJob(AppDbContext db, IFileStorage fileStorage, I
         {
             document.MarkScanRejected();
             await fileStorage.DeleteAsync(quarantineKey, ct);
-            await auditLogger.LogAsync("SupplierDocument", document.Id, "document_scan_rejected", Guid.NewGuid(), ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", document.Id, "document_scan_rejected", ct: ct);
         }
         else
         {
             var cleanKey = quarantineKey.Replace("quarantine/", "clean/", StringComparison.Ordinal);
             await fileStorage.MoveAsync(quarantineKey, cleanKey, ct);
             document.MarkScanClean(cleanKey);
-            await auditLogger.LogAsync("SupplierDocument", document.Id, "document_scan_clean", Guid.NewGuid(), ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", document.Id, "document_scan_clean", ct: ct);
         }
 
         await db.SaveChangesAsync(ct);

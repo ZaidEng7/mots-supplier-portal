@@ -99,7 +99,7 @@ public sealed class PickUpApplicationHandler(AppDbContext db, IScopeContext scop
         try { supplier.PickUpForReview(); }
         catch (DomainException ex) { return new ReviewDecisionResult.InvalidState(ex.Message); }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "application_picked_up", Guid.NewGuid(), scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "application_picked_up", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -136,7 +136,7 @@ public sealed class ApproveApplicationHandler(AppDbContext db, IScopeContext sco
             CreatedAt = DateTimeOffset.UtcNow,
         });
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "application_approved", Guid.NewGuid(), scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "application_approved", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         var email = await ReviewerNotify.GetPrimaryEmailAsync(db, supplier.Id, ct);
@@ -156,7 +156,7 @@ public sealed class RejectApplicationHandler(AppDbContext db, IScopeContext scop
         try { supplier.Reject(reason); }
         catch (DomainException ex) { return new ReviewDecisionResult.InvalidState(ex.Message); }
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "application_rejected", Guid.NewGuid(), scope.UserId, toState: supplier.OnboardingState.ToString(), reason: reason, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "application_rejected", scope.UserId, toState: supplier.OnboardingState.ToString(), reason: reason, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         var email = await ReviewerNotify.GetPrimaryEmailAsync(db, supplier.Id, ct);
@@ -192,7 +192,7 @@ public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAu
             FlaggedDocumentTypeIds = [.. flaggedTypeIds],
         });
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "application_info_requested", Guid.NewGuid(), scope.UserId, toState: supplier.OnboardingState.ToString(), reason: command.Reason, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "application_info_requested", scope.UserId, toState: supplier.OnboardingState.ToString(), reason: command.Reason, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         var email = await ReviewerNotify.GetPrimaryEmailAsync(db, supplier.Id, ct);
@@ -219,10 +219,10 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
         try
         {
             supplier.Resubmit();
-            await auditLogger.LogAsync("Supplier", supplier.Id, "application_resubmitted", Guid.NewGuid(), scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
+            await auditLogger.LogAsync("Supplier", supplier.Id, "application_resubmitted", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
 
             supplier.PickUpForReview();
-            await auditLogger.LogAsync("Supplier", supplier.Id, "application_review_resumed", Guid.NewGuid(), scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
+            await auditLogger.LogAsync("Supplier", supplier.Id, "application_review_resumed", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
         }
         catch (DomainException ex)
         {

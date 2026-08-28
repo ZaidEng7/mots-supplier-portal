@@ -92,7 +92,6 @@ public sealed class RegisterSupplierHandler(
                 aggregateType: "Supplier",
                 aggregateId: supplier.Id,
                 action: "register",
-                correlationId: Guid.NewGuid(),
                 actorUserId: user.Id,
                 actorLabel: user.FullName,
                 toState: nameof(SupplierOnboardingState.Draft),

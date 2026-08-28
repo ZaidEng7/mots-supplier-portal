@@ -46,7 +46,7 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
 
         var persisted = await SupplierConcurrency.TryPersistAsync(async () =>
         {
-            await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+            await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
             await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "legalInfo", scope.UserId, ct);
             await db.SaveChangesAsync(ct);
         });

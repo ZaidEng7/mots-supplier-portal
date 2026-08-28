@@ -236,6 +236,9 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<PermissionResolver>();
 builder.Services.AddScoped<IScopeContext, HttpScopeContext>();
 builder.Services.AddScoped<IConcurrencyContext, HttpConcurrencyContext>();
+// Scoped, not transient: every audit row written during one request must resolve the SAME
+// instance, or the correlation id degrades back to being unique per call (MSP-64).
+builder.Services.AddScoped<IAuditContext, MotsSupplierPortal.Api.Authorization.HttpAuditContext>();
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestValidator>();
 
 builder.Services.AddHealthChecks()

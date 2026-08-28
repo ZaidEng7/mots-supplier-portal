@@ -61,7 +61,7 @@ public sealed class RevokeSessionHandler(AppDbContext db, IScopeContext scope, I
         foreach (var t in tokens) t.RevokedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
 
-        await auditLogger.LogAsync("User", scope.UserId.Value, "session_revoked", Guid.NewGuid(), scope.UserId, ct: ct);
+        await auditLogger.LogAsync("User", scope.UserId.Value, "session_revoked", scope.UserId, ct: ct);
         return true;
     }
 }
@@ -91,7 +91,7 @@ public sealed class RevokeAllSessionsHandler(AppDbContext db, IScopeContext scop
         await db.SaveChangesAsync(ct);
 
         var revokedFamilies = tokens.Select(t => t.FamilyId).Distinct().Count();
-        await auditLogger.LogAsync("User", scope.UserId.Value, "sessions_revoked_all", Guid.NewGuid(), scope.UserId, ct: ct);
+        await auditLogger.LogAsync("User", scope.UserId.Value, "sessions_revoked_all", scope.UserId, ct: ct);
         return revokedFamilies;
     }
 }

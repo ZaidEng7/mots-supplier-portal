@@ -38,7 +38,7 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
             ("nameEn", null, command.NameEn),
             ("addressId", null, command.AddressId?.ToString()));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_added", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_added", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -68,7 +68,7 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
             ("addressId", before?.AddressId?.ToString(), command.AddressId?.ToString()),
             ("isActive", before?.IsActive, command.IsActive));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_updated", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -96,7 +96,7 @@ public sealed class ManageBranchHandler(AppDbContext db, IScopeContext scope, IA
             ("nameAr", before?.NameAr, null),
             ("nameEn", before?.NameEn, null));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "branch_removed", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

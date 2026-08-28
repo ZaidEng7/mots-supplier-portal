@@ -29,7 +29,7 @@ public sealed class DisableSupplierUserHandler(AppDbContext db, UserManager<AppU
         }
         await db.SaveChangesAsync(ct);
 
-        await auditLogger.LogAsync("Supplier", scope.SupplierId.Value, "supplier_user_disabled", Guid.NewGuid(), scope.UserId, ct: ct);
+        await auditLogger.LogAsync("Supplier", scope.SupplierId.Value, "supplier_user_disabled", scope.UserId, ct: ct);
 
         return new DisableSupplierUserResult.Success();
     }

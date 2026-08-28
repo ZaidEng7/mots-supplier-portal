@@ -42,7 +42,7 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
             ("phone", null, command.Phone),
             ("position", null, command.Position));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_added", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_added", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -72,7 +72,7 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
             ("phone", before?.Phone, command.Phone),
             ("position", before?.Position, command.Position));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_updated", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_updated", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -100,7 +100,7 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
             ("fullName", before?.FullName, null),
             ("email", before?.Email, null));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_removed", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_removed", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -128,7 +128,7 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
             ("previousPrimaryRepresentativeId", previousPrimary?.Id.ToString(), null),
             ("newPrimaryRepresentativeId", null, command.RepresentativeId.ToString()));
 
-        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_set_primary", Guid.NewGuid(), scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await auditLogger.LogAsync("Supplier", supplier.Id, "representative_set_primary", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

@@ -35,7 +35,7 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
             return new ReviewDocumentResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_approved", Guid.NewGuid(), scope.UserId, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_approved", scope.UserId, ct: ct);
         await db.SaveChangesAsync(ct);
 
         return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
@@ -66,7 +66,7 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
             return new ReviewDocumentResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", Guid.NewGuid(), scope.UserId, reason: reason, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", scope.UserId, reason: reason, ct: ct);
         await db.SaveChangesAsync(ct);
 
         var email = await db.Users.Where(u => u.SupplierId == document.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
