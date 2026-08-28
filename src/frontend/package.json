@@ -13,7 +13,6 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
-    "lhci": "lhci autorun",
     "typecheck": "tsc --noEmit",
     "e2e:install": "playwright install --with-deps chromium"
   },
@@ -39,7 +38,6 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.10",
     "@storybook/addon-docs": "^10.5.10",

@@ -81,37 +81,23 @@ jobs:
           fi
           echo "No High/Critical NuGet advisories."
 
-      # MSP-80 was triaged THROUGH this gate rather than by hand, and the result decided its shape.
+      # MSP-80. This gate was originally scoped to production dependencies only, because the whole
+      # dev tree carried 10 findings (7 high) that could not be fixed: every one was a transitive
+      # of @lhci/cli, which was already at its latest published version with no upstream fix.
       #
-      # Full tree today: 10 findings - 7 high, 1 moderate, 2 low. Every one of them is a dev-only
-      # transitive of @lhci/cli (Lighthouse CI): extract-zip, tmp, puppeteer-core, @puppeteer/
-      # browsers, lighthouse, @lhci/utils, uuid, inquirer, external-editor.
+      # @lhci/cli has since been removed (it was not wired into CI at all - no workflow step ran it,
+      # so it was a risk carried for no signal). With it gone the audit reports zero findings at
+      # any severity across the FULL tree, so the narrower scope is no longer needed and the gate
+      # blocks on everything at high or critical.
       #
-      # They cannot be fixed by upgrading. @lhci/cli is already at 0.15.1, the latest published
-      # version, and `npm audit fix --dry-run` reports added=0 changed=0 removed=0 with all 10
-      # still present. Upstream has not shipped a fix.
-      #
-      # Production dependencies - the code that actually reaches a user's browser - have ZERO
-      # findings at any severity. @lhci/cli is a devDependency and is not in the bundle.
-      #
-      # So the gate blocks on production high/critical, and reports the dev tree without blocking.
-      # Gating the full tree instead would mean a permanently red build over advisories we cannot
-      # act on, in a tool that never ships. That gate would be switched off within a fortnight, and
-      # we already know exactly what that looks like: `retries: 1` on the a11y suite, with a comment
-      # explaining why. A gate calibrated to what can be acted on is worth more than one calibrated
-      # to look strict.
-      #
-      # The residual risk is real and worth naming: a compromised dev dependency runs in CI with
-      # access to the build. It is accepted here because it is unfixable today, and it is printed on
-      # every run so it stays visible rather than becoming silence.
+      # Note the direction of travel: the scope tightened because the tree got clean, not because
+      # the standard changed. If an unfixable dev advisory ever reappears, the honest move is to
+      # narrow this again WITH the reasoning written here - not to leave a permanently red build
+      # that people learn to ignore.
       - name: Dependency scan (npm)
         working-directory: src/frontend
         run: |
-          echo "--- full tree (reported, not blocking; see comment above) ---"
-          npm audit || true
-
-          echo "--- production dependencies (blocking on high/critical) ---"
-          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
 
       # begin / build / end MUST share one working directory. The scanner writes .sonarqube
       # relative to where `begin` ran and the injected MSBuild targets look for it there; running
@@ -206,6 +192,29 @@ jobs:
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
       # ---------------------------------------------------------------------------------------
+      # QUALITY GATE - the authoritative one.
+      #
+      # This step, not SonarCloud's own check, is what must be green to merge.
+      #
+      # SonarCloud's "Sonar way" gate is BUILT-IN and cannot be edited on this plan, and it requires
+      # 80% coverage on new code. That is unmeetable for any change that is mostly wiring or config,
+      # so its check goes red on legitimate work as a matter of routine. The danger is not that
+      # coverage stops being enforced - the floor below handles that. It is that Sonar's check also
+      # carries the conditions we genuinely care about (security rating, reliability rating,
+      # duplication), and a check that is red routinely stops being read. A real security regression
+      # then arrives inside a red X that looks like all the other red Xs.
+      #
+      # This repository has already produced exactly that failure: `retries: 1` on the a11y suite
+      # cried wolf until nobody looked, and concealed a deterministic Dialog failure for as long as
+      # it sat there.
+      #
+      # So this step enforces Sonar's OWN ratings - security, reliability, duplication - unchanged,
+      # and evaluates coverage against the 45% floor we agreed instead of the 80% we are stuck with.
+      # One check that is red only when something is actually wrong.
+      #
+      # SONARCLOUD'S OWN CHECK IS ADVISORY. Do not read a red Sonar badge as a broken build, and -
+      # more importantly - do not read a green one as a clean project.
+      #
       # COVERAGE RATCHET - new code must be >= 45% covered.
       #
       # THIS IS A FLOOR THAT GOES UP, NEVER DOWN. If a pull request cannot meet it, the answer is
@@ -237,7 +246,7 @@ jobs:
       #
       # NOTE this reads Sonar's own new_coverage measure rather than recomputing "new code", so it
       # agrees with the dashboard by construction instead of drifting from it.
-      - name: Coverage ratchet (new code >= 45%)
+      - name: Quality gate (Sonar ratings + 45% coverage floor)
         if: steps.sonar.outputs.enabled == 'true'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -288,6 +297,11 @@ jobs:
           api "$BASE&metricKeys=new_coverage&$SCOPE" coverage.json
           api "$BASE&metricKeys=new_lines_to_cover&$SCOPE" newlines.json
 
+          # Sonar's own per-condition verdicts. Read from the quality gate rather than recomputed,
+          # so the ratings enforced here are exactly the ones Sonar computed - no second opinion to
+          # drift out of step with the dashboard.
+          api "https://sonarcloud.io/api/qualitygates/project_status?projectKey=ZaidEng7_mots-supplier-portal&$SCOPE" gate.json
+
           python3 - <<'PYEOF'
           import json, os, sys
 
@@ -301,26 +315,70 @@ jobs:
                       return m["value"]
               return None
 
+          failures = []
+
+          # ---- Sonar's own conditions, enforced unchanged -----------------------------------
+          # Ratings are 1=A 2=B 3=C 4=D 5=E. These are the conditions we actually care about and
+          # they are taken verbatim from Sonar's verdict; new_coverage is excluded here because it
+          # is judged below against our floor rather than Sonar's unmeetable 80%.
+          RATINGS = {"1": "A", "2": "B", "3": "C", "4": "D", "5": "E"}
+          ENFORCED = {
+              "new_security_rating":          "Security rating on new code",
+              "new_reliability_rating":       "Reliability rating on new code",
+              "new_duplicated_lines_density": "Duplicated lines on new code",
+          }
+
+          gate = json.load(open("gate.json")).get("projectStatus", {})
+          conditions = gate.get("conditions", [])
+          if not conditions:
+              # Same rule as everywhere else in this workflow: a check that could not evaluate must
+              # not report a pass.
+              print("::error::Quality gate returned no conditions - the check did not run")
+              sys.exit(1)
+
+          seen = set()
+          for c in conditions:
+              key = c.get("metricKey")
+              seen.add(key)
+              if key not in ENFORCED:
+                  continue
+              actual, status = c.get("actualValue"), c.get("status")
+              shown = RATINGS.get(actual, actual) if key.endswith("_rating") else actual
+              print(f"{ENFORCED[key]}: {shown} ({status})")
+              if status == "ERROR":
+                  failures.append(f"{ENFORCED[key]} = {shown}")
+
+          # If Sonar stops reporting a condition we rely on, that is a silent loss of enforcement.
+          # Fail loudly rather than quietly enforcing less than we think we are.
+          missing = [k for k in ENFORCED if k not in seen]
+          if missing:
+              print(f"::error::Quality gate no longer reports {', '.join(missing)} - enforcement would be silently reduced")
+              sys.exit(1)
+
+          # ---- Coverage, against our floor rather than Sonar's ------------------------------
           threshold = float(os.environ["THRESHOLD"])
           coverage = measure("coverage.json")
           new_lines = measure("newlines.json") or "0"
 
-          # Same lesson as the dependency scan: a check that could not measure must not report a
-          # pass. The one genuine exception is an empty new-code set - Sonar omits the measure when
-          # there is nothing to cover, and this project also ignores coverage conditions below 20
-          # new lines. That is an absent measurement, not a failing one, so it is distinguished
-          # explicitly rather than lumped in with either outcome.
+          # A check that could not measure must not report a pass. The one genuine exception is an
+          # empty new-code set - Sonar omits the measure when there is nothing to cover, and this
+          # project also ignores coverage conditions below 20 new lines. That is an absent
+          # measurement, not a failing one, so it is distinguished explicitly.
           if coverage is None:
               if float(new_lines) == 0:
-                  print("No new lines to cover - coverage ratchet not applicable.")
-                  sys.exit(0)
-              print(f"::error::new_coverage missing despite {new_lines} new lines to cover - the check did not run")
-              sys.exit(1)
+                  print("Coverage: no new lines to cover - ratchet not applicable.")
+              else:
+                  print(f"::error::new_coverage missing despite {new_lines} new lines to cover - the check did not run")
+                  sys.exit(1)
+          else:
+              coverage = float(coverage)
+              print(f"Coverage on new code: {coverage}% (floor {threshold}%, on {new_lines} new lines to cover)")
+              if coverage < threshold:
+                  failures.append(f"new-code coverage {coverage}% < {threshold}% floor - add tests, do not lower the floor")
 
-          coverage = float(coverage)
-          print(f"New-code coverage: {coverage}%  (floor {threshold}%, on {new_lines} new lines to cover)")
-          if coverage < threshold:
-              print(f"::error::New-code coverage {coverage}% is below the {threshold}% floor. Add tests - do not lower the floor.")
+          if failures:
+              for f in failures:
+                  print(f"::error::{f}")
               sys.exit(1)
-          print(f"Coverage ratchet passed: {coverage}% >= {threshold}%")
+          print("Quality gate passed (Sonar ratings + 45% coverage floor).")
           PYEOF
