@@ -27,6 +27,17 @@ public sealed class HibpBreachedPasswordValidator(
         Description = "This password has appeared in a known data breach. Please choose a different one.",
     };
 
+    /// <summary>
+    /// Splits the SHA-1 digest into the 5-character prefix sent to HIBP and the suffix compared
+    /// locally. Extracted so the algorithm can be pinned by test - see the S4790 note in
+    /// ValidateAsync for why it must stay SHA-1.
+    /// </summary>
+    public static (string Prefix, string Suffix) HashForRangeQuery(string password)
+    {
+        var digest = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(password)));
+        return (digest[..5], digest[5..]);
+    }
+
     public async Task<IdentityResult> ValidateAsync(UserManager<AppUser> manager, AppUser user, string? password)
     {
         if (!configuration.GetValue("Password:BreachCheckEnabled", true) || string.IsNullOrEmpty(password))
@@ -36,9 +47,31 @@ public sealed class HibpBreachedPasswordValidator(
 
         try
         {
-            var sha1 = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(password)));
-            var prefix = sha1[..5];
-            var suffix = sha1[5..];
+            // csharpsquid:S4790 ("using a weak hashing algorithm is security-sensitive") is a FALSE
+            // POSITIVE here, and this comment - not the marking in SonarCloud - is the record of why.
+            //
+            // SHA-1 is mandated by the protocol, not chosen. The HIBP range API is a k-anonymity
+            // scheme keyed on SHA-1: the client sends the first 5 hex characters of the SHA-1 digest
+            // and gets back every known-breached suffix sharing that prefix. The algorithm is fixed
+            // by the remote service. There is no SHA-256 variant of this endpoint to migrate to.
+            //
+            // Nothing here depends on SHA-1 being collision-resistant or preimage-resistant:
+            //   - It is not used to store or verify a password. Storage is ASP.NET Core Identity's
+            //     default PBKDF2 hasher; no IPasswordHasher is overridden anywhere in this solution,
+            //     and this is the only SHA-1 call site in the codebase.
+            //   - It is not used for authentication, signing, or integrity.
+            //   - The digest is never persisted and never leaves this method except as its first
+            //     5 characters, which by design match many millions of unrelated passwords.
+            // A SHA-1 collision would, at worst, cause a breached password to be missed - the same
+            // outcome as the fail-open path below, which is already the accepted behaviour.
+            //
+            // Do NOT "fix" this by switching to SHA-256. It would compile, pass every test, and
+            // silently disable the control: the API would return SHA-1 suffixes that can never match
+            // a SHA-256 one, so every password would validate as clean. That is a security check
+            // that reports success while doing nothing - the failure mode this codebase keeps
+            // finding. HashForRangeQuery below is pinned by a test against HIBP's own published
+            // vector so that substitution fails loudly instead.
+            var (prefix, suffix) = HashForRangeQuery(password);
 
             var client = httpClientFactory.CreateClient(nameof(HibpBreachedPasswordValidator));
             client.Timeout = TimeSpan.FromSeconds(3);

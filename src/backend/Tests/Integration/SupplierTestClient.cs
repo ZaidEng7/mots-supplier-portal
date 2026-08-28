@@ -20,7 +20,14 @@ public static class SupplierTestClient
     /// <summary>Returns a client whose Authorization header carries a live access token for a
     /// freshly registered supplier. Each call creates a distinct supplier, so tests sharing the
     /// collection's single database do not collide.</summary>
-    public static async Task<HttpClient> CreateVerifiedSupplierAsync(PostgresApiFixture fixture, string displayNameEn)
+    public static async Task<HttpClient> CreateVerifiedSupplierAsync(PostgresApiFixture fixture, string displayNameEn) =>
+        (await CreateVerifiedSupplierWithEmailAsync(fixture, displayNameEn)).Client;
+
+    /// <summary>As <see cref="CreateVerifiedSupplierAsync"/>, but also returns the generated email so
+    /// a test can log in again and inspect the login response itself - the refresh cookie is set on
+    /// that response, and is not observable from an already-authenticated client.</summary>
+    public static async Task<(HttpClient Client, string Email)> CreateVerifiedSupplierWithEmailAsync(
+        PostgresApiFixture fixture, string displayNameEn)
     {
         var client = fixture.CreateClient();
         var email = $"itest-{Guid.NewGuid():N}@example.com";
@@ -44,7 +51,7 @@ public static class SupplierTestClient
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", body.GetProperty("accessToken").GetString());
 
-        return client;
+        return (client, email);
     }
 
     /// <summary>Issues the same opaque verification token RegisterSupplierHandler issues, using the

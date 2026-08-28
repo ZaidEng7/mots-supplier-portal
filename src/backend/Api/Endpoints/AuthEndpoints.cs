@@ -123,6 +123,22 @@ public static class AuthEndpoints
 
         group.MapPost("/logout", (HttpContext httpContext) =>
         {
+            // Sonar flags these Delete calls for omitting Secure/HttpOnly/SameSite, on the reasoning
+            // that they are set on the Append above. That reasoning does not hold, and this comment
+            // is the record of why - the marking in SonarCloud is only bookkeeping.
+            //
+            // A browser identifies a cookie by the triple (name, domain, path). Secure, HttpOnly and
+            // SameSite are attributes carried BY a cookie, not part of its identity, so they play no
+            // role in matching. Delete emits a Set-Cookie for the same name with an expiry in the
+            // past; the browser matches it on the triple alone and removes the cookie whatever its
+            // flags were. Repeating Secure/HttpOnly here would change nothing about which cookie is
+            // removed.
+            //
+            // Path IS part of that triple, which is the part that genuinely matters, and it is the
+            // one supplied: RefreshCookiePath is the same constant the Append uses. Were the paths
+            // to drift apart, the Delete would silently match nothing and logout would leave a live
+            // refresh token in the browser while reporting 204 - so the shared constant, not the
+            // flags, is what this call depends on for correctness.
             httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
             return Results.NoContent();
         })
@@ -252,6 +268,9 @@ public static class AuthEndpoints
 
     private static IResult ClearAndUnauthorized(HttpContext httpContext)
     {
+        // Same Sonar finding and same answer as the Delete in /logout above: Secure/HttpOnly/SameSite
+        // are not part of the (name, domain, path) triple a browser matches on, so omitting them
+        // does not affect which cookie is removed. Path is part of it, and is supplied.
         httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
         return Results.Unauthorized();
     }
