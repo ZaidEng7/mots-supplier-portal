@@ -18,5 +18,6 @@ public static class SupplierQueryExtensions
             .Include(s => s.Contacts)
             .Include(s => s.Branches)
             .Include(s => s.BankAccounts)
-            .Include(s => s.CategoryLinks);
+            .Include(s => s.CategoryLinks)
+            .AsSplitQuery();
 }
