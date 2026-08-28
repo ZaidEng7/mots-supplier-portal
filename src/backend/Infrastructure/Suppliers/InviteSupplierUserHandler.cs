@@ -17,7 +17,6 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// only via AcceptSupplierUserInviteHandler, gated by the same opaque SecurityToken scheme as
 /// email-verification/password-reset (never a userId in the invite link).</summary>
 public sealed class InviteSupplierUserHandler(
-    AppDbContext db,
     UserManager<AppUser> userManager,
     IScopeContext scope,
     ISecurityTokenService securityTokenService,

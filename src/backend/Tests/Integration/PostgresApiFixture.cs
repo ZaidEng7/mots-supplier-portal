@@ -17,7 +17,11 @@ namespace MotsSupplierPortal.Tests.Integration;
 /// </summary>
 public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder().Build();
+    // CS0618: the parameterless PostgreSqlBuilder is obsolete and the image must now be explicit.
+    // Pinned to a specific major rather than `latest` on purpose - these tests assert behaviour
+    // that belongs to Postgres itself (xmin row versioning, ON CONFLICT allocation), so an
+    // unpinned image would let a silent upstream bump change what the suite is testing.
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
 
     public async Task InitializeAsync()

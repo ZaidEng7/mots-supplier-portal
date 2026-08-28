@@ -35,3 +35,7 @@ storybook-static/
 # Lighthouse CI
 lhci-reports/
 .lighthouseci/
+
+# Coverage output (MSP-70)
+TestResults/
+**/coverage/

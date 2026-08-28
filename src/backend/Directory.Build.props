@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    NFR-MNT-006 (MSP-70): warnings are errors.
+
+    Before this, the build tolerated warnings and CI went green over them, so a warning was
+    indistinguishable from silence. Three were sitting in the build unaddressed:
+
+      NU1510  Microsoft.Extensions.Identity.Core referenced redundantly (removed)
+      CS9113  unread `db` parameter in InviteSupplierUserHandler (removed)
+      CS0618  obsolete parameterless PostgreSqlBuilder in PostgresApiFixture (image pinned)
+
+    All three are fixed rather than suppressed, so this turns on against a clean build.
+
+    Applied here rather than per-project so a new project inherits it by default. The failure mode
+    of per-project settings is a project added later that quietly does not have them - the same
+    shape as the integration suite quietly not reporting coverage.
+
+    If something genuinely warrants an exception, suppress it narrowly at the site with
+    #pragma warning disable and a comment saying why. Do NOT add a blanket <NoWarn> here: that
+    turns one considered exception into a permanent hole nobody revisits, which is how a build
+    ends up tolerating twelve warnings again.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NuGet advisories (NU1901 through NU1904) are deliberately NOT errors here. Dependency risk is
+         gated in CI by the `dotnet list package` vulnerability scan, which distinguishes High/Critical
+         from Moderate; TreatWarningsAsErrors cannot, so leaving them on would fail the build for
+         any transitive moderate advisory and push someone to disable the whole property. -->
+    <WarningsNotAsErrors>NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+
+</Project>
