@@ -175,21 +175,29 @@ public sealed class SupplierDocument
     public bool SatisfiesSubmitRequirement =>
         State is DocumentState.Uploaded or DocumentState.UnderReview or DocumentState.Approved or DocumentState.ExpiringSoon;
 
-    /// <summary>Whether this version currently blocks reviewer approval of the whole application
-    /// (product-owner decision 2026-08-26: approval requires "no unresolved required docs
-    /// Rejected/Expired" - it does NOT require every document to already be Approved).</summary>
-    public bool BlocksApplicationApproval =>
-        State is DocumentState.Rejected or DocumentState.ScanRejected or DocumentState.Expired;
+    // BlocksApplicationApproval was removed by MSP-91 rather than left unused.
+    //
+    // It encoded "approval is blocked only by Rejected/ScanRejected/Expired", which read as the
+    // whole of the 2026-08-26 product-owner decision and was in fact narrower than it. That decision
+    // said approval must not require every document to be individually APPROVED. It said nothing
+    // about missing or unscanned documents, and this property let both through.
+    //
+    // The approval gate now uses SatisfiesSubmitRequirement - the same predicate as the submit gate,
+    // one vocabulary instead of two. Deleting the old property rather than leaving it unreferenced
+    // is deliberate: a property whose name states the superseded rule is exactly what the next
+    // person reaches for, and this codebase has a register full of correct-looking things that were
+    // describing a rule nobody held any more.
 
     /// <summary>
     /// BRULE-018: a Rejected or Expired document flags the profile incomplete until replaced with
     /// an approved version.
     ///
-    /// Distinct from <see cref="BlocksApplicationApproval"/>, which also counts ScanRejected. A
-    /// scan rejection means the file never became a document - there is nothing for the supplier to
-    /// replace yet - whereas Rejected and Expired are documents that existed and stopped counting.
-    /// The two predicates look similar and answer different questions; keeping one for both would
-    /// mean a scan failure silently changing an approved supplier's profile status.
+    /// Deliberately narrower than <see cref="SatisfiesSubmitRequirement"/>, which the approval gate
+    /// uses. A PendingScan or ScanRejected document blocks approval - the file never became a
+    /// document - but must NOT flag an already-approved supplier's profile incomplete, because there
+    /// is nothing for them to replace yet. The two predicates look similar and answer different
+    /// questions; collapsing them would let a scan failure silently change an approved supplier's
+    /// status.
     /// </summary>
     public bool FlagsProfileIncomplete =>
         State is DocumentState.Rejected or DocumentState.Expired;
