@@ -5,10 +5,17 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>
-/// Shared document-requirement evaluation used by both the submit gate (STORY-03.1.1, requires
-/// every required DocumentType to have a satisfying latest version) and the reviewer approval
-/// gate (STORY-03.2.1, product-owner decision 2026-08-26: only blocks on Rejected/ScanRejected/
-/// Expired, does not require every document to already be individually Approved).
+/// Shared document-requirement evaluation used by the submit gate (STORY-03.1.1), the resubmit
+/// gate (MSP-91), and the reviewer approval gate (STORY-03.2.1).
+///
+/// <para>Since MSP-91 all three ask the same question - does every required type have a latest
+/// version satisfying the submit requirement - rather than the approval gate using a second,
+/// looser predicate of its own. BRULE-017's text is authoritative and unchanged; the code moved to
+/// meet it.</para>
+///
+/// <para>The 2026-08-26 product-owner decision still holds exactly: approval does not require every
+/// document to be individually Approved, because SatisfiesSubmitRequirement admits Uploaded and
+/// UnderReview. What it never covered - missing and unscanned documents - is now blocked.</para>
 /// </summary>
 public static class DocumentCompletenessEvaluator
 {

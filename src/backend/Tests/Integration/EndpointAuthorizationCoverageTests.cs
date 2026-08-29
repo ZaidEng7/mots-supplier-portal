@@ -27,6 +27,32 @@ public sealed class EndpointAuthorizationCoverageTests(PostgresApiFixture fixtur
     {
         var dataSource = fixture.Services.GetRequiredService<EndpointDataSource>();
 
+        // THE DENOMINATOR, asserted before the rule (Phase 4 sweep, MSP-83).
+        //
+        // This test passes when `undeclared` is empty - and `undeclared` is also empty if the
+        // endpoint data source returned nothing, or if IsInfrastructureEndpoint grew broad enough to
+        // exclude everything. Both would render as the same green as genuine success, on the test
+        // that guarantees MSP-67's deny-by-default intent is stated at every endpoint.
+        //
+        // Five instruments in this repository have already been found reporting over an empty or
+        // absent set. A security-coverage test is the worst possible candidate to be the sixth.
+        var examined = dataSource.Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => !IsInfrastructureEndpoint(e))
+            .ToList();
+
+        var excluded = dataSource.Endpoints.OfType<RouteEndpoint>().Count() - examined.Count;
+
+        examined.Should().HaveCountGreaterThan(40,
+            $"this asserts authorization intent across the authored API surface, and only " +
+            $"{examined.Count} endpoints were examined - the application maps far more than that, " +
+            "so an empty or truncated set means the test is passing over nothing");
+
+        excluded.Should().BeLessThan(10,
+            $"IsInfrastructureEndpoint is meant to skip a handful of framework-provided mounts, " +
+            $"but it excluded {excluded} endpoints. A filter that grows broad enough to swallow " +
+            "authored endpoints turns this test green by removing its subject");
+
         var undeclared = dataSource.Endpoints
             .OfType<RouteEndpoint>()
             .Where(e => !IsInfrastructureEndpoint(e))

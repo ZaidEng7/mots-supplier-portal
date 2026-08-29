@@ -508,10 +508,18 @@ public sealed class Supplier
     /// <summary>
     /// UnderReview -> Approved -> Active. Only reachable via reviewer action carrying
     /// supplier.approve permission (enforced at the API); raises the ERP supplier-master sync
-    /// obligation (FEAT-03.5). <paramref name="blockingRequiredDocumentTypeCodes"/> is the
-    /// product-owner-decided approval gate (2026-08-26): approval is refused only if a required
-    /// document is currently Rejected/ScanRejected/Expired - it does NOT require every document to
-    /// already be individually Approved.
+    /// obligation (FEAT-03.5). <paramref name="blockingRequiredDocumentTypeCodes"/> is the approval
+    /// gate.
+    ///
+    /// <para>The 2026-08-26 product-owner decision holds and is unchanged: approval does NOT require
+    /// every document to already be individually Approved - an Uploaded or UnderReview document
+    /// waiting on a reviewer must not block.</para>
+    ///
+    /// <para>What changed in MSP-91 is what that decision never covered. It was implemented as
+    /// "refused only if a document is Rejected/ScanRejected/Expired", which also let MISSING and
+    /// unscanned required documents through. The decision was about not requiring approval; the
+    /// implementation was about not requiring presence. Those are different claims and only the
+    /// first was ever decided - see BRULE-017 and DocumentCompletenessEvaluator.</para>
     /// </summary>
     public void Approve(IReadOnlyList<string> blockingRequiredDocumentTypeCodes)
     {

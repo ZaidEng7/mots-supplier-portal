@@ -107,6 +107,25 @@ public sealed class LayerDependencyTests
     [Fact]
     public void Domain_exceptions_should_be_sealed_or_abstract()
     {
+        // The DENOMINATOR, asserted before the rule (Phase 4 sweep, MSP-83).
+        //
+        // This is the only rule in this file with a `.That()` filter, and a NetArchTest rule whose
+        // filter matches nothing passes - vacuously, and indistinguishably from passing on real
+        // types. Rename DomainException, move it to another assembly, or change what it inherits,
+        // and this test keeps reporting success over an empty set.
+        //
+        // Five instruments in this repository have already been found reporting on an empty or
+        // absent denominator. This is the cheapest possible defence against being the sixth.
+        var domainExceptions = Types.InAssembly(typeof(Domain.Suppliers.Supplier).Assembly)
+            .That()
+            .Inherit(typeof(Exception))
+            .GetTypes()
+            .ToList();
+
+        domainExceptions.Should().NotBeEmpty(
+            "this rule is about domain exception types - if the filter matches none, the rule is " +
+            "passing over nothing rather than passing");
+
         var result = Types.InAssembly(typeof(Domain.Suppliers.Supplier).Assembly)
             .That()
             .Inherit(typeof(Exception))
