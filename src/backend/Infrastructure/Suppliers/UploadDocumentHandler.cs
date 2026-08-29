@@ -97,10 +97,22 @@ public sealed class UploadDocumentHandler(
         var quarantineKey = $"quarantine/{supplier.Id}/{documentType.Id}/{Guid.NewGuid():N}{extension}";
         await fileStorage.SaveAsync(quarantineKey, buffered, expectedContentType, ct);
 
-        var document = SupplierDocument.CreatePendingScan(
-            supplier.Id, documentType.Id, nextVersion, quarantineKey,
-            command.OriginalFileName, expectedContentType, command.SizeBytes, scope.UserId.Value,
-            command.IssueDate, command.ExpiryDate);
+        SupplierDocument document;
+        try
+        {
+            document = SupplierDocument.CreatePendingScan(
+                supplier.Id, documentType.Id, nextVersion, quarantineKey,
+                command.OriginalFileName, expectedContentType, command.SizeBytes, scope.UserId.Value,
+                command.IssueDate, command.ExpiryDate,
+                documentType.ExpiryTracked, DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime));
+        }
+        catch (DomainException ex)
+        {
+            // BRULE-020. Note the file has already been written to quarantine by this point; it is
+            // left there rather than deleted, because the AV pipeline and the retention job own that
+            // prefix and a half-deleted upload is harder to reason about than an orphaned one.
+            return new UploadDocumentResult.InvalidExpiry(ex.Message);
+        }
 
         db.SupplierDocuments.Add(document);
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 namespace MotsSupplierPortal.Domain.Suppliers;
 
 /// <summary>
@@ -27,11 +28,52 @@ public sealed class SupplierDocument
 
     private SupplierDocument() { }
 
+    /// <summary>
+    /// BRULE-020, both halves.
+    ///
+    /// A type that tracks expiry must be given a valid FUTURE expiry date at upload. Previously
+    /// `ExpiryTracked = true` silently accepted null and past dates, so a document could be filed
+    /// as current while already expired, or with no expiry at all - and the expiry job, which
+    /// filters on `ExpiryDate != null`, would never look at it again.
+    ///
+    /// The second half - "types without expiry never enter ExpiringSoon/Expired" - is enforced
+    /// structurally rather than by convention: a non-tracked type has its expiry date DISCARDED
+    /// here, so no such row can carry a date for the job to act on. Relying on callers not to send
+    /// one would be correctness by coincidence.
+    /// </summary>
     public static SupplierDocument CreatePendingScan(
         Guid supplierId, Guid documentTypeId, int version, string quarantineKey,
         string originalFileName, string contentType, long sizeBytes, Guid uploadedByUserId,
-        DateOnly? issueDate, DateOnly? expiryDate)
+        DateOnly? issueDate, DateOnly? expiryDate, bool expiryTracked, DateOnly today)
     {
+        if (expiryTracked)
+        {
+            if (expiryDate is null)
+            {
+                throw new DomainException("This document type requires an expiry date.");
+            }
+
+            if (expiryDate <= today)
+            {
+                // InvariantCulture, and this is not defensive tidiness - it is a crash that was
+                // reproduced. Interpolating a DateOnly uses CurrentCulture, and on an Arabic-locale
+                // host that is the Umm al-Qura calendar, which only supports 1900-2077 Gregorian.
+                // Formatting anything outside that range throws ArgumentOutOfRangeException from
+                // INSIDE this exception's construction, so the guard that should have returned a
+                // clean 400 produced an unhandled 500 instead.
+                //
+                // Same family as MSP-60, which fixed the PARSING side at DocumentEndpoints.cs.
+                // This is the formatting side, and it was introduced by this very validation.
+                throw new DomainException(
+                    $"The expiry date {expiryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} is not in the future; a document cannot be filed as current while already expired.");
+            }
+        }
+        else
+        {
+            // Discarded, not merely ignored - see the summary above.
+            expiryDate = null;
+        }
+
         return new SupplierDocument
         {
             Id = Guid.CreateVersion7(),

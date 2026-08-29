@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -152,6 +153,10 @@ public sealed class AuditCorrelationTests(PostgresApiFixture fixture)
         using var content = new MultipartFormDataContent
         {
             { new StringContent(DocumentUploadTests.TaxCertificateDocumentTypeId.ToString()), "documentTypeId" },
+            // BRULE-020 (MSP-68): tax_certificate is ExpiryTracked, so a future expiry is now
+            // mandatory. This test previously uploaded without one and passed, because the rule was
+            // unenforced - the upload succeeded and the document could never expire.
+            { new StringContent(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), "expiryDate" },
         };
         var file = new ByteArrayContent(DocumentUploadTests.MinimalPdfBytes);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");

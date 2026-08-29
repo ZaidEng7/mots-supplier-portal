@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -13,14 +14,27 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// target state, so re-running (e.g. after a host restart) never double-transitions or
 /// double-notifies.
 /// </summary>
-public sealed class DocumentExpiryJob(AppDbContext db, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
+public sealed class DocumentExpiryJob(
+    AppDbContext db,
+    IAuditLogger auditLogger,
+    IBackgroundJobClient backgroundJobs,
+    IConfiguration configuration)
 {
-    private static readonly TimeSpan ExpiringSoonWindow = TimeSpan.FromDays(30); // [ASSUMPTION] matches FEAT-05.5's "configurable window"
+    /// <summary>
+    /// FR-DOC-006 calls this window configurable; it was a private static readonly const, which is
+    /// the opposite. Changing it required a redeploy, and the comment beside it claimed
+    /// "configurable" - an artifact asserting something untrue, the pattern this codebase keeps
+    /// producing.
+    ///
+    /// Default stays 30 days so behaviour is unchanged where nothing is configured.
+    /// </summary>
+    private int ExpiringSoonWindowDays =>
+        configuration.GetValue("Documents:ExpiringSoonWindowDays", 30);
 
     public async Task RunAsync(CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
-        var soonThreshold = today.AddDays(ExpiringSoonWindow.Days);
+        var soonThreshold = today.AddDays(ExpiringSoonWindowDays);
 
         var expiringSoon = await db.SupplierDocuments
             .Where(d => d.IsLatestVersion && d.State == DocumentState.Approved && d.ExpiryDate != null && d.ExpiryDate <= soonThreshold)
