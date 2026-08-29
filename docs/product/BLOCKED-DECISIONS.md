@@ -100,3 +100,27 @@ a question engineering is not in a position to close.
 **Holding up.** Nothing is blocked from shipping. The mechanism is complete and tested; `DocumentType.IsAwardCritical` defaults to false on every seeded type, so BRULE-023 currently suspends nobody.
 
 **Why it shipped dormant rather than with a guess.** The two ways of being wrong are not symmetric. Flagging a type the Ministry would not have chosen suspends real suppliers and blocks their participation, and reactivating them later does not undo having been blocked. Flagging none leaves behaviour exactly as it is today. The answer is a data change, not a deployment.
+
+## BRULE-016 — is the required document set category-dependent? (MSP-86)
+
+**Question.** BRULE-016 says the required set derives from active document types *and the supplier's category*. Today it derives from active types alone, so every supplier sees the same list regardless of what they do.
+
+**Holding up.** MSP-86. It is the only item of MSP-68 that did not ship.
+
+**Why we cannot decide it.** Which categories require which documents is procurement policy, not a modelling choice. Guessing produces a required set that either blocks suppliers over documents nobody wanted or lets them through without ones somebody did.
+
+## BRULE-017 — does a *missing* required document block approval?
+
+**Question.** The rule text says yes. `DocumentCompletenessEvaluator` says no, and records that as a product-owner decision dated 2026-08-26. One of the two artifacts is wrong.
+
+**Holding up.** Nothing today — the submit gate masks it. It becomes reachable the moment an admin activates a new required document type after a supplier has submitted.
+
+**Why it is here.** This is not a Ministry question so much as a "which of our own artifacts is authoritative" question, and it needs an answer before Phase 4 re-audits the item. Whichever way it goes, the other artifact gets corrected rather than left to disagree.
+
+## NFR-OBS-006 — is background job health exposed in production? (MSP-90)
+
+**Question.** In production the Hangfire dashboard is not mapped at all, so job health is observable by no route. Metrics only, a read-only health endpoint, or the dashboard behind the MSP-87 filter?
+
+**Holding up.** MSP-90, and the NFR-OBS-006 line in the 160-item audit.
+
+**Not a Ministry question.** Answerable internally — listed here because it is a decision rather than a task, and because it has a hard ordering constraint: the dashboard option must not ship before MSP-89 removes PII and live tokens from job arguments.
