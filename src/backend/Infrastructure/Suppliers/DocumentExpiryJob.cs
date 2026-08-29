@@ -9,10 +9,19 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>
-/// FEAT-05.5: recurring job moving Approved -> ExpiringSoon (within a configurable window) and
-/// ExpiringSoon -> Expired at expiry. Idempotent - only acts on documents not already in the
-/// target state, so re-running (e.g. after a host restart) never double-transitions or
-/// double-notifies.
+/// FEAT-05.5 / BRULE-025 / FR-NOT-006: moves Approved -> ExpiringSoon (within a configurable
+/// window) and ExpiringSoon -> Expired at expiry, and chases renewal on an escalating cadence.
+///
+/// <para><b>What changed and why.</b> De-duplication was previously an accident of the state
+/// machine: <c>MarkExpiringSoon</c> throws once a document is already ExpiringSoon, so the job could
+/// only ever notify once. It behaved correctly and for the wrong reason, and the same accident made
+/// BRULE-025 impossible - an escalating cadence needs to notify more than once, which the guard that
+/// was providing the de-duplication forbade. Reminders are now recorded in
+/// <see cref="DocumentExpiryReminder"/>, so escalation and de-duplication stop being in tension.</para>
+///
+/// <para><b>Assume this runs more than once a day.</b> Retries, host restarts, manual triggers and
+/// schedule changes all re-run it. Nothing here is keyed on the run; everything is keyed on what has
+/// already been communicated about a given document version.</para>
 /// </summary>
 public sealed class DocumentExpiryJob(
     AppDbContext db,
@@ -27,13 +36,47 @@ public sealed class DocumentExpiryJob(
     /// producing.
     ///
     /// Default stays 30 days so behaviour is unchanged where nothing is configured.
+    ///
+    /// <para><b>This window does NOT govern the reminder ladder.</b> It decides when a document
+    /// enters ExpiringSoon (BRULE-021 / FR-DOC-006); the ladder decides when the supplier is told
+    /// (BRULE-025), and it is bounded by its own widest threshold. The two numbers coincide only at
+    /// the shared default of 30, which is exactly why the coupling is easy to assume and worth
+    /// stating. Change this window and read <see cref="ReminderThresholdDays"/> before assuming the
+    /// reminders followed it.</para>
     /// </summary>
     private int ExpiringSoonWindowDays =>
         configuration.GetValue("Documents:ExpiringSoonWindowDays", 30);
 
+    /// <summary>
+    /// BRULE-025's cadence, marked `[ASSUMPTION]` in BUSINESS-RULES.md - the Ministry has not
+    /// confirmed 30/14/3. Configurable for that reason: when they decide, it is a setting change
+    /// rather than a deploy, and the reminder ledger keys on the threshold value itself so a change
+    /// cannot re-interpret reminders already sent.
+    ///
+    /// <para><b>Independent of ExpiringSoonWindowDays, deliberately.</b> The state boundary and the
+    /// communication schedule are different questions: the state is what the system believes, the
+    /// ladder is what the supplier has been told. Two consequences, both intended, neither obvious:</para>
+    /// <list type="bullet">
+    /// <item>A window WIDER than the top rung (say 45 against 30) leaves the document sitting in
+    /// ExpiringSoon for fifteen days before the first email. The state is ahead of the conversation.
+    /// If that silence is unwanted, the fix is to add a rung, not to widen the ladder implicitly -
+    /// a reminder schedule should be a list of decisions, not a side effect of a threshold.</item>
+    /// <item>A window NARROWER than the top rung (say 14 against 30) fires the 30-day rung while the
+    /// document is still Approved. That is why Approved is in the candidate filter below and not
+    /// only ExpiringSoon: dropping it would silently delete the supplier's first reminder whenever
+    /// someone tightened the window, which is the kind of loss nobody would attribute to the setting
+    /// they changed.</item>
+    /// </list>
+    /// </summary>
+    private int[] ReminderThresholdDays =>
+        configuration.GetSection("Documents:RenewalReminderDays").Get<int[]>() is { Length: > 0 } configured
+            ? [.. configured.Distinct().OrderByDescending(d => d)]
+            : [30, 14, 3];
+
     public async Task RunAsync(CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
+        var now = DateTimeOffset.UtcNow;
+        var today = DateOnly.FromDateTime(now.Date);
         var soonThreshold = today.AddDays(ExpiringSoonWindowDays);
 
         var expiringSoon = await db.SupplierDocuments
@@ -56,29 +99,126 @@ public sealed class DocumentExpiryJob(
             await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expired", ct: ct);
         }
 
-        if (expiringSoon.Count > 0 || expired.Count > 0)
+        var reminders = await DecideRemindersAsync(today, now, ct);
+
+        if (expiringSoon.Count > 0 || expired.Count > 0 || reminders.Count > 0)
         {
+            // The ledger rows and the state changes commit together. If the process dies after the
+            // email is enqueued but before the ledger is written, the supplier gets one duplicate;
+            // if it dies the other way round, they get silence. Committing first and enqueuing after
+            // chooses the duplicate, which is the recoverable failure.
             await db.SaveChangesAsync(ct);
         }
 
-        // Notifications are enqueued after the state-change transaction commits, and only for
-        // documents this run actually transitioned - re-running the idempotent job never re-notifies.
-        foreach (var doc in expiringSoon)
-        {
-            var email = await db.Users.Where(u => u.SupplierId == doc.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
-            if (email is not null)
-            {
-                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiringEmailAsync(email, doc.OriginalFileName, CancellationToken.None));
-            }
-        }
-
+        // The Approved -> ExpiringSoon transition deliberately sends nothing of its own. It used to,
+        // and keeping that would have emailed twice on the same run for the same document: once for
+        // crossing the state boundary and once for crossing the 30-day cadence step, which are the
+        // same event described two ways. The cadence owns every "your document is expiring" message;
+        // the transition owns the state and its audit entry.
         foreach (var doc in expired)
         {
-            var email = await db.Users.Where(u => u.SupplierId == doc.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
-            if (email is not null)
-            {
-                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiredEmailAsync(email, doc.OriginalFileName, CancellationToken.None));
-            }
+            await NotifyAsync(doc, (email, name) =>
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiredEmailAsync(email, name, CancellationToken.None)), ct);
         }
+
+        foreach (var doc in reminders)
+        {
+            await NotifyAsync(doc, (email, name) =>
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiringEmailAsync(email, name, CancellationToken.None)), ct);
+        }
+    }
+
+    /// <summary>
+    /// Works out which cadence steps a document has newly crossed, writes the ledger rows, and says
+    /// which of them warrant an email.
+    ///
+    /// <para>A document first seen with three days left has crossed 30, 14 and 3 simultaneously -
+    /// on a first deployment, or after a job outage, that is the normal case rather than an exotic
+    /// one. Sending three emails is absurd; sending one per day for the next three days is worse,
+    /// because it chases a deadline that has already effectively arrived. So every newly crossed
+    /// step is RECORDED, and only the most urgent one is SENT. The ledger then reflects what the
+    /// supplier actually received.</para>
+    /// </summary>
+    private async Task<List<SupplierDocument>> DecideRemindersAsync(
+        DateOnly today, DateTimeOffset now, CancellationToken ct)
+    {
+        var thresholds = ReminderThresholdDays;
+        var widest = thresholds.Max();
+        var horizon = today.AddDays(widest);
+
+        // Still-live documents only. An expired document is chased by BRULE-023's suspension path,
+        // not by renewal reminders, and a rejected one has a different conversation attached to it.
+        //
+        // Approved is included on purpose, not incidentally: see ReminderThresholdDays. A rung can
+        // fall due before the document has crossed into ExpiringSoon, and it should still be sent.
+        var candidates = await db.SupplierDocuments
+            .Where(d => d.IsLatestVersion
+                && (d.State == DocumentState.Approved || d.State == DocumentState.ExpiringSoon)
+                && d.ExpiryDate != null
+                && d.ExpiryDate >= today
+                && d.ExpiryDate <= horizon)
+            .ToListAsync(ct);
+
+        if (candidates.Count == 0) return [];
+
+        var candidateIds = candidates.Select(d => d.Id).ToList();
+        var alreadyRecorded = await db.DocumentExpiryReminders
+            .Where(r => candidateIds.Contains(r.SupplierDocumentId))
+            .Select(r => new { r.SupplierDocumentId, r.DocumentVersion, r.ThresholdDays })
+            .ToListAsync(ct);
+
+        var recorded = alreadyRecorded
+            .Select(r => (r.SupplierDocumentId, r.DocumentVersion, r.ThresholdDays))
+            .ToHashSet();
+
+        var toNotify = new List<SupplierDocument>();
+
+        foreach (var doc in candidates)
+        {
+            var daysRemaining = doc.ExpiryDate!.Value.DayNumber - today.DayNumber;
+
+            var newlyCrossed = thresholds
+                .Where(t => daysRemaining <= t)
+                .Where(t => !recorded.Contains((doc.Id, doc.Version, t)))
+                .ToList();
+
+            if (newlyCrossed.Count == 0) continue;
+
+            // Most urgent = smallest threshold. It is sent; the wider ones it overtook are recorded
+            // as passed so they cannot fire later as a backlog.
+            var mostUrgent = newlyCrossed.Min();
+
+            foreach (var threshold in newlyCrossed)
+            {
+                db.DocumentExpiryReminders.Add(DocumentExpiryReminder.Record(
+                    doc.Id, doc.Version, threshold, wasSent: threshold == mostUrgent, now));
+            }
+
+            toNotify.Add(doc);
+        }
+
+        return toNotify;
+    }
+
+    /// <summary>
+    /// The single point where a document event becomes a message to a supplier.
+    ///
+    /// <para>BRULE-025 asks for email <b>and in-app</b>. In-app notifications have no store, no
+    /// read/unread model and no endpoint yet, so building half of one here would be worse than
+    /// leaving the seam visible: this method is where the second channel attaches, and it is the
+    /// only place that needs to change when it exists.</para>
+    ///
+    /// <para>Passing the address into the job is what MSP-87 found putting supplier PII into the
+    /// Hangfire store. That is tracked separately, and this method is also the single place the fix
+    /// will land - the job argument becomes a user id resolved inside the job.</para>
+    /// </summary>
+    private async Task NotifyAsync(SupplierDocument doc, Action<string, string> enqueueEmail, CancellationToken ct)
+    {
+        var email = await db.Users
+            .Where(u => u.SupplierId == doc.SupplierId)
+            .Select(u => u.Email)
+            .FirstOrDefaultAsync(ct);
+
+        if (email is not null) enqueueEmail(email, doc.OriginalFileName);
     }
 }
