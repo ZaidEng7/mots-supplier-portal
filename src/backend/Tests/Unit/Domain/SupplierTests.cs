@@ -307,7 +307,7 @@ public class SupplierTests
         supplier.PickUpForReview();
         supplier.RequestInfo();
 
-        supplier.Resubmit();
+        supplier.Resubmit([]);
 
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.Resubmitted);
     }
@@ -317,9 +317,28 @@ public class SupplierTests
     {
         var supplier = CreateSubmittedSupplier();
 
-        var act = supplier.Resubmit;
+        var act = () => supplier.Resubmit([]);
 
         act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Resubmit_refuses_when_a_required_document_is_outstanding()
+    {
+        // MSP-91. Resubmit used to take no argument, which made it a second entrance to review with
+        // no gate on it - a supplier could re-upload a required document (superseding the approved
+        // version, leaving the latest in PendingScan), resubmit through here, and be approved
+        // holding a document nobody had scanned. The parameter is required rather than optional so
+        // a caller cannot forget it.
+        var supplier = CreateSubmittedSupplier();
+        supplier.PickUpForReview();
+        supplier.RequestInfo();
+
+        var act = () => supplier.Resubmit(["tax_certificate"]);
+
+        act.Should().Throw<DomainException>().WithMessage("*missing required items*tax_certificate*");
+        supplier.OnboardingState.Should().Be(SupplierOnboardingState.InfoRequested,
+            "a refused resubmit must leave the supplier where it was, not half-way through");
     }
 
     [Fact]
@@ -328,7 +347,7 @@ public class SupplierTests
         var supplier = CreateSubmittedSupplier();
         supplier.PickUpForReview();
         supplier.RequestInfo();
-        supplier.Resubmit();
+        supplier.Resubmit([]);
 
         supplier.PickUpForReview();
 

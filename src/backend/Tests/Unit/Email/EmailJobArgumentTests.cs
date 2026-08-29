@@ -16,6 +16,17 @@ namespace MotsSupplierPortal.Tests.Unit.Email;
 ///
 /// <para>This is the MSP-88 principle applied while we have the choice: a comment saying "pass ids,
 /// not addresses" is a note for someone already looking. This is a control.</para>
+///
+/// <para><b>There is a stronger control than this one, and it is worth knowing it is here.</b>
+/// Reintroducing an address argument does not merely fail this test - it stops the integration test
+/// project COMPILING, because EmailJobBehaviourTests calls these methods directly. A compiler that
+/// refuses beats a test that fails, because a test can be deleted by someone who thinks it is noise
+/// and a compile error cannot be. Same technique as removing the correlationId parameter from
+/// IAuditLogger outright (MSP-64): make the wrong thing impossible to express.</para>
+///
+/// <para>The honest boundary: that mechanism proves SHAPE, never behaviour. It cannot tell you the
+/// job mints the right token for the right user - EmailJobBehaviourTests exists for that, and the
+/// coverage floor caught the gap precisely because only the shape half had been built.</para>
 /// </summary>
 public sealed class EmailJobArgumentTests
 {
