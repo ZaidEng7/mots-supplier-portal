@@ -23,9 +23,18 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
             .Where(s => s.ReferenceCode == referenceCode && s.Id == scope.SupplierId)
             .FirstOrDefaultAsync(ct);
 
-        return supplier is null
-            ? new GetSupplierResult.NotFoundOrOutOfScope()
-            : new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier));
+        if (supplier is null)
+        {
+            return new GetSupplierResult.NotFoundOrOutOfScope();
+        }
+
+        // BRULE-018: computed on read rather than stored, so it cannot drift from the documents it
+        // describes. This is the path that makes an expiry visible on an ALREADY-APPROVED supplier -
+        // the submit and approval gates are both pre-approval and never run again.
+        var incomplete = await DocumentCompletenessEvaluator
+            .GetProfileIncompleteDocumentTypeCodesAsync(db, supplier.Id, ct);
+
+        return new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier, incomplete));
     }
 
     public async Task<GetSupplierResult> HandleOwnAsync(CancellationToken ct)
@@ -39,8 +48,17 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
             .IncludeProfile()
             .FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
 
-        return supplier is null
-            ? new GetSupplierResult.NotFoundOrOutOfScope()
-            : new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier));
+        if (supplier is null)
+        {
+            return new GetSupplierResult.NotFoundOrOutOfScope();
+        }
+
+        // BRULE-018: computed on read rather than stored, so it cannot drift from the documents it
+        // describes. This is the path that makes an expiry visible on an ALREADY-APPROVED supplier -
+        // the submit and approval gates are both pre-approval and never run again.
+        var incomplete = await DocumentCompletenessEvaluator
+            .GetProfileIncompleteDocumentTypeCodesAsync(db, supplier.Id, ct);
+
+        return new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier, incomplete));
     }
 }

@@ -180,4 +180,17 @@ public sealed class SupplierDocument
     /// Rejected/Expired" - it does NOT require every document to already be Approved).</summary>
     public bool BlocksApplicationApproval =>
         State is DocumentState.Rejected or DocumentState.ScanRejected or DocumentState.Expired;
+
+    /// <summary>
+    /// BRULE-018: a Rejected or Expired document flags the profile incomplete until replaced with
+    /// an approved version.
+    ///
+    /// Distinct from <see cref="BlocksApplicationApproval"/>, which also counts ScanRejected. A
+    /// scan rejection means the file never became a document - there is nothing for the supplier to
+    /// replace yet - whereas Rejected and Expired are documents that existed and stopped counting.
+    /// The two predicates look similar and answer different questions; keeping one for both would
+    /// mean a scan failure silently changing an approved supplier's profile status.
+    /// </summary>
+    public bool FlagsProfileIncomplete =>
+        State is DocumentState.Rejected or DocumentState.Expired;
 }

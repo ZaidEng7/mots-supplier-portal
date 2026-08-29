@@ -68,7 +68,15 @@ public sealed record SupplierDto(
     /// supplier row. A client can compare it across two GETs to detect "someone else changed this
     /// since I last loaded it" (no client-supplied If-Match write path yet - that's a separate,
     /// larger change across every mutation endpoint, flagged but not built here).</summary>
-    long RowVersion);
+    long RowVersion,
+    // BRULE-018 (MSP-68): required document types whose latest version is Rejected or Expired -
+    // the profile is flagged incomplete until they are replaced with approved versions.
+    //
+    // NULL means "not computed on this response"; EMPTY means "nothing outstanding". They are
+    // different answers and a client must be able to tell them apart. This DTO is returned from 32
+    // call sites, nearly all profile mutations with no reason to run the query - a field silently
+    // defaulting to empty there would report a clean profile on every edit.
+    IReadOnlyList<string>? IncompleteDocumentTypeCodes = null);
 
 public abstract record GetSupplierResult
 {
