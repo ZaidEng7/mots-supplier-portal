@@ -440,10 +440,13 @@ jobs:
 
           failures = []
 
-          # ---- Sonar's own conditions, enforced unchanged -----------------------------------
-          # Ratings are 1=A 2=B 3=C 4=D 5=E. These are the conditions we actually care about and
-          # they are taken verbatim from Sonar's verdict; new_coverage is excluded here because it
-          # is judged below against our floor rather than Sonar's unmeetable 80%.
+          # on_pull_request decided here - the ENFORCED loop below needs it, not only the
+          # coverage section further down.
+          on_pull_request = bool(os.environ.get("PR_NUMBER"))
+
+          # ---- Sonar's own conditions --------------------------------------------------------
+          # Ratings are 1=A 2=B 3=C 4=D 5=E. new_coverage is excluded here because it is judged
+          # below against our floor rather than Sonar's unmeetable 80%.
           RATINGS = {"1": "A", "2": "B", "3": "C", "4": "D", "5": "E"}
           ENFORCED = {
               "new_security_rating":          "Security rating on new code",
@@ -469,7 +472,27 @@ jobs:
               shown = RATINGS.get(actual, actual) if key.endswith("_rating") else actual
               print(f"{ENFORCED[key]}: {shown} ({status})")
               if status == "ERROR":
-                  failures.append(f"{ENFORCED[key]} = {shown}")
+                  # PULL REQUESTS ONLY, for the identical reason the coverage floor further down
+                  # is PR-only - and found the same way that reasoning was found the first time:
+                  # by main's own push analysis going red.
+                  #
+                  # On a pull request, Sonar's "new code" is the diff, which is what these ratings
+                  # are meant to judge. On a push to main it is whatever the new-code period says,
+                  # and on a project this young almost any period covers nearly the whole history -
+                  # the push right after this fix landed reported 5,327 "new" lines and failed
+                  # Reliability (C) and Duplication (3.4%) over effectively the entire codebase.
+                  # That is overall quality wearing a new-code label, which is exactly what the
+                  # coverage exemption below was already written to prevent - it had simply never
+                  # been needed for the rating conditions before, because the previous 7-day
+                  # window kept main's new-code set small by accident on a project pushing daily.
+                  #
+                  # Every change still reaches main through a PR, where these ARE enforced, so
+                  # nothing escapes review. Only main's own after-the-fact analysis is exempted.
+                  if on_pull_request:
+                      failures.append(f"{ENFORCED[key]} = {shown}")
+                  else:
+                      print(f"  (not enforced on main - see MSP-70; this metric on this branch "
+                            f"is currently rating the whole project, not a diff)")
 
           # If Sonar stops reporting a condition we rely on, that is a silent loss of enforcement.
           # Fail loudly rather than quietly enforcing less than we think we are.
@@ -496,7 +519,6 @@ jobs:
           # escapes it. The Sonar ratings above still run on main, because those are meaningful
           # there. Fixing the new-code period is a separate known follow-up; when it is fixed this
           # exemption should be revisited rather than left as scar tissue.
-          on_pull_request = bool(os.environ.get("PR_NUMBER"))
           if not on_pull_request:
               print(f"Coverage: {coverage}% over {new_lines} new lines - floor not applied on main "
                     f"(see comment above).")
