@@ -35,6 +35,15 @@ public sealed class JwtTokenService(JwtSigningKeyProvider signingKeyProvider, IO
 
         if (supplierId is not null) claims.Add(new Claim("supplierId", supplierId.Value.ToString()));
         if (organizationId is not null) claims.Add(new Claim("organizationId", organizationId.Value.ToString()));
+        // WARNING FOR ANYONE ADDING A ROLE CHECK: these go into a CUSTOM "roles" claim, and
+        // TokenValidationParameters.RoleClaimType is deliberately not set (authorization here is
+        // permission-based - see PermissionEndpointFilter, which reads "perms").
+        //
+        // The consequence is that ClaimsPrincipal.IsInRole() matches NOTHING and returns false for
+        // every user, including system_admin. It compiles, it reads correctly, and it silently
+        // denies everyone - which looks like a working guard if you only check that an
+        // unauthorised caller is refused. That nearly shipped in the Hangfire dashboard filter
+        // (MSP-87); read the roles claim directly instead, as that filter now does.
         claims.AddRange(roles.Select(r => new Claim("roles", r)));
         claims.AddRange(permissions.Select(p => new Claim("perms", p)));
         claims.AddRange(amr.Select(a => new Claim("amr", a)));
