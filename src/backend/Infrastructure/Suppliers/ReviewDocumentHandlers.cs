@@ -69,10 +69,13 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
         await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", scope.UserId, reason: reason, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        var email = await db.Users.Where(u => u.SupplierId == document.SupplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
-        if (email is not null)
+        var userId = await db.Users.Where(u => u.SupplierId == document.SupplierId)
+            .Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
+        if (userId is not null)
         {
-            backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentRejectedEmailAsync(email, document.OriginalFileName, reason, CancellationToken.None));
+            // The filename and the rejection reason are both on the document row, so the job reads
+            // them rather than the job store holding them (MSP-89).
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentRejectedEmailAsync(userId.Value, document.Id, CancellationToken.None));
         }
 
         return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));

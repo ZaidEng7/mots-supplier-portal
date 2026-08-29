@@ -15,9 +15,7 @@ namespace MotsSupplierPortal.Infrastructure.Auth;
 /// </summary>
 public sealed class ForgotPasswordHandler(
     UserManager<AppUser> userManager,
-    ISecurityTokenService securityTokenService,
-    IBackgroundJobClient backgroundJobs,
-    IConfiguration configuration) : IForgotPasswordHandler
+    IBackgroundJobClient backgroundJobs) : IForgotPasswordHandler
 {
     public async Task HandleAsync(ForgotPasswordCommand command, CancellationToken ct)
     {
@@ -27,11 +25,11 @@ public sealed class ForgotPasswordHandler(
             return; // silent no-op: caller sees the same "check your email" response either way
         }
 
-        var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.PasswordReset, TimeSpan.FromMinutes(30), ct);
-        var frontendUrl = configuration["App:PublicUrl"]
-            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
-        var resetUrl = $"{frontendUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
-
-        backgroundJobs.Enqueue<EmailJobs>(job => job.SendPasswordResetEmailAsync(user.Email!, resetUrl, CancellationToken.None));
+        // The token is minted inside the job (MSP-89), not here. Baking it into a job argument
+        // stored it in plaintext in the Hangfire tables for the whole retention window - a working
+        // password-reset credential at rest, which combined with anonymous forgot-password was the
+        // account-takeover chain MSP-87 found. The enumeration-resistance above is unchanged: the
+        // caller still sees the same response whether or not the user exists.
+        backgroundJobs.Enqueue<EmailJobs>(job => job.SendPasswordResetEmailAsync(user.Id, CancellationToken.None));
     }
 }
