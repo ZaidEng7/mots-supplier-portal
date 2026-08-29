@@ -592,7 +592,7 @@ jobs:
           # 19 lines from here and I introduced the exposure it warns about anyway; the Sonar
           # gate caught it as "Security rating on new code = C". An accurate comment beside the
           # hazard is not a control, which is the argument this project keeps making to itself.
-          npm run lint:json > lint.json || true
+          npm run --silent lint:json > lint.json || true
 
           files=$(jq -r '.number_of_files' lint.json)
           rules=$(jq -r '.number_of_rules' lint.json)
