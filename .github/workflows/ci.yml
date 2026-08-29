@@ -307,6 +307,29 @@ jobs:
           # Asserted rather than displayed, because a setting nobody re-reads is how it got here.
           # The new_code_periods endpoints do not exist on SonarCloud (SonarQube Server only,
           # "Unknown url"); the settings API is what answers.
+          # HOTFIX (MSP-70, same day): reference_branch/main at the PROJECT level broke the
+          # PUSH-to-main analysis itself. SonarCloud's error: "Invalid new code period 'main':
+          # version is none of the existing ones: [not provided]". A long-lived branch cannot
+          # reference itself as its own diff target, and the project-level setting applies to
+          # main's own analysis, not only to PR comparisons. This was found because main's push
+          # workflow went red immediately after merge - not caught by the PR that made the change,
+          # because a PR run never exercises a push-to-main analysis.
+          #
+          # Reset to a fixed 90-day window: valid on every branch including main, doesn't require
+          # a reference, and drains far slower than the 7-day default we were replacing. This is a
+          # stated, deliberate number rather than an inherited one - the property this whole
+          # exercise wanted - but it is provisional. Whether PR gate conditions ("new code")
+          # actually read this project-level setting at all, versus always diffing against the
+          # PR's target branch through a separate mechanism, is unconfirmed and now the open
+          # question rather than assumed.
+          echo "== resetting new code period to days/90 (hotfix) =="
+          curl -sS -u "$SONAR_TOKEN:" -X POST \
+            "https://sonarcloud.io/api/settings/set?component=$PROJECT_KEY&key=sonar.leak.period.type&value=days" \
+            -o hotfix1.json -w "  set type -> HTTP %{http_code}\n" || true
+          curl -sS -u "$SONAR_TOKEN:" -X POST \
+            "https://sonarcloud.io/api/settings/set?component=$PROJECT_KEY&key=sonar.leak.period&value=90" \
+            -o hotfix2.json -w "  set value -> HTTP %{http_code}\n" || true
+
           echo "== new code definition =="
           api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.leak.period.type,sonar.leak.period,sonar.new_code_period.type" | jq -c . | sed 's/^/    /'
 
