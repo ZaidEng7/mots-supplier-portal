@@ -291,9 +291,20 @@ jobs:
             | jq -r '.component.measures[] | "  \(.metric): \(.value)"' | sort
 
           echo ""
-          echo "== new code definition (Phase 4: previous_version against a repo with no tags) =="
-          api_opt "new_code_periods/list?project=$PROJECT_KEY" \
-            | jq -r 'if ((.newCodePeriods // []) | length) == 0 then "  (not reported by this endpoint - confirm in the project UI)" else (.newCodePeriods[] | "  \(.branchKey // "-"): \(.type) \(.value // "")") end'
+          # NEW CODE DEFINITION - and the answer was not what Phase 4 assumed.
+          #
+          # We expected PREVIOUS_VERSION against a repository with no tags, which would have made
+          # the boundary undefined. It is not. It is a SEVEN DAY ROLLING WINDOW, inherited from
+          # the SonarCloud instance default (parentOrigin: INSTANCE) - nobody here chose it.
+          #
+          # That is defined, but it moves: code written eight days ago stops being "new" and
+          # leaves the new-code gate permanently. Every condition in the MSP-70 blocking flip is
+          # a new-code condition, so the flip must decide this deliberately rather than inherit it.
+          #
+          # The new_code_periods endpoints do not exist on SonarCloud - they are SonarQube Server
+          # only, and return "Unknown url". The settings API is the one that answers here.
+          echo "== new code definition =="
+          api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.leak.period.type,sonar.leak.period,sonar.new_code_period.type" | jq -c . | sed 's/^/    /'
 
           echo ""
           echo "== exclusions as the server holds them =="
@@ -572,6 +583,35 @@ jobs:
       # resolves from the lockfile-pinned node_modules. `npx` was fetching-and-executing whatever
       # version happened to be published at build time, which in a CI pipeline is a supply-chain
       # exposure, not a style preference.
+      # MSP-95: npx is FORBIDDEN in this workflow, and this step is why.
+      #
+      # Stage 1 removed every npx call in favour of lockfile-pinned npm scripts, because npx
+      # fetches and executes whatever version is published at that moment - a supply-chain
+      # exposure in CI, not a style preference (githubactions:S6505/S8543). A comment saying so
+      # already sat in this file.
+      #
+      # It did not work. On this very ticket I wrote `npx oxlint` NINETEEN LINES below that
+      # comment, and what caught it was the Sonar gate turning Security-on-new-code to C - an
+      # instrument, not the comment. Stage 1's removal was reversible by anyone, including us,
+      # in under a minute.
+      #
+      # So: a grep, which cannot be read past.
+      - name: Forbid unpinned tool invocation in CI
+        run: |
+          set -euo pipefail
+          # Pattern assembled from a variable so this step does not match itself, and comment
+          # lines are stripped so the explanation above does not trip it either. Both of those
+          # are the difference between a guard that works and one that fails on its own text.
+          TOOL="npx"
+          if grep -vE '^[[:space:]]*#' .github/workflows/*.yml \
+             | grep -nE "(^|[^a-zA-Z_-])$TOOL "; then
+            echo "::error::$TOOL found in a workflow file. Tools must be invoked through npm"
+            echo "::error::scripts so they resolve from lockfile-pinned node_modules."
+            echo "::error::Add a script to package.json and call it with npm run --silent."
+            exit 1
+          fi
+          echo "Clean: no $TOOL in any workflow file."
+
       - name: Typecheck
         run: npm run typecheck
 
