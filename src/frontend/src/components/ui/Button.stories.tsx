@@ -4,7 +4,7 @@ import { Button } from './Button'
 const meta = {
   title: 'UI/Button',
   component: Button,
-  args: { children: '' },  // MSP-94 CI PROBE - reverted next
+  args: { children: 'Continue' },
 } satisfies Meta<typeof Button>
 
 export default meta
