@@ -283,6 +283,14 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+// Legal-but-questionable settings, reported once at boot. Not fatal: these configurations work,
+// they just behave in a way the person who set them probably did not intend. See
+// RequiredConfiguration.Warnings for why a comment on the setting is not enough.
+foreach (var warning in MotsSupplierPortal.Api.Configuration.RequiredConfiguration.Warnings(app.Configuration))
+{
+    app.Logger.LogWarning("Configuration warning: {Warning}", warning);
+}
+
 app.UseSerilogRequestLogging();
 
 // SECURITY-ARCHITECTURE.md §5.5: full secure-header set on every response. Applied first so it

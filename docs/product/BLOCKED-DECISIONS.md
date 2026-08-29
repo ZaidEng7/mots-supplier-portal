@@ -92,3 +92,11 @@ where the next person will find it — in the code at the point of use, not only
 
 That is why none of these is stopping work today. It is also why the list only grows: each item is
 a question engineering is not in a position to close.
+
+## BRULE-023 — which document types are award-critical
+
+**Question for the Ministry.** Expiry of an award-critical document auto-suspends the supplier. Which of the configured document types are award-critical?
+
+**Holding up.** Nothing is blocked from shipping. The mechanism is complete and tested; `DocumentType.IsAwardCritical` defaults to false on every seeded type, so BRULE-023 currently suspends nobody.
+
+**Why it shipped dormant rather than with a guess.** The two ways of being wrong are not symmetric. Flagging a type the Ministry would not have chosen suspends real suppliers and blocks their participation, and reactivating them later does not undo having been blocked. Flagging none leaves behaviour exactly as it is today. The answer is a data change, not a deployment.
