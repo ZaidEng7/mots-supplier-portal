@@ -9,11 +9,15 @@ import {
   pickUpApplication,
   approveApplication,
   rejectApplication,
+  changeSupplierLifecycle,
+  type SupplierLifecycleAction,
   requestApplicationInfo,
   ReviewApiError,
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
+import { lifecycleActionsFor } from './lifecycleActions'
+import { ReasonDialog } from '../components/ReasonDialog'
 
 // MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
 // unknown codes, and these are the codes the server enforces the supplier's edit restriction
@@ -23,33 +27,6 @@ const PROFILE_FIELDS = [
   'description', 'website', 'supplierGroup', 'currencyCode', 'primaryContactPhone',
   'legalInfo', 'address', 'contact', 'representative', 'branch', 'bankAccount', 'categoryLink', 'logo',
 ] as const
-
-function RejectDialog({ open, onOpenChange, onSubmit, isLoading }: { open: boolean; onOpenChange: (v: boolean) => void; onSubmit: (reason: string) => void; isLoading: boolean }) {
-  const { t } = useTranslation()
-  const [reason, setReason] = useState('')
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={t('review.reject')}>
-      <div className="flex flex-col gap-4">
-        <textarea
-          className="rounded-[0.375rem] p-2"
-          style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
-          rows={4}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder={t('review.reason')}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t('review.cancel')}
-          </Button>
-          <Button variant="danger" isLoading={isLoading} disabled={!reason.trim()} onClick={() => onSubmit(reason)}>
-            {t('review.reject')}
-          </Button>
-        </div>
-      </div>
-    </Dialog>
-  )
-}
 
 function RequestInfoDialog({
   open,
@@ -132,6 +109,7 @@ export function ReviewApplicationPage() {
   const queryClient = useQueryClient()
   const [rejectOpen, setRejectOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [lifecycleAction, setLifecycleAction] = useState<SupplierLifecycleAction | null>(null)
 
   const viewQuery = useQuery({
     queryKey: ['review-application', referenceCode],
@@ -179,6 +157,20 @@ export function ReviewApplicationPage() {
     onError: (err) => notify({ kind: 'danger', title: t('review.requestInfoFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
   })
 
+  const lifecycleMutation = useMutation({
+    mutationFn: ({ action, reason }: { action: SupplierLifecycleAction; reason: string }) =>
+      changeSupplierLifecycle(referenceCode, action, reason),
+    onSuccess: () => {
+      invalidate()
+      setLifecycleAction(null)
+      notify({ kind: 'success', title: t('review.decisionSuccess') })
+    },
+    // The server's 409 names which state is required (NFR-CMP-003/BRULE-097). Surfaced rather than
+    // swallowed: the UI hides inapplicable actions, but if one is somehow attempted the reviewer
+    // should see why it was refused.
+    onError: (err) => notify({ kind: 'danger', title: t('review.lifecycleFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
+  })
+
   const downloadMutation = useMutation({
     mutationFn: getDocumentDownloadUrl,
     onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
@@ -205,6 +197,12 @@ export function ReviewApplicationPage() {
   const canPickUp = state === 'Submitted' || state === 'Resubmitted'
   const canDecide = state === 'UnderReview'
 
+  // FR-ONB-009 lifecycle actions, offered only where the domain would accept them. This MIRRORS the
+  // server's rules; it does not replace them - the endpoints reject an illegal transition with 409
+  // regardless of what the UI shows.
+  const lifecycle = supplier.lifecycleState
+  const { canSuspend, canReactivate, canDeactivate } = lifecycleActionsFor(lifecycle)
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -216,7 +214,14 @@ export function ReviewApplicationPage() {
             {isArabic ? supplier.displayNameAr : supplier.displayNameEn}
           </h1>
         </div>
-        <Badge tone={state === 'InfoRequested' ? 'warning' : 'info'}>{state}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge tone={state === 'InfoRequested' ? 'warning' : 'info'}>{state}</Badge>
+          {/* Lifecycle is shown only once it has begun; 'None' would be noise on an application
+              that has not been approved yet. */}
+          {lifecycle !== 'None' ? (
+            <Badge tone={lifecycle === 'Active' ? 'success' : 'danger'}>{lifecycle}</Badge>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex gap-3">
@@ -237,6 +242,21 @@ export function ReviewApplicationPage() {
               {t('review.requestInfo')}
             </Button>
           </>
+        ) : null}
+        {canSuspend ? (
+          <Button variant="secondary" onClick={() => setLifecycleAction('suspend')}>
+            {t('review.suspend')}
+          </Button>
+        ) : null}
+        {canReactivate ? (
+          <Button variant="secondary" onClick={() => setLifecycleAction('reactivate')}>
+            {t('review.reactivate')}
+          </Button>
+        ) : null}
+        {canDeactivate ? (
+          <Button variant="danger" onClick={() => setLifecycleAction('deactivate')}>
+            {t('review.deactivate')}
+          </Button>
         ) : null}
       </div>
 
@@ -318,7 +338,36 @@ export function ReviewApplicationPage() {
         </div>
       ) : null}
 
-      <RejectDialog open={rejectOpen} onOpenChange={setRejectOpen} isLoading={rejectMutation.isPending} onSubmit={(reason) => rejectMutation.mutate(reason)} />
+      {/* Keyed by action so React REMOUNTS on each open. Without this the dialog keeps its previous
+          reason: opening Deactivate straight after a Suspend pre-fills the suspension's text, and a
+          reviewer can commit it without noticing. The reason IS the audit record (BRULE-096), so a
+          stale one is a false record, not a cosmetic annoyance. Found by opening the page, not by a
+          test - which is part of why the page-test harness now exists. */}
+      <ReasonDialog
+        key={lifecycleAction ?? 'none'}
+        open={lifecycleAction !== null}
+        onOpenChange={(v) => setLifecycleAction(v ? lifecycleAction : null)}
+        isLoading={lifecycleMutation.isPending}
+        title={lifecycleAction ? t(`review.${lifecycleAction}`) : ''}
+        confirmLabel={lifecycleAction ? t(`review.${lifecycleAction}`) : ''}
+        variant={lifecycleAction === 'reactivate' ? 'primary' : 'danger'}
+        warning={lifecycleAction === 'deactivate' ? t('review.deactivateWarning') : undefined}
+        onSubmit={(reason) => lifecycleAction && lifecycleMutation.mutate({ action: lifecycleAction, reason })}
+      />
+
+      {/* Reject uses the same dialog. It had a near-identical component of its own; keeping both
+          meant two copies of one mandatory-reason form free to drift, which Sonar flagged as
+          duplication. */}
+      <ReasonDialog
+        key="reject"
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        isLoading={rejectMutation.isPending}
+        title={t('review.reject')}
+        confirmLabel={t('review.reject')}
+        variant="danger"
+        onSubmit={(reason) => rejectMutation.mutate(reason)}
+      />
       <RequestInfoDialog
         open={infoOpen}
         onOpenChange={setInfoOpen}
