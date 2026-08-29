@@ -46,7 +46,19 @@ public static class DocumentCompletenessEvaluator
         foreach (var type in requiredTypes)
         {
             var latest = latestBySupplier.FirstOrDefault(d => d.DocumentTypeId == type.Id);
-            if (latest is not null && latest.BlocksApplicationApproval)
+
+            // MSP-91: the same predicate the submit gate uses, rather than a second one.
+            //
+            // It was `latest is not null && latest.BlocksApplicationApproval`, which let a MISSING
+            // required document through, and let a PendingScan one through - a file uploaded but
+            // never scanned. The recorded product-owner decision (2026-08-26) said approval must not
+            // require every document to already be *Approved*; it did not say approval should not
+            // require them to be *present*. Those are different claims and only the first was
+            // decided. This implements the first and nothing wider.
+            //
+            // SatisfiesSubmitRequirement admits Uploaded and UnderReview, so the decision is
+            // preserved exactly: a document waiting on a reviewer still does not block approval.
+            if (latest is null || !latest.SatisfiesSubmitRequirement)
             {
                 blocking.Add(type.Code);
             }

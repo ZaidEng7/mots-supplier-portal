@@ -225,7 +225,8 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
 
         try
         {
-            supplier.Resubmit();
+            supplier.Resubmit(await DocumentCompletenessEvaluator
+                .GetMissingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct));
             await auditLogger.LogAsync("Supplier", supplier.Id, "application_resubmitted", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
 
             supplier.PickUpForReview();

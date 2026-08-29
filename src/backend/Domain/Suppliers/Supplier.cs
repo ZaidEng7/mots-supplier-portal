@@ -659,12 +659,31 @@ public sealed class Supplier
     /// <summary>InfoRequested -> Resubmitted (STORY-03.3.1 AC2), an intermediate, individually
     /// audited state before the handler immediately advances it back to UnderReview via
     /// <see cref="PickUpForReview"/> for the reviewer's next pass.</summary>
-    public void Resubmit()
+    /// <summary>
+    /// InfoRequested -> Resubmitted, gated exactly as <see cref="Submit"/> is (BRULE-017, MSP-91).
+    ///
+    /// <para>It used to take no argument at all, which made it a second entrance to review with no
+    /// gate on it. Uploads are permitted in InfoRequested and versioning is append-only, so a
+    /// supplier could re-upload a required document - superseding the approved version, leaving the
+    /// latest in PendingScan - resubmit through this ungated path, and be approved holding a
+    /// required document nobody had scanned.</para>
+    ///
+    /// <para>Two entrances to the same state with different guards is where the next defect hides,
+    /// so the parameter is required rather than optional: a caller cannot forget it, because it will
+    /// not compile.</para>
+    /// </summary>
+    public void Resubmit(IReadOnlyList<string> missingRequiredDocumentTypeCodes)
     {
         if (OnboardingState != SupplierOnboardingState.InfoRequested)
         {
             throw new DomainException(
                 $"Cannot resubmit from state '{OnboardingState}'; only 'InfoRequested' is valid.");
+        }
+
+        var missing = GetMissingProfileFields().Concat(missingRequiredDocumentTypeCodes).ToList();
+        if (missing.Count > 0)
+        {
+            throw new DomainException($"Cannot resubmit: missing required items: {string.Join(", ", missing)}.");
         }
 
         OnboardingState = SupplierOnboardingState.Resubmitted;
