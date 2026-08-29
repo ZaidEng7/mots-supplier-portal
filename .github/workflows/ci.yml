@@ -291,6 +291,28 @@ jobs:
             | jq -r '.component.measures[] | "  \(.metric): \(.value)"' | sort
 
           echo ""
+          # ONE-OFF (MSP-70): set the new-code period to a reference branch of main.
+          #
+          # It was inheriting the SonarCloud instance default of a 7-day rolling window, which
+          # nobody here chose and which DRAINS: code written eight days ago stops being "new"
+          # and leaves every new-code condition permanently. Every condition in the blocking
+          # flip is a new-code condition, so a quiet fortnight would produce a gate measuring
+          # nothing and reporting green.
+          #
+          # A reference branch makes "new code" mean "not yet on main", which is what everyone
+          # reading the gate already believes it means.
+          #
+          # This block is removed once applied - the read below is the permanent part.
+          echo "== setting new code period to reference branch: main =="
+          curl -sS -u "$SONAR_TOKEN:" -X POST \
+            "https://sonarcloud.io/api/settings/set?component=$PROJECT_KEY&key=sonar.leak.period.type&value=reference_branch" \
+            -o set1.json -w "  set type -> HTTP %{http_code}\n" || true
+          cat set1.json 2>/dev/null | head -c 300; echo ""
+          curl -sS -u "$SONAR_TOKEN:" -X POST \
+            "https://sonarcloud.io/api/settings/set?component=$PROJECT_KEY&key=sonar.leak.period&value=main" \
+            -o set2.json -w "  set value -> HTTP %{http_code}\n" || true
+          cat set2.json 2>/dev/null | head -c 300; echo ""
+
           # NEW CODE DEFINITION - and the answer was not what Phase 4 assumed.
           #
           # We expected PREVIOUS_VERSION against a repository with no tags, which would have made
