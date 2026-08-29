@@ -69,4 +69,45 @@ public static class RequiredConfiguration
             "Supply these from the environment or a secret store. The application will not start " +
             "with defaults, because the previous defaults failed silently in production.");
     }
+
+    /// <summary>
+    /// Settings that are legal, but whose combination produces behaviour nobody asked for. Returned
+    /// rather than thrown: these are suboptimal, not broken, and refusing to boot over a
+    /// questionable-but-working configuration would be a worse failure than the thing it prevents.
+    ///
+    /// <para><b>Why this exists at all.</b> The interaction below is accurately documented on both
+    /// settings it involves. That is not sufficient, and this project has the evidence: a comment
+    /// explaining a constraint does not survive contact with someone changing the value, because the
+    /// person changing it is looking at a config file rather than at the code. A setting that looks
+    /// free and has a real interaction is the same trap as a comment that has rotted into a lie -
+    /// milder, but the same shape. Saying it at boot puts the warning in front of the person who
+    /// caused it, at the moment they caused it.</para>
+    ///
+    /// <para>Runs in every environment, Development included - that is where someone experiments
+    /// with a value before promoting it.</para>
+    /// </summary>
+    public static IReadOnlyList<string> Warnings(IConfiguration configuration)
+    {
+        var warnings = new List<string>();
+
+        var window = configuration.GetValue("Documents:ExpiringSoonWindowDays", 30);
+        var cadence = configuration.GetSection("Documents:RenewalReminderDays").Get<int[]>() is { Length: > 0 } configured
+            ? configured
+            : [30, 14, 3];
+
+        var widestRung = cadence.Max();
+
+        if (window > widestRung)
+        {
+            warnings.Add(
+                $"Documents:ExpiringSoonWindowDays is {window} but the widest renewal reminder rung " +
+                $"is {widestRung} (BRULE-021 vs BRULE-025). A document will sit in ExpiringSoon for " +
+                $"{window - widestRung} days before its supplier is told anything. The reminder " +
+                "ladder is deliberately NOT widened to follow this setting - a reminder schedule " +
+                "should be a list of decisions, not a side effect of a threshold - so if that " +
+                $"silence is unwanted, add a {window}-day rung to Documents:RenewalReminderDays.");
+        }
+
+        return warnings;
+    }
 }

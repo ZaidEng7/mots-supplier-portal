@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -99,6 +100,8 @@ public sealed class DocumentExpiryJob(
             await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expired", ct: ct);
         }
 
+        await AutoSuspendForAwardCriticalExpiryAsync(expired, ct);
+
         var reminders = await DecideRemindersAsync(today, now, ct);
 
         if (expiringSoon.Count > 0 || expired.Count > 0 || reminders.Count > 0)
@@ -125,6 +128,63 @@ public sealed class DocumentExpiryJob(
         {
             await NotifyAsync(doc, (email, name) =>
                 backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiringEmailAsync(email, name, CancellationToken.None)), ct);
+        }
+    }
+
+    /// <summary>
+    /// BRULE-023: expiry of an award-critical document suspends the supplier.
+    ///
+    /// <para>Driven entirely by <see cref="Domain.ReferenceData.DocumentType.IsAwardCritical"/>,
+    /// which no seeded type sets. The predicate is deliberately the narrowest thing that can express
+    /// the rule - a single flag on the type - rather than anything inferred from IsRequired or
+    /// ExpiryTracked. A predicate that guesses would suspend suppliers the Ministry never decided
+    /// to suspend, and "was blocked from participating for a fortnight" is not undone by
+    /// reactivation.</para>
+    ///
+    /// <para><b>Idempotent without needing to be.</b> Only documents this run transitioned to
+    /// Expired are considered, and a document expires once. Re-running the job cannot re-suspend,
+    /// and a supplier already Suspended or Deactivated is skipped rather than throwing - the
+    /// document's expiry is a fact regardless of whether the supplier was available to act on.</para>
+    /// </summary>
+    private async Task AutoSuspendForAwardCriticalExpiryAsync(
+        List<SupplierDocument> expired, CancellationToken ct)
+    {
+        if (expired.Count == 0) return;
+
+        var expiredTypeIds = expired.Select(d => d.DocumentTypeId).Distinct().ToList();
+
+        var awardCritical = await db.DocumentTypes
+            .Where(t => expiredTypeIds.Contains(t.Id) && t.IsAwardCritical)
+            .ToDictionaryAsync(t => t.Id, t => t.Code, ct);
+
+        if (awardCritical.Count == 0) return;
+
+        foreach (var doc in expired.Where(d => awardCritical.ContainsKey(d.DocumentTypeId)))
+        {
+            var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == doc.SupplierId, ct);
+
+            if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Active) continue;
+
+            // InvariantCulture is not decoration. Interpolating a date under an Arabic-locale host
+            // uses Umm al-Qura, which supports only 1900-2077 - a past expiry outside that range
+            // threw from inside the message's own construction once already in this codebase, and
+            // here it would take down the whole job rather than one request.
+            var reason = string.Format(
+                CultureInfo.InvariantCulture,
+                "Automatic suspension (BRULE-023): award-critical document '{0}' expired on {1:yyyy-MM-dd}.",
+                awardCritical[doc.DocumentTypeId], doc.ExpiryDate!.Value.ToDateTime(TimeOnly.MinValue));
+
+            supplier.Suspend(reason);
+
+            // The reason goes on the audit row as well as into the domain call. A suspension whose
+            // record says only "suspended" leaves the supplier's support conversation starting from
+            // nothing, and this is the one suspension nobody can be asked to explain.
+            await auditLogger.LogAsync(
+                "Supplier", supplier.Id, "supplier_auto_suspended",
+                actorLabel: "system",
+                fromState: nameof(SupplierLifecycleState.Active),
+                toState: nameof(SupplierLifecycleState.Suspended),
+                reason: reason, ct: ct);
         }
     }
 
