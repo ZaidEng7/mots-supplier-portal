@@ -27,6 +27,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Domain.ReferenceData.DocumentType> DocumentTypes => Set<Domain.ReferenceData.DocumentType>();
     public DbSet<SupplierDocument> SupplierDocuments => Set<SupplierDocument>();
+    public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
@@ -334,6 +335,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(d => new { d.SupplierId, d.DocumentTypeId, d.IsLatestVersion });
             entity.HasOne<Supplier>().WithMany().HasForeignKey(d => d.SupplierId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<Domain.ReferenceData.DocumentType>().WithMany().HasForeignKey(d => d.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DocumentExpiryReminder>(entity =>
+        {
+            entity.ToTable("document_expiry_reminder", "supplier");
+            entity.HasKey(r => r.Id);
+
+            // The unique index IS the de-duplication rule. Checking in C# and inserting afterwards
+            // leaves a window between the read and the write, and this job can legitimately run
+            // concurrently with itself (a retry overlapping a scheduled run). A duplicate insert
+            // must fail at the database, not merely be unlikely.
+            entity.HasIndex(r => new { r.SupplierDocumentId, r.DocumentVersion, r.ThresholdDays })
+                .IsUnique();
+
+            entity.HasOne<SupplierDocument>().WithMany()
+                .HasForeignKey(r => r.SupplierDocumentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SupplierReviewAnnotation>(entity =>
