@@ -575,8 +575,45 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # MSP-95: lint, WITH its denominator asserted.
+      #
+      # oxlint prints no summary and no file count by default - it reports diagnostics and
+      # nothing else, so a run that linted zero files is indistinguishable from a clean one.
+      # That is the fifth instrument in this repository found reporting over an unstated set,
+      # and `tsc --noEmit` spent the life of the project in exactly that position.
+      #
+      # The JSON reporter carries number_of_files and number_of_rules. Both are asserted here,
+      # so choosing rules deliberately cannot be undone later by the step silently linting
+      # nothing.
       - name: Lint
-        run: npm run lint
+        run: |
+          set -euo pipefail
+          # Through an npm script, NOT npx - see the S6505/S8543 note above. That comment sits
+          # 19 lines from here and I introduced the exposure it warns about anyway; the Sonar
+          # gate caught it as "Security rating on new code = C". An accurate comment beside the
+          # hazard is not a control, which is the argument this project keeps making to itself.
+          npm run --silent lint:json > lint.json || true
+
+          files=$(jq -r '.number_of_files' lint.json)
+          rules=$(jq -r '.number_of_rules' lint.json)
+          errors=$(jq -r '[.diagnostics[]? | select(.severity == "error")] | length' lint.json)
+          warnings=$(jq -r '[.diagnostics[]? | select(.severity == "warning")] | length' lint.json)
+
+          echo "Lint: $files files, $rules rules, $errors errors, $warnings warnings"
+
+          if [ "$files" -lt 50 ]; then
+            echo "::error::oxlint examined only $files files. This project has ~72 lintable"
+            echo "::error::sources; a collapsed file set makes a clean lint meaningless."
+            exit 1
+          fi
+
+          if [ "$rules" -lt 50 ]; then
+            echo "::error::Only $rules rules were active. A near-empty ruleset passes everything."
+            exit 1
+          fi
+
+          # The gate itself. Warnings are deliberately advisory - see .oxlintrc.json.
+          npm run lint
 
       # Kept separate from the vitest run in the backend job on purpose. Vitest passing while the
       # build fails is a real, recorded pathology here - TS18048 and `extends RenderResult` both

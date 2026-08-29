@@ -14,7 +14,8 @@
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
     "typecheck": "tsc -b --noEmit",
-    "e2e:install": "playwright install --with-deps chromium"
+    "e2e:install": "playwright install --with-deps chromium",
+    "lint:json": "oxlint --format=json src"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
