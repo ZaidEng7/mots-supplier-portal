@@ -291,13 +291,19 @@ jobs:
             | jq -r '.component.measures[] | "  \(.metric): \(.value)"' | sort
 
           echo ""
-          echo "== new code definition (Phase 4: previous_version against a repo with no tags) =="
-          # Raw, because guessing at a response shape is how the last two attempts here failed.
-          echo "  branch override (show?branch=main):"
-          api_opt "new_code_periods/show?project=$PROJECT_KEY&branch=main" | jq -c . | sed 's/^/    /'
-          echo "  project + inherited settings (list):"
-          api_opt "new_code_periods/list?project=$PROJECT_KEY" | jq -c . | sed 's/^/    /'
-          echo "  effective, via settings:"
+          # NEW CODE DEFINITION - and the answer was not what Phase 4 assumed.
+          #
+          # We expected PREVIOUS_VERSION against a repository with no tags, which would have made
+          # the boundary undefined. It is not. It is a SEVEN DAY ROLLING WINDOW, inherited from
+          # the SonarCloud instance default (parentOrigin: INSTANCE) - nobody here chose it.
+          #
+          # That is defined, but it moves: code written eight days ago stops being "new" and
+          # leaves the new-code gate permanently. Every condition in the MSP-70 blocking flip is
+          # a new-code condition, so the flip must decide this deliberately rather than inherit it.
+          #
+          # The new_code_periods endpoints do not exist on SonarCloud - they are SonarQube Server
+          # only, and return "Unknown url". The settings API is the one that answers here.
+          echo "== new code definition =="
           api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.leak.period.type,sonar.leak.period,sonar.new_code_period.type" | jq -c . | sed 's/^/    /'
 
           echo ""
