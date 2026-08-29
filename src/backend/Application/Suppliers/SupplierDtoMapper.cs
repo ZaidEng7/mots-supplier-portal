@@ -4,7 +4,7 @@ namespace MotsSupplierPortal.Application.Suppliers;
 
 public static class SupplierDtoMapper
 {
-    public static SupplierDto ToDto(Supplier supplier)
+    public static SupplierDto ToDto(Supplier supplier, IReadOnlyList<string>? incompleteDocumentTypeCodes = null)
     {
         var primaryPhone = supplier.Representatives.FirstOrDefault(r => r.IsPrimary)?.Phone;
 
@@ -38,6 +38,7 @@ public static class SupplierDtoMapper
             supplier.GetMissingProfileFields(),
             supplier.TermsAcceptedVersion,
             supplier.TermsAcceptedAt,
-            supplier.RowVersion);
+            supplier.RowVersion,
+            incompleteDocumentTypeCodes);
     }
 }
