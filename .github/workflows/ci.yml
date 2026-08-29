@@ -281,6 +281,10 @@ jobs:
         run: |
           set -euo pipefail
           api() { curl -sSf -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1"; }
+          # Optional queries: a 404 from one informational endpoint must not stop the
+          # assertion below from running. Losing the check because a neighbouring query
+          # changed shape is precisely how a guard stops guarding.
+          api_opt() { curl -sS -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1" 2>/dev/null || echo '{}'; }
 
           echo "== whole-project measures =="
           api "measures/component?component=$PROJECT_KEY&metricKeys=ncloc,coverage,lines_to_cover,duplicated_lines_density,tests" \
@@ -295,7 +299,7 @@ jobs:
           echo "== exclusions as the server holds them =="
           # Scanner /d: arguments are analysis-time, so these may legitimately be empty here.
           # Printing either way: an empty result is itself the answer to "where does this live".
-          api "settings/values?component=$PROJECT_KEY&keys=sonar.exclusions,sonar.coverage.exclusions,sonar.cpd.exclusions" \
+          api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.exclusions,sonar.coverage.exclusions,sonar.cpd.exclusions" \
             | jq -r 'if (.settings | length) == 0 then "  (none stored server-side - set per analysis via /d: arguments)" else (.settings[] | "  \(.key) = \(.value // (.values | join(",")))") end'
 
           echo ""
