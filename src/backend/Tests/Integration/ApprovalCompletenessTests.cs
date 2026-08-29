@@ -87,6 +87,21 @@ public sealed class ApprovalCompletenessTests(PostgresApiFixture fixture)
             .GetBlockingRequiredDocumentTypeCodesAsync(db, supplierId, CancellationToken.None);
     }
 
+    /// <summary>
+    /// DO NOT DELETE THIS AS REDUNDANT. It is the only thing separating a correct fix from one that
+    /// strands suppliers mid-onboarding, and it looks like the least interesting test in the file.
+    ///
+    /// <para>Revert-to-red, measured, both directions:</para>
+    /// <list type="table">
+    /// <item><term>Predicate too narrow (the old one)</term><description>two tests fail</description></item>
+    /// <item><term>Predicate too broad (block unless Approved)</term><description>ONLY this one fails</description></item>
+    /// </list>
+    ///
+    /// <para>That asymmetry is the point. A guard blocking approval unless every document is Approved
+    /// closes the bypass and satisfies every "the hole is shut" assertion here - it is
+    /// indistinguishable from the correct fix by any other test in this class. One boring test is the
+    /// entire difference.</para>
+    /// </summary>
     [Fact]
     public async Task An_uploaded_document_awaiting_review_does_NOT_block_approval()
     {
