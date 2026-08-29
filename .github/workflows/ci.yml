@@ -462,6 +462,12 @@ jobs:
               print("::error::Quality gate returned no conditions - the check did not run")
               sys.exit(1)
 
+          # Read BEFORE the ENFORCED loop, because whether a missing condition is a real
+          # enforcement loss or an expected absence depends on whether there was any new code
+          # for these conditions to be computed over.
+          new_lines = measure("newlines.json") or "0"
+          has_new_code = float(new_lines) > 0
+
           seen = set()
           for c in conditions:
               key = c.get("metricKey")
@@ -494,17 +500,24 @@ jobs:
                       print(f"  (not enforced on main - see MSP-70; this metric on this branch "
                             f"is currently rating the whole project, not a diff)")
 
-          # If Sonar stops reporting a condition we rely on, that is a silent loss of enforcement.
-          # Fail loudly rather than quietly enforcing less than we think we are.
+          # If Sonar stops reporting a condition we rely on, that is a silent loss of enforcement -
+          # UNLESS there was no new code at all, in which case Sonar legitimately has nothing to
+          # rate (a docs-only PR has zero lines in any CPD-eligible language, so
+          # new_duplicated_lines_density is not computed, while Reliability/Security default to a
+          # trivial pass on an empty diff and DO still get reported - this asymmetry is real Sonar
+          # behaviour, not a bug, and was found by this exact audit PR failing on itself).
+          #
+          # Fail loudly only when a condition goes missing WHILE there was code for it to judge.
           missing = [k for k in ENFORCED if k not in seen]
-          if missing:
+          if missing and has_new_code:
               print(f"::error::Quality gate no longer reports {', '.join(missing)} - enforcement would be silently reduced")
               sys.exit(1)
+          elif missing:
+              print(f"  ({', '.join(missing)} not reported - no new code in any CPD-eligible language, nothing to rate)")
 
           # ---- Coverage, against our floor rather than Sonar's ------------------------------
           threshold = float(os.environ["THRESHOLD"])
           coverage = measure("coverage.json")
-          new_lines = measure("newlines.json") or "0"
 
           # The floor applies to PULL REQUESTS ONLY, and that is a correctness fix, not a softening.
           #
