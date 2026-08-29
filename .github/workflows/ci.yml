@@ -265,6 +265,69 @@ jobs:
       #
       # NOTE this reads Sonar's own new_coverage measure rather than recomputing "new code", so it
       # agrees with the dashboard by construction instead of drifting from it.
+      # MSP-96: what the SERVER received, not what a file says.
+      #
+      # We have now been wrong twice about the difference between a configuration file and the
+      # thing that reads it - sonar-project.properties is not read by the .NET scanner at all,
+      # and two exclusion lists disagreed on casing for a day. This step asks the server what it
+      # actually holds, and asserts the one thing that must be true.
+      #
+      # It is deliberately a permanent step rather than a one-off query. A fact established once
+      # by someone running a command is the class of evidence this phase exists to replace.
+      - name: Verify analysis scope as the server received it
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_KEY: ZaidEng7_mots-supplier-portal
+        run: |
+          set -euo pipefail
+          api() { curl -sSf -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1"; }
+          # Optional queries: a 404 from one informational endpoint must not stop the
+          # assertion below from running. Losing the check because a neighbouring query
+          # changed shape is precisely how a guard stops guarding.
+          api_opt() { curl -sS -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1" 2>/dev/null || echo '{}'; }
+
+          echo "== whole-project measures =="
+          api "measures/component?component=$PROJECT_KEY&metricKeys=ncloc,coverage,lines_to_cover,duplicated_lines_density,tests" \
+            | jq -r '.component.measures[] | "  \(.metric): \(.value)"' | sort
+
+          echo ""
+          echo "== new code definition (Phase 4: previous_version against a repo with no tags) =="
+          api_opt "new_code_periods/list?project=$PROJECT_KEY" \
+            | jq -r 'if ((.newCodePeriods // []) | length) == 0 then "  (not reported by this endpoint - confirm in the project UI)" else (.newCodePeriods[] | "  \(.branchKey // "-"): \(.type) \(.value // "")") end'
+
+          echo ""
+          echo "== exclusions as the server holds them =="
+          # Scanner /d: arguments are analysis-time, so these may legitimately be empty here.
+          # Printing either way: an empty result is itself the answer to "where does this live".
+          api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.exclusions,sonar.coverage.exclusions,sonar.cpd.exclusions" \
+            | jq -r 'if (.settings | length) == 0 then "  (none stored server-side - set per analysis via /d: arguments)" else (.settings[] | "  \(.key) = \(.value // (.values | join(",")))") end'
+
+          echo ""
+          echo "== DENOMINATOR ASSERTION: is test code rated as main code? =="
+          api "measures/component_tree?component=$PROJECT_KEY&metricKeys=ncloc&qualifiers=FIL&ps=500&s=metric&metricSort=ncloc&asc=false" > tree.json
+
+          total_files=$(jq '[.components[]] | length' tree.json)
+          test_files=$(jq -r '[.components[] | select(.path // "" | test("^src/backend/Tests/|^src/frontend/tests/"))] | length' tree.json)
+
+          echo "  files carrying an ncloc measure: $total_files"
+          echo "  of those, under a test path:     $test_files"
+
+          if [ "$total_files" -lt 50 ]; then
+            echo "::error::Only $total_files files carry an ncloc measure. That is too few for this"
+            echo "::error::codebase - the analysis scope has collapsed, and every rating derived"
+            echo "::error::from it is being computed over almost nothing."
+            exit 1
+          fi
+
+          if [ "$test_files" -ne 0 ]; then
+            echo "::error::$test_files test files are rated as main code. Project ratings are"
+            echo "::error::averaged over code that cannot contain the defects they claim to measure."
+            jq -r '.components[] | select(.path // "" | test("^src/backend/Tests/|^src/frontend/tests/")) | "  " + .path' tree.json | head -20
+            exit 1
+          fi
+
+          echo "  OK - test sources are classified as tests, not as main code."
+
       - name: Quality gate (Sonar ratings + 45% coverage floor)
         if: steps.sonar.outputs.enabled == 'true'
         env:
