@@ -68,6 +68,8 @@ export interface SupplierProfile {
   logoStorageKey: string | null
   supplierGroup: string | null
   onboardingState: string
+  /** MSP-63: Active | Suspended | Deactivated | None. Drives which lifecycle actions staff see. */
+  lifecycleState: string
   currencyCode: string | null
   legalInfo: LegalInfo | null
   primaryContactPhone: string | null

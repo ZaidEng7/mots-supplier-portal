@@ -49,6 +49,9 @@ public sealed record SupplierDto(
     string? LogoStorageKey,
     string? SupplierGroup,
     string OnboardingState,
+    // MSP-63: exposed so the staff UI knows which lifecycle action to offer. Additive - the SPA
+    // ignores unknown fields, and no existing consumer reads it.
+    string LifecycleState,
     string? CurrencyCode,
     LegalInfoDto? LegalInfo,
     string? PrimaryContactPhone,
