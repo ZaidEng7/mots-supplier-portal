@@ -13,6 +13,7 @@ import {
   ReviewApiError,
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
+import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
 
 // MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
 // unknown codes, and these are the codes the server enforces the supplier's edit restriction
@@ -89,6 +90,9 @@ function RequestInfoDialog({
           <legend className="text-[length:var(--text-body-sm)] font-[var(--fw-medium)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('review.flagProfileFields')}
           </legend>
+          {/* The flagged-field CODES, not display fields - these are what the supplier is asked to
+              correct, and they must match ProfileFieldCodes.cs exactly (MSP-77). Conflating the two
+              lists is what crashed the profile grid below. */}
           {PROFILE_FIELDS.map((f) => (
             <label key={f} className="flex items-center gap-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
               <input type="checkbox" checked={fields.includes(f)} onChange={() => toggle(fields, setFields, f)} />
@@ -241,12 +245,12 @@ export function ReviewApplicationPage() {
           {t('review.profile')}
         </h2>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {PROFILE_FIELDS.map((f) => (
+          {PROFILE_DISPLAY_FIELDS.map((f) => (
             <div key={f}>
               <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {t(`onboarding.fields.${f}`)}
               </dt>
-              <dd style={{ color: 'var(--color-text-primary)' }}>{(supplier as unknown as Record<string, string | null>)[f] ?? '—'}</dd>
+              <dd style={{ color: 'var(--color-text-primary)' }}>{profileDisplayValue(supplier, f)}</dd>
             </div>
           ))}
         </dl>
