@@ -292,8 +292,8 @@ jobs:
 
           echo ""
           echo "== new code definition (Phase 4: previous_version against a repo with no tags) =="
-          api "new_code_periods/show?project=$PROJECT_KEY" \
-            | jq -r '"  type: \(.type)  value: \(.value // "-")  inherited: \(.inherited // false)"'
+          api_opt "new_code_periods/list?project=$PROJECT_KEY" \
+            | jq -r 'if ((.newCodePeriods // []) | length) == 0 then "  (not reported by this endpoint - confirm in the project UI)" else (.newCodePeriods[] | "  \(.branchKey // "-"): \(.type) \(.value // "")") end'
 
           echo ""
           echo "== exclusions as the server holds them =="
