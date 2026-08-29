@@ -292,8 +292,13 @@ jobs:
 
           echo ""
           echo "== new code definition (Phase 4: previous_version against a repo with no tags) =="
-          api_opt "new_code_periods/show?project=$PROJECT_KEY&branch=main" \
-            | jq -r 'if (.type // "") == "" then "  (no per-branch setting returned - inherited or unset)" else "  main: \(.type) \(.value // "")  inherited: \(.inherited // false)" end'
+          # Raw, because guessing at a response shape is how the last two attempts here failed.
+          echo "  branch override (show?branch=main):"
+          api_opt "new_code_periods/show?project=$PROJECT_KEY&branch=main" | jq -c . | sed 's/^/    /'
+          echo "  project + inherited settings (list):"
+          api_opt "new_code_periods/list?project=$PROJECT_KEY" | jq -c . | sed 's/^/    /'
+          echo "  effective, via settings:"
+          api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.leak.period.type,sonar.leak.period,sonar.new_code_period.type" | jq -c . | sed 's/^/    /'
 
           echo ""
           echo "== exclusions as the server holds them =="
