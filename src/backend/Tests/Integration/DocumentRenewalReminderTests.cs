@@ -50,7 +50,9 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
 
     /// <summary>Builds the job over the fixture's real database with a recording queue. The cadence
     /// is passed in so tests can state it rather than depend on the default staying 30/14/3.</summary>
-    private Harness CreateJob(params int[] cadence)
+    private Harness CreateJob(params int[] cadence) => CreateJobWithWindow(30, cadence);
+
+    private Harness CreateJobWithWindow(int windowDays, params int[] cadence)
     {
         var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -60,7 +62,8 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
             .AddInMemoryCollection(cadence
                 .Select((days, i) => new KeyValuePair<string, string?>(
                     $"Documents:RenewalReminderDays:{i}", days.ToString()))
-                .Append(new KeyValuePair<string, string?>("Documents:ExpiringSoonWindowDays", "30")))
+                .Append(new KeyValuePair<string, string?>(
+                    "Documents:ExpiringSoonWindowDays", windowDays.ToString())))
             .Build();
 
         var job = new DocumentExpiryJob(
@@ -203,6 +206,34 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         var later = CreateJob(30, 14, 3);
         using (later.Scope) await later.Job.RunAsync(CancellationToken.None);
         ExpiringEmailsFor(later.Jobs, fileName).Should().Be(0, "there is no backlog left to drain");
+    }
+
+    [Fact]
+    public async Task A_rung_that_falls_due_before_the_document_enters_ExpiringSoon_is_still_sent()
+    {
+        // The ExpiringSoon window and the reminder ladder are different numbers that coincide only
+        // at the shared default of 30. With a window of 14, the 30-day rung falls due while the
+        // document is still Approved. It must still be sent: filtering reminders to ExpiringSoon
+        // would silently delete the supplier's first reminder whenever someone tightened the window,
+        // and nobody would attribute that loss to the setting they changed.
+        var fileName = $"narrow-window-{Guid.NewGuid():N}.pdf";
+        var (_, document) = await SeedApprovedDocumentAsync(20, fileName);
+
+        var run = CreateJobWithWindow(windowDays: 14, cadence: [30, 14, 3]);
+        using (run.Scope) await run.Job.RunAsync(CancellationToken.None);
+
+        ExpiringEmailsFor(run.Jobs, fileName).Should().Be(1,
+            "the 30-day rung is due at 20 days remaining regardless of the state boundary");
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var state = await db.SupplierDocuments.Where(d => d.Id == document.Id)
+            .Select(d => d.State).SingleAsync();
+
+        state.Should().Be(DocumentState.Approved,
+            "a 14-day window leaves a document 20 days out still Approved - which is the point: the " +
+            "reminder went out before the state changed, not because of it");
     }
 
     [Fact]

@@ -36,6 +36,13 @@ public sealed class DocumentExpiryJob(
     /// producing.
     ///
     /// Default stays 30 days so behaviour is unchanged where nothing is configured.
+    ///
+    /// <para><b>This window does NOT govern the reminder ladder.</b> It decides when a document
+    /// enters ExpiringSoon (BRULE-021 / FR-DOC-006); the ladder decides when the supplier is told
+    /// (BRULE-025), and it is bounded by its own widest threshold. The two numbers coincide only at
+    /// the shared default of 30, which is exactly why the coupling is easy to assume and worth
+    /// stating. Change this window and read <see cref="ReminderThresholdDays"/> before assuming the
+    /// reminders followed it.</para>
     /// </summary>
     private int ExpiringSoonWindowDays =>
         configuration.GetValue("Documents:ExpiringSoonWindowDays", 30);
@@ -45,6 +52,21 @@ public sealed class DocumentExpiryJob(
     /// confirmed 30/14/3. Configurable for that reason: when they decide, it is a setting change
     /// rather than a deploy, and the reminder ledger keys on the threshold value itself so a change
     /// cannot re-interpret reminders already sent.
+    ///
+    /// <para><b>Independent of ExpiringSoonWindowDays, deliberately.</b> The state boundary and the
+    /// communication schedule are different questions: the state is what the system believes, the
+    /// ladder is what the supplier has been told. Two consequences, both intended, neither obvious:</para>
+    /// <list type="bullet">
+    /// <item>A window WIDER than the top rung (say 45 against 30) leaves the document sitting in
+    /// ExpiringSoon for fifteen days before the first email. The state is ahead of the conversation.
+    /// If that silence is unwanted, the fix is to add a rung, not to widen the ladder implicitly -
+    /// a reminder schedule should be a list of decisions, not a side effect of a threshold.</item>
+    /// <item>A window NARROWER than the top rung (say 14 against 30) fires the 30-day rung while the
+    /// document is still Approved. That is why Approved is in the candidate filter below and not
+    /// only ExpiringSoon: dropping it would silently delete the supplier's first reminder whenever
+    /// someone tightened the window, which is the kind of loss nobody would attribute to the setting
+    /// they changed.</item>
+    /// </list>
     /// </summary>
     private int[] ReminderThresholdDays =>
         configuration.GetSection("Documents:RenewalReminderDays").Get<int[]>() is { Length: > 0 } configured
@@ -126,6 +148,9 @@ public sealed class DocumentExpiryJob(
 
         // Still-live documents only. An expired document is chased by BRULE-023's suspension path,
         // not by renewal reminders, and a rejected one has a different conversation attached to it.
+        //
+        // Approved is included on purpose, not incidentally: see ReminderThresholdDays. A rung can
+        // fall due before the document has crossed into ExpiringSoon, and it should still be sent.
         var candidates = await db.SupplierDocuments
             .Where(d => d.IsLatestVersion
                 && (d.State == DocumentState.Approved || d.State == DocumentState.ExpiringSoon)
