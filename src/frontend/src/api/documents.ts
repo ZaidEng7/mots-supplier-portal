@@ -80,3 +80,9 @@ export async function rejectDocument(documentId: string, reason: string): Promis
   })
   return parseOrThrow(res)
 }
+
+// MSP-95 CI PROBE - reverted in the next commit.
+export function probeUnusedBinding(): number {
+  const leftoverFromAnUnfinishedChange = 42
+  return 1
+}
