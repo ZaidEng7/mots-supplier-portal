@@ -110,6 +110,25 @@ jobs:
       #
       # sonar.sources / sonar.tests are deliberately absent - the .NET scanner ignores them with
       # a warning and derives scope from the MSBuild graph plus the base directory.
+      # Analysis scope comes from a version-controlled file with the reasoning beside each
+      # value (.sonar/analysis-scope.properties). The SonarScanner for .NET does not read
+      # sonar-project.properties, so the values are sourced here rather than living in a file
+      # that looks authoritative and is never read.
+      - name: Load analysis scope
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2046
+          set -a && . ./.sonar/analysis-scope.properties && set +a
+          {
+            echo "SONAR_EXCLUSIONS=$SONAR_EXCLUSIONS"
+            echo "SONAR_COVERAGE_EXCLUSIONS=$SONAR_COVERAGE_EXCLUSIONS"
+            echo "SONAR_CPD_EXCLUSIONS=$SONAR_CPD_EXCLUSIONS"
+          } >> "$GITHUB_ENV"
+          echo "Analysis scope loaded:"
+          echo "  exclusions:          $SONAR_EXCLUSIONS"
+          echo "  coverage exclusions: $SONAR_COVERAGE_EXCLUSIONS"
+          echo "  cpd exclusions:      $SONAR_CPD_EXCLUSIONS"
+
       - name: Sonar begin
         if: steps.sonar.outputs.enabled == 'true'
         env:
@@ -124,9 +143,9 @@ jobs:
             /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
             /d:sonar.javascript.lcov.reportPaths="src/frontend/coverage/lcov.info" \
             /d:sonar.typescript.lcov.reportPaths="src/frontend/coverage/lcov.info" \
-            /d:sonar.coverage.exclusions="**/Migrations/**,**/Program.cs,**/*.stories.tsx,**/tests/**" \
-            /d:sonar.cpd.exclusions="**/Tests/**,**/Migrations/**,**/*.spec.ts,**/*.stories.tsx" \
-            /d:sonar.exclusions="**/Migrations/**,**/bin/**,**/obj/**,**/node_modules/**,**/dist/**,**/storybook-static/**"
+            /d:sonar.coverage.exclusions="$SONAR_COVERAGE_EXCLUSIONS" \
+            /d:sonar.cpd.exclusions="$SONAR_CPD_EXCLUSIONS" \
+            /d:sonar.exclusions="$SONAR_EXCLUSIONS" \
 
       - name: Build
         run: dotnet build src/backend/MotsSupplierPortal.slnx --no-restore --configuration Release
