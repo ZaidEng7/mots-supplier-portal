@@ -450,3 +450,92 @@ jobs:
           print("")
           print("Quality gate passed (Sonar ratings + 45% coverage floor).")
           PYEOF
+
+  # ---------------------------------------------------------------------------------------------
+  # MSP-94: restored. This job and `docker-build` below were deleted by PR #7 (ed49a99) when CI was
+  # consolidated into a single job for the Sonar scanner's benefit. That commit's message is long
+  # and careful about the coverage ratchet and does not mention the removal.
+  #
+  # For a day afterwards CI ran no typecheck, no lint, no `npm run build`, no accessibility suite
+  # and no container build. Nothing was red - the checks were ABSENT, and absence renders as a green
+  # PR summary. Both "green tests, red build" entries on MSP-83 were caught by `npm run build`, so
+  # for that day the only thing standing behind them was a person remembering to run it locally.
+  #
+  # The job NAMES matter as much as the steps: branch protection binds to names, so the protection
+  # plan written against `Frontend (React)` and `Container image build` would have been configured
+  # against checks that did not exist.
+  # ---------------------------------------------------------------------------------------------
+  frontend:
+    name: Frontend (React)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/frontend/package-lock.json
+
+      # githubactions:S6505 - lifecycle scripts of dependencies execute arbitrary code during
+      # install. Verified the build still succeeds without them (esbuild's postinstall is not
+      # load-bearing here; the platform binary arrives via optionalDependencies).
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      # githubactions:S6505/S8543 - every tool below is invoked through an npm script so it
+      # resolves from the lockfile-pinned node_modules. `npx` was fetching-and-executing whatever
+      # version happened to be published at build time, which in a CI pipeline is a supply-chain
+      # exposure, not a style preference.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Kept separate from the vitest run in the backend job on purpose. Vitest passing while the
+      # build fails is a real, recorded pathology here - TS18048 and `extends RenderResult` both
+      # did exactly that - so the type-checking build is its own gate, not a by-product.
+      - name: Build
+        run: npm run build
+
+      - name: Build Storybook
+        run: npm run build-storybook
+
+      - name: Install Playwright browsers
+        run: npm run e2e:install
+
+      # The repository's only accessibility gate. MSP-79 removed a masking retry from this suite,
+      # which exposed UI/Dialog failing 6 of 6 deterministically, and proved 10 consecutive green
+      # runs - and then the suite stopped running two hours later when this job was deleted.
+      - name: Playwright smoke + axe a11y checks
+        run: npm run test:e2e
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: src/frontend/playwright-report/
+          retention-days: 7
+
+  # The Lighthouse LCP step that used to live in the frontend job is NOT restored: PR #8 removed
+  # @lhci/cli entirely and the `lhci` npm script no longer exists. Restoring a step for a tool that
+  # is not installed would be its own kind of theatre. The LCP budget is tracked by MSP-47, which
+  # must also triage the dependency advisories that came back with that package (MSP-80).
+
+  docker-build:
+    name: Container image build
+    runs-on: ubuntu-latest
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The container is the deployment artifact. Without this a broken Dockerfile ships.
+      - name: Build API image
+        run: docker build -f src/backend/Api/Dockerfile -t mots-supplier-portal-api:ci src/backend
