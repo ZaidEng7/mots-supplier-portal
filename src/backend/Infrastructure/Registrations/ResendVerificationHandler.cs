@@ -12,9 +12,7 @@ namespace MotsSupplierPortal.Infrastructure.Registrations;
 /// like ForgotPasswordHandler, never reveals whether the address exists or is already verified.</summary>
 public sealed class ResendVerificationHandler(
     UserManager<AppUser> userManager,
-    ISecurityTokenService securityTokenService,
-    IBackgroundJobClient backgroundJobs,
-    IConfiguration configuration) : IResendVerificationHandler
+    IBackgroundJobClient backgroundJobs) : IResendVerificationHandler
 {
     public async Task HandleAsync(ResendVerificationCommand command, CancellationToken ct)
     {
@@ -24,11 +22,7 @@ public sealed class ResendVerificationHandler(
             return;
         }
 
-        var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), ct);
-        var frontendUrl = configuration["App:PublicUrl"]
-            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
-        var verifyUrl = $"{frontendUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
-
-        backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Email!, verifyUrl, CancellationToken.None));
+        // Token minted inside the job (MSP-89) - see ForgotPasswordHandler for why.
+        backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Id, CancellationToken.None));
     }
 }

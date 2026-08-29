@@ -120,14 +120,14 @@ public sealed class DocumentExpiryJob(
         // the transition owns the state and its audit entry.
         foreach (var doc in expired)
         {
-            await NotifyAsync(doc, (email, name) =>
-                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiredEmailAsync(email, name, CancellationToken.None)), ct);
+            await NotifyAsync(doc, (userId, documentId) =>
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiredEmailAsync(userId, documentId, CancellationToken.None)), ct);
         }
 
         foreach (var doc in reminders)
         {
-            await NotifyAsync(doc, (email, name) =>
-                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiringEmailAsync(email, name, CancellationToken.None)), ct);
+            await NotifyAsync(doc, (userId, documentId) =>
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentExpiringEmailAsync(userId, documentId, CancellationToken.None)), ct);
         }
     }
 
@@ -268,17 +268,17 @@ public sealed class DocumentExpiryJob(
     /// leaving the seam visible: this method is where the second channel attaches, and it is the
     /// only place that needs to change when it exists.</para>
     ///
-    /// <para>Passing the address into the job is what MSP-87 found putting supplier PII into the
-    /// Hangfire store. That is tracked separately, and this method is also the single place the fix
-    /// will land - the job argument becomes a user id resolved inside the job.</para>
+    /// <para>MSP-89 landed here as predicted: the job arguments are now a user id and a document id,
+    /// and the address and filename are resolved inside the job so neither reaches the Hangfire
+    /// store.</para>
     /// </summary>
-    private async Task NotifyAsync(SupplierDocument doc, Action<string, string> enqueueEmail, CancellationToken ct)
+    private async Task NotifyAsync(SupplierDocument doc, Action<Guid, Guid> enqueueEmail, CancellationToken ct)
     {
-        var email = await db.Users
+        var userId = await db.Users
             .Where(u => u.SupplierId == doc.SupplierId)
-            .Select(u => u.Email)
+            .Select(u => (Guid?)u.Id)
             .FirstOrDefaultAsync(ct);
 
-        if (email is not null) enqueueEmail(email, doc.OriginalFileName);
+        if (userId is not null) enqueueEmail(userId.Value, doc.Id);
     }
 }

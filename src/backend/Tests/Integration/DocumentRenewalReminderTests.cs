@@ -107,18 +107,23 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
     }
 
     /// <summary>
-    /// Counts reminders for ONE document, identified by its filename.
+    /// Counts reminders for ONE document, identified by its id.
     ///
     /// Counting every enqueued email instead looked simpler and was wrong: these tests share one
     /// database, the job deliberately processes every document in it, and so each test's total
     /// included documents seeded by its neighbours. The suite passed one test at a time and failed
     /// as a suite - a green that depended on execution order, which is the same family of defect
-    /// this ticket is about. Filenames are unique per seed so each assertion can name its subject.
+    /// this ticket is about.
+    ///
+    /// It matched on the filename until MSP-89, which stopped job arguments carrying filenames at
+    /// all - they are resolved inside the job now. Matching on the document id is what the argument
+    /// list actually offers, and it is a better identity anyway: unique by construction rather than
+    /// unique because each seed took care to make it so.
     /// </summary>
-    private static int ExpiringEmailsFor(RecordingJobClient jobs, string fileName) =>
+    private static int ExpiringEmailsFor(RecordingJobClient jobs, Guid documentId) =>
         jobs.Enqueued.Count(e =>
             e.Method == nameof(Infrastructure.Email.EmailJobs.SendDocumentExpiringEmailAsync)
-            && e.Args.Length > 1 && (string?)e.Args[1] == fileName);
+            && e.Args.Length > 1 && (Guid?)e.Args[1] == documentId);
 
     [Fact]
     public async Task Running_the_job_again_on_the_same_day_does_not_re_notify()
@@ -126,8 +131,7 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         // The load-bearing de-duplication test. The job is invoked twice with nothing changing in
         // between - the second call must be silent, and must be silent because the reminder is
         // already recorded, not because the day has not rolled over.
-        var fileName = $"dedupe-{Guid.NewGuid():N}.pdf";
-        var (_, document) = await SeedApprovedDocumentAsync(20, fileName);
+        var (_, document) = await SeedApprovedDocumentAsync(20, $"dedupe-{Guid.NewGuid():N}.pdf");
 
         var first = CreateJob(30, 14, 3);
         using (first.Scope) await first.Job.RunAsync(CancellationToken.None);
@@ -135,8 +139,8 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         var second = CreateJob(30, 14, 3);
         using (second.Scope) await second.Job.RunAsync(CancellationToken.None);
 
-        ExpiringEmailsFor(first.Jobs, fileName).Should().Be(1, "the first run crosses the 30-day step");
-        ExpiringEmailsFor(second.Jobs, fileName).Should().Be(0,
+        ExpiringEmailsFor(first.Jobs, document.Id).Should().Be(1, "the first run crosses the 30-day step");
+        ExpiringEmailsFor(second.Jobs, document.Id).Should().Be(0,
             "nothing about the document changed, so a second run within the same day must say nothing");
 
         using var scope = fixture.Services.CreateScope();
@@ -154,8 +158,7 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         // moving the CADENCE rather than the clock: a document 20 days out has crossed a 30-day step,
         // then a 25-day step, then a 20-day step. That is the same arithmetic the job does against a
         // moving today, and it does not require the test to control the system clock.
-        var fileName = $"escalate-{Guid.NewGuid():N}.pdf";
-        var (_, document) = await SeedApprovedDocumentAsync(20, fileName);
+        var (_, document) = await SeedApprovedDocumentAsync(20, $"escalate-{Guid.NewGuid():N}.pdf");
 
         var emailsPerRun = new List<int>();
 
@@ -163,7 +166,7 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         {
             var run = CreateJob(cadence);
             using (run.Scope) await run.Job.RunAsync(CancellationToken.None);
-            emailsPerRun.Add(ExpiringEmailsFor(run.Jobs, fileName));
+            emailsPerRun.Add(ExpiringEmailsFor(run.Jobs, document.Id));
         }
 
         emailsPerRun.Should().Equal([1, 1, 1],
@@ -186,13 +189,12 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         // The first-deployment and post-outage case: a document three days from expiry has passed
         // all three steps. Three emails would be absurd, and dripping one per day would chase a
         // deadline that has already effectively arrived. One email, three ledger rows.
-        var fileName = $"backlog-{Guid.NewGuid():N}.pdf";
-        var (_, document) = await SeedApprovedDocumentAsync(3, fileName);
+        var (_, document) = await SeedApprovedDocumentAsync(3, $"backlog-{Guid.NewGuid():N}.pdf");
 
         var run = CreateJob(30, 14, 3);
         using (run.Scope) await run.Job.RunAsync(CancellationToken.None);
 
-        ExpiringEmailsFor(run.Jobs, fileName).Should().Be(1);
+        ExpiringEmailsFor(run.Jobs, document.Id).Should().Be(1);
 
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -205,7 +207,7 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
 
         var later = CreateJob(30, 14, 3);
         using (later.Scope) await later.Job.RunAsync(CancellationToken.None);
-        ExpiringEmailsFor(later.Jobs, fileName).Should().Be(0, "there is no backlog left to drain");
+        ExpiringEmailsFor(later.Jobs, document.Id).Should().Be(0, "there is no backlog left to drain");
     }
 
     [Fact]
@@ -216,13 +218,12 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         // document is still Approved. It must still be sent: filtering reminders to ExpiringSoon
         // would silently delete the supplier's first reminder whenever someone tightened the window,
         // and nobody would attribute that loss to the setting they changed.
-        var fileName = $"narrow-window-{Guid.NewGuid():N}.pdf";
-        var (_, document) = await SeedApprovedDocumentAsync(20, fileName);
+        var (_, document) = await SeedApprovedDocumentAsync(20, $"narrow-window-{Guid.NewGuid():N}.pdf");
 
         var run = CreateJobWithWindow(windowDays: 14, cadence: [30, 14, 3]);
         using (run.Scope) await run.Job.RunAsync(CancellationToken.None);
 
-        ExpiringEmailsFor(run.Jobs, fileName).Should().Be(1,
+        ExpiringEmailsFor(run.Jobs, document.Id).Should().Be(1,
             "the 30-day rung is due at 20 days remaining regardless of the state boundary");
 
         using var scope = fixture.Services.CreateScope();
@@ -244,13 +245,12 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
         // the 30-day step. Keyed on document + version + threshold, this falls out rather than
         // needing the old reminders to be deleted - and version 1's history survives, which it must,
         // because it records what the supplier was actually told.
-        var v1FileName = $"renew-v1-{Guid.NewGuid():N}.pdf";
-        var v2FileName = $"renew-v2-{Guid.NewGuid():N}.pdf";
-        var (supplierId, first) = await SeedApprovedDocumentAsync(20, v1FileName);
+        var (supplierId, first) = await SeedApprovedDocumentAsync(20, $"renew-v1-{Guid.NewGuid():N}.pdf");
+        Guid renewedId;
 
         var initial = CreateJob(30, 14, 3);
         using (initial.Scope) await initial.Job.RunAsync(CancellationToken.None);
-        ExpiringEmailsFor(initial.Jobs, v1FileName).Should().Be(1);
+        ExpiringEmailsFor(initial.Jobs, first.Id).Should().Be(1);
 
         using (var scope = fixture.Services.CreateScope())
         {
@@ -261,7 +261,7 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
             var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
             var renewed = SupplierDocument.CreatePendingScan(
                 supplierId, superseded.DocumentTypeId, version: 2, "quarantine/key2",
-                v2FileName, "application/pdf", 2048, Guid.CreateVersion7(),
+                $"renew-v2-{Guid.NewGuid():N}.pdf", "application/pdf", 2048, Guid.CreateVersion7(),
                 issueDate: null, expiryDate: today.AddDays(20), expiryTracked: true, today: today);
 
             renewed.MarkScanClean("clean/key2");
@@ -269,12 +269,14 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
 
             db.SupplierDocuments.Add(renewed);
             await db.SaveChangesAsync();
+
+            renewedId = renewed.Id;
         }
 
         var afterRenewal = CreateJob(30, 14, 3);
         using (afterRenewal.Scope) await afterRenewal.Job.RunAsync(CancellationToken.None);
 
-        ExpiringEmailsFor(afterRenewal.Jobs, v2FileName).Should().Be(1,
+        ExpiringEmailsFor(afterRenewal.Jobs, renewedId).Should().Be(1,
             "the new version has no reminder history, so its 30-day step is unsent and fires");
 
         using var check = fixture.Services.CreateScope();

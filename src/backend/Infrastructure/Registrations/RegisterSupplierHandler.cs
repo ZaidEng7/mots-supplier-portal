@@ -20,10 +20,8 @@ namespace MotsSupplierPortal.Infrastructure.Registrations;
 public sealed class RegisterSupplierHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
-    ISecurityTokenService securityTokenService,
     IAuditLogger auditLogger,
-    IBackgroundJobClient backgroundJobs,
-    IConfiguration configuration) : IRegisterSupplierHandler
+    IBackgroundJobClient backgroundJobs) : IRegisterSupplierHandler
 {
     public async Task<RegisterSupplierResult> HandleAsync(RegisterSupplierCommand command, CancellationToken ct)
     {
@@ -81,12 +79,9 @@ public sealed class RegisterSupplierHandler(
             // stubbed to a logger until then, but the queuing/retry behavior is real.
             // SECURITY-ARCHITECTURE.md §1.6: the link carries only the opaque token, never the
             // user id - the token alone resolves the user (see SecurityTokenService).
-            var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), ct);
-            var frontendUrl = configuration["App:PublicUrl"]
-            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
-            var verifyUrl = $"{frontendUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
-
-            backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Email!, verifyUrl, CancellationToken.None));
+            // Token minted inside the job (MSP-89): a verification URL passed as a job argument sat
+            // in the Hangfire tables in plaintext for the whole retention window.
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Id, CancellationToken.None));
 
             await auditLogger.LogAsync(
                 aggregateType: "Supplier",

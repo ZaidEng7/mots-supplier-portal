@@ -72,19 +72,22 @@ public sealed class GetOwnActiveAnnotationHandler(AppDbContext db, IScopeContext
 
 file static class ReviewerNotify
 {
-    public static async Task<string?> GetPrimaryEmailAsync(AppDbContext db, Guid supplierId, CancellationToken ct) =>
-        await db.Users.Where(u => u.SupplierId == supplierId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+    /// <summary>The supplier's primary user, as an id rather than an address (MSP-89). The address
+    /// is resolved inside the job so it never reaches the Hangfire store.</summary>
+    public static async Task<Guid?> GetPrimaryUserIdAsync(AppDbContext db, Guid supplierId, CancellationToken ct) =>
+        await db.Users.Where(u => u.SupplierId == supplierId)
+            .Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
 
     /// <summary>BUSINESS-PROCESSES.md: InfoRequested -> Resubmitted notifies "reviewer" - there is
     /// no per-application reviewer assignment (pickup doesn't record who), so this notifies the
     /// whole onboarding_reviewer pool, matching how Submit already "queue[s] to onboarding review
     /// pool" rather than a named individual.</summary>
-    public static async Task<IReadOnlyList<string>> GetReviewerPoolEmailsAsync(AppDbContext db, CancellationToken ct) =>
+    public static async Task<IReadOnlyList<Guid>> GetReviewerPoolUserIdsAsync(AppDbContext db, CancellationToken ct) =>
         await (from ur in db.UserRoles
                join r in db.Roles on ur.RoleId equals r.Id
                join u in db.Users on ur.UserId equals u.Id
                where r.Name == Roles.OnboardingReviewer
-               select u.Email!)
+               select u.Id)
             .Distinct()
             .ToListAsync(ct);
 }
@@ -139,8 +142,8 @@ public sealed class ApproveApplicationHandler(AppDbContext db, IScopeContext sco
         await auditLogger.LogAsync("Supplier", supplier.Id, "application_approved", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        var email = await ReviewerNotify.GetPrimaryEmailAsync(db, supplier.Id, ct);
-        if (email is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationApprovedEmailAsync(email, CancellationToken.None));
+        var userId = await ReviewerNotify.GetPrimaryUserIdAsync(db, supplier.Id, ct);
+        if (userId is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationApprovedEmailAsync(userId.Value, CancellationToken.None));
 
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -159,8 +162,8 @@ public sealed class RejectApplicationHandler(AppDbContext db, IScopeContext scop
         await auditLogger.LogAsync("Supplier", supplier.Id, "application_rejected", scope.UserId, toState: supplier.OnboardingState.ToString(), reason: reason, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        var email = await ReviewerNotify.GetPrimaryEmailAsync(db, supplier.Id, ct);
-        if (email is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationRejectedEmailAsync(email, reason, CancellationToken.None));
+        var userId = await ReviewerNotify.GetPrimaryUserIdAsync(db, supplier.Id, ct);
+        if (userId is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationRejectedEmailAsync(userId.Value, reason, CancellationToken.None));
 
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -181,7 +184,9 @@ public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAu
             .Select(t => t.Id)
             .ToListAsync(ct);
 
-        db.SupplierReviewAnnotations.Add(new SupplierReviewAnnotation
+        // Held in a local so the enqueue below can reference the annotation by id. The reason text
+        // is persisted here, so the job resolves it rather than carrying it (MSP-89).
+        var annotation = new SupplierReviewAnnotation
         {
             Id = Guid.NewGuid(),
             SupplierId = supplier.Id,
@@ -190,13 +195,15 @@ public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAu
             Reason = command.Reason,
             FlaggedProfileFields = [.. command.FlaggedProfileFields],
             FlaggedDocumentTypeIds = [.. flaggedTypeIds],
-        });
+        };
+
+        db.SupplierReviewAnnotations.Add(annotation);
 
         await auditLogger.LogAsync("Supplier", supplier.Id, "application_info_requested", scope.UserId, toState: supplier.OnboardingState.ToString(), reason: command.Reason, referenceCode: supplier.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        var email = await ReviewerNotify.GetPrimaryEmailAsync(db, supplier.Id, ct);
-        if (email is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendInfoRequestedEmailAsync(email, command.Reason, CancellationToken.None));
+        var userId = await ReviewerNotify.GetPrimaryUserIdAsync(db, supplier.Id, ct);
+        if (userId is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendInfoRequestedEmailAsync(userId.Value, annotation.Id, CancellationToken.None));
 
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -236,10 +243,10 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
 
         await db.SaveChangesAsync(ct);
 
-        var reviewerEmails = await ReviewerNotify.GetReviewerPoolEmailsAsync(db, ct);
-        foreach (var email in reviewerEmails)
+        var reviewerUserIds = await ReviewerNotify.GetReviewerPoolUserIdsAsync(db, ct);
+        foreach (var reviewerUserId in reviewerUserIds)
         {
-            backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationResubmittedEmailAsync(email, supplier.ReferenceCode, CancellationToken.None));
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationResubmittedEmailAsync(reviewerUserId, supplier.Id, CancellationToken.None));
         }
 
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));

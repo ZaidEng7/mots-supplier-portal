@@ -24,10 +24,8 @@ public sealed class InviteSupplierUserHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
     IScopeContext scope,
-    ISecurityTokenService securityTokenService,
     IAuditLogger auditLogger,
-    IBackgroundJobClient backgroundJobs,
-    IConfiguration configuration) : IInviteSupplierUserHandler
+    IBackgroundJobClient backgroundJobs) : IInviteSupplierUserHandler
 {
     public async Task<InviteSupplierUserResult> HandleAsync(InviteSupplierUserCommand command, CancellationToken ct)
     {
@@ -59,11 +57,8 @@ public sealed class InviteSupplierUserHandler(
 
         await userManager.AddToRoleAsync(user, Roles.SupplierUser);
 
-        var rawToken = await securityTokenService.IssueAsync(user.Id, SecurityTokenPurpose.SupplierUserInvite, TimeSpan.FromDays(7), ct);
-        var frontendUrl = configuration["App:PublicUrl"]
-            ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
-        var acceptUrl = $"{frontendUrl}/accept-invite?token={Uri.EscapeDataString(rawToken)}";
-        backgroundJobs.Enqueue<EmailJobs>(job => job.SendSupplierUserInviteEmailAsync(user.Email!, acceptUrl, CancellationToken.None));
+        // Token minted inside the job (MSP-89) - see ForgotPasswordHandler for why.
+        backgroundJobs.Enqueue<EmailJobs>(job => job.SendSupplierUserInviteEmailAsync(user.Id, CancellationToken.None));
 
         await auditLogger.LogAsync("Supplier", scope.SupplierId.Value, "supplier_user_invited", scope.UserId, ct: ct);
         // MSP-64: UserManager persists the new user; the audit row is on the AppDbContext and
