@@ -13,7 +13,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b --noEmit",
     "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {

@@ -80,7 +80,3 @@ export async function rejectDocument(documentId: string, reason: string): Promis
   })
   return parseOrThrow(res)
 }
-
-// MSP-94 CI PROBE - reverted in the next commit.
-const ciProbe: number = "this is a string, not a number"
-export { ciProbe }

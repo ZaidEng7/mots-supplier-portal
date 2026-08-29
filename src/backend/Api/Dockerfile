@@ -1,5 +1,3 @@
-# MSP-94 CI PROBE - reverted in the next commit
-RUN this-command-does-not-exist
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY . .
