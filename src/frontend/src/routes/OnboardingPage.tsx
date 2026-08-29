@@ -116,6 +116,47 @@ function LogoUploader({ profile, canEdit, onProfile }: { profile: SupplierProfil
   )
 }
 
+function DocumentGroup({
+  heading,
+  documents,
+  emptyLabel,
+  isReadOnly,
+  isInfoRequested,
+  flaggedDocCodes,
+}: {
+  heading: string
+  documents: DocumentTypeStatus[]
+  emptyLabel?: string
+  isReadOnly: boolean
+  isInfoRequested: boolean
+  flaggedDocCodes: Set<string>
+}) {
+  // A required group with nothing in it would mean the document-type catalogue is empty, which is a
+  // configuration fault rather than an empty state - so the heading is omitted entirely rather than
+  // showing a reassuring "none". The optional group passes an emptyLabel because having no optional
+  // documents is ordinary.
+  if (documents.length === 0 && emptyLabel === undefined) return null
+
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-fg-muted">{heading}</h3>
+      {documents.length === 0 ? (
+        <p className="text-sm text-fg-muted">{emptyLabel}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {documents.map((doc) => (
+            <DocumentRow
+              key={doc.documentTypeId}
+              doc={doc}
+              canEdit={!isReadOnly && (!isInfoRequested || flaggedDocCodes.has(doc.code))}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boolean }) {
   const { t, i18n } = useTranslation()
   const { notify } = useToast()
@@ -333,6 +374,11 @@ export function OnboardingPage() {
   const flaggedDocCodes = new Set(annotation?.flaggedDocumentTypeCodes ?? [])
   const currencyOptions = (currenciesQuery.data ?? []).map((c) => ({ value: c.code, label: c.code }))
   const documents = documentsQuery.data ?? []
+
+  // Partitioned rather than filtered twice, so a type that is somehow neither cannot vanish from
+  // the page: every document the API returned appears in exactly one group.
+  const requiredDocuments = documents.filter((doc) => doc.isRequired)
+  const optionalDocuments = documents.filter((doc) => !doc.isRequired)
   const currencyCode = profileForm.watch('currencyCode')
   const supplierType = legalForm.watch('supplierType')
 
@@ -505,16 +551,31 @@ export function OnboardingPage() {
         )}
       </Card>
 
+      {/*
+        FR-DOC-009: required and optional documents are separate sections rather than one list.
+        isRequired was already on the DTO and simply never read - the supplier could not tell which
+        of these blocked their submission without opening each one, which is the whole point of the
+        grouping. Required comes first in both directions; that is reading order, and it is correct
+        in RTL for the same reason it is in LTR.
+      */}
       <Card title={t('onboarding.documents')}>
-        <ul className="flex flex-col gap-2">
-          {documents.map((doc) => (
-            <DocumentRow
-              key={doc.documentTypeId}
-              doc={doc}
-              canEdit={!isReadOnly && (!isInfoRequested || flaggedDocCodes.has(doc.code))}
-            />
-          ))}
-        </ul>
+        <div className="flex flex-col gap-5">
+          <DocumentGroup
+            heading={t('onboarding.requiredDocuments')}
+            documents={requiredDocuments}
+            isReadOnly={isReadOnly}
+            isInfoRequested={isInfoRequested}
+            flaggedDocCodes={flaggedDocCodes}
+          />
+          <DocumentGroup
+            heading={t('onboarding.optionalDocuments')}
+            documents={optionalDocuments}
+            emptyLabel={t('onboarding.noOptionalDocuments')}
+            isReadOnly={isReadOnly}
+            isInfoRequested={isInfoRequested}
+            flaggedDocCodes={flaggedDocCodes}
+          />
+        </div>
       </Card>
 
       {!isReadOnly ? (
