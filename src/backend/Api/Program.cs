@@ -367,9 +367,22 @@ app.MapAdminEndpoints();
 app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
 
+// MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
+// the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing
+// more - so any supplier_admin could read every job's arguments, including other suppliers' email
+// addresses and live verification/reset tokens.
+//
+// FR-ADM-009 names system_admin as the actor; NFR-OBS-006 requires job health to be observable to
+// admins. This is mapped in Development only, so NFR-OBS-006 is still unmet in production - a
+// deliberate follow-up rather than an oversight, tracked on MSP-87. Mapping it in production is a
+// separate exposure decision and is NOT taken here. The authorization shape is fixed first
+// precisely because the production dashboard, when it is built, will be built on this one.
 if (app.Environment.IsDevelopment())
 {
-    app.MapHangfireDashboard("/hangfire");
+    app.MapHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new MotsSupplierPortal.Api.Authorization.HangfireDashboardAuthorization()],
+    });
 }
 
 using (var storageScope = app.Services.CreateScope())
