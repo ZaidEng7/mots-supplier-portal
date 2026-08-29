@@ -291,18 +291,22 @@ jobs:
             | jq -r '.component.measures[] | "  \(.metric): \(.value)"' | sort
 
           echo ""
-          # NEW CODE DEFINITION - and the answer was not what Phase 4 assumed.
+          # NEW CODE DEFINITION - asserted, not merely printed.
           #
-          # We expected PREVIOUS_VERSION against a repository with no tags, which would have made
-          # the boundary undefined. It is not. It is a SEVEN DAY ROLLING WINDOW, inherited from
-          # the SonarCloud instance default (parentOrigin: INSTANCE) - nobody here chose it.
+          # This was inheriting the SonarCloud instance default of a 7-day rolling window. Nobody
+          # chose it, and it DRAINS: code written eight days ago stopped being "new" and left
+          # every new-code condition permanently. Every condition in the MSP-70 blocking flip is
+          # a new-code condition, so the gate would have emptied itself on a timer while
+          # reporting green - the register's top entry, arriving without anyone changing
+          # anything. The other six instruments went empty because someone edited a config or
+          # deleted a job. This one would have done it while everyone did the right thing.
           #
-          # That is defined, but it moves: code written eight days ago stops being "new" and
-          # leaves the new-code gate permanently. Every condition in the MSP-70 blocking flip is
-          # a new-code condition, so the flip must decide this deliberately rather than inherit it.
+          # Set to a reference branch of main (MSP-70), which makes "new code" mean "not yet on
+          # main" - what everyone reading the gate already believes it means.
           #
-          # The new_code_periods endpoints do not exist on SonarCloud - they are SonarQube Server
-          # only, and return "Unknown url". The settings API is the one that answers here.
+          # Asserted rather than displayed, because a setting nobody re-reads is how it got here.
+          # The new_code_periods endpoints do not exist on SonarCloud (SonarQube Server only,
+          # "Unknown url"); the settings API is what answers.
           echo "== new code definition =="
           api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.leak.period.type,sonar.leak.period,sonar.new_code_period.type" | jq -c . | sed 's/^/    /'
 
