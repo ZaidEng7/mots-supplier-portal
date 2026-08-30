@@ -34,8 +34,16 @@ public sealed class EndpointAuthorizationCoverageTests(PostgresApiFixture fixtur
         // exclude everything. Both would render as the same green as genuine success, on the test
         // that guarantees MSP-67's deny-by-default intent is stated at every endpoint.
         //
-        // Five instruments in this repository have already been found reporting over an empty or
-        // absent set. A security-coverage test is the worst possible candidate to be the sixth.
+        // Six instruments in this repository have already been found reporting over an empty or
+        // absent set - the sixth found while closing Phase 4 (Task #12/#13, .github/workflows/ci.yml):
+        // the whole-project Sonar gate always read main's own state, never the PR's, so a PR could
+        // not move the number it was ostensibly being judged on. Same shape as the other five,
+        // just at the level of a CI gate instead of a query: a whole-project metric that cannot
+        // move in response to what is actually being reviewed is not a PR gate, however it is
+        // labeled - it measures something, just never the thing in front of the reader. Decided
+        // to keep it reporting-only rather than wire a blocking check to it, in favor of the
+        // project's own new-code coverage ratchet, which IS PR-specific and already proven. A
+        // security-coverage test is the worst possible candidate to be the seventh.
         var examined = dataSource.Endpoints
             .OfType<RouteEndpoint>()
             .Where(e => !IsInfrastructureEndpoint(e))
