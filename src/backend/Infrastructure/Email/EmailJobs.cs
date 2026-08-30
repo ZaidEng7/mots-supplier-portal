@@ -26,6 +26,12 @@ namespace MotsSupplierPortal.Infrastructure.Email;
 /// credential at rest for the whole retention window. Issuing at send time also shortens the window
 /// in which the token is useful, and a retry minting a fresh one is correct rather than a
 /// side effect - the previous one expires on its own.</para>
+///
+/// <para><b>MSP-69.</b> Every composed subject/body now goes through EmailTemplates, keyed on the
+/// recipient's AppUser.Language (resolved here, not passed in - same reasoning as the token: the
+/// job resolves its own facts about the user rather than trusting an argument that could go stale
+/// between enqueue and send). All 11 templates render both ar and en; missing/unrecognized locale
+/// falls back to Arabic, matching AppUser.Language's own default.</para>
 /// </summary>
 public sealed class EmailJobs(
     IEmailSender emailSender,
@@ -33,8 +39,14 @@ public sealed class EmailJobs(
     ISecurityTokenService securityTokenService,
     IConfiguration configuration)
 {
-    private async Task<string?> EmailForAsync(Guid userId, CancellationToken ct) =>
-        await db.Users.Where(u => u.Id == userId).Select(u => u.Email).FirstOrDefaultAsync(ct);
+    private async Task<(string Email, string? Language)?> RecipientAsync(Guid userId, CancellationToken ct)
+    {
+        var recipient = await db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => new { u.Email, u.Language })
+            .FirstOrDefaultAsync(ct);
+        return recipient is null || recipient.Email is null ? null : (recipient.Email, recipient.Language);
+    }
 
     /// <summary>
     /// Resolves the recipient and sends, or does nothing if the user has gone.
@@ -44,13 +56,13 @@ public sealed class EmailJobs(
     /// human to dismiss. The send is best-effort by construction; the durable record of what
     /// happened is the audit row the handler already wrote.
     /// </summary>
-    private async Task SendToUserAsync(Guid userId, Func<string, (string Subject, string Body)> compose, CancellationToken ct)
+    private async Task SendToUserAsync(Guid userId, Func<string?, (string Subject, string Body)> compose, CancellationToken ct)
     {
-        var email = await EmailForAsync(userId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
 
-        var (subject, body) = compose(email);
-        await emailSender.SendAsync(userId, email, subject, body, ct);
+        var (subject, body) = compose(recipient.Value.Language);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
     private string PublicUrl => configuration["App:PublicUrl"]
@@ -64,42 +76,41 @@ public sealed class EmailJobs(
 
     public async Task SendVerificationEmailAsync(Guid userId, CancellationToken ct)
     {
-        var email = await EmailForAsync(userId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
 
         var rawToken = await securityTokenService.IssueAsync(
             userId, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), ct);
         var verifyUrl = $"{PublicUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailSender.SendAsync(userId, email, "Verify your MOTS Supplier Portal account",
-            $"<p>Click to verify your email:</p><p><a href=\"{verifyUrl}\">{verifyUrl}</a></p>", ct);
+        var (subject, body) = EmailTemplates.Verification(recipient.Value.Language, verifyUrl);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
     public async Task SendPasswordResetEmailAsync(Guid userId, CancellationToken ct)
     {
-        var email = await EmailForAsync(userId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
 
         var rawToken = await securityTokenService.IssueAsync(
             userId, SecurityTokenPurpose.PasswordReset, TimeSpan.FromMinutes(30), ct);
         var resetUrl = $"{PublicUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailSender.SendAsync(userId, email, "Reset your MOTS Supplier Portal password",
-            $"<p>Click to reset your password:</p><p><a href=\"{resetUrl}\">{resetUrl}</a></p>", ct);
+        var (subject, body) = EmailTemplates.PasswordReset(recipient.Value.Language, resetUrl);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
     public async Task SendSupplierUserInviteEmailAsync(Guid userId, CancellationToken ct)
     {
-        var email = await EmailForAsync(userId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
 
         var rawToken = await securityTokenService.IssueAsync(
             userId, SecurityTokenPurpose.SupplierUserInvite, TimeSpan.FromDays(7), ct);
         var acceptUrl = $"{PublicUrl}/accept-invite?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailSender.SendAsync(userId, email, "You've been invited to the MOTS Supplier Portal",
-            "<p>You've been invited to join your organization's supplier account. Click to set your " +
-            $"password and get started:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>", ct);
+        var (subject, body) = EmailTemplates.SupplierUserInvite(recipient.Value.Language, acceptUrl);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
     /// <summary>MSP-73/enumeration fix: sent to an ALREADY-registered account when someone submits
@@ -110,19 +121,12 @@ public sealed class EmailJobs(
     /// success (see RegistrationEndpoints.cs) - this email is the ONLY signal that goes anywhere,
     /// and it goes only to the account's own inbox, never back to the submitter.</summary>
     public Task SendAlreadyRegisteredNoticeEmailAsync(Guid userId, CancellationToken ct) =>
-        SendToUserAsync(userId, _ => (
-            "You already have a MOTS Supplier Portal account",
-            "<p>Someone just tried to register a new MOTS Supplier Portal account using this email " +
-            "address (or your organization's registration number), but you already have one.</p>" +
-            $"<p>If this was you, you can <a href=\"{PublicUrl}/login\">sign in here</a>.</p>" +
-            "<p>If you don't recognize this, no action is needed - your account is unaffected.</p>"), ct);
+        SendToUserAsync(userId, locale => EmailTemplates.AlreadyRegisteredNotice(locale, PublicUrl), ct);
 
     // ---- application lifecycle ------------------------------------------------------------
 
     public Task SendApplicationApprovedEmailAsync(Guid userId, CancellationToken ct) =>
-        SendToUserAsync(userId, _ => (
-            "Your supplier application has been approved",
-            "<p>Congratulations - your supplier application has been approved and your account is now Active.</p>"), ct);
+        SendToUserAsync(userId, EmailTemplates.ApplicationApproved, ct);
 
     /// <summary>
     /// The one remaining free-text argument, and it is stated rather than quietly kept.
@@ -138,25 +142,21 @@ public sealed class EmailJobs(
     /// to a security fix that needs to ship.</para>
     /// </summary>
     public Task SendApplicationRejectedEmailAsync(Guid userId, string reason, CancellationToken ct) =>
-        SendToUserAsync(userId, _ => (
-            "Your supplier application was not approved",
-            $"<p>Your supplier application was rejected for the following reason:</p><p>{reason}</p>" +
-            "<p>You may correct the issue and register again.</p>"), ct);
+        SendToUserAsync(userId, locale => EmailTemplates.ApplicationRejected(locale, reason), ct);
 
     /// <summary>Takes the annotation id: its Reason is persisted, so it is resolved here rather than
     /// carried through the job store.</summary>
     public async Task SendInfoRequestedEmailAsync(Guid userId, Guid annotationId, CancellationToken ct)
     {
-        var email = await EmailForAsync(userId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
 
         var reason = await db.SupplierReviewAnnotations
             .Where(a => a.Id == annotationId).Select(a => a.Reason).FirstOrDefaultAsync(ct);
         if (reason is null) return;
 
-        await emailSender.SendAsync(userId, email, "Action needed on your supplier application",
-            $"<p>The reviewer has requested more information:</p><p>{reason}</p>" +
-            "<p>Please log in to address the flagged items and resubmit.</p>", ct);
+        var (subject, body) = EmailTemplates.InfoRequested(recipient.Value.Language, reason);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
     /// <summary>Goes to a reviewer, not to the supplier. The reference code is resolved from the
@@ -164,16 +164,15 @@ public sealed class EmailJobs(
     /// derived is a job argument that can drift.</summary>
     public async Task SendApplicationResubmittedEmailAsync(Guid reviewerUserId, Guid supplierId, CancellationToken ct)
     {
-        var email = await EmailForAsync(reviewerUserId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(reviewerUserId, ct);
+        if (recipient is null) return;
 
         var referenceCode = await db.Suppliers
             .Where(s => s.Id == supplierId).Select(s => s.ReferenceCode).FirstOrDefaultAsync(ct);
         if (referenceCode is null) return;
 
-        await emailSender.SendAsync(reviewerUserId, email, $"Supplier application {referenceCode} resubmitted",
-            $"<p>Supplier application {referenceCode} has addressed the flagged items and been " +
-            "resubmitted for review.</p>", ct);
+        var (subject, body) = EmailTemplates.ApplicationResubmitted(recipient.Value.Language, referenceCode);
+        await emailSender.SendAsync(reviewerUserId, recipient.Value.Email, subject, body, ct);
     }
 
     // ---- document lifecycle ---------------------------------------------------------------
@@ -184,27 +183,22 @@ public sealed class EmailJobs(
 
     public Task SendDocumentRejectedEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
         SendDocumentEmailAsync(userId, documentId,
-            (name, reason) => ("A document on your supplier profile was rejected",
-                $"<p>Your document \"{name}\" was rejected for the following reason:</p><p>{reason}</p>" +
-                "<p>Please correct the issue and re-upload it.</p>"), ct);
+            (locale, name, reason) => EmailTemplates.DocumentRejected(locale, name, reason), ct);
 
     public Task SendDocumentExpiringEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
         SendDocumentEmailAsync(userId, documentId,
-            (name, _) => ("A document on your supplier profile is expiring soon",
-                $"<p>Your document \"{name}\" will expire soon. Please renew and re-upload it.</p>"), ct);
+            (locale, name, _) => EmailTemplates.DocumentExpiring(locale, name), ct);
 
     public Task SendDocumentExpiredEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
         SendDocumentEmailAsync(userId, documentId,
-            (name, _) => ("A document on your supplier profile has expired",
-                $"<p>Your document \"{name}\" has expired and your profile is now flagged incomplete. " +
-                "Please re-upload it.</p>"), ct);
+            (locale, name, _) => EmailTemplates.DocumentExpired(locale, name), ct);
 
     private async Task SendDocumentEmailAsync(
         Guid userId, Guid documentId,
-        Func<string, string?, (string Subject, string Body)> compose, CancellationToken ct)
+        Func<string?, string, string?, (string Subject, string Body)> compose, CancellationToken ct)
     {
-        var email = await EmailForAsync(userId, ct);
-        if (email is null) return;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
 
         var document = await db.SupplierDocuments
             .Where(d => d.Id == documentId)
@@ -212,7 +206,7 @@ public sealed class EmailJobs(
             .FirstOrDefaultAsync(ct);
         if (document is null) return;
 
-        var (subject, body) = compose(document.OriginalFileName, document.RejectReason);
-        await emailSender.SendAsync(userId, email, subject, body, ct);
+        var (subject, body) = compose(recipient.Value.Language, document.OriginalFileName, document.RejectReason);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 }

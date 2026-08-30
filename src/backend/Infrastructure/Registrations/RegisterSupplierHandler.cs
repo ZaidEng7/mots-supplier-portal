@@ -99,6 +99,7 @@ public sealed class RegisterSupplierHandler(
                 Email = normalizedEmail,
                 FullName = command.RepresentativeName,
                 SupplierId = supplier.Id,
+                Language = command.Locale,
             };
 
             var createResult = await userManager.CreateAsync(user, command.Password);
