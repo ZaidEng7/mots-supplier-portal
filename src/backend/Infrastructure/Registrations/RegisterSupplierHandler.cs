@@ -14,8 +14,17 @@ namespace MotsSupplierPortal.Infrastructure.Registrations;
 
 /// <summary>
 /// STORY-02.1.1: creates a Supplier (Draft) + supplier_admin User in one transaction.
-/// No orphan records on failure. Duplicate email is a normalized, non-enumerating rejection
-/// (STORY-02.3.1).
+/// No orphan records on failure.
+///
+/// <para><b>Correction to what this comment used to claim.</b> It previously said duplicate email
+/// was "a normalized, non-enumerating rejection". Normalized, yes. Non-enumerating, no: the API
+/// maps <see cref="RegisterSupplierResult.DuplicateEmail"/> to a distinct 409
+/// (<c>Results.Conflict</c>) against a 201 on success, which lets a caller learn whether an email
+/// is registered without ever verifying it. That is live today, confirmed by reading the endpoint
+/// mapping while adding <see cref="RegisterSupplierResult.DuplicateRegistrationNumber"/> below -
+/// not fixed here, because whether either dedupe response should stop naming the reason is the
+/// enumeration-fix's decision (task #17 / MSP-73), not this ticket's. Recorded rather than left to
+/// contradict the code the next time someone reads this comment before the endpoint.</para>
 /// </summary>
 public sealed class RegisterSupplierHandler(
     AppDbContext db,
@@ -31,6 +40,24 @@ public sealed class RegisterSupplierHandler(
         if (existing is not null)
         {
             return new RegisterSupplierResult.DuplicateEmail();
+        }
+
+        // FR-REG-004: whitespace-trimmed, case-sensitive - see the migration for why not
+        // case-folded. This pre-check is a fast path only; the database's expression unique index
+        // is the authoritative guard. MSP-81 already taught this codebase that a check-then-insert
+        // has a window two concurrent requests can both pass, and the fix there was to make the
+        // database the source of truth rather than trust a read that happened moments earlier.
+        var normalizedRegistrationNumber = command.RegistrationNumber?.Trim();
+        if (!string.IsNullOrEmpty(normalizedRegistrationNumber))
+        {
+            var duplicateRegistrationNumber = await db.Suppliers
+                .AnyAsync(s => s.LegalInfo != null && s.LegalInfo.RegistrationNumber != null
+                    && s.LegalInfo.RegistrationNumber.Trim() == normalizedRegistrationNumber, ct);
+
+            if (duplicateRegistrationNumber)
+            {
+                return new RegisterSupplierResult.DuplicateRegistrationNumber();
+            }
         }
 
         IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
@@ -95,10 +122,23 @@ public sealed class RegisterSupplierHandler(
 
             return new RegisterSupplierResult.Success(supplier.ReferenceCode);
         }
+        catch (DbUpdateException ex) when (IsRegistrationNumberUniqueViolation(ex))
+        {
+            // The authoritative guard, not the pre-check above. Two requests can both pass the
+            // AnyAsync check before either commits - the pre-check narrows the window, it does not
+            // close it. Matched on the specific index name so an unrelated unique-violation (e.g.
+            // reference-code allocation) is not silently mapped to the wrong result and swallowed.
+            await transaction.RollbackAsync(ct);
+            return new RegisterSupplierResult.DuplicateRegistrationNumber();
+        }
         catch
         {
             await transaction.RollbackAsync(ct);
             throw;
         }
     }
+
+    private static bool IsRegistrationNumberUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: "23505" } pg
+        && pg.ConstraintName == "IX_supplier_RegistrationNumber_Normalized";
 }

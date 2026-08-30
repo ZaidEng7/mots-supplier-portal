@@ -80,6 +80,7 @@ public static class RegistrationEndpoints
             {
                 RegisterSupplierResult.Success s => Results.Created($"/api/v1/suppliers/{s.SupplierReferenceCode}", new { referenceCode = s.SupplierReferenceCode }),
                 RegisterSupplierResult.DuplicateEmail => Results.Conflict(new { error = "duplicate_email" }),
+                RegisterSupplierResult.DuplicateRegistrationNumber => Results.Conflict(new { error = "duplicate_registration_number" }),
                 RegisterSupplierResult.WeakPassword w => Results.BadRequest(new { error = "weak_password", details = w.Errors }),
                 _ => Results.Problem(),
             };
