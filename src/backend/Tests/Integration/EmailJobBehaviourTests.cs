@@ -33,11 +33,11 @@ public sealed class EmailJobBehaviourTests(PostgresApiFixture fixture)
     /// the send inspectable.</summary>
     private sealed class CapturingEmailSender : IEmailSender
     {
-        public List<(string To, string Subject, string Body)> Sent { get; } = [];
+        public List<(Guid UserId, string To, string Subject, string Body)> Sent { get; } = [];
 
-        public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
+        public Task SendAsync(Guid userId, string toEmail, string subject, string htmlBody, CancellationToken ct = default)
         {
-            Sent.Add((toEmail, subject, htmlBody));
+            Sent.Add((userId, toEmail, subject, htmlBody));
             return Task.CompletedTask;
         }
     }

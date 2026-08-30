@@ -50,7 +50,7 @@ public sealed class EmailJobs(
         if (email is null) return;
 
         var (subject, body) = compose(email);
-        await emailSender.SendAsync(email, subject, body, ct);
+        await emailSender.SendAsync(userId, email, subject, body, ct);
     }
 
     private string PublicUrl => configuration["App:PublicUrl"]
@@ -71,7 +71,7 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), ct);
         var verifyUrl = $"{PublicUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailSender.SendAsync(email, "Verify your MOTS Supplier Portal account",
+        await emailSender.SendAsync(userId, email, "Verify your MOTS Supplier Portal account",
             $"<p>Click to verify your email:</p><p><a href=\"{verifyUrl}\">{verifyUrl}</a></p>", ct);
     }
 
@@ -84,7 +84,7 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.PasswordReset, TimeSpan.FromMinutes(30), ct);
         var resetUrl = $"{PublicUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailSender.SendAsync(email, "Reset your MOTS Supplier Portal password",
+        await emailSender.SendAsync(userId, email, "Reset your MOTS Supplier Portal password",
             $"<p>Click to reset your password:</p><p><a href=\"{resetUrl}\">{resetUrl}</a></p>", ct);
     }
 
@@ -97,7 +97,7 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.SupplierUserInvite, TimeSpan.FromDays(7), ct);
         var acceptUrl = $"{PublicUrl}/accept-invite?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailSender.SendAsync(email, "You've been invited to the MOTS Supplier Portal",
+        await emailSender.SendAsync(userId, email, "You've been invited to the MOTS Supplier Portal",
             "<p>You've been invited to join your organization's supplier account. Click to set your " +
             $"password and get started:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>", ct);
     }
@@ -154,7 +154,7 @@ public sealed class EmailJobs(
             .Where(a => a.Id == annotationId).Select(a => a.Reason).FirstOrDefaultAsync(ct);
         if (reason is null) return;
 
-        await emailSender.SendAsync(email, "Action needed on your supplier application",
+        await emailSender.SendAsync(userId, email, "Action needed on your supplier application",
             $"<p>The reviewer has requested more information:</p><p>{reason}</p>" +
             "<p>Please log in to address the flagged items and resubmit.</p>", ct);
     }
@@ -171,7 +171,7 @@ public sealed class EmailJobs(
             .Where(s => s.Id == supplierId).Select(s => s.ReferenceCode).FirstOrDefaultAsync(ct);
         if (referenceCode is null) return;
 
-        await emailSender.SendAsync(email, $"Supplier application {referenceCode} resubmitted",
+        await emailSender.SendAsync(reviewerUserId, email, $"Supplier application {referenceCode} resubmitted",
             $"<p>Supplier application {referenceCode} has addressed the flagged items and been " +
             "resubmitted for review.</p>", ct);
     }
@@ -213,6 +213,6 @@ public sealed class EmailJobs(
         if (document is null) return;
 
         var (subject, body) = compose(document.OriginalFileName, document.RejectReason);
-        await emailSender.SendAsync(email, subject, body, ct);
+        await emailSender.SendAsync(userId, email, subject, body, ct);
     }
 }
