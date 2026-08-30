@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc -b --noEmit",
     "e2e:install": "playwright install --with-deps chromium",
-    "lint:json": "oxlint --type-aware --format=json src"
+    "lint:json": "oxlint --type-aware --format=json src",
+    "lhci": "lhci autorun"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.10",
     "@storybook/addon-docs": "^10.5.10",

@@ -1,7 +1,7 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "npx sirv-cli dist --single --compress --port 4173",
+      "startServerCommand": "./node_modules/.bin/sirv dist --single --compress --port 4173",
       "startServerReadyPattern": "Your application is ready",
       "startServerReadyTimeout": 20000,
       "url": ["http://localhost:4173/", "http://localhost:4173/login"],
