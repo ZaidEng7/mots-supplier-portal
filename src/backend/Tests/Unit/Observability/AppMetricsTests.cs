@@ -14,7 +14,18 @@ public sealed class AppMetricsTests
     /// expected to record measurements - disposing it early (e.g. via a "using" local to a helper
     /// that returns before the real work happens) silently stops listening with no error, which is
     /// exactly the bug this shape had on the first pass (caught by the very revert-to-red proof it
-    /// exists to support: the "positive" test failed with zero measurements before this fix).</summary>
+    /// exists to support: the "positive" test failed with zero measurements before this fix).
+    ///
+    /// <para><b>Task #17: filters by Meter instance, not by Meter.Name.</b> Every test in this class
+    /// and in PerTargetRateLimiterTests constructs its own <c>new AppMetrics()</c>, and every one of
+    /// those Meters shares the same name ("MotsSupplierPortal" - AppMetrics.MeterName is a constant).
+    /// xUnit runs different test classes in parallel by default; a MeterListener filtering on name
+    /// alone hears every AppMetrics instance in the process, not just the one this test constructed -
+    /// this test failed in CI on exactly that, picking up a concurrently-running
+    /// PerTargetRateLimiterTests rejection as if it were its own. Comparing the Meter object itself
+    /// scopes the listener to only the instance this test owns, which is what "records a measurement"
+    /// is actually supposed to mean here.</para>
+    /// </summary>
     private static (MeterListener Listener, List<long> Values, List<IReadOnlyDictionary<string, object?>> Tags) Listen(Meter meter, string instrumentName)
     {
         var values = new List<long>();
@@ -23,7 +34,7 @@ public sealed class AppMetricsTests
         var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
-            if (instrument.Meter.Name == meter.Name && instrument.Name == instrumentName)
+            if (ReferenceEquals(instrument.Meter, meter) && instrument.Name == instrumentName)
             {
                 l.EnableMeasurementEvents(instrument);
             }
