@@ -14,6 +14,12 @@ public sealed class ListSupplierDocumentsHandler(AppDbContext db, IScopeContext 
         return await BuildAsync(db, scope.SupplierId.Value, ct);
     }
 
+    /// <summary>MSP-84: deliberately not cursor-paginated like Review Queue/Team Members/Sessions.
+    /// This list is one row per active DocumentType - an admin-managed reference table (3 seeded
+    /// rows today, no CRUD endpoint that could grow it), not user-generated content. See
+    /// Tests/Integration/OwnDocumentsDenominatorTests.cs for the denominator assertion that stands
+    /// in for pagination here: it proves every active type is returned, not that the response is
+    /// windowed.</summary>
     internal static async Task<IReadOnlyList<DocumentTypeStatusDto>> BuildAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
     {
         var types = await db.DocumentTypes.Where(t => t.IsActive).OrderBy(t => t.Code).ToListAsync(ct);
