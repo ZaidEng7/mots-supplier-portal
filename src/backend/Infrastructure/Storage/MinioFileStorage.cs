@@ -59,13 +59,17 @@ public sealed class MinioFileStorage : IFileStorage
         }, ct);
     }
 
+    // MSP-84/NFR-PERF-008: the only caller is DocumentScanJob, which already streams into ClamAV
+    // in 8KB chunks (ClamAvScanner.cs) - copying the whole object into a MemoryStream here first
+    // defeated that entirely, holding the full file in managed heap before ever handing it to a
+    // scanner that never needed more than 8KB at a time. GetObjectResponse.ResponseStream is
+    // itself a live network stream over the S3/MinIO connection; returning it directly disposes
+    // the response correctly (AWS SDK wires stream disposal to the response) and never
+    // materializes the file in memory at all on this path.
     public async Task<Stream> OpenReadAsync(string key, CancellationToken ct)
     {
         var response = await _client.GetObjectAsync(_bucket, key, ct);
-        var buffer = new MemoryStream();
-        await response.ResponseStream.CopyToAsync(buffer, ct);
-        buffer.Position = 0;
-        return buffer;
+        return response.ResponseStream;
     }
 
     public async Task MoveAsync(string sourceKey, string destinationKey, CancellationToken ct)

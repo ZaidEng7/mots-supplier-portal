@@ -1,3 +1,5 @@
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -24,9 +26,26 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
 
+    // MSP-84/NFR-PERF-008: no official Testcontainers.ClamAv module exists, so this is the generic
+    // ContainerBuilder against the same image docker-compose.yml already uses for local dev. Real
+    // clamd, not a stub - the streaming-upload fix's whole point is proving the AV-scan path still
+    // rejects malware correctly once it no longer buffers the file first, and a stubbed scanner
+    // couldn't prove that. Startup is slow (clamd loads virus definitions on boot, docker-compose's
+    // own healthcheck allows up to 180s) - paid once per test run via IntegrationTestCollection's
+    // single shared fixture, not once per test.
+    private readonly IContainer _clamav = new ContainerBuilder("clamav/clamav:stable")
+        .WithPortBinding(3310, true)
+        // Mirrors docker-compose.yml's own clamav healthcheck exactly (PING/PONG over the
+        // INSTREAM port), not just "the port accepted a TCP connection" - clamd can open the
+        // port before virus definitions finish loading, which would make an EICAR scan below
+        // fail closed for the wrong reason (definitions not ready) rather than proving anything.
+        .WithWaitStrategy(Wait.ForUnixContainer()
+            .UntilCommandIsCompleted("sh", "-c", "echo PING | nc -w 3 localhost 3310 | grep -q PONG"))
+        .Build();
+
     public async Task InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _minio.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _minio.StartAsync(), _clamav.StartAsync());
 
         // Migrate with a standalone DbContext BEFORE the host boots: Program.cs seeds Identity
         // roles as part of startup (Development-only), which needs the identity schema to
@@ -55,6 +74,9 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         builder.UseSetting("Minio:SecretKey", _minio.GetSecretKey());
         builder.UseSetting("Minio:UseSsl", "false");
 
+        builder.UseSetting("ClamAv:Host", _clamav.Hostname);
+        builder.UseSetting("ClamAv:Port", _clamav.GetMappedPublicPort(3310).ToString());
+
         // Keep CI hermetic: the HIBP breach-password check (HibpBreachedPasswordValidator) calls
         // an external API - fine to fail open in prod/dev, but a flaky/offline network shouldn't
         // ever be why an integration test fails.
@@ -68,7 +90,7 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _minio.DisposeAsync().AsTask());
+        await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _minio.DisposeAsync().AsTask(), _clamav.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }

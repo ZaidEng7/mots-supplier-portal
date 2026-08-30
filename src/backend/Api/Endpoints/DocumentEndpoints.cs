@@ -1,7 +1,9 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Mvc;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Storage;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
@@ -75,7 +77,17 @@ public static class DocumentEndpoints
         .RequirePermission(Permissions.SupplierEdit)
         .WithTags("Documents")
         .WithName("UploadDocument")
-        .DisableAntiforgery();
+        .DisableAntiforgery()
+        // MSP-84/NFR-PERF-008: without this, ASP.NET Core's multipart form reader accepts up to
+        // its own default MultipartBodyLengthLimit (128MB) before UploadDocumentHandler's 20MB
+        // application-level check ever runs - the framework had already buffered/spooled the
+        // whole oversized body by then. FileTypeSniffer.MaxSizeBytes is the single source of
+        // truth for the 20MB figure; the +1MB headroom is for multipart boundaries and the other
+        // form fields (documentTypeId/issueDate/expiryDate), not slack on the file itself.
+        .WithMetadata(new RequestFormLimitsAttribute
+        {
+            MultipartBodyLengthLimit = FileTypeSniffer.MaxSizeBytes + 1024 * 1024,
+        });
 
         app.MapGet("/api/v1/documents/{id:guid}/download-url", async (
             Guid id,
