@@ -423,7 +423,22 @@ jobs:
           api "https://sonarcloud.io/api/qualitygates/project_status?projectKey=ZaidEng7_mots-supplier-portal&$SCOPE" gate.json
 
           # Whole-project measures, REPORTED ONLY - see the note in the python block below.
-          api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc" overall.json
+          #
+          # Task #12/PR #28: this call was missing "&$SCOPE" - every other call to this endpoint in
+          # this step includes it. SonarCloud's api/measures/component defaults to the project's
+          # DEFAULT BRANCH (main) when neither `branch` nor `pullRequest` is given (confirmed against
+          # the live api/webservices/list schema for this action: both params are optional, and
+          # Sonar's own documented behaviour for an omitted scope is "the main branch"). On a PR run
+          # that silently read main AS LAST ANALYZED - which does not yet include the PR being
+          # gated - while every OTHER figure in this same step (new_coverage, the quality gate
+          # conditions) correctly used $SCOPE and reflected the PR's own analysis. Concretely: PR #28
+          # reported 13251 lines/49.6% coverage here while the PR's own actual post-merge state was
+          # 14693/51.4% - a real, silent staleness, not a display quirk. `pullRequest=N` returns
+          # OVERALL (non-new-code) metrics for the full tree SonarCloud analyzed for that PR (target
+          # branch + the PR's diff, checked out together), which is what "whole project as this PR
+          # would leave it" actually means - the same semantics `branch=main` already has for a push
+          # to main, just pointed at the PR's own analysis instead of main's last one.
+          api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc&$SCOPE" overall.json
 
           python3 - <<'PYEOF'
           import json, os, sys
