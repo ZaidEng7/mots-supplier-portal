@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
+using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
@@ -8,7 +9,16 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 /// <summary>
 /// FR-DOC-008: authorized, audited, time-limited download. A document is readable by its owning
-/// supplier's users or by staff (endpoint-gated by document.review permission) - never publicly.
+/// supplier's users or by staff who hold document.review - never publicly.
+///
+/// <para>Task #11: this used to trust "is staff" (scope.SupplierId is null) as a stand-in for
+/// "holds document.review", on the strength of a comment claiming the ENDPOINT enforced that
+/// permission. It did not - GetDocumentDownloadUrl was mapped with bare .RequireAuthorization(),
+/// so any authenticated staff user of any role (Evaluator, ProcurementOfficer, anyone) could
+/// download any supplier's documents. The endpoint can't express "owner OR reviewer" as a single
+/// declarative gate (RequirePermission would ALSO block the owning supplier's own users, who
+/// legitimately have no document.review permission), so the real check has to live here, against
+/// the actual permission claim rather than an is-staff proxy for it.</para>
 /// </summary>
 public sealed class GetDocumentDownloadUrlHandler(AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger) : IGetDocumentDownloadUrlHandler
 {
@@ -20,11 +30,9 @@ public sealed class GetDocumentDownloadUrlHandler(AppDbContext db, IScopeContext
             return new DocumentDownloadUrlResult.NotFoundOrForbidden();
         }
 
-        // Owning supplier's own users may always see their own documents; staff access is gated
-        // by the document.review permission at the endpoint (scope.SupplierId is null for staff).
         var isOwner = scope.SupplierId == document.SupplierId;
-        var isStaff = scope.SupplierId is null;
-        if (!isOwner && !isStaff)
+        var isReviewer = scope.HasPermission(Permissions.DocumentReview);
+        if (!isOwner && !isReviewer)
         {
             return new DocumentDownloadUrlResult.NotFoundOrForbidden();
         }
