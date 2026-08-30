@@ -244,8 +244,22 @@ builder.Services.AddScoped<IConcurrencyContext, HttpConcurrencyContext>();
 builder.Services.AddScoped<IAuditContext, MotsSupplierPortal.Api.Authorization.HttpAuditContext>();
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestValidator>();
 
+// Task #16/NFR-OBS-006: docs/architecture/OBSERVABILITY-ARCHITECTURE.md §5 already specified the
+// exact split before any of it existed - readiness = PostgreSQL connectivity + migrations applied
+// + object storage reachable + Hangfire storage reachable; liveness = process responsive, no
+// dependency checks at all. ERP is explicitly NOT a readiness gate per that doc (the portal is
+// ERP-independent), and ERP integration itself is not built yet (EPIC-23), so there is nothing to
+// check for it here. Every readiness check is tagged "ready"; nothing is tagged for liveness, so
+// liveness runs zero checks by design (see the endpoint mapping below).
+builder.Services.AddSingleton(_ => JobStorage.Current);
 builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString);
+    .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
+    .AddCheck<MotsSupplierPortal.Infrastructure.Observability.MigrationsAppliedHealthCheck>(
+        "migrations", tags: ["ready"])
+    .AddCheck<MotsSupplierPortal.Infrastructure.Observability.ObjectStorageHealthCheck>(
+        "object-storage", tags: ["ready"])
+    .AddCheck<MotsSupplierPortal.Infrastructure.Observability.HangfireStorageHealthCheck>(
+        "hangfire-storage", tags: ["ready"]);
 
 // Task #16/MSP-74: gzip + Brotli response compression.
 //
@@ -380,8 +394,48 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Probe endpoint: must answer before/without authentication or it is useless to an orchestrator.
-app.MapHealthChecks("/health").AllowAnonymous();
+// Task #16/NFR-OBS-006: liveness and readiness, split per docs/architecture/
+// OBSERVABILITY-ARCHITECTURE.md §5 - previously one combined "/health" answered both questions at
+// once, which is exactly the failure mode a real split exists to avoid: an orchestrator restarting
+// a perfectly-alive process because a dependency it doesn't own (Postgres, MinIO) is briefly down,
+// or routing traffic to a replica that answered "alive" while genuinely unable to serve a request.
+// Both must answer before/without authentication or they are useless to an orchestrator.
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    // Predicate that matches nothing means zero checks run - Healthy confirms only that the
+    // process is up and the middleware pipeline can execute, per Microsoft's own documented
+    // liveness pattern (no external dependency is ever consulted here, by design). Same JSON
+    // writer as readiness below - both report an actual "checks" array, so an empty one here is
+    // verifiable in the same shape as readiness's four, not merely a differently-formatted 200.
+    Predicate = _ => false,
+    ResponseWriter = WriteHealthResponse,
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    // NFR-OBS-006: "observable to admins" needs the per-check breakdown, not a bare "Unhealthy" -
+    // an operator (or the load balancer's own logs) reading this endpoint should learn WHICH
+    // dependency is down, not just that something is.
+    ResponseWriter = WriteHealthResponse,
+}).AllowAnonymous();
+
+static async Task WriteHealthResponse(HttpContext context, Microsoft.Extensions.Diagnostics.HealthChecks.HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    var payload = new
+    {
+        status = report.Status.ToString(),
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            description = e.Value.Description,
+        }),
+        totalDurationMs = report.TotalDuration.TotalMilliseconds,
+    };
+    await context.Response.WriteAsJsonAsync(payload);
+}
 
 // Reference data is deliberately public: the registration form (itself unauthenticated) needs
 // regions/currencies to render. These were previously anonymous only because no guard had been
