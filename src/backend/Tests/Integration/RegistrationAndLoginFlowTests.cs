@@ -34,7 +34,9 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
             password = "IntegrationTest#2026!",
         });
 
-        registerResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        // MSP-73: 200 OK now, not 201 - the enumeration fix made success and duplicate responses
+        // identical in shape.
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await registerResponse.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("referenceCode").GetString().Should().StartWith("SUP-");
 

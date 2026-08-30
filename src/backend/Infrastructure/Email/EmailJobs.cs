@@ -102,6 +102,21 @@ public sealed class EmailJobs(
             $"password and get started:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>", ct);
     }
 
+    /// <summary>MSP-73/enumeration fix: sent to an ALREADY-registered account when someone submits
+    /// a new registration using its email (or its supplier's registration number). No token - a
+    /// plain link to /login, per the explicit decision to keep this a reminder, not a new
+    /// passwordless-auth mechanism. Helps a legitimate user who forgot they'd already registered,
+    /// while the API response given to whoever submitted the duplicate stays identical to a real
+    /// success (see RegistrationEndpoints.cs) - this email is the ONLY signal that goes anywhere,
+    /// and it goes only to the account's own inbox, never back to the submitter.</summary>
+    public Task SendAlreadyRegisteredNoticeEmailAsync(Guid userId, CancellationToken ct) =>
+        SendToUserAsync(userId, _ => (
+            "You already have a MOTS Supplier Portal account",
+            "<p>Someone just tried to register a new MOTS Supplier Portal account using this email " +
+            "address (or your organization's registration number), but you already have one.</p>" +
+            $"<p>If this was you, you can <a href=\"{PublicUrl}/login\">sign in here</a>.</p>" +
+            "<p>If you don't recognize this, no action is needed - your account is unaffected.</p>"), ct);
+
     // ---- application lifecycle ------------------------------------------------------------
 
     public Task SendApplicationApprovedEmailAsync(Guid userId, CancellationToken ct) =>

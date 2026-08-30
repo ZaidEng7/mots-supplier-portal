@@ -12,15 +12,15 @@ public sealed record RegisterSupplierCommand(
 public abstract record RegisterSupplierResult
 {
     public sealed record Success(string SupplierReferenceCode) : RegisterSupplierResult;
+
+    /// <summary>MSP-73: internal-only distinction now. RegistrationEndpoints.cs maps this to the
+    /// same response shape as Success and DuplicateRegistrationNumber - a caller cannot tell
+    /// which of the three happened, or that a duplicate was detected at all.</summary>
     public sealed record DuplicateEmail : RegisterSupplierResult;
 
-    /// <summary>FR-REG-004. Mapped at the API the same way DuplicateEmail already is - a 409
-    /// naming which field collided. That symmetry is deliberate, not an improvement: email
-    /// dedupe today already tells a caller "this email exists" via a distinct response shape
-    /// (Results.Conflict vs Results.Created), which is a live, confirmed enumeration vector. This
-    /// result does not fix that; it matches the existing behaviour rather than inventing a second,
-    /// differently-shaped leak. Whether either should stop naming the reason is the open
-    /// enumeration-fix decision (task #17 / MSP-73), not this ticket.</summary>
+    /// <summary>FR-REG-004. MSP-73: same non-enumerating treatment as DuplicateEmail now - mapped
+    /// to the identical response shape as Success, not a distinct 409 naming which field
+    /// collided. Deliberately symmetric with DuplicateEmail's fix, not just its old leak.</summary>
     public sealed record DuplicateRegistrationNumber : RegisterSupplierResult;
     public sealed record WeakPassword(IReadOnlyList<string> Errors) : RegisterSupplierResult;
 }

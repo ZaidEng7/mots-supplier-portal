@@ -91,7 +91,11 @@ export interface RegisterSupplierPayload {
   password: string
 }
 
-export async function registerSupplier(payload: RegisterSupplierPayload): Promise<{ referenceCode: string }> {
+/** MSP-73: referenceCode is null when the email/registration number was already taken - the
+ * response is otherwise identical to a genuine success (same status, same shape) so a caller
+ * cannot tell the two apart. The existing account gets a "you already have an account" email
+ * directly; nothing here reveals that to whoever submitted the duplicate. */
+export async function registerSupplier(payload: RegisterSupplierPayload): Promise<{ referenceCode: string | null }> {
   const res = await fetch(`${API_BASE_URL}/api/v1/registrations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
