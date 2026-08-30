@@ -14,14 +14,38 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHandler
 {
-    public async Task<IReadOnlyList<ReviewQueueItemDto>> HandleAsync(CancellationToken ct)
+    public async Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, CancellationToken ct)
     {
         var states = new[] { SupplierOnboardingState.Submitted, SupplierOnboardingState.UnderReview, SupplierOnboardingState.InfoRequested };
-        return await db.Suppliers
-            .Where(s => states.Contains(s.OnboardingState))
-            .OrderBy(s => s.ReferenceCode)
-            .Select(s => new ReviewQueueItemDto(s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, s.OnboardingState.ToString()))
+        var pageSize = Page<ReviewQueueItemDto>.ClampLimit(limit);
+
+        var query = db.Suppliers.Where(s => states.Contains(s.OnboardingState));
+
+        if (ReviewQueueCursor.TryDecode(cursor, out var from))
+        {
+            // Strictly "after" the cursor row in ascending order (oldest submission first, the
+            // order a reviewer should work the queue). The Id tie-break is what keeps this safe
+            // when two suppliers register in the same tick.
+            query = query.Where(s =>
+                s.CreatedAt > from.CreatedAt
+                || (s.CreatedAt == from.CreatedAt && s.Id.CompareTo(from.Id) > 0));
+        }
+
+        // limit + 1: the extra row answers HasMore without a COUNT over a queue new applications
+        // are inserted into continuously.
+        var rows = await query
+            .OrderBy(s => s.CreatedAt).ThenBy(s => s.Id)
+            .Select(s => new { s.Id, s.CreatedAt, Dto = new ReviewQueueItemDto(s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, s.OnboardingState.ToString()) })
+            .Take(pageSize + 1)
             .ToListAsync(ct);
+
+        var hasMore = rows.Count > pageSize;
+        var items = hasMore ? rows[..pageSize] : rows;
+
+        return new Page<ReviewQueueItemDto>(
+            [.. items.Select(r => r.Dto)],
+            hasMore,
+            hasMore ? new ReviewQueueCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null);
     }
 }
 
