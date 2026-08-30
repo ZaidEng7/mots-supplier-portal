@@ -28,7 +28,8 @@ public sealed class RegistrationNumberDedupeTests(PostgresApiFixture fixture)
         RepresentativeName: "Dedupe Tester",
         RepresentativePhone: "+963900000000",
         Email: email,
-        Password: "DedupeTest#2026!");
+        Password: "DedupeTest#2026!",
+        Locale: "ar");
 
     private async Task<RegisterSupplierResult> RegisterAsync(RegisterSupplierCommand command)
     {

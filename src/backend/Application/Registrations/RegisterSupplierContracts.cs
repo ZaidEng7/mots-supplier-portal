@@ -1,5 +1,10 @@
 namespace MotsSupplierPortal.Application.Registrations;
 
+/// <summary>MSP-69: <paramref name="Locale"/> is "ar" or "en", resolved by the endpoint from the
+/// request's Accept-Language header (RegistrationEndpoints.cs) - the frontend has no in-app language
+/// switcher independent of the browser (src/frontend/src/i18n/config.ts's own
+/// i18next-browser-languagedetector), so the header is a faithful signal of what the registrant
+/// actually saw the form rendered in, not a guess.</summary>
 public sealed record RegisterSupplierCommand(
     string DisplayNameAr,
     string DisplayNameEn,
@@ -7,7 +12,8 @@ public sealed record RegisterSupplierCommand(
     string RepresentativeName,
     string RepresentativePhone,
     string Email,
-    string Password);
+    string Password,
+    string Locale);
 
 public abstract record RegisterSupplierResult
 {

@@ -37,6 +37,21 @@ public sealed class ResendVerificationRequestValidator : AbstractValidator<Resen
 
 public static class RegistrationEndpoints
 {
+    /// <summary>MSP-69: "ar" or "en" only, matching AppUser.Language's scheme and the frontend's
+    /// own supportedLngs (src/frontend/src/i18n/config.ts). Accept-Language can carry q-values,
+    /// region subtags (en-US), and languages this product doesn't support at all - this reads only
+    /// the primary subtag of the first entry and falls back to "ar" (AppUser.Language's own
+    /// default, and the frontend's fallbackLng) for anything else, rather than guessing at a
+    /// closest match.</summary>
+    public static string ResolveLocale(string? acceptLanguageHeader)
+    {
+        if (string.IsNullOrWhiteSpace(acceptLanguageHeader)) return "ar";
+
+        var firstEntry = acceptLanguageHeader.Split(',')[0].Split(';')[0].Trim();
+        var primarySubtag = firstEntry.Split('-')[0].ToLowerInvariant();
+        return primarySubtag == "en" ? "en" : "ar";
+    }
+
     public static void MapRegistrationEndpoints(this IEndpointRouteBuilder app)
     {
         // Public by design: this is the unauthenticated front door (STORY-02.1.1). Declared
@@ -65,6 +80,8 @@ public static class RegistrationEndpoints
                 return RateLimitResults.TooManyRequests(httpContext);
             }
 
+            var locale = ResolveLocale(httpContext.Request.Headers.AcceptLanguage);
+
             var result = await handler.HandleAsync(
                 new RegisterSupplierCommand(
                     request.DisplayNameAr,
@@ -73,7 +90,8 @@ public static class RegistrationEndpoints
                     request.RepresentativeName,
                     request.RepresentativePhone,
                     request.Email,
-                    request.Password),
+                    request.Password,
+                    locale),
                 ct);
 
             // MSP-73: Success, DuplicateEmail, and DuplicateRegistrationNumber all return the
