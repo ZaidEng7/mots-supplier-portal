@@ -593,18 +593,26 @@ jobs:
           # numbers to show; main's is the only one that is ever real. The label says so plainly
           # instead of implying "this PR" the way the old unscoped call accidentally did.
           #
-          # PHASE 4 / TASK #13: this is a fact task #13 needs before flipping these to blocking, not
-          # just a wording fix. Blocking a PR on figures that are always main's pre-this-PR state
-          # (never this PR's own, because SonarCloud cannot produce that) means the gate would judge
-          # every open PR identically, off a number the PR itself cannot move no matter what it
-          # contains. That may still be a defensible policy ("do not build on a red main"), but it is
-          # a different gate than "does not make things worse", and task #13 should decide it
-          # deliberately rather than inherit it from what this label used to imply.
-          #
-          # PHASE 4 EXIT CONDITION: flip these to blocking once they can pass on merit.
+          # TASK #13 - DECIDED, PHASE 4 CLOSED (2026-08-30): these stay reporting-only. NOT flipped
+          # to blocking. Zaid's decision, made on Task #12's finding directly above: a whole-project
+          # metric that only ever reflects main's PAST state, never the PR actually being reviewed,
+          # is not something a PR can pass or fail on its own content - blocking on it would judge
+          # every open PR identically off a number that PR cannot move no matter what it contains.
+          # That is a different thing from a quality gate, whatever it is labeled, and building a
+          # second one when the project already has a real, PR-specific gate (the 45% new-code
+          # coverage ratchet above, proven correct and used successfully on every PR this arc) would
+          # be exactly the instrument-over-nothing pattern this whole Phase 4 audit exists to remove
+          # (see MSP-83, EndpointAuthorizationCoverageTests.cs: an instrument that cannot measure
+          # what it claims to gate is worse than no instrument, because it reads as coverage that
+          # is not there). These numbers remain printed because watching whole-project debt move
+          # over time is still useful - just never as a block. This closes Phase 4; there is no
+          # further exit condition pending on this file. If this decision needs revisiting, that is
+          # a new decision to make deliberately, not a default this comment should silently expire
+          # into - see MSP-70 for the full record.
           print("")
-          print("Whole project on main (reported, not enforced - Phase 4 flips these to blocking; "
-                "this always reads main's own last analysis, never a PR's - see comment above):")
+          print("Whole project on main (reported, not enforced by decision - Task #13/Phase 4 closed "
+                "2026-08-30; this always reads main's own last analysis, never a PR's - see comment "
+                "above):")
           LABELS = [
               ("security_rating",          "Security rating",   True),
               ("reliability_rating",       "Reliability rating", True),
