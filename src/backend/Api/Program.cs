@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Hangfire;
@@ -23,6 +24,7 @@ using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
+using Microsoft.AspNetCore.ResponseCompression;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -245,6 +247,27 @@ builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestVali
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString);
 
+// Task #16/MSP-74: gzip + Brotli response compression.
+//
+// EnableForHttps defaults to false in ASP.NET Core specifically because of the CRIME/BREACH
+// compression-oracle attacks, which target apps that echo attacker-controlled input back inside
+// a response that ALSO carries a fixed secret (classically: a server-rendered page reflecting a
+// query string next to an embedded anti-forgery token) - repeated probing with different guessed
+// substrings, watching the compressed length change, leaks the secret one byte at a time. This
+// API is HTTPS-only in every real environment (Secure cookies are unconditional - see
+// AuthEndpoints.LoginOk), so leaving the safe default off would make this middleware a no-op in
+// production, not a safer configuration. Enabled instead, because the actual shape here does not
+// fit the oracle: this is a stateless JSON API returning fixed DTOs, not server-rendered pages
+// reflecting free-form user input beside an embedded token, and the one real secret that
+// transits (the refresh token) never appears in a compressible response body at all - it is
+// HttpOnly-cookie-only, set via Set-Cookie, which response bodies compression does not touch.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy
@@ -336,6 +359,11 @@ app.Use(async (context, next) =>
 
     await next();
 });
+
+// Must run before anything that writes a compressible response body, per the middleware's own
+// ordering requirement (docs: "UseResponseCompression must be called before any middleware that
+// compresses responses").
+app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {
