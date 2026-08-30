@@ -446,15 +446,6 @@ jobs:
           api "$BASE&metricKeys=new_coverage&$SCOPE" coverage.json
           api "$BASE&metricKeys=new_lines_to_cover&$SCOPE" newlines.json
 
-          # Task #21 debug: identify the exact file(s) the 3 new-lines-to-cover figure points at -
-          # temporary, removed once the real culprit is found.
-          api "https://sonarcloud.io/api/measures/component_tree?component=ZaidEng7_mots-supplier-portal&$SCOPE&metricKeys=new_coverage,new_lines_to_cover,new_uncovered_lines&ps=100&strategy=leaves&metricSort=new_lines_to_cover&s=metric&asc=false" tree.json
-          echo "--- raw tree.json (debug) ---"
-          cat tree.json
-          echo ""
-          echo "--- per-file new-code coverage (debug) ---"
-          jq -r '.components[] | select(.measures[]? | .metric == "new_lines_to_cover" and (.period.value // "0") != "0") | "\(.path): " + ([.measures[] | "\(.metric)=\(.period.value // "0")"] | join(" "))' tree.json
-
           # Sonar's own per-condition verdicts. Read from the quality gate rather than recomputed,
           # so the ratings enforced here are exactly the ones Sonar computed - no second opinion to
           # drift out of step with the dashboard.
