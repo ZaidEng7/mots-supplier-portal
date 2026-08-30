@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
 import type { SupplierProfile } from '../api/supplier'
 
+/** Injects a value TypeScript's static type says cannot occur, for exactly one field, so a test can
+ * simulate real-world API/type drift without casting an entire fixture object and losing compiler
+ * coverage on every other field (Task #10). Narrower and more honest than `as unknown as T`: the
+ * unsafety is visible at the call site (`asRuntimeValue(undefined)`), not laundered through a type
+ * name that implies the whole object was checked. */
+function asRuntimeValue<T>(value: unknown): T {
+  return value as T
+}
+
 /**
  * Regression test for the reviewer profile grid (MSP-63 follow-up).
  *
@@ -15,9 +24,16 @@ import type { SupplierProfile } from '../api/supplier'
  * through `as unknown as Record<string, string | null>`, an assertion that the DTO has a shape it
  * does not - which is what stopped TypeScript reporting it. A type assertion silences the compiler
  * the way a false comment silences a reader.
+ *
+ * Task #10: this file's own fixtures repeated exactly that pattern - `as unknown as SupplierProfile`
+ * on a literal that was missing 4 required fields (missingProfileFields, termsAcceptedVersion,
+ * termsAcceptedAt, rowVersion), added to the DTO after this fixture was written and silently never
+ * caught because the cast told the compiler to stop checking. Typed directly (`: SupplierProfile`)
+ * below instead, so a future field added to the real DTO fails HERE at compile time rather than
+ * leaving the fixture quietly out of sync with what the API actually returns.
  */
 describe('reviewer profile display fields', () => {
-  const supplier = {
+  const supplier: SupplierProfile = {
     referenceCode: 'SUP-2026-000038',
     displayNameAr: 'شركة',
     displayNameEn: 'Lifecycle Demo Co',
@@ -44,7 +60,11 @@ describe('reviewer profile display fields', () => {
     branches: [],
     bankAccounts: [],
     categoryCodes: [],
-  } as unknown as SupplierProfile
+    missingProfileFields: [],
+    termsAcceptedVersion: null,
+    termsAcceptedAt: null,
+    rowVersion: 1,
+  }
 
   it('renders every display field as a string, never an object', () => {
     for (const field of PROFILE_DISPLAY_FIELDS) {
@@ -56,14 +76,24 @@ describe('reviewer profile display fields', () => {
   it('does not include any field whose DTO value is an object', () => {
     // The direct assertion of the bug. If someone re-adds `legalInfo` (or any other non-scalar
     // code) to the display list, this fails here rather than in a browser in front of a reviewer.
+    // No cast needed: PROFILE_DISPLAY_FIELDS is `satisfies readonly (keyof SupplierProfile)[]`
+    // (profileDisplayFields.ts), so `field` is already a real key of SupplierProfile and indexes
+    // directly.
     for (const field of PROFILE_DISPLAY_FIELDS) {
-      const raw = (supplier as unknown as Record<string, unknown>)[field]
+      const raw = supplier[field]
       expect(typeof raw).not.toBe('object')
     }
   })
 
   it('shows a dash for absent values rather than "null" or "undefined"', () => {
-    const sparse = { ...supplier, description: null, website: undefined } as unknown as SupplierProfile
+    // `description: null` matches the real DTO type (`string | null`) and needs no assertion.
+    // `website: undefined` does not - SupplierProfile declares `string | null`, never undefined -
+    // and is deliberately out of type: it simulates a field the backend DROPPED from its actual
+    // JSON response, something TypeScript's static type cannot rule out at runtime (the exact risk
+    // class the reviewer-page bug above was). asRuntimeValue<T> exists so that one adversarial value
+    // is visibly, narrowly injected here, rather than casting the whole `sparse` object and losing
+    // compiler coverage on every OTHER field the way the old `as unknown as SupplierProfile` did.
+    const sparse: SupplierProfile = { ...supplier, description: null, website: asRuntimeValue(undefined) }
 
     expect(profileDisplayValue(sparse, 'description')).toBe('—')
     expect(profileDisplayValue(sparse, 'website')).toBe('—')
