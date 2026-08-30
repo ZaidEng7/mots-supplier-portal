@@ -91,23 +91,42 @@ jobs:
           fi
           echo "No High/Critical NuGet advisories."
 
-      # MSP-80. This gate was originally scoped to production dependencies only, because the whole
-      # dev tree carried 10 findings (7 high) that could not be fixed: every one was a transitive
-      # of @lhci/cli, which was already at its latest published version with no upstream fix.
+      # Task #20/MSP-80 AC1, run for real: @lhci/cli is back (MSP-47 - Lighthouse LCP measurement,
+      # see the frontend job below) and brought its 10 findings back with it (7 high, 1 moderate,
+      # 2 low), re-confirmed fresh here, not reused from before it was removed. Every one of them
+      # is STILL a transitive of @lhci/cli, and @lhci/cli is STILL at 0.15.1 - the latest published
+      # version, unchanged since PR #8 first found this - with `npm audit fix` offering only a
+      # semver-major downgrade to 0.1.0 as its "fix", not a real one.
       #
-      # @lhci/cli has since been removed (it was not wired into CI at all - no workflow step ran it,
-      # so it was a risk carried for no signal). With it gone the audit reports zero findings at
-      # any severity across the FULL tree, so the narrower scope is no longer needed and the gate
-      # blocks on everything at high or critical.
+      # Reduced to two actual CVEs, not seven independent ones - npm audit propagates a
+      # dependency's worst transitive severity up the whole chain, so 5 of the 7 "high" entries
+      # (@lhci/cli, @lhci/utils, @puppeteer/browsers, lighthouse, puppeteer-core) carry no CVE of
+      # their own; they are high only because they depend on:
+      #   - extract-zip (GHSA-jmr9-qjv8-65gv): unvalidated symlink path traversal during archive
+      #     extraction.
+      #   - tmp (GHSA-52f5-9888-hmc6, GHSA-ph9p-34f9-6g65): arbitrary temp file/dir write via a
+      #     symlinked `dir` param, and path traversal via unsanitized prefix/postfix.
+      #   Both require the CALLER (lighthouse/puppeteer's own internal code) to pass an attacker-
+      #   controlled path/archive into these functions. Nothing in this project's usage does that -
+      #   `lhci autorun` calls the well-known lighthouserc.json config and two hardcoded local
+      #   URLs; no user input, uploaded file, or externally-supplied path ever reaches this tool.
       #
-      # Note the direction of travel: the scope tightened because the tree got clean, not because
-      # the standard changed. If an unfixable dev advisory ever reappears, the honest move is to
-      # narrow this again WITH the reasoning written here - not to leave a permanently red build
-      # that people learn to ignore.
+      # Accepted risk, not a false positive: the CVEs are real, but unreachable in how this
+      # project actually invokes @lhci/cli - a devDependency, never bundled, running only inside a
+      # disposable CI runner with `--ignore-scripts` already blocking dependency install-time code
+      # execution project-wide. The residual exposure is the same one PR #8 named and accepted: a
+      # compromised @lhci/cli (or one of its dependencies) publishing a malicious release would run
+      # in CI with build access - a supply-chain trust question, not something these two CVEs
+      # change. So: production dependencies gate on high/critical (zero findings there - the
+      # frontend bundle never includes @lhci/cli), the full tree is reported but not blocking.
       - name: Dependency scan (npm)
         working-directory: src/frontend
         run: |
-          npm audit --audit-level=high
+          echo "--- full tree (reported, not blocking - see comment above for the 10 dev-only findings) ---"
+          npm audit || true
+
+          echo "--- production dependencies (blocking on high/critical) ---"
+          npm audit --omit=dev --audit-level=high
 
       # begin / build / end MUST share one working directory. The scanner writes .sonarqube
       # relative to where `begin` ran and the injected MSBuild targets look for it there; running
@@ -779,6 +798,30 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Task #20/MSP-47: real again, not restored-but-unwired. @lhci/cli was reinstalled (see
+      # MSP-80's advisory triage on the backend job's "Dependency scan (npm)" step) and this is the
+      # first workflow step that has ever actually invoked it - PR #8's own commit message noted
+      # the tool sat in package.json unused, no step called it, before it was removed entirely.
+      #
+      # Advisory, not blocking - continue-on-error is deliberate, not an oversight:
+      #   1. This is the first measurement after a long gap with no signal at all. There is no
+      #      established baseline yet to call a "regression" against.
+      #   2. Shared GitHub Actions runners have real CPU/network variance run to run; a strict gate
+      #      on a LCP threshold here risks becoming exactly the pattern this codebase has already
+      #      named and rejected once - `retries: 1` on the a11y suite (MSP-79) cried wolf until
+      #      nobody looked, and hid a real deterministic failure. A noisy required check trains
+      #      people to stop reading it.
+      #   3. Same precedent as Task #13's decision on the whole-project Sonar ratings: a
+      #      measurement-only signal is reported, not enforced, until it has proven itself stable
+      #      on merit over real runs.
+      #
+      # lighthouserc.json's own assertions (LCP <= 2500ms, CLS <= 0.1) still run and still fail the
+      # STEP's own exit code on a violation - that is what makes the printed numbers meaningful
+      # rather than decorative - continue-on-error only stops that from failing the JOB.
+      - name: Lighthouse CI (LCP/CLS, advisory)
+        run: npm run lhci
+        continue-on-error: true
+
       - name: Build Storybook
         run: npm run build-storybook
 
@@ -800,11 +843,6 @@ jobs:
           name: playwright-report
           path: src/frontend/playwright-report/
           retention-days: 7
-
-  # The Lighthouse LCP step that used to live in the frontend job is NOT restored: PR #8 removed
-  # @lhci/cli entirely and the `lhci` npm script no longer exists. Restoring a step for a tool that
-  # is not installed would be its own kind of theatre. The LCP budget is tracked by MSP-47, which
-  # must also triage the dependency advisories that came back with that package (MSP-80).
 
   docker-build:
     name: Container image build
