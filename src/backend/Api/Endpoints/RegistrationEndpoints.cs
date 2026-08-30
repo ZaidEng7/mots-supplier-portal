@@ -85,7 +85,11 @@ public static class RegistrationEndpoints
                 _ => Results.Problem(),
             };
         })
-        .WithName("RegisterSupplier");
+        .WithName("RegisterSupplier")
+        // NFR-SEC-009: overrides the group's "auth-strict" for this route specifically - tighter
+        // than login/verify/resend-verification because a registration attempt is more
+        // consequential (writes rows, sends email). See Program.cs's RegisterRateLimitPolicy.
+        .RequireRateLimiting("register-strict");
 
         group.MapPost("/verify", async (
             VerifyEmailRequest request,

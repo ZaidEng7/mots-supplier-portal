@@ -46,14 +46,34 @@ public sealed class PerTargetRateLimiterTests
     {
         using var limiter = new PerTargetRateLimiter();
 
+        // "login", not "register": NFR-SEC-009 gave "register" its own tighter 5/min budget, so a
+        // 10-iteration loop against it would no longer prove what this test is about (it would
+        // exhaust the budget early and fail for the wrong reason). Any two DIFFERENT surfaces
+        // demonstrate the point; "login" keeps this test's iteration count meaningful against the
+        // still-10/min default.
         for (var i = 0; i < 10; i++)
         {
-            limiter.TryAcquire("register", "shared@example.com").Should().BeTrue();
+            limiter.TryAcquire("login", "shared@example.com").Should().BeTrue();
         }
-        limiter.TryAcquire("register", "shared@example.com").Should().BeFalse();
+        limiter.TryAcquire("login", "shared@example.com").Should().BeFalse();
 
         // Same email, different surface (e.g. resend-verification) - not the same budget, so one
         // surface being hammered doesn't lock a legitimate user out of an unrelated one.
         limiter.TryAcquire("resend-verification", "shared@example.com").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Registration_surface_has_its_own_tighter_budget()
+    {
+        // NFR-SEC-009: registration is more consequential per-request than login (writes rows,
+        // sends email), so it gets a lower budget than the shared 10/min default - proven directly
+        // against the class here, complementing RegistrationRateLimitTests.cs's HTTP-level proof.
+        using var limiter = new PerTargetRateLimiter();
+
+        for (var i = 0; i < 5; i++)
+        {
+            limiter.TryAcquire("register", "abuse-target@example.com").Should().BeTrue($"request {i + 1} is within the 5/min registration budget");
+        }
+        limiter.TryAcquire("register", "abuse-target@example.com").Should().BeFalse("the 6th request in the same window exceeds the tighter registration budget");
     }
 }
