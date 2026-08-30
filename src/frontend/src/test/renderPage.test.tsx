@@ -16,10 +16,15 @@ describe('page test harness', () => {
 
   it('renders a page with its providers and the data it fetched', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/users': [
-        { userId: '11111111-1111-1111-1111-111111111111', email: 'first@example.com', fullName: 'First Member', isActive: true },
-        { userId: '22222222-2222-2222-2222-222222222222', email: 'second@example.com', fullName: 'Second Member', isActive: false },
-      ],
+      // MSP-84: /suppliers/me/users returns Page<SupplierUserDto> now, not a bare array.
+      '/api/v1/suppliers/me/users': {
+        items: [
+          { userId: '11111111-1111-1111-1111-111111111111', email: 'first@example.com', fullName: 'First Member', isActive: true },
+          { userId: '22222222-2222-2222-2222-222222222222', email: 'second@example.com', fullName: 'Second Member', isActive: false },
+        ],
+        hasMore: false,
+        nextCursor: null,
+      },
     })
 
     renderPage(<TeamPage />)

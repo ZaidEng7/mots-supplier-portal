@@ -34,8 +34,8 @@ public static class SupplierUserEndpoints
     {
         var group = app.MapGroup("/api/v1/suppliers/me/users").WithTags("SupplierUsers");
 
-        group.MapGet("/", async (IListSupplierUsersHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(ct)))
+        group.MapGet("/", async (string? cursor, int? limit, IListSupplierUsersHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(cursor, limit, ct)))
         .RequirePermission(Permissions.SupplierUserManage)
         .WithName("ListSupplierUsers");
 

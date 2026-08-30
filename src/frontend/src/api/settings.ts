@@ -49,8 +49,16 @@ export interface Session {
   isCurrent: boolean
 }
 
-export async function listSessions(): Promise<Session[]> {
-  const res = await apiFetch('/api/v1/auth/sessions')
+/** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */
+export interface Page<T> {
+  items: T[]
+  hasMore: boolean
+  nextCursor: string | null
+}
+
+export async function listSessions(cursor?: string | null): Promise<Page<Session>> {
+  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  const res = await apiFetch(`/api/v1/auth/sessions${qs}`)
   return parseOrThrow(res)
 }
 

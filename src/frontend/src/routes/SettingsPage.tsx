@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Field, Input } from '../components/ui'
 import { useToast } from '../components/ui'
 import {
@@ -81,7 +81,14 @@ function SessionsSection() {
   const { t } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
-  const sessionsQuery = useQuery({ queryKey: ['sessions'], queryFn: listSessions })
+  // MSP-84: sessions are bounded per person, but real pagination is scoped for all four
+  // client-facing lists - loading page one and stopping would silently hide the rest.
+  const sessionsQuery = useInfiniteQuery({
+    queryKey: ['sessions'],
+    queryFn: ({ pageParam }) => listSessions(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+  })
 
   const revokeMutation = useMutation({
     mutationFn: revokeSession,
@@ -103,7 +110,7 @@ function SessionsSection() {
     return <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
   }
 
-  const sessions = sessionsQuery.data ?? []
+  const sessions = sessionsQuery.data?.pages.flatMap((p) => p.items) ?? []
 
   return (
     <div className="flex flex-col gap-3">
@@ -130,11 +137,18 @@ function SessionsSection() {
           </li>
         ))}
       </ul>
+      {sessionsQuery.hasNextPage ? (
+        <Button variant="secondary" isLoading={sessionsQuery.isFetchingNextPage} onClick={() => sessionsQuery.fetchNextPage()}>
+          {t('settings.loadMoreSessions')}
+        </Button>
+      ) : null}
       <Button
         variant="secondary"
         isLoading={revokeAllMutation.isPending}
         onClick={() => revokeAllMutation.mutate()}
-        disabled={sessions.length <= 1}
+        // hasNextPage guards against under-counting: more sessions may exist beyond what's
+        // loaded, even if only one (the current one) has been fetched so far.
+        disabled={sessions.length <= 1 && !sessionsQuery.hasNextPage}
       >
         {t('settings.revokeAllOthers')}
       </Button>

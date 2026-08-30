@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Application.Common;
+
 namespace MotsSupplierPortal.Application.Auth;
 
 /// <summary>FR-IAM-007: session management - list active sessions, revoke one or all.</summary>
@@ -5,7 +7,8 @@ public sealed record SessionDto(Guid FamilyId, string? Ip, string? UserAgent, Da
 
 public interface IListSessionsHandler
 {
-    Task<IReadOnlyList<SessionDto>> HandleAsync(string? currentRefreshToken, CancellationToken ct);
+    /// <summary>MSP-84: keyset-paged (see SessionCursor for why).</summary>
+    Task<Page<SessionDto>> HandleAsync(string? currentRefreshToken, string? cursor, int? limit, CancellationToken ct);
 }
 
 public interface IRevokeSessionHandler
