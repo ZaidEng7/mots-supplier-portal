@@ -22,7 +22,21 @@
   --n-200: #E7E3DC;
   --n-300: #D6D0C6;
   --n-400: #B4AB9D;
-  --n-500: #8B8173;
+  /* NFR-A11Y-003: #8B8173 (the original value) measured 3.83:1 against white - below the 4.5:1
+     WCAG AA minimum for normal text - and was invisible to every check this project had until
+     the app-a11y suite scanned a real page instead of an isolated Storybook component. n-500's
+     only consumer is --color-text-muted (checked before changing it), so this is contained: no
+     other token references it.
+     First fix (#7B7266) cleared white but not every surface this text actually sits on - the
+     "No logo" placeholder in OnboardingPage places it against #F3F1ED (--color-bg-sunken in
+     light mode), where #7B7266 measured only 4.19:1. Found only because the suite scans real
+     pages in their real states, not a single isolated swatch.
+     #746B60 is the original hue scaled toward black by the smallest factor that clears 4.5:1
+     against #F3F1ED specifically (4.64:1 there, 5.23:1 against white), with a small extra
+     margin for rendering differences. The boundary of what this proves: it is verified against
+     every background this text sits on across the 18 routes / 2 locales this suite scans, not
+     against every value --color-bg-* could theoretically resolve to. */
+  --n-500: #746B60;
   --n-600: #6B6255;
   --n-700: #4C463B;
   --n-800: #302B24;
