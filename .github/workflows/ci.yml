@@ -366,6 +366,40 @@ jobs:
 
           echo "  OK - test sources are classified as tests, not as main code."
 
+      # THROWAWAY INVESTIGATION STEP - not merged, answers two open questions before MSP-72:
+      # (1) does PR analysis read the project-level new-code-period setting at all, or always
+      #     diff against the target branch regardless; (2) what specifically is driving the
+      #     whole-project Reliability=C rating. Removed before merge; this branch is not merged.
+      - name: INVESTIGATION - period source and reliability issues
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_KEY: ZaidEng7_mots-supplier-portal
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          api() { curl -sS -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1"; }
+
+          echo "== Q2: what period does THIS PR's own measures response report? =="
+          api "measures/component?component=$PROJECT_KEY&metricKeys=new_coverage,new_reliability_rating&pullRequest=$PR_NUMBER" | jq .
+
+          echo ""
+          echo "== Q2: same query for an already-completed historical PR (#38) =="
+          api "measures/component?component=$PROJECT_KEY&metricKeys=new_coverage,new_reliability_rating&pullRequest=38" | jq .
+
+          echo ""
+          echo "== Q2: pull request list - does Sonar itself record target branch per PR? =="
+          api "project_pull_requests/list?project=$PROJECT_KEY" | jq .
+
+          echo ""
+          echo "== Q1: whole-project reliability measure, with explicit scope/period =="
+          api "measures/component?component=$PROJECT_KEY&metricKeys=reliability_rating,bugs&branch=main" | jq .
+
+          echo ""
+          echo "== Q1: the actual reliability issues (bugs) driving that rating, whole project, main branch =="
+          api "issues/search?componentKeys=$PROJECT_KEY&types=BUG&branch=main&ps=100" > /tmp/bugs.json
+          jq -r '.total' /tmp/bugs.json
+          jq -r '.issues[] | "\(.severity)\t\(.rule)\t\(.component)\t\(.line // "-")\t\(.message)"' /tmp/bugs.json
+
       - name: Quality gate (Sonar ratings + 45% coverage floor)
         if: steps.sonar.outputs.enabled == 'true'
         env:
