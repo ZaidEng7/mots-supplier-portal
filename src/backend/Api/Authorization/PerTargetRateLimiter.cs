@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using MotsSupplierPortal.Infrastructure.Observability;
 
 namespace MotsSupplierPortal.Api.Authorization;
 
@@ -10,7 +11,7 @@ namespace MotsSupplierPortal.Api.Authorization;
 /// connection. Both must pass for a request to proceed; this one is checked explicitly by each
 /// endpoint alongside the existing "auth-strict" per-IP policy.
 /// </summary>
-public sealed class PerTargetRateLimiter : IDisposable
+public sealed class PerTargetRateLimiter(AppMetrics metrics) : IDisposable
 {
     // NFR-SEC-009: every surface shared one hardcoded 10/min budget
     // regardless of how consequential a request actually is. A login attempt costs a password
@@ -39,8 +40,17 @@ public sealed class PerTargetRateLimiter : IDisposable
     /// <param name="surface">A short tag for the endpoint (e.g. "login", "register") so the same
     /// email doesn't share a budget across unrelated surfaces.</param>
     /// <param name="target">The normalized identity being targeted (email).</param>
-    public bool TryAcquire(string surface, string target) =>
-        _limiter.AttemptAcquire($"{surface}:{target}").IsAcquired;
+    public bool TryAcquire(string surface, string target)
+    {
+        var acquired = _limiter.AttemptAcquire($"{surface}:{target}").IsAcquired;
+        if (!acquired)
+        {
+            metrics.RateLimitRejections.Add(1,
+                new KeyValuePair<string, object?>("surface", surface),
+                new KeyValuePair<string, object?>("layer", "per-target"));
+        }
+        return acquired;
+    }
 
     public void Dispose() => _limiter.Dispose();
 }

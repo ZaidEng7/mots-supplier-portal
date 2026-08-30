@@ -1,5 +1,6 @@
 using FluentAssertions;
 using MotsSupplierPortal.Api.Authorization;
+using MotsSupplierPortal.Infrastructure.Observability;
 
 namespace MotsSupplierPortal.Tests.Unit.Authorization;
 
@@ -14,7 +15,7 @@ public sealed class PerTargetRateLimiterTests
     [Fact]
     public void Tenth_request_for_a_target_succeeds_eleventh_is_blocked()
     {
-        using var limiter = new PerTargetRateLimiter();
+        using var limiter = new PerTargetRateLimiter(new AppMetrics());
 
         for (var i = 0; i < 10; i++)
         {
@@ -27,7 +28,7 @@ public sealed class PerTargetRateLimiterTests
     [Fact]
     public void Different_targets_have_independent_budgets()
     {
-        using var limiter = new PerTargetRateLimiter();
+        using var limiter = new PerTargetRateLimiter(new AppMetrics());
 
         for (var i = 0; i < 10; i++)
         {
@@ -44,7 +45,7 @@ public sealed class PerTargetRateLimiterTests
     [Fact]
     public void Different_surfaces_have_independent_budgets_for_the_same_target()
     {
-        using var limiter = new PerTargetRateLimiter();
+        using var limiter = new PerTargetRateLimiter(new AppMetrics());
 
         // "login", not "register": NFR-SEC-009 gave "register" its own tighter 5/min budget, so a
         // 10-iteration loop against it would no longer prove what this test is about (it would
@@ -68,7 +69,7 @@ public sealed class PerTargetRateLimiterTests
         // NFR-SEC-009: registration is more consequential per-request than login (writes rows,
         // sends email), so it gets a lower budget than the shared 10/min default - proven directly
         // against the class here, complementing RegistrationRateLimitTests.cs's HTTP-level proof.
-        using var limiter = new PerTargetRateLimiter();
+        using var limiter = new PerTargetRateLimiter(new AppMetrics());
 
         for (var i = 0; i < 5; i++)
         {

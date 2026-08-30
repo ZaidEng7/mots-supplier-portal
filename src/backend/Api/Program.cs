@@ -25,6 +25,8 @@ using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Microsoft.AspNetCore.ResponseCompression;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -45,12 +47,36 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .Enrich.WithProperty("Application", "MotsSupplierPortal.Api")
     .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter()));
 
-// OpenTelemetry: traces with correlationId propagation
+// Task #16/NFR-OBS-006: metrics, alongside the traces this project already had. Zero Meter/Counter
+// instrumentation existed anywhere before this (grepped the whole backend). ASP.NET Core's own
+// built-in meters (wired below) give request count/latency/status-code PER ROUTE for free, for
+// every endpoint - not the hand-picked "high-traffic ones" this ticket named as a fallback,
+// because the free version is strictly more complete and costs nothing extra to wire up.
+// AppMetrics is the small amount that instrumentation cannot see (see its own doc comment).
+// PrometheusExporter:
+// the only OTel .NET exporter for a pull-based /metrics endpoint, carries a "beta" NuGet version
+// (1.18.0-beta.1, matching the otherwise-1.18.0 OTel packages already here) - the whole Prometheus
+// exporter family for .NET OTel has stayed beta-versioned upstream for a long time despite wide
+// production use; evaluated and accepted rather than defaulting to it unexamined.
+builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Observability.AppMetrics>();
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("MotsSupplierPortal.Api"))
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
-        .AddConsoleExporter());
+        .AddConsoleExporter())
+    .WithMetrics(metrics => metrics
+        // Built-in meters, not a NuGet instrumentation package - unlike tracing,
+        // OpenTelemetry.Instrumentation.AspNetCore's AddAspNetCoreInstrumentation() only targets
+        // TracerProviderBuilder (confirmed by trying it here first and getting a compile error).
+        // ASP.NET Core has emitted per-request metrics (http.server.request.duration,
+        // http.server.active_requests, tagged by route/method/status) natively via
+        // System.Diagnostics.Metrics since .NET 8 - these two meter names are the framework's own,
+        // per Microsoft's ASP.NET Core metrics docs. Microsoft.AspNetCore.Identity is the other
+        // free one worth having: sign-in/sign-out/password-check counters for an app whose entire
+        // surface is behind Identity-based auth.
+        .AddMeter("Microsoft.AspNetCore.Hosting", "Microsoft.AspNetCore.Server.Kestrel", "Microsoft.AspNetCore.Identity")
+        .AddMeter(MotsSupplierPortal.Infrastructure.Observability.AppMetrics.MeterName)
+        .AddPrometheusExporter());
 
 builder.Services.AddOpenApi();
 
@@ -309,6 +335,21 @@ const string RegisterRateLimitPolicy = "register-strict";
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Task #16/NFR-OBS-006: task #4 made rate limiting a real defended surface - worth knowing if
+    // it is actually being hit at scale, not just that it exists. Tagged by request path rather
+    // than policy name: OnRejectedContext doesn't expose the matched policy's name directly, and
+    // the path is at least as meaningful (distinguishes login/register/etc without guessing at
+    // internal ASP.NET Core rate-limiter state). RequestServices, not a captured field, because
+    // this configuration runs before the app (and its DI container) is built.
+    options.OnRejected = (context, ct) =>
+    {
+        context.HttpContext.RequestServices
+            .GetRequiredService<MotsSupplierPortal.Infrastructure.Observability.AppMetrics>()
+            .RateLimitRejections.Add(1,
+                new KeyValuePair<string, object?>("surface", context.HttpContext.Request.Path.Value ?? "unknown"),
+                new KeyValuePair<string, object?>("layer", "per-ip"));
+        return ValueTask.CompletedTask;
+    };
     options.AddPolicy(AuthRateLimitPolicy, httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -436,6 +477,16 @@ static async Task WriteHealthResponse(HttpContext context, Microsoft.Extensions.
     };
     await context.Response.WriteAsJsonAsync(payload);
 }
+
+// Task #16/NFR-OBS-006: "dashboard-ready" per the ticket's own fallback - a /metrics endpoint in
+// Prometheus text format, not a dashboard UI (a much bigger undertaking, and not what the
+// requirement actually needs here: NFR-OBS-006 asks for background-job and Outbox health to be
+// "observable to admins", and a scrape target any Prometheus/Grafana stack can point at is exactly
+// that, without this app owning a rendering layer). AllowAnonymous matches this app's own /health
+// precedent - a metrics scrape endpoint is conventionally reachable by an internal collector
+// network, not gated by this app's own user permission system; firewalling it at the deployment/
+// network level is the standard place for that control, not application code.
+app.MapPrometheusScrapingEndpoint("/metrics").AllowAnonymous();
 
 // Reference data is deliberately public: the registration form (itself unauthenticated) needs
 // regions/currencies to render. These were previously anonymous only because no guard had been
