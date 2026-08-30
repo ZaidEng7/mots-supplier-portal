@@ -254,6 +254,14 @@ builder.Services.AddScoped<ISupplierLifecycleHandler, SupplierLifecycleHandler>(
 builder.Services.AddScoped<IRequestInfoHandler, RequestInfoHandler>();
 builder.Services.AddScoped<IResubmitApplicationHandler, ResubmitApplicationHandler>();
 builder.Services.AddScoped<IGetOwnActiveAnnotationHandler, GetOwnActiveAnnotationHandler>();
+// Task #16: the missing Outbox dispatcher. IOutboxTransport is the same shape as IEmailSender -
+// LoggingOutboxTransport stands in for the not-yet-built EPIC-23 ERP integration.
+builder.Services.AddSingleton<IOutboxTransport, MotsSupplierPortal.Infrastructure.Suppliers.LoggingOutboxTransport>();
+builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>();
+// Singleton, constructed eagerly right after the app is built (see below) - an ObservableGauge
+// that nobody ever constructs never wires up its callback, which reads as a working /metrics
+// endpoint that simply never mentions the backlog. Not "reporting zero", genuinely absent.
+builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Suppliers.OutboxBacklogGauge>();
 builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection(MinioOptions.SectionName));
 builder.Services.AddSingleton<MinioFileStorage>();
 builder.Services.AddScoped<IFileStorage>(sp => sp.GetRequiredService<MinioFileStorage>());
@@ -375,6 +383,12 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+// Task #16: forces OutboxBacklogGauge's constructor to run now, not on first (possibly never)
+// resolution - a singleton nobody resolves is never built, and its ObservableGauge callback never
+// gets registered with the Meter, which reads at the /metrics endpoint as "the backlog gauge
+// simply is not there" rather than any kind of error.
+app.Services.GetRequiredService<MotsSupplierPortal.Infrastructure.Suppliers.OutboxBacklogGauge>();
 
 // Legal-but-questionable settings, reported once at boot. Not fatal: these configurations work,
 // they just behave in a way the person who set them probably did not intend. See
@@ -552,6 +566,12 @@ RecurringJob.AddOrUpdate<DocumentExpiryJob>(
 
 RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
     "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+
+// Task #16: the dispatcher-shaped hole. Every 5 minutes, not daily like the two jobs above -
+// approval/compliance events sitting in the Outbox are meant to eventually reach an ERP, and a
+// daily cadence would make "eventually" mean "up to a day late" for no reason.
+RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
+    "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
 
 app.Run();
 
