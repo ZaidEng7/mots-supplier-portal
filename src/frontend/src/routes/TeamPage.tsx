@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Dialog, Field, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
 import { useToast } from '../components/ui'
 import { listTeam, inviteTeamMember, disableTeamMember } from '../api/team'
@@ -24,7 +24,14 @@ export function TeamPage() {
   const queryClient = useQueryClient()
   const [inviteOpen, setInviteOpen] = useState(false)
 
-  const teamQuery = useQuery({ queryKey: ['team'], queryFn: listTeam })
+  // MSP-84: real pagination needs a real walking consumer - loading page one and stopping would
+  // silently hide the rest of the team with no error, no empty state, nothing visibly wrong.
+  const teamQuery = useInfiniteQuery({
+    queryKey: ['team'],
+    queryFn: ({ pageParam }) => listTeam(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+  })
 
   const {
     register,
@@ -60,7 +67,7 @@ export function TeamPage() {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
   }
 
-  const members = teamQuery.data ?? []
+  const members = teamQuery.data?.pages.flatMap((p) => p.items) ?? []
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,6 +114,13 @@ export function TeamPage() {
             </TableBody>
           </Table>
         )}
+        {teamQuery.hasNextPage ? (
+          <div className="mt-3">
+            <Button variant="secondary" isLoading={teamQuery.isFetchingNextPage} onClick={() => teamQuery.fetchNextPage()}>
+              {t('team.loadMore')}
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       <Dialog open={inviteOpen} onOpenChange={(o) => { setInviteOpen(o); if (!o) reset() }} title={t('team.inviteTitle')} description={t('team.inviteDescription')}>

@@ -189,8 +189,9 @@ async function mockBackend(page: Page) {
     if (p === '/api/v1/reference/currencies') return route.fulfill({ json: [{ code: 'SYP', nameAr: 'ليرة سورية', nameEn: 'Syrian Pound' }] })
     if (p === '/api/v1/reference/regions') return route.fulfill({ json: [{ code: 'DM', nameAr: 'دمشق', nameEn: 'Damascus' }] })
     if (p === '/api/v1/reference/categories') return route.fulfill({ json: [{ code: 'general', nameAr: 'عام', nameEn: 'General' }] })
-    if (p === '/api/v1/suppliers/me/users') return route.fulfill({ json: [{ userId: 'u1', email: 'teammate@example.com', fullName: 'Teammate One', isActive: true }] })
-    if (p === '/api/v1/auth/sessions') return route.fulfill({ json: [{ familyId: 'f1', ip: '127.0.0.1', userAgent: 'axe-scan', createdAt: '2026-08-01T00:00:00Z', expiresAt: '2026-09-01T00:00:00Z', isCurrent: true }] })
+    // MSP-84: /suppliers/me/users and /auth/sessions return Page<T> now, not bare arrays.
+    if (p === '/api/v1/suppliers/me/users') return route.fulfill({ json: { items: [{ userId: 'u1', email: 'teammate@example.com', fullName: 'Teammate One', isActive: true }], hasMore: false, nextCursor: null } })
+    if (p === '/api/v1/auth/sessions') return route.fulfill({ json: { items: [{ familyId: 'f1', ip: '127.0.0.1', userAgent: 'axe-scan', createdAt: '2026-08-01T00:00:00Z', expiresAt: '2026-09-01T00:00:00Z', isCurrent: true }], hasMore: false, nextCursor: null } })
     // MSP-84: /review/queue returns Page<ReviewQueueItemDto> now, not a bare array.
     if (p === '/api/v1/review/queue') return route.fulfill({ json: { items: [{ referenceCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'UnderReview' }], hasMore: false, nextCursor: null } })
     if (p === `/api/v1/review/${REFERENCE_CODE}`) return route.fulfill({ json: { supplier: SUPPLIER_PROFILE, documents: DOCUMENT_TYPES, annotationHistory: [] } })

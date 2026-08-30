@@ -7,24 +7,46 @@ namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : IListSessionsHandler
 {
-    public async Task<IReadOnlyList<SessionDto>> HandleAsync(string? currentRefreshToken, CancellationToken ct)
+    public async Task<Page<SessionDto>> HandleAsync(string? currentRefreshToken, string? cursor, int? limit, CancellationToken ct)
     {
         if (scope.UserId is null)
         {
-            return [];
+            return new Page<SessionDto>([], false);
         }
 
+        var pageSize = Page<SessionDto>.ClampLimit(limit);
         var currentFamilyId = await ResolveCurrentFamilyIdAsync(currentRefreshToken, ct);
 
+        // One row per session family, already reduced to a small, per-user-bounded set (a person
+        // has a handful of active sessions, not thousands) - the keyset filter below runs against
+        // this already-materialized list rather than pushing into SQL, since the boundary here is
+        // the GroupBy-then-First reduction, not the row count.
         var sessions = await db.RefreshTokens
             .Where(t => t.UserId == scope.UserId && t.RevokedAt == null && t.ExpiresAt > DateTimeOffset.UtcNow)
             .GroupBy(t => t.FamilyId)
             .Select(g => g.OrderByDescending(t => t.CreatedAt).First())
             .ToListAsync(ct);
 
-        return [.. sessions
-            .OrderByDescending(t => t.CreatedAt)
-            .Select(t => new SessionDto(t.FamilyId, t.Ip, t.UserAgent, t.CreatedAt, t.ExpiresAt, t.FamilyId == currentFamilyId))];
+        var ordered = sessions
+            .OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.FamilyId)
+            .Select(t => new SessionDto(t.FamilyId, t.Ip, t.UserAgent, t.CreatedAt, t.ExpiresAt, t.FamilyId == currentFamilyId))
+            .AsEnumerable();
+
+        if (SessionCursor.TryDecode(cursor, out var from))
+        {
+            ordered = ordered.Where(s =>
+                s.CreatedAt < from.CreatedAt
+                || (s.CreatedAt == from.CreatedAt && s.FamilyId.CompareTo(from.FamilyId) < 0));
+        }
+
+        var page = ordered.Take(pageSize + 1).ToList();
+        var hasMore = page.Count > pageSize;
+        var items = hasMore ? page[..pageSize] : page;
+
+        return new Page<SessionDto>(
+            items,
+            hasMore,
+            hasMore ? new SessionCursor(items[^1].CreatedAt, items[^1].FamilyId).Encode() : null);
     }
 
     private async Task<Guid?> ResolveCurrentFamilyIdAsync(string? currentRefreshToken, CancellationToken ct)

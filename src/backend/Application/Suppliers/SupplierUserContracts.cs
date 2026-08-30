@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Application.Common;
+
 namespace MotsSupplierPortal.Application.Suppliers;
 
 public sealed record SupplierUserDto(Guid UserId, string Email, string FullName, bool IsActive);
@@ -18,8 +20,9 @@ public interface IInviteSupplierUserHandler
 
 public interface IListSupplierUsersHandler
 {
-    /// <summary>Row-scoped to the caller's own SupplierId (STORY-01.8.1) - never cross-supplier.</summary>
-    Task<IReadOnlyList<SupplierUserDto>> HandleAsync(CancellationToken ct);
+    /// <summary>Row-scoped to the caller's own SupplierId (STORY-01.8.1) - never cross-supplier.
+    /// MSP-84: keyset-paged (see SupplierUserCursor for why).</summary>
+    Task<Page<SupplierUserDto>> HandleAsync(string? cursor, int? limit, CancellationToken ct);
 }
 
 public sealed record DisableSupplierUserCommand(Guid UserId);

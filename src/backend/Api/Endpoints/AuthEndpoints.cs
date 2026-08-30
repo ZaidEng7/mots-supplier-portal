@@ -201,12 +201,14 @@ public static class AuthEndpoints
 
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (
+            string? cursor,
+            int? limit,
             HttpContext httpContext,
             IListSessionsHandler handler,
             CancellationToken ct) =>
         {
             httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
-            var sessions = await handler.HandleAsync(currentToken, ct);
+            var sessions = await handler.HandleAsync(currentToken, cursor, limit, ct);
             return Results.Ok(sessions);
         })
         .RequireAuthorization()
