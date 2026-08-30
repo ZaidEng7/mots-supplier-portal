@@ -20,4 +20,8 @@ public interface IScopeContext
     /// where the gate itself cannot express the real rule (here: owner OR reviewer, not just
     /// reviewer) and the check has to live in the handler instead.</summary>
     bool HasPermission(string permission);
+
+    // TASK-12-PROBE: temporary marker line, added only to give this throwaway branch real new
+    // lines of code so PR #28's whole-project staleness fix can be verified against a genuine
+    // divergence from main - removed before the real fix's own PR is opened.
 }
