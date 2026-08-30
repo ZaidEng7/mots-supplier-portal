@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import { renderPage, mockFetch } from '../test/renderPage'
+import type { DocumentTypeStatus } from '../api/documents'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -16,7 +17,7 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { OnboardingPage } = await import('./OnboardingPage')
 
-function documentType(code: string, isRequired: boolean) {
+function documentType(code: string, isRequired: boolean): DocumentTypeStatus {
   return {
     documentTypeId: `id-${code}`,
     code,
@@ -124,5 +125,24 @@ describe('OnboardingPage document grouping', () => {
     await screen.findByRole('heading', { name: 'Optional documents' })
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: 'Required documents' })).toBeNull())
+  })
+
+  it('shows the rejection reason on a document that was rejected', async () => {
+    // Task #21: this is the reason text's own render path (--color-danger-fg, fixed for dark-mode
+    // AA contrast this task) - unexercised by every other test in this file, which only seeds
+    // latestDocument: null.
+    const rejected = {
+      ...documentType('commercial_registration', true),
+      latestDocument: {
+        id: 'doc-1', version: 1, state: 'Rejected', originalFileName: 'file.pdf', contentType: 'application/pdf',
+        sizeBytes: 1024, issueDate: null, expiryDate: null, rejectReason: 'Illegible scan',
+        uploadedAt: new Date().toISOString(), reviewedAt: new Date().toISOString(),
+      },
+    }
+    restore = mount([rejected])
+
+    renderPage(<OnboardingPage />)
+
+    expect(await screen.findByText('Illegible scan')).toBeInTheDocument()
   })
 })
