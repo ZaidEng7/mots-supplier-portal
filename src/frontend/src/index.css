@@ -1,4 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap");
+/* MSP-72: self-hosted via @fontsource, served from our own origin instead of fetching
+   fonts.googleapis.com on every page load - removes a render-blocking third-party request and
+   a supplier's browser reaching Google on every visit to a government portal. Same four weights
+   (400/500/600/700) previously requested from Google, one @import per weight per family since
+   that's how @fontsource ships them. */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+@import "@fontsource/ibm-plex-sans-arabic/700.css";
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
