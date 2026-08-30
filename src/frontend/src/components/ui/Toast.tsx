@@ -18,9 +18,9 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null)
 
 const kindColor: Record<ToastKind, string> = {
-  info: 'var(--info-500)',
+  info: 'var(--color-info-solid)',
   success: 'var(--success-500)',
-  danger: 'var(--danger-500)',
+  danger: 'var(--color-danger-solid)',
 }
 
 /** App-wide toast host on Radix Toast (polite live region, swipe-to-dismiss). Wrap the app once. */

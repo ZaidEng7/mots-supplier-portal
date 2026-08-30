@@ -18,16 +18,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       style={{
         backgroundColor: 'var(--color-bg-surface)',
         color: 'var(--color-text-primary)',
-        border: `1px solid ${invalid ? 'var(--danger-500)' : 'var(--color-border-input)'}`,
+        border: `1px solid ${invalid ? 'var(--color-danger-solid)' : 'var(--color-border-input)'}`,
         ...style,
       }}
       onFocus={(e) => {
         e.currentTarget.style.boxShadow = 'var(--focus-ring)'
-        e.currentTarget.style.borderColor = invalid ? 'var(--danger-500)' : 'var(--color-border-focus)'
+        e.currentTarget.style.borderColor = invalid ? 'var(--color-danger-solid)' : 'var(--color-border-focus)'
       }}
       onBlur={(e) => {
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.borderColor = invalid ? 'var(--danger-500)' : 'var(--color-border-input)'
+        e.currentTarget.style.borderColor = invalid ? 'var(--color-danger-solid)' : 'var(--color-border-input)'
       }}
       {...rest}
     />

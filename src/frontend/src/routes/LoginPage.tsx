@@ -62,7 +62,7 @@ export function LoginPage() {
             {(inputProps) => <Input type="password" autoComplete="current-password" {...inputProps} {...register('password')} />}
           </Field>
           {formError ? (
-            <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--danger-500)' }}>
+            <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
               {formError}
             </p>
           ) : null}

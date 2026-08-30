@@ -58,7 +58,7 @@ export function AcceptTeamInvitePage() {
               {(p) => <Input type="password" autoComplete="new-password" {...p} {...register('password')} />}
             </Field>
             {status === 'invalid' ? (
-              <p role="alert" style={{ color: 'var(--danger-500)' }}>
+              <p role="alert" style={{ color: 'var(--color-danger-fg)' }}>
                 {t('team.acceptInviteInvalid')}
               </p>
             ) : null}

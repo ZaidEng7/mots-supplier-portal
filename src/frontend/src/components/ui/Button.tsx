@@ -14,7 +14,7 @@ const variantStyle: Record<Variant, { bg: string; bgHover: string; fg: string; b
   primary: { bg: 'var(--color-brand-solid)', bgHover: 'var(--color-brand-solid-hover)', fg: 'var(--color-text-inverse)' },
   secondary: { bg: 'var(--color-bg-surface)', bgHover: 'var(--color-bg-hover)', fg: 'var(--color-text-primary)', border: 'var(--color-border-strong)' },
   ghost: { bg: 'transparent', bgHover: 'var(--color-bg-hover)', fg: 'var(--color-text-primary)' },
-  danger: { bg: 'var(--danger-500)', bgHover: 'var(--danger-600)', fg: 'var(--color-text-inverse)' },
+  danger: { bg: 'var(--color-danger-solid)', bgHover: 'var(--danger-600)', fg: 'var(--color-text-inverse)' },
 }
 
 const sizeStyle: Record<Size, string> = {

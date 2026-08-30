@@ -60,7 +60,7 @@ export function ResetPasswordPage() {
               {(inputProps) => <Input type="password" autoComplete="new-password" {...inputProps} {...register('newPassword')} />}
             </Field>
             {status === 'invalid' ? (
-              <p role="alert" style={{ color: 'var(--danger-500)' }}>
+              <p role="alert" style={{ color: 'var(--color-danger-fg)' }}>
                 {t('auth.resetInvalid')}
               </p>
             ) : null}
