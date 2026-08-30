@@ -59,6 +59,60 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
             hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null);
     }
 
+    /// <summary>
+    /// MSP-75/FR-AUD-004: global search across the whole (row-scoped) log, filterable and
+    /// keyset-paged the same way HandleOwnTrailAsync is. The only structural difference is
+    /// ApplyFilter being layered on top of ScopedQuery before the cursor predicate - filtering and
+    /// paging compose because both are ordinary WHERE clauses over the same IQueryable, applied
+    /// before the ORDER BY/Take that Project performs.
+    /// </summary>
+    public async Task<Page<AuditLogEntryDto>> HandleFilteredAsync(
+        AuditLogFilter filter, string? cursor, int? limit, CancellationToken ct)
+    {
+        var pageSize = Page<AuditLogEntryDto>.ClampLimit(limit);
+        var query = ApplyFilter(ScopedQuery(), filter);
+
+        if (AuditCursor.TryDecode(cursor, out var from))
+        {
+            query = query.Where(a =>
+                a.OccurredAt < from.OccurredAt
+                || (a.OccurredAt == from.OccurredAt && a.Id.CompareTo(from.Id) < 0));
+        }
+
+        var rows = await Project(query).Take(pageSize + 1).ToListAsync(ct);
+
+        var hasMore = rows.Count > pageSize;
+        var items = hasMore ? rows[..pageSize] : rows;
+
+        return new Page<AuditLogEntryDto>(
+            items,
+            hasMore,
+            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null);
+    }
+
+    /// <summary>No Take, no materialization here - EF translates this to a single streamed SELECT
+    /// and IAsyncEnumerable hands rows to the caller as Npgsql reads them off the wire, the same
+    /// shape MinioFileStorage.OpenReadAsync uses for the same reason (MSP-74).</summary>
+    public IAsyncEnumerable<AuditLogEntryDto> StreamForExportAsync(AuditLogFilter filter, CancellationToken ct) =>
+        Project(ApplyFilter(ScopedQuery(), filter)).AsAsyncEnumerable();
+
+    /// <summary>Every predicate here is optional and independently combinable - null on a field
+    /// leaves that dimension unfiltered rather than excluding rows. Reuses the three pre-existing
+    /// indexes ((AggregateType,AggregateId,OccurredAt), (ActorUserId,OccurredAt), (OccurredAt,Id))
+    /// plus the (Action,OccurredAt) index added alongside this handler - Action was the one
+    /// dimension none of the pre-existing indexes covered.</summary>
+    private static IQueryable<AuditLog> ApplyFilter(IQueryable<AuditLog> query, AuditLogFilter filter)
+    {
+        if (filter.AggregateType is not null) query = query.Where(a => a.AggregateType == filter.AggregateType);
+        if (filter.AggregateId is not null) query = query.Where(a => a.AggregateId == filter.AggregateId);
+        if (filter.ActorUserId is not null) query = query.Where(a => a.ActorUserId == filter.ActorUserId);
+        if (filter.Action is not null) query = query.Where(a => a.Action == filter.Action);
+        // Inclusive both ends - see AuditLogFilter's own doc comment for why.
+        if (filter.From is not null) query = query.Where(a => a.OccurredAt >= filter.From);
+        if (filter.To is not null) query = query.Where(a => a.OccurredAt <= filter.To);
+        return query;
+    }
+
     private IQueryable<AuditLog> ScopedQuery()
     {
         if (scope.SupplierId is not { } supplierId)
