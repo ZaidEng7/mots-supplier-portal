@@ -822,6 +822,23 @@ jobs:
         run: npm run lhci
         continue-on-error: true
 
+      # `lhci autorun` itself never prints the numeric LCP/CLS values to the log - only pass/fail
+      # per assertion, and only on failure. A measurement nobody can actually read back out of the
+      # log is barely better than the "unmeasured" state this whole task exists to close - the
+      # NFR-PERF-003 audit line needs a real number, not "the step exited 0". `if: always()` so a
+      # violation still gets its numbers printed, not just silence.
+      - name: Print Lighthouse LCP/CLS results
+        if: always()
+        working-directory: src/frontend
+        run: |
+          if ! ls .lighthouseci/lhr-*.json >/dev/null 2>&1; then
+            echo "::warning::No Lighthouse reports found - the run above did not complete."
+            exit 0
+          fi
+          for f in .lighthouseci/lhr-*.json; do
+            jq -r '"\(.finalUrl): LCP=\(.audits["largest-contentful-paint"].numericValue | round)ms CLS=\(.audits["cumulative-layout-shift"].numericValue)"' "$f"
+          done
+
       - name: Build Storybook
         run: npm run build-storybook
 
