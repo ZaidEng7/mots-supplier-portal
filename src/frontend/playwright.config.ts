@@ -57,5 +57,13 @@ export default defineConfig({
       testMatch: 'reduced-motion.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
     },
+    {
+      // Task #22/NFR-A11Y-002: real keyboard-only interaction (Tab/Enter/Escape/Arrow), not axe's
+      // static DOM/ARIA checks - axe cannot verify tab order, focus traps, or that a control is
+      // operable rather than merely focusable.
+      name: 'app-keyboard',
+      testMatch: 'app-keyboard.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
+    },
   ],
 })

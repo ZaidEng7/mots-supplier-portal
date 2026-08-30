@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
@@ -13,6 +14,20 @@ interface DialogProps {
 
 /** Accessible modal built on Radix — focus trap, Escape-to-close, and labelled-by wiring for free. */
 export function Dialog({ open, onOpenChange, title, description, children, trigger }: DialogProps) {
+  // Task #22/NFR-A11Y-002: Radix's own focus-restore-on-close only knows what to restore to when
+  // the dialog was opened through its own `Trigger`. Every real call site in this app opens the
+  // dialog by flipping external `open` state from a plain Button instead (TeamPage's "Invite
+  // member", AddressDialog, BankAccountDialog, PersonDialog, ReasonDialog - none of them pass
+  // `trigger`) - Radix has no trigger element to remember for any of them, so focus fell through
+  // to <body> on close, a real keyboard/screen-reader disorientation bug, not a hypothetical one:
+  // caught by tests/e2e/app-keyboard.spec.ts driving Escape with real keyboard input, not a click.
+  // Captured independently of whether `trigger` is used, so this fixes every call site at once
+  // rather than only the ones a future caller remembers to wire through Trigger.
+  const previouslyFocused = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (open) previouslyFocused.current = document.activeElement as HTMLElement | null
+  }, [open])
+
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger> : null}
@@ -21,6 +36,12 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
         <RadixDialog.Content
           className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[0.5rem] p-6 shadow-xl"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+          onCloseAutoFocus={(e) => {
+            if (previouslyFocused.current) {
+              e.preventDefault()
+              previouslyFocused.current.focus()
+            }
+          }}
         >
           <div className="mb-4 flex items-start justify-between">
             <div>
