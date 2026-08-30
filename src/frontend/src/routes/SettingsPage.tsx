@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Field, Input } from '../components/ui'
 import { useToast } from '../components/ui'
 import {
@@ -93,7 +94,7 @@ function SessionsSection() {
   const revokeMutation = useMutation({
     mutationFn: revokeSession,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      invalidateQuietly(queryClient, { queryKey: ['sessions'] })
       notify({ kind: 'success', title: t('settings.sessionRevoked') })
     },
   })
@@ -101,7 +102,7 @@ function SessionsSection() {
   const revokeAllMutation = useMutation({
     mutationFn: revokeAllOtherSessions,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      invalidateQuietly(queryClient, { queryKey: ['sessions'] })
       notify({ kind: 'success', title: t('settings.sessionsRevokedAll') })
     },
   })

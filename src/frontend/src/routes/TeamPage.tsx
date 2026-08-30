@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Card, Dialog, Field, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
 import { useToast } from '../components/ui'
 import { listTeam, inviteTeamMember, disableTeamMember } from '../api/team'
@@ -43,7 +44,7 @@ export function TeamPage() {
   const inviteMutation = useMutation({
     mutationFn: (values: InviteFormValues) => inviteTeamMember(values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['team'] })
+      invalidateQuietly(queryClient, { queryKey: ['team'] })
       notify({ kind: 'success', title: t('team.inviteSent') })
       setInviteOpen(false)
       reset()
@@ -57,7 +58,7 @@ export function TeamPage() {
   const disableMutation = useMutation({
     mutationFn: (userId: string) => disableTeamMember(userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['team'] })
+      invalidateQuietly(queryClient, { queryKey: ['team'] })
       notify({ kind: 'success', title: t('team.disabled') })
     },
     onError: () => notify({ kind: 'danger', title: t('team.disableFailed') }),
