@@ -439,6 +439,10 @@ jobs:
           # would leave it" actually means - the same semantics `branch=main` already has for a push
           # to main, just pointed at the PR's own analysis instead of main's last one.
           api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc&$SCOPE" overall.json
+          echo "DEBUG RAW overall.json:"
+          cat overall.json
+          echo ""
+          echo "DEBUG SCOPE was: $SCOPE"
 
           python3 - <<'PYEOF'
           import json, os, sys
