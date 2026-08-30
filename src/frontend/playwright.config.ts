@@ -50,5 +50,12 @@ export default defineConfig({
       testMatch: 'app-a11y.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
     },
+    {
+      // NFR-A11Y: prefers-reduced-motion guard in index.css - proves the media query actually
+      // changes rendered transition duration, not just that the rule text exists.
+      name: 'reduced-motion',
+      testMatch: 'reduced-motion.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
+    },
   ],
 })

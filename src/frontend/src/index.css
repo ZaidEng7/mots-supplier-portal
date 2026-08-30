@@ -25,3 +25,15 @@ html, body, #root {
 body {
   margin: 0;
 }
+
+/* MSP-72 (NFR-A11Y): every animated thing today is a Tailwind transition- / animate- utility */
+/* class (Button, Input, OnboardingStepNav, LanguageSwitch, Button spinner) - verified via grep */
+/* across src/ before writing this. A global override covers those and any future one too. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
