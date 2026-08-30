@@ -70,13 +70,21 @@ public sealed class UploadDocumentHandler(
             return new UploadDocumentResult.UnsupportedType();
         }
 
-        await using var buffered = new MemoryStream();
-        await command.Content.CopyToAsync(buffered, ct);
-        buffered.Position = 0;
+        // MSP-84/NFR-PERF-008: no full-file buffer. command.Content is IFormFile.OpenReadStream(),
+        // which ASP.NET Core already backs with a FileBufferingReadStream - small requests stay in
+        // memory, anything past FormOptions' memory threshold spools to a bounded temp file, and
+        // either way the stream is seekable. Sniffing rewinds THIS stream directly rather than
+        // copying it into a second, fully-materialized MemoryStream first - the copy was the actual
+        // defect, not a technical requirement of reading 16 header bytes.
+        if (!command.Content.CanSeek)
+        {
+            throw new InvalidOperationException(
+                "UploadDocumentCommand.Content must be seekable - the upload pipeline sniffs header bytes then rewinds before streaming to storage.");
+        }
 
         var header = new byte[16];
-        var headerRead = await buffered.ReadAsync(header.AsMemory(0, 16), ct);
-        buffered.Position = 0;
+        var headerRead = await command.Content.ReadAsync(header.AsMemory(0, 16), ct);
+        command.Content.Position = 0;
 
         if (!FileTypeSniffer.TryDetectContentType(header[..Math.Max(headerRead, 0)], out var sniffedContentType) || sniffedContentType != expectedContentType)
         {
@@ -95,7 +103,7 @@ public sealed class UploadDocumentHandler(
         }
 
         var quarantineKey = $"quarantine/{supplier.Id}/{documentType.Id}/{Guid.NewGuid():N}{extension}";
-        await fileStorage.SaveAsync(quarantineKey, buffered, expectedContentType, ct);
+        await fileStorage.SaveAsync(quarantineKey, command.Content, expectedContentType, ct);
 
         SupplierDocument document;
         try
