@@ -183,11 +183,29 @@ public sealed class Supplier
         AdvancePastEmailVerified();
     }
 
+    // MSP-84: safety belts, not business rules - none of these six collections had any cap
+    // before this. All are realistically small by business nature (a company has a handful of
+    // reps/addresses/branches/bank accounts, not thousands), unlike Review Queue's genuine
+    // unbounded growth, so real pagination was scoped out in favor of these guards plus the
+    // denominator-style tests in Tests/Unit/Domain/SupplierProfileCollectionCapTests.cs. Generous
+    // on purpose: high enough that no legitimate supplier ever hits one, low enough that a bug
+    // (or abuse) generating rows in a loop fails loudly instead of growing a response forever.
+    private const int MaxRepresentatives = 20;
+    private const int MaxAddresses = 20;
+    private const int MaxContacts = 20;
+    private const int MaxBranches = 50;
+    private const int MaxBankAccounts = 10;
+    private const int MaxCategoryLinks = 50;
+
     /// <summary>FEAT-04.4/FR-PROF-004: a new representative is never primary by construction -
     /// the caller must explicitly SetPrimaryRepresentative if they want to reassign it.</summary>
     public Representative AddRepresentative(string fullName, string email, string? phone, string? position)
     {
         EnsureEditable();
+        if (_representatives.Count >= MaxRepresentatives)
+        {
+            throw new DomainException($"A supplier may have at most {MaxRepresentatives} representatives.");
+        }
         var representative = new Representative
         {
             Id = Guid.CreateVersion7(),
@@ -244,6 +262,10 @@ public sealed class Supplier
     public Address AddAddress(AddressKind kind, string line1, string? line2, string city, string regionCode, string country, string? postalCode, double? latitude, double? longitude)
     {
         EnsureEditable();
+        if (_addresses.Count >= MaxAddresses)
+        {
+            throw new DomainException($"A supplier may have at most {MaxAddresses} addresses.");
+        }
         var address = new Address
         {
             Id = Guid.CreateVersion7(),
@@ -293,6 +315,10 @@ public sealed class Supplier
     public Contact AddContact(string fullName, string email, string? phone, string? role)
     {
         EnsureEditable();
+        if (_contacts.Count >= MaxContacts)
+        {
+            throw new DomainException($"A supplier may have at most {MaxContacts} contacts.");
+        }
         var contact = new Contact { Id = Guid.CreateVersion7(), SupplierId = Id, FullName = fullName, Email = email, Phone = phone, Role = role };
         _contacts.Add(contact);
         return contact;
@@ -328,6 +354,10 @@ public sealed class Supplier
     public Branch AddBranch(string nameAr, string nameEn, Guid? addressId)
     {
         EnsureEditable();
+        if (_branches.Count >= MaxBranches)
+        {
+            throw new DomainException($"A supplier may have at most {MaxBranches} branches.");
+        }
         EnsureAddressBelongsToThisSupplier(addressId);
         var branch = new Branch { Id = Guid.CreateVersion7(), SupplierId = Id, NameAr = nameAr, NameEn = nameEn, AddressId = addressId };
         _branches.Add(branch);
@@ -359,6 +389,10 @@ public sealed class Supplier
     public BankAccount AddBankAccount(string accountHolderName, string bankName, string? branchName, byte[] encryptedAccountNumber, string maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
     {
         EnsureEditableForComplianceField(isComplianceCritical);
+        if (_bankAccounts.Count >= MaxBankAccounts)
+        {
+            throw new DomainException($"A supplier may have at most {MaxBankAccounts} bank accounts.");
+        }
         var account = new BankAccount
         {
             Id = Guid.CreateVersion7(),
@@ -421,6 +455,10 @@ public sealed class Supplier
     {
         EnsureEditableForComplianceField(isComplianceCritical);
         if (_categoryLinks.Any(l => l.CategoryCode == categoryCode)) return null;
+        if (_categoryLinks.Count >= MaxCategoryLinks)
+        {
+            throw new DomainException($"A supplier may link at most {MaxCategoryLinks} categories.");
+        }
         var link = new CategoryLink { Id = Guid.CreateVersion7(), SupplierId = Id, CategoryCode = categoryCode };
         _categoryLinks.Add(link);
         return link;
