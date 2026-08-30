@@ -1,11 +1,14 @@
+using MotsSupplierPortal.Application.Common;
+
 namespace MotsSupplierPortal.Application.Suppliers;
 
 public sealed record ReviewQueueItemDto(string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState);
 
 public interface IListReviewQueueHandler
 {
-    /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.</summary>
-    Task<IReadOnlyList<ReviewQueueItemDto>> HandleAsync(CancellationToken ct);
+    /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.
+    /// MSP-84: keyset-paged (see ReviewQueueCursor for why).</summary>
+    Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, CancellationToken ct);
 }
 
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);

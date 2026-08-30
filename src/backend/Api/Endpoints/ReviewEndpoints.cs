@@ -52,8 +52,8 @@ public static class ReviewEndpoints
     {
         var group = app.MapGroup("/api/v1/review").WithTags("Review");
 
-        group.MapGet("/queue", async (IListReviewQueueHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(ct)))
+        group.MapGet("/queue", async (string? cursor, int? limit, IListReviewQueueHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(cursor, limit, ct)))
             .RequirePermission(Permissions.SupplierReview)
             .WithName("ListReviewQueue");
 

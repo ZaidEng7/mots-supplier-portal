@@ -9,6 +9,13 @@ export interface ReviewQueueItem {
   onboardingState: string
 }
 
+/** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */
+export interface Page<T> {
+  items: T[]
+  hasMore: boolean
+  nextCursor: string | null
+}
+
 export interface ReviewAnnotation {
   id: string
   requestedAt: string
@@ -45,8 +52,9 @@ export async function getOwnActiveAnnotation(): Promise<ReviewAnnotation | null>
   return parseOrThrow(res)
 }
 
-export async function listReviewQueue(): Promise<ReviewQueueItem[]> {
-  const res = await apiFetch('/api/v1/review/queue')
+export async function listReviewQueue(cursor?: string | null): Promise<Page<ReviewQueueItem>> {
+  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  const res = await apiFetch(`/api/v1/review/queue${qs}`)
   return parseOrThrow(res)
 }
 

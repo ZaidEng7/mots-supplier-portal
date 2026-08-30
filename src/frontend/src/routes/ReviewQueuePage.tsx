@@ -1,14 +1,23 @@
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '../components/ui'
+import { Badge, Button, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '../components/ui'
 import { listReviewQueue } from '../api/review'
 
 export function ReviewQueuePage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
-  const queueQuery = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue })
-  const items = queueQuery.data ?? []
+  // MSP-84: the queue is a table applications are inserted into continuously - a page-one-only
+  // fetch would silently hide everything after the first 50, no error, no empty state, nothing
+  // visibly wrong. useInfiniteQuery + the Load more button below is the consumer half of the
+  // keyset-paged backend; loading page one and stopping there would recreate exactly that bug.
+  const queueQuery = useInfiniteQuery({
+    queryKey: ['review-queue'],
+    queryFn: ({ pageParam }) => listReviewQueue(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+  })
+  const items = queueQuery.data?.pages.flatMap((p) => p.items) ?? []
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,6 +54,15 @@ export function ReviewQueuePage() {
           </TableBody>
         </Table>
       )}
+      {queueQuery.hasNextPage ? (
+        <Button
+          variant="secondary"
+          isLoading={queueQuery.isFetchingNextPage}
+          onClick={() => queueQuery.fetchNextPage()}
+        >
+          {t('review.loadMore')}
+        </Button>
+      ) : null}
     </div>
   )
 }
