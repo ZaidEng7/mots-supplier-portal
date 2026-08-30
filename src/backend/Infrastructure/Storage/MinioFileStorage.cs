@@ -47,6 +47,13 @@ public sealed class MinioFileStorage : IFileStorage
         }
     }
 
+    /// <summary>Task #16: read-only reachability probe for the readiness health check
+    /// (ObjectStorageHealthCheck) - deliberately NOT EnsureBucketExistsAsync, which mutates
+    /// (creates the bucket) on a 404. A readiness probe an orchestrator polls every few seconds
+    /// must never have a side effect; it answers "is the endpoint reachable and responding",
+    /// nothing more.</summary>
+    public async Task PingAsync(CancellationToken ct) => await _client.GetBucketLocationAsync(_bucket, ct);
+
     public async Task SaveAsync(string key, Stream content, string contentType, CancellationToken ct)
     {
         await _client.PutObjectAsync(new PutObjectRequest

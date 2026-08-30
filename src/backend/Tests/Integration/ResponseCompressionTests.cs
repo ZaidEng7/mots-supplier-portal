@@ -60,7 +60,7 @@ public sealed class ResponseCompressionTests(PostgresApiFixture fixture)
     {
         var client = fixture.CreateClient();
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/health");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/health/live");
         request.Headers.Add("Accept-Encoding", "identity");
 
         using var response = await client.SendAsync(request);
