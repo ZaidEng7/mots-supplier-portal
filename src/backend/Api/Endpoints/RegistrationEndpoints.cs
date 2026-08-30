@@ -76,11 +76,18 @@ public static class RegistrationEndpoints
                     request.Password),
                 ct);
 
+            // MSP-73: Success, DuplicateEmail, and DuplicateRegistrationNumber all return the
+            // identical response - same status, same body shape - so a caller cannot learn
+            // whether an email or registration number was already taken. WeakPassword stays a
+            // distinct 400: it is a property of the SUBMITTED password, true or false for any
+            // email including ones that will never exist, so it leaks nothing about the target.
+            // The existing account (not the submitter) is notified directly on either duplicate -
+            // see RegisterSupplierHandler's NotifyExistingSupplierAsync.
             return result switch
             {
-                RegisterSupplierResult.Success s => Results.Created($"/api/v1/suppliers/{s.SupplierReferenceCode}", new { referenceCode = s.SupplierReferenceCode }),
-                RegisterSupplierResult.DuplicateEmail => Results.Conflict(new { error = "duplicate_email" }),
-                RegisterSupplierResult.DuplicateRegistrationNumber => Results.Conflict(new { error = "duplicate_registration_number" }),
+                RegisterSupplierResult.Success s => Results.Ok(new { message = "registration_received", referenceCode = s.SupplierReferenceCode }),
+                RegisterSupplierResult.DuplicateEmail => Results.Ok(new { message = "registration_received", referenceCode = (string?)null }),
+                RegisterSupplierResult.DuplicateRegistrationNumber => Results.Ok(new { message = "registration_received", referenceCode = (string?)null }),
                 RegisterSupplierResult.WeakPassword w => Results.BadRequest(new { error = "weak_password", details = w.Errors }),
                 _ => Results.Problem(),
             };

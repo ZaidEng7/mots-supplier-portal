@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -16,15 +17,15 @@ namespace MotsSupplierPortal.Infrastructure.Registrations;
 /// STORY-02.1.1: creates a Supplier (Draft) + supplier_admin User in one transaction.
 /// No orphan records on failure.
 ///
-/// <para><b>Correction to what this comment used to claim.</b> It previously said duplicate email
-/// was "a normalized, non-enumerating rejection". Normalized, yes. Non-enumerating, no: the API
-/// maps <see cref="RegisterSupplierResult.DuplicateEmail"/> to a distinct 409
-/// (<c>Results.Conflict</c>) against a 201 on success, which lets a caller learn whether an email
-/// is registered without ever verifying it. That is live today, confirmed by reading the endpoint
-/// mapping while adding <see cref="RegisterSupplierResult.DuplicateRegistrationNumber"/> below -
-/// not fixed here, because whether either dedupe response should stop naming the reason is the
-/// enumeration-fix's decision (task #17 / MSP-73), not this ticket's. Recorded rather than left to
-/// contradict the code the next time someone reads this comment before the endpoint.</para>
+/// <para><b>MSP-73, the enumeration fix referenced below.</b> This handler still returns distinct
+/// <see cref="RegisterSupplierResult.DuplicateEmail"/>/<see cref="RegisterSupplierResult.DuplicateRegistrationNumber"/>
+/// cases - that distinction is preserved for internal purposes (which duplicate check fired), but
+/// the API endpoint (RegistrationEndpoints.cs) now maps ALL three of Success/DuplicateEmail/
+/// DuplicateRegistrationNumber to the identical response shape, so a caller cannot learn which
+/// happened, or that anything happened at all, from the response alone. What replaces the leaked
+/// signal: the existing account is notified directly (NotifyExistingSupplierAsync /
+/// EmailJobs.SendAlreadyRegisteredNoticeEmailAsync) - a legitimate user who forgot they'd already
+/// registered is helped, and a prober learns nothing.</para>
 /// </summary>
 public sealed class RegisterSupplierHandler(
     AppDbContext db,
@@ -32,13 +33,29 @@ public sealed class RegisterSupplierHandler(
     IAuditLogger auditLogger,
     IBackgroundJobClient backgroundJobs) : IRegisterSupplierHandler
 {
+    // MSP-73: measured directly against this handler - a genuine registration (transaction,
+    // Identity user creation, audit log) averaged ~62ms while a duplicate short-circuit averaged
+    // ~5ms, a 12x gap. An identical response body doesn't close that: a prober can still learn
+    // whether an email/registration number exists purely from how fast the response arrives.
+    // This floor is a best-effort constant-time measure, not exact - it pads the FAST path up
+    // toward the SLOW path's typical cost rather than the reverse (slowing down every genuine
+    // registration to match the rare duplicate case would be the wrong trade).
+    private static readonly TimeSpan MinResponseTime = TimeSpan.FromMilliseconds(60);
+
     public async Task<RegisterSupplierResult> HandleAsync(RegisterSupplierCommand command, CancellationToken ct)
     {
+        var stopwatch = Stopwatch.StartNew();
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
 
         var existing = await userManager.FindByEmailAsync(normalizedEmail);
         if (existing is not null)
         {
+            // MSP-73: notify the account that already owns this email, not the submitter - a
+            // legitimate user who forgot they'd registered is still helped, and nothing is sent
+            // back in the API response that would tell a prober the email exists (see
+            // RegistrationEndpoints.cs's identical-response mapping).
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendAlreadyRegisteredNoticeEmailAsync(existing.Id, CancellationToken.None));
+            await PadToMinimumResponseTimeAsync(stopwatch, ct);
             return new RegisterSupplierResult.DuplicateEmail();
         }
 
@@ -50,12 +67,11 @@ public sealed class RegisterSupplierHandler(
         var normalizedRegistrationNumber = command.RegistrationNumber?.Trim();
         if (!string.IsNullOrEmpty(normalizedRegistrationNumber))
         {
-            var duplicateRegistrationNumber = await db.Suppliers
-                .AnyAsync(s => s.LegalInfo != null && s.LegalInfo.RegistrationNumber != null
-                    && s.LegalInfo.RegistrationNumber.Trim() == normalizedRegistrationNumber, ct);
-
-            if (duplicateRegistrationNumber)
+            var existingSupplierId = await FindSupplierIdByRegistrationNumberAsync(normalizedRegistrationNumber, ct);
+            if (existingSupplierId is not null)
             {
+                await NotifyExistingSupplierAsync(existingSupplierId.Value, ct);
+                await PadToMinimumResponseTimeAsync(stopwatch, ct);
                 return new RegisterSupplierResult.DuplicateRegistrationNumber();
             }
         }
@@ -129,12 +145,53 @@ public sealed class RegisterSupplierHandler(
             // close it. Matched on the specific index name so an unrelated unique-violation (e.g.
             // reference-code allocation) is not silently mapped to the wrong result and swallowed.
             await transaction.RollbackAsync(ct);
+            // The race the pre-check can't close (MSP-81): the winning concurrent request already
+            // committed by the time this one's insert violates the unique index, so the row to
+            // notify has to be looked up fresh here rather than reused from the pre-check (which
+            // found nothing, or this catch would never have been reached).
+            if (!string.IsNullOrEmpty(normalizedRegistrationNumber))
+            {
+                var winnerSupplierId = await FindSupplierIdByRegistrationNumberAsync(normalizedRegistrationNumber, ct);
+                if (winnerSupplierId is not null)
+                {
+                    await NotifyExistingSupplierAsync(winnerSupplierId.Value, ct);
+                }
+            }
+            await PadToMinimumResponseTimeAsync(stopwatch, ct);
             return new RegisterSupplierResult.DuplicateRegistrationNumber();
         }
         catch
         {
             await transaction.RollbackAsync(ct);
             throw;
+        }
+    }
+
+    private static Task PadToMinimumResponseTimeAsync(Stopwatch stopwatch, CancellationToken ct)
+    {
+        var remaining = MinResponseTime - stopwatch.Elapsed;
+        return remaining > TimeSpan.Zero ? Task.Delay(remaining, ct) : Task.CompletedTask;
+    }
+
+    private Task<Guid?> FindSupplierIdByRegistrationNumberAsync(string normalizedRegistrationNumber, CancellationToken ct) =>
+        db.Suppliers
+            .Where(s => s.LegalInfo != null && s.LegalInfo.RegistrationNumber != null
+                && s.LegalInfo.RegistrationNumber.Trim() == normalizedRegistrationNumber)
+            .Select(s => (Guid?)s.Id)
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>MSP-73: resolves the existing supplier's own primary user rather than the
+    /// submitter's - same lookup shape as ReviewerNotify.GetPrimaryUserIdAsync in
+    /// ReviewApplicationHandlers.cs.</summary>
+    private async Task NotifyExistingSupplierAsync(Guid supplierId, CancellationToken ct)
+    {
+        var primaryUserId = await db.Users
+            .Where(u => u.SupplierId == supplierId)
+            .Select(u => (Guid?)u.Id)
+            .FirstOrDefaultAsync(ct);
+        if (primaryUserId is not null)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendAlreadyRegisteredNoticeEmailAsync(primaryUserId.Value, CancellationToken.None));
         }
     }
 

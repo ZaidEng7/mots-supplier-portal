@@ -27,6 +27,13 @@ type FormValues = z.infer<typeof schema>
 
 export function RegisterPage() {
   const { t } = useTranslation()
+  // MSP-73: submission success and referenceCode are tracked separately on purpose. A duplicate
+  // email/registration number now returns the same 200 with referenceCode: null (see
+  // api/auth.ts) - the confirmation screen must still show for that case exactly as it does for
+  // a genuine new registration, or the response shape change would silently break the one thing
+  // it exists to protect: a legitimate user re-registering by mistake gets no different an
+  // experience than a first-time one.
+  const [submitted, setSubmitted] = useState(false)
   const [referenceCode, setReferenceCode] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -49,10 +56,9 @@ export function RegisterPage() {
         password: values.password,
       })
       setReferenceCode(result.referenceCode)
+      setSubmitted(true)
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setFormError(t('register.duplicateEmail'))
-      } else if (err instanceof ApiError && err.status === 400) {
+      if (err instanceof ApiError && err.status === 400) {
         setFormError(t('register.weakPassword'))
       } else {
         setFormError(t('register.failed'))
@@ -60,7 +66,7 @@ export function RegisterPage() {
     }
   }
 
-  if (referenceCode) {
+  if (submitted) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
         <div
@@ -73,9 +79,11 @@ export function RegisterPage() {
           <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             {t('register.checkEmail')}
           </p>
-          <p className="num mb-4 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-muted)' }}>
-            {referenceCode}
-          </p>
+          {referenceCode ? (
+            <p className="num mb-4 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-muted)' }}>
+              {referenceCode}
+            </p>
+          ) : null}
           <Link to="/login" style={{ color: 'var(--color-text-link)' }}>
             {t('auth.submit')}
           </Link>

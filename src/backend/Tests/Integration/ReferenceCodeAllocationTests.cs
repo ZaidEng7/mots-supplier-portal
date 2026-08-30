@@ -31,12 +31,14 @@ public sealed class ReferenceCodeAllocationTests(PostgresApiFixture fixture)
     private static async Task<string?> RegisterAndReadCodeAsync(HttpClient client, string suffix)
     {
         var response = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(suffix));
-        if (response.StatusCode != HttpStatusCode.Created)
+        // MSP-73: success is 200 OK now, not 201 Created - the enumeration fix made success and
+        // duplicate responses identical in shape, so status alone no longer distinguishes them.
+        if (response.StatusCode != HttpStatusCode.OK)
         {
             return null;
         }
 
-        var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+        var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string?>>();
         return body!["referenceCode"];
     }
 
