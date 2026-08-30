@@ -86,6 +86,8 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         // per-IP auth rate-limit partition. At the production default of 10/min the suite throttles
         // itself and the resulting empty 429 bodies present as JSON parse errors far from the cause.
         builder.UseSetting("RateLimiting:AuthPermitLimit", "10000");
+        // Same reasoning, same fix, for the registration-specific per-IP policy (NFR-SEC-009).
+        builder.UseSetting("RateLimiting:RegisterPermitLimit", "10000");
     }
 
     async Task IAsyncLifetime.DisposeAsync()

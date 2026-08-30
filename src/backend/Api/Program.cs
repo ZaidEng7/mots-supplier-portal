@@ -263,6 +263,12 @@ builder.Services.AddCors(options =>
 // rate limiting anywhere, leaving login/forgot-password/registration open to unthrottled
 // credential-stuffing and enumeration probing beyond ASP.NET Identity's per-account lockout).
 const string AuthRateLimitPolicy = "auth-strict";
+// NFR-SEC-009: registration is more consequential per-request than a login/forgot-password
+// attempt (writes a Supplier + AppUser row, enqueues an email), so it gets its own, tighter
+// per-IP policy rather than sharing "auth-strict" - login/forgot-password/verify/resend-
+// verification are unaffected. Applied only to POST /api/v1/registrations itself (route-level
+// override of the group's "auth-strict"), not the whole /registrations group.
+const string RegisterRateLimitPolicy = "register-strict";
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -277,6 +283,15 @@ builder.Services.AddRateLimiter(options =>
                 // default of 10/min throttles the suite itself and surfaces as empty 429 bodies
                 // that look like unrelated failures.
                 PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 10),
+                QueueLimit = 0,
+            }));
+    options.AddPolicy(RegisterRateLimitPolicy, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:RegisterPermitLimit", 5),
                 QueueLimit = 0,
             }));
 });

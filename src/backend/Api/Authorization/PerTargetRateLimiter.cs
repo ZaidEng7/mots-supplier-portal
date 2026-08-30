@@ -12,13 +12,29 @@ namespace MotsSupplierPortal.Api.Authorization;
 /// </summary>
 public sealed class PerTargetRateLimiter : IDisposable
 {
+    // NFR-SEC-009: every surface shared one hardcoded 10/min budget
+    // regardless of how consequential a request actually is. A login attempt costs a password
+    // hash comparison; a registration attempt writes a Supplier + AppUser row and enqueues an
+    // email - registration gets its own, tighter budget instead. Everything not listed here keeps
+    // the previous 10/min default, unchanged.
+    private static readonly Dictionary<string, (int PermitLimit, TimeSpan Window)> SurfaceLimits = new()
+    {
+        ["register"] = (5, TimeSpan.FromMinutes(1)),
+    };
+
+    private static readonly (int PermitLimit, TimeSpan Window) DefaultLimit = (10, TimeSpan.FromMinutes(1));
+
     private readonly PartitionedRateLimiter<string> _limiter = PartitionedRateLimiter.Create<string, string>(key =>
-        RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+    {
+        var surface = key.Split(':', 2)[0];
+        var (permitLimit, window) = SurfaceLimits.GetValueOrDefault(surface, DefaultLimit);
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
         {
-            Window = TimeSpan.FromMinutes(1),
-            PermitLimit = 10,
+            Window = window,
+            PermitLimit = permitLimit,
             QueueLimit = 0,
-        }));
+        });
+    });
 
     /// <param name="surface">A short tag for the endpoint (e.g. "login", "register") so the same
     /// email doesn't share a budget across unrelated surfaces.</param>
