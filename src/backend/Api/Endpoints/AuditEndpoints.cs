@@ -39,5 +39,60 @@ public static class AuditEndpoints
         .RequireAuthorization()
         .WithName("GetOwnSupplierAuditTrail")
         .WithTags("Audit");
+
+        // MSP-75/FR-AUD-004: staff-facing global search - filterable by entity, actor, action, and
+        // date range, all optional and combinable. Gated by the same audit.read permission as the
+        // per-aggregate read above; that endpoint stays as-is (bounded to one aggregate's own rows,
+        // nothing to filter within it that isn't already the whole answer).
+        app.MapGet("/api/v1/audit", async (
+            string? aggregateType,
+            Guid? aggregateId,
+            Guid? actorUserId,
+            string? action,
+            DateTimeOffset? from,
+            DateTimeOffset? to,
+            string? cursor,
+            int? limit,
+            IGetAuditLogHandler handler,
+            CancellationToken ct) =>
+        {
+            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, from, to);
+            var page = await handler.HandleFilteredAsync(filter, cursor, limit, ct);
+            return Results.Ok(page);
+        })
+        .RequirePermission(Permissions.AuditRead)
+        .WithName("SearchAuditLog")
+        .WithTags("Audit");
+
+        // Same filter, same permission, no page limit - an export is "everything the filter
+        // matches". Streamed straight to the response body (StreamForExportAsync) rather than built
+        // in memory first, so an export is not bounded by how much the process can hold at once.
+        app.MapGet("/api/v1/audit/export", async (
+            string? aggregateType,
+            Guid? aggregateId,
+            Guid? actorUserId,
+            string? action,
+            DateTimeOffset? from,
+            DateTimeOffset? to,
+            IGetAuditLogHandler handler,
+            HttpResponse response,
+            CancellationToken ct) =>
+        {
+            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, from, to);
+
+            response.ContentType = "text/csv";
+            response.Headers.ContentDisposition = "attachment; filename=audit-log-export.csv";
+
+            await using var writer = new StreamWriter(response.Body);
+            await writer.WriteLineAsync("Id,OccurredAt,AggregateType,AggregateId,Action,FromState,ToState,ActorLabel");
+
+            await foreach (var entry in handler.StreamForExportAsync(filter, ct))
+            {
+                await writer.WriteLineAsync(AuditCsvRow.Format(entry));
+            }
+        })
+        .RequirePermission(Permissions.AuditRead)
+        .WithName("ExportAuditLog")
+        .WithTags("Audit");
     }
 }

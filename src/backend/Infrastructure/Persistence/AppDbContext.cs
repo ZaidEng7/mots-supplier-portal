@@ -280,6 +280,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             // (OccurredAt, Id) sort, keyset paging still returns correct rows but degrades at depth
             // exactly like the OFFSET it replaced - the cost it exists to avoid.
             entity.HasIndex(a => new { a.OccurredAt, a.Id });
+            // MSP-75/FR-AUD-004: the entity, actor, and date-range filters above were already
+            // covered by the three indexes above this one - checked before assuming a gap existed,
+            // per the earlier audit finding's own claim that the indexes "exist, unused". Action was
+            // the one dimension with no matching index; an action-only or action+date filter on this
+            // table would otherwise be a full scan of a table that grows forever by design.
+            entity.HasIndex(a => new { a.Action, a.OccurredAt });
         });
 
         modelBuilder.Entity<Domain.ReferenceData.DocumentType>(entity =>
