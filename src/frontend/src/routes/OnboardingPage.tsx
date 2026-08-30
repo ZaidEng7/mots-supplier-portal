@@ -201,7 +201,7 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
           </span>
         )}
         {doc.latestDocument?.rejectReason ? (
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--danger-500)' }}>
+          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-danger-fg)' }}>
             {doc.latestDocument.rejectReason}
           </span>
         ) : null}

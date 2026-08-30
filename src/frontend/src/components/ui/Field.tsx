@@ -26,7 +26,7 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
       >
         {label}
         {required ? (
-          <span aria-hidden="true" style={{ color: 'var(--danger-500)' }}>
+          <span aria-hidden="true" style={{ color: 'var(--color-danger-fg)' }}>
             {' '}
             *
           </span>
@@ -41,7 +41,7 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} role="alert" className="text-[length:var(--text-caption)]" style={{ color: 'var(--danger-500)' }}>
+        <p id={errorId} role="alert" className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-danger-fg)' }}>
           {error}
         </p>
       ) : null}

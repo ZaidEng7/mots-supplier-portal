@@ -67,7 +67,7 @@ function PersonDialog({
         <Field label={t('contacts.fields.phone')}>{(p) => <Input {...p} {...register('phone')} />}</Field>
         {extraField ? <Field label={extraField.label}>{(p) => <Input {...p} {...register('extra')} />}</Field> : null}
         {apiError ? (
-          <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--danger-500)' }}>
+          <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
             {apiError}
           </p>
         ) : null}

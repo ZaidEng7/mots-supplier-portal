@@ -105,7 +105,7 @@ function BankAccountDialog({
           </Field>
         </div>
         {apiError ? (
-          <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--danger-500)' }}>
+          <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
             {apiError}
           </p>
         ) : null}

@@ -125,18 +125,43 @@
   --color-bg-selected: rgba(31, 128, 105, 0.22);
   --color-bg-overlay: rgba(0, 0, 0, 0.60);
 
+  /* Task #21/MSP-72 follow-up: the light theme's contrast audit (task #14) never checked dark
+     mode - a theme that looks fine can still fail the actual ratio math. Ran a real check
+     (wcag-contrast; see src/styles/darkThemeContrast.test.ts, which keeps running the same
+     check as a permanent regression test) against every color pair the dark theme defines: 58
+     pairs, 11 failed. Fixed here, each a lightness adjustment against the same hue - no fix
+     changed what color anything reads as, only how far it is from the surface it sits on.
+
+     --color-text-muted: #948C7E measured 4.18:1 against --color-bg-hover (the lightest of the
+     five dark surfaces, so the binding case) - below the 4.5:1 AA minimum for normal text.
+     #9C9588 clears 4.68:1 there (and more everywhere darker), same margin-for-rendering
+     precedent as --n-500's own fix above. */
   --color-text-primary: #F4F1EC;
   --color-text-secondary: #C4BDB1;
-  --color-text-muted: #948C7E;
+  --color-text-muted: #9C9588;
   --color-text-disabled: #6B6357;
-  --color-text-inverse: var(--n-900);
+  /* --color-text-inverse used to be var(--n-900) here - inverted from light mode's white on the
+     (wrong) assumption that "inverse" should track the theme's own dominant text color. Its only
+     consumers (Button.tsx primary/danger variants) put it on --color-brand-solid and --danger-500
+     - both medium-toned fills that did NOT get darker in dark mode, so darkening the text on top
+     of them was the actual bug: 3.56:1 and 3.16:1 against the 4.5:1 minimum, real button-text
+     legibility failures. White clears both (4.83:1, 5.44:1) because the fills themselves are
+     theme-invariant - "inverse" here means "readable on a solid brand fill", not "opposite of
+     this theme's body text". */
+  --color-text-inverse: #FFFFFF;
   --color-text-link: var(--brand-300);
   --color-text-brand: var(--brand-300);
 
-  --color-border: #3A362F;
-  --color-border-strong: #4A453C;
+  /* --color-border/-strong/-input all failed the 3:1 UI-component minimum (SC 1.4.11) against
+     both --color-bg-app and --color-bg-surface - 1.29-1.81:1, nowhere close; every border token
+     in dark mode was too close in luminance to the surfaces it outlines to actually delineate an
+     input or card boundary. Lightened along the same neutral hue, keeping border-strong/-input
+     visibly stronger than plain border (matching their pre-fix relationship, where -strong was
+     the lighter of the two): border clears 3.17/3.51:1, border-strong/-input clear 3.65/4.05:1. */
+  --color-border: #787061;
+  --color-border-strong: #827A6A;
   --color-border-focus: var(--brand-300);
-  --color-border-input: #4A453C;
+  --color-border-input: #827A6A;
 
   --color-brand-solid: var(--brand-500);
   --color-brand-solid-hover: var(--brand-400);
@@ -147,9 +172,15 @@
 
   --color-success-fg: #6FCF97; --color-success-bg: rgba(30,135,75,0.16);  --color-success-solid: var(--success-500);
   --color-warning-fg: #E3B15C; --color-warning-bg: rgba(183,121,31,0.16); --color-warning-solid: var(--warning-500);
-  --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: var(--danger-500);
-  --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: var(--info-500);
+  --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: #CD3D2E;
+  --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: #2B73C1;
   --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
+  /* -danger-solid/-info-solid are the only two "solid" swatches overridden here rather than
+     inheriting the light-mode primitive (success/warning/gold-solid all cleared 3:1 against
+     --color-bg-surface as-is, checked, not assumed) - --danger-500/--info-500 measured 2.85:1
+     and 2.52:1 there as UI-component fills (icon/dot swatches), below the 3:1 minimum. Lightened
+     along the same hue rather than reused across light/dark: the primitive itself is correct for
+     light mode's white background, and only the dark surface makes it fall short. */
 }
 
 body {

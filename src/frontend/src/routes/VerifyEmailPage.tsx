@@ -58,7 +58,7 @@ export function VerifyEmailPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4 text-start">
-            <p role="alert" className="text-center" style={{ color: 'var(--danger-500)' }}>
+            <p role="alert" className="text-center" style={{ color: 'var(--color-danger-fg)' }}>
               {t('auth.verifyFailed')}
             </p>
             {resendStatus === 'sent' ? (
