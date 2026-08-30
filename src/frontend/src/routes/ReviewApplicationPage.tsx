@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
+import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Dialog } from '../components/ui'
 import { useToast } from '../components/ui'
 import {
@@ -117,8 +118,8 @@ export function ReviewApplicationPage() {
   })
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['review-application', referenceCode] })
-    queryClient.invalidateQueries({ queryKey: ['review-queue'] })
+    invalidateQuietly(queryClient, { queryKey: ['review-application', referenceCode] })
+    invalidateQuietly(queryClient, { queryKey: ['review-queue'] })
   }
 
   const pickUpMutation = useMutation({

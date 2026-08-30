@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Card, Field, Input, Select } from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
@@ -167,7 +168,7 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
   const uploadMutation = useMutation({
     mutationFn: (file: File) => uploadDocument(doc.documentTypeId, file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['own-documents'] })
+      invalidateQuietly(queryClient, { queryKey: ['own-documents'] })
       notify({ kind: 'success', title: t('onboarding.documentUploaded') })
     },
     onError: (err) => {
@@ -354,7 +355,7 @@ export function OnboardingPage() {
     mutationFn: resubmitApplication,
     onSuccess: (data) => {
       onProfile(data)
-      queryClient.invalidateQueries({ queryKey: ['own-annotation'] })
+      invalidateQuietly(queryClient, { queryKey: ['own-annotation'] })
     },
     onError: () => notify({ kind: 'danger', title: t('onboarding.resubmitFailed') }),
   })
