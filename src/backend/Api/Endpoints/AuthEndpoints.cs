@@ -45,11 +45,18 @@ public static class AuthEndpoints
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        // Public by design: these are the endpoints you use precisely because you have no session
-        // yet. Declared explicitly against the deny-by-default FallbackPolicy (MSP-67). The
-        // session-management routes below re-add .RequireAuthorization() individually - group-level
-        // AllowAnonymous does not weaken them.
-        var group = app.MapGroup("/api/v1/auth").WithTags("Auth").AllowAnonymous();
+        // Task #11: AllowAnonymous is applied per-route below, NOT at the group level. It used to
+        // be here, with a comment claiming the session-management routes' own .RequireAuthorization()
+        // "does not weaken" the group's AllowAnonymous - that claim was wrong. ASP.NET Core's
+        // AuthorizationMiddleware treats the mere PRESENCE of IAllowAnonymous metadata on an endpoint
+        // as an unconditional override: it short-circuits before ever looking at IAuthorizeData, so
+        // an endpoint carrying BOTH (inherited AllowAnonymous from the group, plus its own
+        // RequireAuthorization) is anonymous, full stop - the RequireAuthorization call was dead code.
+        // Verified directly: GET /sessions and POST /sessions/revoke-all both returned 200 with no
+        // Authorization header at all; only the handlers' own `scope.UserId is null` guards (which
+        // return an empty page / revokedCount 0) kept this from leaking real session data - the auth
+        // pipeline itself was never actually gating these three routes.
+        var group = app.MapGroup("/api/v1/auth").WithTags("Auth");
 
         group.MapPost("/login", async (
             LoginRequest request,
@@ -93,7 +100,8 @@ public static class AuthEndpoints
             };
         })
         .WithName("Login")
-        .RequireRateLimiting("auth-strict");
+        .RequireRateLimiting("auth-strict")
+        .AllowAnonymous();
 
         group.MapPost("/refresh", async (
             HttpContext httpContext,
@@ -119,7 +127,8 @@ public static class AuthEndpoints
                 _ => Results.Problem(),
             };
         })
-        .WithName("RefreshToken");
+        .WithName("RefreshToken")
+        .AllowAnonymous();
 
         group.MapPost("/logout", (HttpContext httpContext) =>
         {
@@ -142,7 +151,8 @@ public static class AuthEndpoints
             httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
             return Results.NoContent();
         })
-        .WithName("Logout");
+        .WithName("Logout")
+        .AllowAnonymous();
 
         group.MapPost("/forgot-password", async (
             ForgotPasswordRequest request,
@@ -171,7 +181,8 @@ public static class AuthEndpoints
             return Results.Ok(new { message = "if_account_exists_email_sent" });
         })
         .WithName("ForgotPassword")
-        .RequireRateLimiting("auth-strict");
+        .RequireRateLimiting("auth-strict")
+        .AllowAnonymous();
 
         group.MapPost("/reset-password", async (
             ResetPasswordRequest request,
@@ -197,7 +208,8 @@ public static class AuthEndpoints
             };
         })
         .WithName("ResetPassword")
-        .RequireRateLimiting("auth-strict");
+        .RequireRateLimiting("auth-strict")
+        .AllowAnonymous();
 
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (

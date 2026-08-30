@@ -15,4 +15,9 @@ public sealed class HttpScopeContext(IHttpContextAccessor accessor) : IScopeCont
     public Guid? SupplierId => Guid.TryParse(User?.FindFirst("supplierId")?.Value, out var id) ? id : null;
 
     public Guid? OrganizationId => Guid.TryParse(User?.FindFirst("organizationId")?.Value, out var id) ? id : null;
+
+    // Same claim type PermissionEndpointFilter checks ("perms") - this is the same permission
+    // system, just readable from a handler instead of enforced at the endpoint gate.
+    public bool HasPermission(string permission) =>
+        User?.Claims.Any(c => c.Type == "perms" && c.Value == permission) ?? false;
 }
