@@ -25,11 +25,11 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "categoryLink", defaultValue: true, ct);
 
-        var stateBefore = supplier.OnboardingState;
         CategoryLink? link;
+        bool reTriggered;
         try
         {
-            link = supplier.LinkCategory(command.CategoryCode, isComplianceCritical);
+            (link, reTriggered) = supplier.LinkCategory(command.CategoryCode, isComplianceCritical);
         }
         catch (DomainException ex)
         {
@@ -44,7 +44,7 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
         var changes = AuditChangeBuilder.Build(("categoryCode", null, command.CategoryCode));
 
         await auditLogger.LogAsync("Supplier", supplier.Id, "category_linked", scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "categoryLink", scope.UserId, ct);
+        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "categoryLink", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -60,10 +60,10 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "categoryLink", defaultValue: true, ct);
 
-        var stateBefore = supplier.OnboardingState;
+        bool reTriggered;
         try
         {
-            supplier.UnlinkCategory(command.CategoryCode, isComplianceCritical);
+            reTriggered = supplier.UnlinkCategory(command.CategoryCode, isComplianceCritical);
         }
         catch (DomainException ex)
         {
@@ -73,7 +73,7 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
         var changes = AuditChangeBuilder.Build(("categoryCode", command.CategoryCode, null));
 
         await auditLogger.LogAsync("Supplier", supplier.Id, "category_unlinked", scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "categoryLink", scope.UserId, ct);
+        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "categoryLink", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

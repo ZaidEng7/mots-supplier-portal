@@ -389,7 +389,7 @@ public class SupplierTests
         var supplier = CreateDraftSupplier();
         supplier.MarkEmailVerified();
 
-        var account = supplier.AddBankAccount("Test Co", "Test Bank", null, [1, 2, 3], "****1234", null, "SYP", isComplianceCritical: true);
+        var (account, _) = supplier.AddBankAccount("Test Co", "Test Bank", null, [1, 2, 3], "****1234", null, "SYP", isComplianceCritical: true);
 
         supplier.BankAccounts.Should().ContainSingle();
         account.MaskedAccountNumber.Should().Be("****1234");

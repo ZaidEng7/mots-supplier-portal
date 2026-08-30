@@ -121,6 +121,10 @@ a question engineering is not in a position to close.
 
 **Question.** In production the Hangfire dashboard is not mapped at all, so job health is observable by no route. Metrics only, a read-only health endpoint, or the dashboard behind the MSP-87 filter?
 
-**Holding up.** MSP-90, and the NFR-OBS-006 line in the 160-item audit.
+**Resolved 2026-08-30 (Task #18).** Metrics + read-only health endpoint, not the interactive dashboard. Task #16 already shipped both: `/metrics` (Prometheus format) carries `mots.outbox.backlog` and the built-in ASP.NET Core/Hangfire-storage-backed instruments, and `/health/ready` includes a `hangfire-storage` check alongside Postgres/migrations/object-storage. Both are read-only surfaces with no interactive job-management affordance, so the ordering constraint below applies at reduced severity even where it still applies at all.
 
-**Not a Ministry question.** Answerable internally — listed here because it is a decision rather than a task, and because it has a hard ordering constraint: the dashboard option must not ship before MSP-89 removes PII and live tokens from job arguments.
+**Why this option over the dashboard.** The dashboard is strictly more capable than what NFR-OBS-006 asks for (it lets an admin retry/delete jobs, not just observe them), which is a larger attack/mistake surface than "is this healthy" needs. Metrics + health endpoints answer the actual question (is the background-job/Outbox pipeline healthy, is it backing up) without also shipping a production-facing job-management console. The interactive dashboard stays Development-only and system_admin-gated (MSP-87), available for hands-on debugging without being production's primary observability route.
+
+**Ordering constraint, now moot for the option chosen.** The constraint was that the dashboard must not ship before MSP-89 removed PII/live tokens from job arguments - MSP-89 has since shipped (EmailJobs.cs mints tokens at send time rather than accepting them as arguments; `No_job_in_the_real_store_carries_an_address_or_a_token` in EmailJobBehaviourTests.cs asserts this against the real Hangfire store). Since the resolution here doesn't newly expose the dashboard in production, this constraint doesn't gate today's decision - noted for completeness, not because it was blocking.
+
+**Not a Ministry question.** Answerable internally, as the ticket itself said - resolved without needing to ask.

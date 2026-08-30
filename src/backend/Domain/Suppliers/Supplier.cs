@@ -176,11 +176,17 @@ public sealed class Supplier
 
     /// <summary>FEAT-04.2/FR-PROF-002. Compliance-critical (FEAT-04.9): editing legal id
     /// post-Approval re-triggers review.</summary>
-    public void UpdateLegalInfo(string legalNameAr, string legalNameEn, string? registrationNumber, string? taxId, SupplierLegalType supplierType, DateOnly? establishedOn, bool isComplianceCritical)
+    /// <summary>Task #18/MSP-82: returns whether this edit re-triggered review (Approved ->
+    /// UnderReview), by propagating <see cref="EnsureEditableForComplianceField"/>'s own return
+    /// value rather than having the caller infer it later by diffing OnboardingState before/after -
+    /// see ComplianceReTrigger's doc comment for why that inference was correct only by
+    /// coincidence.</summary>
+    public bool UpdateLegalInfo(string legalNameAr, string legalNameEn, string? registrationNumber, string? taxId, SupplierLegalType supplierType, DateOnly? establishedOn, bool isComplianceCritical)
     {
-        EnsureEditableForComplianceField(isComplianceCritical);
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
         LegalInfo = Domain.Suppliers.LegalInfo.Create(legalNameAr, legalNameEn, registrationNumber, taxId, supplierType, establishedOn);
         AdvancePastEmailVerified();
+        return reTriggered;
     }
 
     // MSP-84: safety belts, not business rules - none of these six collections had any cap
@@ -386,9 +392,12 @@ public sealed class Supplier
     /// by the caller (handler has FieldEncryptionService, the domain does not depend on
     /// Infrastructure) and passed in already encrypted/masked. DOMAIN-MODEL.md: the first bank
     /// account added is automatically the default - exactly one default whenever any exist.</summary>
-    public BankAccount AddBankAccount(string accountHolderName, string bankName, string? branchName, byte[] encryptedAccountNumber, string maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
+    /// <summary>Task #18/MSP-82: see UpdateLegalInfo's doc comment - ReTriggered propagates
+    /// EnsureEditableForComplianceField's own answer instead of being re-derived from a state
+    /// diff.</summary>
+    public (BankAccount Account, bool ReTriggered) AddBankAccount(string accountHolderName, string bankName, string? branchName, byte[] encryptedAccountNumber, string maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
     {
-        EnsureEditableForComplianceField(isComplianceCritical);
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
         if (_bankAccounts.Count >= MaxBankAccounts)
         {
             throw new DomainException($"A supplier may have at most {MaxBankAccounts} bank accounts.");
@@ -407,15 +416,15 @@ public sealed class Supplier
             IsDefault = _bankAccounts.Count == 0,
         };
         _bankAccounts.Add(account);
-        return account;
+        return (account, reTriggered);
     }
 
     /// <summary>AccountNumber fields are null when the caller isn't changing the account number
     /// (handler re-encrypts and passes non-null values only when the account number is actually
     /// being changed).</summary>
-    public void UpdateBankAccount(Guid bankAccountId, string accountHolderName, string bankName, string? branchName, byte[]? encryptedAccountNumber, string? maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
+    public bool UpdateBankAccount(Guid bankAccountId, string accountHolderName, string bankName, string? branchName, byte[]? encryptedAccountNumber, string? maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
     {
-        EnsureEditableForComplianceField(isComplianceCritical);
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
         var account = _bankAccounts.FirstOrDefault(b => b.Id == bankAccountId) ?? throw new DomainException("Bank account not found.");
         account.AccountHolderName = accountHolderName;
         account.BankName = bankName;
@@ -427,17 +436,19 @@ public sealed class Supplier
             account.EncryptedAccountNumber = encryptedAccountNumber;
             account.MaskedAccountNumber = maskedAccountNumber;
         }
+        return reTriggered;
     }
 
-    public void RemoveBankAccount(Guid bankAccountId, bool isComplianceCritical)
+    public bool RemoveBankAccount(Guid bankAccountId, bool isComplianceCritical)
     {
-        EnsureEditableForComplianceField(isComplianceCritical);
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
         var account = _bankAccounts.FirstOrDefault(b => b.Id == bankAccountId) ?? throw new DomainException("Bank account not found.");
         _bankAccounts.Remove(account);
         if (account.IsDefault && _bankAccounts.Count > 0)
         {
             _bankAccounts[0].IsDefault = true;
         }
+        return reTriggered;
     }
 
     /// <summary>DOMAIN-MODEL.md: lets the supplier explicitly pick which bank account is default,
@@ -451,24 +462,25 @@ public sealed class Supplier
         account.IsDefault = true;
     }
 
-    public CategoryLink? LinkCategory(string categoryCode, bool isComplianceCritical)
+    public (CategoryLink? Link, bool ReTriggered) LinkCategory(string categoryCode, bool isComplianceCritical)
     {
-        EnsureEditableForComplianceField(isComplianceCritical);
-        if (_categoryLinks.Any(l => l.CategoryCode == categoryCode)) return null;
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
+        if (_categoryLinks.Any(l => l.CategoryCode == categoryCode)) return (null, reTriggered);
         if (_categoryLinks.Count >= MaxCategoryLinks)
         {
             throw new DomainException($"A supplier may link at most {MaxCategoryLinks} categories.");
         }
         var link = new CategoryLink { Id = Guid.CreateVersion7(), SupplierId = Id, CategoryCode = categoryCode };
         _categoryLinks.Add(link);
-        return link;
+        return (link, reTriggered);
     }
 
-    public void UnlinkCategory(string categoryCode, bool isComplianceCritical)
+    public bool UnlinkCategory(string categoryCode, bool isComplianceCritical)
     {
-        EnsureEditableForComplianceField(isComplianceCritical);
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
         var link = _categoryLinks.FirstOrDefault(l => l.CategoryCode == categoryCode);
         if (link is not null) _categoryLinks.Remove(link);
+        return reTriggered;
     }
 
     /// <summary>
@@ -476,19 +488,35 @@ public sealed class Supplier
     /// EPIC-04's Address/CategoryLink minimums (STORY-04.3.1/STORY-04.7.1, per product-owner
     /// decision 2026-08-27: >=1 CategoryLink is a hard submit requirement of EPIC-04 itself).
     /// </summary>
+    /// <summary>
+    /// Task #18/MSP-85: every entry here except "termsAccepted" is a <see cref="ProfileFieldCodes"/>
+    /// value referenced directly, not a raw string literal that merely happens to match one. This
+    /// list feeds SupplierDto.MissingProfileFields, which the frontend reads with string equality
+    /// against the SAME flagged-field vocabulary (OnboardingPage.tsx's own comment: "Matches
+    /// SupplierDto.missingProfileFields' exact string values... keep in sync if the backend list
+    /// changes"). Before this, that sync was maintained by two independent literals happening to
+    /// agree - renaming a ProfileFieldCodes value would silently desync this list from the
+    /// vocabulary reviewers flag against, with nothing to catch it until a supplier's "missing"
+    /// indicator stopped matching what a reviewer could actually flag. Referencing the constant
+    /// makes that impossible: a rename here is a compile error, not a silent divergence.
+    ///
+    /// "termsAccepted" stays a literal on purpose - it is a submit-gate concept, not something a
+    /// reviewer can flag for correction (there is no ProfileFieldCodes.TermsAccepted), so there is
+    /// no shared vocabulary to reference.
+    /// </summary>
     public IReadOnlyList<string> GetMissingProfileFields()
     {
         var missing = new List<string>();
         if (LegalInfo is null || string.IsNullOrWhiteSpace(LegalInfo.LegalNameAr) || string.IsNullOrWhiteSpace(LegalInfo.LegalNameEn))
         {
-            missing.Add("legalInfo");
+            missing.Add(ProfileFieldCodes.LegalInfo);
         }
-        if (string.IsNullOrWhiteSpace(CurrencyCode)) missing.Add("currencyCode");
-        if (!_addresses.Any(a => a.Kind == AddressKind.HeadOffice)) missing.Add("address");
-        if (_categoryLinks.Count == 0) missing.Add("categoryLink");
+        if (string.IsNullOrWhiteSpace(CurrencyCode)) missing.Add(ProfileFieldCodes.CurrencyCode);
+        if (!_addresses.Any(a => a.Kind == AddressKind.HeadOffice)) missing.Add(ProfileFieldCodes.Address);
+        if (_categoryLinks.Count == 0) missing.Add(ProfileFieldCodes.CategoryLink);
         if (_representatives.Any(r => r.IsPrimary && string.IsNullOrWhiteSpace(r.Phone)) || _representatives.All(r => !r.IsPrimary))
         {
-            missing.Add("primaryContactPhone");
+            missing.Add(ProfileFieldCodes.PrimaryContactPhone);
         }
         if (TermsAcceptedAt is null) missing.Add("termsAccepted");
         return missing;
