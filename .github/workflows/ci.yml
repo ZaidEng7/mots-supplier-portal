@@ -423,7 +423,29 @@ jobs:
           api "https://sonarcloud.io/api/qualitygates/project_status?projectKey=ZaidEng7_mots-supplier-portal&$SCOPE" gate.json
 
           # Whole-project measures, REPORTED ONLY - see the note in the python block below.
-          api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc" overall.json
+          #
+          # Task #12/PR #28: this call used to omit scope entirely (falling back, silently, to
+          # whatever SonarCloud's api/measures/component defaults to with neither `branch` nor
+          # `pullRequest` given - the project's default branch, main, as last analyzed). On a PR run
+          # that read main from BEFORE the PR being gated, while every other figure in this step
+          # (new_coverage, the quality gate conditions) correctly used $SCOPE. PR #28 reported 13251
+          # lines/49.6% coverage here while the PR's own actual post-merge state was 14693/51.4%.
+          #
+          # The obvious-looking fix - pass $SCOPE here too, so a PR reads `pullRequest=$PR_NUMBER` -
+          # is NOT correct, and was caught only by testing it: SonarCloud's own docs (Pull request
+          # analysis) state plainly that PR analysis computes NEW-CODE metrics only; overall/
+          # whole-project metrics like plain `ncloc`/`coverage`/`security_rating` are not meaningfully
+          # populated for a pull-request-type component. Verified live before settling on this:
+          # querying with `pullRequest=N` on a real PR returned ncloc=376 for a ~15,300-line
+          # codebase - not "the PR's merged state", a near-arbitrary small number, worse than the
+          # original staleness because it now looks precise while being meaningless.
+          #
+          # So there is no PR-scoped whole-project reading to fall back to - this genuinely CANNOT
+          # reflect "the project as this PR would leave it" via this API, for any PR, ever. The
+          # honest fix is the one the ticket allowed for exactly this case: keep reading main (the
+          # only branch type these metrics are real for), make that explicit rather than an
+          # accidental default, and label the output so nobody mistakes it for the PR's own state.
+          api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc&branch=main" overall.json
 
           python3 - <<'PYEOF'
           import json, os, sys
@@ -564,9 +586,25 @@ jobs:
           # rather than working blind and finding out at the end. Same lesson as MSP-70 one level
           # up: build the instrument before the repair work, not after.
           #
+          # Task #12: this section ALWAYS reads main's own last analysis (the api call above is
+          # pinned to branch=main explicitly), on a PR run included. SonarCloud does not compute
+          # whole-project (non-new-code) metrics for pull request analysis at all - confirmed against
+          # Sonar's own docs and by testing it directly - so there is no PR-specific version of these
+          # numbers to show; main's is the only one that is ever real. The label says so plainly
+          # instead of implying "this PR" the way the old unscoped call accidentally did.
+          #
+          # PHASE 4 / TASK #13: this is a fact task #13 needs before flipping these to blocking, not
+          # just a wording fix. Blocking a PR on figures that are always main's pre-this-PR state
+          # (never this PR's own, because SonarCloud cannot produce that) means the gate would judge
+          # every open PR identically, off a number the PR itself cannot move no matter what it
+          # contains. That may still be a defensible policy ("do not build on a red main"), but it is
+          # a different gate than "does not make things worse", and task #13 should decide it
+          # deliberately rather than inherit it from what this label used to imply.
+          #
           # PHASE 4 EXIT CONDITION: flip these to blocking once they can pass on merit.
           print("")
-          print("Whole project (reported, not enforced - Phase 4 flips these to blocking):")
+          print("Whole project on main (reported, not enforced - Phase 4 flips these to blocking; "
+                "this always reads main's own last analysis, never a PR's - see comment above):")
           LABELS = [
               ("security_rating",          "Security rating",   True),
               ("reliability_rating",       "Reliability rating", True),
