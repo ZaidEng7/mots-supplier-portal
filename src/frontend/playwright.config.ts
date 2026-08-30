@@ -41,5 +41,14 @@ export default defineConfig({
       testMatch: 'app-smoke.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
     },
+    {
+      // NFR-A11Y-001/002/003/007: axe against every real application route, both locales.
+      // Shares the app-smoke project's server/baseURL - no backend needed, every /api/v1 call is
+      // intercepted (see mockBackend in the spec) the same way app-smoke needs none for its own
+      // unauthenticated-only checks.
+      name: 'app-a11y',
+      testMatch: 'app-a11y.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
+    },
   ],
 })
