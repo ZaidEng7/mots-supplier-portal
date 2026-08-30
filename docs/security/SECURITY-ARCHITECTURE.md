@@ -80,7 +80,7 @@ code, because authorization consumes claims, not the identity provider.
 
 | Token | Lifetime | Storage (browser) | Contents | Notes |
 |---|---|---|---|---|
-| **Access (JWT)** | **15 min** `[ASSUMPTION]` | In-memory (JS heap), never `localStorage` | `sub` (User GUIDv7), `roles`, `perms` (compact permission set), `supplierId?`, `orgId?`, `scope`, `amr`, `jti`, `iat/exp`, `iss`, `aud` | Signed **RS256** (asymmetric) so workers/services verify without the signing key. Short-lived → no server revocation list needed for access tokens. |
+| **Access (JWT)** | **15 min** `[ASSUMPTION]` | In-memory (JS heap), never `localStorage` | `sub` (User GUIDv7), `roles`, `perms` (compact permission set), `supplierId?`, `orgId?`, `amr`, `jti`, `iat/exp`, `iss`, `aud` | Signed **RS256** (asymmetric) so workers/services verify without the signing key. Short-lived → no server revocation list needed for access tokens. Task #18/MSP-92: a redundant `scope` claim (same data as `perms`, never read anywhere) was removed. |
 | **Refresh** | **14 days** sliding `[ASSUMPTION]`, absolute cap 30 days | **`HttpOnly`, `Secure`, `SameSite=Strict` cookie**, path-scoped to `/api/auth/refresh` | Opaque 256-bit random handle; only a **hash** is stored server-side | **Rotating**: every refresh issues a new refresh token and invalidates the prior one. |
 
 **Why this shape:** the access token is small, self-verifying, and short-lived; the refresh token is
