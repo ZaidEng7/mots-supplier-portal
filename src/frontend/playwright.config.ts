@@ -65,5 +65,13 @@ export default defineConfig({
       testMatch: 'app-keyboard.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
     },
+    {
+      // Task #22/NFR-A11Y-007: real DOM/ARIA read proving aria-describedby resolves to an actual,
+      // non-empty error element and aria-invalid is set - axe does not check that an
+      // aria-describedby id target exists or holds the visible error text.
+      name: 'app-error-association',
+      testMatch: 'app-error-association.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:5173' },
+    },
   ],
 })
