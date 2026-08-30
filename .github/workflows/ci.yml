@@ -1,5 +1,15 @@
 name: CI
 
+# Task #24: this job's own name ("Backend (.NET)") and the "Frontend (React)" / "Container image
+# build" job names below are load-bearing, not cosmetic - GitHub branch protection on `main`
+# requires these three exact check names before a merge is allowed (SonarCloud Code Analysis stays
+# advisory/non-required, per the project's own coverage-ratchet standard). Renaming a job here
+# without updating branch protection's required-checks list breaks the gate silently: the old name
+# stops reporting, GitHub treats a check that never runs as "pending forever", not as a failure -
+# so a rename could turn "required" into "blocks every PR forever" or, if the check is removed from
+# the required list at the same time, into no protection at all. Renaming a job is therefore also a
+# branch-protection change, not just a workflow edit.
+
 on:
   push:
     branches: [main]
