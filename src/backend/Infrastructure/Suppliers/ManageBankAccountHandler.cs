@@ -29,11 +29,11 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "bankAccount", defaultValue: true, ct);
 
-        var stateBefore = supplier.OnboardingState;
         Domain.Suppliers.BankAccount account;
+        bool reTriggered;
         try
         {
-            account = supplier.AddBankAccount(command.AccountHolderName, command.BankName, command.BranchName, encrypted, masked, command.SwiftBic, command.CurrencyCode, isComplianceCritical);
+            (account, reTriggered) = supplier.AddBankAccount(command.AccountHolderName, command.BankName, command.BranchName, encrypted, masked, command.SwiftBic, command.CurrencyCode, isComplianceCritical);
         }
         catch (DomainException ex)
         {
@@ -55,7 +55,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         // Never log/audit the raw account number - only that a bank account was added, and the
         // masked value (BRULE-091: no PII in logs).
         await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_added", scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
+        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -83,10 +83,10 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "bankAccount", defaultValue: true, ct);
 
-        var stateBefore = supplier.OnboardingState;
+        bool reTriggered;
         try
         {
-            supplier.UpdateBankAccount(command.BankAccountId, command.AccountHolderName, command.BankName, command.BranchName, encrypted, masked, command.SwiftBic, command.CurrencyCode, isComplianceCritical);
+            reTriggered = supplier.UpdateBankAccount(command.BankAccountId, command.AccountHolderName, command.BankName, command.BranchName, encrypted, masked, command.SwiftBic, command.CurrencyCode, isComplianceCritical);
         }
         catch (DomainException ex)
         {
@@ -103,7 +103,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         // Never log/audit the raw account number - only that it changed, and the masked value if
         // the account number itself was part of the edit (BRULE-091: no PII in logs).
         await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_updated", scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
+        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }
@@ -120,10 +120,10 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
         var before = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId);
         var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "bankAccount", defaultValue: true, ct);
 
-        var stateBefore = supplier.OnboardingState;
+        bool reTriggered;
         try
         {
-            supplier.RemoveBankAccount(command.BankAccountId, isComplianceCritical);
+            reTriggered = supplier.RemoveBankAccount(command.BankAccountId, isComplianceCritical);
         }
         catch (DomainException ex)
         {
@@ -135,7 +135,7 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             ("maskedAccountNumber", before?.MaskedAccountNumber, null));
 
         await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_removed", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "bankAccount", scope.UserId, ct);
+        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

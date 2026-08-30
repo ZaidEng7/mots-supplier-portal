@@ -26,10 +26,10 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
         SupplierConcurrency.ApplyExpectedVersion(db, supplier, concurrency);
 
         var before = supplier.LegalInfo;
-        var stateBefore = supplier.OnboardingState;
+        bool reTriggered;
         try
         {
-            supplier.UpdateLegalInfo(command.LegalNameAr, command.LegalNameEn, command.RegistrationNumber, command.TaxId, command.SupplierType, command.EstablishedOn, isComplianceCritical);
+            reTriggered = supplier.UpdateLegalInfo(command.LegalNameAr, command.LegalNameEn, command.RegistrationNumber, command.TaxId, command.SupplierType, command.EstablishedOn, isComplianceCritical);
         }
         catch (DomainException ex)
         {
@@ -47,7 +47,7 @@ public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope,
         var persisted = await SupplierConcurrency.TryPersistAsync(async () =>
         {
             await auditLogger.LogAsync("Supplier", supplier.Id, "legal_info_updated", scope.UserId, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
-            await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, stateBefore, "legalInfo", scope.UserId, ct);
+            await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "legalInfo", scope.UserId, ct);
             await db.SaveChangesAsync(ct);
         });
 

@@ -91,7 +91,7 @@ public sealed class AwardCriticalSuspensionTests(PostgresApiFixture fixture)
             db.Contacts.Add(supplier.AddContact(
                 "Award Fixture Contact", "award@example.com", "+963900000001", "primary"));
 
-            var link = supplier.LinkCategory(categoryCode, isComplianceCritical: false);
+            var (link, _) = supplier.LinkCategory(categoryCode, isComplianceCritical: false);
             if (link is not null) db.CategoryLinks.Add(link);
 
             await db.SaveChangesAsync();

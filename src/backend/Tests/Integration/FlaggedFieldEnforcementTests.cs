@@ -48,7 +48,7 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
         // same trap ManageAddressHandler documents.
         var seedAddress = supplier.AddAddress(AddressKind.HeadOffice, "1 Seed Street", null, "Damascus", "DIM", "Syria", null, null, null);
         db.Addresses.Add(seedAddress);
-        var seedLink = supplier.LinkCategory("catering", isComplianceCritical: false);
+        var (seedLink, _) = supplier.LinkCategory("catering", isComplianceCritical: false);
         if (seedLink is not null) db.CategoryLinks.Add(seedLink);
         supplier.AcceptTerms(Supplier.CurrentTermsVersion);
         supplier.Submit([]);
