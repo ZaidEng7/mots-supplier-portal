@@ -40,12 +40,17 @@ public static class Permissions
     public const string AwardApprove = "award.approve";
     public const string AdminUsersManage = "admin.users.manage";
     public const string AuditRead = "audit.read";
+    /// <summary>Task #7/Stage C: create/list Organizations, manage OrgUnits, and the manual
+    /// SupplierOrgLink create/remove action (BRULE-010) - a distinct admin surface from
+    /// AdminUsersManage, following that constant's own pattern of being system_admin-only by
+    /// default (via Permissions.All below) rather than assigned to any other role.</summary>
+    public const string AdminOrganizationsManage = "admin.organizations.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
         SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
-        RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead
+        RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage
     ];
 }
 

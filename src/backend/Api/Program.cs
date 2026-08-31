@@ -12,6 +12,7 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Api.Endpoints;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Application.Reference;
 using MotsSupplierPortal.Application.Suppliers;
@@ -19,6 +20,7 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Identity;
+using MotsSupplierPortal.Infrastructure.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
@@ -210,6 +212,10 @@ builder.Services.AddScoped<IManageAddressHandler, ManageAddressHandler>();
 builder.Services.AddScoped<IManageContactHandler, ManageContactHandler>();
 builder.Services.AddScoped<IManageBranchHandler, ManageBranchHandler>();
 builder.Services.AddScoped<IManageBankAccountHandler, ManageBankAccountHandler>();
+builder.Services.AddScoped<ICreateOrganizationHandler, CreateOrganizationHandler>();
+builder.Services.AddScoped<IListOrganizationsHandler, ListOrganizationsHandler>();
+builder.Services.AddScoped<IManageOrgUnitHandler, ManageOrgUnitHandler>();
+builder.Services.AddScoped<IManageSupplierOrgLinkHandler, ManageSupplierOrgLinkHandler>();
 builder.Services.AddScoped<IManageCategoryLinkHandler, ManageCategoryLinkHandler>();
 builder.Services.AddScoped<IInviteSupplierUserHandler, InviteSupplierUserHandler>();
 builder.Services.AddScoped<IListSupplierUsersHandler, ListSupplierUsersHandler>();
@@ -536,6 +542,7 @@ app.MapAuditEndpoints();
 app.MapAdminEndpoints();
 app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
+app.MapOrganizationEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

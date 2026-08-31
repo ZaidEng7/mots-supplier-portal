@@ -109,6 +109,9 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/review/queue') return route.fulfill({ json: { items: [{ referenceCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'UnderReview' }], hasMore: false, nextCursor: null } })
     if (p === `/api/v1/review/${REFERENCE_CODE}`) return route.fulfill({ json: { supplier: SUPPLIER_PROFILE, documents: DOCUMENT_TYPES, annotationHistory: [] } })
     if (p === '/api/v1/registrations/verify' && method === 'POST') return route.fulfill({ json: {} })
+    // Task #7/Stage C: list endpoints return real arrays, not the generic {} fallback below -
+    // an empty object crashes OrganizationsPage's .map() the same way any list page would.
+    if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
 
     // Anything else (mutation endpoints no initial render triggers, unanticipated GETs): benign
     // empty success, so an unmocked call cannot crash the page under scan.
