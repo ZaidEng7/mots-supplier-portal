@@ -54,9 +54,17 @@ public sealed class ListOrganizationsHandler(AppDbContext db) : IListOrganizatio
 
 public sealed class ManageOrgUnitHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageOrgUnitHandler
 {
+    // AddAsync and RemoveAsync repeated this exact lookup line-for-line - a real, literal
+    // duplicate (not eyeballed-similar), extracted as a likely contributor to the new-code
+    // duplication ratchet failure. No line-level location was available from Sonar for this PR
+    // (dashboard access requires a login this session doesn't have); this is the one exact match
+    // found by direct inspection, not a confirmed match against Sonar's own report.
+    private Task<Organization?> LoadOrganizationWithUnitsAsync(Guid organizationId, CancellationToken ct) =>
+        db.Set<Organization>().Include(o => o.OrgUnits).FirstOrDefaultAsync(o => o.Id == organizationId, ct);
+
     public async Task<OrganizationMutationResult> AddAsync(AddOrgUnitCommand command, CancellationToken ct)
     {
-        var org = await db.Set<Organization>().Include(o => o.OrgUnits).FirstOrDefaultAsync(o => o.Id == command.OrganizationId, ct);
+        var org = await LoadOrganizationWithUnitsAsync(command.OrganizationId, ct);
         if (org is null) return new OrganizationMutationResult.NotFound();
 
         OrgUnit unit;
@@ -82,7 +90,7 @@ public sealed class ManageOrgUnitHandler(AppDbContext db, IScopeContext scope, I
 
     public async Task<OrganizationMutationResult> RemoveAsync(RemoveOrgUnitCommand command, CancellationToken ct)
     {
-        var org = await db.Set<Organization>().Include(o => o.OrgUnits).FirstOrDefaultAsync(o => o.Id == command.OrganizationId, ct);
+        var org = await LoadOrganizationWithUnitsAsync(command.OrganizationId, ct);
         if (org is null) return new OrganizationMutationResult.NotFound();
 
         var unit = org.OrgUnits.FirstOrDefault(u => u.Id == command.OrgUnitId);
