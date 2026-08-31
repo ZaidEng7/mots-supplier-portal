@@ -7,7 +7,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 /** Text input primitive — token-driven border/focus states, invalid state for form errors. */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { invalid = false, className = '', style, ...rest },
+  { invalid = false, className = '', style, onFocus, onBlur, ...rest },
   ref,
 ) {
   return (
@@ -24,10 +24,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       onFocus={(e) => {
         e.currentTarget.style.boxShadow = 'var(--focus-ring)'
         e.currentTarget.style.borderColor = invalid ? 'var(--color-danger-solid)' : 'var(--color-border-focus)'
+        onFocus?.(e)
       }}
       onBlur={(e) => {
         e.currentTarget.style.boxShadow = 'none'
         e.currentTarget.style.borderColor = invalid ? 'var(--color-danger-solid)' : 'var(--color-border-input)'
+        onBlur?.(e)
       }}
       {...rest}
     />
