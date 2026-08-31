@@ -285,16 +285,24 @@ export function ReviewApplicationPage() {
             MSP-77 fixed by deleting this section. Guarding on null here and reading every field
             through legalInfoValue (never `{supplier.legalInfo}` itself) is what restores it safely. */}
         {supplier.legalInfo ? (
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {LEGAL_INFO_FIELDS.map((f) => (
-              <div key={f}>
-                <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                  {t(`onboarding.fields.${f}`)}
-                </dt>
-                <dd style={{ color: 'var(--color-text-primary)' }}>{legalInfoValue(supplier.legalInfo, f)}</dd>
-              </div>
-            ))}
-          </dl>
+          // Narrowed into a local const: `supplier.legalInfo`'s null-check doesn't survive into
+          // the .map() callback below (TS can't prove a member expression stays narrowed across a
+          // closure boundary) - a plain local variable's narrowing does.
+          (() => {
+            const legalInfo = supplier.legalInfo
+            return (
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {LEGAL_INFO_FIELDS.map((f) => (
+                  <div key={f}>
+                    <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t(`onboarding.fields.${f}`)}
+                    </dt>
+                    <dd style={{ color: 'var(--color-text-primary)' }}>{legalInfoValue(legalInfo, f)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )
+          })()
         ) : (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('contacts.empty')}</p>
         )}
