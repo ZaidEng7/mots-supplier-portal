@@ -746,7 +746,31 @@ public sealed class Supplier
     /// so the parameter is required rather than optional: a caller cannot forget it, because it will
     /// not compile.</para>
     /// </summary>
-    public void Resubmit(IReadOnlyList<string> missingRequiredDocumentTypeCodes)
+    /// <param name="missingRequiredDocumentTypeCodes">All required document types not currently
+    /// satisfying the submit requirement - the same unscoped set <see cref="Submit"/> uses.</param>
+    /// <param name="flaggedProfileFields">The open annotation's <c>FlaggedProfileFields</c>.</param>
+    /// <param name="flaggedDocumentTypeCodes">The open annotation's <c>FlaggedDocumentTypeIds</c>,
+    /// resolved to codes by the caller.</param>
+    /// <remarks>
+    /// Resubmit only ever runs from InfoRequested (guarded below), so unlike Submit it is scoped to
+    /// what the open annotation actually asked for, not every required item unconditionally.
+    ///
+    /// A document a reviewer independently rejected - via the separate per-document
+    /// approve/reject action (FEAT-05.4), not through this info request - without also flagging it
+    /// here is a real scenario, not a hypothetical: it happened, and it permanently deadlocked
+    /// SUP-2026-000044 (Task #32). The old unscoped check demanded that document be fixed too, but
+    /// re-upload was refused because it wasn't flagged (UploadDocumentHandler), and a second
+    /// request-info to flag it was refused because the application wasn't back in UnderReview yet
+    /// (RequestInfo only runs from UnderReview) - the one door out of InfoRequested required
+    /// walking through a door that was locked from the far side. Scoping to what was actually
+    /// flagged closes that loop: an unrelated rejected document no longer blocks resolving the
+    /// thing the ministry actually asked for. If the ministry wants that document fixed too, the
+    /// fix is to flag it - not for the completeness gate to demand it unconditionally.
+    /// </remarks>
+    public void Resubmit(
+        IReadOnlyList<string> missingRequiredDocumentTypeCodes,
+        IReadOnlyList<string> flaggedProfileFields,
+        IReadOnlyList<string> flaggedDocumentTypeCodes)
     {
         if (OnboardingState != SupplierOnboardingState.InfoRequested)
         {
@@ -754,7 +778,9 @@ public sealed class Supplier
                 $"Cannot resubmit from state '{OnboardingState}'; only 'InfoRequested' is valid.");
         }
 
-        var missing = GetMissingProfileFields().Concat(missingRequiredDocumentTypeCodes).ToList();
+        var missing = GetMissingProfileFields().Where(flaggedProfileFields.Contains)
+            .Concat(missingRequiredDocumentTypeCodes.Where(flaggedDocumentTypeCodes.Contains))
+            .ToList();
         if (missing.Count > 0)
         {
             throw new DomainException($"Cannot resubmit: missing required items: {string.Join(", ", missing)}.");
