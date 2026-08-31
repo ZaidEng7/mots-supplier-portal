@@ -52,6 +52,21 @@ function field(scope: Page | Locator, name: string): Locator {
 }
 
 /**
+ * Every authenticated test below repeated `page.goto(path, { waitUntil: 'networkidle' })` -
+ * flagged by SonarCloud both as duplication (5 occurrences) and, separately, as a code smell:
+ * `networkidle` waits for the network to go quiet, which has no real relationship to whether the
+ * specific element the test is about to interact with has actually rendered, and is a known-flaky
+ * strategy for exactly that reason. What each of these tests is actually waiting for is narrower
+ * and concrete: the button it is about to click. Waiting on that directly (a real, specific
+ * readiness condition - Playwright's own actionability wait, made explicit) is both the fix for
+ * the smell and the thing that made the wait meaningful in the first place.
+ */
+async function gotoAuthenticated(page: Page, path: string, ready: Locator): Promise<void> {
+  await page.goto(path)
+  await ready.waitFor({ state: 'visible' })
+}
+
+/**
  * The onboarding/team/banking/addresses/contacts forms only render their edit affordances (Add
  * buttons, enabled legal-info fields) while the supplier profile is in an editable onboardingState
  * (EmailVerified/ProfileInProgress/InfoRequested). fixtures.ts's shared SUPPLIER_PROFILE is
@@ -117,8 +132,9 @@ test.describe('Auth forms: error-association on real validation failures', () =>
 test.describe('Authenticated forms: error-association on real validation failures', () => {
   test('TeamPage invite dialog: empty submit associates both fields', async ({ page }) => {
     await mockBackend(page)
-    await page.goto('/team?lng=en', { waitUntil: 'networkidle' })
-    await page.getByRole('button', { name: 'Invite member' }).click()
+    const inviteButton = page.getByRole('button', { name: 'Invite member' })
+    await gotoAuthenticated(page, '/team?lng=en', inviteButton)
+    await inviteButton.click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Send invite' }).click()
     await assertErrorAssociated(page, field(dialog, 'Full name'), 'TeamPage.fullName')
@@ -127,8 +143,9 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('BankingPage add-account dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    await page.goto('/onboarding/banking?lng=en', { waitUntil: 'networkidle' })
-    await page.getByRole('button', { name: 'Add account' }).click()
+    const addAccountButton = page.getByRole('button', { name: 'Add account' })
+    await gotoAuthenticated(page, '/onboarding/banking?lng=en', addAccountButton)
+    await addAccountButton.click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Account holder name'), 'BankingPage.accountHolderName')
@@ -144,8 +161,9 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('AddressesPage add-address dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    await page.goto('/onboarding/addresses?lng=en', { waitUntil: 'networkidle' })
-    await page.getByRole('button', { name: 'Add address' }).click()
+    const addAddressButton = page.getByRole('button', { name: 'Add address' })
+    await gotoAuthenticated(page, '/onboarding/addresses?lng=en', addAddressButton)
+    await addAddressButton.click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Address'), 'AddressesPage.line1')
@@ -155,8 +173,9 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('ContactsPage add-representative dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    await page.goto('/onboarding/contacts?lng=en', { waitUntil: 'networkidle' })
-    await page.getByRole('button', { name: 'Add representative' }).click()
+    const addRepresentativeButton = page.getByRole('button', { name: 'Add representative' })
+    await gotoAuthenticated(page, '/onboarding/contacts?lng=en', addRepresentativeButton)
+    await addRepresentativeButton.click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Full name'), 'ContactsPage.fullName')
@@ -165,8 +184,8 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('OnboardingPage legal-info section: cleared required field associates on submit', async ({ page }) => {
     await mockEditableBackend(page)
-    await page.goto('/onboarding?lng=en', { waitUntil: 'networkidle' })
     const legalNameEn = field(page, 'Legal name (English)')
+    await gotoAuthenticated(page, '/onboarding?lng=en', legalNameEn)
     await legalNameEn.fill('')
     await page.getByRole('button', { name: 'Save', exact: true }).first().click()
     await assertErrorAssociated(page, legalNameEn, 'OnboardingPage.legalNameEn')
