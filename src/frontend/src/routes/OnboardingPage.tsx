@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Field, Input, Select } from '../components/ui'
+import { Badge, Button, Card, Field, Input, Select, PhoneInput } from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -164,9 +164,19 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
   const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const isArabic = i18n.language.startsWith('ar')
+  // Backend rejects an expiry-tracked type's upload with no expiryDate (BRULE-020,
+  // UploadDocumentHandler) - this field is what was missing on this side of that contract.
+  // BRULE-020 also rejects a date that isn't strictly after today ("a document cannot be
+  // filed as current while already expired") - min= on the input keeps the native picker
+  // from offering an invalid choice in the first place, and minExpiryDate gates the button
+  // the same way the empty-date case already was, for a date typed in manually instead of
+  // picked.
+  const [expiryDate, setExpiryDate] = useState('')
+  const minExpiryDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+  const expiryInvalid = doc.expiryTracked && (!expiryDate || expiryDate <= new Date().toISOString().slice(0, 10))
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadDocument(doc.documentTypeId, file),
+    mutationFn: (file: File) => uploadDocument(doc.documentTypeId, file, undefined, doc.expiryTracked ? expiryDate : undefined),
     onSuccess: () => {
       invalidateQuietly(queryClient, { queryKey: ['own-documents'] })
       notify({ kind: 'success', title: t('onboarding.documentUploaded') })
@@ -214,6 +224,17 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
         ) : null}
         {canEdit ? (
           <>
+            {doc.expiryTracked ? (
+              <input
+                type="date"
+                min={minExpiryDate}
+                aria-label={t('onboarding.documentExpiryLabel')}
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                className="rounded-[0.375rem] px-2 py-1 text-[length:var(--text-body-sm)]"
+                style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
+              />
+            ) : null}
             <input
               ref={fileRef}
               type="file"
@@ -225,7 +246,14 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
                 e.target.value = ''
               }}
             />
-            <Button variant="secondary" size="sm" isLoading={uploadMutation.isPending} onClick={() => fileRef.current?.click()}>
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={uploadMutation.isPending}
+              disabled={expiryInvalid}
+              title={expiryInvalid ? t('onboarding.documentExpiryRequired') : undefined}
+              onClick={() => fileRef.current?.click()}
+            >
               {doc.latestDocument ? t('onboarding.reupload') : t('onboarding.upload')}
             </Button>
           </>
@@ -243,7 +271,20 @@ export function OnboardingPage() {
 
   const profileQuery = useQuery({ queryKey: ['own-supplier'], queryFn: getOwnSupplier })
   const currenciesQuery = useQuery({ queryKey: ['currencies'], queryFn: fetchCurrencies })
-  const documentsQuery = useQuery({ queryKey: ['own-documents'], queryFn: listOwnDocuments })
+  // The AV scan is async (DocumentScanJob, a background job) - a document sits in PendingScan
+  // until it completes, and nothing was pushing that update to the client. The DB row was always
+  // correct; only a manual reload (a fresh query) ever showed it, which read as the status chip
+  // being permanently stuck. Poll while anything is still scanning, stop once nothing is.
+  const documentsQuery = useQuery({
+    queryKey: ['own-documents'],
+    queryFn: listOwnDocuments,
+    refetchInterval: (query) => (query.state.data?.some((d) => d.latestDocument?.state === 'PendingScan') ? 2000 : false),
+    // React Query pauses refetchInterval while the tab isn't visible/focused by default
+    // (refetchIntervalInBackground) - reasonable for most polling, wrong for a scan the supplier
+    // is actively waiting on: switching tabs for a few seconds shouldn't leave the chip stuck the
+    // same way the missing poll did.
+    refetchIntervalInBackground: true,
+  })
   const annotationQuery = useQuery({ queryKey: ['own-annotation'], queryFn: getOwnActiveAnnotation })
 
   const onProfile = (data: SupplierProfile) => queryClient.setQueryData(['own-supplier'], data)
@@ -381,6 +422,7 @@ export function OnboardingPage() {
   const requiredDocuments = documents.filter((doc) => doc.isRequired)
   const optionalDocuments = documents.filter((doc) => !doc.isRequired)
   const currencyCode = profileForm.watch('currencyCode')
+  const primaryContactPhone = profileForm.watch('primaryContactPhone')
   const supplierType = legalForm.watch('supplierType')
 
   const fieldEditable = (field: string) => !isReadOnly && (!isInfoRequested || flaggedFields.has(field))
@@ -507,7 +549,14 @@ export function OnboardingPage() {
             )}
           </Field>
           <Field label={t('onboarding.fields.primaryContactPhone')} required>
-            {(p) => <Input disabled={!fieldEditable('primaryContactPhone')} {...p} {...profileForm.register('primaryContactPhone')} />}
+            {(p) => (
+              <PhoneInput
+                {...p}
+                disabled={!fieldEditable('primaryContactPhone')}
+                value={primaryContactPhone ?? ''}
+                onChange={(v) => profileForm.setValue('primaryContactPhone', v, { shouldValidate: true })}
+              />
+            )}
           </Field>
         </div>
         {!isReadOnly ? (

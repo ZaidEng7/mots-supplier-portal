@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
-import { Button, Field, Input } from '../components/ui'
+import { Button, Field, Input, PhoneInput } from '../components/ui'
 import { ApiError, registerSupplier } from '../api/auth'
 
 const schema = z
@@ -40,8 +40,11 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { representativePhone: '' } })
+  const representativePhone = watch('representativePhone')
 
   const onSubmit = async (values: FormValues) => {
     setFormError(null)
@@ -118,7 +121,13 @@ export function RegisterPage() {
               {(p) => <Input {...p} {...register('representativeName')} />}
             </Field>
             <Field label={t('register.representativePhone')} error={errors.representativePhone?.message} required>
-              {(p) => <Input type="tel" {...p} {...register('representativePhone')} />}
+              {(p) => (
+                <PhoneInput
+                  {...p}
+                  value={representativePhone ?? ''}
+                  onChange={(v) => setValue('representativePhone', v, { shouldValidate: true })}
+                />
+              )}
             </Field>
           </div>
           <Field label={t('auth.email')} error={errors.email?.message} required>
