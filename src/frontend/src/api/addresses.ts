@@ -14,11 +14,19 @@ export interface AddressPayload {
   longitude?: number | null
 }
 
-export interface BranchPayload {
+// Add and update take genuinely different shapes server-side (Api/Endpoints/SupplierEndpoints.cs):
+// AddBranchRequest has no IsActive - a new branch is always active - while UpdateBranchRequest
+// requires it. The API's JSON binding rejects unmapped properties outright (Program.cs
+// UnmappedMemberHandling = Disallow), so sending isActive on add doesn't just get ignored, it
+// 500s the request. One shared type with an optional field is what let that happen unnoticed.
+export interface AddBranchPayload {
   nameAr: string
   nameEn: string
   addressId?: string | null
-  isActive?: boolean
+}
+
+export interface UpdateBranchPayload extends AddBranchPayload {
+  isActive: boolean
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {
@@ -51,7 +59,7 @@ export async function removeAddress(id: string): Promise<SupplierProfile> {
   return parseOrThrow(res)
 }
 
-export async function addBranch(payload: BranchPayload): Promise<SupplierProfile> {
+export async function addBranch(payload: AddBranchPayload): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/branches', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,7 +68,7 @@ export async function addBranch(payload: BranchPayload): Promise<SupplierProfile
   return parseOrThrow(res)
 }
 
-export async function updateBranch(id: string, payload: Required<BranchPayload>): Promise<SupplierProfile> {
+export async function updateBranch(id: string, payload: UpdateBranchPayload): Promise<SupplierProfile> {
   const res = await apiFetch(`/api/v1/suppliers/me/branches/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
