@@ -52,38 +52,6 @@ function field(scope: Page | Locator, name: string): Locator {
 }
 
 /**
- * Every authenticated test below repeated `page.goto(path, { waitUntil: 'networkidle' })` -
- * flagged by SonarCloud both as duplication (5 occurrences) and, separately, as a code smell:
- * `networkidle` waits for the network to go quiet, which has no real relationship to whether the
- * specific element the test is about to interact with has actually rendered, and is a known-flaky
- * strategy for exactly that reason. What each of these tests is actually waiting for is narrower
- * and concrete: the button it is about to click. Waiting on that directly (a real, specific
- * readiness condition - Playwright's own actionability wait, made explicit) is both the fix for
- * the smell and the thing that made the wait meaningful in the first place.
- */
-async function gotoAuthenticated(page: Page, path: string, ready: Locator): Promise<void> {
-  await page.goto(path)
-  await ready.waitFor({ state: 'visible' })
-}
-
-/**
- * TeamPage/BankingPage/AddressesPage/ContactsPage each repeated the same four-line flow beyond
- * the goto itself - open a dialog from an "Add X"/"Invite" button, then submit it empty to
- * trigger validation - identical in structure across all four, differing only in the two button
- * names. Consolidated for the same reason as gotoAuthenticated: the duplication SonarCloud found
- * (3.5% after the first pass, still over the 3% cap) was this repeated block, not fully accounted
- * for by extracting the goto/wait alone.
- */
-async function openDialogAndSubmit(page: Page, path: string, openButtonName: string, submitButtonName: string): Promise<Locator> {
-  const openButton = page.getByRole('button', { name: openButtonName })
-  await gotoAuthenticated(page, path, openButton)
-  await openButton.click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: submitButtonName }).click()
-  return dialog
-}
-
-/**
  * The onboarding/team/banking/addresses/contacts forms only render their edit affordances (Add
  * buttons, enabled legal-info fields) while the supplier profile is in an editable onboardingState
  * (EmailVerified/ProfileInProgress/InfoRequested). fixtures.ts's shared SUPPLIER_PROFILE is
@@ -149,14 +117,20 @@ test.describe('Auth forms: error-association on real validation failures', () =>
 test.describe('Authenticated forms: error-association on real validation failures', () => {
   test('TeamPage invite dialog: empty submit associates both fields', async ({ page }) => {
     await mockBackend(page)
-    const dialog = await openDialogAndSubmit(page, '/team?lng=en', 'Invite member', 'Send invite')
+    await page.goto('/team?lng=en', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: 'Invite member' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Send invite' }).click()
     await assertErrorAssociated(page, field(dialog, 'Full name'), 'TeamPage.fullName')
     await assertErrorAssociated(page, field(dialog, 'Email'), 'TeamPage.email')
   })
 
   test('BankingPage add-account dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    const dialog = await openDialogAndSubmit(page, '/onboarding/banking?lng=en', 'Add account', 'Save')
+    await page.goto('/onboarding/banking?lng=en', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: 'Add account' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Account holder name'), 'BankingPage.accountHolderName')
     await assertErrorAssociated(page, field(dialog, 'Bank name'), 'BankingPage.bankName')
     // accountNumber is NOT asserted here: bankSchema types it `z.string().optional()`, so
@@ -170,7 +144,10 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('AddressesPage add-address dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    const dialog = await openDialogAndSubmit(page, '/onboarding/addresses?lng=en', 'Add address', 'Save')
+    await page.goto('/onboarding/addresses?lng=en', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: 'Add address' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Address'), 'AddressesPage.line1')
     await assertErrorAssociated(page, field(dialog, 'City'), 'AddressesPage.city')
     await assertErrorAssociated(page, field(dialog, 'Country'), 'AddressesPage.country')
@@ -178,15 +155,18 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('ContactsPage add-representative dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    const dialog = await openDialogAndSubmit(page, '/onboarding/contacts?lng=en', 'Add representative', 'Save')
+    await page.goto('/onboarding/contacts?lng=en', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: 'Add representative' }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Full name'), 'ContactsPage.fullName')
     await assertErrorAssociated(page, field(dialog, 'Email'), 'ContactsPage.email')
   })
 
   test('OnboardingPage legal-info section: cleared required field associates on submit', async ({ page }) => {
     await mockEditableBackend(page)
+    await page.goto('/onboarding?lng=en', { waitUntil: 'networkidle' })
     const legalNameEn = field(page, 'Legal name (English)')
-    await gotoAuthenticated(page, '/onboarding?lng=en', legalNameEn)
     await legalNameEn.fill('')
     await page.getByRole('button', { name: 'Save', exact: true }).first().click()
     await assertErrorAssociated(page, legalNameEn, 'OnboardingPage.legalNameEn')
