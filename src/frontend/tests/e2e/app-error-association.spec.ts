@@ -67,6 +67,23 @@ async function gotoAuthenticated(page: Page, path: string, ready: Locator): Prom
 }
 
 /**
+ * TeamPage/BankingPage/AddressesPage/ContactsPage each repeated the same four-line flow beyond
+ * the goto itself - open a dialog from an "Add X"/"Invite" button, then submit it empty to
+ * trigger validation - identical in structure across all four, differing only in the two button
+ * names. Consolidated for the same reason as gotoAuthenticated: the duplication SonarCloud found
+ * (3.5% after the first pass, still over the 3% cap) was this repeated block, not fully accounted
+ * for by extracting the goto/wait alone.
+ */
+async function openDialogAndSubmit(page: Page, path: string, openButtonName: string, submitButtonName: string): Promise<Locator> {
+  const openButton = page.getByRole('button', { name: openButtonName })
+  await gotoAuthenticated(page, path, openButton)
+  await openButton.click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: submitButtonName }).click()
+  return dialog
+}
+
+/**
  * The onboarding/team/banking/addresses/contacts forms only render their edit affordances (Add
  * buttons, enabled legal-info fields) while the supplier profile is in an editable onboardingState
  * (EmailVerified/ProfileInProgress/InfoRequested). fixtures.ts's shared SUPPLIER_PROFILE is
@@ -132,22 +149,14 @@ test.describe('Auth forms: error-association on real validation failures', () =>
 test.describe('Authenticated forms: error-association on real validation failures', () => {
   test('TeamPage invite dialog: empty submit associates both fields', async ({ page }) => {
     await mockBackend(page)
-    const inviteButton = page.getByRole('button', { name: 'Invite member' })
-    await gotoAuthenticated(page, '/team?lng=en', inviteButton)
-    await inviteButton.click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: 'Send invite' }).click()
+    const dialog = await openDialogAndSubmit(page, '/team?lng=en', 'Invite member', 'Send invite')
     await assertErrorAssociated(page, field(dialog, 'Full name'), 'TeamPage.fullName')
     await assertErrorAssociated(page, field(dialog, 'Email'), 'TeamPage.email')
   })
 
   test('BankingPage add-account dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    const addAccountButton = page.getByRole('button', { name: 'Add account' })
-    await gotoAuthenticated(page, '/onboarding/banking?lng=en', addAccountButton)
-    await addAccountButton.click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: 'Save' }).click()
+    const dialog = await openDialogAndSubmit(page, '/onboarding/banking?lng=en', 'Add account', 'Save')
     await assertErrorAssociated(page, field(dialog, 'Account holder name'), 'BankingPage.accountHolderName')
     await assertErrorAssociated(page, field(dialog, 'Bank name'), 'BankingPage.bankName')
     // accountNumber is NOT asserted here: bankSchema types it `z.string().optional()`, so
@@ -161,11 +170,7 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('AddressesPage add-address dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    const addAddressButton = page.getByRole('button', { name: 'Add address' })
-    await gotoAuthenticated(page, '/onboarding/addresses?lng=en', addAddressButton)
-    await addAddressButton.click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: 'Save' }).click()
+    const dialog = await openDialogAndSubmit(page, '/onboarding/addresses?lng=en', 'Add address', 'Save')
     await assertErrorAssociated(page, field(dialog, 'Address'), 'AddressesPage.line1')
     await assertErrorAssociated(page, field(dialog, 'City'), 'AddressesPage.city')
     await assertErrorAssociated(page, field(dialog, 'Country'), 'AddressesPage.country')
@@ -173,11 +178,7 @@ test.describe('Authenticated forms: error-association on real validation failure
 
   test('ContactsPage add-representative dialog: empty submit associates required fields', async ({ page }) => {
     await mockEditableBackend(page)
-    const addRepresentativeButton = page.getByRole('button', { name: 'Add representative' })
-    await gotoAuthenticated(page, '/onboarding/contacts?lng=en', addRepresentativeButton)
-    await addRepresentativeButton.click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: 'Save' }).click()
+    const dialog = await openDialogAndSubmit(page, '/onboarding/contacts?lng=en', 'Add representative', 'Save')
     await assertErrorAssociated(page, field(dialog, 'Full name'), 'ContactsPage.fullName')
     await assertErrorAssociated(page, field(dialog, 'Email'), 'ContactsPage.email')
   })
