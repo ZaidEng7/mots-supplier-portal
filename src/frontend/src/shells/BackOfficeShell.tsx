@@ -15,6 +15,9 @@ interface Props {
 export function BackOfficeShell({ children }: Props) {
   const { t } = useTranslation()
   const clearSession = useAuthStore((s) => s.clearSession)
+  // FR-IAM-010: hide, never gate - the API re-enforces admin.organizations.manage on every
+  // Organization endpoint regardless of what this link's visibility does.
+  const canManageOrganizations = useAuthStore((s) => s.claims?.permissions.includes('admin.organizations.manage') ?? false)
 
   const handleLogout = async () => {
     await apiLogout()
@@ -36,6 +39,11 @@ export function BackOfficeShell({ children }: Props) {
             <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('review.title')}
             </Link>
+            {canManageOrganizations ? (
+              <Link to="/back-office/organizations" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('organizations.title')}
+              </Link>
+            ) : null}
           </nav>
         </div>
         <div className="flex items-center gap-3">

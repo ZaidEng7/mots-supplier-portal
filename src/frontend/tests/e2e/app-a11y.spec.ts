@@ -91,7 +91,9 @@ test('the route denominator is what the router actually declares, not what this 
   // '/back-office/review' (reviewQueueRoute's parent is the /back-office layout), and this
   // assertion caught that before it ever reached a scan. Left as the record of why this suite
   // trusts the parser's output over a hand-typed path list, including its own.
-  expect(routes.length).toBe(18)
+  //
+  // 19 (Task #7/Stage C): /back-office/organizations added.
+  expect(routes.length).toBe(19)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
