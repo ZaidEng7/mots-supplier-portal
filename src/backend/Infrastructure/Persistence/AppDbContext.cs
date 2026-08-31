@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Domain.Suppliers;
 
@@ -32,6 +33,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<OrgUnit> OrgUnits => Set<OrgUnit>();
+    public DbSet<SupplierOrgLink> SupplierOrgLinks => Set<SupplierOrgLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -183,6 +187,44 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasKey(l => l.Id);
             entity.Property(l => l.CategoryCode).HasMaxLength(50).IsRequired();
             entity.HasIndex(l => new { l.SupplierId, l.CategoryCode }).IsUnique();
+        });
+
+        // Task #7/Stage A: data model only - see Organization.cs's own doc comment. No FK from
+        // AppUser or Supplier into these tables yet (Stage B/C).
+        modelBuilder.Entity<Organization>(entity =>
+        {
+            entity.ToTable("organization", "organization");
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.LegalNameAr).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.LegalNameEn).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.OrganizationType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(o => o.ContactEmail).HasMaxLength(320);
+            entity.Property(o => o.ContactPhone).HasMaxLength(30);
+            entity.Property(o => o.ExternalId).HasMaxLength(100);
+            entity.Property(o => o.SyncStatus).HasConversion<string>().HasMaxLength(20);
+            entity.HasMany(o => o.OrgUnits).WithOne().HasForeignKey(u => u.OrganizationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrgUnit>(entity =>
+        {
+            entity.ToTable("org_unit", "organization");
+            entity.HasKey(u => u.Id);
+            entity.Property(u => u.Name).HasMaxLength(200).IsRequired();
+            entity.HasIndex(u => u.OrganizationId);
+            // Self-nesting tree (§5.2): a unit's parent must be another unit in the same
+            // Organization, never a unit belonging elsewhere - restricted to that same FK target
+            // rather than a bare unconstrained Guid, and Restrict (not Cascade) so deleting a
+            // parent unit cannot silently cascade-delete its children.
+            entity.HasOne<OrgUnit>().WithMany().HasForeignKey(u => u.ParentOrgUnitId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SupplierOrgLink>(entity =>
+        {
+            entity.ToTable("supplier_org_link", "organization");
+            entity.HasKey(l => l.Id);
+            entity.HasIndex(l => new { l.SupplierId, l.OrganizationId }).IsUnique();
+            entity.HasOne<Supplier>().WithMany().HasForeignKey(l => l.SupplierId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Organization>().WithMany().HasForeignKey(l => l.OrganizationId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Domain.ReferenceData.Region>(entity =>
