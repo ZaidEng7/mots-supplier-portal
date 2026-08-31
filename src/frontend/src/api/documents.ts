@@ -27,8 +27,12 @@ export interface DocumentTypeStatus {
 export class DocumentApiError extends Error {
   status: number
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string } | null
-    super(b?.error ?? `Request failed: ${status}`)
+    // `message` is the human-readable explanation (e.g. why an expiry date was rejected);
+    // `error` is just the short machine code. Preferring the code left every validation
+    // failure showing the same opaque string ("invalid_expiry") regardless of which of several
+    // distinct rules actually failed.
+    const b = body as { error?: string; message?: string } | null
+    super(b?.message ?? b?.error ?? `Request failed: ${status}`)
     this.status = status
   }
 }
