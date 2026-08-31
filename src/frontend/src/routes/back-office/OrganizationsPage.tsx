@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Dialog, Field, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { invalidateQuietly } from '../../lib/queryClient'
 import {
   addOrgUnit,
   createOrganization,
@@ -53,7 +54,7 @@ function CreateOrganizationDialog({ open, onOpenChange }: { open: boolean; onOpe
         contactPhone: values.contactPhone || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      invalidateQuietly(queryClient, { queryKey: ['organizations'] })
       notify({ kind: 'success', title: t('organizations.created') })
       onOpenChange(false)
     },
@@ -104,14 +105,14 @@ function OrgUnitsDialog({ org, open, onOpenChange }: { org: Organization | null;
     mutationFn: () => addOrgUnit(org!.id, name),
     onSuccess: () => {
       setName('')
-      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      invalidateQuietly(queryClient, { queryKey: ['organizations'] })
     },
     onError: (err) => notify({ kind: 'danger', title: err instanceof OrganizationApiError ? err.message : t('organizations.errors.orgUnitFailed') }),
   })
 
   const removeMutation = useMutation({
     mutationFn: (orgUnitId: string) => removeOrgUnit(org!.id, orgUnitId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['organizations'] }),
+    onSuccess: () => invalidateQuietly(queryClient, { queryKey: ['organizations'] }),
     onError: (err) => notify({ kind: 'danger', title: err instanceof OrganizationApiError ? err.message : t('organizations.errors.orgUnitFailed') }),
   })
 
@@ -163,7 +164,7 @@ function SupplierLinksSection() {
   const createLinkMutation = useMutation({
     mutationFn: () => createSupplierOrgLink(lookupCode!, selectedOrgId!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-org-links', lookupCode] })
+      invalidateQuietly(queryClient, { queryKey: ['supplier-org-links', lookupCode] })
       notify({ kind: 'success', title: t('organizations.linkCreated') })
     },
     onError: (err) => notify({ kind: 'danger', title: err instanceof OrganizationApiError ? err.message : t('organizations.errors.linkFailed') }),
@@ -171,7 +172,7 @@ function SupplierLinksSection() {
 
   const removeLinkMutation = useMutation({
     mutationFn: (linkId: string) => removeSupplierOrgLink(linkId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['supplier-org-links', lookupCode] }),
+    onSuccess: () => invalidateQuietly(queryClient, { queryKey: ['supplier-org-links', lookupCode] }),
     onError: (err) => notify({ kind: 'danger', title: err instanceof OrganizationApiError ? err.message : t('organizations.errors.linkFailed') }),
   })
 
