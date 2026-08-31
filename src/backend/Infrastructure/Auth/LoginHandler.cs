@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Auth;
@@ -15,8 +14,7 @@ namespace MotsSupplierPortal.Infrastructure.Auth;
 /// </summary>
 public sealed class LoginHandler(
     AppDbContext db,
-    UserManager<AppUser> userManager,
-    SignInManager<AppUser> signInManager,
+    IIdentityProvider identityProvider,
     IJwtTokenService jwtTokenService,
     PermissionResolver permissionResolver,
     IAuditLogger auditLogger,
@@ -32,14 +30,14 @@ public sealed class LoginHandler(
 
     public async Task<LoginResult> HandleAsync(LoginCommand command, CancellationToken ct)
     {
-        var user = await userManager.FindByEmailAsync(command.Email.Trim().ToLowerInvariant());
+        var user = await identityProvider.FindByEmailAsync(command.Email.Trim().ToLowerInvariant());
         if (user is null)
         {
             // Constant-shape failure: no user-enumeration (STORY-01.1.1 AC2).
             return new LoginResult.InvalidCredentials();
         }
 
-        var checkResult = await signInManager.CheckPasswordSignInAsync(user, command.Password, lockoutOnFailure: true);
+        var checkResult = await identityProvider.CheckPasswordSignInAsync(user, command.Password, lockoutOnFailure: true);
 
         if (checkResult.IsLockedOut)
         {
@@ -67,7 +65,7 @@ public sealed class LoginHandler(
         // session is issued. Before this, enrolment existed but login never consulted it, so an
         // enrolled user still authenticated with a password alone - worse than no MFA, because it
         // presented assurance it did not provide.
-        var roles = await userManager.GetRolesAsync(user);
+        var roles = await identityProvider.GetRolesAsync(user);
         var mfaMandatoryForRole = roles.Any(RequiresMfa);
 
         if (mfaMandatoryForRole && !user.TwoFactorEnabled)
@@ -110,13 +108,12 @@ public sealed class LoginHandler(
     {
         var normalized = code.Replace(" ", string.Empty).Replace("-", string.Empty);
 
-        if (await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, normalized))
+        if (await identityProvider.VerifyTwoFactorTokenAsync(user, normalized))
         {
             return true;
         }
 
-        var recovery = await userManager.RedeemTwoFactorRecoveryCodeAsync(user, normalized);
-        return recovery.Succeeded;
+        return await identityProvider.RedeemTwoFactorRecoveryCodeAsync(user, normalized);
     }
 
     private bool RequiresMfa(string role) =>
@@ -127,7 +124,7 @@ public sealed class LoginHandler(
     internal async Task<TokenPair> IssueTokenPairAsync(AppUser user, Guid familyId, string? ip, string? userAgent, CancellationToken ct, IReadOnlyList<string>? authMethods = null)
     {
         var permissions = await permissionResolver.ResolveAsync(user);
-        var roles = (IReadOnlyList<string>)await userManager.GetRolesAsync(user);
+        var roles = await identityProvider.GetRolesAsync(user);
         // amr = "authentication methods reference" (SECURITY-ARCHITECTURE §1.1/§1.5): reflects the
         // factors actually used on this login, so a step-up policy can distinguish a
         // password-only session from an MFA-verified one.

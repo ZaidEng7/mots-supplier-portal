@@ -227,6 +227,10 @@ builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<IResendVerificationHandler, ResendVerificationHandler>();
 builder.Services.AddScoped<DraftCleanupJob>();
 builder.Services.AddSingleton<MotsSupplierPortal.Api.Authorization.PerTargetRateLimiter>();
+// Task #7/Stage D: the IdP seam (FR-IAM-011). AspNetIdentityProvider is the only implementation -
+// swapping to a real external IdP later is a new implementation of this interface, not a change
+// to LoginHandler or anything that depends on it.
+builder.Services.AddScoped<IIdentityProvider, AspNetIdentityProvider>();
 builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<ILoginHandler>(sp => sp.GetRequiredService<LoginHandler>());
 builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
