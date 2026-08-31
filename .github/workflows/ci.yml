@@ -187,7 +187,7 @@ jobs:
             /d:sonar.coverage.exclusions="$SONAR_COVERAGE_EXCLUSIONS" \
             /d:sonar.cpd.exclusions="$SONAR_CPD_EXCLUSIONS" \
             /d:sonar.exclusions="$SONAR_EXCLUSIONS" \
-            /d:sonar.test.inclusions="$SONAR_TEST_PATHS" \
+            /d:sonar.tests="$SONAR_TEST_PATHS" \
 
       - name: Build
         run: dotnet build src/backend/MotsSupplierPortal.slnx --no-restore --configuration Release
