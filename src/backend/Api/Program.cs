@@ -241,7 +241,11 @@ builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHan
 builder.Services.AddScoped<IListSessionsHandler, ListSessionsHandler>();
 builder.Services.AddScoped<IRevokeSessionHandler, RevokeSessionHandler>();
 builder.Services.AddScoped<IRevokeAllSessionsHandler, RevokeAllSessionsHandler>();
-builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+// Task #35: LoggingEmailSender (still present, still unit-tested) stops being the runtime
+// transport - SmtpEmailSender delivers for real, through the same durable Hangfire dispatch path
+// EmailJobs already used (no second send path introduced).
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<EmailJobs>();
 builder.Services.AddScoped<IGetSupplierHandler, GetSupplierHandler>();
 builder.Services.AddScoped<IUpdateProfileHandler, UpdateProfileHandler>();

@@ -35,6 +35,13 @@ public static class RequiredConfiguration
         // reports everything at once. The structural validation downstream still stands.
         "Jwt:Issuer",
         "Jwt:Audience",
+        // Task #35: SmtpOptions.Host/FromAddress are `required` (binding-time failure), but that
+        // only fires the moment something actually resolves IOptions<SmtpOptions>.Value - the
+        // first real email send, which could be hours after a bad deploy. Listed here so a missing
+        // Smtp section is caught at boot instead. User/Password are deliberately NOT required: an
+        // internal relay or a permitted-anonymous-relay setup has no credential to supply.
+        "Smtp:Host",
+        "Smtp:FromAddress",
     ];
 
     /// <summary>Throws when a required setting is absent in a non-Development environment.
