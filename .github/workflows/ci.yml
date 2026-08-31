@@ -137,8 +137,13 @@ jobs:
       # frontend stays in scope. Disabling Automatic Analysis removed the only thing scanning
       # TypeScript, so a backend-only base dir would trade one blind spot for another.
       #
-      # sonar.sources / sonar.tests are deliberately absent - the .NET scanner ignores them with
-      # a warning and derives scope from the MSBuild graph plus the base directory.
+      # sonar.sources is deliberately absent - the .NET scanner ignores it with a warning and
+      # derives scope from the MSBuild graph plus the base directory. sonar.tests IS set
+      # (Task #22/PR #71): the .NET scanner ignores it the same harmless way for MSBuild-derived
+      # files, but it is what classifies the frontend's TypeScript test sources - without it the
+      # server falls back to filename-suffix detection (**/*.spec.ts), which misses any test
+      # support file that is not itself a *.spec.ts (e.g. tests/e2e/fixtures.ts) and rates it as
+      # main code instead. See SONAR_TEST_PATHS below for what broke and why.
       # Analysis scope comes from a version-controlled file with the reasoning beside each
       # value (.sonar/analysis-scope.properties). The SonarScanner for .NET does not read
       # sonar-project.properties, so the values are sourced here rather than living in a file
@@ -152,11 +157,13 @@ jobs:
             echo "SONAR_EXCLUSIONS=$SONAR_EXCLUSIONS"
             echo "SONAR_COVERAGE_EXCLUSIONS=$SONAR_COVERAGE_EXCLUSIONS"
             echo "SONAR_CPD_EXCLUSIONS=$SONAR_CPD_EXCLUSIONS"
+            echo "SONAR_TEST_PATHS=$SONAR_TEST_PATHS"
           } >> "$GITHUB_ENV"
           echo "Analysis scope loaded:"
           echo "  exclusions:          $SONAR_EXCLUSIONS"
           echo "  coverage exclusions: $SONAR_COVERAGE_EXCLUSIONS"
           echo "  cpd exclusions:      $SONAR_CPD_EXCLUSIONS"
+          echo "  test paths:          $SONAR_TEST_PATHS"
 
       - name: Sonar begin
         if: steps.sonar.outputs.enabled == 'true'
@@ -175,6 +182,7 @@ jobs:
             /d:sonar.coverage.exclusions="$SONAR_COVERAGE_EXCLUSIONS" \
             /d:sonar.cpd.exclusions="$SONAR_CPD_EXCLUSIONS" \
             /d:sonar.exclusions="$SONAR_EXCLUSIONS" \
+            /d:sonar.tests="$SONAR_TEST_PATHS" \
 
       - name: Build
         run: dotnet build src/backend/MotsSupplierPortal.slnx --no-restore --configuration Release
