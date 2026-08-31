@@ -16,12 +16,19 @@ import { mockBackend, SUPPLIER_PROFILE } from './fixtures'
  * (the app's Select-based fields never carry an `error` prop today, so they are out of this NFR's
  * scope: there is no error state to associate).
  *
- * 25 of the 26 are driven into a real error state below (empty/invalid submit) and their rendered
+ * All 26 are driven into a real error state below (empty/invalid submit) and their rendered
  * DOM/ARIA tree is read directly - not eyeballed, not axe's static pass (axe does not check that
- * an aria-describedby id target actually exists or holds the visible error text). The 26th,
- * BankingPage's accountNumber, has an error branch that is real and identically wired but
- * unreachable: `bankSchema` types it `z.string().optional()`, so `errors.accountNumber` can never
- * become truthy through any input - noted at its call site below rather than silently dropped.
+ * an aria-describedby id target actually exists or holds the visible error text).
+ *
+ * Self-correction (Task #25): this file originally claimed BankingPage's accountNumber was
+ * unreachable, reasoning from `bankSchema`'s `z.string().optional()` alone. That was an
+ * incomplete read - BankingPage.tsx's submit handler does its own manual check straight after
+ * zod validation passes (`if (!initial && !values.accountNumber) setError('accountNumber', ...)`),
+ * required only when adding, matching both the UI's `required={!initial}` asterisk and the
+ * backend's `AddBankAccountRequestValidator.RuleFor(x => x.AccountNumber).NotEmpty()` - there
+ * never was a schema/UI mismatch, only a test that stopped at the schema and never actually
+ * tried the scenario that reaches the manual check (accountHolderName/bankName filled in,
+ * accountNumber left blank).
  *
  * <p>Locators use getByRole('textbox', { name, exact: true }) rather than getByLabel: Field's
  * required-marker asterisk is an aria-hidden sibling of the label text, correctly excluded from
@@ -125,7 +132,7 @@ test.describe('Authenticated forms: error-association on real validation failure
     await assertErrorAssociated(page, field(dialog, 'Email'), 'TeamPage.email')
   })
 
-  test('BankingPage add-account dialog: empty submit associates required fields', async ({ page }) => {
+  test('BankingPage add-account dialog: empty submit associates the two zod-required fields', async ({ page }) => {
     await mockEditableBackend(page)
     await page.goto('/onboarding/banking?lng=en', { waitUntil: 'networkidle' })
     await page.getByRole('button', { name: 'Add account' }).click()
@@ -133,13 +140,43 @@ test.describe('Authenticated forms: error-association on real validation failure
     await dialog.getByRole('button', { name: 'Save' }).click()
     await assertErrorAssociated(page, field(dialog, 'Account holder name'), 'BankingPage.accountHolderName')
     await assertErrorAssociated(page, field(dialog, 'Bank name'), 'BankingPage.bankName')
-    // accountNumber is NOT asserted here: bankSchema types it `z.string().optional()`, so
-    // errors.accountNumber can never become truthy under any input - its Field error branch is
-    // real, correctly wired code (identical pattern to every other field in this suite), but
-    // dead: unreachable through the UI regardless of association correctness. That is a
-    // validation-completeness gap (a field visually marked `required` for new accounts whose
-    // schema does not actually enforce it), not an error-association gap - out of NFR-A11Y-007's
-    // scope, so left unfixed here and flagged separately rather than silently expanding scope.
+  })
+
+  test('BankingPage add-account dialog: accountNumber left blank (other fields valid) associates the manual required check', async ({ page }) => {
+    // Task #25: accountNumber is required only when ADDING, enforced by BankingPage.tsx's submit
+    // handler straight after zod validation passes - not by bankSchema itself (deliberately, per
+    // that file's own comment: a branch-conditional zodResolver would confuse react-hook-form's
+    // inferred type across add/edit). A wholly empty submit never reaches that check (zod already
+    // rejects on the other two required fields first), so this scenario fills every OTHER
+    // required field and leaves only accountNumber blank - the one path that actually exercises it.
+    await mockEditableBackend(page)
+    await page.goto('/onboarding/banking?lng=en', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: 'Add account' }).click()
+    const dialog = page.getByRole('dialog')
+
+    await field(dialog, 'Account holder name').fill('Test Holder')
+    await field(dialog, 'Bank name').fill('Test Bank')
+    await dialog.getByRole('combobox', { name: 'Currency' }).click()
+    await page.getByRole('option', { name: 'SYP' }).click()
+
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await assertErrorAssociated(page, field(dialog, 'Account number'), 'BankingPage.accountNumber')
+  })
+
+  test('BankingPage edit-account dialog: accountNumber left blank submits successfully (leaves it unchanged)', async ({ page }) => {
+    // The mirror case: on EDIT (initial set), the manual required check does not run - matches
+    // UpdateBankAccountCommand's "null AccountNumber means leave the encrypted value untouched"
+    // contract. Confirms the add-only requirement doesn't leak into edit mode.
+    await mockEditableBackend(page)
+    await page.route('**/api/v1/suppliers/me/bank-accounts/**', (route) =>
+      route.fulfill({ json: { ...SUPPLIER_PROFILE, onboardingState: 'ProfileInProgress' } }),
+    )
+    await page.goto('/onboarding/banking?lng=en', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: 'Edit' }).first().click()
+    const dialog = page.getByRole('dialog')
+    await expect(field(dialog, 'Account number')).toHaveValue('')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).not.toBeVisible()
   })
 
   test('AddressesPage add-address dialog: empty submit associates required fields', async ({ page }) => {
