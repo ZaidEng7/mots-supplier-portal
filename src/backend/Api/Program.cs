@@ -222,6 +222,10 @@ builder.Services.AddScoped<IListSupplierUsersHandler, ListSupplierUsersHandler>(
 builder.Services.AddScoped<IDisableSupplierUserHandler, DisableSupplierUserHandler>();
 builder.Services.AddScoped<IAcceptSupplierUserInviteHandler, AcceptSupplierUserInviteHandler>();
 builder.Services.AddScoped<ISecurityTokenService, SecurityTokenService>();
+// Task #28/FR-ADM-001: staff (non-supplier) account invites - mirrors the supplier-user invite
+// pair above, gated by Permissions.AdminUsersManage instead of SupplierUserManage.
+builder.Services.AddScoped<IInviteStaffHandler, InviteStaffHandler>();
+builder.Services.AddScoped<IAcceptStaffInviteHandler, AcceptStaffInviteHandler>();
 builder.Services.AddScoped<IRegisterSupplierHandler, RegisterSupplierHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<IResendVerificationHandler, ResendVerificationHandler>();
@@ -455,6 +459,18 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
     await RoleSeeder.SeedAsync(roleManager);
+
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    await MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.SeedAsync(userManager);
+    if (MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.TotpSecret is { } totpSecret)
+    {
+        // Printed once, only on the run that created the account - the account exists on every
+        // later run (SeedAsync is idempotent) but the secret is only ever generated this once.
+        Console.WriteLine($"[dev-seed] system_admin created: {MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.Email} / {MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.Password}");
+        Console.WriteLine($"[dev-seed] TOTP secret (add to an authenticator app): {totpSecret}");
+    }
+
+    await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager);
 }
 
 app.UseCors();
@@ -551,6 +567,7 @@ app.MapAdminEndpoints();
 app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
 app.MapOrganizationEndpoints();
+app.MapStaffEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

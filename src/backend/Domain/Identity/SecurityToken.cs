@@ -5,6 +5,9 @@ public enum SecurityTokenPurpose
     EmailVerification,
     PasswordReset,
     SupplierUserInvite,
+    // Task #28. Stored as a string column (see migrations), so adding this value needs no
+    // migration - only a schema change to the column TYPE would.
+    StaffInvite,
 }
 
 /// <summary>

@@ -18,6 +18,7 @@ const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then
 const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
 const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
 const AcceptTeamInvitePage = lazy(() => import('./routes/AcceptTeamInvitePage').then((m) => ({ default: m.AcceptTeamInvitePage })))
+const AcceptStaffInvitePage = lazy(() => import('./routes/AcceptStaffInvitePage').then((m) => ({ default: m.AcceptStaffInvitePage })))
 const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
 const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
 const ContactsPage = lazy(() => import('./routes/onboarding/ContactsPage').then((m) => ({ default: m.ContactsPage })))
@@ -30,6 +31,7 @@ const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardP
 const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
 const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
 const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })))
+const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
@@ -106,6 +108,15 @@ const acceptTeamInviteRoute = createRoute({
     token: typeof search.token === 'string' ? search.token : undefined,
   }),
   component: AcceptTeamInvitePage,
+})
+
+const acceptStaffInviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/accept-staff-invite',
+  validateSearch: (search: Record<string, unknown>): { token?: string } => ({
+    token: typeof search.token === 'string' ? search.token : undefined,
+  }),
+  component: AcceptStaffInvitePage,
 })
 
 function IndexPage() {
@@ -245,6 +256,12 @@ const organizationsRoute = createRoute({
   component: OrganizationsPage,
 })
 
+const staffRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/staff',
+  component: StaffPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -253,6 +270,7 @@ const routeTree = rootRoute.addChildren([
   resetPasswordRoute,
   verifyEmailRoute,
   acceptTeamInviteRoute,
+  acceptStaffInviteRoute,
   supplierLayoutRoute.addChildren([
     supplierDashboardRoute,
     onboardingRoute,
@@ -263,7 +281,7 @@ const routeTree = rootRoute.addChildren([
     teamRoute,
     settingsRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute]),
+  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })
