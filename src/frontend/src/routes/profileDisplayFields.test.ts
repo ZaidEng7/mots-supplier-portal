@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
+import { PROFILE_DISPLAY_FIELDS, profileDisplayValue, LEGAL_INFO_FIELDS, legalInfoValue } from './profileDisplayFields'
 import type { SupplierProfile } from '../api/supplier'
 
 /** Injects a value TypeScript's static type says cannot occur, for exactly one field, so a test can
@@ -102,5 +102,53 @@ describe('reviewer profile display fields', () => {
   it('renders a populated scalar as its value', () => {
     expect(profileDisplayValue(supplier, 'supplierGroup')).toBe('SME')
     expect(profileDisplayValue(supplier, 'primaryContactPhone')).toBe('+963900000000')
+  })
+})
+
+/**
+ * Task #33: legalInfo was the object whose direct rendering caused the MSP-77 crash. Restoring it
+ * to the review page (via legalInfoValue) must go through the same never-render-the-object
+ * discipline as profileDisplayValue above, so this mirrors that test shape one level down: every
+ * one of legalInfo's OWN fields is a scalar, read individually, never the object itself.
+ */
+describe('reviewer legal info fields', () => {
+  it('renders every legal info field as a string, never an object', () => {
+    const legalInfo = {
+      legalNameAr: 'شركة',
+      legalNameEn: 'Lifecycle Demo Co',
+      registrationNumber: 'CR-1',
+      taxId: null,
+      supplierType: 'Company',
+      establishedOn: null,
+    }
+    for (const field of LEGAL_INFO_FIELDS) {
+      expect(typeof legalInfoValue(legalInfo, field)).toBe('string')
+    }
+  })
+
+  it('shows a dash for null fields', () => {
+    const legalInfo = {
+      legalNameAr: 'شركة',
+      legalNameEn: 'Lifecycle Demo Co',
+      registrationNumber: null,
+      taxId: null,
+      supplierType: 'Company',
+      establishedOn: null,
+    }
+    expect(legalInfoValue(legalInfo, 'registrationNumber')).toBe('—')
+    expect(legalInfoValue(legalInfo, 'taxId')).toBe('—')
+  })
+
+  it('renders a populated field as its value', () => {
+    const legalInfo = {
+      legalNameAr: 'شركة',
+      legalNameEn: 'Lifecycle Demo Co',
+      registrationNumber: 'CR-1',
+      taxId: 'TAX-1',
+      supplierType: 'Company',
+      establishedOn: null,
+    }
+    expect(legalInfoValue(legalInfo, 'legalNameEn')).toBe('Lifecycle Demo Co')
+    expect(legalInfoValue(legalInfo, 'registrationNumber')).toBe('CR-1')
   })
 })

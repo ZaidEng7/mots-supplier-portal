@@ -41,6 +41,15 @@ public static class EmailTemplates
                "<p>تمت دعوتك للانضمام إلى حساب المورد الخاص بمؤسستك. يرجى الضغط لتعيين كلمة المرور " +
                $"والبدء:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>");
 
+    public static (string Subject, string Body) StaffInvite(string? locale, string acceptUrl) =>
+        IsEnglish(locale)
+            ? ("You've been invited to the MOTS Supplier Portal back office",
+               "<p>You've been invited to join the MOTS Supplier Portal back office. Click to set " +
+               $"your password and get started:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>")
+            : ("تمت دعوتك للانضمام إلى الإدارة الداخلية لبوابة الموردين",
+               "<p>تمت دعوتك للانضمام إلى الإدارة الداخلية لبوابة الموردين. يرجى الضغط لتعيين كلمة " +
+               $"المرور والبدء:</p><p><a href=\"{acceptUrl}\">{acceptUrl}</a></p>");
+
     public static (string Subject, string Body) AlreadyRegisteredNotice(string? locale, string publicUrl) =>
         IsEnglish(locale)
             ? ("You already have a MOTS Supplier Portal account",

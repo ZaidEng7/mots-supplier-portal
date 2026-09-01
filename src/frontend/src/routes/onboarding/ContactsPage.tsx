@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Representative, type Contact, type SupplierProfile } from '../../api/supplier'
 import { addRepresentative, updateRepresentative, removeRepresentative, setPrimaryRepresentative } from '../../api/representatives'
@@ -45,11 +45,14 @@ function PersonDialog({
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<PersonFormValues & { extra?: string }>({
     resolver: zodResolver(personSchema.extend({ extra: z.string().optional() })),
     values: { fullName: initial?.fullName ?? '', email: initial?.email ?? '', phone: initial?.phone ?? '', extra: initial?.extra ?? '' },
   })
+  const phone = watch('phone')
 
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset() }} title={title}>
@@ -64,7 +67,9 @@ function PersonDialog({
         <Field label={t('contacts.fields.email')} error={errors.email?.message ? t('contacts.errors.emailInvalid') : undefined} required>
           {(p) => <Input type="email" {...p} {...register('email')} />}
         </Field>
-        <Field label={t('contacts.fields.phone')}>{(p) => <Input {...p} {...register('phone')} />}</Field>
+        <Field label={t('contacts.fields.phone')}>
+          {(p) => <PhoneInput {...p} value={phone ?? ''} onChange={(v) => setValue('phone', v, { shouldValidate: true })} />}
+        </Field>
         {extraField ? <Field label={extraField.label}>{(p) => <Input {...p} {...register('extra')} />}</Field> : null}
         {apiError ? (
           <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
@@ -114,6 +119,7 @@ export function ContactsPage() {
   const setPrimaryMutation = useMutation({
     mutationFn: (id: string) => setPrimaryRepresentative(id),
     onSuccess: onProfile,
+    onError: (err) => setRepRowError(err instanceof SupplierApiError ? err.message : t('contacts.errors.setPrimaryFailed')),
   })
 
   const contactMutation = useMutation({

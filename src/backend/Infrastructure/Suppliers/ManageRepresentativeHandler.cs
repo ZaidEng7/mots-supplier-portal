@@ -115,6 +115,23 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
         if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
 
         var previousPrimary = supplier.Representatives.FirstOrDefault(r => r.IsPrimary);
+
+        // "representative" table has a partial unique index on (SupplierId) WHERE IsPrimary - at
+        // most one primary per supplier, enforced at the DB. It is a plain index, not a
+        // constraint, so Postgres cannot make it DEFERRABLE (that requires a table CONSTRAINT,
+        // and constraints don't support the WHERE clause a partial index needs). Clearing the old
+        // primary and setting the new one in a single SaveChangesAsync therefore risks EF issuing
+        // the "true" UPDATE before the "false" one, which the index checks per-statement and
+        // rejects as a transient duplicate - reproduced: swapping primary back to a
+        // previously-demoted representative 500'd with "duplicate key value violates unique
+        // constraint IX_representative_SupplierId". Saving the demotion first, and committing it,
+        // means only one row can ever be IsPrimary=true at a time, regardless of write order.
+        if (previousPrimary is not null && previousPrimary.Id != command.RepresentativeId)
+        {
+            previousPrimary.IsPrimary = false;
+            await db.SaveChangesAsync(ct);
+        }
+
         try
         {
             supplier.SetPrimaryRepresentative(command.RepresentativeId);

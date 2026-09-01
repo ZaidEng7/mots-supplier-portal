@@ -1,4 +1,4 @@
-import type { SupplierProfile } from '../api/supplier'
+import type { LegalInfo, SupplierProfile } from '../api/supplier'
 
 /**
  * Fields shown in the reviewer's profile grid.
@@ -36,6 +36,28 @@ export function profileDisplayValue(supplier: SupplierProfile, field: (typeof PR
   if (value === null || value === undefined || value === '') return '—'
   // Defensive rather than decorative: rendering an object is the exact crash this module exists to
   // prevent, and a future DTO change could reintroduce one without touching this file.
+  if (typeof value === 'object') return '—'
+  return String(value)
+}
+
+/**
+ * Task #33: legalInfo is the OBJECT whose direct rendering caused the MSP-77 crash. Restoring it to
+ * the review page means rendering each of its own fields individually - never the object itself -
+ * which is what this list and reader enforce, the same way PROFILE_DISPLAY_FIELDS/profileDisplayValue
+ * do for the top-level scalars.
+ */
+export const LEGAL_INFO_FIELDS = [
+  'legalNameAr',
+  'legalNameEn',
+  'registrationNumber',
+  'taxId',
+  'supplierType',
+  'establishedOn',
+] as const satisfies readonly (keyof LegalInfo)[]
+
+export function legalInfoValue(legalInfo: LegalInfo, field: (typeof LEGAL_INFO_FIELDS)[number]): string {
+  const value = legalInfo[field]
+  if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'object') return '—'
   return String(value)
 }

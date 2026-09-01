@@ -31,30 +31,16 @@ public sealed class InviteSupplierUserHandler(
     {
         if (scope.SupplierId is null) return new InviteSupplierUserResult.NotFoundOrOutOfScope();
 
-        var normalizedEmail = command.Email.Trim().ToLowerInvariant();
-        var existing = await userManager.FindByEmailAsync(normalizedEmail);
-        if (existing is not null) return new InviteSupplierUserResult.DuplicateEmail();
-
-        var user = new AppUser
-        {
-            Id = Guid.CreateVersion7(),
-            UserName = normalizedEmail,
-            Email = normalizedEmail,
-            FullName = command.FullName,
-            SupplierId = scope.SupplierId,
-            EmailConfirmed = true,
-            IsActive = true,
-        };
-
         // Unusable random password - the account only becomes usable once the invite is accepted
         // and a real password is set via AcceptSupplierUserInviteHandler.
-        var randomPassword = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-        var createResult = await userManager.CreateAsync(user, randomPassword);
-        if (!createResult.Succeeded)
+        var creation = await MotsSupplierPortal.Infrastructure.Identity.InviteUserCreation.CreateInvitedUserAsync(
+            userManager, command.Email, command.FullName, scope.SupplierId);
+        if (!creation.Succeeded)
         {
             return new InviteSupplierUserResult.DuplicateEmail();
         }
 
+        var user = creation.User!;
         await userManager.AddToRoleAsync(user, Roles.SupplierUser);
 
         // Token minted inside the job (MSP-89) - see ForgotPasswordHandler for why.

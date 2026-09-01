@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   addOrgUnit,
@@ -43,6 +43,7 @@ function CreateOrganizationDialog({ open, onOpenChange }: { open: boolean; onOpe
     formState: { errors },
   } = useForm<CreateOrgFormValues>({ resolver: zodResolver(createOrgSchema), defaultValues: { organizationType: 'Hotel' } })
   const organizationType = watch('organizationType')
+  const contactPhone = watch('contactPhone')
 
   const createMutation = useMutation({
     mutationFn: (values: CreateOrgFormValues) =>
@@ -81,7 +82,9 @@ function CreateOrganizationDialog({ open, onOpenChange }: { open: boolean; onOpe
           )}
         </Field>
         <Field label={t('organizations.fields.contactEmail')}>{(p) => <Input type="email" {...p} {...register('contactEmail')} />}</Field>
-        <Field label={t('organizations.fields.contactPhone')}>{(p) => <Input type="tel" {...p} {...register('contactPhone')} />}</Field>
+        <Field label={t('organizations.fields.contactPhone')}>
+          {(p) => <PhoneInput {...p} value={contactPhone ?? ''} onChange={(v) => setValue('contactPhone', v, { shouldValidate: true })} />}
+        </Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {t('organizations.cancel')}

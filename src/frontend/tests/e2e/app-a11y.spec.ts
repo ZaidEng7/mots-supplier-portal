@@ -93,7 +93,8 @@ test('the route denominator is what the router actually declares, not what this 
   // trusts the parser's output over a hand-typed path list, including its own.
   //
   // 19 (Task #7/Stage C): /back-office/organizations added.
-  expect(routes.length).toBe(19)
+  // 21 (Task #28): /accept-staff-invite and /back-office/staff added.
+  expect(routes.length).toBe(21)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

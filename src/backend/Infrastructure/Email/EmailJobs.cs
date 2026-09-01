@@ -113,6 +113,22 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
+    /// <summary>Task #28: same shape as SendSupplierUserInviteEmailAsync, distinct accept-invite
+    /// path (/accept-staff-invite, not /accept-invite) since staff and supplier-user invites are
+    /// accepted by different handlers/pages even though the token mechanism is identical.</summary>
+    public async Task SendStaffInviteEmailAsync(Guid userId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var rawToken = await securityTokenService.IssueAsync(
+            userId, SecurityTokenPurpose.StaffInvite, TimeSpan.FromDays(7), ct);
+        var acceptUrl = $"{PublicUrl}/accept-staff-invite?token={Uri.EscapeDataString(rawToken)}";
+
+        var (subject, body) = EmailTemplates.StaffInvite(recipient.Value.Language, acceptUrl);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
     /// <summary>MSP-73/enumeration fix: sent to an ALREADY-registered account when someone submits
     /// a new registration using its email (or its supplier's registration number). No token - a
     /// plain link to /login, per the explicit decision to keep this a reminder, not a new

@@ -25,12 +25,16 @@ async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function login(email: string, password: string): Promise<TokenResponse> {
+/** totpCode is omitted on the first call; if the account has MFA enabled the API answers
+ * 401 { error: 'mfa_required' } and the same credentials are re-posted with the code the user
+ * enters next (Api/Endpoints/AuthEndpoints.cs `/login` - no separate verify endpoint exists,
+ * the login endpoint itself is the seam). */
+export async function login(email: string, password: string, totpCode?: string): Promise<TokenResponse> {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, totpCode }),
   })
   return parseJsonOrThrow<TokenResponse>(res)
 }

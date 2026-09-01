@@ -18,6 +18,9 @@ export function BackOfficeShell({ children }: Props) {
   // FR-IAM-010: hide, never gate - the API re-enforces admin.organizations.manage on every
   // Organization endpoint regardless of what this link's visibility does.
   const canManageOrganizations = useAuthStore((s) => s.claims?.permissions.includes('admin.organizations.manage') ?? false)
+  // Task #28: same hide-never-gate rule - StaffEndpoints re-enforces admin.users.manage
+  // (Permissions.AdminUsersManage) on the actual invite endpoint regardless of this link.
+  const canManageStaff = useAuthStore((s) => s.claims?.permissions.includes('admin.users.manage') ?? false)
 
   const handleLogout = async () => {
     await apiLogout()
@@ -42,6 +45,11 @@ export function BackOfficeShell({ children }: Props) {
             {canManageOrganizations ? (
               <Link to="/back-office/organizations" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('organizations.title')}
+              </Link>
+            ) : null}
+            {canManageStaff ? (
+              <Link to="/back-office/staff" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('staff.title')}
               </Link>
             ) : null}
           </nav>

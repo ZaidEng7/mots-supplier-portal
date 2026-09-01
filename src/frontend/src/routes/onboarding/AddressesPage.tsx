@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Dialog, Field, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Address, type Branch, type SupplierProfile } from '../../api/supplier'
-import { addAddress, updateAddress, removeAddress, addBranch, updateBranch, removeBranch } from '../../api/addresses'
+import { addAddress, updateAddress, removeAddress, addBranch, updateBranch, removeBranch, type UpdateBranchPayload } from '../../api/addresses'
 import { fetchRegions } from '../../api/reference'
 
 const ADDRESS_KINDS = ['HeadOffice', 'Billing', 'Branch'] as const
@@ -132,6 +132,7 @@ function BranchDialog({
   addressOptions,
   onSubmit,
   isSaving,
+  apiError,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -139,6 +140,7 @@ function BranchDialog({
   addressOptions: { value: string; label: string }[]
   onSubmit: (values: BranchFormValues) => void
   isSaving: boolean
+  apiError?: string
 }) {
   const { t } = useTranslation()
   const {
@@ -169,6 +171,11 @@ function BranchDialog({
               <Select id={p.id} value={addressId} onValueChange={(v) => setValue('addressId', v)} options={addressOptions} placeholder={t('addresses.fields.linkedAddress')} />
             )}
           </Field>
+        ) : null}
+        {apiError ? (
+          <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
+            {apiError}
+          </p>
         ) : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
@@ -214,8 +221,12 @@ export function AddressesPage() {
 
   const branchMutation = useMutation({
     mutationFn: (values: BranchFormValues) => {
-      const payload = { nameAr: values.nameAr, nameEn: values.nameEn, addressId: values.addressId || null, isActive: branchDialog.branch?.isActive ?? true }
-      return branchDialog.branch ? updateBranch(branchDialog.branch.id, payload) : addBranch(payload)
+      const base = { nameAr: values.nameAr, nameEn: values.nameEn, addressId: values.addressId || null }
+      if (branchDialog.branch) {
+        const payload: UpdateBranchPayload = { ...base, isActive: branchDialog.branch.isActive ?? true }
+        return updateBranch(branchDialog.branch.id, payload)
+      }
+      return addBranch(base)
     },
     onSuccess: (data) => { onProfile(data); setBranchDialog({ open: false }) },
   })
@@ -370,6 +381,7 @@ export function AddressesPage() {
         addressOptions={addressOptions}
         onSubmit={(values) => branchMutation.mutate(values)}
         isSaving={branchMutation.isPending}
+        apiError={branchMutation.error instanceof SupplierApiError ? branchMutation.error.message : undefined}
       />
     </div>
   )

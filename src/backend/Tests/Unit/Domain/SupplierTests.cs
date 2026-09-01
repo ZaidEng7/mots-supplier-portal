@@ -307,7 +307,7 @@ public class SupplierTests
         supplier.PickUpForReview();
         supplier.RequestInfo();
 
-        supplier.Resubmit([]);
+        supplier.Resubmit([], [], []);
 
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.Resubmitted);
     }
@@ -317,7 +317,7 @@ public class SupplierTests
     {
         var supplier = CreateSubmittedSupplier();
 
-        var act = () => supplier.Resubmit([]);
+        var act = () => supplier.Resubmit([], [], []);
 
         act.Should().Throw<DomainException>();
     }
@@ -334,11 +334,28 @@ public class SupplierTests
         supplier.PickUpForReview();
         supplier.RequestInfo();
 
-        var act = () => supplier.Resubmit(["tax_certificate"]);
+        var act = () => supplier.Resubmit(["tax_certificate"], [], ["tax_certificate"]);
 
         act.Should().Throw<DomainException>().WithMessage("*missing required items*tax_certificate*");
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.InfoRequested,
             "a refused resubmit must leave the supplier where it was, not half-way through");
+    }
+
+    [Fact]
+    public void Resubmit_ignores_an_outstanding_document_that_was_not_flagged()
+    {
+        // Task #32 / SUP-2026-000044: a document rejected independently of the info request
+        // (e.g. via the separate per-document review action) must not block resolving what the
+        // open annotation actually flagged - only what's in FlaggedDocumentTypeIds/FlaggedProfileFields
+        // gates Resubmit while InfoRequested. Submit(), by contrast, stays fully unscoped.
+        var supplier = CreateSubmittedSupplier();
+        supplier.PickUpForReview();
+        supplier.RequestInfo();
+
+        var act = () => supplier.Resubmit(["tax_certificate"], [], []);
+
+        act.Should().NotThrow();
+        supplier.OnboardingState.Should().Be(SupplierOnboardingState.Resubmitted);
     }
 
     [Fact]
@@ -347,7 +364,7 @@ public class SupplierTests
         var supplier = CreateSubmittedSupplier();
         supplier.PickUpForReview();
         supplier.RequestInfo();
-        supplier.Resubmit([]);
+        supplier.Resubmit([], [], []);
 
         supplier.PickUpForReview();
 

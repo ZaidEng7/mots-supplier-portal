@@ -247,10 +247,24 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
             .OrderByDescending(a => a.RequestedAt)
             .FirstOrDefaultAsync(ct);
 
+        // Task #32: an annotation with nothing flagged in one of these two dimensions is not "no
+        // restriction" - Where(x => [].Contains(x)) correctly yields empty, so an empty array here
+        // means nothing in that dimension can block resubmit, which is exactly the flagged set
+        // when nothing there was actually flagged. A missing annotation (shouldn't happen - Resubmit
+        // only runs from InfoRequested, which only exists because RequestInfo created one) falls
+        // back to empty on both, the conservative choice: nothing is exempted from the full check.
+        var flaggedProfileFields = activeAnnotation?.FlaggedProfileFields ?? [];
+        var flaggedDocumentTypeCodes = activeAnnotation is null
+            ? []
+            : await db.DocumentTypes
+                .Where(t => activeAnnotation.FlaggedDocumentTypeIds.Contains(t.Id))
+                .Select(t => t.Code)
+                .ToListAsync(ct);
+
         try
         {
-            supplier.Resubmit(await DocumentCompletenessEvaluator
-                .GetMissingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct));
+            var missingDocs = await DocumentCompletenessEvaluator.GetMissingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct);
+            supplier.Resubmit(missingDocs, flaggedProfileFields, flaggedDocumentTypeCodes);
             await auditLogger.LogAsync("Supplier", supplier.Id, "application_resubmitted", scope.UserId, toState: supplier.OnboardingState.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
 
             supplier.PickUpForReview();

@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Dialog } from '../components/ui'
-import { useToast } from '../components/ui'
+import { Badge, Button, Dialog, useToast, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '../components/ui'
 import {
   getReviewerSupplierView,
   pickUpApplication,
@@ -16,7 +15,7 @@ import {
   ReviewApiError,
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
-import { PROFILE_DISPLAY_FIELDS, profileDisplayValue } from './profileDisplayFields'
+import { PROFILE_DISPLAY_FIELDS, profileDisplayValue, LEGAL_INFO_FIELDS, legalInfoValue } from './profileDisplayFields'
 import { lifecycleActionsFor } from './lifecycleActions'
 import { ReasonDialog } from '../components/ReasonDialog'
 
@@ -275,6 +274,122 @@ export function ReviewApplicationPage() {
             </div>
           ))}
         </dl>
+      </div>
+
+      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('review.legalInfo')}
+        </h2>
+        {/* Task #33 / MSP-77: legalInfo is nullable on the DTO (a supplier who hasn't reached that
+            step yet) and, when present, is an object - rendering it directly is the exact crash
+            MSP-77 fixed by deleting this section. Guarding on null here and reading every field
+            through legalInfoValue (never `{supplier.legalInfo}` itself) is what restores it safely. */}
+        {supplier.legalInfo ? (
+          // Narrowed into a local const: `supplier.legalInfo`'s null-check doesn't survive into
+          // the .map() callback below (TS can't prove a member expression stays narrowed across a
+          // closure boundary) - a plain local variable's narrowing does.
+          (() => {
+            const legalInfo = supplier.legalInfo
+            return (
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {LEGAL_INFO_FIELDS.map((f) => (
+                  <div key={f}>
+                    <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t(`onboarding.fields.${f}`)}
+                    </dt>
+                    <dd style={{ color: 'var(--color-text-primary)' }}>{legalInfoValue(legalInfo, f)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )
+          })()
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('contacts.empty')}</p>
+        )}
+      </div>
+
+      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('review.addresses')}
+        </h2>
+        {supplier.addresses.length === 0 ? (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('addresses.empty')}</p>
+        ) : (
+          <Table caption={t('review.addresses')}>
+            <TableHead>
+              <TableHeaderCell>{t('addresses.fields.kind')}</TableHeaderCell>
+              <TableHeaderCell>{t('addresses.fields.line1')}</TableHeaderCell>
+              <TableHeaderCell>{t('addresses.fields.city')}</TableHeaderCell>
+              <TableHeaderCell>{t('addresses.fields.country')}</TableHeaderCell>
+            </TableHead>
+            <TableBody>
+              {supplier.addresses.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell>{a.kind === 'HeadOffice' ? <Badge tone="brand">{t('addresses.kinds.HeadOffice')}</Badge> : t(`addresses.kinds.${a.kind}`)}</TableCell>
+                  <TableCell>{a.line1}</TableCell>
+                  <TableCell>{a.city}</TableCell>
+                  <TableCell>{a.country}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('review.representatives')}
+        </h2>
+        {supplier.representatives.length === 0 ? (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('contacts.empty')}</p>
+        ) : (
+          <Table caption={t('review.representatives')}>
+            <TableHead>
+              <TableHeaderCell>{t('contacts.fields.fullName')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.fields.email')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.fields.phone')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.fields.position')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.status')}</TableHeaderCell>
+            </TableHead>
+            <TableBody>
+              {supplier.representatives.map((rep) => (
+                <TableRow key={rep.id}>
+                  <TableCell>{rep.fullName}</TableCell>
+                  <TableCell>{rep.email}</TableCell>
+                  <TableCell>{rep.phone ? <bdi dir="ltr">{rep.phone}</bdi> : '—'}</TableCell>
+                  <TableCell>{rep.position || '—'}</TableCell>
+                  <TableCell>{rep.isPrimary ? <Badge tone="brand">{t('contacts.primary')}</Badge> : null}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <h3 className="mb-3 mt-6 text-[length:var(--text-body)] font-[var(--fw-medium)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('review.contacts')}
+        </h3>
+        {supplier.contacts.length === 0 ? (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('contacts.empty')}</p>
+        ) : (
+          <Table caption={t('review.contacts')}>
+            <TableHead>
+              <TableHeaderCell>{t('contacts.fields.fullName')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.fields.email')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.fields.phone')}</TableHeaderCell>
+              <TableHeaderCell>{t('contacts.fields.role')}</TableHeaderCell>
+            </TableHead>
+            <TableBody>
+              {supplier.contacts.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>{c.fullName}</TableCell>
+                  <TableCell>{c.email}</TableCell>
+                  <TableCell>{c.phone ? <bdi dir="ltr">{c.phone}</bdi> : '—'}</TableCell>
+                  <TableCell>{c.role || '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>

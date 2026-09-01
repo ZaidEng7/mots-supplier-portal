@@ -33,6 +33,8 @@ public sealed class RequiredConfigurationTests
         ("Jwt:Issuer", "https://suppliers.example.gov"),
         ("Jwt:Audience", "mots-supplier-portal"),
         ("Cors:AllowedOrigins:0", "https://suppliers.example.gov"),
+        ("Smtp:Host", "smtp.example.gov"),
+        ("Smtp:FromAddress", "no-reply@suppliers.example.gov"),
     ];
 
     [Theory]
@@ -70,6 +72,28 @@ public sealed class RequiredConfigurationTests
     }
 
     [Fact]
+    public void Missing_smtp_host_prevents_startup_outside_Development()
+    {
+        // Task #35: SmtpOptions.Host is `required`, but that only fails at the first real send
+        // (IOptions<SmtpOptions>.Value binding) - listed here so it fails at boot instead.
+        var settings = Complete().Where(e => e.Key != "Smtp:Host").ToArray();
+
+        var act = () => RequiredConfiguration.Validate(Config(settings), new FakeEnvironment("Production"));
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Smtp:Host*");
+    }
+
+    [Fact]
+    public void Missing_smtp_from_address_prevents_startup_outside_Development()
+    {
+        var settings = Complete().Where(e => e.Key != "Smtp:FromAddress").ToArray();
+
+        var act = () => RequiredConfiguration.Validate(Config(settings), new FakeEnvironment("Production"));
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Smtp:FromAddress*");
+    }
+
+    [Fact]
     public void All_missing_keys_are_reported_together()
     {
         // Discovering these one redeploy at a time is its own small outage.
@@ -84,7 +108,9 @@ public sealed class RequiredConfigurationTests
                 // boot test caught exactly that after the first version of this class shipped.
                 .Contain("Jwt:Issuer").And
                 .Contain("Jwt:Audience").And
-                .Contain("Cors:AllowedOrigins");
+                .Contain("Cors:AllowedOrigins").And
+                .Contain("Smtp:Host").And
+                .Contain("Smtp:FromAddress");
     }
 
     [Fact]
