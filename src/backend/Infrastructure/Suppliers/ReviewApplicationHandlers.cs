@@ -14,6 +14,14 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHandler
 {
+    /// <summary>Audit actions that mark an application (re)entering the reviewer's active queue -
+    /// see ReviewQueueItemDto.EnteredQueueAt's own doc comment for why this isn't CreatedAt.</summary>
+    private static readonly string[] ReviewQueueEntryActions =
+    [
+        "application_submitted", "application_resubmitted", "application_review_resumed",
+        "compliance_field_changed_review_retriggered",
+    ];
+
     public async Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, CancellationToken ct)
     {
         var states = new[] { SupplierOnboardingState.Submitted, SupplierOnboardingState.UnderReview, SupplierOnboardingState.InfoRequested };
@@ -35,15 +43,31 @@ public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHa
         // are inserted into continuously.
         var rows = await query
             .OrderBy(s => s.CreatedAt).ThenBy(s => s.Id)
-            .Select(s => new { s.Id, s.CreatedAt, Dto = new ReviewQueueItemDto(s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, s.OnboardingState.ToString()) })
+            .Select(s => new { s.Id, s.CreatedAt, s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, OnboardingState = s.OnboardingState.ToString() })
             .Take(pageSize + 1)
             .ToListAsync(ct);
 
         var hasMore = rows.Count > pageSize;
         var items = hasMore ? rows[..pageSize] : rows;
 
+        // FEAT-03.6: most recent "(re)entered the active queue" audit row per supplier on this
+        // page - a second, small query rather than a join on the paged query above, since only
+        // the page's own rows (at most pageSize) need it.
+        var pageIds = items.Select(r => r.Id).ToList();
+        var enteredQueueAtBySupplier = await db.AuditLogs
+            .Where(a => a.AggregateType == "Supplier" && pageIds.Contains(a.AggregateId) && ReviewQueueEntryActions.Contains(a.Action))
+            .GroupBy(a => a.AggregateId)
+            .Select(g => new { SupplierId = g.Key, EnteredAt = g.Max(a => a.OccurredAt) })
+            .ToDictionaryAsync(x => x.SupplierId, x => x.EnteredAt, ct);
+
+        var dtos = items
+            .Select(r => new ReviewQueueItemDto(
+                r.ReferenceCode, r.DisplayNameAr, r.DisplayNameEn, r.OnboardingState,
+                enteredQueueAtBySupplier.GetValueOrDefault(r.Id, r.CreatedAt)))
+            .ToList();
+
         return new Page<ReviewQueueItemDto>(
-            [.. items.Select(r => r.Dto)],
+            dtos,
             hasMore,
             hasMore ? new ReviewQueueCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null);
     }

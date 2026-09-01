@@ -7,6 +7,7 @@ export interface ReviewQueueItem {
   displayNameAr: string
   displayNameEn: string
   onboardingState: string
+  enteredQueueAt: string
 }
 
 /** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */

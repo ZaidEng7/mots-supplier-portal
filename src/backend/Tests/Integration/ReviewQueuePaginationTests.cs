@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Suppliers;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
@@ -122,6 +123,55 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         {
             walkedCodes.Should().NotContain(s.ReferenceCode, $"{s.ReferenceCode} is not in a review-queue state and must never appear");
         }
+    }
+
+    /// <summary>FEAT-03.6/FR-ONB-012: EnteredQueueAt must reflect the most recent time this
+    /// application (re)entered the active queue - not the original submission, and not
+    /// Supplier.CreatedAt (registration date). A stale "resubmitted 3 days ago" reading would be
+    /// exactly the kind of misleading age indicator FEAT-03.6 exists to prevent.</summary>
+    [Fact]
+    public async Task EnteredQueueAt_reflects_the_most_recent_resubmission_not_the_original_submission_or_registration()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var handler = scope.ServiceProvider.GetRequiredService<IListReviewQueueHandler>();
+
+        var supplier = MakeUnderReview("RESUB");
+        db.Suppliers.Add(supplier);
+        await db.SaveChangesAsync();
+
+        var originalSubmission = DateTimeOffset.UtcNow.AddDays(-10);
+        var recentResubmission = DateTimeOffset.UtcNow.AddHours(-3);
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.CreateVersion7(),
+            OccurredAt = originalSubmission,
+            ActorKind = AuditActorKind.User,
+            AggregateType = "Supplier",
+            AggregateId = supplier.Id,
+            Action = "application_submitted",
+            CorrelationId = Guid.CreateVersion7(),
+        });
+        db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.CreateVersion7(),
+            OccurredAt = recentResubmission,
+            ActorKind = AuditActorKind.User,
+            AggregateType = "Supplier",
+            AggregateId = supplier.Id,
+            Action = "application_resubmitted",
+            CorrelationId = Guid.CreateVersion7(),
+        });
+        await db.SaveChangesAsync();
+
+        var page = await handler.HandleAsync(null, 50, CancellationToken.None);
+        var item = page.Items.Should().ContainSingle(i => i.ReferenceCode == supplier.ReferenceCode).Subject;
+
+        item.EnteredQueueAt.Should().BeCloseTo(recentResubmission, TimeSpan.FromSeconds(1),
+            "the newer resubmission must win over both the original submission and Supplier.CreatedAt");
+        item.EnteredQueueAt.Should().NotBeCloseTo(originalSubmission, TimeSpan.FromDays(1),
+            "using the stale original-submission timestamp would make a just-resubmitted application read as 10 days old");
     }
 
     [Fact]

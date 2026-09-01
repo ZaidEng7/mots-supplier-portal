@@ -281,6 +281,7 @@ const resources = {
       review: {
         title: 'مراجعة طلبات الموردين',
         queue: 'قائمة المراجعة',
+        age: 'المدة',
         noItems: 'لا توجد طلبات بانتظار المراجعة',
         loadMore: 'عرض المزيد',
         backToQueue: 'العودة للقائمة',
@@ -707,6 +708,7 @@ const resources = {
       review: {
         title: 'Supplier Application Review',
         queue: 'Review queue',
+        age: 'Age',
         noItems: 'No applications awaiting review',
         loadMore: 'Load more',
         backToQueue: 'Back to queue',
