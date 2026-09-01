@@ -43,6 +43,9 @@ export function SupplierShell({ children }: Props) {
             <Link to="/onboarding" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.onboarding')}
             </Link>
+            <Link to="/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.offerings')}
+            </Link>
             <Link to="/team" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.team')}
             </Link>

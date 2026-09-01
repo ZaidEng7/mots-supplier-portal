@@ -2,7 +2,13 @@ using MotsSupplierPortal.Application.Common;
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
-public sealed record ReviewQueueItemDto(string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState);
+/// <summary>FEAT-03.6/FR-ONB-012: EnteredQueueAt is when this application most recently entered
+/// the reviewer's active queue (submitted, resubmitted, review resumed after info was provided,
+/// or compliance-retriggered back into UnderReview) - not Supplier.CreatedAt (registration date),
+/// which would make a long-registered supplier who just resubmitted read as stale. Falls back to
+/// CreatedAt only if no such audit row exists (should not happen for a queue-eligible state, but a
+/// row without one reads as "just entered" rather than crashing the queue).</summary>
+public sealed record ReviewQueueItemDto(string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt);
 
 public interface IListReviewQueueHandler
 {

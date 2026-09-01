@@ -1,0 +1,214 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Identity;
+
+namespace MotsSupplierPortal.Tests.Integration;
+
+/// <summary>FR-ADM-002: system_admin lists roles and edits a role's permission set, with an
+/// InvalidPermission guard (unrecognized permission string) and a WouldLockOutRoleManagement
+/// guard (an edit that would leave zero roles able to ever edit roles again). Every change is
+/// audited, and PermissionResolver reads role permissions from DB claims (not the static
+/// Roles.DefaultPermissions dictionary) specifically so an edit reaches the next login - the
+/// last test in this file is the proof of that, not an assumption.</summary>
+[Collection(IntegrationTestCollection.Name)]
+public sealed class ManageRolesTests(PostgresApiFixture fixture)
+{
+    private Task<HttpClient> AdminClientAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+    [Fact]
+    public async Task List_returns_every_seeded_role_with_its_current_permissions()
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.GetAsync("/api/v1/admin/roles");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var roles = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var names = roles.EnumerateArray().Select(r => r.GetProperty("name").GetString()).ToList();
+        names.Should().Contain(Roles.SystemAdmin).And.Contain(Roles.OnboardingReviewer).And.Contain(Roles.SupplierUser);
+
+        var reviewer = roles.EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.OnboardingReviewer);
+        reviewer.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
+            .Should().Contain(Permissions.SupplierApprove);
+    }
+
+    [Fact]
+    public async Task Non_admin_caller_is_forbidden()
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+
+        var response = await reviewer.GetAsync("/api/v1/admin/roles");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Updating_with_an_unrecognized_permission_is_rejected()
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.Evaluator}/permissions",
+            new { permissions = new[] { "not.a.real.permission" } });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be("invalid_permission");
+    }
+
+    [Fact]
+    public async Task Removing_the_only_role_holding_AdminRolesManage_is_rejected()
+    {
+        var admin = await AdminClientAsync();
+
+        // system_admin is (by seed) the only role holding admin.roles.manage. Stripping it here
+        // would mean no caller could ever edit a role's permissions again.
+        var response = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.SystemAdmin}/permissions",
+            new { permissions = new[] { Permissions.AdminUsersManage } });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be("would_lock_out_role_management");
+
+        // And nothing was actually changed.
+        var after = await admin.GetAsync("/api/v1/admin/roles");
+        var roles = await after.Content.ReadFromJsonAsync<JsonElement>();
+        var systemAdmin = roles.EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.SystemAdmin);
+        systemAdmin.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
+            .Should().Contain(Permissions.AdminRolesManage);
+    }
+
+    [Fact]
+    public async Task A_valid_update_persists_and_is_audited()
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.MinistryViewer}/permissions",
+            new { permissions = new[] { Permissions.AuditRead } });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
+            .Should().BeEquivalentTo([Permissions.AuditRead]);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
+        var auditRow = await db.AuditLogs
+            .Where(a => a.AggregateType == "Role" && a.Action == "role_permissions_updated" && a.ToState == Roles.MinistryViewer)
+            .OrderByDescending(a => a.OccurredAt)
+            .FirstOrDefaultAsync();
+        auditRow.Should().NotBeNull("every role-permission change must be audited");
+        auditRow!.Changes.Should().NotBeNull().And.Contain("permissions");
+    }
+
+    /// <summary>The real proof this feature works end-to-end, not just that the DB row changed:
+    /// grant a role a permission it did not have, log a fresh user in with that role, and confirm
+    /// the JWT's "perms" claims actually reflect the edit.</summary>
+    [Fact]
+    public async Task A_role_permission_change_reaches_the_next_login_s_JWT()
+    {
+        var admin = await AdminClientAsync();
+        var email = $"jwtcheck-{Guid.NewGuid():N}@ministry.example";
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var user = new AppUser { Id = Guid.CreateVersion7(), UserName = email, Email = email, FullName = "JWT Check", EmailConfirmed = true, IsActive = true };
+            (await userManager.CreateAsync(user, StaffTestClient.Password)).Succeeded.Should().BeTrue();
+            (await userManager.AddToRoleAsync(user, Roles.Evaluator)).Succeeded.Should().BeTrue();
+        }
+
+        var beforeLogin = fixture.CreateClient();
+        var beforeResponse = await beforeLogin.PostAsJsonAsync("/api/v1/auth/login", new { email, password = StaffTestClient.Password });
+        beforeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var beforeToken = (await beforeResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
+        JwtClaims(beforeToken).Should().NotContain(Permissions.AuditRead, "evaluator does not hold audit.read by default");
+
+        var update = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.Evaluator}/permissions",
+            new { permissions = new[] { Permissions.EvaluationScore, Permissions.AuditRead } });
+        update.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var afterLogin = fixture.CreateClient();
+        var afterResponse = await afterLogin.PostAsJsonAsync("/api/v1/auth/login", new { email, password = StaffTestClient.Password });
+        afterResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var afterToken = (await afterResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
+        JwtClaims(afterToken).Should().Contain(Permissions.AuditRead,
+            "the role edit must reach a fresh login's JWT, proving PermissionResolver reads live DB claims, not the static seed dictionary");
+    }
+
+    /// <summary>Regression test for a real bug caught in manual verification, not by the rest of
+    /// this suite: every other test here runs against a brand-new Testcontainers database, so
+    /// RoleSeeder always sees roles as newly created and never exercises the pre-existing-role
+    /// path. A role created by an OLDER version of RoleSeeder (before role-claim seeding existed
+    /// at all) has no claims and no "perms:seeded" marker - re-running SeedAsync against it must
+    /// backfill the default permissions, not leave every user of that role with an empty JWT
+    /// "perms" claim (which is exactly what shipped locally before this test was added).</summary>
+    [Fact]
+    public async Task Reseeding_a_role_that_predates_claim_seeding_backfills_its_default_permissions()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+
+        // RoleSeeder only iterates Roles.DefaultPermissions' own role names, so simulate the
+        // pre-migration state on a real seeded role (system_admin) by stripping its claims - this
+        // is exactly what a database created before role-claim seeding existed would look like.
+        // system_admin is shared, live state other test classes in this same collection depend on
+        // (e.g. AuditSearchAndExportTests logs in as system_admin and expects audit.read) - a
+        // try/finally restores its exact original claims unconditionally, so this test's own
+        // manipulation never leaks into any test that happens to run after it.
+        var systemAdminRole = await roleManager.FindByNameAsync(Roles.SystemAdmin);
+        systemAdminRole.Should().NotBeNull();
+        var originalClaims = await roleManager.GetClaimsAsync(systemAdminRole!);
+
+        try
+        {
+            foreach (var claim in originalClaims)
+            {
+                await roleManager.RemoveClaimAsync(systemAdminRole!, claim);
+            }
+            (await roleManager.GetClaimsAsync(systemAdminRole!)).Should().BeEmpty("claims stripped to simulate a pre-migration state");
+
+            await RoleSeeder.SeedAsync(roleManager);
+
+            var afterClaims = await roleManager.GetClaimsAsync(systemAdminRole!);
+            afterClaims.Where(c => c.Type == "perms").Select(c => c.Value)
+                .Should().BeEquivalentTo(Roles.DefaultPermissions[Roles.SystemAdmin],
+                    "a role that existed before claim-seeding must be backfilled on the next startup, not left with zero permissions");
+
+            // And re-running again must NOT re-add duplicates or reset an admin's subsequent edit.
+            await roleManager.RemoveClaimAsync(systemAdminRole!, new System.Security.Claims.Claim("perms", Permissions.AuditRead));
+            await RoleSeeder.SeedAsync(roleManager);
+            var afterSecondRun = await roleManager.GetClaimsAsync(systemAdminRole!);
+            afterSecondRun.Where(c => c.Type == "perms" && c.Value == Permissions.AuditRead).Should().BeEmpty(
+                "once seeded, the marker claim must stop SeedAsync from ever re-adding a permission an admin deliberately removed");
+        }
+        finally
+        {
+            foreach (var claim in await roleManager.GetClaimsAsync(systemAdminRole!))
+            {
+                await roleManager.RemoveClaimAsync(systemAdminRole!, claim);
+            }
+            foreach (var claim in originalClaims)
+            {
+                await roleManager.AddClaimAsync(systemAdminRole!, claim);
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> JwtClaims(string accessToken)
+    {
+        var payload = accessToken.Split('.')[1];
+        var padded = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=').Replace('-', '+').Replace('_', '/');
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("perms", out var perms)) return [];
+        return perms.ValueKind == JsonValueKind.Array
+            ? [.. perms.EnumerateArray().Select(p => p.GetString()!)]
+            : [perms.GetString()!];
+    }
+}

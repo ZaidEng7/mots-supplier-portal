@@ -45,12 +45,19 @@ public static class Permissions
     /// AdminUsersManage, following that constant's own pattern of being system_admin-only by
     /// default (via Permissions.All below) rather than assigned to any other role.</summary>
     public const string AdminOrganizationsManage = "admin.organizations.manage";
+    /// <summary>FR-ADM-002: edit a role's permission set. Distinct from AdminUsersManage (which
+    /// covers who has an account/which role they hold) - this covers what a role itself grants.
+    /// Only SystemAdmin holds it by default (via Permissions.All below); ManageRolesHandler
+    /// additionally refuses any update that would leave zero roles holding it, so this permission
+    /// can never be edited into a state where nobody can ever edit roles again.</summary>
+    public const string AdminRolesManage = "admin.roles.manage";
 
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
         SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
-        RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage
+        RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
+        AdminRolesManage
     ];
 }
 

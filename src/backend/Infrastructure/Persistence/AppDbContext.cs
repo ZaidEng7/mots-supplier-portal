@@ -16,6 +16,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Currency> Currencies => Set<Currency>();
     public DbSet<Domain.ReferenceData.Region> Regions => Set<Domain.ReferenceData.Region>();
     public DbSet<Domain.ReferenceData.Category> Categories => Set<Domain.ReferenceData.Category>();
+    public DbSet<Domain.ReferenceData.UnitOfMeasure> UnitsOfMeasure => Set<Domain.ReferenceData.UnitOfMeasure>();
+    public DbSet<Offering> Offerings => Set<Offering>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<Representative> Representatives => Set<Representative>();
     public DbSet<Address> Addresses => Set<Address>();
@@ -280,6 +282,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000305"), Code = "events", NameAr = "تنظيم الفعاليات", NameEn = "Events & Conferences" },
                 new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000306"), Code = "maintenance", NameAr = "الصيانة والخدمات الفنية", NameEn = "Maintenance & Technical Services" }
             );
+        });
+
+        modelBuilder.Entity<Domain.ReferenceData.UnitOfMeasure>(entity =>
+        {
+            entity.ToTable("unit_of_measure", "reference");
+            entity.HasKey(u => u.Id);
+            entity.Property(u => u.Code).HasMaxLength(50).IsRequired();
+            entity.HasIndex(u => u.Code).IsUnique();
+            entity.Property(u => u.NameAr).HasMaxLength(150).IsRequired();
+            entity.Property(u => u.NameEn).HasMaxLength(150).IsRequired();
+
+            // FEAT-06.1 [ASSUMPTION]: minimal interim list matching the hospitality/tourism sector
+            // Category.cs already seeds (accommodation, catering, transport, tours, events).
+            entity.HasData(
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000501"), Code = "night", NameAr = "ليلة", NameEn = "Night" },
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000502"), Code = "person", NameAr = "شخص", NameEn = "Person" },
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000503"), Code = "trip", NameAr = "رحلة", NameEn = "Trip" },
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000504"), Code = "hour", NameAr = "ساعة", NameEn = "Hour" },
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000505"), Code = "day", NameAr = "يوم", NameEn = "Day" },
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000506"), Code = "unit", NameAr = "وحدة", NameEn = "Unit" },
+                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000507"), Code = "event", NameAr = "فعالية", NameEn = "Event" }
+            );
+        });
+
+        modelBuilder.Entity<Offering>(entity =>
+        {
+            entity.ToTable("offering", "supplier");
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.NameAr).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.NameEn).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.Description).HasMaxLength(2000);
+            entity.Property(o => o.CategoryCode).HasMaxLength(50).IsRequired();
+            entity.Property(o => o.UnitOfMeasureCode).HasMaxLength(50).IsRequired();
+            entity.Property(o => o.PriceAmount).HasPrecision(18, 2);
+            entity.Property(o => o.CurrencyCode).HasMaxLength(10);
+            entity.HasIndex(o => o.SupplierId);
         });
 
         modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>

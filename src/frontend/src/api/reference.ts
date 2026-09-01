@@ -39,6 +39,19 @@ export async function fetchCategories(): Promise<Category[]> {
   return res.json()
 }
 
+export interface UnitOfMeasure {
+  id: string
+  code: string
+  nameAr: string
+  nameEn: string
+}
+
+export async function fetchUnitsOfMeasure(): Promise<UnitOfMeasure[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/reference/units-of-measure`)
+  if (!res.ok) throw new Error(`Failed to fetch units of measure: ${res.status}`)
+  return res.json()
+}
+
 export async function fetchHealth(): Promise<string> {
   // The combined /health endpoint was split into /health/live and /health/ready (Task #16 /
   // NFR-OBS-006) - this call was never updated, so it hit a route that no longer exists and fell
