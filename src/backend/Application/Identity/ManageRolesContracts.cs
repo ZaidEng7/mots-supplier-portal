@@ -2,6 +2,13 @@ namespace MotsSupplierPortal.Application.Identity;
 
 public sealed record RoleDto(string Name, IReadOnlyList<string> Permissions);
 
+/// <summary>FR-ADM-002 bug fix: AllPermissions is the canonical Permissions.All catalog, not the
+/// union of what roles happen to already hold. A permission newly added to the catalog but not
+/// yet granted to any role (e.g. right after a code change, before an admin has granted it) must
+/// still be listed here as an available-but-unchecked option - otherwise the admin UI has no way
+/// to ever grant it short of a direct DB write, which defeats the point of a roles admin UI.</summary>
+public sealed record RolesResponse(IReadOnlyList<RoleDto> Roles, IReadOnlyList<string> AllPermissions);
+
 public sealed record UpdateRolePermissionsCommand(string RoleName, IReadOnlyList<string> Permissions);
 
 public abstract record UpdateRolePermissionsResult
@@ -19,7 +26,7 @@ public abstract record UpdateRolePermissionsResult
 
 public interface IListRolesHandler
 {
-    Task<IReadOnlyList<RoleDto>> HandleAsync(CancellationToken ct);
+    Task<RolesResponse> HandleAsync(CancellationToken ct);
 }
 
 public interface IUpdateRolePermissionsHandler

@@ -6,6 +6,15 @@ export interface Role {
   permissions: string[]
 }
 
+/** FR-ADM-002 bug fix: allPermissions is the backend's canonical Permissions.All catalog, not
+ * derived from what roles happen to already hold - see ManageRolesContracts.cs's RolesResponse
+ * doc comment. Without this, a permission added to the catalog but not yet granted to any role
+ * had no way to ever be granted through this UI. */
+export interface RolesResponse {
+  roles: Role[]
+  allPermissions: string[]
+}
+
 async function parseOrThrow<T>(res: Response): Promise<T> {
   const text = await res.text()
   const body = text ? JSON.parse(text) : null
@@ -13,7 +22,7 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function listRoles(): Promise<Role[]> {
+export async function listRoles(): Promise<RolesResponse> {
   const res = await apiFetch('/api/v1/admin/roles')
   return parseOrThrow(res)
 }

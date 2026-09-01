@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
@@ -18,11 +18,16 @@ const schema = z.object({
   unitOfMeasureCode: z.string().min(1),
   priceAmount: z.string().optional(),
   currencyCode: z.string().optional(),
+  // FEAT-06.2 [ASSUMPTION]: flexible key/value rows, not a per-category schema - see
+  // Offering.AttributesJson's doc comment for why. Rows with an empty key are dropped in
+  // toPayload rather than rejected here, so a half-filled trailing row doesn't block save.
+  attributes: z.array(z.object({ key: z.string(), value: z.string() })),
 })
-type FormValues = z.infer<typeof schema>
+export type FormValues = z.infer<typeof schema>
 
-function toPayload(values: FormValues): OfferingPayload {
+export function toPayload(values: FormValues): OfferingPayload {
   const priceAmount = values.priceAmount ? Number(values.priceAmount) : null
+  const entries = values.attributes.filter((a) => a.key.trim().length > 0)
   return {
     nameAr: values.nameAr,
     nameEn: values.nameEn,
@@ -31,7 +36,12 @@ function toPayload(values: FormValues): OfferingPayload {
     unitOfMeasureCode: values.unitOfMeasureCode,
     priceAmount,
     currencyCode: priceAmount !== null ? (values.currencyCode || null) : null,
+    attributes: entries.length > 0 ? Object.fromEntries(entries.map((a) => [a.key.trim(), a.value])) : null,
   }
+}
+
+export function attributesToRows(attributes: Record<string, string> | null | undefined): { key: string; value: string }[] {
+  return attributes ? Object.entries(attributes).map(([key, value]) => ({ key, value })) : []
 }
 
 function OfferingDialog({
@@ -60,6 +70,7 @@ function OfferingDialog({
     setValue,
     watch,
     reset,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -72,12 +83,14 @@ function OfferingDialog({
           unitOfMeasureCode: offering.unitOfMeasureCode,
           priceAmount: offering.priceAmount?.toString() ?? '',
           currencyCode: offering.currencyCode ?? '',
+          attributes: attributesToRows(offering.attributes),
         }
-      : { nameAr: '', nameEn: '', description: '', categoryCode: '', unitOfMeasureCode: '', priceAmount: '', currencyCode: '' },
+      : { nameAr: '', nameEn: '', description: '', categoryCode: '', unitOfMeasureCode: '', priceAmount: '', currencyCode: '', attributes: [] },
   })
   const categoryCode = watch('categoryCode')
   const unitOfMeasureCode = watch('unitOfMeasureCode')
   const currencyCode = watch('currencyCode')
+  const { fields: attributeFields, append: appendAttribute, remove: removeAttribute } = useFieldArray({ control, name: 'attributes' })
 
   const errorMessage = (err: unknown, fallback: string) => {
     if (err instanceof SupplierApiError) {
@@ -149,6 +162,31 @@ function OfferingDialog({
             />
           )}
         </Field>
+        <div className="flex flex-col gap-2">
+          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('offeringCatalog.fields.attributes')}
+          </span>
+          {attributeFields.map((field, index) => (
+            <div key={field.id} className="flex items-center gap-2">
+              <Input
+                aria-label={t('offeringCatalog.fields.attributeKey')}
+                placeholder={t('offeringCatalog.fields.attributeKey')}
+                {...register(`attributes.${index}.key` as const)}
+              />
+              <Input
+                aria-label={t('offeringCatalog.fields.attributeValue')}
+                placeholder={t('offeringCatalog.fields.attributeValue')}
+                {...register(`attributes.${index}.value` as const)}
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeAttribute(index)}>
+                {t('offeringCatalog.fields.removeAttribute')}
+              </Button>
+            </div>
+          ))}
+          <Button type="button" variant="secondary" size="sm" onClick={() => appendAttribute({ key: '', value: '' })}>
+            {t('offeringCatalog.fields.addAttribute')}
+          </Button>
+        </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {t('offeringCatalog.cancel')}

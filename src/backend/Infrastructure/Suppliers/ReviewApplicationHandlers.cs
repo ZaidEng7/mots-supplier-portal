@@ -12,7 +12,7 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
-public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHandler
+public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope) : IListReviewQueueHandler
 {
     /// <summary>Audit actions that mark an application (re)entering the reviewer's active queue -
     /// see ReviewQueueItemDto.EnteredQueueAt's own doc comment for why this isn't CreatedAt.</summary>
@@ -22,12 +22,38 @@ public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHa
         "compliance_field_changed_review_retriggered",
     ];
 
-    public async Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, CancellationToken ct)
+    private static readonly IReadOnlyDictionary<string, SupplierOnboardingState> StateFilterMap = new Dictionary<string, SupplierOnboardingState>(StringComparer.OrdinalIgnoreCase)
     {
-        var states = new[] { SupplierOnboardingState.Submitted, SupplierOnboardingState.UnderReview, SupplierOnboardingState.InfoRequested };
+        ["Submitted"] = SupplierOnboardingState.Submitted,
+        ["UnderReview"] = SupplierOnboardingState.UnderReview,
+        ["InfoRequested"] = SupplierOnboardingState.InfoRequested,
+    };
+
+    public async Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, string? state, string? assignedTo, CancellationToken ct)
+    {
+        var states = state is not null && StateFilterMap.TryGetValue(state, out var single)
+            ? [single]
+            : new[] { SupplierOnboardingState.Submitted, SupplierOnboardingState.UnderReview, SupplierOnboardingState.InfoRequested };
         var pageSize = Page<ReviewQueueItemDto>.ClampLimit(limit);
 
         var query = db.Suppliers.Where(s => states.Contains(s.OnboardingState));
+
+        // FEAT-03.6: "me" resolves against the caller so the frontend never needs to know its own
+        // user id; "unassigned" surfaces the pool a reviewer would actually claim from; anything
+        // else is treated as a literal reviewer user id (a manager filtering by a specific
+        // reviewer).
+        if (assignedTo == "me")
+        {
+            query = query.Where(s => s.AssignedReviewerId == scope.UserId);
+        }
+        else if (assignedTo == "unassigned")
+        {
+            query = query.Where(s => s.AssignedReviewerId == null);
+        }
+        else if (assignedTo is not null && Guid.TryParse(assignedTo, out var reviewerId))
+        {
+            query = query.Where(s => s.AssignedReviewerId == reviewerId);
+        }
 
         if (ReviewQueueCursor.TryDecode(cursor, out var from))
         {
@@ -43,7 +69,7 @@ public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHa
         // are inserted into continuously.
         var rows = await query
             .OrderBy(s => s.CreatedAt).ThenBy(s => s.Id)
-            .Select(s => new { s.Id, s.CreatedAt, s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, OnboardingState = s.OnboardingState.ToString() })
+            .Select(s => new { s.Id, s.CreatedAt, s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, OnboardingState = s.OnboardingState.ToString(), s.AssignedReviewerId })
             .Take(pageSize + 1)
             .ToListAsync(ct);
 
@@ -60,16 +86,67 @@ public sealed class ListReviewQueueHandler(AppDbContext db) : IListReviewQueueHa
             .Select(g => new { SupplierId = g.Key, EnteredAt = g.Max(a => a.OccurredAt) })
             .ToDictionaryAsync(x => x.SupplierId, x => x.EnteredAt, ct);
 
+        var reviewerIds = items.Where(r => r.AssignedReviewerId is not null).Select(r => r.AssignedReviewerId!.Value).Distinct().ToList();
+        var reviewerNamesById = await db.Users
+            .Where(u => reviewerIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName })
+            .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
+
         var dtos = items
             .Select(r => new ReviewQueueItemDto(
                 r.ReferenceCode, r.DisplayNameAr, r.DisplayNameEn, r.OnboardingState,
-                enteredQueueAtBySupplier.GetValueOrDefault(r.Id, r.CreatedAt)))
+                enteredQueueAtBySupplier.GetValueOrDefault(r.Id, r.CreatedAt),
+                r.AssignedReviewerId,
+                r.AssignedReviewerId is { } rid ? reviewerNamesById.GetValueOrDefault(rid) : null))
             .ToList();
 
         return new Page<ReviewQueueItemDto>(
             dtos,
             hasMore,
             hasMore ? new ReviewQueueCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null);
+    }
+}
+
+/// <summary>FEAT-03.6 [ASSUMPTION]: manual self-claim, not round-robin/manager-assigned - see
+/// Supplier.AssignedReviewerId's own doc comment for why.</summary>
+public sealed class ClaimReviewItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IClaimReviewItemHandler
+{
+    public async Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct)
+    {
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
+        if (supplier is null) return new ClaimQueueItemResult.NotFound();
+
+        var previousReviewerId = supplier.AssignedReviewerId;
+        supplier.AssignReviewer(scope.UserId!.Value);
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "application_claimed", scope.UserId,
+            fromState: previousReviewerId?.ToString(), toState: scope.UserId.ToString(), referenceCode: supplier.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        var reviewerName = (await db.Users.Where(u => u.Id == scope.UserId).Select(u => u.FullName).FirstOrDefaultAsync(ct));
+        return new ClaimQueueItemResult.Success(new ReviewQueueItemDto(
+            supplier.ReferenceCode, supplier.DisplayNameAr, supplier.DisplayNameEn, supplier.OnboardingState.ToString(),
+            supplier.CreatedAt, supplier.AssignedReviewerId, reviewerName));
+    }
+}
+
+public sealed class UnassignReviewItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUnassignReviewItemHandler
+{
+    public async Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct)
+    {
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.ReferenceCode == referenceCode, ct);
+        if (supplier is null) return new ClaimQueueItemResult.NotFound();
+
+        var previousReviewerId = supplier.AssignedReviewerId;
+        supplier.UnassignReviewer();
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "application_unassigned", scope.UserId,
+            fromState: previousReviewerId?.ToString(), toState: null, referenceCode: supplier.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new ClaimQueueItemResult.Success(new ReviewQueueItemDto(
+            supplier.ReferenceCode, supplier.DisplayNameAr, supplier.DisplayNameEn, supplier.OnboardingState.ToString(),
+            supplier.CreatedAt, null, null));
     }
 }
 

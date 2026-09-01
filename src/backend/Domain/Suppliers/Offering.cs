@@ -18,4 +18,12 @@ public sealed class Offering
     public string? CurrencyCode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>FEAT-06.2 [ASSUMPTION]: flexible key-value attributes (e.g. "capacity": "50
+    /// guests"), not a per-category enforced schema - no per-category attribute-schema entity
+    /// exists anywhere in reference data to bind against, and FEAT-06.2's own AC ("attribute
+    /// schema by category") describes a real admin surface no one has asked for here. Same jsonb
+    /// convention as AuditLog.Changes/OutboxMessage.PayloadJson: a plain string column holding
+    /// serialized JSON, not EF's native JSON mapping.</summary>
+    public string? AttributesJson { get; set; }
 }

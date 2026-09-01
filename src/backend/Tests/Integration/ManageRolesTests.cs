@@ -29,13 +29,82 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         var response = await admin.GetAsync("/api/v1/admin/roles");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var roles = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var roles = body.GetProperty("roles");
         var names = roles.EnumerateArray().Select(r => r.GetProperty("name").GetString()).ToList();
         names.Should().Contain(Roles.SystemAdmin).And.Contain(Roles.OnboardingReviewer).And.Contain(Roles.SupplierUser);
 
         var reviewer = roles.EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.OnboardingReviewer);
         reviewer.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
             .Should().Contain(Permissions.SupplierApprove);
+    }
+
+    /// <summary>Regression test for a real bug: the roles admin UI used to derive its permission
+    /// checklist from the union of what roles already hold, not the canonical Permissions.All
+    /// catalog - so a permission not yet granted to ANY role (including system_admin, which by
+    /// seed holds everything) was invisible in the UI and could only ever be granted via a direct
+    /// DB write. Reuses offering.search as the real example: strips it from every role's claims
+    /// (simulating the exact state right after a new permission is added to the catalog, before
+    /// anyone has granted it anywhere - system_admin included), then proves allPermissions still
+    /// lists it and it can be granted through the real update endpoint with no DB workaround.</summary>
+    [Fact]
+    public async Task Listing_roles_includes_a_permission_not_yet_granted_to_any_role()
+    {
+        Permissions.All.Should().Contain(Permissions.OfferingSearch,
+            "this test's premise is that the permission IS in the canonical catalog");
+
+        // Strip offering.search from every role holding it (procurement_officer, procurement_manager,
+        // and system_admin via Permissions.All) to simulate the exact state right after a new
+        // permission is added to the catalog, before anyone has granted it anywhere. Restored in
+        // finally so this never leaks into another test in the shared collection database, same
+        // discipline as Reseeding_a_role_that_predates_claim_seeding_backfills_its_default_permissions
+        // above.
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var allRoles = await roleManager.Roles.ToListAsync();
+        var strippedFrom = new List<IdentityRole<Guid>>();
+
+        try
+        {
+            foreach (var role in allRoles)
+            {
+                var claims = await roleManager.GetClaimsAsync(role);
+                var match = claims.FirstOrDefault(c => c.Type == "perms" && c.Value == Permissions.OfferingSearch);
+                if (match is null) continue;
+                await roleManager.RemoveClaimAsync(role, match);
+                strippedFrom.Add(role);
+            }
+            strippedFrom.Should().NotBeEmpty("the seed must have granted offering.search somewhere for this test's premise to hold");
+
+            var admin = await AdminClientAsync();
+            var listResponse = await admin.GetAsync("/api/v1/admin/roles");
+            var listBody = await listResponse.Content.ReadFromJsonAsync<JsonElement>();
+
+            listBody.GetProperty("allPermissions").EnumerateArray().Select(p => p.GetString())
+                .Should().Contain(Permissions.OfferingSearch,
+                    "the catalog must list a permission no role currently holds, or it can never be granted through this UI");
+
+            var systemAdmin = listBody.GetProperty("roles").EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.SystemAdmin);
+            systemAdmin.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
+                .Should().NotContain(Permissions.OfferingSearch, "confirms the strip above actually took effect - not a false positive");
+
+            // The real proof: grant it back through the actual endpoint, no DB write.
+            var grant = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.ProcurementOfficer}/permissions",
+                new { permissions = new[] { Permissions.RfqPublish, Permissions.OfferingSearch } });
+            grant.StatusCode.Should().Be(HttpStatusCode.OK);
+            var grantBody = await grant.Content.ReadFromJsonAsync<JsonElement>();
+            grantBody.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
+                .Should().Contain(Permissions.OfferingSearch);
+        }
+        finally
+        {
+            foreach (var role in strippedFrom)
+            {
+                var current = await roleManager.GetClaimsAsync(role);
+                if (current.Any(c => c.Type == "perms" && c.Value == Permissions.OfferingSearch)) continue;
+                await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("perms", Permissions.OfferingSearch));
+            }
+        }
     }
 
     [Fact]
@@ -77,8 +146,8 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
 
         // And nothing was actually changed.
         var after = await admin.GetAsync("/api/v1/admin/roles");
-        var roles = await after.Content.ReadFromJsonAsync<JsonElement>();
-        var systemAdmin = roles.EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.SystemAdmin);
+        var afterBody = await after.Content.ReadFromJsonAsync<JsonElement>();
+        var systemAdmin = afterBody.GetProperty("roles").EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.SystemAdmin);
         systemAdmin.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
             .Should().Contain(Permissions.AdminRolesManage);
     }

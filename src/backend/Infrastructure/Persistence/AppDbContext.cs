@@ -317,6 +317,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(o => o.UnitOfMeasureCode).HasMaxLength(50).IsRequired();
             entity.Property(o => o.PriceAmount).HasPrecision(18, 2);
             entity.Property(o => o.CurrencyCode).HasMaxLength(10);
+            entity.Property(o => o.AttributesJson).HasColumnType("jsonb");
             entity.HasIndex(o => o.SupplierId);
         });
 

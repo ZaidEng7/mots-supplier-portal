@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -10,7 +11,17 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 internal static class OfferingDtoMapper
 {
     public static OfferingDto ToDto(Offering o) => new(
-        o.Id, o.NameAr, o.NameEn, o.Description, o.CategoryCode, o.UnitOfMeasureCode, o.PriceAmount, o.CurrencyCode, o.IsActive);
+        o.Id, o.NameAr, o.NameEn, o.Description, o.CategoryCode, o.UnitOfMeasureCode, o.PriceAmount, o.CurrencyCode, o.IsActive,
+        DeserializeAttributes(o.AttributesJson));
+
+    /// <summary>FEAT-06.2: the jsonb column is a plain serialized dictionary (see Offering.AttributesJson's
+    /// doc comment) - null/empty round-trips to null, never an empty object, so a caller can tell
+    /// "no attributes set" apart from "attributes explicitly cleared" the same way either way.</summary>
+    public static string? SerializeAttributes(IReadOnlyDictionary<string, string>? attributes) =>
+        attributes is null || attributes.Count == 0 ? null : JsonSerializer.Serialize(attributes);
+
+    public static IReadOnlyDictionary<string, string>? DeserializeAttributes(string? json) =>
+        json is null ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(json);
 }
 
 /// <summary>FEAT-06.1/FR-OFF-001: an offering is only ever listed for the caller's own supplier
@@ -22,11 +33,12 @@ public sealed class ListOfferingsHandler(AppDbContext db, IScopeContext scope) :
     {
         if (scope.SupplierId is null) return [];
 
-        return await db.Offerings
+        var offerings = await db.Offerings
             .Where(o => o.SupplierId == scope.SupplierId)
             .OrderBy(o => o.NameEn)
-            .Select(o => OfferingDtoMapper.ToDto(o))
             .ToListAsync(ct);
+
+        return offerings.Select(OfferingDtoMapper.ToDto).ToList();
     }
 }
 
@@ -52,6 +64,7 @@ public sealed class CreateOfferingHandler(AppDbContext db, IScopeContext scope, 
             CurrencyCode = command.CurrencyCode,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow,
+            AttributesJson = OfferingDtoMapper.SerializeAttributes(command.Attributes),
         };
         db.Offerings.Add(offering);
 
@@ -94,12 +107,14 @@ public sealed class UpdateOfferingHandler(AppDbContext db, IScopeContext scope, 
         var validation = await CreateOfferingHandler.ValidateReferencesAsync(db, command.CategoryCode, command.UnitOfMeasureCode, command.CurrencyCode, ct);
         if (validation is not null) return validation;
 
+        var newAttributesJson = OfferingDtoMapper.SerializeAttributes(command.Attributes);
         var changes = AuditChangeBuilder.Build(
             ("nameEn", offering.NameEn, command.NameEn),
             ("categoryCode", offering.CategoryCode, command.CategoryCode),
             ("unitOfMeasureCode", offering.UnitOfMeasureCode, command.UnitOfMeasureCode),
             ("priceAmount", offering.PriceAmount, command.PriceAmount),
-            ("currencyCode", offering.CurrencyCode, command.CurrencyCode));
+            ("currencyCode", offering.CurrencyCode, command.CurrencyCode),
+            ("attributes", offering.AttributesJson, newAttributesJson));
 
         offering.NameAr = command.NameAr;
         offering.NameEn = command.NameEn;
@@ -108,6 +123,7 @@ public sealed class UpdateOfferingHandler(AppDbContext db, IScopeContext scope, 
         offering.UnitOfMeasureCode = command.UnitOfMeasureCode;
         offering.PriceAmount = command.PriceAmount;
         offering.CurrencyCode = command.CurrencyCode;
+        offering.AttributesJson = newAttributesJson;
 
         await auditLogger.LogAsync("Offering", offering.Id, "offering_updated", scope.UserId, changes: changes, ct: ct);
         await db.SaveChangesAsync(ct);
@@ -133,5 +149,42 @@ public sealed class DeactivateOfferingHandler(AppDbContext db, IScopeContext sco
         await db.SaveChangesAsync(ct);
 
         return new OfferingMutationResult.Success(OfferingDtoMapper.ToDto(offering));
+    }
+}
+
+/// <summary>FEAT-06.3/FR-OFF-004: procurement staff discovering offerings across all suppliers.
+/// FEAT-06.4/FR-OFF-005: gated on Supplier.LifecycleState == Active, not Offering.IsActive alone -
+/// a supplier suspended after listing an offering must disappear from buyer search even though the
+/// Offering row itself is untouched by suspension. No EF navigation exists between Offering and
+/// Supplier (both are deliberately separate aggregate roots, see Offering.cs's doc comment), so
+/// this is a manual join on the plain SupplierId FK rather than an owned/included navigation.</summary>
+public sealed class SearchBuyerOfferingsHandler(AppDbContext db) : ISearchBuyerOfferingsHandler
+{
+    public async Task<IReadOnlyList<BuyerOfferingSearchResultDto>> HandleAsync(string? categoryCode, string? query, CancellationToken ct)
+    {
+        var offerings = db.Offerings.Where(o => o.IsActive);
+        if (!string.IsNullOrWhiteSpace(categoryCode))
+        {
+            offerings = offerings.Where(o => o.CategoryCode == categoryCode);
+        }
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            offerings = offerings.Where(o =>
+                EF.Functions.ILike(o.NameEn, $"%{query}%") || EF.Functions.ILike(o.NameAr, $"%{query}%"));
+        }
+
+        var joined = await (
+            from o in offerings
+            join s in db.Suppliers on o.SupplierId equals s.Id
+            where s.LifecycleState == SupplierLifecycleState.Active
+            orderby o.NameEn
+            select new { Offering = o, Supplier = s }
+        ).ToListAsync(ct);
+
+        return joined.Select(x => new BuyerOfferingSearchResultDto(
+            x.Offering.Id, x.Supplier.ReferenceCode, x.Supplier.DisplayNameAr, x.Supplier.DisplayNameEn,
+            x.Offering.NameAr, x.Offering.NameEn, x.Offering.Description, x.Offering.CategoryCode, x.Offering.UnitOfMeasureCode,
+            x.Offering.PriceAmount, x.Offering.CurrencyCode, OfferingDtoMapper.DeserializeAttributes(x.Offering.AttributesJson)))
+            .ToList();
     }
 }

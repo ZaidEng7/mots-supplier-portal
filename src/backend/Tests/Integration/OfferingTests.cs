@@ -22,7 +22,43 @@ public sealed class OfferingTests(PostgresApiFixture fixture)
         unitOfMeasureCode = "trip",
         priceAmount = 45.50m,
         currencyCode = "USD",
+        attributes = (IReadOnlyDictionary<string, string>?)null,
     };
+
+    [Fact]
+    public async Task Creating_an_offering_with_flexible_attributes_round_trips_them_on_read()
+    {
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Offering Attrs Co");
+        var attributes = new Dictionary<string, string> { ["capacity"] = "50 ضيف", ["duration"] = "4h" };
+
+        var response = await client.PostAsJsonAsync("/api/v1/suppliers/me/offerings", new
+        {
+            nameAr = "جولة", nameEn = "Attributed Tour", description = (string?)null,
+            categoryCode = "tour_operations", unitOfMeasureCode = "trip",
+            priceAmount = (decimal?)null, currencyCode = (string?)null,
+            attributes,
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("attributes").GetProperty("capacity").GetString().Should().Be("50 ضيف");
+        body.GetProperty("attributes").GetProperty("duration").GetString().Should().Be("4h");
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/offerings");
+        var found = list.EnumerateArray().Should().ContainSingle(o => o.GetProperty("nameEn").GetString() == "Attributed Tour").Subject;
+        found.GetProperty("attributes").GetProperty("capacity").GetString().Should().Be("50 ضيف");
+    }
+
+    [Fact]
+    public async Task Creating_an_offering_without_attributes_returns_null_not_an_empty_object()
+    {
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Offering NoAttrs Co");
+
+        var response = await client.PostAsJsonAsync("/api/v1/suppliers/me/offerings", ValidPayload());
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        body.GetProperty("attributes").ValueKind.Should().Be(JsonValueKind.Null);
+    }
 
     [Fact]
     public async Task Creating_an_offering_with_a_valid_category_and_unit_persists_and_is_audited()

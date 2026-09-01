@@ -52,10 +52,36 @@ public static class ReviewEndpoints
     {
         var group = app.MapGroup("/api/v1/review").WithTags("Review");
 
-        group.MapGet("/queue", async (string? cursor, int? limit, IListReviewQueueHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(cursor, limit, ct)))
+        group.MapGet("/queue", async (string? cursor, int? limit, string? state, string? assignedTo, IListReviewQueueHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(cursor, limit, state, assignedTo, ct)))
             .RequirePermission(Permissions.SupplierReview)
             .WithName("ListReviewQueue");
+
+        group.MapPost("/{referenceCode}/claim", async (string referenceCode, IClaimReviewItemHandler handler, CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(referenceCode, ct);
+            return result switch
+            {
+                ClaimQueueItemResult.Success s => Results.Ok(s.Item),
+                ClaimQueueItemResult.NotFound => Results.NotFound(),
+                _ => Results.Problem(),
+            };
+        })
+        .RequirePermission(Permissions.SupplierReview)
+        .WithName("ClaimReviewItem");
+
+        group.MapPost("/{referenceCode}/unassign", async (string referenceCode, IUnassignReviewItemHandler handler, CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(referenceCode, ct);
+            return result switch
+            {
+                ClaimQueueItemResult.Success s => Results.Ok(s.Item),
+                ClaimQueueItemResult.NotFound => Results.NotFound(),
+                _ => Results.Problem(),
+            };
+        })
+        .RequirePermission(Permissions.SupplierReview)
+        .WithName("UnassignReviewItem");
 
         group.MapGet("/{referenceCode}", async (
             string referenceCode,
