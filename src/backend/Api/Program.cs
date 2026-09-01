@@ -17,14 +17,18 @@ using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Application.Reference;
 using MotsSupplierPortal.Application.Suppliers;
+using MotsSupplierPortal.Application.Evaluation;
+using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
+using MotsSupplierPortal.Infrastructure.Evaluation;
 using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
+using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -209,6 +213,32 @@ builder.Services.AddScoped<ICreateOfferingHandler, CreateOfferingHandler>();
 builder.Services.AddScoped<IUpdateOfferingHandler, UpdateOfferingHandler>();
 builder.Services.AddScoped<IDeactivateOfferingHandler, DeactivateOfferingHandler>();
 builder.Services.AddScoped<ISearchBuyerOfferingsHandler, SearchBuyerOfferingsHandler>();
+
+// FEAT-11.1, pulled forward for EPIC-07.
+builder.Services.AddScoped<IListEvaluationTemplatesHandler, ListEvaluationTemplatesHandler>();
+builder.Services.AddScoped<IGetEvaluationTemplateHandler, GetEvaluationTemplateHandler>();
+builder.Services.AddScoped<ICreateEvaluationTemplateHandler, CreateEvaluationTemplateHandler>();
+builder.Services.AddScoped<IManageCriterionHandler, ManageCriterionHandler>();
+builder.Services.AddScoped<IActivateEvaluationTemplateHandler, ActivateEvaluationTemplateHandler>();
+builder.Services.AddScoped<IArchiveEvaluationTemplateHandler, ArchiveEvaluationTemplateHandler>();
+builder.Services.AddScoped<IForkEvaluationTemplateHandler, ForkEvaluationTemplateHandler>();
+
+// EPIC-07: RFQ authoring & lifecycle.
+builder.Services.AddScoped<IListRfqsHandler, ListRfqsHandler>();
+builder.Services.AddScoped<IGetRfqHandler, GetRfqHandler>();
+builder.Services.AddScoped<ICreateRfqHandler, CreateRfqHandler>();
+builder.Services.AddScoped<IUpdateRfqBasicsHandler, UpdateRfqBasicsHandler>();
+builder.Services.AddScoped<IManageRfqItemHandler, ManageRfqItemHandler>();
+builder.Services.AddScoped<IManageRequirementHandler, ManageRequirementHandler>();
+builder.Services.AddScoped<IManageRfqAttachmentHandler, ManageRfqAttachmentHandler>();
+builder.Services.AddScoped<IBindEvaluationTemplateHandler, BindEvaluationTemplateHandler>();
+builder.Services.AddScoped<ISubmitRfqForReviewHandler, SubmitRfqForReviewHandler>();
+builder.Services.AddScoped<IReturnRfqForEditsHandler, ReturnRfqForEditsHandler>();
+builder.Services.AddScoped<IApproveRfqHandler, ApproveRfqHandler>();
+builder.Services.AddScoped<IPublishRfqHandler, PublishRfqHandler>();
+builder.Services.AddScoped<ICloseRfqSubmissionHandler, CloseRfqSubmissionHandler>();
+builder.Services.AddScoped<ICancelRfqHandler, CancelRfqHandler>();
+builder.Services.AddScoped<RfqTimelineJob>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
@@ -589,6 +619,8 @@ app.MapOrganizationEndpoints();
 app.MapStaffEndpoints();
 app.MapRoleEndpoints();
 app.MapOfferingEndpoints();
+app.MapEvaluationTemplateEndpoints();
+app.MapRfqEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing
@@ -625,6 +657,11 @@ RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCl
 // daily cadence would make "eventually" mean "up to a day late" for no reason.
 RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
     "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
+
+// FEAT-07.6/FR-PWF-004: RFQ submission-window open/close is time-of-day precise, not daily - same
+// 5-minute cadence reasoning as the outbox dispatcher above.
+RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
+    "rfq-timeline", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
 
 app.Run();
 

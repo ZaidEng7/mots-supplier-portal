@@ -1,0 +1,485 @@
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Rfqs;
+using MotsSupplierPortal.Domain.Evaluation;
+using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Registrations;
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
+internal static class RfqDtoMapper
+{
+    public static RfqDto ToDto(Rfq rfq) => new(
+        rfq.ReferenceCode, rfq.OrganizationId, rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn,
+        rfq.CurrencyCode, rfq.State, rfq.PublishAt, rfq.SubmissionOpensAt, rfq.SubmissionClosesAt,
+        rfq.ClarificationDeadlineAt, rfq.EvaluationTargetDate, rfq.EvaluationTemplateId, rfq.EvaluationTemplateVersion,
+        rfq.CancelReason,
+        [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
+            i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn, i.CategoryCode,
+            i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
+        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+        [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
+        [.. rfq.Approvals.OrderBy(a => a.StepNo).Select(a => new RfqApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))]);
+}
+
+/// <summary>Shared loader: every RFQ handler in this file row-scopes to the caller's own
+/// OrganizationId (BRULE-029: "An RFQ is created and owned by a procurement_officer and is scoped
+/// to their Organization; cross-org authoring is prohibited"). A null scope.OrganizationId (e.g. a
+/// supplier-side or platform caller with no org membership) can never see or touch any RFQ - same
+/// "no scope, no access" pattern as scope.SupplierId is null on the supplier side.</summary>
+file static class RfqLoader
+{
+    // AsSplitQuery: four sibling collections in one single JOIN query produces a cartesian-product
+    // row multiplication (Items x Requirements x Attachments x Approvals) - not itself the cause
+    // of a real concurrency bug found while building this (see SubmitRfqForReviewHandler's own
+    // comment for that one), but a real, separate performance concern worth avoiding regardless
+    // once four sibling collections are all included together.
+    public static IQueryable<Rfq> IncludeAll(this DbSet<Rfq> set) =>
+        set.Include(r => r.Items).Include(r => r.Requirements).Include(r => r.Attachments).Include(r => r.Approvals)
+            .AsSplitQuery();
+
+    public static async Task<Rfq?> LoadScopedAsync(AppDbContext db, IScopeContext scope, string referenceCode, CancellationToken ct)
+    {
+        if (scope.OrganizationId is null) return null;
+        return await db.Rfqs.IncludeAll()
+            .FirstOrDefaultAsync(r => r.ReferenceCode == referenceCode && r.OrganizationId == scope.OrganizationId, ct);
+    }
+}
+
+public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : IListRfqsHandler
+{
+    public async Task<IReadOnlyList<RfqDto>> HandleAsync(CancellationToken ct)
+    {
+        if (scope.OrganizationId is null) return [];
+        var rfqs = await db.Rfqs.IncludeAll()
+            .Where(r => r.OrganizationId == scope.OrganizationId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync(ct);
+        return [.. rfqs.Select(RfqDtoMapper.ToDto)];
+    }
+}
+
+public sealed class GetRfqHandler(AppDbContext db, IScopeContext scope) : IGetRfqHandler
+{
+    public async Task<RfqDto?> HandleAsync(string referenceCode, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, referenceCode, ct);
+        return rfq is null ? null : RfqDtoMapper.ToDto(rfq);
+    }
+}
+
+/// <summary>FEAT-07.1/FR-RFQ-001/BRULE-029.</summary>
+public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICreateRfqHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(CreateRfqCommand command, CancellationToken ct)
+    {
+        if (scope.OrganizationId is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        var referenceCode = await ReferenceCodeGenerator.NextCodeAsync(db, "RFQ", ct);
+
+        Rfq rfq;
+        try
+        {
+            rfq = Rfq.Create(
+                referenceCode, scope.OrganizationId.Value, command.TitleAr, command.TitleEn,
+                command.DescriptionAr, command.DescriptionEn, command.CurrencyCode,
+                command.PublishAt, command.SubmissionOpensAt, command.SubmissionClosesAt,
+                command.ClarificationDeadlineAt, command.EvaluationTargetDate);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.Rfqs.Add(rfq);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_created", scope.UserId, referenceCode: rfq.ReferenceCode, toState: nameof(RfqState.Draft), ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+public sealed class UpdateRfqBasicsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUpdateRfqBasicsHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(UpdateRfqBasicsCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.UpdateBasics(
+                command.TitleAr, command.TitleEn, command.DescriptionAr, command.DescriptionEn, command.CurrencyCode,
+                command.PublishAt, command.SubmissionOpensAt, command.SubmissionClosesAt,
+                command.ClarificationDeadlineAt, command.EvaluationTargetDate);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_updated", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.1/FR-RFQ-002. Category/UoM referential integrity validated against reference
+/// data by code, not a DB FK - same established convention as Offering (see
+/// OfferingContracts.cs's own doc comment).</summary>
+public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRfqItemHandler
+{
+    public async Task<RfqMutationResult> AddAsync(AddRfqItemCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        if (!await db.Categories.AnyAsync(c => c.Code == command.CategoryCode, ct))
+        {
+            return new RfqMutationResult.InvalidCategory();
+        }
+        if (!await db.UnitsOfMeasure.AnyAsync(u => u.Code == command.UnitOfMeasureCode, ct))
+        {
+            return new RfqMutationResult.InvalidUnitOfMeasure();
+        }
+
+        RfqItem item;
+        try
+        {
+            item = rfq.AddItem(
+                command.TitleAr, command.TitleEn, command.SpecificationAr, command.SpecificationEn,
+                command.CategoryCode, command.Quantity, command.UnitOfMeasureCode, command.IsUnitPrice, command.IsOptional);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.RfqItems.Add(item);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_item_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+
+    public async Task<RfqMutationResult> RemoveAsync(RemoveRfqItemCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.RemoveItem(command.ItemId);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_item_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRequirementHandler
+{
+    public async Task<RfqMutationResult> AddAsync(AddRequirementCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        Requirement requirement;
+        try
+        {
+            requirement = rfq.AddRequirement(command.TextAr, command.TextEn, command.IsMandatory, command.DocumentTypeCode);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.Requirements.Add(requirement);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+
+    public async Task<RfqMutationResult> RemoveAsync(RemoveRequirementCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.RemoveRequirement(command.RequirementId);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.2/FR-RFQ-003. The caller (endpoint) has already stored the file via
+/// IFileStorage before this runs - same split as UploadDocumentHandler.</summary>
+public sealed class ManageRfqAttachmentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRfqAttachmentHandler
+{
+    public async Task<RfqMutationResult> AddAsync(AddRfqAttachmentCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        RfqAttachment attachment;
+        try
+        {
+            attachment = rfq.AddAttachment(command.StorageKey, command.OriginalFileName, command.ContentType, command.Caption);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.RfqAttachments.Add(attachment);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_attachment_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+
+    public async Task<RfqMutationResult> RemoveAsync(RemoveRfqAttachmentCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.RemoveAttachment(command.AttachmentId);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_attachment_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.3/FR-RFQ-004: binds a version-snapshotted EvaluationTemplateRef. Loads the
+/// live EvaluationTemplate (must be Active), serializes its current criteria as the frozen
+/// snapshot, marks it IsReferenced (immutable from here on unless forked - EvaluationTemplate.cs's
+/// own doc comment), and binds the RFQ to that exact Id+Version. Both aggregates are saved in the
+/// same SaveChangesAsync call - a pragmatic single-unit-of-work exception to "one aggregate per
+/// transaction" (DOMAIN-MODEL.md §8), justified the same way AuditLogger already is: marking a
+/// template referenced is not a domain event that needs eventual consistency, it is the direct,
+/// synchronous consequence of the bind command the caller just issued.</summary>
+public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IBindEvaluationTemplateHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(BindEvaluationTemplateCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        var template = await db.EvaluationTemplates.Include(t => t.Criteria)
+            .FirstOrDefaultAsync(t => t.Id == command.EvaluationTemplateId, ct);
+        if (template is null)
+        {
+            return new RfqMutationResult.InvalidEvaluationTemplate("Evaluation template not found.");
+        }
+        if (template.Status != EvaluationTemplateStatus.Active)
+        {
+            return new RfqMutationResult.InvalidEvaluationTemplate("Only an Active evaluation template can be bound to an RFQ.");
+        }
+
+        var snapshotJson = System.Text.Json.JsonSerializer.Serialize(template.Criteria.Select(c => new
+        {
+            c.Id,
+            c.NameAr,
+            c.NameEn,
+            Dimension = c.Dimension.ToString(),
+            c.Weight,
+            c.MaxScore,
+            c.Threshold,
+            ScoringType = c.ScoringType.ToString(),
+        }));
+
+        try
+        {
+            rfq.BindEvaluationTemplate(template.Id, template.Version, snapshotJson);
+            template.MarkReferenced();
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_evaluation_template_bound", scope.UserId,
+            referenceCode: rfq.ReferenceCode, toState: $"{template.Id}/v{template.Version}", ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: Draft -&gt; InternalReview.</summary>
+public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISubmitRfqForReviewHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(SubmitRfqForReviewCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.SubmitForReview();
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        // Same client-assigned-GUIDv7 gotcha as every other child Add in this codebase
+        // (ManageContactHandler.cs's own comment): without this, EF's graph-tracking heuristic
+        // sees a non-default Id on the new RfqApproval and marks it Modified instead of Added,
+        // issuing an UPDATE against a row that does not exist yet - 0 rows affected -
+        // DbUpdateConcurrencyException on the NEXT SaveChanges that touches this aggregate.
+        db.RfqApprovals.Add(rfq.Approvals.Single(a => a.Decision is null));
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submitted_for_review", scope.UserId,
+            referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.Draft), toState: nameof(RfqState.InternalReview), ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -&gt; Draft, "return for
+/// edits".</summary>
+public sealed class ReturnRfqForEditsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IReturnRfqForEditsHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(ReturnRfqForEditsCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+        if (scope.UserId is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.ReturnForEdits(scope.UserId.Value, command.Comments);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_returned", scope.UserId, referenceCode: rfq.ReferenceCode,
+            fromState: nameof(RfqState.InternalReview), toState: nameof(RfqState.Draft), reason: command.Comments, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -&gt; Approved. OQ-004 interim
+/// single-approver - see RfqApproval.cs's own doc comment for why the schema is an array anyway.</summary>
+public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IApproveRfqHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(ApproveRfqCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+        if (scope.UserId is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.Approve(scope.UserId.Value);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_approved", scope.UserId, referenceCode: rfq.ReferenceCode,
+            fromState: nameof(RfqState.InternalReview), toState: nameof(RfqState.Approved), ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.5/BUSINESS-PROCESSES.md §3.1: Approved -&gt; Published.</summary>
+public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IPublishRfqHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(PublishRfqCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.Publish();
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_published", scope.UserId, referenceCode: rfq.ReferenceCode,
+            fromState: nameof(RfqState.Approved), toState: nameof(RfqState.Published), ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.6/BUSINESS-PROCESSES.md §3.1: manual early close of the submission window
+/// (the scheduled deadline-driven close is RfqTimelineJob, a system actor, not this handler).</summary>
+public sealed class CloseRfqSubmissionHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICloseRfqSubmissionHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(CloseRfqSubmissionCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.CloseSubmissionWindow(command.Reason, isEarlyClose: true);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submission_closed", scope.UserId, referenceCode: rfq.ReferenceCode,
+            fromState: nameof(RfqState.SubmissionOpen), toState: nameof(RfqState.SubmissionClosed), reason: command.Reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}
+
+/// <summary>FEAT-07.8/BUSINESS-PROCESSES.md §3.1: cancel from any pre-Awarded state, reason
+/// mandatory.</summary>
+public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICancelRfqHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(CancelRfqCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        var fromState = rfq.State;
+        try
+        {
+            rfq.Cancel(command.Reason);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_cancelled", scope.UserId, referenceCode: rfq.ReferenceCode,
+            fromState: fromState.ToString(), toState: nameof(RfqState.Cancelled), reason: command.Reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+    }
+}

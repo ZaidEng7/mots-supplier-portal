@@ -35,6 +35,9 @@ const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsP
 const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
 const RolesPage = lazy(() => import('./routes/back-office/RolesPage').then((m) => ({ default: m.RolesPage })))
 const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearchPage').then((m) => ({ default: m.OfferingSearchPage })))
+const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/EvaluationTemplatesPage').then((m) => ({ default: m.EvaluationTemplatesPage })))
+const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
+const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
@@ -283,6 +286,24 @@ const offeringSearchRoute = createRoute({
   component: OfferingSearchPage,
 })
 
+const evaluationTemplatesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/evaluation-templates',
+  component: EvaluationTemplatesPage,
+})
+
+const rfqListRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs',
+  component: RfqListPage,
+})
+
+const rfqDetailRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs/$referenceCode',
+  component: RfqDetailPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -303,7 +324,7 @@ const routeTree = rootRoute.addChildren([
     offeringCatalogRoute,
     settingsRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute]),
+  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

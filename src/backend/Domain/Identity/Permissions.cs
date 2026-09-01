@@ -56,12 +56,44 @@ public static class Permissions
     /// its own catalog) since this is a different actor reading across all suppliers.</summary>
     public const string OfferingSearch = "offering.search";
 
+    /// <summary>FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07: manage EvaluationTemplates
+    /// (criteria, weights, thresholds, activate/archive/fork). Not prefixed "admin." - like
+    /// rfq.publish/evaluation.score/award.approve, this is a domain-owned procurement permission
+    /// (procurement_manager-held), not a system-catalog admin permission.</summary>
+    public const string EvaluationTemplateManage = "evaluation.template.manage";
+
+    /// <summary>FEAT-07.1/FR-RFQ-001: create a Draft RFQ, scoped to the actor's own
+    /// OrganizationId (BRULE-029).</summary>
+    public const string RfqCreate = "rfq.create";
+    /// <summary>FEAT-07.1..07.3: routine content edits (items, requirements, attachments,
+    /// evaluation-template binding) while Draft - distinct from RfqCreate since a delegate could
+    /// plausibly edit an RFQ they didn't create, and distinct from the state-transition
+    /// permissions below per this catalog's own established pattern (e.g. SupplierReview vs
+    /// SupplierApprove).</summary>
+    public const string RfqEdit = "rfq.edit";
+    /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: Draft -> InternalReview.</summary>
+    public const string RfqSubmitReview = "rfq.submit_review";
+    /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -> Draft ("return for
+    /// edits") - distinct from RfqApprove per that same transition table naming a separate
+    /// `rfq.review` permission for the return path.</summary>
+    public const string RfqReview = "rfq.review";
+    /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -> Approved.</summary>
+    public const string RfqApprove = "rfq.approve";
+    /// <summary>FEAT-07.6/BUSINESS-PROCESSES.md §3.1: SubmissionOpen -> SubmissionClosed,
+    /// manual early close with reason (the scheduled deadline-driven close is a system actor and
+    /// carries no permission check).</summary>
+    public const string RfqClose = "rfq.close";
+    /// <summary>FEAT-07.8/BUSINESS-PROCESSES.md §3.1: cancel from any pre-Awarded state, reason
+    /// mandatory.</summary>
+    public const string RfqCancel = "rfq.cancel";
+
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
         SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
-        AdminRolesManage, OfferingSearch
+        AdminRolesManage, OfferingSearch, EvaluationTemplateManage,
+        RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel
     ];
 }
 
@@ -83,10 +115,13 @@ public static class Roles
         [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
-        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch],
+        // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
+        // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template
+        // management is procurement_manager/system_admin per BACKLOG.md's own actor list.
+        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
-        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch],
+        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage],
         [Evaluator] = [Permissions.EvaluationScore],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
         // Ministry "read-only, cross-organization access to aggregate/governance metrics only",

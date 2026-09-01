@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { REFERENCE_CODE, mockBackend } from './fixtures'
+import { REFERENCE_CODE, RFQ_REFERENCE_CODE, mockBackend } from './fixtures'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -96,7 +96,9 @@ test('the route denominator is what the router actually declares, not what this 
   // 21 (Task #28): /accept-staff-invite and /back-office/staff added.
   // 23 (Epics 1/6 closure batch): /offerings and /back-office/roles added.
   // 24 (Epics 3/6 closure batch): /back-office/offerings added.
-  expect(routes.length).toBe(24)
+  // 27 (FEAT-11.1/EPIC-07): /back-office/evaluation-templates, /back-office/rfqs, and
+  // /back-office/rfqs/$referenceCode added.
+  expect(routes.length).toBe(27)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
@@ -115,6 +117,9 @@ for (const route of routes) {
       }
       if (route.name === 'reviewApplicationRoute') {
         target = target.replace('$referenceCode', REFERENCE_CODE)
+      }
+      if (route.name === 'rfqDetailRoute') {
+        target = target.replace('$referenceCode', RFQ_REFERENCE_CODE)
       }
 
       await page.goto(`${target}${target.includes('?') ? '&' : '?'}lng=${locale}`, { waitUntil: 'networkidle' })

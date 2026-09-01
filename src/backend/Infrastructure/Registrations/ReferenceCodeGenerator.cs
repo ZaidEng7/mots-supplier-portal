@@ -42,9 +42,16 @@ public static class ReferenceCodeGenerator
     /// stays consumed. That is the correct trade here and matches how a Postgres sequence behaves -
     /// nextval() does not roll back either. Gaps are harmless; reuse is not.
     /// </summary>
-    public static async Task<string> NextSupplierCodeAsync(AppDbContext db, CancellationToken ct)
+    public static async Task<string> NextSupplierCodeAsync(AppDbContext db, CancellationToken ct) =>
+        await NextCodeAsync(db, "SUP", ct);
+
+    /// <summary>FEAT-07.1/FR-RFQ-011: same atomic allocator, a different prefix ("RFQ-2026-000123",
+    /// DOMAIN-MODEL.md §2.2) - the counter table is keyed by the full prefix-plus-year string
+    /// (reference_code_counter.Prefix), so a new letter prefix needs no schema change, just a new
+    /// row on first use.</summary>
+    public static async Task<string> NextCodeAsync(AppDbContext db, string typePrefix, CancellationToken ct)
     {
-        var prefix = $"SUP-{DateTime.UtcNow.Year}-";
+        var prefix = $"{typePrefix}-{DateTime.UtcNow.Year}-";
         var next = await NextValueAsync(db, prefix, ct);
         return $"{prefix}{next:D6}";
     }

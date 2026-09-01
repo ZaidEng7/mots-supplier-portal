@@ -25,6 +25,10 @@ export function BackOfficeShell({ children }: Props) {
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
   const canSearchOfferings = useAuthStore((s) => s.claims?.permissions.includes('offering.search') ?? false)
+  // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.create/rfq.edit/etc on
+  // every actual RFQ endpoint regardless of what this link's visibility does.
+  const canManageRfqs = useAuthStore((s) => s.claims?.permissions.includes('rfq.create') ?? false)
+  const canManageEvaluationTemplates = useAuthStore((s) => s.claims?.permissions.includes('evaluation.template.manage') ?? false)
 
   const handleLogout = async () => {
     await apiLogout()
@@ -64,6 +68,16 @@ export function BackOfficeShell({ children }: Props) {
             {canSearchOfferings ? (
               <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('offeringSearch.title')}
+              </Link>
+            ) : null}
+            {canManageRfqs ? (
+              <Link to="/back-office/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('rfq.title')}
+              </Link>
+            ) : null}
+            {canManageEvaluationTemplates ? (
+              <Link to="/back-office/evaluation-templates" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('evaluationTemplates.title')}
               </Link>
             ) : null}
           </nav>
