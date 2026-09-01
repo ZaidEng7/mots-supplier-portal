@@ -236,6 +236,16 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         var afterToken = (await afterResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
         JwtClaims(afterToken).Should().Contain(Permissions.AuditRead,
             "the role edit must reach a fresh login's JWT, proving PermissionResolver reads live DB claims, not the static seed dictionary");
+
+        // This suite shares one Postgres database across every test in the run (PostgresApiFixture
+        // is a single collection fixture, not per-test) - the update above just overwrote the real
+        // "evaluator" role's permission set for every OTHER test still to run this session, silently
+        // dropping evaluation.submit (and anything else Roles.DefaultPermissions grants it beyond
+        // EvaluationScore). Restore the seeded default explicitly so this test's own side effect
+        // does not leak into unrelated evaluator-role tests elsewhere in the suite.
+        var restore = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.Evaluator}/permissions",
+            new { permissions = Roles.DefaultPermissions[Roles.Evaluator] });
+        restore.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     /// <summary>Regression test for a real bug caught in manual verification, not by the rest of

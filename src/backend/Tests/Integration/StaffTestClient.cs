@@ -77,6 +77,52 @@ public static class StaffTestClient
         return client;
     }
 
+    /// <summary>EPIC-11: evaluator-assignment tests need the real UserId to assign, not just an
+    /// authenticated client - unlike every other staff test client, whose caller never needs to
+    /// address the user by id.</summary>
+    public static async Task<(HttpClient Client, Guid UserId)> CreateWithIdAsync(PostgresApiFixture fixture, string role, Guid? organizationId = null)
+    {
+        var client = fixture.CreateClient();
+        var email = $"staff-{Guid.NewGuid():N}@ministry.example";
+        var userId = Guid.CreateVersion7();
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+            var user = new AppUser
+            {
+                Id = userId,
+                UserName = email,
+                Email = email,
+                FullName = "Integration Staff",
+                EmailConfirmed = true,
+                IsActive = true,
+                SupplierId = null,
+                OrganizationId = organizationId,
+            };
+
+            var created = await userManager.CreateAsync(user, Password);
+            if (!created.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    "Could not create the staff user: " +
+                    string.Join(", ", created.Errors.Select(e => e.Description)));
+            }
+
+            await userManager.AddToRoleAsync(user, role);
+        }
+
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = Password });
+        login.EnsureSuccessStatusCode();
+
+        var body = await login.Content.ReadFromJsonAsync<JsonElement>();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", body.GetProperty("accessToken").GetString());
+
+        return (client, userId);
+    }
+
     /// <summary>
     /// As <see cref="CreateAsync"/>, but for a role NFR-SEC-003 mandates MFA for (LoginHandler's
     /// <c>_mfaRequiredRoles</c> - system_admin by default). Plain <see cref="CreateAsync"/> gets a
