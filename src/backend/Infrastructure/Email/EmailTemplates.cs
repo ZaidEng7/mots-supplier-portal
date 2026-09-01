@@ -125,6 +125,16 @@ public static class EmailTemplates
             : ($"تم إصدار ملحق بخصوص {referenceCode}",
                $"<p>تم إصدار ملحق بخصوص {referenceCode}: <strong>{addendumTitle}</strong>.</p>");
 
+    /// <summary>FEAT-09.5/FR-PRP-006: the supplier's own submission receipt - "Email + in-app
+    /// receipt to supplier" (BUSINESS-PROCESSES.md §4.1). Never includes pricing - a receipt
+    /// confirms submission happened, it does not restate the sealed financial envelope.</summary>
+    public static (string Subject, string Body) ProposalSubmitted(string? locale, string proposalReferenceCode, string rfqReferenceCode) =>
+        IsEnglish(locale)
+            ? ($"Proposal {proposalReferenceCode} submitted",
+               $"<p>Your proposal ({proposalReferenceCode}) for {rfqReferenceCode} has been submitted successfully.</p>")
+            : ($"تم إرسال العرض {proposalReferenceCode}",
+               $"<p>تم إرسال عرضك ({proposalReferenceCode}) الخاص بـ {rfqReferenceCode} بنجاح.</p>");
+
     public static (string Subject, string Body) InfoRequested(string? locale, string reason) =>
         IsEnglish(locale)
             ? ("Action needed on your supplier application",

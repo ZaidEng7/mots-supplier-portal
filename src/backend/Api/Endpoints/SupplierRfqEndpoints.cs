@@ -19,10 +19,12 @@ public sealed class PostClarificationRequestValidator : AbstractValidator<PostCl
 /// SupplierRfqLoader's own doc comment); a non-invited supplier gets 404 here, not a filtered
 /// empty view, so there is no oracle telling them the RFQ exists at all.
 ///
-/// <para>Permission reuses Permissions.ProposalSubmit rather than introducing a new one - it is
-/// already the only RFQ-adjacent permission supplier_admin/supplier_user hold (granted for the
-/// not-yet-built EPIC-09), and it already captures "this persona may interact with an invited
-/// RFQ towards proposing" without inventing a second, near-duplicate grant.</para></summary>
+/// <para>Permission uses Permissions.ProposalCreate (both supplier_admin and supplier_user hold
+/// it, BUSINESS-PROCESSES.md §4.1's own actor column for "start proposal") rather than
+/// ProposalSubmit - EPIC-09 corrected ProposalSubmit to supplier_admin-only per that same table, so
+/// reusing it here would have silently locked supplier_user out of viewing/declining/asking on
+/// their own invitations, which is a materially different action from submitting a
+/// proposal.</para></summary>
 public static class SupplierRfqEndpoints
 {
     private static IResult MapResult(SupplierRfqResult result) => result switch
@@ -39,19 +41,19 @@ public static class SupplierRfqEndpoints
 
         group.MapGet("/", async (ISupplierListInvitedRfqsHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.HandleAsync(ct)))
-        .RequirePermission(Permissions.ProposalSubmit)
+        .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierListInvitedRfqs");
 
         group.MapGet("/{referenceCode}", async (
             string referenceCode, ISupplierGetRfqHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
-        .RequirePermission(Permissions.ProposalSubmit)
+        .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierGetRfq");
 
         group.MapPost("/{referenceCode}/decline", async (
             string referenceCode, DeclineInvitationRequest request, ISupplierDeclineInvitationHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(new DeclineInvitationCommand(referenceCode, request.Reason), ct)))
-        .RequirePermission(Permissions.ProposalSubmit)
+        .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierDeclineInvitation");
 
         group.MapPost("/{referenceCode}/clarifications", async (
@@ -66,7 +68,7 @@ public static class SupplierRfqEndpoints
 
             return MapResult(await handler.HandleAsync(new PostClarificationQuestionCommand(referenceCode, request.Question), ct));
         })
-        .RequirePermission(Permissions.ProposalSubmit)
+        .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierPostClarification");
     }
 }

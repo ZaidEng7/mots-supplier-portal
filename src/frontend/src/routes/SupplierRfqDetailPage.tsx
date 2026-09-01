@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq, declineInvitation, postClarification, SupplierRfqApiError } from '../api/supplierRfqs'
@@ -59,6 +59,13 @@ export function SupplierRfqDetailPage() {
           </h1>
           <Badge tone={rfq.myInvitationStatus === 'Declined' ? 'danger' : 'info'}>{rfq.myInvitationStatus}</Badge>
         </div>
+        {rfq.myInvitationStatus !== 'Declined' ? (
+          <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode }}
+            className="rounded-md px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)]"
+            style={{ backgroundColor: 'var(--color-brand-solid)', color: 'var(--color-text-inverse)' }}>
+            {t('proposal.goToMyProposal')}
+          </Link>
+        ) : null}
       </div>
 
       <Card title={t('rfq.fields.items')}>

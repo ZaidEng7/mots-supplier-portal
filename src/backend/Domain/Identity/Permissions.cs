@@ -35,6 +35,10 @@ public static class Permissions
     /// supplier from all future selection, and deactivation is irreversible.</summary>
     public const string SupplierLifecycleManage = "supplier.lifecycle.manage";
     public const string RfqPublish = "rfq.publish";
+    /// <summary>FEAT-09.5/FR-PRP-006/BUSINESS-PROCESSES.md §4.1 "Draft -&gt; Submitted ...
+    /// supplier_admin / proposal.submit" - supplier_admin only, not supplier_user (EPIC-09's own
+    /// correction: this constant predates the Proposal aggregate and was granted to both supplier
+    /// roles as a placeholder; Roles.DefaultPermissions below now matches the table exactly).</summary>
     public const string ProposalSubmit = "proposal.submit";
     public const string EvaluationScore = "evaluation.score";
     public const string AwardApprove = "award.approve";
@@ -99,6 +103,19 @@ public static class Permissions
     /// where RfqEdit is legal only Draft.</summary>
     public const string RfqAddendum = "rfq.addendum";
 
+    /// <summary>FEAT-09.1/FR-PRP-001, BUSINESS-PROCESSES.md §4.1: start a proposal - the table
+    /// grants this to BOTH supplier_admin and supplier_user, unlike ProposalSubmit/ProposalWithdraw
+    /// below which the same table restricts to supplier_admin only.</summary>
+    public const string ProposalCreate = "proposal.create";
+    /// <summary>FEAT-09.1..09.4/BUSINESS-PROCESSES.md §4.1 "Draft -&gt; Draft: Autosave / edit":
+    /// content edits while Draft (pricing, terms, requirement answers, documents) - both supplier
+    /// roles, same as ProposalCreate.</summary>
+    public const string ProposalEdit = "proposal.edit";
+    /// <summary>FEAT-09.6/FR-PRP-008/BUSINESS-PROCESSES.md §4.1: "Draft / Submitted -&gt; Withdrawn
+    /// ... supplier_admin / proposal.withdraw" - supplier_admin only, not supplier_user, per that
+    /// table's own actor column.</summary>
+    public const string ProposalWithdraw = "proposal.withdraw";
+
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
@@ -106,7 +123,7 @@ public static class Permissions
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
         AdminRolesManage, OfferingSearch, EvaluationTemplateManage,
         RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
-        ClarificationAnswer, RfqAddendum
+        ClarificationAnswer, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw
     ];
 }
 
@@ -125,8 +142,11 @@ public static class Roles
     /// <summary>Default permission set per persona at seed time (admin-editable thereafter).</summary>
     public static readonly IReadOnlyDictionary<string, string[]> DefaultPermissions = new Dictionary<string, string[]>
     {
-        [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
-        [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
+        // EPIC-09/BUSINESS-PROCESSES.md §4.1: proposal.create/proposal.edit go to both supplier
+        // roles; proposal.submit/proposal.withdraw are supplier_admin only per that table's own
+        // actor column.
+        [SupplierAdmin] = [Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
+        [SupplierUser] = [Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
         // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template

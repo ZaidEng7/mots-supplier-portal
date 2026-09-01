@@ -15,7 +15,9 @@ namespace MotsSupplierPortal.Infrastructure.Rfqs;
 /// non-invited supplier's request finds no row and gets the same NotFoundOrNotInvited a wrong
 /// reference code would, so the two cases are indistinguishable from outside (no oracle for
 /// "does this RFQ exist").</summary>
-file static class SupplierRfqLoader
+/// <summary>Internal (not file-scoped) so EPIC-09's ProposalHandlers.cs can reuse LoadInvitedAsync
+/// for "is this caller invited to this RFQ" rather than reimplementing the same check.</summary>
+internal static class SupplierRfqLoader
 {
     /// <summary>Also requires the RFQ to be Published or later - Draft/InternalReview/Approved
     /// RFQs are buyer-internal even for an already-invited supplier (invitations can be created

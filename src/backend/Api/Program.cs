@@ -19,6 +19,7 @@ using MotsSupplierPortal.Application.Reference;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Rfqs;
+using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
@@ -29,6 +30,7 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
+using MotsSupplierPortal.Infrastructure.Proposals;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -252,6 +254,17 @@ builder.Services.AddScoped<IAnswerClarificationHandler, AnswerClarificationHandl
 builder.Services.AddScoped<IPublishClarificationHandler, PublishClarificationHandler>();
 builder.Services.AddScoped<IIssueAddendumHandler, IssueAddendumHandler>();
 builder.Services.AddScoped<ISupplierPostClarificationHandler, SupplierPostClarificationHandler>();
+
+// EPIC-09: Proposals.
+builder.Services.AddScoped<IStartProposalHandler, StartProposalHandler>();
+builder.Services.AddScoped<IGetProposalHandler, GetProposalHandler>();
+builder.Services.AddScoped<IManageProposalItemHandler, ManageProposalItemHandler>();
+builder.Services.AddScoped<ISetCommercialTermsHandler, SetCommercialTermsHandler>();
+builder.Services.AddScoped<ISetNarrativeHandler, SetNarrativeHandler>();
+builder.Services.AddScoped<IAnswerRequirementHandler, AnswerRequirementHandler>();
+builder.Services.AddScoped<IManageProposalDocumentHandler, ManageProposalDocumentHandler>();
+builder.Services.AddScoped<ISubmitProposalHandler, SubmitProposalHandler>();
+builder.Services.AddScoped<IWithdrawProposalHandler, WithdrawProposalHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
@@ -635,6 +648,7 @@ app.MapOfferingEndpoints();
 app.MapEvaluationTemplateEndpoints();
 app.MapRfqEndpoints();
 app.MapSupplierRfqEndpoints();
+app.MapProposalEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

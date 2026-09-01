@@ -5,7 +5,7 @@ import { renderPage, mockFetch } from '../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }), Link: 'a' }
 })
 
 const { SupplierRfqDetailPage } = await import('./SupplierRfqDetailPage')
