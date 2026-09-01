@@ -91,6 +91,13 @@ public static class Permissions
     /// named actor/action pair in BUSINESS-PROCESSES.md, even though both are procurement_officer
     /// today.</summary>
     public const string RfqInvite = "rfq.invite";
+    /// <summary>FEAT-10.2/FR-CLR-002: answer a clarification question, privately or published -
+    /// procurement_officer per that FR's own actor.</summary>
+    public const string ClarificationAnswer = "clarification.answer";
+    /// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: issue an RFQ addendum - the "locked after
+    /// Published except addenda" carve-out, distinct from RfqEdit since it is legal only Published+
+    /// where RfqEdit is legal only Draft.</summary>
+    public const string RfqAddendum = "rfq.addendum";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -98,7 +105,8 @@ public static class Permissions
         SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
         AdminRolesManage, OfferingSearch, EvaluationTemplateManage,
-        RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite
+        RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
+        ClarificationAnswer, RfqAddendum
     ];
 }
 
@@ -123,7 +131,7 @@ public static class Roles
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
         // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template
         // management is procurement_manager/system_admin per BACKLOG.md's own actor list.
-        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite],
+        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqAddendum],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
         [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage],

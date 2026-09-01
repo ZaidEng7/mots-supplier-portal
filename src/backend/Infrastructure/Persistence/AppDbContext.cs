@@ -48,6 +48,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<RfqAttachment> RfqAttachments => Set<RfqAttachment>();
     public DbSet<RfqApproval> RfqApprovals => Set<RfqApproval>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<Clarification> Clarifications => Set<Clarification>();
+    public DbSet<Addendum> Addenda => Set<Addendum>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -542,6 +544,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasMany(r => r.Attachments).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Approvals).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Invitations).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(r => r.Clarifications).WithOne().HasForeignKey(c => c.RfqId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(r => r.Addenda).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RfqItem>(entity =>
@@ -601,6 +605,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(i => i.DeclineReason).HasMaxLength(2000);
             entity.HasIndex(i => new { i.RfqId, i.SupplierId }).IsUnique();
             entity.HasIndex(i => i.SupplierId);
+        });
+
+        // FEAT-10.1..10.3/DOMAIN-MODEL.md §5.4: Question is required at construction; Answer starts
+        // null until AnswerClarification sets it (see Clarification.cs's own doc comment on why
+        // AskedBySupplierId is always stored and only ever hidden at the DTO layer).
+        modelBuilder.Entity<Clarification>(entity =>
+        {
+            entity.ToTable("clarification", "rfq");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Question).HasMaxLength(4000).IsRequired();
+            entity.Property(c => c.Answer).HasMaxLength(4000);
+            entity.Property(c => c.Visibility).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(c => c.RfqId);
+            entity.HasIndex(c => c.AskedBySupplierId);
+        });
+
+        // FEAT-10.4/BRULE-038: additive record, never mutates the RFQ's original content - see
+        // Addendum.cs's own doc comment.
+        modelBuilder.Entity<Addendum>(entity =>
+        {
+            entity.ToTable("addendum", "rfq");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.TitleAr).HasMaxLength(300).IsRequired();
+            entity.Property(a => a.TitleEn).HasMaxLength(300).IsRequired();
+            entity.Property(a => a.DescriptionAr).HasMaxLength(4000).IsRequired();
+            entity.Property(a => a.DescriptionEn).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(a => a.RfqId);
         });
     }
 }

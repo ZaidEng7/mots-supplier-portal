@@ -26,6 +26,8 @@ public sealed class Rfq
     private readonly List<RfqAttachment> _attachments = [];
     private readonly List<RfqApproval> _approvals = [];
     private readonly List<Invitation> _invitations = [];
+    private readonly List<Clarification> _clarifications = [];
+    private readonly List<Addendum> _addenda = [];
 
     public Guid Id { get; private init; }
     public string ReferenceCode { get; private init; } = null!;
@@ -53,6 +55,8 @@ public sealed class Rfq
     public IReadOnlyList<RfqAttachment> Attachments => _attachments;
     public IReadOnlyList<RfqApproval> Approvals => _approvals;
     public IReadOnlyList<Invitation> Invitations => _invitations;
+    public IReadOnlyList<Clarification> Clarifications => _clarifications;
+    public IReadOnlyList<Addendum> Addenda => _addenda;
 
     private Rfq() { }
 
@@ -304,6 +308,114 @@ public sealed class Rfq
         invitation.Status = InvitationStatus.Declined;
         invitation.DeclineReason = reason;
         invitation.RespondedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>FEAT-10.5/FR-CLR-005: the clarification window is Published or SubmissionOpen, and
+    /// (when set) before ClarificationDeadlineAt - a refinement of the submission window
+    /// (DOMAIN-MODEL.md §5.4's Timeline VO groups clarificationDeadline alongside submissionWindow),
+    /// falling back to SubmissionClosesAt when no separate deadline was set. Judgment call, flagged:
+    /// neither doc states this fallback explicitly; the alternative (no deadline = no window at all)
+    /// would make ClarificationDeadlineAt's optionality meaningless, so "unset means it tracks the
+    /// submission window" is the reading that keeps the field's own nullability coherent.</summary>
+    private void EnsureClarificationWindowOpen()
+    {
+        if (State is not (RfqState.Published or RfqState.SubmissionOpen))
+        {
+            throw new DomainException($"Cannot post a clarification from state '{State}'; the RFQ must be Published or SubmissionOpen.");
+        }
+        var deadline = ClarificationDeadlineAt ?? SubmissionClosesAt;
+        if (deadline is not null && DateTimeOffset.UtcNow > deadline)
+        {
+            throw new DomainException("Cannot post a clarification: the clarification window has closed.");
+        }
+    }
+
+    /// <summary>FEAT-10.1/FR-CLR-001: invited-supplier-only is enforced by the caller (handler),
+    /// same cross-aggregate split as InviteSupplier's own Active check - this method only enforces
+    /// the window.</summary>
+    public Clarification PostClarificationQuestion(Guid supplierId, string question)
+    {
+        EnsureClarificationWindowOpen();
+        if (string.IsNullOrWhiteSpace(question)) throw new DomainException("A question is required.");
+
+        var clarification = new Clarification
+        {
+            Id = Guid.CreateVersion7(),
+            RfqId = Id,
+            AskedBySupplierId = supplierId,
+            Question = question,
+            AskedAt = DateTimeOffset.UtcNow,
+        };
+        _clarifications.Add(clarification);
+        return clarification;
+    }
+
+    /// <summary>FEAT-10.2/FR-CLR-002, OQ-008 interim: <paramref name="publish"/> defaults to false
+    /// at the API layer (private-by-default) with publishing available as an explicit, separate
+    /// choice - either here or later via PublishClarification. Refused once already answered: a
+    /// buyer correcting an answer is a new clarification, not silently rewriting the audited
+    /// one.</summary>
+    public void AnswerClarification(Guid clarificationId, string answer, bool publish)
+    {
+        var clarification = _clarifications.FirstOrDefault(c => c.Id == clarificationId)
+            ?? throw new DomainException("Clarification not found.");
+        if (clarification.Answer is not null)
+        {
+            throw new DomainException("This clarification has already been answered.");
+        }
+        if (string.IsNullOrWhiteSpace(answer)) throw new DomainException("An answer is required.");
+
+        clarification.Answer = answer;
+        clarification.AnsweredAt = DateTimeOffset.UtcNow;
+        clarification.Visibility = publish ? ClarificationVisibility.PublishedToAll : ClarificationVisibility.PrivateToAsker;
+    }
+
+    /// <summary>FEAT-10.2/FR-CLR-002: promotes an already-privately-answered clarification to
+    /// PublishedToAll - the explicit publish action for a question answered privately at first.</summary>
+    public void PublishClarification(Guid clarificationId)
+    {
+        var clarification = _clarifications.FirstOrDefault(c => c.Id == clarificationId)
+            ?? throw new DomainException("Clarification not found.");
+        if (clarification.Answer is null)
+        {
+            throw new DomainException("Cannot publish a clarification that has not been answered yet.");
+        }
+        if (clarification.Visibility == ClarificationVisibility.PublishedToAll)
+        {
+            throw new DomainException("This clarification is already published.");
+        }
+
+        clarification.Visibility = ClarificationVisibility.PublishedToAll;
+    }
+
+    /// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: the first real use of "locked after Published
+    /// except addenda" - allowed only once actually Published (an unpublished RFQ still uses normal
+    /// Draft edits) and only while suppliers can still act on it (not after SubmissionClosed, since
+    /// there is nothing left to inform them about in time to matter).</summary>
+    public Addendum IssueAddendum(string titleAr, string titleEn, string descriptionAr, string descriptionEn, Guid issuedByUserId)
+    {
+        if (State is not (RfqState.Published or RfqState.SubmissionOpen))
+        {
+            throw new DomainException($"Cannot issue an addendum from state '{State}'; the RFQ must be Published or SubmissionOpen.");
+        }
+        if (string.IsNullOrWhiteSpace(titleAr)) throw new DomainException("Addendum title (Arabic) is required.");
+        if (string.IsNullOrWhiteSpace(titleEn)) throw new DomainException("Addendum title (English) is required.");
+        if (string.IsNullOrWhiteSpace(descriptionAr)) throw new DomainException("Addendum description (Arabic) is required.");
+        if (string.IsNullOrWhiteSpace(descriptionEn)) throw new DomainException("Addendum description (English) is required.");
+
+        var addendum = new Addendum
+        {
+            Id = Guid.CreateVersion7(),
+            RfqId = Id,
+            TitleAr = titleAr,
+            TitleEn = titleEn,
+            DescriptionAr = descriptionAr,
+            DescriptionEn = descriptionEn,
+            IssuedAt = DateTimeOffset.UtcNow,
+            IssuedByUserId = issuedByUserId,
+        };
+        _addenda.Add(addendum);
+        return addendum;
     }
 
     /// <summary>Draft -> InternalReview (BUSINESS-PROCESSES.md §3.1: "Draft | InternalReview |

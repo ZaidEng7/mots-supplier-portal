@@ -19,7 +19,8 @@ internal static class RfqDtoMapper
     /// whole page instead of N+1 (see its own comment).</summary>
     public static async Task<RfqDto> ToDtoAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
     {
-        var supplierIds = rfq.Invitations.Select(i => i.SupplierId).Distinct().ToList();
+        var supplierIds = rfq.Invitations.Select(i => i.SupplierId)
+            .Concat(rfq.Clarifications.Select(c => c.AskedBySupplierId)).Distinct().ToList();
         var names = await SupplierNamesAsync(db, supplierIds, ct);
         return ToDto(rfq, names);
     }
@@ -48,9 +49,21 @@ internal static class RfqDtoMapper
         {
             (string Ar, string En) name = supplierNames.TryGetValue(i.SupplierId, out var n) ? n : ("", "");
             return new InvitationDto(i.Id, i.SupplierId, name.Ar, name.En, i.Status, i.InvitedAt, i.ViewedAt, i.RespondedAt, i.DeclineReason);
-        })]);
+        })],
+        [.. rfq.Clarifications.OrderBy(c => c.AskedAt).Select(c =>
+        {
+            (string Ar, string En) name = supplierNames.TryGetValue(c.AskedBySupplierId, out var n) ? n : ("", "");
+            return new ClarificationDto(c.Id, c.AskedBySupplierId, name.Ar, name.En, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt);
+        })],
+        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))]);
 
-    public static SupplierRfqDto ToSupplierDto(Rfq rfq, Invitation myInvitation) => new(
+    /// <summary>FEAT-10.3/FR-CLR-003: the anonymization boundary. Only <paramref name="supplierId"/>'s
+    /// own clarifications (any Visibility) plus every OTHER supplier's PublishedToAll clarifications
+    /// are included - a PrivateToAsker item belonging to someone else is not just anonymized, it is
+    /// entirely absent from this list, matching OQ-008's "private to the asking supplier". IsMine is
+    /// computed here, server-side, from the real AskedBySupplierId - never trust a client-supplied
+    /// flag for this.</summary>
+    public static SupplierRfqDto ToSupplierDto(Rfq rfq, Invitation myInvitation, Guid supplierId) => new(
         rfq.ReferenceCode, rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn, rfq.CurrencyCode, rfq.State,
         rfq.SubmissionOpensAt, rfq.SubmissionClosesAt, rfq.ClarificationDeadlineAt,
         [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
@@ -58,7 +71,12 @@ internal static class RfqDtoMapper
             i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
         [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
         [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
-        myInvitation.Status);
+        myInvitation.Status,
+        [.. rfq.Clarifications
+            .Where(c => c.AskedBySupplierId == supplierId || c.Visibility == ClarificationVisibility.PublishedToAll)
+            .OrderBy(c => c.AskedAt)
+            .Select(c => new SupplierClarificationDto(c.Id, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt, c.AskedBySupplierId == supplierId))],
+        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))]);
 }
 
 /// <summary>Shared loader: every RFQ handler in this file row-scopes to the caller's own
@@ -75,7 +93,7 @@ file static class RfqLoader
     // once four sibling collections are all included together.
     public static IQueryable<Rfq> IncludeAll(this DbSet<Rfq> set) =>
         set.Include(r => r.Items).Include(r => r.Requirements).Include(r => r.Attachments).Include(r => r.Approvals)
-            .Include(r => r.Invitations)
+            .Include(r => r.Invitations).Include(r => r.Clarifications).Include(r => r.Addenda)
             .AsSplitQuery();
 
     public static async Task<Rfq?> LoadScopedAsync(AppDbContext db, IScopeContext scope, string referenceCode, CancellationToken ct)
@@ -628,5 +646,137 @@ public sealed class SuggestInvitationCandidatesHandler(AppDbContext db, IScopeCo
         return [.. activeSuppliers
             .Select(s => new InvitationCandidateDto(s.Id, s.DisplayNameAr, s.DisplayNameEn, matchCounts.GetValueOrDefault(s.Id, 0)))
             .OrderByDescending(c => c.MatchCount)];
+    }
+}
+
+/// <summary>FEAT-10.2/FR-CLR-002, OQ-008 interim (private-by-default, explicit publish available):
+/// command.Publish defaults to false at the API layer. Notifies only the asker - a
+/// PublishedToAll answer additionally notifies every other invited supplier via
+/// PublishClarificationHandler below (answering-and-publishing-at-once still only reaches the
+/// asker at answer time here; the visibility flip's own notification covers the rest, kept as one
+/// notification per actual visibility change rather than double-emailing on the combined
+/// action).</summary>
+public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
+    : IAnswerClarificationHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(AnswerClarificationCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        Clarification clarification;
+        try
+        {
+            rfq.AnswerClarification(command.ClarificationId, command.Answer, command.Publish);
+            clarification = rfq.Clarifications.Single(c => c.Id == command.ClarificationId);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_answered", scope.UserId, referenceCode: rfq.ReferenceCode,
+            changes: $"{{\"clarificationId\":\"{command.ClarificationId}\",\"published\":{(command.Publish ? "true" : "false")}}}", ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        await NotifyAskerAsync(db, backgroundJobs, clarification.AskedBySupplierId, rfq.Id, clarification.Id, ct);
+        if (command.Publish)
+        {
+            await NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
+        }
+
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+
+    internal static async Task NotifyAskerAsync(AppDbContext db, IBackgroundJobClient backgroundJobs, Guid supplierId, Guid rfqId, Guid clarificationId, CancellationToken ct)
+    {
+        var userId = await db.Users.Where(u => u.SupplierId == supplierId).Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
+        if (userId is not null)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendClarificationAnsweredEmailAsync(userId.Value, rfqId, clarificationId, CancellationToken.None));
+        }
+    }
+
+    internal static async Task NotifyOtherInviteesAsync(AppDbContext db, IBackgroundJobClient backgroundJobs, Rfq rfq, Guid excludeSupplierId, CancellationToken ct)
+    {
+        var otherSupplierIds = rfq.Invitations.Select(i => i.SupplierId).Where(id => id != excludeSupplierId).ToList();
+        if (otherSupplierIds.Count == 0) return;
+
+        var userIds = await db.Users.Where(u => u.SupplierId != null && otherSupplierIds.Contains(u.SupplierId.Value))
+            .Select(u => u.Id).ToListAsync(ct);
+        foreach (var userId in userIds)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendClarificationPublishedEmailAsync(userId, rfq.Id, CancellationToken.None));
+        }
+    }
+}
+
+/// <summary>FEAT-10.2/FR-CLR-002: promotes a privately-answered clarification to PublishedToAll -
+/// notifies every OTHER invited supplier (the asker already knows their own answer).</summary>
+public sealed class PublishClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
+    : IPublishClarificationHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(PublishClarificationCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        Clarification clarification;
+        try
+        {
+            rfq.PublishClarification(command.ClarificationId);
+            clarification = rfq.Clarifications.Single(c => c.Id == command.ClarificationId);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_published", scope.UserId,
+            referenceCode: rfq.ReferenceCode, changes: $"{{\"clarificationId\":\"{command.ClarificationId}\"}}", ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        await AnswerClarificationHandler.NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
+
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}
+
+/// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: the first real use of "locked after Published except
+/// addenda" (Rfq.IssueAddendum's own doc comment). Notifies every invited supplier.</summary>
+public sealed class IssueAddendumHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
+    : IIssueAddendumHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(IssueAddendumCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+        if (scope.UserId is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        Addendum addendum;
+        try
+        {
+            addendum = rfq.IssueAddendum(command.TitleAr, command.TitleEn, command.DescriptionAr, command.DescriptionEn, scope.UserId.Value);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.Addenda.Add(addendum);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_addendum_issued", scope.UserId,
+            referenceCode: rfq.ReferenceCode, changes: $"{{\"addendumId\":\"{addendum.Id}\"}}", ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        var invitedSupplierIds = rfq.Invitations.Select(i => i.SupplierId).ToList();
+        var userIds = invitedSupplierIds.Count == 0
+            ? []
+            : await db.Users.Where(u => u.SupplierId != null && invitedSupplierIds.Contains(u.SupplierId.Value)).Select(u => u.Id).ToListAsync(ct);
+        foreach (var userId in userIds)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendRfqAddendumEmailAsync(userId, rfq.Id, addendum.Id, CancellationToken.None));
+        }
+
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }

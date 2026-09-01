@@ -7,7 +7,8 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
-  inviteSupplier, suggestInvitationCandidates, RfqApiError,
+  inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
+  RfqApiError,
 } from '../../api/rfqs'
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
 import { fetchCategories, fetchUnitsOfMeasure } from '../../api/reference'
@@ -33,6 +34,11 @@ export function RfqDetailPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [returnComments, setReturnComments] = useState('')
   const [cancelReason, setCancelReason] = useState('')
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string; publish: boolean }>>({})
+  const [addendumTitleAr, setAddendumTitleAr] = useState('')
+  const [addendumTitleEn, setAddendumTitleEn] = useState('')
+  const [addendumDescAr, setAddendumDescAr] = useState('')
+  const [addendumDescEn, setAddendumDescEn] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['rfq', referenceCode], queryFn: () => getRfq(referenceCode) })
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
@@ -125,6 +131,35 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.invitations.errors.inviteFailed')) }),
   })
 
+  const answerMutation = useMutation({
+    mutationFn: ({ clarificationId, answer, publish }: { clarificationId: string; answer: string; publish: boolean }) =>
+      answerClarification(referenceCode, clarificationId, answer, publish),
+    onSuccess: (_, { clarificationId }) => {
+      invalidate()
+      notify({ kind: 'success', title: t('rfq.clarifications.answered') })
+      setAnswerDrafts((prev) => { const next = { ...prev }; delete next[clarificationId]; return next })
+    },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.clarifications.errors.answerFailed')) }),
+  })
+
+  const publishClarificationMutation = useMutation({
+    mutationFn: (clarificationId: string) => publishClarification(referenceCode, clarificationId),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.clarifications.published') }) },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.clarifications.errors.answerFailed')) }),
+  })
+
+  const addendumMutation = useMutation({
+    mutationFn: () => issueAddendum(referenceCode, {
+      titleAr: addendumTitleAr, titleEn: addendumTitleEn, descriptionAr: addendumDescAr, descriptionEn: addendumDescEn,
+    }),
+    onSuccess: () => {
+      invalidate()
+      notify({ kind: 'success', title: t('rfq.addenda.issued') })
+      setAddendumTitleAr(''); setAddendumTitleEn(''); setAddendumDescAr(''); setAddendumDescEn('')
+    },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.addenda.errors.issueFailed')) }),
+  })
+
   const cancelMutation = useMutation({
     mutationFn: () => cancelRfq(referenceCode, cancelReason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }); setCancelReason('') },
@@ -143,6 +178,8 @@ export function RfqDetailPage() {
   const canInvite = !['SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting', 'Recommendation', 'AwardApproval', 'Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
   const invitedSupplierIds = new Set(rfq.invitations.map((i) => i.supplierId))
   const uninvitedCandidates = candidates.filter((c) => !invitedSupplierIds.has(c.supplierId))
+  const canIssueAddendum = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
+  const draftFor = (id: string) => answerDrafts[id] ?? { text: '', publish: false }
 
   return (
     <div className="flex flex-col gap-6">
@@ -321,6 +358,82 @@ export function RfqDetailPage() {
               ))}
             </ul>
           </div>
+        ) : null}
+      </Card>
+
+      <Card title={t('rfq.clarifications.title')}>
+        {rfq.clarifications.length > 0 ? (
+          <ul className="flex flex-col gap-4">
+            {rfq.clarifications.map((c) => {
+              const draft = draftFor(c.id)
+              return (
+                <li key={c.id} className="border-b pb-4 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-[var(--fw-medium)]">{isArabic ? c.askedBySupplierNameAr : c.askedBySupplierNameEn}: {c.question}</p>
+                    <Badge tone={c.visibility === 'PublishedToAll' ? 'success' : 'info'}>
+                      {c.visibility === 'PublishedToAll' ? t('rfq.clarifications.published') : t('rfq.clarifications.private')}
+                    </Badge>
+                  </div>
+                  {c.answer ? (
+                    <p className="mt-1" style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.answerLabel')}: {c.answer}</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-end gap-2">
+                      <Input aria-label={t('rfq.clarifications.answerLabel')} placeholder={t('rfq.clarifications.answerLabel')}
+                        value={draft.text} onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, text: e.target.value } }))} />
+                      <label className="flex items-center gap-1 text-[length:var(--text-body-sm)]">
+                        <input type="checkbox" checked={draft.publish}
+                          onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, publish: e.target.checked } }))} />
+                        {t('rfq.clarifications.publishNow')}
+                      </label>
+                      <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
+                        onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text, publish: draft.publish })}>
+                        {t('rfq.clarifications.answer')}
+                      </Button>
+                    </div>
+                  )}
+                  {c.answer && c.visibility === 'PrivateToAsker' ? (
+                    <Button size="sm" variant="secondary" className="mt-2" isLoading={publishClarificationMutation.isPending}
+                      onClick={() => publishClarificationMutation.mutate(c.id)}>
+                      {t('rfq.clarifications.publish')}
+                    </Button>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.none')}</p>
+        )}
+      </Card>
+
+      <Card title={t('rfq.addenda.title')}>
+        {rfq.addenda.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {rfq.addenda.map((a) => (
+              <li key={a.id}>
+                <p className="font-[var(--fw-medium)]">{isArabic ? a.titleAr : a.titleEn}</p>
+                <p style={{ color: 'var(--color-text-secondary)' }}>{isArabic ? a.descriptionAr : a.descriptionEn}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.addenda.none')}</p>
+        )}
+        {canIssueAddendum ? (
+          <form className="mt-4 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); addendumMutation.mutate() }}>
+            <div className="flex flex-wrap gap-2">
+              <Input aria-label={t('rfq.fields.titleEn')} placeholder={t('rfq.fields.titleEn')} value={addendumTitleEn} onChange={(e) => setAddendumTitleEn(e.target.value)} />
+              <Input aria-label={t('rfq.fields.titleAr')} placeholder={t('rfq.fields.titleAr')} value={addendumTitleAr} onChange={(e) => setAddendumTitleAr(e.target.value)} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Input aria-label={t('rfq.addenda.descriptionEn')} placeholder={t('rfq.addenda.descriptionEn')} value={addendumDescEn} onChange={(e) => setAddendumDescEn(e.target.value)} />
+              <Input aria-label={t('rfq.addenda.descriptionAr')} placeholder={t('rfq.addenda.descriptionAr')} value={addendumDescAr} onChange={(e) => setAddendumDescAr(e.target.value)} />
+            </div>
+            <Button type="submit" size="sm" className="self-start" isLoading={addendumMutation.isPending}
+              disabled={!addendumTitleAr || !addendumTitleEn || !addendumDescAr || !addendumDescEn}>
+              {t('rfq.addenda.issue')}
+            </Button>
+          </form>
         ) : null}
       </Card>
 

@@ -70,6 +70,26 @@ public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqReque
 
 public sealed record InviteSupplierRequest(Guid SupplierId);
 
+public sealed record AnswerClarificationRequest(string Answer, bool Publish);
+
+public sealed class AnswerClarificationRequestValidator : AbstractValidator<AnswerClarificationRequest>
+{
+    public AnswerClarificationRequestValidator() => RuleFor(x => x.Answer).NotEmpty().MaximumLength(4000);
+}
+
+public sealed record IssueAddendumRequest(string TitleAr, string TitleEn, string DescriptionAr, string DescriptionEn);
+
+public sealed class IssueAddendumRequestValidator : AbstractValidator<IssueAddendumRequest>
+{
+    public IssueAddendumRequestValidator()
+    {
+        RuleFor(x => x.TitleAr).NotEmpty().MaximumLength(300);
+        RuleFor(x => x.TitleEn).NotEmpty().MaximumLength(300);
+        RuleFor(x => x.DescriptionAr).NotEmpty().MaximumLength(4000);
+        RuleFor(x => x.DescriptionEn).NotEmpty().MaximumLength(4000);
+    }
+}
+
 /// <summary>FEAT-07.1..07.10/FR-RFQ-001..013. State-transition endpoints are permission-guarded
 /// per BUSINESS-PROCESSES.md §3.1's own actor/permission column (verified directly against that
 /// table, not inferred) - rfq.publish already existed in the catalog before this session; the rest
@@ -298,5 +318,42 @@ public static class RfqEndpoints
             Results.Ok(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.RfqInvite)
         .WithName("SuggestInvitationCandidates");
+
+        group.MapPost("/{referenceCode}/clarifications/{clarificationId:guid}/answer", async (
+            string referenceCode,
+            Guid clarificationId,
+            AnswerClarificationRequest request,
+            IValidator<AnswerClarificationRequest> validator,
+            IAnswerClarificationHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
+            return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer, request.Publish), ct));
+        })
+        .RequirePermission(Permissions.ClarificationAnswer)
+        .WithName("AnswerClarification");
+
+        group.MapPost("/{referenceCode}/clarifications/{clarificationId:guid}/publish", async (
+            string referenceCode, Guid clarificationId, IPublishClarificationHandler handler, CancellationToken ct) =>
+            MapMutation(await handler.HandleAsync(new PublishClarificationCommand(referenceCode, clarificationId), ct)))
+        .RequirePermission(Permissions.ClarificationAnswer)
+        .WithName("PublishClarification");
+
+        group.MapPost("/{referenceCode}/addenda", async (
+            string referenceCode,
+            IssueAddendumRequest request,
+            IValidator<IssueAddendumRequest> validator,
+            IIssueAddendumHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
+            return MapMutation(await handler.HandleAsync(new IssueAddendumCommand(referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn), ct));
+        })
+        .RequirePermission(Permissions.RfqAddendum)
+        .WithName("IssueAddendum");
     }
 }

@@ -17,7 +17,7 @@ function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
     descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state,
     publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
     evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
-    items: [], requirements: [], attachments: [], approvals: [], invitations: [],
+    items: [], requirements: [], attachments: [], approvals: [], invitations: [], clarifications: [], addenda: [],
     ...overrides,
   }
 }
@@ -153,5 +153,64 @@ describe('RfqDetailPage', () => {
 
     const row = (await screen.findByText('Invited Co')).closest('tr') as HTMLElement
     expect(within(row).getByText('Viewed')).toBeInTheDocument()
+  })
+
+  it('shows an unanswered clarification with an answer form, and answering shows a success toast', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
+        clarifications: [
+          { id: 'cl-1', askedBySupplierId: 'sup-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Asker Co', question: 'What is the incoterm?', answer: null, visibility: 'PrivateToAsker', askedAt: '2026-08-01T00:00:00Z', answeredAt: null },
+        ],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText(/What is the incoterm\?/)).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Answer'), 'FOB.')
+    await userEvent.click(screen.getByRole('button', { name: 'Answer' }))
+
+    expect(await screen.findByText('Answer saved')).toBeInTheDocument()
+  })
+
+  it('shows a Publish button for a privately-answered clarification, and clicking it shows a success toast', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
+        clarifications: [
+          { id: 'cl-1', askedBySupplierId: 'sup-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Asker Co', question: 'Q?', answer: 'A.', visibility: 'PrivateToAsker', askedAt: '2026-08-01T00:00:00Z', answeredAt: '2026-08-02T00:00:00Z' },
+        ],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Publish to all' }))
+
+    expect(await screen.findByText('Published to all')).toBeInTheDocument()
+  })
+
+  it('Published: shows the addendum form, and issuing one shows a success toast', async () => {
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.type(await screen.findByLabelText('Title (English)'), 'Deadline extended')
+    await userEvent.type(screen.getByLabelText('Title (Arabic)'), 'تمديد الموعد')
+    await userEvent.type(screen.getByLabelText('Description (English)'), 'The deadline has moved.')
+    await userEvent.type(screen.getByLabelText('Description (Arabic)'), 'تم تمديد الموعد.')
+    await userEvent.click(screen.getByRole('button', { name: 'Issue addendum' }))
+
+    expect(await screen.findByText('Addendum issued')).toBeInTheDocument()
+  })
+
+  it('Draft: hides the addendum form (locked-after-Published-except-addenda does not apply pre-publish)', async () => {
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByText('Draft')
+    expect(screen.queryByRole('button', { name: 'Issue addendum' })).not.toBeInTheDocument()
   })
 })

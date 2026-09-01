@@ -82,14 +82,14 @@ export const RFQ_FIXTURE = {
   descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Draft',
   publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
   evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
-  items: [], requirements: [], attachments: [], approvals: [], invitations: [],
+  items: [], requirements: [], attachments: [], approvals: [], invitations: [], clarifications: [], addenda: [],
 }
 
 export const SUPPLIER_RFQ_FIXTURE = {
   referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
   descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Published',
   submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
-  items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited',
+  items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited', clarifications: [], addenda: [],
 }
 
 export const EVALUATION_TEMPLATE_FIXTURE = {
