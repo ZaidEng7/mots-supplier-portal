@@ -112,6 +112,11 @@ export async function mockBackend(page: Page) {
     // Task #7/Stage C: list endpoints return real arrays, not the generic {} fallback below -
     // an empty object crashes OrganizationsPage's .map() the same way any list page would.
     if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
+    // Closure batch (EPIC-01/06): same class of bug - RolesPage's roles.flatMap() and
+    // OfferingCatalogPage's offerings.map() both crash on {} the same way OrganizationsPage did.
+    if (p === '/api/v1/admin/roles') return route.fulfill({ json: [{ name: 'system_admin', permissions: ['admin.roles.manage'] }] })
+    if (p === '/api/v1/suppliers/me/offerings') return route.fulfill({ json: [] })
+    if (p === '/api/v1/reference/units-of-measure') return route.fulfill({ json: [{ code: 'unit', nameAr: 'وحدة', nameEn: 'Unit' }] })
 
     // Anything else (mutation endpoints no initial render triggers, unanticipated GETs): benign
     // empty success, so an unmocked call cannot crash the page under scan.

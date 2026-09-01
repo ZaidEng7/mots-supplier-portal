@@ -35,7 +35,7 @@ export function RolesPage() {
   const { notify } = useToast()
   const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: listRoles })
   const roles = rolesQuery.data ?? []
-  const allPermissions = [...new Set(roles.flatMap((r) => r.permissions))].sort()
+  const allPermissions = [...new Set(roles.flatMap((r) => r.permissions))].sort((a, b) => a.localeCompare(b))
 
   const updateMutation = useMutation({
     mutationFn: ({ roleName, permissions }: { roleName: string; permissions: string[] }) => updateRolePermissions(roleName, permissions),

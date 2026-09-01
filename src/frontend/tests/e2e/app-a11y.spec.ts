@@ -94,7 +94,8 @@ test('the route denominator is what the router actually declares, not what this 
   //
   // 19 (Task #7/Stage C): /back-office/organizations added.
   // 21 (Task #28): /accept-staff-invite and /back-office/staff added.
-  expect(routes.length).toBe(21)
+  // 23 (Epics 1/6 closure batch): /offerings and /back-office/roles added.
+  expect(routes.length).toBe(23)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
