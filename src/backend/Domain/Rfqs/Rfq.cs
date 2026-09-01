@@ -557,6 +557,26 @@ public sealed class Rfq
         State = RfqState.SubmissionClosed;
     }
 
+    /// <summary>SubmissionClosed -> UnderEvaluation (BUSINESS-PROCESSES.md §3.1:
+    /// procurement_officer,procurement_manager / evaluation.open; guard "&gt;=1 Submitted proposal
+    /// [ASSUMPTION] else re-tender/cancel; committee assignable"; "Create Evaluation; unlock
+    /// scoring"). EPIC-11's real prerequisite: FEAT-07.7 left UnderEvaluation onward as an
+    /// enum-only stub; this is the one transition into it this build actually needs, closing that
+    /// specific piece of the stub rather than the whole thing (Clarification/Shortlisting/
+    /// Recommendation/AwardApproval/Awarded/Completed remain unreachable, EPIC-13/14
+    /// territory). The ">=1 Submitted proposal" guard is cross-aggregate (Proposal lives in a
+    /// different aggregate) - OpenEvaluationHandler checks it before calling this, same split as
+    /// every other cross-aggregate guard in this codebase.</summary>
+    public void OpenEvaluation()
+    {
+        if (State != RfqState.SubmissionClosed)
+        {
+            throw new DomainException($"Cannot open evaluation from state '{State}'; only 'SubmissionClosed' is valid.");
+        }
+
+        State = RfqState.UnderEvaluation;
+    }
+
     /// <summary>Cancel from any pre-Awarded state (BUSINESS-PROCESSES.md §3.1: procurement_manager
     /// / rfq.cancel, reason mandatory). Terminal - Cancelled has no outgoing transition.</summary>
     public void Cancel(string reason)

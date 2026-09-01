@@ -116,6 +116,26 @@ public static class Permissions
     /// table's own actor column.</summary>
     public const string ProposalWithdraw = "proposal.withdraw";
 
+    /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1 "SubmissionClosed -&gt;
+    /// UnderEvaluation ... procurement_officer,procurement_manager / evaluation.open".</summary>
+    public const string EvaluationOpen = "evaluation.open";
+    /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1 "— -&gt; Assigned ...
+    /// procurement_manager / evaluation.assign" - also used for RecuseEvaluator (the same
+    /// manager-held roster-management authority).</summary>
+    public const string EvaluationAssign = "evaluation.assign";
+    /// <summary>FEAT-11.5/FR-EVL-006, BUSINESS-PROCESSES.md §5.1 "InProgress -&gt;
+    /// EvaluatorSubmitted ... evaluator / evaluation.submit".</summary>
+    public const string EvaluationSubmit = "evaluation.submit";
+    /// <summary>FEAT-11.6/FR-EVL-007, BUSINESS-PROCESSES.md §5.1 "EvaluatorSubmitted -&gt;
+    /// Consolidated ... procurement_officer,procurement_manager / evaluation.consolidate".</summary>
+    public const string EvaluationConsolidate = "evaluation.consolidate";
+    /// <summary>FEAT-11.6/FR-EVL-008, BUSINESS-PROCESSES.md §5.1 "Consolidated -&gt; Finalized ...
+    /// procurement_manager / evaluation.finalize".</summary>
+    public const string EvaluationFinalize = "evaluation.finalize";
+    /// <summary>BUSINESS-PROCESSES.md §5.1 "Consolidated -&gt; InProgress ... procurement_manager /
+    /// evaluation.reopen", reason mandatory.</summary>
+    public const string EvaluationReopen = "evaluation.reopen";
+
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
@@ -123,7 +143,8 @@ public static class Permissions
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
         AdminRolesManage, OfferingSearch, EvaluationTemplateManage,
         RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
-        ClarificationAnswer, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw
+        ClarificationAnswer, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
+        EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen
     ];
 }
 
@@ -151,11 +172,11 @@ public static class Roles
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
         // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template
         // management is procurement_manager/system_admin per BACKLOG.md's own actor list.
-        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqAddendum],
+        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
-        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage],
-        [Evaluator] = [Permissions.EvaluationScore],
+        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen],
+        [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
         // Ministry "read-only, cross-organization access to aggregate/governance metrics only",
         // and BRULE-087 defaults to aggregate-only where visibility is undecided. A raw audit-row

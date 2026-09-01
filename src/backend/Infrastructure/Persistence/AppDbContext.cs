@@ -55,6 +55,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ProposalItem> ProposalItems => Set<ProposalItem>();
     public DbSet<ProposalDocument> ProposalDocuments => Set<ProposalDocument>();
     public DbSet<RequirementAnswer> RequirementAnswers => Set<RequirementAnswer>();
+    public DbSet<MotsSupplierPortal.Domain.Evaluation.Evaluation> Evaluations => Set<MotsSupplierPortal.Domain.Evaluation.Evaluation>();
+    public DbSet<EvaluationCriterionSnapshot> EvaluationCriterionSnapshots => Set<EvaluationCriterionSnapshot>();
+    public DbSet<EvaluationAssignment> EvaluationAssignments => Set<EvaluationAssignment>();
+    public DbSet<EvaluatorScore> EvaluatorScores => Set<EvaluatorScore>();
+    public DbSet<ConsolidatedResult> ConsolidatedResults => Set<ConsolidatedResult>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -703,6 +708,70 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(a => a.AnswerAr).HasMaxLength(4000).IsRequired();
             entity.Property(a => a.AnswerEn).HasMaxLength(4000).IsRequired();
             entity.HasIndex(a => new { a.ProposalId, a.RequirementId }).IsUnique();
+        });
+
+        // EPIC-11/DOMAIN-MODEL.md §5.7: Evaluation is its own aggregate root (schema "evaluation"),
+        // bound to RfqId - same "own bounded context, referenced by id" shape as Proposal. One
+        // Evaluation per Rfq (unique index on RfqId).
+        modelBuilder.Entity<MotsSupplierPortal.Domain.Evaluation.Evaluation>(entity =>
+        {
+            entity.ToTable("evaluation", "evaluation");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.State).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.RowVersion).IsRowVersion();
+            entity.HasIndex(e => e.RfqId).IsUnique();
+            entity.HasMany(e => e.Criteria).WithOne().HasForeignKey(c => c.EvaluationId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(e => e.Assignments).WithOne().HasForeignKey(a => a.EvaluationId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(e => e.Scores).WithOne().HasForeignKey(s => s.EvaluationId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(e => e.Results).WithOne().HasForeignKey(r => r.EvaluationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationCriterionSnapshot>(entity =>
+        {
+            entity.ToTable("evaluation_criterion_snapshot", "evaluation");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.NameAr).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.NameEn).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.Dimension).HasConversion<string>().HasMaxLength(20);
+            entity.Property(c => c.ScoringType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(c => c.Weight).HasPrecision(5, 2);
+            entity.Property(c => c.MaxScore).HasPrecision(6, 2);
+            entity.Property(c => c.Threshold).HasPrecision(6, 2);
+            entity.Ignore(c => c.IsFinancial);
+            entity.HasIndex(c => c.EvaluationId);
+        });
+
+        modelBuilder.Entity<EvaluationAssignment>(entity =>
+        {
+            entity.ToTable("evaluation_assignment", "evaluation");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.RecusalReason).HasMaxLength(2000);
+            entity.Ignore(a => a.IsActive);
+            entity.HasIndex(a => new { a.EvaluationId, a.EvaluatorUserId }).IsUnique();
+        });
+
+        // FEAT-11.3/DATABASE-MODEL.md §2.6: unique(EvaluationId, EvaluatorUserId, ProposalId,
+        // CriterionId) is the DB-enforced guarantee behind blind independent scoring (OQ-005/
+        // BRULE-058) - one row per evaluator per proposal per criterion, never shared.
+        modelBuilder.Entity<EvaluatorScore>(entity =>
+        {
+            entity.ToTable("evaluator_score", "evaluation");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.RawScore).HasPrecision(6, 2);
+            entity.Property(s => s.CommentAr).HasMaxLength(2000);
+            entity.Property(s => s.CommentEn).HasMaxLength(2000);
+            entity.HasIndex(s => new { s.EvaluationId, s.EvaluatorUserId, s.ProposalId, s.CriterionId }).IsUnique();
+            entity.HasIndex(s => new { s.EvaluationId, s.EvaluatorUserId });
+        });
+
+        modelBuilder.Entity<ConsolidatedResult>(entity =>
+        {
+            entity.ToTable("consolidated_result", "evaluation");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.TechnicalWeightedScore).HasPrecision(8, 2);
+            entity.Property(r => r.FinancialWeightedScore).HasPrecision(8, 2);
+            entity.Property(r => r.WeightedTotal).HasPrecision(8, 2);
+            entity.HasIndex(r => new { r.EvaluationId, r.ProposalId }).IsUnique();
         });
     }
 }

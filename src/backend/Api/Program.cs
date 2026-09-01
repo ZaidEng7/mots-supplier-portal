@@ -20,6 +20,7 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Proposals;
+using MotsSupplierPortal.Application.Evaluations;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
@@ -31,6 +32,7 @@ using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Proposals;
+using MotsSupplierPortal.Infrastructure.Evaluations;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -266,6 +268,18 @@ builder.Services.AddScoped<IManageProposalDocumentHandler, ManageProposalDocumen
 builder.Services.AddScoped<ISubmitProposalHandler, SubmitProposalHandler>();
 builder.Services.AddScoped<IWithdrawProposalHandler, WithdrawProposalHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
+
+// EPIC-11: Evaluation (two-envelope technical-qualification gate).
+builder.Services.AddScoped<IOpenEvaluationHandler, OpenEvaluationHandler>();
+builder.Services.AddScoped<IGetEvaluationHandler, GetEvaluationHandler>();
+builder.Services.AddScoped<IAssignEvaluatorsHandler, AssignEvaluatorsHandler>();
+builder.Services.AddScoped<IRecuseEvaluatorHandler, RecuseEvaluatorHandler>();
+builder.Services.AddScoped<IConsolidateEvaluationHandler, ConsolidateEvaluationHandler>();
+builder.Services.AddScoped<IFinalizeEvaluationHandler, FinalizeEvaluationHandler>();
+builder.Services.AddScoped<IReopenEvaluationHandler, ReopenEvaluationHandler>();
+builder.Services.AddScoped<IGetMyEvaluationHandler, GetMyEvaluationHandler>();
+builder.Services.AddScoped<IScoreCriterionHandler, ScoreCriterionHandler>();
+builder.Services.AddScoped<ISubmitEvaluatorHandler, SubmitEvaluatorHandler>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
@@ -649,6 +663,7 @@ app.MapEvaluationTemplateEndpoints();
 app.MapRfqEndpoints();
 app.MapSupplierRfqEndpoints();
 app.MapProposalEndpoints();
+app.MapEvaluationEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

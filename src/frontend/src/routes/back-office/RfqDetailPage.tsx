@@ -12,6 +12,10 @@ import {
 } from '../../api/rfqs'
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
 import { fetchCategories, fetchUnitsOfMeasure } from '../../api/reference'
+import {
+  getEvaluation, openEvaluation, assignEvaluators, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
+  EvaluationApiError,
+} from '../../api/evaluations'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -39,6 +43,10 @@ export function RfqDetailPage() {
   const [addendumTitleEn, setAddendumTitleEn] = useState('')
   const [addendumDescAr, setAddendumDescAr] = useState('')
   const [addendumDescEn, setAddendumDescEn] = useState('')
+  const [evaluatorUserId, setEvaluatorUserId] = useState('')
+  const [recuseReason, setRecuseReason] = useState('')
+  const [recuseTargetId, setRecuseTargetId] = useState('')
+  const [reopenReason, setReopenReason] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['rfq', referenceCode], queryFn: () => getRfq(referenceCode) })
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
@@ -48,12 +56,19 @@ export function RfqDetailPage() {
     queryKey: ['rfq-candidates', referenceCode],
     queryFn: () => suggestInvitationCandidates(referenceCode),
   })
-
   const rfq = rfqQuery.data
+  const evaluationEligible = !!rfq && ['SubmissionClosed', 'UnderEvaluation'].includes(rfq.state)
+  const evaluationQuery = useQuery({
+    queryKey: ['evaluation', referenceCode],
+    queryFn: () => getEvaluation(referenceCode),
+    enabled: evaluationEligible,
+  })
+
   const categories = categoriesQuery.data ?? []
   const units = unitsQuery.data ?? []
   const activeTemplates = (templatesQuery.data ?? []).filter((tpl) => tpl.status === 'Active')
   const candidates = candidatesQuery.data ?? []
+  const evaluation = evaluationQuery.data ?? null
 
   const errorMessage = (err: unknown, fallback: string) => (err instanceof RfqApiError ? err.message : fallback)
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['rfq', referenceCode] })
@@ -164,6 +179,45 @@ export function RfqDetailPage() {
     mutationFn: () => cancelRfq(referenceCode, cancelReason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }); setCancelReason('') },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
+  })
+
+  const evaluationErrorMessage = (err: unknown, fallback: string) => (err instanceof EvaluationApiError ? err.message : fallback)
+  const invalidateEvaluation = () => invalidateQuietly(queryClient, { queryKey: ['evaluation', referenceCode] })
+
+  const openEvaluationMutation = useMutation({
+    mutationFn: () => openEvaluation(referenceCode),
+    onSuccess: () => { invalidate(); invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.opened') }) },
+    onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
+  })
+
+  const assignEvaluatorsMutation = useMutation({
+    mutationFn: () => assignEvaluators(referenceCode, [evaluatorUserId]),
+    onSuccess: () => { invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.assigned') }); setEvaluatorUserId('') },
+    onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
+  })
+
+  const recuseEvaluatorMutation = useMutation({
+    mutationFn: () => recuseEvaluator(referenceCode, recuseTargetId, recuseReason),
+    onSuccess: () => { invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.recused') }); setRecuseReason(''); setRecuseTargetId('') },
+    onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
+  })
+
+  const consolidateMutation = useMutation({
+    mutationFn: () => consolidateEvaluation(referenceCode),
+    onSuccess: () => { invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.consolidated') }) },
+    onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
+  })
+
+  const finalizeMutation = useMutation({
+    mutationFn: () => finalizeEvaluation(referenceCode),
+    onSuccess: () => { invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.finalized') }) },
+    onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
+  })
+
+  const reopenEvaluationMutation = useMutation({
+    mutationFn: () => reopenEvaluation(referenceCode, reopenReason),
+    onSuccess: () => { invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.reopened') }); setReopenReason('') },
+    onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
   })
 
   if (rfqQuery.isLoading || !rfq) {
@@ -455,6 +509,171 @@ export function RfqDetailPage() {
               ))}
             </TableBody>
           </Table>
+        </Card>
+      ) : null}
+
+      {evaluationEligible ? (
+        <Card title={t('evaluation.title')}>
+          {!evaluation ? (
+            rfq.state === 'SubmissionClosed' ? (
+              <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
+                {t('evaluation.open')}
+              </Button>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.notOpened')}</p>
+            )
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <Badge tone={evaluation.state === 'Finalized' ? 'success' : 'info'}>{evaluation.state}</Badge>
+                {evaluation.state !== 'NotStarted' ? (
+                  <a href={`/back-office/rfqs/${referenceCode}/my-evaluation`}>
+                    <Button size="sm" variant="secondary">{t('evaluation.my.title')}</Button>
+                  </a>
+                ) : null}
+              </div>
+
+              <div>
+                <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.criteria')}</p>
+                <Table caption={t('evaluation.criteria')}>
+                  <TableHead>
+                    <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
+                    <TableHeaderCell>{t('evaluation.dimension')}</TableHeaderCell>
+                    <TableHeaderCell>{t('evaluation.weight')}</TableHeaderCell>
+                    <TableHeaderCell>{t('evaluation.threshold')}</TableHeaderCell>
+                    <TableHeaderCell>{t('evaluation.envelope')}</TableHeaderCell>
+                  </TableHead>
+                  <TableBody>
+                    {evaluation.criteria.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>{isArabic ? c.nameAr : c.nameEn}</TableCell>
+                        <TableCell>{c.dimension}</TableCell>
+                        <TableCell>{c.weight}</TableCell>
+                        <TableCell>{c.threshold ?? '—'}</TableCell>
+                        <TableCell>
+                          <Badge tone={c.isFinancial ? 'warning' : 'info'}>
+                            {c.isFinancial ? t('evaluation.financialEnvelope') : t('evaluation.technicalEnvelope')}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div>
+                <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.assignments')}</p>
+                {evaluation.assignments.length > 0 ? (
+                  <Table caption={t('evaluation.assignments')}>
+                    <TableHead>
+                      <TableHeaderCell>{t('evaluation.evaluator')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.submittedAt')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.recusedAt')}</TableHeaderCell>
+                      {evaluation.state !== 'Finalized' ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
+                    </TableHead>
+                    <TableBody>
+                      {evaluation.assignments.map((a) => (
+                        <TableRow key={a.evaluatorUserId}>
+                          <TableCell>{a.evaluatorUserId}</TableCell>
+                          <TableCell>{a.submittedAt ? new Date(a.submittedAt).toLocaleString() : '—'}</TableCell>
+                          <TableCell>{a.recusedAt ? t('evaluation.recusedWithReason', { reason: a.recusalReason }) : '—'}</TableCell>
+                          {evaluation.state !== 'Finalized' ? (
+                            <TableCell>
+                              {!a.recusedAt && !a.submittedAt ? (
+                                <Button size="sm" variant="ghost" onClick={() => setRecuseTargetId(a.evaluatorUserId)}>
+                                  {t('evaluation.recuse')}
+                                </Button>
+                              ) : null}
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.noAssignments')}</p>
+                )}
+
+                {evaluation.state !== 'Finalized' && evaluation.state !== 'Consolidated' ? (
+                  <div className="mt-4 flex flex-wrap items-end gap-2">
+                    <Input aria-label={t('evaluation.evaluatorUserId')} placeholder={t('evaluation.evaluatorUserId')}
+                      value={evaluatorUserId} onChange={(e) => setEvaluatorUserId(e.target.value)} />
+                    <Button size="sm" isLoading={assignEvaluatorsMutation.isPending} disabled={!evaluatorUserId}
+                      onClick={() => assignEvaluatorsMutation.mutate()}>
+                      {t('evaluation.assign')}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {recuseTargetId ? (
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <Input aria-label={t('evaluation.recuseReason')} placeholder={t('evaluation.recuseReason')}
+                      value={recuseReason} onChange={(e) => setRecuseReason(e.target.value)} />
+                    <Button size="sm" variant="ghost" isLoading={recuseEvaluatorMutation.isPending} disabled={!recuseReason}
+                      onClick={() => recuseEvaluatorMutation.mutate()}>
+                      {t('evaluation.confirmRecuse')}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              {evaluation.results.length > 0 ? (
+                <div>
+                  <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.results')}</p>
+                  <Table caption={t('evaluation.results')}>
+                    <TableHead>
+                      <TableHeaderCell>{t('evaluation.rank')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.proposal')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.qualified')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.technicalScore')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.financialScore')}</TableHeaderCell>
+                      <TableHeaderCell>{t('evaluation.total')}</TableHeaderCell>
+                    </TableHead>
+                    <TableBody>
+                      {[...evaluation.results].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)).map((r) => (
+                        <TableRow key={r.proposalId}>
+                          <TableCell>{r.rank ?? '—'}</TableCell>
+                          <TableCell>{r.proposalId}</TableCell>
+                          <TableCell>
+                            <Badge tone={r.technicallyQualified ? 'success' : 'danger'}>
+                              {r.technicallyQualified ? t('evaluation.qualifiedYes') : t('evaluation.qualifiedNo')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{r.technicalWeightedScore.toFixed(2)}</TableCell>
+                          <TableCell>{r.financialWeightedScore !== null ? r.financialWeightedScore.toFixed(2) : '—'}</TableCell>
+                          <TableCell>{r.weightedTotal.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                {evaluation.state === 'EvaluatorSubmitted' ? (
+                  <Button isLoading={consolidateMutation.isPending} onClick={() => consolidateMutation.mutate()}>
+                    {t('evaluation.consolidate')}
+                  </Button>
+                ) : null}
+                {evaluation.state === 'Consolidated' ? (
+                  <Button isLoading={finalizeMutation.isPending} onClick={() => finalizeMutation.mutate()}>
+                    {t('evaluation.finalize')}
+                  </Button>
+                ) : null}
+              </div>
+
+              {evaluation.state === 'Consolidated' ? (
+                <div className="flex flex-wrap items-end gap-2">
+                  <Input aria-label={t('evaluation.reopenReason')} placeholder={t('evaluation.reopenReason')}
+                    value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
+                  <Button size="sm" variant="ghost" isLoading={reopenEvaluationMutation.isPending} disabled={!reopenReason}
+                    onClick={() => reopenEvaluationMutation.mutate()}>
+                    {t('evaluation.reopen')}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          )}
         </Card>
       ) : null}
 
