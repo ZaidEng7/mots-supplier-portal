@@ -21,6 +21,7 @@ using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Evaluations;
+using MotsSupplierPortal.Application.Comparison;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
@@ -33,6 +34,7 @@ using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Proposals;
 using MotsSupplierPortal.Infrastructure.Evaluations;
+using MotsSupplierPortal.Infrastructure.Comparison;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -280,6 +282,9 @@ builder.Services.AddScoped<IReopenEvaluationHandler, ReopenEvaluationHandler>();
 builder.Services.AddScoped<IGetMyEvaluationHandler, GetMyEvaluationHandler>();
 builder.Services.AddScoped<IScoreCriterionHandler, ScoreCriterionHandler>();
 builder.Services.AddScoped<ISubmitEvaluatorHandler, SubmitEvaluatorHandler>();
+
+// EPIC-12: Comparison (derived read-side view over Proposal + Evaluation).
+builder.Services.AddScoped<IGetComparisonHandler, GetComparisonHandler>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
@@ -664,6 +669,7 @@ app.MapRfqEndpoints();
 app.MapSupplierRfqEndpoints();
 app.MapProposalEndpoints();
 app.MapEvaluationEndpoints();
+app.MapComparisonEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing
