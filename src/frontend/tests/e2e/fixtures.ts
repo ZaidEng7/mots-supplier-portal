@@ -82,7 +82,14 @@ export const RFQ_FIXTURE = {
   descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Draft',
   publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
   evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
-  items: [], requirements: [], attachments: [], approvals: [],
+  items: [], requirements: [], attachments: [], approvals: [], invitations: [],
+}
+
+export const SUPPLIER_RFQ_FIXTURE = {
+  referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
+  descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Published',
+  submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
+  items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited',
 }
 
 export const EVALUATION_TEMPLATE_FIXTURE = {
@@ -142,6 +149,11 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/evaluation-templates') return route.fulfill({ json: [EVALUATION_TEMPLATE_FIXTURE] })
     if (p === '/api/v1/rfqs') return route.fulfill({ json: [RFQ_FIXTURE] })
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: RFQ_FIXTURE })
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/invitations/candidates`) return route.fulfill({ json: [] })
+    // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
+    // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
+    if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })
+    if (p === `/api/v1/suppliers/me/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: SUPPLIER_RFQ_FIXTURE })
 
     // Anything else (mutation endpoints no initial render triggers, unanticipated GETs): benign
     // empty success, so an unmocked call cannot crash the page under scan.

@@ -68,6 +68,8 @@ public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqReque
     public CancelRfqRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
+public sealed record InviteSupplierRequest(Guid SupplierId);
+
 /// <summary>FEAT-07.1..07.10/FR-RFQ-001..013. State-transition endpoints are permission-guarded
 /// per BUSINESS-PROCESSES.md §3.1's own actor/permission column (verified directly against that
 /// table, not inferred) - rfq.publish already existed in the catalog before this session; the rest
@@ -82,6 +84,7 @@ public static class RfqEndpoints
         RfqMutationResult.InvalidCategory => Results.BadRequest(new { error = "invalid_category" }),
         RfqMutationResult.InvalidUnitOfMeasure => Results.BadRequest(new { error = "invalid_unit_of_measure" }),
         RfqMutationResult.InvalidEvaluationTemplate invalid => Results.BadRequest(new { error = "invalid_evaluation_template", message = invalid.Message }),
+        RfqMutationResult.SupplierNotActive => Results.BadRequest(new { error = "supplier_not_active" }),
         _ => Results.Problem(),
     };
 
@@ -283,5 +286,17 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqCancel)
         .WithName("CancelRfq");
+
+        group.MapPost("/{referenceCode}/invitations", async (
+            string referenceCode, InviteSupplierRequest request, IInviteSupplierHandler handler, CancellationToken ct) =>
+            MapMutation(await handler.HandleAsync(new InviteSupplierCommand(referenceCode, request.SupplierId), ct)))
+        .RequirePermission(Permissions.RfqInvite)
+        .WithName("InviteSupplier");
+
+        group.MapGet("/{referenceCode}/invitations/candidates", async (
+            string referenceCode, ISuggestInvitationCandidatesHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(referenceCode, ct)))
+        .RequirePermission(Permissions.RfqInvite)
+        .WithName("SuggestInvitationCandidates");
     }
 }

@@ -25,6 +25,7 @@ public sealed class Rfq
     private readonly List<Requirement> _requirements = [];
     private readonly List<RfqAttachment> _attachments = [];
     private readonly List<RfqApproval> _approvals = [];
+    private readonly List<Invitation> _invitations = [];
 
     public Guid Id { get; private init; }
     public string ReferenceCode { get; private init; } = null!;
@@ -51,6 +52,7 @@ public sealed class Rfq
     public IReadOnlyList<Requirement> Requirements => _requirements;
     public IReadOnlyList<RfqAttachment> Attachments => _attachments;
     public IReadOnlyList<RfqApproval> Approvals => _approvals;
+    public IReadOnlyList<Invitation> Invitations => _invitations;
 
     private Rfq() { }
 
@@ -241,16 +243,76 @@ public sealed class Rfq
         EvaluationTemplateSnapshotJson = snapshotJson;
     }
 
+    /// <summary>FEAT-08.1/FR-INV-001/BRULE-032: invite a candidate supplier. Allowed from Draft
+    /// through SubmissionOpen (not after SubmissionClosed) - this is what lets a candidate be
+    /// identified before InternalReview (closing SubmitForReview's own gap below) while also
+    /// covering FEAT-08.5's late-invite-while-open case with a single guard. "Only Active suppliers
+    /// invitable" (BRULE-032) is NOT checked here - Supplier lifecycle lives on a different
+    /// aggregate, so the caller (handler) verifies Active before invoking this, same cross-aggregate
+    /// split already used for EvaluationTemplate.MarkReferenced.</summary>
+    public Invitation InviteSupplier(Guid supplierId)
+    {
+        if (State is RfqState.SubmissionClosed or RfqState.UnderEvaluation or RfqState.Clarification
+            or RfqState.Shortlisting or RfqState.Recommendation or RfqState.AwardApproval
+            or RfqState.Awarded or RfqState.Completed or RfqState.Cancelled)
+        {
+            throw new DomainException($"Cannot invite a supplier from state '{State}'; invitations are only allowed up to and including 'SubmissionOpen'.");
+        }
+        if (_invitations.Any(i => i.SupplierId == supplierId))
+        {
+            throw new DomainException("This supplier has already been invited.");
+        }
+
+        var invitation = new Invitation
+        {
+            Id = Guid.CreateVersion7(),
+            RfqId = Id,
+            SupplierId = supplierId,
+            Status = InvitationStatus.Invited,
+            InvitedAt = DateTimeOffset.UtcNow,
+        };
+        _invitations.Add(invitation);
+        return invitation;
+    }
+
+    /// <summary>FEAT-08.6/FR-INV-006: called by the supplier-facing detail endpoint the first time
+    /// an invited supplier views the RFQ. A no-op once the invitation has moved past Invited, so
+    /// re-viewing never regresses a later status back to Viewed.</summary>
+    public void MarkInvitationViewed(Guid supplierId)
+    {
+        var invitation = _invitations.FirstOrDefault(i => i.SupplierId == supplierId)
+            ?? throw new DomainException("This supplier has no invitation to this RFQ.");
+        if (invitation.Status != InvitationStatus.Invited) return;
+
+        invitation.Status = InvitationStatus.Viewed;
+        invitation.ViewedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>FEAT-08.4/FR-INV-004: supplier-initiated decline, optional reason. Refused once the
+    /// invitation already carries a Submitted proposal - withdrawing a live proposal is EPIC-09's
+    /// FEAT-09.6 (Withdraw), a different action from declining an invitation that was never acted
+    /// on.</summary>
+    public void DeclineInvitation(Guid supplierId, string? reason)
+    {
+        var invitation = _invitations.FirstOrDefault(i => i.SupplierId == supplierId)
+            ?? throw new DomainException("This supplier has no invitation to this RFQ.");
+        if (invitation.Status == InvitationStatus.Submitted)
+        {
+            throw new DomainException("Cannot decline an invitation with an already-submitted proposal; withdraw the proposal instead.");
+        }
+
+        invitation.Status = InvitationStatus.Declined;
+        invitation.DeclineReason = reason;
+        invitation.RespondedAt = DateTimeOffset.UtcNow;
+    }
+
     /// <summary>Draft -> InternalReview (BUSINESS-PROCESSES.md §3.1: "Draft | InternalReview |
     /// Submit for review | procurement_officer / rfq.submit_review | >=1 RfqItem; deadlines set &amp;
     /// future; EvaluationTemplateRef bound; >=1 candidate supplier identified").
     ///
-    /// <para><b>Guard not implemented, flagged not silently skipped:</b> "&gt;=1 candidate supplier
-    /// identified" cannot be enforced here - candidate suppliers are an Invitation concept
-    /// (EPIC-08), which does not exist in this build. Implementing this guard against nothing would
-    /// either always pass (meaningless) or always fail (blocking every RFQ this session can ever
-    /// produce); neither is honest, so it is simply not checked. This is a real gap to close when
-    /// EPIC-08 lands, not a decision that a candidate-supplier requirement doesn't apply.</para></summary>
+    /// <para><b>EPIC-08 gap closed:</b> "&gt;=1 candidate supplier identified" is now enforced
+    /// against real Invitation rows (previously unenforced pending EPIC-08 - see git history on
+    /// this method for the flagged gap this replaces).</para></summary>
     public void SubmitForReview()
     {
         if (State != RfqState.Draft)
@@ -272,6 +334,10 @@ public sealed class Rfq
         if (EvaluationTemplateId is null)
         {
             throw new DomainException("Cannot submit for review: an evaluation template must be bound.");
+        }
+        if (_invitations.Count == 0)
+        {
+            throw new DomainException("Cannot submit for review: at least one candidate supplier must be invited.");
         }
 
         _approvals.Add(new RfqApproval { Id = Guid.CreateVersion7(), RfqId = Id, StepNo = _approvals.Count + 1 });
@@ -326,8 +392,13 @@ public sealed class Rfq
 
     /// <summary>Approved -> Published (BUSINESS-PROCESSES.md §3.1: procurement_officer /
     /// rfq.publish; guard "Approved; invited suppliers are Active; submission open/close dates
-    /// valid"). "Invited suppliers Active" is not checked here - Invitations (EPIC-08) do not exist
-    /// in this build, same flagged gap as SubmitForReview's candidate-supplier guard.</summary>
+    /// valid").
+    ///
+    /// <para><b>EPIC-08 gap closed, cross-aggregate:</b> "invited suppliers are Active" is now
+    /// enforced, but not inside this method - Supplier lifecycle lives on a different aggregate, so
+    /// PublishRfqHandler checks every invited supplier's LifecycleState before calling Publish() and
+    /// refuses the whole operation (without ever calling this method) if any is not Active. Same
+    /// split already used for EvaluationTemplate.MarkReferenced.</para></summary>
     public void Publish()
     {
         if (State != RfqState.Approved)

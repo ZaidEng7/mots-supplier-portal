@@ -1,20 +1,21 @@
 import { useTranslation } from 'react-i18next'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, ClipboardList, Users, Settings } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Users, Settings, FileText } from 'lucide-react'
 
 const TABS = [
   { path: '/dashboard', key: 'dashboard', Icon: LayoutDashboard },
   { path: '/onboarding', key: 'onboarding', Icon: ClipboardList },
+  { path: '/rfqs', key: 'rfqs', Icon: FileText },
   { path: '/team', key: 'team', Icon: Users },
   { path: '/settings', key: 'settings', Icon: Settings },
 ] as const
 
 /** DESIGN-SYSTEM.md §5.5: bottom tab bar (max 5 items) for the supplier persona, shown ≤`md`
  * (768px, RESPONSIVE-AND-RTL.md §1) in place of the header's inline nav links, which otherwise
- * overflow at phone widths. Only 4 destinations exist today - room stays for a 5th (RFQs/
- * Proposals, future epics) without a redesign; once a 6th destination exists, the excess moves
- * under a "More" sheet per the same spec, not built yet since nothing exceeds 5. Active item
- * matched by path prefix so /onboarding/contacts etc. still highlight "Complete Profile". */
+ * overflow at phone widths. EPIC-08: RFQs is the 5th destination the original 4-tab build left
+ * room for - this is now at the documented 5-item cap; a 6th destination moves the excess under
+ * a "More" sheet per the same spec, not built yet since nothing exceeds 5. Active item matched by
+ * path prefix so /onboarding/contacts etc. still highlight "Complete Profile". */
 export function MobileTabBar() {
   const { t } = useTranslation()
   const pathname = useRouterState({ select: (s) => s.location.pathname })

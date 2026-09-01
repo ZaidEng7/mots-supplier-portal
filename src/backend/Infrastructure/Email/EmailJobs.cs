@@ -191,6 +191,29 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(reviewerUserId, recipient.Value.Email, subject, body, ct);
     }
 
+    // ---- RFQ / invitations -----------------------------------------------------------------
+
+    /// <summary>FEAT-08.3/FR-INV-003: recipient is the invited supplier's primary user, resolved
+    /// by InviteSupplierHandler at enqueue time. Takes the RFQ's Guid Id, not its ReferenceCode
+    /// string - MSP-89's job-argument rule (EmailJobArgumentTests) allows only identifiers typed
+    /// Guid, same "resolve inside the job" pattern SendApplicationResubmittedEmailAsync already
+    /// uses to derive a Supplier's ReferenceCode from its Guid Id.</summary>
+    public async Task SendRfqInvitationEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var rfq = await db.Rfqs.Where(r => r.Id == rfqId)
+            .Select(r => new { r.ReferenceCode, r.TitleAr, r.TitleEn }).FirstOrDefaultAsync(ct);
+        if (rfq is null) return;
+
+        var title = recipient.Value.Language == "en" ? rfq.TitleEn : rfq.TitleAr;
+        var deepLink = $"{PublicUrl}/rfqs/{Uri.EscapeDataString(rfq.ReferenceCode)}";
+
+        var (subject, body) = EmailTemplates.RfqInvitation(recipient.Value.Language, rfq.ReferenceCode, title, deepLink);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
     // ---- document lifecycle ---------------------------------------------------------------
     //
     // These take a document id and resolve the filename from it. MSP-87 found original filenames

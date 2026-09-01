@@ -24,6 +24,7 @@ public class RfqTests
         var rfq = CreateDraftRfq();
         rfq.AddItem("بند", "Item", null, null, "catering", 10m, "unit", isUnitPrice: true, isOptional: false);
         rfq.BindEvaluationTemplate(Guid.CreateVersion7(), 1, """{"criteria":[]}""");
+        rfq.InviteSupplier(Guid.CreateVersion7());
         return rfq;
     }
 
@@ -88,6 +89,116 @@ public class RfqTests
         var act = () => rfq.SubmitForReview();
 
         act.Should().Throw<DomainException>().WithMessage("*future*");
+    }
+
+    [Fact]
+    public void SubmitForReview_requires_at_least_one_invited_candidate_supplier()
+    {
+        var rfq = CreateDraftRfq();
+        rfq.AddItem("بند", "Item", null, null, "catering", 1m, "unit", true, false);
+        rfq.BindEvaluationTemplate(Guid.CreateVersion7(), 1, "{}");
+
+        var act = () => rfq.SubmitForReview();
+
+        act.Should().Throw<DomainException>().WithMessage("*at least one candidate supplier must be invited*");
+    }
+
+    [Fact]
+    public void InviteSupplier_adds_an_invited_status_invitation()
+    {
+        var rfq = CreateDraftRfq();
+        var supplierId = Guid.CreateVersion7();
+
+        var invitation = rfq.InviteSupplier(supplierId);
+
+        invitation.Status.Should().Be(InvitationStatus.Invited);
+        rfq.Invitations.Should().ContainSingle(i => i.SupplierId == supplierId && i.Status == InvitationStatus.Invited);
+    }
+
+    [Fact]
+    public void InviteSupplier_rejects_a_duplicate_invitation_to_the_same_supplier()
+    {
+        var rfq = CreateDraftRfq();
+        var supplierId = Guid.CreateVersion7();
+        rfq.InviteSupplier(supplierId);
+
+        var act = () => rfq.InviteSupplier(supplierId);
+
+        act.Should().Throw<DomainException>().WithMessage("*already been invited*");
+    }
+
+    [Fact]
+    public void InviteSupplier_is_rejected_once_submission_has_closed()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.SubmissionClosed);
+
+        var act = () => rfq.InviteSupplier(Guid.CreateVersion7());
+
+        act.Should().Throw<DomainException>().WithMessage("*only allowed up to and including 'SubmissionOpen'*");
+    }
+
+    [Fact]
+    public void InviteSupplier_is_allowed_while_submission_is_open_late_invite()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.SubmissionOpen);
+
+        var act = () => rfq.InviteSupplier(Guid.CreateVersion7());
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void MarkInvitationViewed_moves_invited_to_viewed_once()
+    {
+        var rfq = CreateDraftRfq();
+        var supplierId = Guid.CreateVersion7();
+        rfq.InviteSupplier(supplierId);
+
+        rfq.MarkInvitationViewed(supplierId);
+
+        var invitation = rfq.Invitations.Single();
+        invitation.Status.Should().Be(InvitationStatus.Viewed);
+        invitation.ViewedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void MarkInvitationViewed_does_not_regress_a_later_status_back_to_viewed()
+    {
+        var rfq = CreateDraftRfq();
+        var supplierId = Guid.CreateVersion7();
+        rfq.InviteSupplier(supplierId);
+        rfq.DeclineInvitation(supplierId, "not this time");
+
+        rfq.MarkInvitationViewed(supplierId);
+
+        rfq.Invitations.Single().Status.Should().Be(InvitationStatus.Declined);
+    }
+
+    [Fact]
+    public void DeclineInvitation_sets_declined_status_with_optional_reason()
+    {
+        var rfq = CreateDraftRfq();
+        var supplierId = Guid.CreateVersion7();
+        rfq.InviteSupplier(supplierId);
+
+        rfq.DeclineInvitation(supplierId, "Capacity constraints");
+
+        var invitation = rfq.Invitations.Single();
+        invitation.Status.Should().Be(InvitationStatus.Declined);
+        invitation.DeclineReason.Should().Be("Capacity constraints");
+        invitation.RespondedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void DeclineInvitation_rejects_a_supplier_with_no_invitation()
+    {
+        var rfq = CreateDraftRfq();
+
+        var act = () => rfq.DeclineInvitation(Guid.CreateVersion7(), null);
+
+        act.Should().Throw<DomainException>().WithMessage("*no invitation*");
     }
 
     [Fact]

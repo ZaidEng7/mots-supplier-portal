@@ -38,6 +38,8 @@ const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearc
 const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/EvaluationTemplatesPage').then((m) => ({ default: m.EvaluationTemplatesPage })))
 const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
 const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
+const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
+const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
@@ -226,6 +228,18 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+const supplierRfqListRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/rfqs',
+  component: SupplierRfqListPage,
+})
+
+const supplierRfqDetailRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/rfqs/$referenceCode',
+  component: SupplierRfqDetailPage,
+})
+
 // --- Back-office app shell (protected, staff-only: no supplierId claim) ---
 const backOfficeLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -323,6 +337,8 @@ const routeTree = rootRoute.addChildren([
     teamRoute,
     offeringCatalogRoute,
     settingsRoute,
+    supplierRfqListRoute,
+    supplierRfqDetailRoute,
   ]),
   backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, rfqDetailRoute]),
 ])

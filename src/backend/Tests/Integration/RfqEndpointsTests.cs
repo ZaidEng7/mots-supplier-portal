@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
@@ -54,9 +55,27 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         return id;
     }
 
-    /// <summary>Drives an RFQ through create -> item -> template -> submit -> approve using the
-    /// real HTTP endpoints, returning its reference code. The shared setup for every test that
-    /// needs an Approved (or later) RFQ.</summary>
+    /// <summary>Registers, verifies, and forces a supplier straight to Active - same
+    /// forced-transition pattern as OfferingBuyerSearchTests.ActiveSupplierAsync, for the same
+    /// reason: these tests are about RFQ invitations, not the onboarding journey.</summary>
+    private async Task<(HttpClient Client, Guid SupplierId)> ActiveSupplierAsync(string name)
+    {
+        var (client, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, name);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplier = await db.Suppliers.FirstAsync(s => s.DisplayNameEn == name);
+        await db.Suppliers.Where(s => s.Id == supplier.Id).ExecuteUpdateAsync(p => p
+            .SetProperty(s => s.OnboardingState, SupplierOnboardingState.Approved)
+            .SetProperty(s => s.LifecycleState, SupplierLifecycleState.Active));
+
+        return (client, supplier.Id);
+    }
+
+    /// <summary>Drives an RFQ through create -> item -> template -> invite -> submit -> approve
+    /// using the real HTTP endpoints, returning its reference code. The shared setup for every
+    /// test that needs an Approved (or later) RFQ. Invites a fresh Active supplier per call -
+    /// SubmitForReview now requires >=1 candidate (EPIC-08 gap closed).</summary>
     private async Task<string> CreateApprovedRfqAsync(HttpClient officer, HttpClient manager, string titleEn = "Approved RFQ",
         DateTimeOffset? opensAt = null, DateTimeOffset? closesAt = null)
     {
@@ -73,6 +92,10 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
             categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
         });
         await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation-template", new { evaluationTemplateId = templateId });
+
+        var (_, supplierId) = await ActiveSupplierAsync($"Candidate {Guid.NewGuid():N}"[..30]);
+        var invite = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId });
+        invite.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var submit = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null);
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -169,6 +192,8 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
             categoryCode = "catering", quantity = 1, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
         });
         await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation-template", new { evaluationTemplateId = templateId });
+        var (_, supplierId) = await ActiveSupplierAsync($"Candidate {Guid.NewGuid():N}"[..30]);
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId });
         await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null);
 
         var returnResponse = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/return", new { comments = "Please add pricing detail" });
@@ -307,5 +332,104 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         actions.Should().ContainInOrder("rfq_created", "rfq_item_added", "rfq_evaluation_template_bound",
             "rfq_submitted_for_review", "rfq_approved", "rfq_published");
+    }
+
+    [Fact]
+    public async Task Inviting_a_suspended_supplier_is_refused_by_the_domain()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var (_, supplierId) = await ActiveSupplierAsync($"Suspended {Guid.NewGuid():N}"[..30]);
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Suppliers.Where(s => s.Id == supplierId)
+                .ExecuteUpdateAsync(p => p.SetProperty(s => s.LifecycleState, SupplierLifecycleState.Suspended));
+        }
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Suspended Invite RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var invite = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId });
+
+        invite.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await invite.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be("supplier_not_active");
+    }
+
+    [Fact]
+    public async Task Inviting_the_same_supplier_twice_is_rejected()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var (_, supplierId) = await ActiveSupplierAsync($"Twice {Guid.NewGuid():N}"[..30]);
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Duplicate Invite RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId });
+
+        var secondInvite = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId });
+
+        secondInvite.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await secondInvite.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("message").GetString().Should().Contain("already been invited");
+    }
+
+    [Fact]
+    public async Task Publish_is_refused_when_an_invited_supplier_is_no_longer_active()
+    {
+        var (officer, manager, _) = await ScopedClientsAsync();
+        var referenceCode = await CreateApprovedRfqAsync(officer, manager, "Suspended Before Publish RFQ");
+        var rfqBeforePublish = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
+        var invitedSupplierId = rfqBeforePublish.GetProperty("invitations").EnumerateArray().Single().GetProperty("supplierId").GetGuid();
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Suppliers.Where(s => s.Id == invitedSupplierId)
+                .ExecuteUpdateAsync(p => p.SetProperty(s => s.LifecycleState, SupplierLifecycleState.Suspended));
+        }
+
+        var publish = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/publish", null);
+
+        publish.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await publish.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be("supplier_not_active");
+        var stillApproved = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
+        stillApproved.GetProperty("state").GetString().Should().Be(nameof(RfqState.Approved));
+    }
+
+    [Fact]
+    public async Task Candidate_suggestions_rank_by_category_match_and_exclude_already_invited_suppliers()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Candidates RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 1, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+
+        var (matchClient, matchSupplierId) = await ActiveSupplierAsync($"Match {Guid.NewGuid():N}"[..30]);
+        await matchClient.PostAsJsonAsync("/api/v1/suppliers/me/offerings", new
+        {
+            nameAr = "خدمة", nameEn = "Catering Service", description = (string?)null,
+            categoryCode = "catering", unitOfMeasureCode = "unit", priceAmount = (decimal?)null, currencyCode = (string?)null, attributes = (object?)null,
+        });
+        var (alreadyInvitedClient, alreadyInvitedSupplierId) = await ActiveSupplierAsync($"AlreadyInvited {Guid.NewGuid():N}"[..30]);
+        await alreadyInvitedClient.PostAsJsonAsync("/api/v1/suppliers/me/offerings", new
+        {
+            nameAr = "خدمة", nameEn = "Catering Service 2", description = (string?)null,
+            categoryCode = "catering", unitOfMeasureCode = "unit", priceAmount = (decimal?)null, currencyCode = (string?)null, attributes = (object?)null,
+        });
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = alreadyInvitedSupplierId });
+        var (_, noMatchSupplierId) = await ActiveSupplierAsync($"NoMatch {Guid.NewGuid():N}"[..30]);
+        _ = noMatchSupplierId;
+
+        var candidates = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/invitations/candidates");
+
+        var ids = candidates.EnumerateArray().Select(c => c.GetProperty("supplierId").GetGuid()).ToList();
+        ids.Should().Contain(matchSupplierId);
+        ids.Should().NotContain(alreadyInvitedSupplierId, "already-invited suppliers are excluded from suggestions");
+        ids.Should().NotContain(noMatchSupplierId, "a supplier with no matching-category offering is not suggested");
     }
 }

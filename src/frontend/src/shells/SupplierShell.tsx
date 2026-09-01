@@ -49,6 +49,9 @@ export function SupplierShell({ children }: Props) {
             <Link to="/team" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.team')}
             </Link>
+            <Link to="/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.rfqs')}
+            </Link>
             <Link to="/settings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.settings')}
             </Link>
