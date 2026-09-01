@@ -340,6 +340,15 @@ const resources = {
         acceptInviteInvalid: 'رابط الدعوة غير صالح أو منتهي الصلاحية أو تم استخدامه بالفعل.',
         acceptInviteSubmit: 'تعيين كلمة المرور',
       },
+      roleManagement: {
+        title: 'الأدوار والصلاحيات',
+        subtitle: 'تعديل مجموعة الصلاحيات لكل دور. يسري التغيير على تسجيل الدخول التالي لكل مستخدم يحمل هذا الدور.',
+        errors: {
+          invalidPermission: 'صلاحية غير معروفة',
+          wouldLockOutRoleManagement: 'لا يمكن إزالة هذه الصلاحية - لن يتمكن أحد بعدها من تعديل الأدوار مطلقاً',
+          updateFailed: 'تعذر حفظ التغيير',
+        },
+      },
       organizations: {
         title: 'الجهات',
         subtitle: 'إنشاء الجهات وإدارة روابطها مع الموردين (يدوياً فقط، بدون ربط تلقائي).',
@@ -756,6 +765,15 @@ const resources = {
         acceptInviteSuccess: 'Your account is set up. You can now sign in.',
         acceptInviteInvalid: 'This invite link is invalid, expired, or already used.',
         acceptInviteSubmit: 'Set password',
+      },
+      roleManagement: {
+        title: 'Roles & Permissions',
+        subtitle: "Edit each role's permission set. Changes take effect on that role's users' next login.",
+        errors: {
+          invalidPermission: 'Unrecognized permission',
+          wouldLockOutRoleManagement: "Can't remove this - no one would ever be able to edit roles again",
+          updateFailed: 'Could not save the change',
+        },
       },
       organizations: {
         title: 'Organizations',

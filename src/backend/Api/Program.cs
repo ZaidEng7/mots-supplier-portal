@@ -12,6 +12,7 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Api.Endpoints;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Identity;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Application.Reference;
@@ -226,6 +227,9 @@ builder.Services.AddScoped<ISecurityTokenService, SecurityTokenService>();
 // pair above, gated by Permissions.AdminUsersManage instead of SupplierUserManage.
 builder.Services.AddScoped<IInviteStaffHandler, InviteStaffHandler>();
 builder.Services.AddScoped<IAcceptStaffInviteHandler, AcceptStaffInviteHandler>();
+// FR-ADM-002: role/permission admin editing.
+builder.Services.AddScoped<IListRolesHandler, ListRolesHandler>();
+builder.Services.AddScoped<IUpdateRolePermissionsHandler, UpdateRolePermissionsHandler>();
 builder.Services.AddScoped<IRegisterSupplierHandler, RegisterSupplierHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<IResendVerificationHandler, ResendVerificationHandler>();
@@ -568,6 +572,7 @@ app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
 app.MapOrganizationEndpoints();
 app.MapStaffEndpoints();
+app.MapRoleEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

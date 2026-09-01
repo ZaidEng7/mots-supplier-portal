@@ -21,6 +21,7 @@ export function BackOfficeShell({ children }: Props) {
   // Task #28: same hide-never-gate rule - StaffEndpoints re-enforces admin.users.manage
   // (Permissions.AdminUsersManage) on the actual invite endpoint regardless of this link.
   const canManageStaff = useAuthStore((s) => s.claims?.permissions.includes('admin.users.manage') ?? false)
+  const canManageRoles = useAuthStore((s) => s.claims?.permissions.includes('admin.roles.manage') ?? false)
 
   const handleLogout = async () => {
     await apiLogout()
@@ -50,6 +51,11 @@ export function BackOfficeShell({ children }: Props) {
             {canManageStaff ? (
               <Link to="/back-office/staff" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('staff.title')}
+              </Link>
+            ) : null}
+            {canManageRoles ? (
+              <Link to="/back-office/roles" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('roleManagement.title')}
               </Link>
             ) : null}
           </nav>
