@@ -162,6 +162,11 @@ export async function mockBackend(page: Page) {
     // crash on the generic {} fallback below; null (200) is the real "not assigned" shape.
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/my-evaluation`) return route.fulfill({ json: null })
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/evaluation`) return route.fulfill({ json: null })
+    // EPIC-12: same class of bug - ComparisonPage reads comparison.proposals.length and would
+    // crash on the generic {} fallback below; an empty-but-real shape is the honest fixture.
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/comparison`) {
+      return route.fulfill({ json: { rfqReferenceCode: RFQ_REFERENCE_CODE, rfqTitleAr: 'طلب تجريبي', rfqTitleEn: 'A11y Test RFQ', evaluationState: 'NotStarted', rfqItems: [], proposals: [] } })
+    }
     // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
     if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })
