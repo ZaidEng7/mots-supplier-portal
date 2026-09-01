@@ -5,7 +5,7 @@ using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-public sealed record CreateOfferingRequest(string NameAr, string NameEn, string? Description, string CategoryCode, string UnitOfMeasureCode, decimal? PriceAmount, string? CurrencyCode);
+public sealed record CreateOfferingRequest(string NameAr, string NameEn, string? Description, string CategoryCode, string UnitOfMeasureCode, decimal? PriceAmount, string? CurrencyCode, IReadOnlyDictionary<string, string>? Attributes);
 
 /// <summary>Reused for both create and update - PUT /{offeringId} takes the same shape, same
 /// rules (see UpdateOffering below).</summary>
@@ -19,6 +19,11 @@ public sealed class CreateOfferingRequestValidator : AbstractValidator<CreateOff
         RuleFor(x => x.CategoryCode).NotEmpty();
         RuleFor(x => x.UnitOfMeasureCode).NotEmpty();
         RuleFor(x => x.PriceAmount).GreaterThanOrEqualTo(0).When(x => x.PriceAmount is not null);
+        RuleForEach(x => x.Attributes).ChildRules(attr =>
+        {
+            attr.RuleFor(kv => kv.Key).NotEmpty().MaximumLength(100);
+            attr.RuleFor(kv => kv.Value).NotEmpty().MaximumLength(500);
+        }).When(x => x.Attributes is not null);
     }
 }
 
@@ -55,7 +60,7 @@ public static class OfferingEndpoints
             if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
 
             var result = await handler.HandleAsync(
-                new CreateOfferingCommand(request.NameAr, request.NameEn, request.Description, request.CategoryCode, request.UnitOfMeasureCode, request.PriceAmount, request.CurrencyCode), ct);
+                new CreateOfferingCommand(request.NameAr, request.NameEn, request.Description, request.CategoryCode, request.UnitOfMeasureCode, request.PriceAmount, request.CurrencyCode, request.Attributes), ct);
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
@@ -72,7 +77,7 @@ public static class OfferingEndpoints
             if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
 
             var result = await handler.HandleAsync(
-                new UpdateOfferingCommand(offeringId, request.NameAr, request.NameEn, request.Description, request.CategoryCode, request.UnitOfMeasureCode, request.PriceAmount, request.CurrencyCode), ct);
+                new UpdateOfferingCommand(offeringId, request.NameAr, request.NameEn, request.Description, request.CategoryCode, request.UnitOfMeasureCode, request.PriceAmount, request.CurrencyCode, request.Attributes), ct);
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
@@ -82,5 +87,18 @@ public static class OfferingEndpoints
             MapMutation(await handler.HandleAsync(offeringId, ct)))
         .RequirePermission(Permissions.SupplierEdit)
         .WithName("DeactivateOffering");
+
+        // FEAT-06.3/FR-OFF-004/FR-SRCH-001: a separate route from /suppliers/me/offerings above -
+        // this is procurement staff searching across ALL suppliers' offerings, not a supplier
+        // managing its own catalog, so it is gated on OfferingSearch rather than SupplierEdit.
+        app.MapGet("/api/v1/offerings/search", async (
+            string? categoryCode,
+            string? query,
+            ISearchBuyerOfferingsHandler handler,
+            CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(categoryCode, query, ct)))
+        .RequirePermission(Permissions.OfferingSearch)
+        .WithTags("Offerings")
+        .WithName("SearchBuyerOfferings");
     }
 }

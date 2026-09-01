@@ -8,13 +8,33 @@ namespace MotsSupplierPortal.Application.Suppliers;
 /// which would make a long-registered supplier who just resubmitted read as stale. Falls back to
 /// CreatedAt only if no such audit row exists (should not happen for a queue-eligible state, but a
 /// row without one reads as "just entered" rather than crashing the queue).</summary>
-public sealed record ReviewQueueItemDto(string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt);
+public sealed record ReviewQueueItemDto(
+    string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt,
+    Guid? AssignedReviewerId, string? AssignedReviewerName);
 
 public interface IListReviewQueueHandler
 {
     /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.
-    /// MSP-84: keyset-paged (see ReviewQueueCursor for why).</summary>
-    Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, CancellationToken ct);
+    /// MSP-84: keyset-paged (see ReviewQueueCursor for why). FEAT-03.6: state restricts to one of
+    /// the three queue-eligible OnboardingStates; assignedTo accepts "me" (resolved to the
+    /// caller), "unassigned", or a literal reviewer user id - null means no assignment filter.</summary>
+    Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, string? state, string? assignedTo, CancellationToken ct);
+}
+
+public abstract record ClaimQueueItemResult
+{
+    public sealed record Success(ReviewQueueItemDto Item) : ClaimQueueItemResult;
+    public sealed record NotFound : ClaimQueueItemResult;
+}
+
+public interface IClaimReviewItemHandler
+{
+    Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct);
+}
+
+public interface IUnassignReviewItemHandler
+{
+    Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct);
 }
 
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);

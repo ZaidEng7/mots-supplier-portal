@@ -51,13 +51,17 @@ public static class Permissions
     /// additionally refuses any update that would leave zero roles holding it, so this permission
     /// can never be edited into a state where nobody can ever edit roles again.</summary>
     public const string AdminRolesManage = "admin.roles.manage";
+    /// <summary>FEAT-06.3/FR-OFF-004/FR-SRCH-001: procurement staff searching offerings for RFQ
+    /// invitation candidates - distinct from SupplierEdit (which is the owning supplier managing
+    /// its own catalog) since this is a different actor reading across all suppliers.</summary>
+    public const string OfferingSearch = "offering.search";
 
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
         SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
-        AdminRolesManage
+        AdminRolesManage, OfferingSearch
     ];
 }
 
@@ -79,10 +83,10 @@ public static class Roles
         [SupplierAdmin] = [Permissions.ProposalSubmit, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.ProposalSubmit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
-        [ProcurementOfficer] = [Permissions.RfqPublish],
+        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
-        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage],
+        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch],
         [Evaluator] = [Permissions.EvaluationScore],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
         // Ministry "read-only, cross-organization access to aggregate/governance metrics only",

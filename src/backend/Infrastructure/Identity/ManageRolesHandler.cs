@@ -11,10 +11,12 @@ namespace MotsSupplierPortal.Infrastructure.Identity;
 
 /// <summary>FR-ADM-002: list roles and their current effective permission set (from DB role
 /// claims - see PermissionResolver's doc comment for why claims, not the static dictionary, are
-/// the source of truth once a role has been seeded).</summary>
+/// the source of truth once a role has been seeded). AllPermissions is Permissions.All directly -
+/// NOT derived from what roles currently hold - so a permission the catalog knows about but no
+/// role has been granted yet still shows up as a grantable (unchecked) option in the admin UI.</summary>
 public sealed class ListRolesHandler(RoleManager<IdentityRole<Guid>> roleManager) : IListRolesHandler
 {
-    public async Task<IReadOnlyList<RoleDto>> HandleAsync(CancellationToken ct)
+    public async Task<RolesResponse> HandleAsync(CancellationToken ct)
     {
         // Materialize the role list first: GetClaimsAsync below issues its own query on the same
         // DbContext, which Npgsql rejects while an outer streaming query is still open.
@@ -26,7 +28,7 @@ public sealed class ListRolesHandler(RoleManager<IdentityRole<Guid>> roleManager
             var permissions = claims.Where(c => c.Type == "perms").Select(c => c.Value).Order().ToList();
             roles.Add(new RoleDto(role.Name!, permissions));
         }
-        return [.. roles.OrderBy(r => r.Name)];
+        return new RolesResponse([.. roles.OrderBy(r => r.Name)], Permissions.All);
     }
 }
 

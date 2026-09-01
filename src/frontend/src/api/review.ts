@@ -8,6 +8,8 @@ export interface ReviewQueueItem {
   displayNameEn: string
   onboardingState: string
   enteredQueueAt: string
+  assignedReviewerId: string | null
+  assignedReviewerName: string | null
 }
 
 /** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */
@@ -53,9 +55,28 @@ export async function getOwnActiveAnnotation(): Promise<ReviewAnnotation | null>
   return parseOrThrow(res)
 }
 
-export async function listReviewQueue(cursor?: string | null): Promise<Page<ReviewQueueItem>> {
-  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+export interface ReviewQueueFilters {
+  state?: string | null
+  assignedTo?: string | null
+}
+
+export async function listReviewQueue(cursor?: string | null, filters?: ReviewQueueFilters): Promise<Page<ReviewQueueItem>> {
+  const params = new URLSearchParams()
+  if (cursor) params.set('cursor', cursor)
+  if (filters?.state) params.set('state', filters.state)
+  if (filters?.assignedTo) params.set('assignedTo', filters.assignedTo)
+  const qs = params.toString() ? `?${params.toString()}` : ''
   const res = await apiFetch(`/api/v1/review/queue${qs}`)
+  return parseOrThrow(res)
+}
+
+export async function claimReviewItem(referenceCode: string): Promise<ReviewQueueItem> {
+  const res = await apiFetch(`/api/v1/review/${referenceCode}/claim`, { method: 'POST' })
+  return parseOrThrow(res)
+}
+
+export async function unassignReviewItem(referenceCode: string): Promise<ReviewQueueItem> {
+  const res = await apiFetch(`/api/v1/review/${referenceCode}/unassign`, { method: 'POST' })
   return parseOrThrow(res)
 }
 

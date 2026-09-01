@@ -40,6 +40,15 @@ public sealed class Supplier
     public DateTimeOffset CreatedAt { get; private init; }
     public uint RowVersion { get; private set; }
 
+    /// <summary>FEAT-03.6/FR-ONB-012 [ASSUMPTION]: no assignment model is specified anywhere in
+    /// the product docs (STORY-03.6.1 just says "assignable") - manual self-claim, not
+    /// round-robin or manager-assigned, chosen as the simplest model that satisfies the AC
+    /// without inventing a workflow no one asked for. Orthogonal to OnboardingState: assignment
+    /// tracks who is working an item, not what state it's in, so it is never touched by the
+    /// state-machine transitions below.</summary>
+    public Guid? AssignedReviewerId { get; private set; }
+    public DateTimeOffset? AssignedAt { get; private set; }
+
     /// <summary>BRULE-009: T&C content is owned by business; version string is an
     /// [ASSUMPTION] placeholder until that content and its versioning process exist.</summary>
     public const string CurrentTermsVersion = "1.0";
@@ -569,6 +578,22 @@ public sealed class Supplier
         }
 
         OnboardingState = SupplierOnboardingState.UnderReview;
+    }
+
+    /// <summary>FEAT-03.6: claim this queue item for a specific reviewer. Independent of
+    /// OnboardingState - a Submitted, UnderReview, or InfoRequested item can all be claimed;
+    /// claiming does not itself transition state (PickUpForReview still owns that).</summary>
+    public void AssignReviewer(Guid reviewerId)
+    {
+        AssignedReviewerId = reviewerId;
+        AssignedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Releases a claim back to the pool.</summary>
+    public void UnassignReviewer()
+    {
+        AssignedReviewerId = null;
+        AssignedAt = null;
     }
 
     /// <summary>

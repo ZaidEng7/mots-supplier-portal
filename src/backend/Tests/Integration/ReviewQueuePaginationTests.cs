@@ -74,7 +74,7 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         string? cursor = null;
         do
         {
-            var page = await handler.HandleAsync(cursor, pageSize, CancellationToken.None);
+            var page = await handler.HandleAsync(cursor, pageSize, null, null, CancellationToken.None);
             all.AddRange(page.Items);
             cursor = page.NextCursor;
             if (!page.HasMore) break;
@@ -165,7 +165,7 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         });
         await db.SaveChangesAsync();
 
-        var page = await handler.HandleAsync(null, 50, CancellationToken.None);
+        var page = await handler.HandleAsync(null, 50, null, null, CancellationToken.None);
         var item = page.Items.Should().ContainSingle(i => i.ReferenceCode == supplier.ReferenceCode).Subject;
 
         item.EnteredQueueAt.Should().BeCloseTo(recentResubmission, TimeSpan.FromSeconds(1),
@@ -192,7 +192,7 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         await db.SaveChangesAsync();
 
         // Page 1, size 2: expect s1, s2 (oldest-first order), with a cursor for continuation.
-        var page1 = await handler.HandleAsync(null, 2, CancellationToken.None);
+        var page1 = await handler.HandleAsync(null, 2, null, null, CancellationToken.None);
         page1.Items.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s1.ReferenceCode, s2.ReferenceCode]);
         page1.HasMore.Should().BeTrue();
         page1.NextCursor.Should().NotBeNull();
@@ -212,7 +212,7 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
             await mutDb.SaveChangesAsync();
         }
 
-        var page2 = await handler.HandleAsync(page1.NextCursor, 2, CancellationToken.None);
+        var page2 = await handler.HandleAsync(page1.NextCursor, 2, null, null, CancellationToken.None);
 
         // s3 must be present - this is the row a position-based page 2 would have dropped.
         page2.Items.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s3.ReferenceCode, s4.ReferenceCode],

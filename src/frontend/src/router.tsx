@@ -34,6 +34,7 @@ const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage'
 const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })))
 const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
 const RolesPage = lazy(() => import('./routes/back-office/RolesPage').then((m) => ({ default: m.RolesPage })))
+const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearchPage').then((m) => ({ default: m.OfferingSearchPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
@@ -276,6 +277,12 @@ const rolesRoute = createRoute({
   component: RolesPage,
 })
 
+const offeringSearchRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/offerings',
+  component: OfferingSearchPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -296,7 +303,7 @@ const routeTree = rootRoute.addChildren([
     offeringCatalogRoute,
     settingsRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute]),
+  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

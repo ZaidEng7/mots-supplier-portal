@@ -22,6 +22,9 @@ export function BackOfficeShell({ children }: Props) {
   // (Permissions.AdminUsersManage) on the actual invite endpoint regardless of this link.
   const canManageStaff = useAuthStore((s) => s.claims?.permissions.includes('admin.users.manage') ?? false)
   const canManageRoles = useAuthStore((s) => s.claims?.permissions.includes('admin.roles.manage') ?? false)
+  // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
+  // offering.search regardless of what this link's visibility does.
+  const canSearchOfferings = useAuthStore((s) => s.claims?.permissions.includes('offering.search') ?? false)
 
   const handleLogout = async () => {
     await apiLogout()
@@ -56,6 +59,11 @@ export function BackOfficeShell({ children }: Props) {
             {canManageRoles ? (
               <Link to="/back-office/roles" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('roleManagement.title')}
+              </Link>
+            ) : null}
+            {canSearchOfferings ? (
+              <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('offeringSearch.title')}
               </Link>
             ) : null}
           </nav>

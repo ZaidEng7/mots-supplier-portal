@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, useToast } from '../../components/ui'
-import { listRoles, updateRolePermissions, type Role } from '../../api/roles'
+import { listRoles, updateRolePermissions, type Role, type RolesResponse } from '../../api/roles'
 import { SupplierApiError } from '../../api/supplier'
 
 /** Local, not i18next: permission strings ("supplier.edit") collide with i18next's default
@@ -26,6 +26,7 @@ const PERMISSION_LABELS: Record<string, { ar: string; en: string }> = {
   'audit.read': { ar: 'قراءة سجل التدقيق', en: 'Read audit log' },
   'admin.organizations.manage': { ar: 'إدارة الجهات', en: 'Manage organizations' },
   'admin.roles.manage': { ar: 'إدارة الأدوار والصلاحيات', en: 'Manage roles & permissions' },
+  'offering.search': { ar: 'البحث عن الخدمات المعروضة', en: 'Search offerings' },
 }
 
 export function RolesPage() {
@@ -34,13 +35,20 @@ export function RolesPage() {
   const queryClient = useQueryClient()
   const { notify } = useToast()
   const rolesQuery = useQuery({ queryKey: ['roles'], queryFn: listRoles })
-  const roles = rolesQuery.data ?? []
-  const allPermissions = [...new Set(roles.flatMap((r) => r.permissions))].sort((a, b) => a.localeCompare(b))
+  const roles = rolesQuery.data?.roles ?? []
+  // Bug fix: this used to derive from roles.flatMap(r => r.permissions) - the union of what's
+  // ALREADY assigned - so a permission added to the catalog but not yet granted to any role was
+  // invisible here and could only ever be granted via a direct DB write. allPermissions is now
+  // the backend's full Permissions.All catalog (see RolesResponse's doc comment), independent of
+  // what any role currently holds.
+  const allPermissions = [...(rolesQuery.data?.allPermissions ?? [])].sort((a, b) => a.localeCompare(b))
 
   const updateMutation = useMutation({
     mutationFn: ({ roleName, permissions }: { roleName: string; permissions: string[] }) => updateRolePermissions(roleName, permissions),
     onSuccess: (updated) => {
-      queryClient.setQueryData<Role[]>(['roles'], (prev) => prev?.map((r) => (r.name === updated.name ? updated : r)))
+      queryClient.setQueryData<RolesResponse>(['roles'], (prev) =>
+        prev ? { ...prev, roles: prev.roles.map((r) => (r.name === updated.name ? updated : r)) } : prev,
+      )
     },
     onError: (err) => {
       const message =
