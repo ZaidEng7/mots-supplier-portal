@@ -461,16 +461,16 @@ if (app.Environment.IsDevelopment())
     await RoleSeeder.SeedAsync(roleManager);
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-    await MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.SeedAsync(userManager);
+    await MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.SeedAsync(userManager, builder.Configuration);
     if (MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.TotpSecret is { } totpSecret)
     {
         // Printed once, only on the run that created the account - the account exists on every
         // later run (SeedAsync is idempotent) but the secret is only ever generated this once.
-        Console.WriteLine($"[dev-seed] system_admin created: {MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.Email} / {MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.Password}");
+        Console.WriteLine($"[dev-seed] system_admin created: {MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.Email} / {MotsSupplierPortal.Infrastructure.Identity.AdminSeeder.PasswordUsed}");
         Console.WriteLine($"[dev-seed] TOTP secret (add to an authenticator app): {totpSecret}");
     }
 
-    await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager);
+    await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager, builder.Configuration);
 }
 
 app.UseCors();
