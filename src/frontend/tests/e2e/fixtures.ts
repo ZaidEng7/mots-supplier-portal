@@ -92,6 +92,14 @@ export const SUPPLIER_RFQ_FIXTURE = {
   items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited', clarifications: [], addenda: [],
 }
 
+export const PROPOSAL_FIXTURE = {
+  referenceCode: 'PRP-2026-000001', rfqReferenceCode: RFQ_REFERENCE_CODE, state: 'Draft',
+  currencyCode: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
+  warranty: null, validityStart: null, validityEnd: null, narrativeAr: null, narrativeEn: null,
+  submittedAt: null, withdrawnAt: null, withdrawReason: null,
+  items: [], documents: [], requirementAnswers: [],
+}
+
 export const EVALUATION_TEMPLATE_FIXTURE = {
   id: 'tpl-1', familyId: 'fam-1', version: 1, nameAr: 'قالب', nameEn: 'A11y Test Template',
   status: 'Draft', isReferenced: false, criteria: [],
@@ -154,6 +162,9 @@ export async function mockBackend(page: Page) {
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
     if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })
     if (p === `/api/v1/suppliers/me/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: SUPPLIER_RFQ_FIXTURE })
+    // EPIC-09: same class of bug - SupplierProposalPage would fall through to the generic {}
+    // fallback below and crash reading proposal.items.
+    if (p === `/api/v1/suppliers/me/rfqs/${RFQ_REFERENCE_CODE}/proposal`) return route.fulfill({ json: PROPOSAL_FIXTURE })
 
     // Anything else (mutation endpoints no initial render triggers, unanticipated GETs): benign
     // empty success, so an unmocked call cannot crash the page under scan.

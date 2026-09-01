@@ -6,6 +6,7 @@ using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Organizations;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
@@ -50,6 +51,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Clarification> Clarifications => Set<Clarification>();
     public DbSet<Addendum> Addenda => Set<Addendum>();
+    public DbSet<Proposal> Proposals => Set<Proposal>();
+    public DbSet<ProposalItem> ProposalItems => Set<ProposalItem>();
+    public DbSet<ProposalDocument> ProposalDocuments => Set<ProposalDocument>();
+    public DbSet<RequirementAnswer> RequirementAnswers => Set<RequirementAnswer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -632,6 +637,72 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(a => a.DescriptionAr).HasMaxLength(4000).IsRequired();
             entity.Property(a => a.DescriptionEn).HasMaxLength(4000).IsRequired();
             entity.HasIndex(a => a.RfqId);
+        });
+
+        // FEAT-09.1..09.6/DOMAIN-MODEL.md §5.5: Proposal is its own aggregate root (schema
+        // "proposal"), not an Rfq child - DOMAIN-MODEL.md's own "Aggregate: Proposal.ProposalState".
+        // unique(rfq_id, supplier_id) is the real uniqueness guarantee (Proposal.Create's own
+        // handler-level idempotent-start check is a fast-fail UX nicety on top of it, same pattern
+        // as Invitation's own duplicate-invite check).
+        modelBuilder.Entity<Proposal>(entity =>
+        {
+            entity.ToTable("proposal", "proposal");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.ReferenceCode).HasMaxLength(30).IsRequired();
+            entity.HasIndex(p => p.ReferenceCode).IsUnique();
+            entity.Property(p => p.State).HasConversion<string>().HasMaxLength(30);
+            entity.Property(p => p.CurrencyCode).HasMaxLength(3);
+            entity.Property(p => p.PaymentTerms).HasMaxLength(500);
+            entity.Property(p => p.IncotermCode).HasMaxLength(10);
+            entity.Property(p => p.DeliveryTermsAr).HasMaxLength(1000);
+            entity.Property(p => p.DeliveryTermsEn).HasMaxLength(1000);
+            entity.Property(p => p.Warranty).HasMaxLength(500);
+            entity.Property(p => p.NarrativeAr).HasMaxLength(4000);
+            entity.Property(p => p.NarrativeEn).HasMaxLength(4000);
+            entity.Property(p => p.WithdrawReason).HasMaxLength(2000);
+            entity.Property(p => p.RowVersion).IsRowVersion();
+            entity.HasIndex(p => new { p.RfqId, p.SupplierId }).IsUnique();
+            entity.HasIndex(p => new { p.SupplierId, p.State });
+            entity.HasIndex(p => new { p.RfqId, p.State });
+            entity.HasMany(p => p.Items).WithOne().HasForeignKey(i => i.ProposalId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(p => p.Documents).WithOne().HasForeignKey(d => d.ProposalId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(p => p.RequirementAnswers).WithOne().HasForeignKey(a => a.ProposalId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // FEAT-09.1/FR-PRP-002: the two-envelope FINANCIAL table - deliberately its own table so a
+        // query can omit it entirely rather than filtering a shared row (see ProposalItem.cs's own
+        // doc comment). LineTotal is a computed property, not a column - never persisted.
+        modelBuilder.Entity<ProposalItem>(entity =>
+        {
+            entity.ToTable("proposal_item", "proposal");
+            entity.HasKey(i => i.Id);
+            entity.Property(i => i.Quantity).HasPrecision(18, 4);
+            entity.Property(i => i.UnitPrice).HasPrecision(18, 4);
+            entity.Property(i => i.Discount).HasPrecision(18, 4);
+            entity.Property(i => i.NotesAr).HasMaxLength(2000);
+            entity.Property(i => i.NotesEn).HasMaxLength(2000);
+            entity.Ignore(i => i.LineTotal);
+            entity.HasIndex(i => new { i.ProposalId, i.RfqItemId }).IsUnique();
+        });
+
+        modelBuilder.Entity<ProposalDocument>(entity =>
+        {
+            entity.ToTable("proposal_document", "proposal");
+            entity.HasKey(d => d.Id);
+            entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();
+            entity.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();
+            entity.Property(d => d.ContentType).HasMaxLength(150).IsRequired();
+            entity.Property(d => d.Caption).HasMaxLength(500);
+            entity.HasIndex(d => d.ProposalId);
+        });
+
+        modelBuilder.Entity<RequirementAnswer>(entity =>
+        {
+            entity.ToTable("requirement_answer", "proposal");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.AnswerAr).HasMaxLength(4000).IsRequired();
+            entity.Property(a => a.AnswerEn).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(a => new { a.ProposalId, a.RequirementId }).IsUnique();
         });
     }
 }

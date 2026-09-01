@@ -274,6 +274,23 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
+    // ---- EPIC-09: proposals -----------------------------------------------------------------
+
+    public async Task SendProposalSubmittedEmailAsync(Guid userId, Guid proposalId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var proposal = await db.Proposals.Where(p => p.Id == proposalId)
+            .Select(p => new { p.ReferenceCode, p.RfqId }).FirstOrDefaultAsync(ct);
+        if (proposal is null) return;
+        var rfqReferenceCode = await db.Rfqs.Where(r => r.Id == proposal.RfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfqReferenceCode is null) return;
+
+        var (subject, body) = EmailTemplates.ProposalSubmitted(recipient.Value.Language, proposal.ReferenceCode, rfqReferenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
     // ---- document lifecycle ---------------------------------------------------------------
     //
     // These take a document id and resolve the filename from it. MSP-87 found original filenames

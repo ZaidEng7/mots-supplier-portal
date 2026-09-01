@@ -1,0 +1,323 @@
+using Hangfire;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Proposals;
+using MotsSupplierPortal.Domain.Proposals;
+using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
+using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Registrations;
+using MotsSupplierPortal.Infrastructure.Rfqs;
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
+internal static class ProposalDtoMapper
+{
+    /// <summary>The ONLY place ProposalItemDto (financial envelope) is ever produced. Every handler
+    /// in this file resolves the caller's own Proposal by their own SupplierId first (see
+    /// ProposalLoader below) - there is no code path anywhere that builds this DTO for a proposal
+    /// that is not the caller's own. That is the two-envelope seal for this epic: not a filter
+    /// applied to a shared read, but the simple fact that no other read exists yet.</summary>
+    public static ProposalDto ToDto(Proposal proposal, string rfqReferenceCode) => new(
+        proposal.ReferenceCode, rfqReferenceCode, proposal.State,
+        proposal.CurrencyCode, proposal.PaymentTerms, proposal.IncotermCode, proposal.DeliveryTermsAr, proposal.DeliveryTermsEn,
+        proposal.Warranty, proposal.ValidityStart, proposal.ValidityEnd,
+        proposal.NarrativeAr, proposal.NarrativeEn,
+        proposal.SubmittedAt, proposal.WithdrawnAt, proposal.WithdrawReason,
+        [.. proposal.Items.Select(i => new ProposalItemDto(i.Id, i.RfqItemId, i.Quantity, i.UnitPrice, i.Discount, i.LineTotal, i.LeadTimeDays, i.NotesAr, i.NotesEn))],
+        [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt))],
+        [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))]);
+}
+
+/// <summary>Resolves (Rfq, Invitation, Proposal?) for the caller's own SupplierId - reuses
+/// SupplierRfqLoader.LoadInvitedAsync (EPIC-08) for the invitation check rather than
+/// reimplementing it, per this epic's own instruction.</summary>
+internal static class ProposalLoader
+{
+    public static async Task<(Rfq Rfq, Proposal? Proposal)?> LoadAsync(AppDbContext db, IScopeContext scope, string rfqReferenceCode, CancellationToken ct)
+    {
+        var loaded = await SupplierRfqLoader.LoadInvitedAsync(db, scope, rfqReferenceCode, ct);
+        if (loaded is null) return null;
+        var (rfq, _) = loaded.Value;
+
+        var proposal = await db.Proposals
+            .Include(p => p.Items).Include(p => p.Documents).Include(p => p.RequirementAnswers)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(p => p.RfqId == rfq.Id && p.SupplierId == scope.SupplierId!.Value, ct);
+        return (rfq, proposal);
+    }
+}
+
+/// <summary>FEAT-09.1/FR-PRP-001, BUSINESS-PROCESSES.md §4.1: Active + Invitation are checked here
+/// (cross-aggregate, same split as InviteSupplierHandler's own Active check); uniqueness is
+/// idempotent - a second start returns the existing Draft rather than erroring, per FEAT-09.1's own
+/// AC, with the DB unique(rfq_id, supplier_id) index as the real race-safe guarantee underneath.</summary>
+public sealed class StartProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IStartProposalHandler
+{
+    public async Task<ProposalResult> HandleAsync(string rfqReferenceCode, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, rfqReferenceCode, ct);
+        if (loaded is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, existing) = loaded.Value;
+        if (existing is not null) return new ProposalResult.Success(ProposalDtoMapper.ToDto(existing, rfq.ReferenceCode));
+
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == scope.SupplierId!.Value, ct);
+        if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Active)
+        {
+            return new ProposalResult.NotFoundOrNotInvited();
+        }
+
+        var referenceCode = await ReferenceCodeGenerator.NextCodeAsync(db, "PRP", ct);
+        var proposal = Proposal.Create(referenceCode, rfq.Id, scope.SupplierId!.Value);
+        db.Proposals.Add(proposal);
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_started", scope.UserId, referenceCode: proposal.ReferenceCode, toState: nameof(ProposalState.Draft), ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+public sealed class GetProposalHandler(AppDbContext db, IScopeContext scope) : IGetProposalHandler
+{
+    public async Task<ProposalResult> HandleAsync(string rfqReferenceCode, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, rfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal!, rfq.ReferenceCode));
+    }
+}
+
+/// <summary>FEAT-09.1/FR-PRP-002: the financial envelope. Nothing here differs structurally from any
+/// other Draft-only edit handler - the envelope separation lives in the schema/DTO layer (see
+/// ProposalDtoMapper's own doc comment), not in extra guards on writes.</summary>
+public sealed class ManageProposalItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageProposalItemHandler
+{
+    public async Task<ProposalResult> SetAsync(SetItemPricingCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.SetItemPricing(command.RfqItemId, command.Quantity, command.UnitPrice, command.Discount, command.LeadTimeDays, command.NotesAr, command.NotesEn);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        db.ProposalItems.Add(proposal.Items.First(i => i.RfqItemId == command.RfqItemId));
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_item_priced", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+
+    public async Task<ProposalResult> RemoveAsync(RemoveItemPricingCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.RemoveItemPricing(command.RfqItemId);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_item_removed", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+public sealed class SetCommercialTermsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISetCommercialTermsHandler
+{
+    public async Task<ProposalResult> HandleAsync(SetCommercialTermsCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.SetCommercialTerms(command.CurrencyCode, command.PaymentTerms, command.IncotermCode,
+                command.DeliveryTermsAr, command.DeliveryTermsEn, command.Warranty, command.ValidityStart, command.ValidityEnd);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_terms_updated", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+public sealed class SetNarrativeHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISetNarrativeHandler
+{
+    public async Task<ProposalResult> HandleAsync(SetNarrativeCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.SetNarrative(command.NarrativeAr, command.NarrativeEn);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_narrative_updated", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+public sealed class AnswerRequirementHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IAnswerRequirementHandler
+{
+    public async Task<ProposalResult> HandleAsync(AnswerRequirementCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.AnswerRequirement(command.RequirementId, command.AnswerAr, command.AnswerEn);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        db.RequirementAnswers.Add(proposal.RequirementAnswers.First(a => a.RequirementId == command.RequirementId));
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_requirement_answered", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+/// <summary>FEAT-09.3/FR-PRP-004: stored via IFileStorage directly, same convention as
+/// RfqAttachment (no AV-scan quarantine flow here either - OQ-014 already tags AV scanning
+/// generally as [REQUIRES BUSINESS CONFIRMATION], same deliberate scope decision as RFQ
+/// attachments).</summary>
+public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageProposalDocumentHandler
+{
+    public async Task<ProposalResult> AddAsync(AddProposalDocumentCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        ProposalDocument document;
+        try
+        {
+            document = proposal!.AddDocument(command.StorageKey, command.OriginalFileName, command.ContentType, command.Caption);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        db.ProposalDocuments.Add(document);
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_document_added", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+
+    public async Task<ProposalResult> RemoveAsync(RemoveProposalDocumentCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.RemoveDocument(command.DocumentId);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_document_removed", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+/// <summary>FEAT-09.5/FR-PRP-006/007, the safety-critical endpoint: submissionCloseAt and the
+/// required/mandatory id sets are resolved from the loaded Rfq here and handed to
+/// Proposal.Submit as plain facts - the domain method (not this handler) is what actually refuses
+/// a late submission, using the server's own clock. See Proposal.Submit's own doc comment for the
+/// two flagged ambiguities (mandatory-document gating, RFQ minimum validity) this cannot enforce
+/// without an invented number.</summary>
+public sealed class SubmitProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
+    : ISubmitProposalHandler
+{
+    public async Task<ProposalResult> HandleAsync(SubmitProposalCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        if (rfq.SubmissionClosesAt is null) return new ProposalResult.InvalidState("This RFQ has no submission close date set.");
+        var requiredItemIds = rfq.Items.Where(i => !i.IsOptional).Select(i => i.Id).ToHashSet();
+        var mandatoryRequirementIds = rfq.Requirements.Where(r => r.IsMandatory).Select(r => r.Id).ToHashSet();
+
+        try
+        {
+            proposal!.Submit(rfq.State == RfqState.SubmissionOpen, rfq.SubmissionClosesAt.Value, requiredItemIds, mandatoryRequirementIds);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_submitted", scope.UserId, referenceCode: proposal.ReferenceCode,
+            fromState: nameof(ProposalState.Draft), toState: nameof(ProposalState.Submitted), ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        if (scope.UserId is not null)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendProposalSubmittedEmailAsync(scope.UserId.Value, proposal.Id, CancellationToken.None));
+        }
+
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IWithdrawProposalHandler
+{
+    public async Task<ProposalResult> HandleAsync(WithdrawProposalCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        var fromState = proposal!.State;
+        try
+        {
+            proposal.Withdraw(command.Reason, rfq.State == RfqState.SubmissionOpen);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_withdrawn", scope.UserId, referenceCode: proposal.ReferenceCode,
+            fromState: fromState.ToString(), toState: nameof(ProposalState.Withdrawn), reason: command.Reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}

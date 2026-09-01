@@ -40,6 +40,7 @@ const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((
 const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
 const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
 const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
+const SupplierProposalPage = lazy(() => import('./routes/SupplierProposalPage').then((m) => ({ default: m.SupplierProposalPage })))
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
@@ -240,6 +241,12 @@ const supplierRfqDetailRoute = createRoute({
   component: SupplierRfqDetailPage,
 })
 
+const supplierProposalRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/rfqs/$referenceCode/proposal',
+  component: SupplierProposalPage,
+})
+
 // --- Back-office app shell (protected, staff-only: no supplierId claim) ---
 const backOfficeLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -339,6 +346,7 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     supplierRfqListRoute,
     supplierRfqDetailRoute,
+    supplierProposalRoute,
   ]),
   backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, rfqDetailRoute]),
 ])
