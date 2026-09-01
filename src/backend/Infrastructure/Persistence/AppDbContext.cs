@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.ReferenceData;
+using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Infrastructure.Persistence;
@@ -38,6 +40,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrgUnit> OrgUnits => Set<OrgUnit>();
     public DbSet<SupplierOrgLink> SupplierOrgLinks => Set<SupplierOrgLink>();
+    public DbSet<EvaluationTemplate> EvaluationTemplates => Set<EvaluationTemplate>();
+    public DbSet<Criterion> Criteria => Set<Criterion>();
+    public DbSet<Rfq> Rfqs => Set<Rfq>();
+    public DbSet<RfqItem> RfqItems => Set<RfqItem>();
+    public DbSet<Requirement> Requirements => Set<Requirement>();
+    public DbSet<RfqAttachment> RfqAttachments => Set<RfqAttachment>();
+    public DbSet<RfqApproval> RfqApprovals => Set<RfqApproval>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -475,6 +484,108 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(o => o.PayloadJson).HasColumnType("jsonb").IsRequired();
             entity.Property(o => o.SyncStatus).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(o => o.SyncStatus);
+        });
+
+        // FEAT-11.1, pulled forward for EPIC-07 (docs/architecture/DATABASE-MODEL.md §2.5,
+        // schema "evaluation").
+        modelBuilder.Entity<EvaluationTemplate>(entity =>
+        {
+            entity.ToTable("evaluation_template", "evaluation");
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.NameAr).HasMaxLength(200).IsRequired();
+            entity.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
+            entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(t => t.RowVersion).IsRowVersion();
+            // One version-row per (FamilyId, Version) - see EvaluationTemplate.cs's own doc
+            // comment on why each version is its own row rather than one row mutating in place.
+            entity.HasIndex(t => new { t.FamilyId, t.Version }).IsUnique();
+            entity.HasMany(t => t.Criteria).WithOne().HasForeignKey(c => c.EvaluationTemplateId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Criterion>(entity =>
+        {
+            entity.ToTable("criterion", "evaluation");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.NameAr).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.NameEn).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.Dimension).HasConversion<string>().HasMaxLength(20);
+            entity.Property(c => c.ScoringType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(c => c.Weight).HasPrecision(5, 2);
+            entity.Property(c => c.MaxScore).HasPrecision(6, 2);
+            entity.Property(c => c.Threshold).HasPrecision(6, 2);
+            entity.Property(c => c.GuidanceAr).HasMaxLength(1000);
+            entity.Property(c => c.GuidanceEn).HasMaxLength(1000);
+            entity.HasIndex(c => c.EvaluationTemplateId);
+        });
+
+        // FEAT-07.1..07.10 (docs/architecture/DATABASE-MODEL.md §2.3, schema "rfq").
+        modelBuilder.Entity<Rfq>(entity =>
+        {
+            entity.ToTable("rfq", "rfq");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.ReferenceCode).HasMaxLength(30).IsRequired();
+            entity.HasIndex(r => r.ReferenceCode).IsUnique();
+            entity.Property(r => r.TitleAr).HasMaxLength(300).IsRequired();
+            entity.Property(r => r.TitleEn).HasMaxLength(300).IsRequired();
+            entity.Property(r => r.DescriptionAr).HasMaxLength(4000);
+            entity.Property(r => r.DescriptionEn).HasMaxLength(4000);
+            entity.Property(r => r.CurrencyCode).HasMaxLength(3).IsRequired();
+            entity.Property(r => r.State).HasConversion<string>().HasMaxLength(20);
+            entity.Property(r => r.EvaluationTemplateSnapshotJson).HasColumnType("jsonb");
+            entity.Property(r => r.CancelReason).HasMaxLength(2000);
+            entity.Property(r => r.RowVersion).IsRowVersion();
+            entity.HasIndex(r => new { r.OrganizationId, r.State });
+            entity.HasIndex(r => r.State);
+            entity.HasMany(r => r.Items).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(r => r.Requirements).WithOne().HasForeignKey(q => q.RfqId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(r => r.Attachments).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(r => r.Approvals).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RfqItem>(entity =>
+        {
+            entity.ToTable("rfq_item", "rfq");
+            entity.HasKey(i => i.Id);
+            entity.Property(i => i.TitleAr).HasMaxLength(300).IsRequired();
+            entity.Property(i => i.TitleEn).HasMaxLength(300).IsRequired();
+            entity.Property(i => i.SpecificationAr).HasMaxLength(2000);
+            entity.Property(i => i.SpecificationEn).HasMaxLength(2000);
+            entity.Property(i => i.CategoryCode).HasMaxLength(50).IsRequired();
+            entity.Property(i => i.Quantity).HasPrecision(18, 4);
+            entity.Property(i => i.UnitOfMeasureCode).HasMaxLength(50).IsRequired();
+            entity.HasIndex(i => new { i.RfqId, i.LineNo }).IsUnique();
+        });
+
+        modelBuilder.Entity<Requirement>(entity =>
+        {
+            entity.ToTable("requirement", "rfq");
+            entity.HasKey(q => q.Id);
+            entity.Property(q => q.TextAr).HasMaxLength(2000).IsRequired();
+            entity.Property(q => q.TextEn).HasMaxLength(2000).IsRequired();
+            entity.Property(q => q.DocumentTypeCode).HasMaxLength(50);
+            entity.HasIndex(q => q.RfqId);
+        });
+
+        modelBuilder.Entity<RfqAttachment>(entity =>
+        {
+            entity.ToTable("rfq_attachment", "rfq");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.StorageKey).HasMaxLength(500).IsRequired();
+            entity.Property(a => a.OriginalFileName).HasMaxLength(300).IsRequired();
+            entity.Property(a => a.ContentType).HasMaxLength(150).IsRequired();
+            entity.Property(a => a.Caption).HasMaxLength(500);
+            entity.HasIndex(a => a.RfqId);
+        });
+
+        // OQ-004 interim (RfqApproval.cs's own doc comment): an ordered, growing array of review
+        // passes, not a scalar approver field.
+        modelBuilder.Entity<RfqApproval>(entity =>
+        {
+            entity.ToTable("rfq_approval", "rfq");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
+            entity.Property(a => a.Comment).HasMaxLength(2000);
+            entity.HasIndex(a => new { a.RfqId, a.StepNo }).IsUnique();
         });
     }
 }

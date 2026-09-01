@@ -26,7 +26,16 @@ public static class StaffTestClient
 {
     public const string Password = "StaffIntegration#2026!";
 
-    public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role)
+    public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role) =>
+        await CreateAsync(fixture, role, organizationId: null);
+
+    /// <summary>EPIC-07: RFQ row-scoping keys on the caller's OrganizationId claim (IScopeContext.
+    /// OrganizationId, sourced from AppUser.OrganizationId via LoginHandler ->
+    /// jwtTokenService.IssueAccessToken). A plain CreateAsync staff user has OrganizationId null,
+    /// which is correct for every non-RFQ staff test but means "no organization, no RFQ access" -
+    /// same shape as scope.SupplierId is null meaning "no supplier, no access" on the supplier
+    /// side. Callers testing RFQ endpoints must use this overload with a real Organization's Id.</summary>
+    public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role, Guid? organizationId)
     {
         var client = fixture.CreateClient();
         var email = $"staff-{Guid.NewGuid():N}@ministry.example";
@@ -44,6 +53,7 @@ public static class StaffTestClient
                 EmailConfirmed = true,
                 IsActive = true,
                 SupplierId = null,
+                OrganizationId = organizationId,
             };
 
             var created = await userManager.CreateAsync(user, Password);

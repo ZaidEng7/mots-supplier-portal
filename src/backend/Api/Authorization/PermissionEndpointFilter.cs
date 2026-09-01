@@ -28,4 +28,10 @@ public static class RequirePermissionExtensions
 {
     public static RouteHandlerBuilder RequirePermission(this RouteHandlerBuilder builder, string permission) =>
         builder.AddEndpointFilter(new PermissionEndpointFilter(permission)).RequireAuthorization();
+
+    /// <summary>Group-level variant for an endpoint group where every route shares the same
+    /// permission (e.g. EvaluationTemplateEndpoints) - equivalent to applying the single-route
+    /// overload to each MapGet/MapPost/etc. individually, just without repeating it per route.</summary>
+    public static RouteGroupBuilder RequirePermission(this RouteGroupBuilder builder, string permission) =>
+        builder.AddEndpointFilter(new PermissionEndpointFilter(permission)).RequireAuthorization();
 }

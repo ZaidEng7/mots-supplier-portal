@@ -64,6 +64,17 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         var allRoles = await roleManager.Roles.ToListAsync();
         var strippedFrom = new List<IdentityRole<Guid>>();
 
+        // UpdateRolePermissionsHandler REPLACES a role's entire permission set (remove-all then
+        // add-requested), not merges - so the PUT below wipes out every OTHER permission
+        // procurement_officer holds (rfq.create/rfq.edit/... as of EPIC-07), not just
+        // offering.search. Snapshotting the full set here, before the PUT, is what makes the
+        // finally block able to genuinely restore it, rather than only restoring the one
+        // permission this test happened to be about - the exact class of leak that silently broke
+        // every later RFQ integration test in this shared-DB collection when it was missing.
+        var officerRole = allRoles.Single(r => r.Name == Roles.ProcurementOfficer);
+        var originalOfficerPermissions = (await roleManager.GetClaimsAsync(officerRole))
+            .Where(c => c.Type == "perms").Select(c => c.Value).ToList();
+
         try
         {
             foreach (var role in allRoles)
@@ -88,9 +99,15 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
             systemAdmin.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
                 .Should().NotContain(Permissions.OfferingSearch, "confirms the strip above actually took effect - not a false positive");
 
-            // The real proof: grant it back through the actual endpoint, no DB write.
+            // The real proof: grant it back through the actual endpoint, no DB write. Includes the
+            // rest of procurement_officer's real permission set (minus offering.search, stripped
+            // above) rather than an arbitrary two-item list, since this PUT is a full replacement.
+            var requestedPermissions = originalOfficerPermissions
+                .Where(p => p != Permissions.OfferingSearch)
+                .Append(Permissions.OfferingSearch)
+                .ToArray();
             var grant = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.ProcurementOfficer}/permissions",
-                new { permissions = new[] { Permissions.RfqPublish, Permissions.OfferingSearch } });
+                new { permissions = requestedPermissions });
             grant.StatusCode.Should().Be(HttpStatusCode.OK);
             var grantBody = await grant.Content.ReadFromJsonAsync<JsonElement>();
             grantBody.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
@@ -98,7 +115,18 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         }
         finally
         {
-            foreach (var role in strippedFrom)
+            // Restore procurement_officer's exact original permission set (the PUT above replaced
+            // it wholesale) before restoring offering.search on every other stripped role.
+            foreach (var claim in (await roleManager.GetClaimsAsync(officerRole)).Where(c => c.Type == "perms"))
+            {
+                await roleManager.RemoveClaimAsync(officerRole, claim);
+            }
+            foreach (var permission in originalOfficerPermissions)
+            {
+                await roleManager.AddClaimAsync(officerRole, new System.Security.Claims.Claim("perms", permission));
+            }
+
+            foreach (var role in strippedFrom.Where(r => r.Id != officerRole.Id))
             {
                 var current = await roleManager.GetClaimsAsync(role);
                 if (current.Any(c => c.Type == "perms" && c.Value == Permissions.OfferingSearch)) continue;
