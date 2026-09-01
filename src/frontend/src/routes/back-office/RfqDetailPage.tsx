@@ -514,6 +514,11 @@ export function RfqDetailPage() {
 
       {evaluationEligible ? (
         <Card title={t('evaluation.title')}>
+          <div className="mb-4">
+            <a href={`/back-office/rfqs/${referenceCode}/comparison`}>
+              <Button size="sm" variant="secondary">{t('comparison.title')}</Button>
+            </a>
+          </div>
           {!evaluation ? (
             rfq.state === 'SubmissionClosed' ? (
               <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
