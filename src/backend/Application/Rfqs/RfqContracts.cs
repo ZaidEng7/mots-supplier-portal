@@ -23,6 +23,24 @@ public sealed record InvitationDto(
 /// more matching categories first.</summary>
 public sealed record InvitationCandidateDto(Guid SupplierId, string DisplayNameAr, string DisplayNameEn, int MatchCount);
 
+/// <summary>Buyer-facing view of a Clarification - always carries the real asker (buyer-side audit
+/// need), regardless of Visibility. Never served to a supplier - see SupplierClarificationDto for
+/// that shape.</summary>
+public sealed record ClarificationDto(
+    Guid Id, Guid AskedBySupplierId, string AskedBySupplierNameAr, string AskedBySupplierNameEn,
+    string Question, string? Answer, ClarificationVisibility Visibility, DateTimeOffset AskedAt, DateTimeOffset? AnsweredAt);
+
+/// <summary>FEAT-10.3/FR-CLR-003: the supplier-facing shape - deliberately carries no asker
+/// identity at all, not even for a PublishedToAll item asked by someone else. IsMine is the only
+/// signal a supplier gets about authorship, and it is computed server-side from the real
+/// AskedBySupplierId against the caller's own SupplierId - never derived from anything sent by the
+/// client.</summary>
+public sealed record SupplierClarificationDto(
+    Guid Id, string Question, string? Answer, ClarificationVisibility Visibility,
+    DateTimeOffset AskedAt, DateTimeOffset? AnsweredAt, bool IsMine);
+
+public sealed record AddendumDto(Guid Id, string TitleAr, string TitleEn, string DescriptionAr, string DescriptionEn, DateTimeOffset IssuedAt);
+
 public sealed record RfqDto(
     string ReferenceCode, Guid OrganizationId, string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn,
     string CurrencyCode, RfqState State, DateTimeOffset? PublishAt, DateTimeOffset? SubmissionOpensAt,
@@ -30,7 +48,7 @@ public sealed record RfqDto(
     Guid? EvaluationTemplateId, int? EvaluationTemplateVersion, string? CancelReason,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements,
     IReadOnlyList<RfqAttachmentDto> Attachments, IReadOnlyList<RfqApprovalDto> Approvals,
-    IReadOnlyList<InvitationDto> Invitations);
+    IReadOnlyList<InvitationDto> Invitations, IReadOnlyList<ClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
 
 /// <summary>FEAT-08.6/FR-INV-006: the supplier-facing shape of an RFQ - deliberately narrower than
 /// RfqDto. Excludes Approvals (internal reviewer comments/decisions) and OrganizationId's sibling
@@ -41,7 +59,7 @@ public sealed record SupplierRfqDto(
     string CurrencyCode, RfqState State, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionClosesAt,
     DateTimeOffset? ClarificationDeadlineAt,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements, IReadOnlyList<RfqAttachmentDto> Attachments,
-    InvitationStatus MyInvitationStatus);
+    InvitationStatus MyInvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
 
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
@@ -84,6 +102,14 @@ public sealed record CancelRfqCommand(string ReferenceCode, string Reason);
 public sealed record InviteSupplierCommand(string ReferenceCode, Guid SupplierId);
 
 public sealed record DeclineInvitationCommand(string ReferenceCode, string? Reason);
+
+public sealed record PostClarificationQuestionCommand(string ReferenceCode, string Question);
+
+public sealed record AnswerClarificationCommand(string ReferenceCode, Guid ClarificationId, string Answer, bool Publish);
+
+public sealed record PublishClarificationCommand(string ReferenceCode, Guid ClarificationId);
+
+public sealed record IssueAddendumCommand(string ReferenceCode, string TitleAr, string TitleEn, string DescriptionAr, string DescriptionEn);
 
 public abstract record RfqMutationResult
 {
@@ -210,4 +236,24 @@ public interface ISupplierGetRfqHandler
 public interface ISupplierDeclineInvitationHandler
 {
     Task<SupplierRfqResult> HandleAsync(DeclineInvitationCommand command, CancellationToken ct);
+}
+
+public interface IAnswerClarificationHandler
+{
+    Task<RfqMutationResult> HandleAsync(AnswerClarificationCommand command, CancellationToken ct);
+}
+
+public interface IPublishClarificationHandler
+{
+    Task<RfqMutationResult> HandleAsync(PublishClarificationCommand command, CancellationToken ct);
+}
+
+public interface IIssueAddendumHandler
+{
+    Task<RfqMutationResult> HandleAsync(IssueAddendumCommand command, CancellationToken ct);
+}
+
+public interface ISupplierPostClarificationHandler
+{
+    Task<SupplierRfqResult> HandleAsync(PostClarificationQuestionCommand command, CancellationToken ct);
 }

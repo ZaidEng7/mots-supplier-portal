@@ -214,6 +214,66 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
+    // ---- EPIC-10: clarifications / addenda -------------------------------------------------
+    //
+    // MSP-89: clarificationId/addendumId are here only as lookup keys, same reasoning as
+    // SendDocumentEmailAsync's documentId below - nothing about the question/answer text or the
+    // asker's identity is ever an argument.
+
+    public async Task SendClarificationAnsweredEmailAsync(Guid userId, Guid rfqId, Guid clarificationId, CancellationToken ct)
+    {
+        _ = clarificationId; // key only, not resolved into the email body - see class doc comment
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var referenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (referenceCode is null) return;
+
+        var (subject, body) = EmailTemplates.ClarificationAnswered(recipient.Value.Language, referenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
+    public async Task SendClarificationPublishedEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var referenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (referenceCode is null) return;
+
+        var (subject, body) = EmailTemplates.ClarificationPublished(recipient.Value.Language, referenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
+    public async Task SendClarificationPostedEmailAsync(Guid userId, Guid rfqId, Guid clarificationId, CancellationToken ct)
+    {
+        _ = clarificationId;
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var referenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (referenceCode is null) return;
+
+        var (subject, body) = EmailTemplates.ClarificationPosted(recipient.Value.Language, referenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
+    public async Task SendRfqAddendumEmailAsync(Guid userId, Guid rfqId, Guid addendumId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+
+        var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfq is null) return;
+        var addendum = await db.Addenda.Where(a => a.Id == addendumId)
+            .Select(a => new { a.TitleAr, a.TitleEn }).FirstOrDefaultAsync(ct);
+        if (addendum is null) return;
+
+        var title = recipient.Value.Language == "en" ? addendum.TitleEn : addendum.TitleAr;
+        var (subject, body) = EmailTemplates.RfqAddendum(recipient.Value.Language, rfq, title);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
     // ---- document lifecycle ---------------------------------------------------------------
     //
     // These take a document id and resolve the filename from it. MSP-87 found original filenames

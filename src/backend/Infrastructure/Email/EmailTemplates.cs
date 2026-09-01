@@ -91,6 +91,40 @@ public static class EmailTemplates
                $"<p>تمت دعوتك لتقديم عرض على <strong>{rfqTitle}</strong> ({referenceCode}).</p>" +
                $"<p><a href=\"{deepLink}\">عرض الطلب</a></p>");
 
+    /// <summary>FEAT-10.6/FR-CLR-006: sent to the asker once their question has an answer,
+    /// regardless of whether it was answered privately or published - either way, the asker's own
+    /// answer is now visible to them.</summary>
+    public static (string Subject, string Body) ClarificationAnswered(string? locale, string referenceCode) =>
+        IsEnglish(locale)
+            ? ($"Your question on {referenceCode} has been answered",
+               $"<p>The buyer has answered your clarification question on {referenceCode}.</p>")
+            : ($"تمت الإجابة على سؤالك بخصوص {referenceCode}",
+               $"<p>أجاب المشتري على سؤال الاستيضاح الخاص بك بخصوص {referenceCode}.</p>");
+
+    /// <summary>Sent to every OTHER invited supplier when a clarification is published -
+    /// deliberately does not name the asker (anonymization holds in the notification, not just the
+    /// UI).</summary>
+    public static (string Subject, string Body) ClarificationPublished(string? locale, string referenceCode) =>
+        IsEnglish(locale)
+            ? ($"New published clarification on {referenceCode}",
+               $"<p>A clarification question and answer has been published to all invited suppliers on {referenceCode}.</p>")
+            : ($"استيضاح جديد منشور بخصوص {referenceCode}",
+               $"<p>تم نشر سؤال وجواب استيضاح لجميع الموردين المدعوين بخصوص {referenceCode}.</p>");
+
+    public static (string Subject, string Body) ClarificationPosted(string? locale, string referenceCode) =>
+        IsEnglish(locale)
+            ? ($"New clarification question on {referenceCode}",
+               $"<p>An invited supplier has posted a clarification question on {referenceCode}.</p>")
+            : ($"سؤال استيضاح جديد بخصوص {referenceCode}",
+               $"<p>قام أحد الموردين المدعوين بطرح سؤال استيضاح بخصوص {referenceCode}.</p>");
+
+    public static (string Subject, string Body) RfqAddendum(string? locale, string referenceCode, string addendumTitle) =>
+        IsEnglish(locale)
+            ? ($"Addendum issued on {referenceCode}",
+               $"<p>An addendum has been issued on {referenceCode}: <strong>{addendumTitle}</strong>.</p>")
+            : ($"تم إصدار ملحق بخصوص {referenceCode}",
+               $"<p>تم إصدار ملحق بخصوص {referenceCode}: <strong>{addendumTitle}</strong>.</p>");
+
     public static (string Subject, string Body) InfoRequested(string? locale, string reason) =>
         IsEnglish(locale)
             ? ("Action needed on your supplier application",

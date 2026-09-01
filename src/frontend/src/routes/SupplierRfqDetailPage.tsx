@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
-import { getInvitedRfq, declineInvitation, SupplierRfqApiError } from '../api/supplierRfqs'
+import { getInvitedRfq, declineInvitation, postClarification, SupplierRfqApiError } from '../api/supplierRfqs'
 
 /** FEAT-08.4/08.6/FR-INV-004/006: the supplier's own view of an invited RFQ. A non-invited
  * supplier never reaches a rendered page here - getInvitedRfq 404s server-side and the query's
@@ -16,6 +16,7 @@ export function SupplierRfqDetailPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const [declineReason, setDeclineReason] = useState('')
+  const [question, setQuestion] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['supplier-rfq', referenceCode], queryFn: () => getInvitedRfq(referenceCode) })
 
@@ -28,6 +29,16 @@ export function SupplierRfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: err instanceof SupplierRfqApiError ? err.message : t('supplierRfq.errors.declineFailed') }),
   })
 
+  const askMutation = useMutation({
+    mutationFn: () => postClarification(referenceCode, question),
+    onSuccess: () => {
+      invalidateQuietly(queryClient, { queryKey: ['supplier-rfq', referenceCode] })
+      notify({ kind: 'success', title: t('supplierRfq.clarifications.asked') })
+      setQuestion('')
+    },
+    onError: (err) => notify({ kind: 'danger', title: err instanceof SupplierRfqApiError ? err.message : t('supplierRfq.clarifications.errors.askFailed') }),
+  })
+
   if (rfqQuery.isLoading) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
   }
@@ -37,6 +48,7 @@ export function SupplierRfqDetailPage() {
 
   const rfq = rfqQuery.data
   const canDecline = rfq.myInvitationStatus !== 'Declined' && rfq.myInvitationStatus !== 'Submitted'
+  const canAsk = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,6 +104,48 @@ export function SupplierRfqDetailPage() {
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noRequirements')}</p>
         )}
       </Card>
+
+      <Card title={t('supplierRfq.clarifications.title')}>
+        {rfq.clarifications.length > 0 ? (
+          <ul className="flex flex-col gap-3">
+            {rfq.clarifications.map((c) => (
+              <li key={c.id} className="border-b pb-3 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-[var(--fw-medium)]">{c.question}</p>
+                  {c.isMine ? <Badge tone="info">{t('supplierRfq.clarifications.mine')}</Badge> : null}
+                </div>
+                <p style={{ color: 'var(--color-text-secondary)' }}>
+                  {c.answer ?? t('supplierRfq.clarifications.awaitingAnswer')}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.clarifications.none')}</p>
+        )}
+        {canAsk ? (
+          <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); askMutation.mutate() }}>
+            <Input aria-label={t('supplierRfq.clarifications.askPlaceholder')} placeholder={t('supplierRfq.clarifications.askPlaceholder')}
+              value={question} onChange={(e) => setQuestion(e.target.value)} />
+            <Button type="submit" size="sm" isLoading={askMutation.isPending} disabled={!question}>
+              {t('supplierRfq.clarifications.ask')}
+            </Button>
+          </form>
+        ) : null}
+      </Card>
+
+      {rfq.addenda.length > 0 ? (
+        <Card title={t('rfq.addenda.title')}>
+          <ul className="flex flex-col gap-2">
+            {rfq.addenda.map((a) => (
+              <li key={a.id}>
+                <p className="font-[var(--fw-medium)]">{isArabic ? a.titleAr : a.titleEn}</p>
+                <p style={{ color: 'var(--color-text-secondary)' }}>{isArabic ? a.descriptionAr : a.descriptionEn}</p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       {canDecline ? (
         <Card title={t('supplierRfq.declineTitle')}>

@@ -64,6 +64,30 @@ export interface InvitationCandidate {
   matchCount: number
 }
 
+export type ClarificationVisibility = 'PrivateToAsker' | 'PublishedToAll'
+
+/** Buyer-facing shape - always carries the real asker (audit). */
+export interface Clarification {
+  id: string
+  askedBySupplierId: string
+  askedBySupplierNameAr: string
+  askedBySupplierNameEn: string
+  question: string
+  answer: string | null
+  visibility: ClarificationVisibility
+  askedAt: string
+  answeredAt: string | null
+}
+
+export interface Addendum {
+  id: string
+  titleAr: string
+  titleEn: string
+  descriptionAr: string
+  descriptionEn: string
+  issuedAt: string
+}
+
 export interface Rfq {
   referenceCode: string
   organizationId: string
@@ -86,6 +110,8 @@ export interface Rfq {
   attachments: RfqAttachment[]
   approvals: RfqApproval[]
   invitations: Invitation[]
+  clarifications: Clarification[]
+  addenda: Addendum[]
 }
 
 export interface RfqBasicsPayload {
@@ -252,4 +278,31 @@ export async function inviteSupplier(referenceCode: string, supplierId: string):
 
 export async function suggestInvitationCandidates(referenceCode: string): Promise<InvitationCandidate[]> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations/candidates`))
+}
+
+export async function answerClarification(referenceCode: string, clarificationId: string, answer: string, publish: boolean): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/clarifications/${clarificationId}/answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answer, publish }),
+  }))
+}
+
+export async function publishClarification(referenceCode: string, clarificationId: string): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/clarifications/${clarificationId}/publish`, { method: 'POST' }))
+}
+
+export interface AddendumPayload {
+  titleAr: string
+  titleEn: string
+  descriptionAr: string
+  descriptionEn: string
+}
+
+export async function issueAddendum(referenceCode: string, payload: AddendumPayload): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/addenda`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }))
 }

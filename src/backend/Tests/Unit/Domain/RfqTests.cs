@@ -402,6 +402,139 @@ public class RfqTests
         rfq.Items.Should().Contain(i => i.Id == third.Id && i.LineNo == 2);
     }
 
+    [Fact]
+    public void PostClarificationQuestion_is_rejected_before_publish()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+
+        var act = () => rfq.PostClarificationQuestion(Guid.CreateVersion7(), "When does delivery start?");
+
+        act.Should().Throw<DomainException>().WithMessage("*must be Published or SubmissionOpen*");
+    }
+
+    [Fact]
+    public void PostClarificationQuestion_succeeds_once_published()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+        var supplierId = Guid.CreateVersion7();
+
+        var clarification = rfq.PostClarificationQuestion(supplierId, "When does delivery start?");
+
+        clarification.AskedBySupplierId.Should().Be(supplierId);
+        clarification.Answer.Should().BeNull();
+        clarification.Visibility.Should().Be(ClarificationVisibility.PrivateToAsker);
+        rfq.Clarifications.Should().ContainSingle(c => c.Id == clarification.Id);
+    }
+
+    [Fact]
+    public void PostClarificationQuestion_is_rejected_after_the_clarification_deadline()
+    {
+        var rfq = Rfq.Create("RFQ-2026-000003", OrgId, "ت", "T", null, null, "SYP",
+            publishAt: null, submissionOpensAt: DateTimeOffset.UtcNow.AddSeconds(1), submissionClosesAt: DateTimeOffset.UtcNow.AddDays(8),
+            clarificationDeadlineAt: DateTimeOffset.UtcNow.AddMilliseconds(50), evaluationTargetDate: null);
+        rfq.AddItem("بند", "Item", null, null, "catering", 1m, "unit", true, false);
+        rfq.BindEvaluationTemplate(Guid.CreateVersion7(), 1, "{}");
+        rfq.InviteSupplier(Guid.CreateVersion7());
+        rfq.SubmitForReview();
+        rfq.Approve(ApproverId);
+        rfq.Publish();
+        Thread.Sleep(100);
+
+        var act = () => rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Too late?");
+
+        act.Should().Throw<DomainException>().WithMessage("*clarification window has closed*");
+    }
+
+    [Fact]
+    public void AnswerClarification_defaults_to_private_per_OQ_008()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+        var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
+
+        rfq.AnswerClarification(clarification.Id, "Answer.", publish: false);
+
+        var answered = rfq.Clarifications.Single();
+        answered.Answer.Should().Be("Answer.");
+        answered.Visibility.Should().Be(ClarificationVisibility.PrivateToAsker);
+        answered.AnsweredAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AnswerClarification_can_publish_immediately()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+        var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
+
+        rfq.AnswerClarification(clarification.Id, "Answer.", publish: true);
+
+        rfq.Clarifications.Single().Visibility.Should().Be(ClarificationVisibility.PublishedToAll);
+    }
+
+    [Fact]
+    public void AnswerClarification_rejects_answering_the_same_question_twice()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+        var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
+        rfq.AnswerClarification(clarification.Id, "First answer.", publish: false);
+
+        var act = () => rfq.AnswerClarification(clarification.Id, "Second answer.", publish: false);
+
+        act.Should().Throw<DomainException>().WithMessage("*already been answered*");
+    }
+
+    [Fact]
+    public void PublishClarification_promotes_a_privately_answered_question()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+        var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
+        rfq.AnswerClarification(clarification.Id, "Answer.", publish: false);
+
+        rfq.PublishClarification(clarification.Id);
+
+        rfq.Clarifications.Single().Visibility.Should().Be(ClarificationVisibility.PublishedToAll);
+    }
+
+    [Fact]
+    public void PublishClarification_is_rejected_before_it_has_been_answered()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+        var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
+
+        var act = () => rfq.PublishClarification(clarification.Id);
+
+        act.Should().Throw<DomainException>().WithMessage("*has not been answered yet*");
+    }
+
+    [Fact]
+    public void IssueAddendum_is_rejected_before_publish()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+
+        var act = () => rfq.IssueAddendum("عنوان", "Title", "وصف", "Description", ApproverId);
+
+        act.Should().Throw<DomainException>().WithMessage("*must be Published or SubmissionOpen*");
+    }
+
+    [Fact]
+    public void IssueAddendum_succeeds_once_published_the_first_real_use_of_the_except_addenda_carve_out()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        AdvanceTo(rfq, RfqState.Published);
+
+        var addendum = rfq.IssueAddendum("تمديد الموعد النهائي", "Deadline extended", "تم تمديد موعد التقديم", "The submission deadline has been extended.", ApproverId);
+
+        rfq.Addenda.Should().ContainSingle(a => a.Id == addendum.Id);
+        // The RFQ's own locked content is untouched - an addendum is additive, not an in-place edit.
+        var act = () => rfq.AddItem("late", "late", null, null, "catering", 1m, "unit", false, false);
+        act.Should().Throw<DomainException>().WithMessage("*only 'Draft' allows edits*");
+    }
+
     /// <summary>Drives the aggregate through every real transition up to (not including) the
     /// requested state, using only the domain's own methods - the same "walk the machine" pattern
     /// used to prove the theory-table Cancel test above without duplicating setup per case.</summary>

@@ -246,6 +246,12 @@ builder.Services.AddScoped<ISuggestInvitationCandidatesHandler, SuggestInvitatio
 builder.Services.AddScoped<ISupplierListInvitedRfqsHandler, SupplierListInvitedRfqsHandler>();
 builder.Services.AddScoped<ISupplierGetRfqHandler, SupplierGetRfqHandler>();
 builder.Services.AddScoped<ISupplierDeclineInvitationHandler, SupplierDeclineInvitationHandler>();
+
+// EPIC-10: Clarifications.
+builder.Services.AddScoped<IAnswerClarificationHandler, AnswerClarificationHandler>();
+builder.Services.AddScoped<IPublishClarificationHandler, PublishClarificationHandler>();
+builder.Services.AddScoped<IIssueAddendumHandler, IssueAddendumHandler>();
+builder.Services.AddScoped<ISupplierPostClarificationHandler, SupplierPostClarificationHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();

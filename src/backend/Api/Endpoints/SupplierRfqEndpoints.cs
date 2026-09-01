@@ -1,3 +1,4 @@
+using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Identity;
@@ -5,6 +6,13 @@ using MotsSupplierPortal.Domain.Identity;
 namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record DeclineInvitationRequest(string? Reason);
+
+public sealed record PostClarificationRequest(string Question);
+
+public sealed class PostClarificationRequestValidator : AbstractValidator<PostClarificationRequest>
+{
+    public PostClarificationRequestValidator() => RuleFor(x => x.Question).NotEmpty().MaximumLength(4000);
+}
 
 /// <summary>FEAT-08.4/08.6/FR-INV-004/006: the supplier-facing side of Invitations - the security
 /// boundary this feature exists for. Every route resolves through a real Invitation row (see
@@ -45,5 +53,20 @@ public static class SupplierRfqEndpoints
             MapResult(await handler.HandleAsync(new DeclineInvitationCommand(referenceCode, request.Reason), ct)))
         .RequirePermission(Permissions.ProposalSubmit)
         .WithName("SupplierDeclineInvitation");
+
+        group.MapPost("/{referenceCode}/clarifications", async (
+            string referenceCode,
+            PostClarificationRequest request,
+            IValidator<PostClarificationRequest> validator,
+            ISupplierPostClarificationHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
+            return MapResult(await handler.HandleAsync(new PostClarificationQuestionCommand(referenceCode, request.Question), ct));
+        })
+        .RequirePermission(Permissions.ProposalSubmit)
+        .WithName("SupplierPostClarification");
     }
 }

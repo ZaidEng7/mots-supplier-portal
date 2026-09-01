@@ -29,7 +29,7 @@ describe('SupplierRfqListPage', () => {
         {
           referenceCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
           currencyCode: 'SYP', state: 'Published', submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
-          items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited',
+          items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited', clarifications: [], addenda: [],
         },
       ],
     })
