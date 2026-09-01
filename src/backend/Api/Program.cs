@@ -202,6 +202,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IGetCurrenciesHandler, GetCurrenciesHandler>();
 builder.Services.AddScoped<IGetRegionsHandler, GetRegionsHandler>();
 builder.Services.AddScoped<IGetCategoriesHandler, GetCategoriesHandler>();
+builder.Services.AddScoped<IGetUnitsOfMeasureHandler, GetUnitsOfMeasureHandler>();
+// FEAT-06.1/FR-OFF-001: Offering CRUD.
+builder.Services.AddScoped<IListOfferingsHandler, ListOfferingsHandler>();
+builder.Services.AddScoped<ICreateOfferingHandler, CreateOfferingHandler>();
+builder.Services.AddScoped<IUpdateOfferingHandler, UpdateOfferingHandler>();
+builder.Services.AddScoped<IDeactivateOfferingHandler, DeactivateOfferingHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
@@ -561,6 +567,12 @@ app.MapGet("/api/v1/reference/categories", async (IGetCategoriesHandler handler,
     .WithName("GetCategories")
     .WithTags("Reference");
 
+app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandler handler, CancellationToken ct) =>
+    Results.Ok(await handler.HandleAsync(ct)))
+    .AllowAnonymous()
+    .WithName("GetUnitsOfMeasure")
+    .WithTags("Reference");
+
 app.MapRegistrationEndpoints();
 app.MapAuthEndpoints();
 app.MapMfaEndpoints();
@@ -573,6 +585,7 @@ app.MapReviewEndpoints();
 app.MapOrganizationEndpoints();
 app.MapStaffEndpoints();
 app.MapRoleEndpoints();
+app.MapOfferingEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing
