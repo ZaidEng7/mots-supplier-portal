@@ -41,6 +41,7 @@ export const reviewerToken = fakeJwt({
 })
 
 export const REFERENCE_CODE = 'SUP-2026-000001'
+export const RFQ_REFERENCE_CODE = 'RFQ-2026-000001'
 
 export const SUPPLIER_PROFILE = {
   referenceCode: REFERENCE_CODE,
@@ -75,6 +76,19 @@ export const DOCUMENT_TYPES = [
   { documentTypeId: 'd2', code: 'tax_certificate', nameAr: 'الشهادة الضريبية', nameEn: 'Tax Certificate', isRequired: true, expiryTracked: true, latestDocument: { id: 'doc1', version: 1, state: 'Approved', originalFileName: 'tax-cert.pdf', contentType: 'application/pdf', sizeBytes: 102400, issueDate: '2026-01-01', expiryDate: '2027-01-01', rejectReason: null, uploadedAt: '2026-01-01T00:00:00Z', reviewedAt: '2026-01-02T00:00:00Z' } },
   { documentTypeId: 'd3', code: 'chamber_membership', nameAr: 'عضوية الغرفة التجارية', nameEn: 'Chamber Membership', isRequired: false, expiryTracked: true, latestDocument: null },
 ]
+
+export const RFQ_FIXTURE = {
+  referenceCode: RFQ_REFERENCE_CODE, organizationId: 'org-1', titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
+  descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Draft',
+  publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
+  evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
+  items: [], requirements: [], attachments: [], approvals: [],
+}
+
+export const EVALUATION_TEMPLATE_FIXTURE = {
+  id: 'tpl-1', familyId: 'fam-1', version: 1, nameAr: 'قالب', nameEn: 'A11y Test Template',
+  status: 'Draft', isReferenced: false, criteria: [],
+}
 
 /**
  * Intercepts every `/api/v1/**` call with representative, structurally-real data so each
@@ -123,6 +137,11 @@ export async function mockBackend(page: Page) {
     // FEAT-06.3: buyer-facing offering search - same class of bug, an unmocked list endpoint
     // crashing OfferingSearchPage's results.map() on the generic {} fallback below.
     if (p === '/api/v1/offerings/search') return route.fulfill({ json: [] })
+    // FEAT-11.1/EPIC-07: same class of bug - RfqListPage's rfqs.map() and
+    // EvaluationTemplatesPage's templates.map() both crash on the generic {} fallback below.
+    if (p === '/api/v1/evaluation-templates') return route.fulfill({ json: [EVALUATION_TEMPLATE_FIXTURE] })
+    if (p === '/api/v1/rfqs') return route.fulfill({ json: [RFQ_FIXTURE] })
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: RFQ_FIXTURE })
 
     // Anything else (mutation endpoints no initial render triggers, unanticipated GETs): benign
     // empty success, so an unmocked call cannot crash the page under scan.
