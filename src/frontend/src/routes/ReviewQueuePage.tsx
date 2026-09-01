@@ -90,6 +90,7 @@ export function ReviewQueuePage() {
           <Select
             value={stateFilter}
             onValueChange={setStateFilter}
+            placeholder={t('review.filterState')}
             options={[
               { value: 'all', label: t('review.filterAll') },
               ...STATE_OPTIONS.map((s) => ({ value: s, label: s })),
@@ -101,6 +102,7 @@ export function ReviewQueuePage() {
           <Select
             value={assigneeFilter}
             onValueChange={setAssigneeFilter}
+            placeholder={t('review.filterAssignee')}
             options={[
               { value: 'all', label: t('review.filterAll') },
               { value: 'me', label: t('review.assignedToMe') },

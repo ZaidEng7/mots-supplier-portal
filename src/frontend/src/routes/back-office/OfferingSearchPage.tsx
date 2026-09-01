@@ -45,6 +45,7 @@ export function OfferingSearchPage() {
           <Select
             value={categoryCode}
             onValueChange={setCategoryCode}
+            placeholder={t('offeringSearch.filterCategory')}
             options={[{ value: 'all', label: t('offeringSearch.filterAll') }, ...categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))]}
           />
         </div>
