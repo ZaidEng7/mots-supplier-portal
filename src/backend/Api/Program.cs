@@ -239,6 +239,13 @@ builder.Services.AddScoped<IPublishRfqHandler, PublishRfqHandler>();
 builder.Services.AddScoped<ICloseRfqSubmissionHandler, CloseRfqSubmissionHandler>();
 builder.Services.AddScoped<ICancelRfqHandler, CancelRfqHandler>();
 builder.Services.AddScoped<RfqTimelineJob>();
+
+// EPIC-08: Invitations.
+builder.Services.AddScoped<IInviteSupplierHandler, InviteSupplierHandler>();
+builder.Services.AddScoped<ISuggestInvitationCandidatesHandler, SuggestInvitationCandidatesHandler>();
+builder.Services.AddScoped<ISupplierListInvitedRfqsHandler, SupplierListInvitedRfqsHandler>();
+builder.Services.AddScoped<ISupplierGetRfqHandler, SupplierGetRfqHandler>();
+builder.Services.AddScoped<ISupplierDeclineInvitationHandler, SupplierDeclineInvitationHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
@@ -621,6 +628,7 @@ app.MapRoleEndpoints();
 app.MapOfferingEndpoints();
 app.MapEvaluationTemplateEndpoints();
 app.MapRfqEndpoints();
+app.MapSupplierRfqEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

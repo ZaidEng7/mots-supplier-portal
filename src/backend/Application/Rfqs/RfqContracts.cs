@@ -12,13 +12,36 @@ public sealed record RfqAttachmentDto(Guid Id, string OriginalFileName, string C
 
 public sealed record RfqApprovalDto(int StepNo, Guid? ApproverUserId, RfqApprovalDecision? Decision, string? Comment, DateTimeOffset? DecidedAt);
 
+/// <summary>Buyer-facing view of an Invitation - includes the invited supplier's display names so
+/// the FEAT-08.7 status board can render without a second round trip.</summary>
+public sealed record InvitationDto(
+    Guid Id, Guid SupplierId, string SupplierDisplayNameAr, string SupplierDisplayNameEn,
+    InvitationStatus Status, DateTimeOffset InvitedAt, DateTimeOffset? ViewedAt, DateTimeOffset? RespondedAt, string? DeclineReason);
+
+/// <summary>FEAT-08.2/FR-INV-002: a supplier suggested as an invitation candidate because its
+/// Offerings match one or more of the RFQ's item categories. MatchCount ranks the suggestions -
+/// more matching categories first.</summary>
+public sealed record InvitationCandidateDto(Guid SupplierId, string DisplayNameAr, string DisplayNameEn, int MatchCount);
+
 public sealed record RfqDto(
     string ReferenceCode, Guid OrganizationId, string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn,
     string CurrencyCode, RfqState State, DateTimeOffset? PublishAt, DateTimeOffset? SubmissionOpensAt,
     DateTimeOffset? SubmissionClosesAt, DateTimeOffset? ClarificationDeadlineAt, DateTimeOffset? EvaluationTargetDate,
     Guid? EvaluationTemplateId, int? EvaluationTemplateVersion, string? CancelReason,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements,
-    IReadOnlyList<RfqAttachmentDto> Attachments, IReadOnlyList<RfqApprovalDto> Approvals);
+    IReadOnlyList<RfqAttachmentDto> Attachments, IReadOnlyList<RfqApprovalDto> Approvals,
+    IReadOnlyList<InvitationDto> Invitations);
+
+/// <summary>FEAT-08.6/FR-INV-006: the supplier-facing shape of an RFQ - deliberately narrower than
+/// RfqDto. Excludes Approvals (internal reviewer comments/decisions) and OrganizationId's sibling
+/// internal-only fields; a non-invited supplier never sees this shape at all (404, see
+/// SupplierRfqEndpoints).</summary>
+public sealed record SupplierRfqDto(
+    string ReferenceCode, string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn,
+    string CurrencyCode, RfqState State, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionClosesAt,
+    DateTimeOffset? ClarificationDeadlineAt,
+    IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements, IReadOnlyList<RfqAttachmentDto> Attachments,
+    InvitationStatus MyInvitationStatus);
 
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
@@ -58,6 +81,10 @@ public sealed record CloseRfqSubmissionCommand(string ReferenceCode, string? Rea
 
 public sealed record CancelRfqCommand(string ReferenceCode, string Reason);
 
+public sealed record InviteSupplierCommand(string ReferenceCode, Guid SupplierId);
+
+public sealed record DeclineInvitationCommand(string ReferenceCode, string? Reason);
+
 public abstract record RfqMutationResult
 {
     public sealed record Success(RfqDto Rfq) : RfqMutationResult;
@@ -69,6 +96,22 @@ public abstract record RfqMutationResult
     public sealed record InvalidCategory : RfqMutationResult;
     public sealed record InvalidUnitOfMeasure : RfqMutationResult;
     public sealed record InvalidEvaluationTemplate(string Message) : RfqMutationResult;
+    /// <summary>FEAT-08.1/BRULE-032: the invited (or, on Publish, already-invited) supplier is not
+    /// found or not Active.</summary>
+    public sealed record SupplierNotActive : RfqMutationResult;
+}
+
+/// <summary>Supplier-side self-service result - deliberately does not reuse RfqMutationResult so a
+/// supplier-facing 404 can never be confused with the buyer-side NotFoundOrOutOfScope, which is
+/// organization-scoped rather than invitation-scoped.</summary>
+public abstract record SupplierRfqResult
+{
+    public sealed record Success(SupplierRfqDto Rfq) : SupplierRfqResult;
+    /// <summary>FEAT-08.6/FR-INV-006: the RFQ does not exist, is not yet Published, or this
+    /// supplier holds no Invitation to it - all three collapse to the same 404 at the endpoint so a
+    /// non-invited supplier cannot distinguish "wrong reference code" from "not invited".</summary>
+    public sealed record NotFoundOrNotInvited : SupplierRfqResult;
+    public sealed record InvalidState(string Message) : SupplierRfqResult;
 }
 
 public interface IListRfqsHandler
@@ -142,4 +185,29 @@ public interface ICloseRfqSubmissionHandler
 public interface ICancelRfqHandler
 {
     Task<RfqMutationResult> HandleAsync(CancelRfqCommand command, CancellationToken ct);
+}
+
+public interface IInviteSupplierHandler
+{
+    Task<RfqMutationResult> HandleAsync(InviteSupplierCommand command, CancellationToken ct);
+}
+
+public interface ISuggestInvitationCandidatesHandler
+{
+    Task<IReadOnlyList<InvitationCandidateDto>> HandleAsync(string referenceCode, CancellationToken ct);
+}
+
+public interface ISupplierListInvitedRfqsHandler
+{
+    Task<IReadOnlyList<SupplierRfqDto>> HandleAsync(CancellationToken ct);
+}
+
+public interface ISupplierGetRfqHandler
+{
+    Task<SupplierRfqResult> HandleAsync(string referenceCode, CancellationToken ct);
+}
+
+public interface ISupplierDeclineInvitationHandler
+{
+    Task<SupplierRfqResult> HandleAsync(DeclineInvitationCommand command, CancellationToken ct);
 }

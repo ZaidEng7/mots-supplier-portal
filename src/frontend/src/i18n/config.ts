@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       common: { loading: 'جاري التحميل...' },
       phone: {
         countryCode: 'رمز الدولة',
@@ -373,6 +373,29 @@ const resources = {
           comments: 'ملاحظات', reason: 'السبب',
         },
         errors: { saveFailed: 'تعذر حفظ الطلب', transitionFailed: 'تعذر تنفيذ الإجراء' },
+        invitations: {
+          title: 'الدعوات',
+          none: 'لم تتم دعوة أي مورد بعد',
+          candidatesTitle: 'موردون مقترحون',
+          invite: 'دعوة',
+          invited: 'تمت دعوة المورد',
+          matchCount: '{{count}} تطابق فئة',
+          fields: { supplier: 'المورد', status: 'الحالة', invitedAt: 'تاريخ الدعوة', viewedAt: 'تاريخ الاطلاع', declineReason: 'سبب الرفض' },
+          errors: { inviteFailed: 'تعذرت دعوة المورد' },
+        },
+      },
+      supplierRfq: {
+        title: 'طلبات عروض الأسعار',
+        subtitle: 'طلبات العروض التي دُعيت للمشاركة فيها.',
+        listTitle: 'قائمة الدعوات',
+        empty: 'لا توجد دعوات بعد',
+        myStatus: 'حالتي',
+        notFound: 'الطلب غير موجود',
+        declineTitle: 'رفض الدعوة',
+        decline: 'رفض الدعوة',
+        declineReasonPlaceholder: 'سبب الرفض (اختياري)',
+        declined: 'تم رفض الدعوة',
+        errors: { declineFailed: 'تعذر رفض الدعوة' },
       },
       team: {
         title: 'إدارة الفريق',
@@ -572,7 +595,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       common: { loading: 'Loading...' },
       phone: {
         countryCode: 'Country code',
@@ -939,6 +962,29 @@ const resources = {
           comments: 'Comments', reason: 'Reason',
         },
         errors: { saveFailed: 'Could not save the RFQ', transitionFailed: 'Could not perform the action' },
+        invitations: {
+          title: 'Invitations',
+          none: 'No suppliers invited yet',
+          candidatesTitle: 'Suggested suppliers',
+          invite: 'Invite',
+          invited: 'Supplier invited',
+          matchCount: '{{count}} category match(es)',
+          fields: { supplier: 'Supplier', status: 'Status', invitedAt: 'Invited', viewedAt: 'Viewed', declineReason: 'Decline reason' },
+          errors: { inviteFailed: 'Could not invite the supplier' },
+        },
+      },
+      supplierRfq: {
+        title: 'RFQs',
+        subtitle: 'Requests for Quotation you have been invited to.',
+        listTitle: 'Invitations',
+        empty: 'No invitations yet',
+        myStatus: 'My status',
+        notFound: 'RFQ not found',
+        declineTitle: 'Decline invitation',
+        decline: 'Decline invitation',
+        declineReasonPlaceholder: 'Reason (optional)',
+        declined: 'Invitation declined',
+        errors: { declineFailed: 'Could not decline the invitation' },
       },
       team: {
         title: 'Team Management',

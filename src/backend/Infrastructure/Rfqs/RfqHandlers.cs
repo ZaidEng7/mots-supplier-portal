@@ -1,9 +1,11 @@
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
@@ -11,7 +13,27 @@ namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
 internal static class RfqDtoMapper
 {
-    public static RfqDto ToDto(Rfq rfq) => new(
+    /// <summary>Async because InvitationDto carries the invited supplier's display names
+    /// (FEAT-08.7) - a small extra query per call, acceptable at this call volume (buyer-side RFQ
+    /// mutation/detail endpoints, not a hot list path); ListRfqsHandler batches it once for the
+    /// whole page instead of N+1 (see its own comment).</summary>
+    public static async Task<RfqDto> ToDtoAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
+    {
+        var supplierIds = rfq.Invitations.Select(i => i.SupplierId).Distinct().ToList();
+        var names = await SupplierNamesAsync(db, supplierIds, ct);
+        return ToDto(rfq, names);
+    }
+
+    public static async Task<Dictionary<Guid, (string Ar, string En)>> SupplierNamesAsync(
+        AppDbContext db, IReadOnlyList<Guid> supplierIds, CancellationToken ct)
+    {
+        if (supplierIds.Count == 0) return [];
+        return await db.Suppliers.Where(s => supplierIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.DisplayNameAr, s.DisplayNameEn })
+            .ToDictionaryAsync(s => s.Id, s => (s.DisplayNameAr, s.DisplayNameEn), ct);
+    }
+
+    public static RfqDto ToDto(Rfq rfq, IReadOnlyDictionary<Guid, (string Ar, string En)> supplierNames) => new(
         rfq.ReferenceCode, rfq.OrganizationId, rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn,
         rfq.CurrencyCode, rfq.State, rfq.PublishAt, rfq.SubmissionOpensAt, rfq.SubmissionClosesAt,
         rfq.ClarificationDeadlineAt, rfq.EvaluationTargetDate, rfq.EvaluationTemplateId, rfq.EvaluationTemplateVersion,
@@ -21,7 +43,22 @@ internal static class RfqDtoMapper
             i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
         [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
         [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
-        [.. rfq.Approvals.OrderBy(a => a.StepNo).Select(a => new RfqApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))]);
+        [.. rfq.Approvals.OrderBy(a => a.StepNo).Select(a => new RfqApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))],
+        [.. rfq.Invitations.OrderBy(i => i.InvitedAt).Select(i =>
+        {
+            (string Ar, string En) name = supplierNames.TryGetValue(i.SupplierId, out var n) ? n : ("", "");
+            return new InvitationDto(i.Id, i.SupplierId, name.Ar, name.En, i.Status, i.InvitedAt, i.ViewedAt, i.RespondedAt, i.DeclineReason);
+        })]);
+
+    public static SupplierRfqDto ToSupplierDto(Rfq rfq, Invitation myInvitation) => new(
+        rfq.ReferenceCode, rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn, rfq.CurrencyCode, rfq.State,
+        rfq.SubmissionOpensAt, rfq.SubmissionClosesAt, rfq.ClarificationDeadlineAt,
+        [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
+            i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn, i.CategoryCode,
+            i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
+        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+        [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
+        myInvitation.Status);
 }
 
 /// <summary>Shared loader: every RFQ handler in this file row-scopes to the caller's own
@@ -38,6 +75,7 @@ file static class RfqLoader
     // once four sibling collections are all included together.
     public static IQueryable<Rfq> IncludeAll(this DbSet<Rfq> set) =>
         set.Include(r => r.Items).Include(r => r.Requirements).Include(r => r.Attachments).Include(r => r.Approvals)
+            .Include(r => r.Invitations)
             .AsSplitQuery();
 
     public static async Task<Rfq?> LoadScopedAsync(AppDbContext db, IScopeContext scope, string referenceCode, CancellationToken ct)
@@ -57,7 +95,12 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
             .Where(r => r.OrganizationId == scope.OrganizationId)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
-        return [.. rfqs.Select(RfqDtoMapper.ToDto)];
+
+        // Batched once for the whole page rather than N+1 (ToDtoAsync's own per-call query would
+        // otherwise fire once per RFQ in the list).
+        var supplierIds = rfqs.SelectMany(r => r.Invitations).Select(i => i.SupplierId).Distinct().ToList();
+        var names = await RfqDtoMapper.SupplierNamesAsync(db, supplierIds, ct);
+        return [.. rfqs.Select(r => RfqDtoMapper.ToDto(r, names))];
     }
 }
 
@@ -66,7 +109,7 @@ public sealed class GetRfqHandler(AppDbContext db, IScopeContext scope) : IGetRf
     public async Task<RfqDto?> HandleAsync(string referenceCode, CancellationToken ct)
     {
         var rfq = await RfqLoader.LoadScopedAsync(db, scope, referenceCode, ct);
-        return rfq is null ? null : RfqDtoMapper.ToDto(rfq);
+        return rfq is null ? null : await RfqDtoMapper.ToDtoAsync(db, rfq, ct);
     }
 }
 
@@ -96,7 +139,7 @@ public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAudi
         db.Rfqs.Add(rfq);
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_created", scope.UserId, referenceCode: rfq.ReferenceCode, toState: nameof(RfqState.Draft), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -121,7 +164,7 @@ public sealed class UpdateRfqBasicsHandler(AppDbContext db, IScopeContext scope,
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_updated", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -159,7 +202,7 @@ public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, I
         db.RfqItems.Add(item);
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_item_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 
     public async Task<RfqMutationResult> RemoveAsync(RemoveRfqItemCommand command, CancellationToken ct)
@@ -178,7 +221,7 @@ public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, I
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_item_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -202,7 +245,7 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
         db.Requirements.Add(requirement);
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 
     public async Task<RfqMutationResult> RemoveAsync(RemoveRequirementCommand command, CancellationToken ct)
@@ -221,7 +264,7 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -247,7 +290,7 @@ public sealed class ManageRfqAttachmentHandler(AppDbContext db, IScopeContext sc
         db.RfqAttachments.Add(attachment);
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_attachment_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 
     public async Task<RfqMutationResult> RemoveAsync(RemoveRfqAttachmentCommand command, CancellationToken ct)
@@ -266,7 +309,7 @@ public sealed class ManageRfqAttachmentHandler(AppDbContext db, IScopeContext sc
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_attachment_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -322,7 +365,7 @@ public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_evaluation_template_bound", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: $"{template.Id}/v{template.Version}", ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -353,7 +396,7 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submitted_for_review", scope.UserId,
             referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.Draft), toState: nameof(RfqState.InternalReview), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -379,7 +422,7 @@ public sealed class ReturnRfqForEditsHandler(AppDbContext db, IScopeContext scop
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_returned", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.InternalReview), toState: nameof(RfqState.Draft), reason: command.Comments, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -405,17 +448,32 @@ public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAud
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_approved", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.InternalReview), toState: nameof(RfqState.Approved), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
-/// <summary>FEAT-07.5/BUSINESS-PROCESSES.md §3.1: Approved -&gt; Published.</summary>
+/// <summary>FEAT-07.5/BUSINESS-PROCESSES.md §3.1: Approved -&gt; Published. BRULE-032/EPIC-08 gap
+/// closed: re-checks every currently-invited supplier's LifecycleState before publishing, since
+/// InviteSupplierHandler only guarantees Active AT INVITE time - time may have passed (and a
+/// supplier may have been suspended/deactivated) between invite and this transition.</summary>
 public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IPublishRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(PublishRfqCommand command, CancellationToken ct)
     {
         var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
         if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        var invitedSupplierIds = rfq.Invitations.Select(i => i.SupplierId).ToList();
+        if (invitedSupplierIds.Count > 0)
+        {
+            var inactiveCount = await db.Suppliers
+                .Where(s => invitedSupplierIds.Contains(s.Id) && s.LifecycleState != SupplierLifecycleState.Active)
+                .CountAsync(ct);
+            if (inactiveCount > 0)
+            {
+                return new RfqMutationResult.SupplierNotActive();
+            }
+        }
 
         try
         {
@@ -429,7 +487,7 @@ public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAud
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_published", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.Approved), toState: nameof(RfqState.Published), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -454,7 +512,7 @@ public sealed class CloseRfqSubmissionHandler(AppDbContext db, IScopeContext sco
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submission_closed", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.SubmissionOpen), toState: nameof(RfqState.SubmissionClosed), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
 
@@ -480,6 +538,95 @@ public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAudi
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_cancelled", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: fromState.ToString(), toState: nameof(RfqState.Cancelled), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new RfqMutationResult.Success(RfqDtoMapper.ToDto(rfq));
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}
+
+/// <summary>FEAT-08.1/FR-INV-001/BRULE-032: invite a candidate supplier. Active-only is enforced
+/// here (cross-aggregate - see Rfq.InviteSupplier's own doc comment), not on the domain method.
+/// FEAT-08.3/FR-INV-003: on success, enqueues a real email (not Outbox - see EmailJobs.cs's own
+/// doc comment on why token/notification emails use the Hangfire+IEmailSender path, not the
+/// ERP-integration Outbox) to the invited supplier's primary user. "In-app" is the invited
+/// supplier's own RFQ list reflecting the new invitation on next fetch - the same shape "in-app"
+/// has in every other transition in this codebase (no dedicated Notification entity exists
+/// anywhere yet; EPIC-15 is unbuilt), not a gap invented for this feature alone.</summary>
+public sealed class InviteSupplierHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
+    : IInviteSupplierHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(InviteSupplierCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == command.SupplierId, ct);
+        if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Active)
+        {
+            return new RfqMutationResult.SupplierNotActive();
+        }
+
+        Invitation invitation;
+        try
+        {
+            invitation = rfq.InviteSupplier(command.SupplierId);
+        }
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.Invitations.Add(invitation);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_supplier_invited", scope.UserId,
+            referenceCode: rfq.ReferenceCode, changes: $"{{\"supplierId\":\"{command.SupplierId}\"}}", ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        var recipientUserId = await db.Users.Where(u => u.SupplierId == command.SupplierId)
+            .Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
+        if (recipientUserId is not null)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendRfqInvitationEmailAsync(recipientUserId.Value, rfq.Id, CancellationToken.None));
+        }
+
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}
+
+/// <summary>FEAT-08.2/FR-INV-002: suggests suppliers whose Offerings match one of the RFQ's item
+/// categories, Active-only, already-invited suppliers excluded, ranked by match count. Reuses the
+/// same manual Offering-to-Supplier join as SearchBuyerOfferingsHandler (OfferingHandlers.cs's own
+/// comment: Offering and Supplier are separate aggregate roots with no EF navigation between
+/// them) - a suggestion, not a binding action: the officer still calls InviteSupplier per
+/// candidate.</summary>
+public sealed class SuggestInvitationCandidatesHandler(AppDbContext db, IScopeContext scope) : ISuggestInvitationCandidatesHandler
+{
+    public async Task<IReadOnlyList<InvitationCandidateDto>> HandleAsync(string referenceCode, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, referenceCode, ct);
+        if (rfq is null) return [];
+
+        var categoryCodes = rfq.Items.Select(i => i.CategoryCode).Distinct().ToList();
+        var alreadyInvited = rfq.Invitations.Select(i => i.SupplierId).ToHashSet();
+        if (categoryCodes.Count == 0) return [];
+
+        var matches = await (
+            from o in db.Offerings
+            where o.IsActive && categoryCodes.Contains(o.CategoryCode)
+            select new { o.SupplierId, o.CategoryCode })
+            .Distinct()
+            .ToListAsync(ct);
+
+        var candidateIds = matches.Select(m => m.SupplierId).Distinct().Where(id => !alreadyInvited.Contains(id)).ToList();
+        if (candidateIds.Count == 0) return [];
+
+        var activeSuppliers = await db.Suppliers
+            .Where(s => candidateIds.Contains(s.Id) && s.LifecycleState == SupplierLifecycleState.Active)
+            .Select(s => new { s.Id, s.DisplayNameAr, s.DisplayNameEn })
+            .ToListAsync(ct);
+
+        var matchCounts = matches.Where(m => activeSuppliers.Select(s => s.Id).Contains(m.SupplierId))
+            .GroupBy(m => m.SupplierId).ToDictionary(g => g.Key, g => g.Select(m => m.CategoryCode).Distinct().Count());
+
+        return [.. activeSuppliers
+            .Select(s => new InvitationCandidateDto(s.Id, s.DisplayNameAr, s.DisplayNameEn, matchCounts.GetValueOrDefault(s.Id, 0)))
+            .OrderByDescending(c => c.MatchCount)];
     }
 }

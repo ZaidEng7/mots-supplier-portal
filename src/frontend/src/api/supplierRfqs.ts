@@ -1,0 +1,54 @@
+import { apiFetch } from './auth'
+import type { InvitationStatus, RfqItem, Requirement, RfqAttachment, RfqState } from './rfqs'
+
+/** FEAT-08.6/FR-INV-006: the supplier-facing shape - deliberately narrower than the buyer's Rfq
+ * (no Approvals, no OrganizationId) since a non-invited supplier must never even learn the RFQ
+ * exists, let alone see internal reviewer state. */
+export interface SupplierRfq {
+  referenceCode: string
+  titleAr: string
+  titleEn: string
+  descriptionAr: string | null
+  descriptionEn: string | null
+  currencyCode: string
+  state: RfqState
+  submissionOpensAt: string | null
+  submissionClosesAt: string | null
+  clarificationDeadlineAt: string | null
+  items: RfqItem[]
+  requirements: Requirement[]
+  attachments: RfqAttachment[]
+  myInvitationStatus: InvitationStatus
+}
+
+export class SupplierRfqApiError extends Error {
+  status: number
+  constructor(status: number, body: unknown) {
+    const b = body as { error?: string; message?: string } | null
+    super(b?.message ?? b?.error ?? `Request failed: ${status}`)
+    this.status = status
+  }
+}
+
+async function parseOrThrow<T>(res: Response): Promise<T> {
+  const text = await res.text()
+  const body = text ? JSON.parse(text) : null
+  if (!res.ok) throw new SupplierRfqApiError(res.status, body)
+  return body as T
+}
+
+export async function listInvitedRfqs(): Promise<SupplierRfq[]> {
+  return parseOrThrow(await apiFetch('/api/v1/suppliers/me/rfqs'))
+}
+
+export async function getInvitedRfq(referenceCode: string): Promise<SupplierRfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs/${referenceCode}`))
+}
+
+export async function declineInvitation(referenceCode: string, reason: string | null): Promise<SupplierRfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs/${referenceCode}/decline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  }))
+}

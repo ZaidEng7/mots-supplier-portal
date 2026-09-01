@@ -98,7 +98,8 @@ test('the route denominator is what the router actually declares, not what this 
   // 24 (Epics 3/6 closure batch): /back-office/offerings added.
   // 27 (FEAT-11.1/EPIC-07): /back-office/evaluation-templates, /back-office/rfqs, and
   // /back-office/rfqs/$referenceCode added.
-  expect(routes.length).toBe(27)
+  // 29 (EPIC-08): /rfqs and /rfqs/$referenceCode added (supplier-facing invitations).
+  expect(routes.length).toBe(29)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
@@ -118,7 +119,7 @@ for (const route of routes) {
       if (route.name === 'reviewApplicationRoute') {
         target = target.replace('$referenceCode', REFERENCE_CODE)
       }
-      if (route.name === 'rfqDetailRoute') {
+      if (route.name === 'rfqDetailRoute' || route.name === 'supplierRfqDetailRoute') {
         target = target.replace('$referenceCode', RFQ_REFERENCE_CODE)
       }
 

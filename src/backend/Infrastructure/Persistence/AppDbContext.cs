@@ -47,6 +47,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Requirement> Requirements => Set<Requirement>();
     public DbSet<RfqAttachment> RfqAttachments => Set<RfqAttachment>();
     public DbSet<RfqApproval> RfqApprovals => Set<RfqApproval>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -540,6 +541,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasMany(r => r.Requirements).WithOne().HasForeignKey(q => q.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Attachments).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Approvals).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(r => r.Invitations).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RfqItem>(entity =>
@@ -586,6 +588,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
             entity.Property(a => a.Comment).HasMaxLength(2000);
             entity.HasIndex(a => new { a.RfqId, a.StepNo }).IsUnique();
+        });
+
+        // FEAT-08.1/DATABASE-MODEL.md §2.4: unique(rfq_id, supplier_id) is DB-enforced, "never
+        // left to app-only checks" per that doc's own note - Rfq.InviteSupplier's app-level
+        // duplicate check is a fast-fail UX nicety, not the actual invariant guarantee.
+        modelBuilder.Entity<Invitation>(entity =>
+        {
+            entity.ToTable("invitation", "rfq");
+            entity.HasKey(i => i.Id);
+            entity.Property(i => i.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(i => i.DeclineReason).HasMaxLength(2000);
+            entity.HasIndex(i => new { i.RfqId, i.SupplierId }).IsUnique();
+            entity.HasIndex(i => i.SupplierId);
         });
     }
 }

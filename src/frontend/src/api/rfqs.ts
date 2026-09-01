@@ -43,6 +43,27 @@ export interface RfqApproval {
   decidedAt: string | null
 }
 
+export type InvitationStatus = 'Invited' | 'Viewed' | 'Responding' | 'Submitted' | 'Declined'
+
+export interface Invitation {
+  id: string
+  supplierId: string
+  supplierDisplayNameAr: string
+  supplierDisplayNameEn: string
+  status: InvitationStatus
+  invitedAt: string
+  viewedAt: string | null
+  respondedAt: string | null
+  declineReason: string | null
+}
+
+export interface InvitationCandidate {
+  supplierId: string
+  displayNameAr: string
+  displayNameEn: string
+  matchCount: number
+}
+
 export interface Rfq {
   referenceCode: string
   organizationId: string
@@ -64,6 +85,7 @@ export interface Rfq {
   requirements: Requirement[]
   attachments: RfqAttachment[]
   approvals: RfqApproval[]
+  invitations: Invitation[]
 }
 
 export interface RfqBasicsPayload {
@@ -218,4 +240,16 @@ export async function cancelRfq(referenceCode: string, reason: string): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
   }))
+}
+
+export async function inviteSupplier(referenceCode: string, supplierId: string): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ supplierId }),
+  }))
+}
+
+export async function suggestInvitationCandidates(referenceCode: string): Promise<InvitationCandidate[]> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations/candidates`))
 }

@@ -79,6 +79,18 @@ public static class EmailTemplates
                $"<p>تم رفض طلب انضمامك كمورد للسبب التالي:</p><p>{reason}</p>" +
                "<p>يمكنك تصحيح المشكلة والتسجيل مرة أخرى.</p>");
 
+    /// <summary>FEAT-08.3/FR-INV-003: the deep link opens the supplier-facing RFQ detail page,
+    /// which itself re-enforces the Invitation check server-side (FEAT-08.6) - the link is a
+    /// convenience, not a bypass.</summary>
+    public static (string Subject, string Body) RfqInvitation(string? locale, string referenceCode, string rfqTitle, string deepLink) =>
+        IsEnglish(locale)
+            ? ($"You've been invited to RFQ {referenceCode}",
+               $"<p>You've been invited to submit a proposal for <strong>{rfqTitle}</strong> ({referenceCode}).</p>" +
+               $"<p><a href=\"{deepLink}\">View the RFQ</a></p>")
+            : ($"تمت دعوتك لتقديم عرض على {referenceCode}",
+               $"<p>تمت دعوتك لتقديم عرض على <strong>{rfqTitle}</strong> ({referenceCode}).</p>" +
+               $"<p><a href=\"{deepLink}\">عرض الطلب</a></p>");
+
     public static (string Subject, string Body) InfoRequested(string? locale, string reason) =>
         IsEnglish(locale)
             ? ("Action needed on your supplier application",

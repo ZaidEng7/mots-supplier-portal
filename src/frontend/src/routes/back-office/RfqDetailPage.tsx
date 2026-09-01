@@ -7,7 +7,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
-  RfqApiError,
+  inviteSupplier, suggestInvitationCandidates, RfqApiError,
 } from '../../api/rfqs'
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
 import { fetchCategories, fetchUnitsOfMeasure } from '../../api/reference'
@@ -38,11 +38,16 @@ export function RfqDetailPage() {
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const unitsQuery = useQuery({ queryKey: ['units-of-measure'], queryFn: fetchUnitsOfMeasure })
   const templatesQuery = useQuery({ queryKey: ['evaluation-templates'], queryFn: listEvaluationTemplates })
+  const candidatesQuery = useQuery({
+    queryKey: ['rfq-candidates', referenceCode],
+    queryFn: () => suggestInvitationCandidates(referenceCode),
+  })
 
   const rfq = rfqQuery.data
   const categories = categoriesQuery.data ?? []
   const units = unitsQuery.data ?? []
   const activeTemplates = (templatesQuery.data ?? []).filter((tpl) => tpl.status === 'Active')
+  const candidates = candidatesQuery.data ?? []
 
   const errorMessage = (err: unknown, fallback: string) => (err instanceof RfqApiError ? err.message : fallback)
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['rfq', referenceCode] })
@@ -110,6 +115,16 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
+  const inviteMutation = useMutation({
+    mutationFn: (supplierId: string) => inviteSupplier(referenceCode, supplierId),
+    onSuccess: () => {
+      invalidate()
+      invalidateQuietly(queryClient, { queryKey: ['rfq-candidates', referenceCode] })
+      notify({ kind: 'success', title: t('rfq.invitations.invited') })
+    },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.invitations.errors.inviteFailed')) }),
+  })
+
   const cancelMutation = useMutation({
     mutationFn: () => cancelRfq(referenceCode, cancelReason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }); setCancelReason('') },
@@ -125,6 +140,9 @@ export function RfqDetailPage() {
   const isApproved = rfq.state === 'Approved'
   const isSubmissionOpen = rfq.state === 'SubmissionOpen'
   const canCancel = !['Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
+  const canInvite = !['SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting', 'Recommendation', 'AwardApproval', 'Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
+  const invitedSupplierIds = new Set(rfq.invitations.map((i) => i.supplierId))
+  const uninvitedCandidates = candidates.filter((c) => !invitedSupplierIds.has(c.supplierId))
 
   return (
     <div className="flex flex-col gap-6">
@@ -256,6 +274,52 @@ export function RfqDetailPage() {
             <Button size="sm" isLoading={bindTemplateMutation.isPending} disabled={!selectedTemplateId} onClick={() => bindTemplateMutation.mutate()}>
               {t('rfq.bindTemplate')}
             </Button>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card title={t('rfq.invitations.title')}>
+        {rfq.invitations.length > 0 ? (
+          <Table caption={t('rfq.invitations.title')}>
+            <TableHead>
+              <TableHeaderCell>{t('rfq.invitations.fields.supplier')}</TableHeaderCell>
+              <TableHeaderCell>{t('rfq.invitations.fields.status')}</TableHeaderCell>
+              <TableHeaderCell>{t('rfq.invitations.fields.invitedAt')}</TableHeaderCell>
+              <TableHeaderCell>{t('rfq.invitations.fields.viewedAt')}</TableHeaderCell>
+              <TableHeaderCell>{t('rfq.invitations.fields.declineReason')}</TableHeaderCell>
+            </TableHead>
+            <TableBody>
+              {rfq.invitations.map((inv) => (
+                <TableRow key={inv.id}>
+                  <TableCell>{isArabic ? inv.supplierDisplayNameAr : inv.supplierDisplayNameEn}</TableCell>
+                  <TableCell>
+                    <Badge tone={inv.status === 'Declined' ? 'danger' : inv.status === 'Submitted' ? 'success' : 'info'}>{inv.status}</Badge>
+                  </TableCell>
+                  <TableCell>{new Date(inv.invitedAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{inv.viewedAt ? new Date(inv.viewedAt).toLocaleDateString() : '—'}</TableCell>
+                  <TableCell>{inv.declineReason ?? '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.invitations.none')}</p>
+        )}
+        {canInvite && uninvitedCandidates.length > 0 ? (
+          <div className="mt-4">
+            <p className="mb-2 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('rfq.invitations.candidatesTitle')}
+            </p>
+            <ul className="flex flex-col gap-2">
+              {uninvitedCandidates.map((c) => (
+                <li key={c.supplierId} className="flex items-center justify-between gap-2">
+                  <span>{isArabic ? c.displayNameAr : c.displayNameEn} ({t('rfq.invitations.matchCount', { count: c.matchCount })})</span>
+                  <Button size="sm" isLoading={inviteMutation.isPending} onClick={() => inviteMutation.mutate(c.supplierId)}>
+                    {t('rfq.invitations.invite')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </Card>

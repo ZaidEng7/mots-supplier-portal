@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../../test/renderPage'
 import type { Rfq, RfqState } from '../../api/rfqs'
@@ -17,12 +17,17 @@ function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
     descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state,
     publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
     evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
-    items: [], requirements: [], attachments: [], approvals: [],
+    items: [], requirements: [], attachments: [], approvals: [], invitations: [],
     ...overrides,
   }
 }
 
 const REFERENCE_ROUTES = {
+  // Declared before any '/api/v1/rfqs/{ref}' base route in every merged mockFetch call below -
+  // mockFetch (renderPage.tsx) matches by first-declared substring, and this candidates path is a
+  // suffix of the base RFQ route, so it must win the match or the base RFQ fixture object would be
+  // returned here instead (breaking candidates.filter()).
+  '/api/v1/rfqs/RFQ-2026-000001/invitations/candidates': [],
   '/api/v1/reference/categories': [{ code: 'consulting', nameAr: 'استشارات', nameEn: 'Consulting' }],
   '/api/v1/reference/units-of-measure': [{ code: 'each', nameAr: 'وحدة', nameEn: 'Each' }],
   '/api/v1/evaluation-templates': [{ id: 'tpl-1', familyId: 'fam-1', version: 2, nameAr: 'قالب', nameEn: 'Standard', status: 'Active', isReferenced: false, criteria: [] }],
@@ -115,5 +120,38 @@ describe('RfqDetailPage', () => {
 
     await screen.findByText('Cancelled')
     expect(screen.queryByRole('button', { name: 'Cancel RFQ' })).not.toBeInTheDocument()
+  })
+
+  it('Draft: shows suggested candidates and inviting one shows a success toast', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/invitations/candidates': [
+        { supplierId: 'sup-1', displayNameAr: 'مورد', displayNameEn: 'Candidate Co', matchCount: 2 },
+      ],
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText(/Candidate Co/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
+
+    expect(await screen.findByText('Supplier invited')).toBeInTheDocument()
+  })
+
+  it('lists existing invitations with supplier name and status', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', {
+        invitations: [
+          { id: 'inv-1', supplierId: 'sup-1', supplierDisplayNameAr: 'مورد', supplierDisplayNameEn: 'Invited Co', status: 'Viewed', invitedAt: '2026-08-01T00:00:00Z', viewedAt: '2026-08-02T00:00:00Z', respondedAt: null, declineReason: null },
+        ],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    const row = (await screen.findByText('Invited Co')).closest('tr') as HTMLElement
+    expect(within(row).getByText('Viewed')).toBeInTheDocument()
   })
 })
