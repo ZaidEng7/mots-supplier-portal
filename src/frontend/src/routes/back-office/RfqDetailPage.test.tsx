@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../../test/renderPage'
 import type { Rfq, RfqState } from '../../api/rfqs'
+import type { Evaluation } from '../../api/evaluations'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -212,5 +213,50 @@ describe('RfqDetailPage', () => {
 
     await screen.findByText('Draft')
     expect(screen.queryByRole('button', { name: 'Issue addendum' })).not.toBeInTheDocument()
+  })
+
+  it('SubmissionClosed with no evaluation yet: shows Open evaluation, and opening it shows a success toast', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation': null,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionClosed'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    const openButton = await screen.findByRole('button', { name: 'Open evaluation' })
+    await userEvent.click(openButton)
+
+    expect(await screen.findByText('Evaluation opened')).toBeInTheDocument()
+  })
+
+  it('UnderEvaluation: shows criteria with technical/financial envelope badges and the evaluator roster', async () => {
+    const evaluation: Evaluation = {
+      id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'Assigned',
+      criteria: [
+        { id: 'crit-tech', nameAr: 'جودة', nameEn: 'Quality', dimension: 'Technical', weight: 60, maxScore: 100, threshold: 60, scoringType: 'Numeric', isFinancial: false },
+        { id: 'crit-fin', nameAr: 'سعر', nameEn: 'Price', dimension: 'Commercial', weight: 40, maxScore: 100, threshold: null, scoringType: 'Numeric', isFinancial: true },
+      ],
+      assignments: [{ evaluatorUserId: 'eval-user-1', assignedAt: '2026-08-01T00:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null }],
+      results: [],
+    }
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluation,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('UnderEvaluation'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('Quality')).toBeInTheDocument()
+    expect(screen.getByText('Price')).toBeInTheDocument()
+    expect(screen.getAllByText('Technical').length).toBeGreaterThan(0)
+    expect(screen.getByText('Financial')).toBeInTheDocument()
+    expect(screen.getByText('eval-user-1')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByLabelText('Evaluator user id'), 'eval-user-2')
+    await userEvent.click(screen.getByRole('button', { name: 'Assign' }))
+
+    expect(await screen.findByText('Evaluator assigned')).toBeInTheDocument()
   })
 })

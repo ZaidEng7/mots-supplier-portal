@@ -158,6 +158,10 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/rfqs') return route.fulfill({ json: [RFQ_FIXTURE] })
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: RFQ_FIXTURE })
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/invitations/candidates`) return route.fulfill({ json: [] })
+    // EPIC-11: same class of bug - MyEvaluationPage reads evaluation.proposalIds.map() and would
+    // crash on the generic {} fallback below; null (200) is the real "not assigned" shape.
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/my-evaluation`) return route.fulfill({ json: null })
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/evaluation`) return route.fulfill({ json: null })
     // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
     if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })
