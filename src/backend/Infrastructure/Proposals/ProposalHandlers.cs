@@ -47,12 +47,60 @@ internal static class ProposalLoader
             .FirstOrDefaultAsync(p => p.RfqId == rfq.Id && p.SupplierId == scope.SupplierId!.Value, ct);
         return (rfq, proposal);
     }
+
+    /// <summary>
+    /// §12-A/C2: resolve a proposal by its OWN public code, for the relocated
+    /// <c>/api/v1/proposals/{proposalCode}</c> routes (§3: <c>/proposals/{proposalCode}/items</c>,
+    /// §12.5: <c>PATCH /proposals/{proposalCode}</c>).
+    ///
+    /// <para><b>The row-scope predicate is the whole point.</b> The old path could not name another
+    /// supplier's proposal - <c>/suppliers/me/rfqs/{code}/proposal</c> has no slot for one. This one
+    /// can, so <c>SupplierId == scope.SupplierId</c> is applied IN THE QUERY rather than checked
+    /// afterwards, and a miss is indistinguishable from a code that never existed. §9.2:
+    /// *"Out-of-scope access to an existing resource returns 404 (not 403) to avoid leaking
+    /// existence"* - so this returns null for both cases and the endpoint maps null to 404.</para>
+    /// </summary>
+    public static async Task<(Rfq Rfq, Proposal Proposal)?> LoadByProposalCodeAsync(
+        AppDbContext db, IScopeContext scope, string proposalReferenceCode, CancellationToken ct)
+    {
+        if (scope.SupplierId is null) return null;
+
+        var proposal = await db.Proposals
+            .Include(p => p.Items).Include(p => p.Documents).Include(p => p.RequirementAnswers)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(
+                p => p.ReferenceCode == proposalReferenceCode && p.SupplierId == scope.SupplierId!.Value, ct);
+        if (proposal is null) return null;
+
+        // Items and Requirements are NOT optional here. Submit-completeness asks "is every required
+        // RFQ item priced, is every mandatory requirement answered" by walking these collections,
+        // so loading the RFQ bare makes both checks vacuously TRUE and lets an incomplete proposal
+        // submit. The RFQ-keyed loader this replaces got them from SupplierRfqLoader's includes;
+        // dropping them here was silent, and two existing completeness tests caught it.
+        var rfq = await db.Rfqs
+            .Include(r => r.Items)
+            .Include(r => r.Requirements)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(r => r.Id == proposal.RfqId, ct);
+        return rfq is null ? null : (rfq, proposal);
+    }
 }
 
 /// <summary>FEAT-09.1/FR-PRP-001, BUSINESS-PROCESSES.md §4.1: Active + Invitation are checked here
 /// (cross-aggregate, same split as InviteSupplierHandler's own Active check); uniqueness is
 /// idempotent - a second start returns the existing Draft rather than erroring, per FEAT-09.1's own
 /// AC, with the DB unique(rfq_id, supplier_id) index as the real race-safe guarantee underneath.</summary>
+public sealed class GetProposalByCodeHandler(AppDbContext db, IScopeContext scope) : IGetProposalByCodeHandler
+{
+    public async Task<ProposalResult> HandleAsync(string proposalReferenceCode, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, proposalReferenceCode, ct);
+        return loaded is null
+            ? new ProposalResult.NotFoundOrNotInvited()
+            : new ProposalResult.Success(ProposalDtoMapper.ToDto(loaded.Value.Proposal, loaded.Value.Rfq.ReferenceCode));
+    }
+}
+
 public sealed class StartProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IStartProposalHandler
 {
     public async Task<ProposalResult> HandleAsync(string rfqReferenceCode, CancellationToken ct)
@@ -96,7 +144,7 @@ public sealed class ManageProposalItemHandler(AppDbContext db, IScopeContext sco
 {
     public async Task<ProposalResult> SetAsync(SetItemPricingCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -117,7 +165,7 @@ public sealed class ManageProposalItemHandler(AppDbContext db, IScopeContext sco
 
     public async Task<ProposalResult> RemoveAsync(RemoveItemPricingCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -140,7 +188,7 @@ public sealed class SetCommercialTermsHandler(AppDbContext db, IScopeContext sco
 {
     public async Task<ProposalResult> HandleAsync(SetCommercialTermsCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -164,7 +212,7 @@ public sealed class SetNarrativeHandler(AppDbContext db, IScopeContext scope, IA
 {
     public async Task<ProposalResult> HandleAsync(SetNarrativeCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -187,7 +235,7 @@ public sealed class AnswerRequirementHandler(AppDbContext db, IScopeContext scop
 {
     public async Task<ProposalResult> HandleAsync(AnswerRequirementCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -215,7 +263,7 @@ public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext
 {
     public async Task<ProposalResult> AddAsync(AddProposalDocumentCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -237,7 +285,7 @@ public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext
 
     public async Task<ProposalResult> RemoveAsync(RemoveProposalDocumentCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -267,7 +315,7 @@ public sealed class SubmitProposalHandler(AppDbContext db, IScopeContext scope, 
 {
     public async Task<ProposalResult> HandleAsync(SubmitProposalCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
@@ -301,7 +349,7 @@ public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope
 {
     public async Task<ProposalResult> HandleAsync(WithdrawProposalCommand command, CancellationToken ct)
     {
-        var loaded = await ProposalLoader.LoadAsync(db, scope, command.RfqReferenceCode, ct);
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 

@@ -110,12 +110,12 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         return (referenceCode, requiredItemId, optionalItemId, mandatoryRequirementId);
     }
 
-    private async Task PriceAndAnswerAsync(HttpClient client, string referenceCode, Guid requiredItemId, Guid mandatoryRequirementId, DateOnly? validityEnd = null)
+    private async Task PriceAndAnswerAsync(HttpClient client, string proposalCode, Guid requiredItemId, Guid mandatoryRequirementId, DateOnly? validityEnd = null)
     {
-        await client.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/items/{requiredItemId}", new
+        await client.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
         { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-        await client.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
-        await client.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/terms", new
+        await client.PostAsJsonAsync($"/api/v1/proposals/{proposalCode}/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
+        await client.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB", deliveryTermsAr = "3 أيام", deliveryTermsEn = "3 days",
             warranty = (string?)null, validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date), validityEnd = validityEnd ?? DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
@@ -129,8 +129,8 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (_, supplierBId) = await ActiveSupplierAsync($"UniqueOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Uniqueness RFQ");
 
-        var first = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        var second = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+        var first = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
+        var second = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
 
         first.StatusCode.Should().Be(HttpStatusCode.OK);
         second.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -153,7 +153,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Start Guard RFQ");
         var (outsiderClient, _) = await ActiveSupplierAsync($"StartOutsider {Guid.NewGuid():N}"[..30]);
 
-        var attempt = await outsiderClient.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+        var attempt = await outsiderClient.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
 
         attempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -164,8 +164,8 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"DraftPriv {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"DraftPrivOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Draft Privacy RFQ");
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        await PriceAndAnswerAsync(supplierA, referenceCode, requiredItemId, mandatoryRequirementId);
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, proposalCode, requiredItemId, mandatoryRequirementId);
 
         // No buyer-side endpoint exposes Proposal data at all in this build - the real proof is
         // that the buyer's own RFQ detail response (the only buyer-facing view that exists) never
@@ -182,9 +182,9 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"EnvelopeA {Guid.NewGuid():N}"[..30]);
         var (supplierB, supplierBId) = await ActiveSupplierAsync($"EnvelopeB {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Envelope Seal RFQ");
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        await PriceAndAnswerAsync(supplierA, referenceCode, requiredItemId, mandatoryRequirementId);
-        var submitA = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, proposalCode, requiredItemId, mandatoryRequirementId);
+        var submitA = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
         submitA.StatusCode.Should().Be(HttpStatusCode.OK);
         var submittedBody = await submitA.Content.ReadFromJsonAsync<JsonElement>();
         submittedBody.GetProperty("items").EnumerateArray().Should().ContainSingle(i => i.GetProperty("unitPrice").GetDecimal() == 5m,
@@ -194,13 +194,13 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         // (the only route that could ever address "a proposal for this RFQ") returns B's own
         // (non-existent) proposal, never A's. There is no id in this URL that could name A's
         // proposal instead - B cannot even construct a request that names it.
-        var bGet = await supplierB.GetAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal");
+        var bGet = await supplierB.GetAsync($"/api/v1/rfqs/{referenceCode}/proposals");
         bGet.StatusCode.Should().Be(HttpStatusCode.NotFound, "B has not started a proposal - this must be B's own state, never A's submitted one");
 
         // Confirms the financial envelope specifically, not just the proposal generally: even
         // after B starts their OWN proposal, B's view carries only B's own (empty) Items - A's
         // pricing never appears anywhere in a response B receives.
-        var bStart = await supplierB.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+        var bStart = await supplierB.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         var bStartBody = await bStart.Content.ReadFromJsonAsync<JsonElement>();
         bStartBody.GetProperty("items").EnumerateArray().Should().BeEmpty("B's proposal is B's own - it can never contain A's priced items");
     }
@@ -211,15 +211,15 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"MissingPrice {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"MissingPriceOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, _, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Missing Price RFQ");
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        await supplierA.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
-        await supplierA.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/terms", new
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await supplierA.PostAsJsonAsync($"/api/v1/proposals/{proposalCode}/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
+        await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
         {
             currencyCode = "SYP", paymentTerms = (string?)null, incotermCode = (string?)null, deliveryTermsAr = (string?)null, deliveryTermsEn = (string?)null,
             warranty = (string?)null, validityStart = (DateOnly?)null, validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
 
-        var submit = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
@@ -232,16 +232,16 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"MissingAnswer {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"MissingAnswerOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Missing Answer RFQ");
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        await supplierA.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/items/{requiredItemId}", new
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
         { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = (int?)null, notesAr = (string?)null, notesEn = (string?)null });
-        await supplierA.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/terms", new
+        await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
         {
             currencyCode = "SYP", paymentTerms = (string?)null, incotermCode = (string?)null, deliveryTermsAr = (string?)null, deliveryTermsEn = (string?)null,
             warranty = (string?)null, validityStart = (DateOnly?)null, validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
 
-        var submit = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
@@ -254,19 +254,19 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"FullSubmit {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"FullSubmitOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Full Submit RFQ");
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        await PriceAndAnswerAsync(supplierA, referenceCode, requiredItemId, mandatoryRequirementId);
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, proposalCode, requiredItemId, mandatoryRequirementId);
 
         using var content = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent([1, 2, 3]);
         fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
         content.Add(fileContent, "file", "compliance.pdf");
-        var upload = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/documents", content);
+        var upload = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/documents", content);
         upload.StatusCode.Should().Be(HttpStatusCode.OK);
         var afterUpload = await upload.Content.ReadFromJsonAsync<JsonElement>();
         afterUpload.GetProperty("documents").EnumerateArray().Should().ContainSingle(d => d.GetProperty("originalFileName").GetString() == "compliance.pdf");
 
-        var submit = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
@@ -284,13 +284,13 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (_, supplierBId) = await ActiveSupplierAsync($"LateSubmitOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(
             supplierAId, supplierBId, "Late Submit RFQ", closesAt: DateTimeOffset.UtcNow.AddSeconds(2));
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
-        await PriceAndAnswerAsync(supplierA, referenceCode, requiredItemId, mandatoryRequirementId);
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, proposalCode, requiredItemId, mandatoryRequirementId);
 
         await Task.Delay(TimeSpan.FromSeconds(1.2));
         await RunTimelineJobAsync();
 
-        var submit = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
@@ -305,19 +305,19 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (_, supplierBId) = await ActiveSupplierAsync($"WithdrawOther {Guid.NewGuid():N}"[..30]);
 
         var (openReferenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Withdraw Open RFQ");
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{openReferenceCode}/proposal", null);
-        var withdraw = await supplierA.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{openReferenceCode}/proposal/withdraw", new { reason = "Changed our mind" });
+        var proposalCode = await supplierA.StartProposalAsync(openReferenceCode);
+        var withdraw = await supplierA.PostAsJsonAsync($"/api/v1/proposals/{proposalCode}/withdraw", new { reason = "Changed our mind" });
         withdraw.StatusCode.Should().Be(HttpStatusCode.OK);
         var withdrawBody = await withdraw.Content.ReadFromJsonAsync<JsonElement>();
         withdrawBody.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Withdrawn));
 
         var (closedReferenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(
             supplierCId, supplierBId, "Withdraw Closed RFQ", closesAt: DateTimeOffset.UtcNow.AddSeconds(2));
-        await supplierC.PostAsync($"/api/v1/suppliers/me/rfqs/{closedReferenceCode}/proposal", null);
+        var closedProposalCode = await supplierC.StartProposalAsync(closedReferenceCode);
         await Task.Delay(TimeSpan.FromSeconds(1.2));
         await RunTimelineJobAsync();
 
-        var lateWithdraw = await supplierC.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{closedReferenceCode}/proposal/withdraw", new { reason = "Too late" });
+        var lateWithdraw = await supplierC.PostAsJsonAsync($"/api/v1/proposals/{closedProposalCode}/withdraw", new { reason = "Too late" });
 
         lateWithdraw.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -328,11 +328,11 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"Audit {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"AuditOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Audit RFQ");
-        var start = await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+        var start = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         var startBody = await start.Content.ReadFromJsonAsync<JsonElement>();
         var proposalReferenceCode = startBody.GetProperty("referenceCode").GetString();
-        await PriceAndAnswerAsync(supplierA, referenceCode, requiredItemId, mandatoryRequirementId);
-        await supplierA.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        await PriceAndAnswerAsync(supplierA, proposalReferenceCode!, requiredItemId, mandatoryRequirementId);
+        await supplierA.PostAsync($"/api/v1/proposals/{proposalReferenceCode}/submit", null);
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

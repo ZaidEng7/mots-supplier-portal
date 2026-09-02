@@ -38,6 +38,12 @@ export function SupplierProposalPage() {
     retry: false,
   })
 
+  // §12-A/C2: every mutation below addresses the proposal by its OWN public code, not by the RFQ's.
+  // `referenceCode` from the route is the RFQ; the proposal's code comes back on the fetch above.
+  // Both are strings, so passing the wrong one type-checks - hence the named local rather than
+  // threading `referenceCode` into functions that no longer mean it.
+  const proposalCode = proposalQuery.data?.referenceCode ?? ''
+
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['proposal', referenceCode] })
   const errorMessage = (err: unknown, fallback: string) =>
     err instanceof ProposalApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof ProposalApiError ? err.message : fallback
@@ -50,20 +56,20 @@ export function SupplierProposalPage() {
 
   const priceMutation = useMutation({
     mutationFn: ({ rfqItemId, quantity, unitPrice }: { rfqItemId: string; quantity: number; unitPrice: number }) =>
-      setItemPricing(referenceCode, rfqItemId, { quantity, unitPrice, discount: null, leadTimeDays: null, notesAr: null, notesEn: null }),
+      setItemPricing(proposalCode, rfqItemId, { quantity, unitPrice, discount: null, leadTimeDays: null, notesAr: null, notesEn: null }),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.itemPriced') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
   })
 
   const answerMutation = useMutation({
     mutationFn: ({ requirementId, ar, en }: { requirementId: string; ar: string; en: string }) =>
-      answerRequirement(referenceCode, requirementId, ar, en),
+      answerRequirement(proposalCode, requirementId, ar, en),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.requirementAnswered') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
   })
 
   const termsMutation = useMutation({
-    mutationFn: () => setCommercialTerms(referenceCode, {
+    mutationFn: () => setCommercialTerms(proposalCode, {
       currencyCode, paymentTerms: paymentTerms || null, incotermCode: incotermCode || null,
       deliveryTermsAr: null, deliveryTermsEn: null, warranty: null,
       validityStart: null, validityEnd: validityEnd || null,
@@ -73,25 +79,25 @@ export function SupplierProposalPage() {
   })
 
   const documentMutation = useMutation({
-    mutationFn: (file: File) => addProposalDocument(referenceCode, file),
+    mutationFn: (file: File) => addProposalDocument(proposalCode, file),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.documentAdded') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
   })
 
   const removeDocumentMutation = useMutation({
-    mutationFn: (documentId: string) => removeProposalDocument(referenceCode, documentId),
+    mutationFn: (documentId: string) => removeProposalDocument(proposalCode, documentId),
     onSuccess: () => invalidate(),
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
   })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitProposal(referenceCode),
+    mutationFn: () => submitProposal(proposalCode),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.submitted') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.submitFailed')) }),
   })
 
   const withdrawMutation = useMutation({
-    mutationFn: () => withdrawProposal(referenceCode, withdrawReason),
+    mutationFn: () => withdrawProposal(proposalCode, withdrawReason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.withdrawn') }); setWithdrawReason('') },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.withdrawFailed')) }),
   })
