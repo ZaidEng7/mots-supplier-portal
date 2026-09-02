@@ -42,7 +42,7 @@ public sealed class OwnDocumentsDenominatorTests(PostgresApiFixture fixture)
         expectedCount.Should().BeGreaterThan(0, "the seeded reference data must not be empty, or this test would pass vacuously");
 
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Own Documents Co");
-        var res = await client.GetAsync("/api/v1/suppliers/me/documents");
+        var res = await client.GetAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents");
         res.EnsureSuccessStatusCode();
 
         var documents = await res.Content.ReadFromJsonAsync<List<DocumentTypeStatusDto>>(WebJson);
@@ -64,7 +64,7 @@ public sealed class OwnDocumentsDenominatorTests(PostgresApiFixture fixture)
             referenceCode = (await db.Suppliers.FirstAsync(s => s.LegalInfo!.LegalNameEn.Contains("Reviewer Docs Co"))).ReferenceCode;
         }
 
-        var ownRes = await supplierClient.GetAsync("/api/v1/suppliers/me/documents");
+        var ownRes = await supplierClient.GetAsync($"/api/v1/suppliers/{await supplierClient.OwnSupplierCodeAsync()}/documents");
         var ownDocuments = await ownRes.Content.ReadFromJsonAsync<List<DocumentTypeStatusDto>>(WebJson);
 
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);

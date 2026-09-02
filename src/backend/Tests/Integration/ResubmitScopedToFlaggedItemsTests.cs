@@ -111,7 +111,7 @@ public sealed class ResubmitScopedToFlaggedItemsTests(PostgresApiFixture fixture
         var (client, referenceCode, rejectedDocumentId) = await CreateSupplierWithRejectedDocumentAndUnrelatedFlagAsync();
 
         // Fix exactly what was flagged - nothing else changes.
-        var patchResponse = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
+        var patchResponse = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}")
         {
             Content = new StringContent("""{"primaryContactPhone":"+963988112233"}""", Encoding.UTF8, "application/json"),
         });

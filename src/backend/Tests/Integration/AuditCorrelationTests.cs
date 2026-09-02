@@ -162,7 +162,7 @@ public sealed class AuditCorrelationTests(PostgresApiFixture fixture)
         file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         content.Add(file, "file", "cert.pdf");
 
-        var upload = await client.PostAsync("/api/v1/suppliers/me/documents", content);
+        var upload = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
         upload.EnsureSuccessStatusCode();
         var documentId = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 

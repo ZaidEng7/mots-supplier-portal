@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using MotsSupplierPortal.Api.Authorization;
+using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Storage;
@@ -13,22 +14,66 @@ public static class DocumentEndpoints
 {
     public static void MapDocumentEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/suppliers/me/documents", async (
-            IListSupplierDocumentsHandler handler,
+        // §12-A/C3, §12.3: "GET /suppliers/{supplierCode}/documents - list (page mode default for
+        // back-office)". See ListSupplierDocumentsEndpoint below for the paged, reviewer-facing
+        // form; this route keeps the supplier's own unpaginated view of their checklist, which is
+        // what the onboarding wizard renders and is not a back-office grid.
+        app.MapGet("/api/v1/suppliers/{supplierCode}/documents", async (
+            string supplierCode,
+            string? state,
+            int? page,
+            int? pageSize,
+            HttpContext httpContext,
+            IScopeContext scope,
+            ISupplierCodeScope codeScope,
+            IListSupplierDocumentsHandler ownHandler,
+            IListSupplierDocumentsPagedHandler pagedHandler,
             CancellationToken ct) =>
         {
-            var documents = await handler.HandleOwnAsync(ct);
-            return Results.Ok(documents);
+            // Same persona dispatch as the converged /rfqs routes, and for the same reason: §12.3
+            // gives ONE path and describes it as "page mode default for BACK-OFFICE", while the
+            // supplier's own onboarding checklist lives at the same resource. Two shapes, one path,
+            // decided by the caller's scope (§9.2) rather than by inventing a second URL.
+            if (scope.SupplierId is not null)
+            {
+                if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
+                return Results.Ok(await ownHandler.HandleOwnAsync(ct));
+            }
+
+            var requestedPage = page is null or < 1 ? 1 : page.Value;
+
+            // §6.1: "Hard cap page*pageSize <= 10 000 to protect the DB; beyond that -> 422 advising
+            // cursor mode." Checked before the query runs, which is the point of a cap.
+            if (ListEnvelope<SupplierDocumentListItemDto>.ExceedsPageCap(requestedPage, pageSize))
+            {
+                return Results.Json(new
+                {
+                    type = "https://api.mots-portal.sy/errors/validation",
+                    title = "Page offset too large.",
+                    status = StatusCodes.Status422UnprocessableEntity,
+                    code = "PAGE_OFFSET_TOO_LARGE",
+                    detail = $"page * pageSize must not exceed {ListEnvelope<SupplierDocumentListItemDto>.MaxPageOffset}. Use cursor mode for deeper reads.",
+                }, statusCode: StatusCodes.Status422UnprocessableEntity, contentType: "application/problem+json");
+            }
+
+            var paged = await pagedHandler.HandleAsync(supplierCode, state, requestedPage, pageSize, ct);
+            return paged is null ? Results.NotFound() : ListResponse.Ok(httpContext, paged, pageSize);
         })
         .RequireAuthorization()
         .WithTags("Documents")
         .WithName("ListOwnDocuments");
 
-        app.MapPost("/api/v1/suppliers/me/documents", async (
+        app.MapPost("/api/v1/suppliers/{supplierCode}/documents", async (
+            string supplierCode,
+            ISupplierCodeScope codeScope,
             HttpRequest request,
             IUploadDocumentHandler handler,
             CancellationToken ct) =>
         {
+            // Scope FIRST, before the body is read: an out-of-scope caller must not be able to tell
+            // a malformed upload from an unauthorised one, and must not stream a file at all.
+            if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
+
             if (!request.HasFormContentType)
             {
                 return Results.BadRequest(new { error = "expected_multipart_form" });
@@ -106,11 +151,20 @@ public static class DocumentEndpoints
         .WithTags("Documents")
         .WithName("GetDocumentDownloadUrl");
 
-        app.MapPost("/api/v1/documents/{id:guid}/approve", async (
+        // §3 lists "POST /suppliers/{supplierCode}/documents/{documentId}/approve" among the
+        // state-transition sub-resource POSTs. Reviewer-facing, so the guard is not "is this mine"
+        // but "does the path name the document's real owner" - otherwise a reviewer could act on
+        // supplier B's document through supplier A's URL and the audit row would name the wrong
+        // supplier.
+        app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{id:guid}/approve", async (
+            string supplierCode,
             Guid id,
+            ISupplierCodeScope codeScope,
             IApproveDocumentHandler handler,
             CancellationToken ct) =>
         {
+            if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, id, ct)) return Results.NotFound();
+
             var result = await handler.HandleAsync(id, ct);
             return result switch
             {
@@ -124,12 +178,21 @@ public static class DocumentEndpoints
         .WithTags("Documents")
         .WithName("ApproveDocument");
 
-        app.MapPost("/api/v1/documents/{id:guid}/reject", async (
+        // §3 lists "POST /suppliers/{supplierCode}/documents/{documentId}/approve" among the
+        // state-transition sub-resource POSTs. Reviewer-facing, so the guard is not "is this mine"
+        // but "does the path name the document's real owner" - otherwise a reviewer could act on
+        // supplier B's document through supplier A's URL and the audit row would name the wrong
+        // supplier.
+        app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{id:guid}/reject", async (
+            string supplierCode,
             Guid id,
+            ISupplierCodeScope codeScope,
             RejectDocumentRequest request,
             IRejectDocumentHandler handler,
             CancellationToken ct) =>
         {
+            if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, id, ct)) return Results.NotFound();
+
             var result = await handler.HandleAsync(id, request.Reason, ct);
             return result switch
             {

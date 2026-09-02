@@ -44,12 +44,18 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function listOwnDocuments(): Promise<DocumentTypeStatus[]> {
-  const res = await apiFetch('/api/v1/suppliers/me/documents')
+/**
+ * §12-A/C3: addressed by supplier code now (§12.3 `GET /suppliers/{supplierCode}/documents`).
+ * The server still answers a supplier with their own checklist and a reviewer with §12.3's paged
+ * document list, decided by the caller's scope - this is the supplier's own view.
+ */
+export async function listOwnDocuments(supplierCode: string): Promise<DocumentTypeStatus[]> {
+  const res = await apiFetch(`/api/v1/suppliers/${supplierCode}/documents`)
   return parseOrThrow(res)
 }
 
 export async function uploadDocument(
+  supplierCode: string,
   documentTypeId: string,
   file: File,
   issueDate?: string,
@@ -61,7 +67,7 @@ export async function uploadDocument(
   if (issueDate) form.append('issueDate', issueDate)
   if (expiryDate) form.append('expiryDate', expiryDate)
 
-  const res = await apiFetch('/api/v1/suppliers/me/documents', { method: 'POST', body: form })
+  const res = await apiFetch(`/api/v1/suppliers/${supplierCode}/documents`, { method: 'POST', body: form })
   return parseOrThrow(res)
 }
 
@@ -71,13 +77,13 @@ export async function getDocumentDownloadUrl(documentId: string): Promise<string
   return body.url
 }
 
-export async function approveDocument(documentId: string): Promise<SupplierDocument> {
-  const res = await apiFetch(`/api/v1/documents/${documentId}/approve`, { method: 'POST' })
+export async function approveDocument(supplierCode: string, documentId: string): Promise<SupplierDocument> {
+  const res = await apiFetch(`/api/v1/suppliers/${supplierCode}/documents/${documentId}/approve`, { method: 'POST' })
   return parseOrThrow(res)
 }
 
-export async function rejectDocument(documentId: string, reason: string): Promise<SupplierDocument> {
-  const res = await apiFetch(`/api/v1/documents/${documentId}/reject`, {
+export async function rejectDocument(supplierCode: string, documentId: string, reason: string): Promise<SupplierDocument> {
+  const res = await apiFetch(`/api/v1/suppliers/${supplierCode}/documents/${documentId}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),

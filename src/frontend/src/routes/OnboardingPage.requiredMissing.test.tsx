@@ -56,10 +56,12 @@ function mockApi(missingFields: string[]) {
         status, headers: { 'Content-Type': 'application/json' },
       }))
 
-    if (url.includes('/submit-application') && method === 'POST') {
+    if (url.includes('/onboarding/submit') && method === 'POST') {
       return json({ error: 'incomplete_profile', missingFields }, 422)
     }
-    if (url.includes('/suppliers/me/documents')) return json(DOCUMENTS)
+    // §12-A/C3: supplier routes are code-addressed; ordered most-specific first because
+    // `/suppliers/me` is still a real route this page reads the code from.
+    if (url.includes('/documents')) return json(DOCUMENTS)
     if (url.includes('/annotations/active')) return json(null)
     if (url.includes('/suppliers/me')) return json(supplier)
     if (url.includes('/currencies')) return json([])

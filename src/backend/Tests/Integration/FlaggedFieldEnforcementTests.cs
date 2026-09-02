@@ -115,7 +115,7 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
     {
         var client = await CreateSupplierInInfoRequestedAsync(ProfileFieldCodes.Address);
 
-        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}")
         {
             Content = new StringContent("""{"description":"NOT-FLAGGED"}""", Encoding.UTF8, "application/json"),
         });
@@ -152,7 +152,7 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
         // outage. Flag `description`, then submit the whole form with only description changed.
         var client = await CreateSupplierInInfoRequestedAsync(ProfileFieldCodes.Description);
 
-        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}")
         {
             // description differs; every other field is re-sent at its stored value.
             Content = new StringContent(
@@ -170,7 +170,7 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
         // The guard must be inert in normal states, or it would break ordinary onboarding.
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Unrestricted Co");
 
-        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}")
         {
             Content = new StringContent("""{"description":"ordinary edit"}""", Encoding.UTF8, "application/json"),
         });

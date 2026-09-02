@@ -103,7 +103,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         var bytes = BuildPdfOfSize(19 * 1024 * 1024); // under the 20MB cap
 
         using var content = BuildUploadContent(bytes);
-        var response = await client.PostAsync("/api/v1/suppliers/me/documents", content);
+        var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
     }
@@ -119,7 +119,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         var bytes = BuildPdfOfSize(22 * 1024 * 1024);
 
         using var content = BuildUploadContent(bytes);
-        var response = await client.PostAsync("/api/v1/suppliers/me/documents", content);
+        var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
 
         // ASP.NET Core's form-limit rejection surfaces as a mid-request exception -> 500, not a
         // clean 4xx, because it fires while ReadFormAsync is still parsing the body, before the
@@ -151,7 +151,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         var bytes = System.Text.Encoding.ASCII.GetBytes(body);
 
         using var content = BuildUploadContent(bytes, "eicar.pdf");
-        var response = await client.PostAsync("/api/v1/suppliers/me/documents", content);
+        var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         var created = await response.Content.ReadFromJsonAsync<JsonElement>();
         var documentId = created.GetProperty("id").GetGuid();
@@ -218,7 +218,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             var bytes = BuildPdfOfSize(sizeBytes);
             using var content = BuildUploadContent(bytes);
             var probeId = Guid.NewGuid().ToString("N");
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/suppliers/me/documents") { Content = content };
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents") { Content = content };
             request.Headers.Add("X-Test-Probe-Id", probeId);
 
             var response = await client.SendAsync(request);

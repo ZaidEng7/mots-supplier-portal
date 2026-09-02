@@ -141,8 +141,8 @@ export async function getOwnSupplier(): Promise<SupplierProfile> {
   return parseOrThrow(res)
 }
 
-export async function updateProfile(payload: UpdateProfilePayload, rowVersion?: number): Promise<SupplierProfile> {
-  const res = await apiFetch('/api/v1/suppliers/me/profile', {
+export async function updateProfile(supplierCode: string, payload: UpdateProfilePayload, rowVersion?: number): Promise<SupplierProfile> {
+  const res = await apiFetch(`/api/v1/suppliers/${supplierCode}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...ifMatch(rowVersion) },
     body: JSON.stringify(payload),
@@ -177,8 +177,8 @@ export async function acceptTerms(): Promise<SupplierProfile> {
   return parseOrThrow(res)
 }
 
-export async function submitApplication(): Promise<SupplierProfile> {
-  const res = await apiFetch('/api/v1/suppliers/me/submit-application', { method: 'POST' })
+export async function submitApplication(supplierCode: string): Promise<SupplierProfile> {
+  const res = await apiFetch(`/api/v1/suppliers/${supplierCode}/onboarding/submit`, { method: 'POST' })
   return parseOrThrow(res)
 }
 

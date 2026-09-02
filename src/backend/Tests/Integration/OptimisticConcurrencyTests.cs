@@ -17,9 +17,9 @@ namespace MotsSupplierPortal.Tests.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
 {
-    private static HttpRequestMessage PatchProfile(string description, uint? ifMatch)
+    private static HttpRequestMessage PatchProfile(string supplierCode, string description, uint? ifMatch)
     {
-        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
+        var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{supplierCode}")
         {
             Content = JsonContent.Create(new { description, currencyCode = "SYP" }),
         };
@@ -39,14 +39,16 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
 
         // Both "editors" read the same version — the real-world setup for a lost update.
         var read = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
+        // §12-A/C3: the profile PATCH is addressed by supplier code now (§12.2).
+        var supplierCode = read.GetProperty("referenceCode").GetString()!;
         var sharedVersion = read.GetProperty("rowVersion").GetUInt32();
 
         // Writer A commits first and moves the row forward.
-        var first = await client.SendAsync(PatchProfile("written by A", sharedVersion));
+        var first = await client.SendAsync(PatchProfile(supplierCode, "written by A", sharedVersion));
         first.StatusCode.Should().Be(HttpStatusCode.OK, "the first writer holds a current version");
 
         // Writer B commits second, still holding the now-stale version it read earlier.
-        var second = await client.SendAsync(PatchProfile("written by B", sharedVersion));
+        var second = await client.SendAsync(PatchProfile(supplierCode, "written by B", sharedVersion));
 
         second.StatusCode.Should().Be(HttpStatusCode.Conflict,
             "BRULE-098: the second writer must be rejected with a conflict, not silently overwritten");
@@ -69,9 +71,11 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Concurrency Test Co");
 
         var read = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
+        // §12-A/C3: the profile PATCH is addressed by supplier code now (§12.2).
+        var supplierCode = read.GetProperty("referenceCode").GetString()!;
         var version = read.GetProperty("rowVersion").GetUInt32();
 
-        var response = await client.SendAsync(PatchProfile("fresh version", version));
+        var response = await client.SendAsync(PatchProfile(supplierCode, "fresh version", version));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "a caller holding the current version must not be blocked — the guard rejects staleness, not concurrency itself");
