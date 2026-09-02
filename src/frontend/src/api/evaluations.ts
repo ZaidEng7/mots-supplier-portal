@@ -70,10 +70,13 @@ export interface MyEvaluation {
 
 export class EvaluationApiError extends Error {
   status: number
+  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict - see RfqApiError's own doc comment. */
+  isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
     const b = body as { error?: string; message?: string } | null
     super(b?.message ?? b?.error ?? `Request failed: ${status}`)
     this.status = status
+    this.isConcurrencyConflict = status === 409 && b?.error === 'concurrency_conflict'
   }
 }
 

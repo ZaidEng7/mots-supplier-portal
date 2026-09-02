@@ -39,7 +39,8 @@ export function SupplierProposalPage() {
   })
 
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['proposal', referenceCode] })
-  const errorMessage = (err: unknown, fallback: string) => (err instanceof ProposalApiError ? err.message : fallback)
+  const errorMessage = (err: unknown, fallback: string) =>
+    err instanceof ProposalApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof ProposalApiError ? err.message : fallback
 
   const startMutation = useMutation({
     mutationFn: () => startProposal(referenceCode),

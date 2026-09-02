@@ -16,6 +16,7 @@ import {
   getEvaluation, openEvaluation, assignEvaluators, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
   EvaluationApiError,
 } from '../../api/evaluations'
+import { getWorkspace } from '../../api/workspace'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -49,6 +50,7 @@ export function RfqDetailPage() {
   const [reopenReason, setReopenReason] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['rfq', referenceCode], queryFn: () => getRfq(referenceCode) })
+  const workspaceQuery = useQuery({ queryKey: ['workspace', referenceCode], queryFn: () => getWorkspace(referenceCode) })
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const unitsQuery = useQuery({ queryKey: ['units-of-measure'], queryFn: fetchUnitsOfMeasure })
   const templatesQuery = useQuery({ queryKey: ['evaluation-templates'], queryFn: listEvaluationTemplates })
@@ -70,8 +72,12 @@ export function RfqDetailPage() {
   const candidates = candidatesQuery.data ?? []
   const evaluation = evaluationQuery.data ?? null
 
-  const errorMessage = (err: unknown, fallback: string) => (err instanceof RfqApiError ? err.message : fallback)
-  const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['rfq', referenceCode] })
+  const errorMessage = (err: unknown, fallback: string) =>
+    err instanceof RfqApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof RfqApiError ? err.message : fallback
+  const invalidate = () => {
+    invalidateQuietly(queryClient, { queryKey: ['rfq', referenceCode] })
+    invalidateQuietly(queryClient, { queryKey: ['workspace', referenceCode] })
+  }
 
   const addItemMutation = useMutation({
     mutationFn: () => addRfqItem(referenceCode, {
@@ -181,8 +187,12 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
-  const evaluationErrorMessage = (err: unknown, fallback: string) => (err instanceof EvaluationApiError ? err.message : fallback)
-  const invalidateEvaluation = () => invalidateQuietly(queryClient, { queryKey: ['evaluation', referenceCode] })
+  const evaluationErrorMessage = (err: unknown, fallback: string) =>
+    err instanceof EvaluationApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof EvaluationApiError ? err.message : fallback
+  const invalidateEvaluation = () => {
+    invalidateQuietly(queryClient, { queryKey: ['evaluation', referenceCode] })
+    invalidateQuietly(queryClient, { queryKey: ['workspace', referenceCode] })
+  }
 
   const openEvaluationMutation = useMutation({
     mutationFn: () => openEvaluation(referenceCode),
@@ -259,6 +269,42 @@ export function RfqDetailPage() {
           ) : null}
         </div>
       </div>
+
+      {workspaceQuery.data ? (
+        <Card title={t('workspace.title')}>
+          {workspaceQuery.data.isCancelled ? (
+            <Badge tone="danger">{t('workspace.cancelledBanner')}</Badge>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-2" aria-label={t('workspace.stages')}>
+                {workspaceQuery.data.stages.map((stage) => (
+                  <Badge key={stage.key} tone={stage.isCurrent ? 'brand' : stage.isCompleted ? 'success' : 'neutral'}>
+                    {stage.isCompleted ? '✓ ' : ''}{stage.key}
+                  </Badge>
+                ))}
+              </div>
+              {workspaceQuery.data.nextActions.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {workspaceQuery.data.nextActions.map((action) => (
+                    <div key={action.action} className="flex items-center gap-2 flex-wrap">
+                      <Badge tone={action.permitted ? 'success' : 'warning'}>
+                        {isArabic ? action.labelAr : action.labelEn}
+                      </Badge>
+                      {!action.permitted ? (
+                        <span style={{ color: 'var(--color-text-secondary)' }}>
+                          {isArabic ? action.blockedReasonAr : action.blockedReasonEn}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ color: 'var(--color-text-secondary)' }}>{t('workspace.noNextAction')}</span>
+              )}
+            </div>
+          )}
+        </Card>
+      ) : null}
 
       {isInternalReview ? (
         <Card title={t('rfq.returnForEditsTitle')}>

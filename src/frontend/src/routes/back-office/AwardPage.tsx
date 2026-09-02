@@ -28,7 +28,8 @@ export function AwardPage() {
   const qualifiedResults = (evaluation?.results ?? []).filter((r) => r.technicallyQualified).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
 
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['award', referenceCode] })
-  const errorMessage = (err: unknown, fallback: string) => (err instanceof AwardApiError ? err.message : fallback)
+  const errorMessage = (err: unknown, fallback: string) =>
+    err instanceof AwardApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof AwardApiError ? err.message : fallback
 
   const recommendMutation = useMutation({
     mutationFn: () => recommendAward(referenceCode, { winningProposalId, justificationAr, justificationEn }),

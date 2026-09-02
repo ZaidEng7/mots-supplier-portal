@@ -151,10 +151,16 @@ export interface RequirementPayload {
  * EvaluationTemplateApiError. */
 export class RfqApiError extends Error {
   status: number
+  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict - the API's global concurrency-exception
+   * handler (Program.cs) returns this same { error: "concurrency_conflict" } 409 shape
+   * SupplierApiError's own isConcurrencyConflict already established, so every caller checks the
+   * one flag rather than string-matching a message. */
+  isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
     const b = body as { error?: string; message?: string } | null
     super(b?.message ?? b?.error ?? `Request failed: ${status}`)
     this.status = status
+    this.isConcurrencyConflict = status === 409 && b?.error === 'concurrency_conflict'
   }
 }
 
