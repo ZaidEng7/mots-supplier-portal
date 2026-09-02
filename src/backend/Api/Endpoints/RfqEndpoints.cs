@@ -114,7 +114,10 @@ public static class RfqEndpoints
 
         group.MapGet("/", async (string? cursor, int? pageSize, bool? withCount, HttpContext httpContext, IListRfqsHandler handler, CancellationToken ct) =>
             ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
-        .RequirePermission(Permissions.RfqCreate)
+        // rfq.read, not rfq.create: procurement_manager must approve RFQs (BUSINESS-PROCESSES.md
+        // §3.1) and holds no authoring permission, so gating a read on create locked the approver
+        // out of the list they approve from.
+        .RequirePermission(Permissions.RfqRead)
         // §6.3 gives "-publishedAt" as its worked example of an RFQ list default. It cannot be this
         // list's key: this is the BUYER's list, which is mostly Drafts, and a draft has no
         // PublishedAt - a keyset on a nullable column silently drops every row where it is null.
@@ -127,7 +130,7 @@ public static class RfqEndpoints
             var rfq = await handler.HandleAsync(referenceCode, ct);
             return rfq is null ? Results.NotFound() : Results.Ok(rfq);
         })
-        .RequirePermission(Permissions.RfqCreate)
+        .RequirePermission(Permissions.RfqRead)
         .WithName("GetRfq");
 
         group.MapPost("/", async (

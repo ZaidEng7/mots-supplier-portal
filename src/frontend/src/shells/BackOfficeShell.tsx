@@ -25,9 +25,13 @@ export function BackOfficeShell({ children }: Props) {
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
   const canSearchOfferings = useAuthStore((s) => s.claims?.permissions.includes('offering.search') ?? false)
-  // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.create/rfq.edit/etc on
+  // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.read/rfq.edit/etc on
   // every actual RFQ endpoint regardless of what this link's visibility does.
-  const canManageRfqs = useAuthStore((s) => s.claims?.permissions.includes('rfq.create') ?? false)
+  //
+  // Gated on rfq.read, not rfq.create: procurement_manager approves RFQs but does not author them,
+  // so keying the link on the authoring permission hid the section from the one role whose job is
+  // to open it. Same defect as the endpoints' own gate, on the navigation side.
+  const canViewRfqs = useAuthStore((s) => s.claims?.permissions.includes('rfq.read') ?? false)
   const canManageEvaluationTemplates = useAuthStore((s) => s.claims?.permissions.includes('evaluation.template.manage') ?? false)
 
   const handleLogout = async () => {
@@ -70,7 +74,7 @@ export function BackOfficeShell({ children }: Props) {
                 {t('offeringSearch.title')}
               </Link>
             ) : null}
-            {canManageRfqs ? (
+            {canViewRfqs ? (
               <Link to="/back-office/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('rfq.title')}
               </Link>

@@ -77,6 +77,22 @@ public static class Permissions
     /// (procurement_manager-held), not a system-catalog admin permission.</summary>
     public const string EvaluationTemplateManage = "evaluation.template.manage";
 
+    /// <summary>
+    /// FEAT-07.1: read an RFQ - the buyer-side list, detail, and guided workspace.
+    ///
+    /// <para>Split out of <see cref="RfqCreate"/>, which those three GETs were gated on. Reading is
+    /// not authoring, and conflating them broke the approval workflow outright:
+    /// BUSINESS-PROCESSES.md §3.1 makes procurement_manager the actor for InternalReview -&gt;
+    /// Approved, and that role holds rfq.review/rfq.approve/rfq.cancel but deliberately NOT
+    /// rfq.create - so a manager required to approve an RFQ could not list or open one. The fix is
+    /// a read permission, not widening the manager's grant: giving approvers authoring rights would
+    /// weaken exactly the segregation of duties EPIC-14 was built to enforce.</para>
+    ///
+    /// <para>Row-scope is unchanged and still does the real work - every handler behind these
+    /// routes filters on the caller's own OrganizationId (BRULE-029). This permission decides who
+    /// may ask, not what they get back.</para>
+    /// </summary>
+    public const string RfqRead = "rfq.read";
     /// <summary>FEAT-07.1/FR-RFQ-001: create a Draft RFQ, scoped to the actor's own
     /// OrganizationId (BRULE-029).</summary>
     public const string RfqCreate = "rfq.create";
@@ -160,7 +176,7 @@ public static class Permissions
         SupplierBankAccountManage, SupplierUserManage, SupplierLifecycleManage,
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
         AdminRolesManage, OfferingSearch, EvaluationTemplateManage,
-        RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
+        RfqRead, RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
         ClarificationAnswer, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry
@@ -191,10 +207,10 @@ public static class Roles
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
         // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template
         // management is procurement_manager/system_admin per BACKLOG.md's own actor list.
-        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
+        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqRead, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
-        [ProcurementManager] = [Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject],
+        [ProcurementManager] = [Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject],
         [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
         // Ministry "read-only, cross-organization access to aggregate/governance metrics only",
