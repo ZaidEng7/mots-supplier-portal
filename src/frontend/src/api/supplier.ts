@@ -1,3 +1,4 @@
+import { hasCode, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
 export interface LegalInfo {
@@ -113,13 +114,13 @@ export class SupplierApiError extends Error {
   isFieldNotFlagged: boolean
 
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string; missingFields?: string[]; errors?: Record<string, string[]> } | null
-    super(b?.error ?? `Request failed: ${status}`)
+    const b = body as ProblemDetails | null
+    super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
-    this.missingFields = b?.missingFields
-    this.fieldErrors = b?.errors
-    this.isConcurrencyConflict = status === 409 && b?.error === 'concurrency_conflict'
-    this.isFieldNotFlagged = status === 403 && b?.error === 'field_not_flagged'
+    this.missingFields = b?.missingFields as string[] | undefined
+    this.fieldErrors = b?.errors as Record<string, string[]> | undefined
+    this.isConcurrencyConflict = status === 409 && hasCode(b, 'CONCURRENCY_CONFLICT')
+    this.isFieldNotFlagged = status === 403 && hasCode(b, 'FIELD_NOT_FLAGGED')
   }
 }
 

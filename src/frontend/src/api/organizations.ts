@@ -1,3 +1,4 @@
+import { problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
 export type OrganizationType = 'Hotel' | 'MotBody' | 'Ministry'
@@ -31,8 +32,8 @@ export interface SupplierOrgLink {
 export class OrganizationApiError extends Error {
   status: number
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string } | null
-    super(b?.error ?? `Request failed: ${status}`)
+    const b = body as ProblemDetails | null
+    super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
   }
 }

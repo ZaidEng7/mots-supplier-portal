@@ -1,3 +1,4 @@
+import { problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
 export interface ComparisonRfqItem {
@@ -78,8 +79,8 @@ export interface Comparison {
 export class ComparisonApiError extends Error {
   status: number
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string; message?: string } | null
-    super(b?.message ?? b?.error ?? `Request failed: ${status}`)
+    const b = body as ProblemDetails | null
+    super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
   }
 }

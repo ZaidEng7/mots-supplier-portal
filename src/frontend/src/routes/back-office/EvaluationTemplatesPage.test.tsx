@@ -63,7 +63,7 @@ describe('EvaluationTemplatesPage', () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       if (url.includes('/criteria')) {
-        return new Response(JSON.stringify({ error: 'invalid_state', message: 'Adding this criterion would exceed 100% before activation; current total would be 110.' }), { status: 409 })
+        return new Response(JSON.stringify({ code: 'INVALID_STATE', detail: 'Adding this criterion would exceed 100% before activation; current total would be 110.' }), { status: 409 })
       }
       if (url.includes('/api/v1/evaluation-templates')) {
         return new Response(JSON.stringify([DRAFT_TEMPLATE]), { status: 200 })
