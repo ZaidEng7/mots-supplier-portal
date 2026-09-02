@@ -125,6 +125,36 @@ public static class EmailTemplates
             : ($"تم إصدار ملحق بخصوص {referenceCode}",
                $"<p>تم إصدار ملحق بخصوص {referenceCode}: <strong>{addendumTitle}</strong>.</p>");
 
+    /// <summary>FEAT-13.3 audit gap fix, BUSINESS-PROCESSES.md §3.1: every invited supplier is
+    /// notified when submission opens, not just left to discover it on their own next visit.</summary>
+    public static (string Subject, string Body) RfqPublished(string? locale, string referenceCode) =>
+        IsEnglish(locale)
+            ? ($"{referenceCode} is now open for submissions",
+               $"<p>{referenceCode} has been published and is now open for proposal submissions.</p>")
+            : ($"طلب عرض السعر {referenceCode} أصبح مفتوحاً لتقديم العروض",
+               $"<p>تم نشر طلب عرض السعر {referenceCode} وأصبح مفتوحاً لتقديم العروض.</p>");
+
+    /// <summary>FEAT-13.3 audit gap fix, BUSINESS-PROCESSES.md §3.1: every invited supplier is
+    /// notified of a cancellation - never states the reason for a cancellation reached before
+    /// Awarded (an internal buyer-side reason is not automatically supplier-facing content), only
+    /// that submissions on this RFQ are no longer being accepted.</summary>
+    public static (string Subject, string Body) RfqCancelled(string? locale, string referenceCode) =>
+        IsEnglish(locale)
+            ? ($"{referenceCode} has been cancelled",
+               $"<p>{referenceCode} has been cancelled. No further action is required on your part.</p>")
+            : ($"تم إلغاء طلب عرض السعر {referenceCode}",
+               $"<p>تم إلغاء طلب عرض السعر {referenceCode}. لا حاجة لأي إجراء إضافي من جانبكم.</p>");
+
+    /// <summary>FEAT-13.3 audit gap fix, FEAT-11.2/FR-EVL-002: a newly-assigned evaluator is
+    /// notified they have work waiting, rather than only finding out by checking their own
+    /// dashboard.</summary>
+    public static (string Subject, string Body) EvaluatorAssigned(string? locale, string referenceCode) =>
+        IsEnglish(locale)
+            ? ($"You have been assigned to evaluate {referenceCode}",
+               $"<p>You have been assigned as an evaluator for {referenceCode}. Please log in to begin scoring.</p>")
+            : ($"تم تعيينك لتقييم طلب عرض السعر {referenceCode}",
+               $"<p>تم تعيينك كمقيّم لطلب عرض السعر {referenceCode}. يرجى تسجيل الدخول لبدء عملية التقييم.</p>");
+
     /// <summary>FEAT-09.5/FR-PRP-006: the supplier's own submission receipt - "Email + in-app
     /// receipt to supplier" (BUSINESS-PROCESSES.md §4.1). Never includes pricing - a receipt
     /// confirms submission happened, it does not restate the sealed financial envelope.</summary>

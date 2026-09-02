@@ -7,7 +7,7 @@ const resources = {
     translation: {
       appName: 'بوابة الموردين',
       nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
-      common: { loading: 'جاري التحميل...' },
+      common: { loading: 'جاري التحميل...', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
       phone: {
         countryCode: 'رمز الدولة',
         localNumberPlaceholder: 'رقم الهاتف',
@@ -490,6 +490,12 @@ const resources = {
         weightedTotal: 'المجموع المرجَّح',
         rank: 'الترتيب',
       },
+      workspace: {
+        title: 'سير عمل الطلب',
+        stages: 'مراحل دورة الحياة',
+        noNextAction: 'لا توجد خطوة تالية متاحة حالياً.',
+        cancelledBanner: 'تم إلغاء هذا الطلب.',
+      },
       award: {
         title: 'الترسية',
         status: 'حالة الترسية',
@@ -780,7 +786,7 @@ const resources = {
     translation: {
       appName: 'Supplier Portal',
       nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
-      common: { loading: 'Loading...' },
+      common: { loading: 'Loading...', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
       phone: {
         countryCode: 'Country code',
         localNumberPlaceholder: 'Phone number',
@@ -1262,6 +1268,12 @@ const resources = {
         notQualified: 'Not qualified',
         weightedTotal: 'Weighted total',
         rank: 'Rank',
+      },
+      workspace: {
+        title: 'RFQ Workflow',
+        stages: 'Lifecycle stages',
+        noNextAction: 'No next action is currently available.',
+        cancelledBanner: 'This RFQ has been cancelled.',
       },
       award: {
         title: 'Award',

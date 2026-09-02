@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../../test/renderPage'
 import type { Rfq, RfqState } from '../../api/rfqs'
 import type { Evaluation } from '../../api/evaluations'
+import type { Workspace } from '../../api/workspace'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -23,12 +24,23 @@ function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
   }
 }
 
+function workspaceFixture(overrides: Partial<Workspace> = {}): Workspace {
+  return {
+    rfqReferenceCode: 'RFQ-2026-000001', rfqState: 'Draft', isCancelled: false, submittedProposalCount: 0,
+    evaluationState: null, awardState: null,
+    stages: [{ key: 'Draft', isCurrent: true, isCompleted: false }],
+    nextActions: [],
+    ...overrides,
+  }
+}
+
 const REFERENCE_ROUTES = {
   // Declared before any '/api/v1/rfqs/{ref}' base route in every merged mockFetch call below -
-  // mockFetch (renderPage.tsx) matches by first-declared substring, and this candidates path is a
-  // suffix of the base RFQ route, so it must win the match or the base RFQ fixture object would be
-  // returned here instead (breaking candidates.filter()).
+  // mockFetch (renderPage.tsx) matches by first-declared substring, and these paths are suffixes
+  // of the base RFQ route, so each must win the match or the base RFQ fixture object would be
+  // returned here instead (breaking candidates.filter() / workspace's own shape).
   '/api/v1/rfqs/RFQ-2026-000001/invitations/candidates': [],
+  '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture(),
   '/api/v1/reference/categories': [{ code: 'consulting', nameAr: 'استشارات', nameEn: 'Consulting' }],
   '/api/v1/reference/units-of-measure': [{ code: 'each', nameAr: 'وحدة', nameEn: 'Each' }],
   '/api/v1/evaluation-templates': [{ id: 'tpl-1', familyId: 'fam-1', version: 2, nameAr: 'قالب', nameEn: 'Standard', status: 'Active', isReferenced: false, criteria: [] }],
@@ -211,7 +223,7 @@ describe('RfqDetailPage', () => {
 
     renderPage(<RfqDetailPage />)
 
-    await screen.findByText('Draft')
+    await screen.findAllByText('Draft')
     expect(screen.queryByRole('button', { name: 'Issue addendum' })).not.toBeInTheDocument()
   })
 
@@ -258,5 +270,57 @@ describe('RfqDetailPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Assign' }))
 
     expect(await screen.findByText('Evaluator assigned')).toBeInTheDocument()
+  })
+
+  // ---- FEAT-13.1/FR-PWF-001: the guided workspace panel ----
+
+  it('Draft: the workspace panel shows the Draft stage as current and a blocked submit_review action with its reason', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({
+        nextActions: [{ action: 'submit_review', labelAr: 'إرسال للمراجعة الداخلية', labelEn: 'Submit for internal review', permitted: false, blockedReasonAr: 'لا توجد بنود بعد.', blockedReasonEn: 'No items yet.' }],
+      }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('RFQ Workflow')).toBeInTheDocument()
+    expect(screen.getByText('Submit for internal review')).toBeInTheDocument()
+    expect(screen.getByText('No items yet.')).toBeInTheDocument()
+  })
+
+  it('Awarded: the workspace panel shows a system-driven, unpermitted next action awaiting ERP sync', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({
+        rfqState: 'Awarded', evaluationState: 'Finalized', awardState: 'Awarded',
+        stages: [
+          { key: 'Draft', isCurrent: false, isCompleted: true },
+          { key: 'Awarded', isCurrent: true, isCompleted: false },
+          { key: 'Completed', isCurrent: false, isCompleted: false },
+        ],
+        nextActions: [{ action: 'awaiting_erp_sync', labelAr: 'بانتظار مزامنة أمر الشراء مع نظام تخطيط الموارد', labelEn: 'Awaiting ERP Purchase Order sync', permitted: false, blockedReasonAr: 'هذه الخطوة تلقائية أو بانتظار طرف آخر.', blockedReasonEn: 'This step is automatic or awaiting another party.' }],
+      }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Awarded'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('Awaiting ERP Purchase Order sync')).toBeInTheDocument()
+    expect(screen.getByText('This step is automatic or awaiting another party.')).toBeInTheDocument()
+    expect(screen.getByText('✓ Draft')).toBeInTheDocument()
+  })
+
+  it('Cancelled: the workspace panel shows a cancelled banner instead of stages or actions', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'Cancelled', isCancelled: true, stages: [], nextActions: [] }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Cancelled'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('This RFQ has been cancelled.')).toBeInTheDocument()
   })
 })

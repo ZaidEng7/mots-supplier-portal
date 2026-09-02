@@ -23,6 +23,7 @@ using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Evaluations;
 using MotsSupplierPortal.Application.Comparison;
 using MotsSupplierPortal.Application.Awards;
+using MotsSupplierPortal.Application.Workspace;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
@@ -37,6 +38,7 @@ using MotsSupplierPortal.Infrastructure.Proposals;
 using MotsSupplierPortal.Infrastructure.Evaluations;
 using MotsSupplierPortal.Infrastructure.Comparison;
 using MotsSupplierPortal.Infrastructure.Awards;
+using MotsSupplierPortal.Infrastructure.Workspace;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -298,6 +300,9 @@ builder.Services.AddScoped<IExecuteAwardHandler, ExecuteAwardHandler>();
 builder.Services.AddScoped<IRetryErpSyncHandler, RetryErpSyncHandler>();
 builder.Services.AddScoped<IErpPurchaseOrderAdapter, StubErpPurchaseOrderAdapter>();
 builder.Services.AddScoped<AwardErpSyncJob>();
+
+// EPIC-13: Workspace (derived read-side guided-lifecycle view over Rfq + Invitation + Proposal + Evaluation + Award).
+builder.Services.AddScoped<IGetWorkspaceHandler, GetWorkspaceHandler>();
 builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
@@ -519,6 +524,33 @@ foreach (var warning in MotsSupplierPortal.Api.Configuration.RequiredConfigurati
 
 app.UseSerilogRequestLogging();
 
+// EPIC-13/FEAT-13.5/FR-PWF-005: a RowVersion (xmin) mismatch on any write throws
+// DbUpdateConcurrencyException from EF Core. Before this, only Supplier profile/legal-info writes
+// translated that into the documented `concurrency_conflict` 409 shape
+// (Infrastructure/Suppliers/SupplierConcurrency.cs's own TryPersistAsync helper, wired into just
+// two handlers) - every other aggregate's mutating endpoint (Rfq/Proposal/Evaluation/Award) let it
+// propagate unhandled to a raw 500, an audit finding from this epic's own FEAT-13.5 pass. Handled
+// globally, once, here, rather than wrapping every handler's own SaveChangesAsync call individually
+// - reusing the EXACT SAME shape Supplier's own SupplierEndpoints.cs already returns
+// ({ error: "concurrency_conflict" }) so the one frontend error-shape callers already check for
+// keeps working everywhere, not just on Supplier screens.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.Clear();
+            context.Response.StatusCode = StatusCodes.Status409Conflict;
+            await context.Response.WriteAsJsonAsync(new { error = "concurrency_conflict" });
+        }
+    }
+});
+
 // SECURITY-ARCHITECTURE.md §5.5: full secure-header set on every response. Applied first so it
 // covers error responses too, not just successful ones.
 app.Use(async (context, next) =>
@@ -684,6 +716,7 @@ app.MapProposalEndpoints();
 app.MapEvaluationEndpoints();
 app.MapComparisonEndpoints();
 app.MapAwardEndpoints();
+app.MapWorkspaceEndpoints();
 
 // MSP-87: the dashboard now requires system_admin, not merely an authenticated user. Previously
 // the only gate was the deny-by-default FallbackPolicy, which closed anonymous access and nothing

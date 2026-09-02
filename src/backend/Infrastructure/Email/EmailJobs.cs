@@ -274,6 +274,28 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
+    public async Task SendRfqPublishedEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+        var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfq is null) return;
+
+        var (subject, body) = EmailTemplates.RfqPublished(recipient.Value.Language, rfq);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
+    public async Task SendRfqCancelledEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+        var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfq is null) return;
+
+        var (subject, body) = EmailTemplates.RfqCancelled(recipient.Value.Language, rfq);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
     // ---- EPIC-09: proposals -----------------------------------------------------------------
 
     public async Task SendProposalSubmittedEmailAsync(Guid userId, Guid proposalId, CancellationToken ct)
@@ -288,6 +310,19 @@ public sealed class EmailJobs(
         if (rfqReferenceCode is null) return;
 
         var (subject, body) = EmailTemplates.ProposalSubmitted(recipient.Value.Language, proposal.ReferenceCode, rfqReferenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
+    // ---- EPIC-11: evaluation ------------------------------------------------------------------
+
+    public async Task SendEvaluatorAssignedEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+        var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfq is null) return;
+
+        var (subject, body) = EmailTemplates.EvaluatorAssigned(recipient.Value.Language, rfq);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 

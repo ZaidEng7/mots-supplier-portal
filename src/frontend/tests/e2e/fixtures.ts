@@ -170,6 +170,19 @@ export async function mockBackend(page: Page) {
     // EPIC-14: same class of bug - AwardPage reads evaluation.results and would crash on the
     // generic {} fallback below; null (200) for /award is the real "no award yet" shape.
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/award`) return route.fulfill({ json: null })
+    // EPIC-13: same class of bug - the guided workspace panel embedded on RfqDetailPage reads
+    // workspace.stages.map()/workspace.nextActions.map() and would crash on the generic {}
+    // fallback below.
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/workspace`) {
+      return route.fulfill({
+        json: {
+          rfqReferenceCode: RFQ_REFERENCE_CODE, rfqState: 'Draft', isCancelled: false, submittedProposalCount: 0,
+          evaluationState: null, awardState: null,
+          stages: [{ key: 'Draft', isCurrent: true, isCompleted: false }],
+          nextActions: [],
+        },
+      })
+    }
     // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
     if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })

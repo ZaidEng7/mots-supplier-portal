@@ -27,6 +27,27 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
             throw new InvalidOperationException("ERP is unavailable (simulated for this test).");
     }
 
+    /// <summary>FEAT-13.4 audit: counts real calls FOR ONE SPECIFIC AWARD so a test can prove a job
+    /// re-run after a "crash" (here: after the prior run's SaveChangesAsync already committed
+    /// ErpSyncStatus.Synced) does NOT call the adapter a second time for that award -
+    /// AwardErpSyncJob's own query only ever selects ErpSyncStatus.Requested rows
+    /// (AwardErpSyncJob.cs line 33-37), so once a row is committed Synced it structurally cannot be
+    /// re-picked-up, the same "idempotent by query construction, not by marker" pattern this epic's
+    /// own audit already confirmed for RfqTimelineJob. Scoped to one awardId rather than a global
+    /// counter because RunAsync processes its WHOLE pending batch (up to BatchSize) each call - the
+    /// shared integration-test database can hold other still-Requested awards left behind by other
+    /// tests in this same collection, and a global counter would flake on those, not on anything this
+    /// test itself is proving.</summary>
+    private sealed class CountingErpPurchaseOrderAdapter(Guid trackedAwardId) : IErpPurchaseOrderAdapter
+    {
+        public int CallCountForTrackedAward;
+        public Task<string> CreatePurchaseOrderAsync(Guid awardId, string rfqReferenceCode, CancellationToken ct = default)
+        {
+            if (awardId == trackedAwardId) Interlocked.Increment(ref CallCountForTrackedAward);
+            return Task.FromResult($"PO-COUNTED-{awardId}");
+        }
+    }
+
     private async Task<(HttpClient Client, Guid SupplierId)> ActiveSupplierAsync(string name)
     {
         var (client, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, name);
@@ -322,6 +343,67 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var syncedAward = await recoveryDb.Awards.AsNoTracking().FirstAsync(a => a.Id == awardId);
         syncedAward.ErpSyncStatus.Should().Be(Domain.Awards.ErpSyncStatus.Synced);
         syncedAward.ExternalPurchaseOrderRef.Should().NotBeNullOrEmpty();
+        var completedRfq = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
+        completedRfq.GetProperty("state").GetString().Should().Be(nameof(RfqState.Completed));
+    }
+
+    // ---- FEAT-13.4/FR-PWF-004: a job re-run after the prior run already committed must be a no-op ----
+
+    [Fact]
+    public async Task Rerunning_the_ERP_sync_job_after_a_successful_run_does_not_call_the_adapter_again_or_double_complete_the_RFQ()
+    {
+        var (referenceCode, manager, officer, proposalAId, _, _, _, orgId) = await SetupFinalizedEvaluationRfqAsync("Award ERP Rerun RFQ");
+        var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
+
+        await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
+        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
+        await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
+        var execute = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);
+        var awardId = (await execute.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var countingAdapter = new CountingErpPurchaseOrderAdapter(awardId);
+        await using var fakeFactory = fixture.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services => services.AddScoped<IErpPurchaseOrderAdapter>(_ => countingAdapter)));
+
+        // First run: the award is still Requested, so this is the ONE real sync. (The batch may
+        // also process OTHER awards left Requested by other tests in this shared database - the
+        // counter only tracks calls for THIS test's own award, see the adapter's own doc comment.)
+        await using (var scope = fakeFactory.Services.CreateAsyncScope())
+        {
+            var job = scope.ServiceProvider.GetRequiredService<AwardErpSyncJob>();
+            await job.RunAsync(CancellationToken.None);
+        }
+        countingAdapter.CallCountForTrackedAward.Should().Be(1);
+
+        await using var midScope = fixture.Services.CreateAsyncScope();
+        var midDb = midScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var midAward = await midDb.Awards.AsNoTracking().FirstAsync(a => a.Id == awardId);
+        midAward.ErpSyncStatus.Should().Be(Domain.Awards.ErpSyncStatus.Synced);
+        var firstPoRef = midAward.ExternalPurchaseOrderRef;
+        firstPoRef.Should().NotBeNullOrEmpty();
+
+        // Simulating the job's recurring schedule firing again (e.g. after a restart) against the
+        // SAME already-Synced award: the query in AwardErpSyncJob.RunAsync only selects
+        // ErpSyncStatus.Requested rows, so this second run must find nothing to do.
+        await using (var scope = fakeFactory.Services.CreateAsyncScope())
+        {
+            var job = scope.ServiceProvider.GetRequiredService<AwardErpSyncJob>();
+            await job.RunAsync(CancellationToken.None);
+        }
+
+        countingAdapter.CallCountForTrackedAward.Should().Be(1, "a re-run after the award is already Synced must not call the ERP adapter a second time");
+
+        await using var finalScope = fixture.Services.CreateAsyncScope();
+        var finalDb = finalScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var finalAward = await finalDb.Awards.AsNoTracking().FirstAsync(a => a.Id == awardId);
+        finalAward.ExternalPurchaseOrderRef.Should().Be(firstPoRef, "the PO reference must not change on a no-op re-run");
+
+        var auditRows = await finalDb.AuditLogs
+            .Where(l => l.AggregateType == "Award" && l.AggregateId == awardId && l.Action == "award.erp_po_synced")
+            .CountAsync();
+        auditRows.Should().Be(1, "a no-op re-run must not write a duplicate audit row either");
+
         var completedRfq = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         completedRfq.GetProperty("state").GetString().Should().Be(nameof(RfqState.Completed));
     }

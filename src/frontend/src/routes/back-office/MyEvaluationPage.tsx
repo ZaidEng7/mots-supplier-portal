@@ -21,7 +21,8 @@ export function MyEvaluationPage() {
   const evaluationQuery = useQuery({ queryKey: ['my-evaluation', referenceCode], queryFn: () => getMyEvaluation(referenceCode) })
   const evaluation = evaluationQuery.data ?? null
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['my-evaluation', referenceCode] })
-  const errorMessage = (err: unknown, fallback: string) => (err instanceof EvaluationApiError ? err.message : fallback)
+  const errorMessage = (err: unknown, fallback: string) =>
+    err instanceof EvaluationApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof EvaluationApiError ? err.message : fallback
 
   const scoreMutation = useMutation({
     mutationFn: ({ proposalId, criterionId, rawScore }: { proposalId: string; criterionId: string; rawScore: number }) =>

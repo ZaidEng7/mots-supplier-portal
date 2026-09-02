@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluations;
@@ -6,6 +7,7 @@ using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
@@ -136,7 +138,9 @@ public sealed class GetEvaluationHandler(AppDbContext db, IScopeContext scope) :
 /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1: "— -&gt; Assigned ... procurement_manager
 /// / evaluation.assign". Assigns every candidate to every Submitted proposal on the RFQ - see
 /// EvaluationAssignment.cs's own doc comment on why no per-evaluator proposal subset exists.</summary>
-public sealed class AssignEvaluatorsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IAssignEvaluatorsHandler
+/// <summary>FEAT-13.3 audit gap fix: notifies each newly-assigned evaluator - previously they only
+/// learned of the assignment by independently checking their own evaluation dashboard.</summary>
+public sealed class AssignEvaluatorsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IAssignEvaluatorsHandler
 {
     public async Task<EvaluationMutationResult> HandleAsync(AssignEvaluatorsCommand command, CancellationToken ct)
     {
@@ -166,6 +170,12 @@ public sealed class AssignEvaluatorsHandler(AppDbContext db, IScopeContext scope
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_evaluators_assigned", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: string.Join(",", command.EvaluatorUserIds), ct: ct);
         await db.SaveChangesAsync(ct);
+
+        foreach (var evaluatorUserId in command.EvaluatorUserIds)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendEvaluatorAssignedEmailAsync(evaluatorUserId, rfq.Id, CancellationToken.None));
+        }
+
         return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
     }
 }
@@ -240,6 +250,20 @@ public sealed class FinalizeEvaluationHandler(AppDbContext db, IScopeContext sco
         if (loaded is null) return new EvaluationMutationResult.NotFoundOrOutOfScope();
         var (rfq, evaluation) = loaded.Value;
 
+        // EPIC-13/FEAT-13.2 stage-gate audit: BUSINESS-PROCESSES.md §5.1's own "Result reviewed;
+        // no unresolved clarification" guard for this transition was never enforced anywhere -
+        // Evaluation.FinalizeEvaluation's own doc comment already flagged this as a known,
+        // deliberate gap left for whichever epic could reach across to Clarification (this one).
+        // Clarification is a child entity of Rfq (Domain/Rfqs/Clarification.cs), not its own
+        // aggregate, so this is a plain cross-aggregate-adjacent count query, same shape as every
+        // other cross-aggregate guard in this codebase.
+        var unresolvedClarifications = await db.Clarifications.CountAsync(c => c.RfqId == rfq.Id && c.Answer == null, ct);
+        if (unresolvedClarifications > 0)
+        {
+            return new EvaluationMutationResult.InvalidState(
+                $"Cannot finalize the evaluation: {unresolvedClarifications} clarification question(s) are still unanswered.");
+        }
+
         try
         {
             evaluation.FinalizeEvaluation();
@@ -283,7 +307,7 @@ public sealed class ReopenEvaluationHandler(AppDbContext db, IScopeContext scope
 /// <summary>The blind-scoring read path (OQ-005/BRULE-058): filters every EvaluatorScore to
 /// `EvaluatorUserId == scope.UserId` before it ever leaves the handler - see
 /// EvaluationDtoMapper.ToMyDto's own filter.</summary>
-public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope) : IGetMyEvaluationHandler
+public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IGetMyEvaluationHandler
 {
     public async Task<MyEvaluationResult> HandleAsync(string rfqReferenceCode, CancellationToken ct)
     {
@@ -291,6 +315,12 @@ public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope)
         if (loaded is null) return new MyEvaluationResult.NotFoundOrNotAssigned();
         var (rfq, evaluation) = loaded.Value;
 
+        // EPIC-13/FEAT-13.3 audit finding: this GET was a real state mutation (Assigned/NotStarted
+        // -> InProgress, "the first evaluator to open" per BUSINESS-PROCESSES.md §5.1) with zero
+        // audit logging - IAuditLogger wasn't even injected. fromState captured before the call so
+        // the audit row is only written when a transition genuinely happened, not on every
+        // subsequent GET once already InProgress.
+        var fromState = evaluation.State;
         try
         {
             evaluation.OpenScoring(scope.UserId!.Value);
@@ -298,6 +328,11 @@ public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope)
         catch (DomainException ex)
         {
             return new MyEvaluationResult.InvalidState(ex.Message);
+        }
+        if (evaluation.State != fromState)
+        {
+            await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation.scoring_started", scope.UserId,
+                referenceCode: rfq.ReferenceCode, fromState: fromState.ToString(), toState: evaluation.State.ToString(), ct: ct);
         }
         await db.SaveChangesAsync(ct);
 

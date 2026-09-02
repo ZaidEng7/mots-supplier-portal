@@ -111,7 +111,19 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
 /// <summary>FEAT-14.2/FR-AWD-002: routes the recommendation for approval and, in the same
 /// handler/SaveChanges, moves the RFQ itself into AwardApproval (Rfq.EnterAwardApproval's own doc
 /// comment covers why that guards on UnderEvaluation rather than a Recommendation state nothing can
-/// produce yet).</summary>
+/// produce yet).
+///
+/// <para><b>EPIC-13/FEAT-13.3 audit finding, left as a documented judgment call rather than a code
+/// fix:</b> unlike RfqPublishHandler/CancelRfqHandler/AssignEvaluatorsHandler (all fixed this epic
+/// to notify their real recipients), no email is enqueued here to "the approver" - because no
+/// mechanism anywhere in the Identity domain resolves who that is. Permissions.AwardApprove is a
+/// CLAIM held by a role (ProcurementManager), not a single identifiable user or a queryable list of
+/// candidate approvers; a single-approver segregation-of-duties model (BRULE-077: approver must
+/// differ from recommender) does not by itself say WHICH holder of that claim should be paged. This
+/// is the same open design question EPIC-14 already flagged when Award was first built, not a new
+/// gap introduced here - notifying "everyone with AwardApprove" would be a guess this codebase's own
+/// audit trail conventions do not support without a real approver-assignment concept
+/// (EPIC-15/notifications scope, unbuilt).</para></summary>
 public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRouteAwardForApprovalHandler
 {
     public async Task<AwardMutationResult> HandleAsync(RouteAwardForApprovalCommand command, CancellationToken ct)
@@ -119,6 +131,19 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
         var loaded = await AwardLoader.LoadScopedAsync(db, scope, command.RfqReferenceCode, ct);
         if (loaded is null || loaded.Value.Award is null) return new AwardMutationResult.NotFoundOrOutOfScope();
         var (rfq, award) = loaded.Value;
+
+        // EPIC-13/FEAT-13.2 stage-gate audit: this used to be `if (rfq.State == UnderEvaluation)
+        // rfq.EnterAwardApproval();` - correct for the legitimate re-route cycle (RFQ already
+        // AwardApproval from a prior Reject -> ReRecommend -> RouteForApproval pass, where a
+        // second EnterAwardApproval() call would wrongly throw), but it silently no-op'd for EVERY
+        // other RFQ state too - Cancelled, Awarded, Completed - letting Award.RouteForApproval()
+        // succeed unconditionally regardless of RFQ state, a real cross-aggregate gap: the Award
+        // could advance to PendingApproval on a dead or already-concluded RFQ. Explicitly refuse
+        // every state outside the two legitimate ones instead of only handling the happy path.
+        if (rfq.State is not (RfqState.UnderEvaluation or RfqState.AwardApproval))
+        {
+            return new AwardMutationResult.InvalidState($"Cannot route award for approval: the RFQ is in state '{rfq.State}'.");
+        }
 
         var existingApprovalIds = award.Approvals.Select(a => a.Id).ToHashSet();
         try
@@ -250,8 +275,22 @@ public sealed class ExecuteAwardHandler(
         var proposals = await db.Proposals.Where(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted).ToListAsync(ct);
         foreach (var proposal in proposals)
         {
-            if (proposal.Id == award.WinningProposalId) proposal.Award();
-            else proposal.MarkNotSelected();
+            // EPIC-13/FEAT-13.3 audit finding: this loop mutates every Proposal's own State but
+            // previously logged nothing under "Proposal" - only the Award and Rfq rows were
+            // audited, even though BUSINESS-PROCESSES.md §4.1 names proposal.awarded/
+            // proposal.not_selected as their own audited events.
+            if (proposal.Id == award.WinningProposalId)
+            {
+                proposal.Award();
+                await auditLogger.LogAsync("Proposal", proposal.Id, "proposal.awarded", scope.UserId,
+                    referenceCode: proposal.ReferenceCode, toState: nameof(ProposalState.Awarded), ct: ct);
+            }
+            else
+            {
+                proposal.MarkNotSelected();
+                await auditLogger.LogAsync("Proposal", proposal.Id, "proposal.not_selected", scope.UserId,
+                    referenceCode: proposal.ReferenceCode, toState: nameof(ProposalState.NotSelected), ct: ct);
+            }
         }
 
         db.OutboxMessages.Add(new Domain.Common.OutboxMessage
