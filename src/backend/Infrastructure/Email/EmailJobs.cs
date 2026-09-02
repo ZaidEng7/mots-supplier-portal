@@ -291,6 +291,32 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
+    // ---- EPIC-14: award -----------------------------------------------------------------------
+
+    public async Task SendAwardIssuedEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+        var rfqReferenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfqReferenceCode is null) return;
+
+        var (subject, body) = EmailTemplates.AwardIssued(recipient.Value.Language, rfqReferenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
+    /// <summary>BRULE-082: regret notice - never carries the winner's identity or pricing, only the
+    /// fact that this RFQ has been awarded elsewhere.</summary>
+    public async Task SendAwardRegretEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
+    {
+        var recipient = await RecipientAsync(userId, ct);
+        if (recipient is null) return;
+        var rfqReferenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
+        if (rfqReferenceCode is null) return;
+
+        var (subject, body) = EmailTemplates.AwardRegret(recipient.Value.Language, rfqReferenceCode);
+        await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
+    }
+
     // ---- document lifecycle ---------------------------------------------------------------
     //
     // These take a document id and resolve the filename from it. MSP-87 found original filenames

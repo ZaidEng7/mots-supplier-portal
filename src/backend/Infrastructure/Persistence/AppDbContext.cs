@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Audit;
+using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
@@ -60,6 +61,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<EvaluationAssignment> EvaluationAssignments => Set<EvaluationAssignment>();
     public DbSet<EvaluatorScore> EvaluatorScores => Set<EvaluatorScore>();
     public DbSet<ConsolidatedResult> ConsolidatedResults => Set<ConsolidatedResult>();
+    public DbSet<Award> Awards => Set<Award>();
+    public DbSet<Approval> Approvals => Set<Approval>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -772,6 +775,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(r => r.FinancialWeightedScore).HasPrecision(8, 2);
             entity.Property(r => r.WeightedTotal).HasPrecision(8, 2);
             entity.HasIndex(r => new { r.EvaluationId, r.ProposalId }).IsUnique();
+        });
+
+        // EPIC-14/DOMAIN-MODEL.md §5.8: Award is its own aggregate root (schema "award"), bound to
+        // RfqId - same "own bounded context, referenced by id" shape as Proposal/Evaluation. One
+        // Award per Rfq (unique index on RfqId).
+        modelBuilder.Entity<Award>(entity =>
+        {
+            entity.ToTable("award", "award");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.State).HasConversion<string>().HasMaxLength(20);
+            entity.Property(a => a.JustificationAr).HasMaxLength(4000).IsRequired();
+            entity.Property(a => a.JustificationEn).HasMaxLength(4000).IsRequired();
+            entity.Property(a => a.ComparisonSnapshotJson).HasColumnType("jsonb");
+            entity.Property(a => a.ErpSyncStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(a => a.ExternalPurchaseOrderRef).HasMaxLength(100);
+            entity.Property(a => a.RowVersion).IsRowVersion();
+            entity.HasIndex(a => a.RfqId).IsUnique();
+            entity.HasMany(a => a.Approvals).WithOne().HasForeignKey(p => p.AwardId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Approval>(entity =>
+        {
+            entity.ToTable("approval", "award");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
+            entity.Property(a => a.Comment).HasMaxLength(2000);
+            entity.HasIndex(a => new { a.AwardId, a.StepNo });
         });
     }
 }

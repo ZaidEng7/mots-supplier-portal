@@ -514,10 +514,15 @@ export function RfqDetailPage() {
 
       {evaluationEligible ? (
         <Card title={t('evaluation.title')}>
-          <div className="mb-4">
+          <div className="mb-4 flex gap-2">
             <a href={`/back-office/rfqs/${referenceCode}/comparison`}>
               <Button size="sm" variant="secondary">{t('comparison.title')}</Button>
             </a>
+            {evaluation?.state === 'Finalized' || ['AwardApproval', 'Awarded', 'Completed'].includes(rfq.state) ? (
+              <a href={`/back-office/rfqs/${referenceCode}/award`}>
+                <Button size="sm" variant="secondary">{t('award.title')}</Button>
+              </a>
+            ) : null}
           </div>
           {!evaluation ? (
             rfq.state === 'SubmissionClosed' ? (

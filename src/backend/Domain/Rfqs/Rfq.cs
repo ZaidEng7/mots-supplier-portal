@@ -577,6 +577,47 @@ public sealed class Rfq
         State = RfqState.UnderEvaluation;
     }
 
+    /// <summary>EPIC-14/FEAT-14.2: the RFQ side-effect of routing an Award recommendation for
+    /// approval. Guards on UnderEvaluation, not Recommendation - DOMAIN-MODEL.md's own canonical
+    /// machine routes UnderEvaluation -&gt; Clarification* -&gt; Shortlisting -&gt; Recommendation
+    /// -&gt; AwardApproval, but EPIC-13 (the workspace epic that would ever move an RFQ through
+    /// Clarification/Shortlisting/Recommendation) isn't built, so those three states remain
+    /// unreachable by any method on this aggregate - same "real values, no transition method yet"
+    /// stub OpenEvaluation's own doc comment already documents for the states after it. Routing an
+    /// Award for approval is the one real trigger THIS epic needs into AwardApproval, so it accepts
+    /// UnderEvaluation directly rather than a three-state chain nothing can produce yet.</summary>
+    public void EnterAwardApproval()
+    {
+        if (State != RfqState.UnderEvaluation)
+        {
+            throw new DomainException($"Cannot enter award approval from state '{State}'; only 'UnderEvaluation' is valid.");
+        }
+        State = RfqState.AwardApproval;
+    }
+
+    /// <summary>EPIC-14/FEAT-14.4/FEAT-14.6/FR-AWD-004/006: AwardApproval -&gt; Awarded, the RFQ's
+    /// own side of Award.ExecuteAward() - both happen in the same handler/SaveChanges call.</summary>
+    public void MarkAwarded()
+    {
+        if (State != RfqState.AwardApproval)
+        {
+            throw new DomainException($"Cannot mark awarded from state '{State}'; only 'AwardApproval' is valid.");
+        }
+        State = RfqState.Awarded;
+    }
+
+    /// <summary>EPIC-14/FEAT-14.6/FR-AWD-006/BRULE-079: Awarded -&gt; Completed, triggered once the
+    /// ERP acknowledges the Purchase Order and ExternalPurchaseOrderRef is stored - the AwardErpSyncJob's
+    /// own doc comment covers why this waits for that ACK rather than firing at Awarded itself.</summary>
+    public void Complete()
+    {
+        if (State != RfqState.Awarded)
+        {
+            throw new DomainException($"Cannot complete from state '{State}'; only 'Awarded' is valid.");
+        }
+        State = RfqState.Completed;
+    }
+
     /// <summary>Cancel from any pre-Awarded state (BUSINESS-PROCESSES.md §3.1: procurement_manager
     /// / rfq.cancel, reason mandatory). Terminal - Cancelled has no outgoing transition.</summary>
     public void Cancel(string reason)
