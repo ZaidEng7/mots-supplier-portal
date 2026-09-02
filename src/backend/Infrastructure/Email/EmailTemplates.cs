@@ -135,6 +135,23 @@ public static class EmailTemplates
             : ($"تم إرسال العرض {proposalReferenceCode}",
                $"<p>تم إرسال عرضك ({proposalReferenceCode}) الخاص بـ {rfqReferenceCode} بنجاح.</p>");
 
+    /// <summary>FEAT-14.4/FR-AWD-004: the winning supplier's award notice.</summary>
+    public static (string Subject, string Body) AwardIssued(string? locale, string rfqReferenceCode) =>
+        IsEnglish(locale)
+            ? ($"You have been awarded {rfqReferenceCode}",
+               $"<p>Congratulations - your proposal for {rfqReferenceCode} has been awarded. Please log in for details.</p>")
+            : ($"تمت ترسية {rfqReferenceCode} عليكم",
+               $"<p>تهانينا - تمت ترسية طلب عرض السعر {rfqReferenceCode} على عرضكم. يرجى تسجيل الدخول للاطلاع على التفاصيل.</p>");
+
+    /// <summary>BRULE-082: the losing supplier's regret notice - never names the winner or states
+    /// any commercial figure.</summary>
+    public static (string Subject, string Body) AwardRegret(string? locale, string rfqReferenceCode) =>
+        IsEnglish(locale)
+            ? ($"Outcome for {rfqReferenceCode}",
+               $"<p>Thank you for your proposal for {rfqReferenceCode}. On this occasion, your proposal was not selected for award.</p>")
+            : ($"نتيجة طلب عرض السعر {rfqReferenceCode}",
+               $"<p>شكراً لتقديمكم عرضاً بخصوص {rfqReferenceCode}. لم يقع الاختيار على عرضكم هذه المرة.</p>");
+
     public static (string Subject, string Body) InfoRequested(string? locale, string reason) =>
         IsEnglish(locale)
             ? ("Action needed on your supplier application",
