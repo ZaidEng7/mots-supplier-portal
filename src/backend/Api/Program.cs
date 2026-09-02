@@ -743,27 +743,61 @@ using (var storageScope = app.Services.CreateScope())
     await minioStorage.EnsureBucketExistsAsync(CancellationToken.None);
 }
 
-RecurringJob.AddOrUpdate<DocumentExpiryJob>(
-    "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+// MSP-98: recurring jobs are SCHEDULED only when this is on, and the integration test host turns
+// it off (PostgresApiFixture). Hangfire itself is untouched - the server still runs, enqueued jobs
+// (emails, outbox writes) still process, and a test that asks for a job explicitly still gets it,
+// because direct invocation resolves the job class from DI and never goes near the scheduler.
+//
+// WHY. Every job below mutates state that tests also assert on, on a cadence measured in minutes,
+// against the same database the whole suite shares. That produced one loud failure - award-erp-sync
+// synced an award the test had set up to fail, because the suite grew past a five-minute boundary -
+// and the loud one is the lucky case. The mirror image is a test asserting a state a job ALSO
+// produces (an RFQ reaching SubmissionClosed, a document reaching Expired) and passing because the
+// job did the work rather than the code under test. That test goes green and stays green.
+//
+// A configuration switch rather than a compiled-in conditional, because the fixture already
+// configures the host this way (UseSetting for the connection string, Minio, and the rest) and a
+// #if or an environment check would put the test host's behaviour somewhere the test host cannot
+// see it.
+if (builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true))
+{
+    RecurringJob.AddOrUpdate<DocumentExpiryJob>(
+        "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
-RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
-    "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+    RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
+        "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
-// Task #16: the dispatcher-shaped hole. Every 5 minutes, not daily like the two jobs above -
-// approval/compliance events sitting in the Outbox are meant to eventually reach an ERP, and a
-// daily cadence would make "eventually" mean "up to a day late" for no reason.
-RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
-    "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
+    // Task #16: the dispatcher-shaped hole. Every 5 minutes, not daily like the two jobs above -
+    // approval/compliance events sitting in the Outbox are meant to eventually reach an ERP, and a
+    // daily cadence would make "eventually" mean "up to a day late" for no reason.
+    RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
+        "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
 
-// FEAT-07.6/FR-PWF-004: RFQ submission-window open/close is time-of-day precise, not daily - same
-// 5-minute cadence reasoning as the outbox dispatcher above.
-RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
-    "rfq-timeline", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+    // FEAT-07.6/FR-PWF-004: RFQ submission-window open/close is time-of-day precise, not daily - same
+    // 5-minute cadence reasoning as the outbox dispatcher above.
+    RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
+        "rfq-timeline", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
 
-// EPIC-14/FEAT-14.5: same 5-minute cadence as outbox-dispatch above - the reconciliation half of
-// the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
-RecurringJob.AddOrUpdate<AwardErpSyncJob>(
-    "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+    // EPIC-14/FEAT-14.5: same 5-minute cadence as outbox-dispatch above - the reconciliation half of
+    // the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
+    RecurringJob.AddOrUpdate<AwardErpSyncJob>(
+        "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+}
+else
+{
+    // Skipping registration is not enough on its own. Hangfire PERSISTS recurring job definitions in
+    // hangfire.set/hangfire.hash, so a definition written by an earlier run against the same
+    // database would still be picked up and fired by this host's server. Removing them makes the
+    // suppression true of the storage rather than only of this startup path.
+    foreach (var jobId in new[]
+             {
+                 "document-expiry-lifecycle", "draft-registration-cleanup",
+                 "outbox-dispatch", "rfq-timeline", "award-erp-sync",
+             })
+    {
+        RecurringJob.RemoveIfExists(jobId);
+    }
+}
 
 app.Run();
 

@@ -68,6 +68,18 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Default", _postgres.GetConnectionString());
 
+        // MSP-98: no recurring job may fire under the suite. Hangfire itself stays on - tests
+        // invoke jobs directly (AwardEndpointsTests runs AwardErpSyncJob against a deliberately
+        // failing adapter, which IS the behaviour under test) and enqueued email jobs still
+        // process. What is switched off is the SCHEDULER: a job runs when a test asks for it, and
+        // never when a test does not.
+        //
+        // Without this, award-erp-sync (*/5) synced an award a test had staged to fail, once the
+        // suite grew long enough to span a tick. That failure was loud. The one that is not loud is
+        // a test asserting a state a job also produces - SubmissionClosed, Expired - and passing
+        // because the job did the work.
+        builder.UseSetting("Jobs:EnableRecurring", "false");
+
         var minioEndpoint = new Uri(_minio.GetConnectionString());
         builder.UseSetting("Minio:Endpoint", $"{minioEndpoint.Host}:{minioEndpoint.Port}");
         builder.UseSetting("Minio:AccessKey", _minio.GetAccessKey());
