@@ -57,9 +57,15 @@ public static class RegistrationEndpoints
         // Public by design: this is the unauthenticated front door (STORY-02.1.1). Declared
         // explicitly so the deny-by-default FallbackPolicy (MSP-67) does not silently close it,
         // and so the intent is visible rather than inferred from a missing guard.
-        var group = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting("auth-strict").AllowAnonymous();
+        // §12-A/C4. §12.1 names two of these three routes and puts both under /auth:
+        //   "POST /auth/register - supplier self-registration (starts onboarding at Draft)"
+        //   "POST /auth/verify-email - moves onboarding Draft -> EmailVerified"
+        // resend-verification is NOT named by §12 and keeps its current path; moving it would be an
+        // invention, and it is reported as a documented silence rather than guessed at.
+        var group = app.MapGroup("/api/v1/auth").WithTags("Registrations").RequireRateLimiting("auth-strict").AllowAnonymous();
+        var legacyGroup = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting("auth-strict").AllowAnonymous();
 
-        group.MapPost("/", async (
+        group.MapPost("/register", async (
             RegisterSupplierRequest request,
             IValidator<RegisterSupplierRequest> validator,
             IRegisterSupplierHandler handler,
@@ -116,7 +122,7 @@ public static class RegistrationEndpoints
         // consequential (writes rows, sends email). See Program.cs's RegisterRateLimitPolicy.
         .RequireRateLimiting("register-strict");
 
-        group.MapPost("/verify", async (
+        group.MapPost("/verify-email", async (
             VerifyEmailRequest request,
             IVerifyEmailHandler handler,
             CancellationToken ct) =>
@@ -133,7 +139,7 @@ public static class RegistrationEndpoints
         .WithName("VerifyEmail");
 
         // STORY-02.2.1 AC3: resend is rate-limited per-IP (group policy above) + per-target.
-        group.MapPost("/resend-verification", async (
+        legacyGroup.MapPost("/resend-verification", async (
             ResendVerificationRequest request,
             IValidator<ResendVerificationRequest> validator,
             IResendVerificationHandler handler,

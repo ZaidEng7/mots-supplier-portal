@@ -32,7 +32,7 @@ public static class SupplierTestClient
         var client = fixture.CreateClient();
         var email = $"itest-{Guid.NewGuid():N}@example.com";
 
-        await client.PostAsJsonAsync("/api/v1/registrations", new
+        await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار",
             displayNameEn,
@@ -67,6 +67,6 @@ public static class SupplierTestClient
         var rawToken = await securityTokenService.IssueAsync(
             user!.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), CancellationToken.None);
 
-        await client.PostAsJsonAsync("/api/v1/registrations/verify", new { token = rawToken });
+        await client.PostAsJsonAsync("/api/v1/auth/verify-email", new { token = rawToken });
     }
 }

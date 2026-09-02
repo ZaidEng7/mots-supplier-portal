@@ -188,7 +188,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         using var client = probeFactory.CreateClient();
 
         var email = $"itest-{Guid.NewGuid():N}@example.com";
-        await client.PostAsJsonAsync("/api/v1/registrations", new
+        await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار",
             displayNameEn = "Memory Measurement Co",
@@ -206,7 +206,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             var user = await userManager.FindByEmailAsync(email);
             var rawToken = await securityTokenService.IssueAsync(
                 user!.Id, MotsSupplierPortal.Domain.Identity.SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), CancellationToken.None);
-            await client.PostAsJsonAsync("/api/v1/registrations/verify", new { token = rawToken });
+            await client.PostAsJsonAsync("/api/v1/auth/verify-email", new { token = rawToken });
         }
 
         var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = SupplierTestClient.Password });

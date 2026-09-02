@@ -88,7 +88,7 @@ public sealed class EmailLocalizationTests(PostgresApiFixture fixture)
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
         var email = $"itest-{Guid.NewGuid():N}@example.com";
 
-        var response = await client.PostAsJsonAsync("/api/v1/registrations", new
+        var response = await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار",
             displayNameEn = $"EN Locale {Guid.NewGuid():N}"[..20],
@@ -113,7 +113,7 @@ public sealed class EmailLocalizationTests(PostgresApiFixture fixture)
         var client = fixture.CreateClient();
         var email = $"itest-{Guid.NewGuid():N}@example.com";
 
-        var response = await client.PostAsJsonAsync("/api/v1/registrations", new
+        var response = await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار",
             displayNameEn = $"Default Locale {Guid.NewGuid():N}"[..20],

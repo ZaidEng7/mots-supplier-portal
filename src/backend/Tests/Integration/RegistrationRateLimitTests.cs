@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace MotsSupplierPortal.Tests.Integration;
 
 /// <summary>
-/// NFR-SEC-009: no bot/abuse protection existed on POST /api/v1/registrations before this - only
+/// NFR-SEC-009: no bot/abuse protection existed on POST /api/v1/auth/register before this - only
 /// the shared "auth-strict" per-IP policy (10/min) also applied to login/forgot-password. This
 /// gives registration its own, tighter per-IP policy ("register-strict", default 5/min) plus a
 /// tighter per-target (per-email) budget on PerTargetRateLimiter's "register" surface (also 5/min,
@@ -40,7 +40,7 @@ public sealed class RegistrationRateLimitTests(PostgresApiFixture fixture)
         // Default fixture settings (RateLimiting:RegisterPermitLimit cranked up for the shared
         // host) - proves the mechanism does not interfere with the ordinary case.
         var client = fixture.CreateClient();
-        var response = await client.PostAsJsonAsync("/api/v1/registrations",
+        var response = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com"));
 
         response.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests);
@@ -63,13 +63,13 @@ public sealed class RegistrationRateLimitTests(PostgresApiFixture fixture)
         // actually takes, not one person retrying against their own email.
         for (var i = 0; i < permitLimit; i++)
         {
-            var response = await client.PostAsJsonAsync("/api/v1/registrations",
+            var response = await client.PostAsJsonAsync("/api/v1/auth/register",
                 RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com"));
             response.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests,
                 $"attempt {i + 1} of {permitLimit} is within budget and must not be rejected");
         }
 
-        var overLimit = await client.PostAsJsonAsync("/api/v1/registrations",
+        var overLimit = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com"));
         overLimit.StatusCode.Should().Be(HttpStatusCode.TooManyRequests,
             $"the {permitLimit + 1}th attempt from the same IP within the window must be rejected");
@@ -87,7 +87,7 @@ public sealed class RegistrationRateLimitTests(PostgresApiFixture fixture)
 
         for (var i = 0; i < permitLimit; i++)
         {
-            var response = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(email));
+            var response = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(email));
             // The first call succeeds; calls 2..5 against the same email correctly fail as
             // duplicates (409 today) - what matters here is that none of the first 5 are
             // rate-limited (429), proving the per-target budget itself is 5, not fewer.
@@ -95,7 +95,7 @@ public sealed class RegistrationRateLimitTests(PostgresApiFixture fixture)
                 $"attempt {i + 1} of {permitLimit} against the same email is within budget");
         }
 
-        var overLimit = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(email));
+        var overLimit = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(email));
         overLimit.StatusCode.Should().Be(HttpStatusCode.TooManyRequests,
             $"the {permitLimit + 1}th attempt against the same email within the window must be rejected");
     }
