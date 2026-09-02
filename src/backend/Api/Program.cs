@@ -759,7 +759,19 @@ using (var storageScope = app.Services.CreateScope())
 // configures the host this way (UseSetting for the connection string, Minio, and the rest) and a
 // #if or an environment check would put the test host's behaviour somewhere the test host cannot
 // see it.
-if (builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true))
+// The recurring job ids, in one place: the registration block below, the removal loop that makes
+// suppression true of Hangfire's STORAGE rather than only of this startup, and the boot log line all
+// read the same list. Three copies would drift, and the one that drifts silently is the removal
+// loop - a job whose id is missing there stays scheduled under the test suite.
+string[] RecurringJobIds =
+[
+    "document-expiry-lifecycle", "draft-registration-cleanup",
+    "outbox-dispatch", "rfq-timeline", "award-erp-sync",
+];
+
+var recurringJobsEnabled = builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
+
+if (recurringJobsEnabled)
 {
     RecurringJob.AddOrUpdate<DocumentExpiryJob>(
         "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
@@ -789,15 +801,26 @@ else
     // hangfire.set/hangfire.hash, so a definition written by an earlier run against the same
     // database would still be picked up and fired by this host's server. Removing them makes the
     // suppression true of the storage rather than only of this startup path.
-    foreach (var jobId in new[]
-             {
-                 "document-expiry-lifecycle", "draft-registration-cleanup",
-                 "outbox-dispatch", "rfq-timeline", "award-erp-sync",
-             })
+    foreach (var jobId in RecurringJobIds)
     {
         RecurringJob.RemoveIfExists(jobId);
     }
 }
+
+// MSP-98: a misconfiguration here is otherwise INVISIBLE. Jobs:EnableRecurring defaults to true, so
+// nothing changes by default - but a typo in the key (a stray case difference, a wrong section) in a
+// deployed environment silently stops rfq-timeline, and RFQ submission windows then never open and
+// never close. Tenders quietly stop working with no error anywhere.
+//
+// No test can catch that: a test asserting the correct key passes whether or not the deployed
+// configuration uses the same one. This makes the state visible on boot instead of inferable later
+// from the absence of behaviour. It is a mitigation, not a fix - it makes the failure loud, not
+// impossible.
+app.Logger.LogInformation(
+    "Recurring jobs {RecurringJobsState}: {RecurringJobCount} scheduled ({RecurringJobIds})",
+    recurringJobsEnabled ? "ENABLED" : "DISABLED",
+    recurringJobsEnabled ? RecurringJobIds.Length : 0,
+    recurringJobsEnabled ? string.Join(", ", RecurringJobIds) : "none");
 
 app.Run();
 

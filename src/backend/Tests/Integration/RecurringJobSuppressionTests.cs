@@ -100,4 +100,75 @@ public sealed class RecurringJobSuppressionTests(PostgresApiFixture fixture)
             "a definition persisted by an earlier run must be REMOVED, not merely left unregistered - " +
             "the server reads the store, not this startup's local decisions");
     }
+
+    /// <summary>
+    /// THE CONTROL. Every negative in this file asserts that nothing is scheduled; this asserts that
+    /// something IS, when the flag is left at its default.
+    ///
+    /// <para><b>Why it matters more than a usual control.</b> Jobs:EnableRecurring defaults to true,
+    /// so no deployment changes by default - but a typo in the key in a real environment silently
+    /// stops rfq-timeline, and RFQ submission windows then never open and never close. Tenders stop
+    /// working with no error anywhere. A misconfiguration that silently DISABLES is worse than one
+    /// that fails loudly, which is the same reasoning that made ?state=Approvd returning everything
+    /// unacceptable.</para>
+    ///
+    /// <para><b>Exactly, both directions.</b> A missing id fails and an unexpected id fails, so a
+    /// sixth job added without a decision about this list fails here rather than shipping
+    /// unscheduled - or scheduled and unsuppressed under the suite, which is the same hazard this
+    /// file exists to remove.</para>
+    ///
+    /// <para><b>Isolation, stated plainly.</b> The derived host shares this fixture's database -
+    /// there is no separate Hangfire schema configured - so registering these five writes into
+    /// STORAGE THE REST OF THE SUITE USES. They are removed in a finally, and the last assertion
+    /// re-checks that shared storage is clean afterwards, so a failure mid-test cannot leave the
+    /// hazard behind. The residual window is the few seconds between registration and cleanup:
+    /// Hangfire computes the next occurrence from the cron AT registration, so a */5 job registered
+    /// now is not due until the next boundary and a daily one not until tomorrow - but this is a
+    /// narrowed window rather than a closed one, and it is the reason this test does its own
+    /// cleanup rather than trusting the fixture.</para>
+    /// </summary>
+    [Fact]
+    public async Task With_the_flag_at_its_default_exactly_the_known_recurring_jobs_are_scheduled()
+    {
+        await using var enabledHost = fixture.WithWebHostBuilder(builder =>
+            builder.UseSetting("Jobs:EnableRecurring", "true"));
+
+        try
+        {
+            using var client = enabledHost.CreateClient();
+            _ = await client.GetAsync("/health/live");
+
+            using var scope = enabledHost.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var scheduled = await db.Database
+                .SqlQuery<string>($@"SELECT value AS ""Value"" FROM hangfire.set WHERE key = 'recurring-jobs'")
+                .ToListAsync();
+
+            scheduled.Should().BeEquivalentTo(KnownRecurringJobIds,
+                "with the flag at its default every one of these must be scheduled - a MISSING id is a " +
+                "job that silently stopped running in production, and an UNEXPECTED id is a new job " +
+                "nobody decided about, which would also be unsuppressed under this suite");
+        }
+        finally
+        {
+            using var cleanupScope = fixture.Services.CreateScope();
+            var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await cleanupDb.Database.ExecuteSqlRawAsync(
+                "DELETE FROM hangfire.set WHERE key = 'recurring-jobs';");
+            await cleanupDb.Database.ExecuteSqlRawAsync(
+                "DELETE FROM hangfire.hash WHERE key LIKE 'recurring-job:%';");
+        }
+
+        // The post-condition: this test must not have left the suite worse than it found it.
+        using var verifyScope = fixture.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var remaining = await verifyDb.Database
+            .SqlQuery<string>($@"SELECT value AS ""Value"" FROM hangfire.set WHERE key = 'recurring-jobs'")
+            .ToListAsync();
+
+        remaining.Should().BeEmpty(
+            "the control registers real recurring jobs into shared storage, so it has to clean up " +
+            "after itself - otherwise it reintroduces exactly the race this batch removed");
+    }
 }
