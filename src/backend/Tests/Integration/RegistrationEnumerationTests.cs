@@ -52,6 +52,7 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         PropertyNames(firstBody).Should().BeEquivalentTo(PropertyNames(secondBody),
             "the same set of JSON fields must be present either way - an extra field on one side (e.g. an error code) would itself be the leak");
 
+        // A 202 SUCCESS body, which §7's error model does not touch - the field is still `message`.
         firstBody.GetProperty("message").GetString().Should().Be(secondBody.GetProperty("message").GetString());
         firstBody.GetProperty("referenceCode").GetString().Should().NotBeNull("the genuine registration must have produced a real code");
         secondBody.GetProperty("referenceCode").ValueKind.Should().Be(JsonValueKind.Null,

@@ -112,21 +112,44 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
     }
 
     /// <summary>
-    /// The shared assertion: B's attempt on A's proposal must be indistinguishable from the same
-    /// attempt on a code that never existed - same status, same body.
+    /// The two responses must be indistinguishable in everything that could tell a caller whether
+    /// the resource exists.
+    ///
+    /// <para><b>Byte equality no longer applies, and that is §7 working rather than a weakened
+    /// assertion.</b> Every problem+json now carries <c>traceId</c> and <c>correlationId</c>, which
+    /// differ per request by design, and <c>instance</c>, which echoes the path the CALLER sent.
+    /// Two requests can never produce identical bytes again. None of those three can leak
+    /// existence: the ids are random per request, and the path is the caller's own input - they
+    /// already know which code they asked for.</para>
+    ///
+    /// <para>So the comparison is over the fields that DO discriminate - status, type, code, detail
+    /// - and it is stricter in the way that matters: previously a difference in any of them would
+    /// have been caught only incidentally by byte equality, and now each is named.</para>
     /// </summary>
-    private static async Task AssertIndistinguishableFromUnknownAsync(
-        Func<string, Task<HttpResponseMessage>> attempt, string realCodeOfSomeoneElse)
+    private static async Task AssertIndistinguishableAsync(HttpResponseMessage outOfScope, HttpResponseMessage neverExisted)
     {
-        var outOfScope = await attempt(realCodeOfSomeoneElse);
-        var neverExisted = await attempt(NeverExistedProposalCode);
-
         outOfScope.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "§9.2: out-of-scope access to an existing resource returns 404, not 403");
         neverExisted.StatusCode.Should().Be(outOfScope.StatusCode);
-        (await outOfScope.Content.ReadAsStringAsync())
-            .Should().Be(await neverExisted.Content.ReadAsStringAsync(),
-                "the two must be indistinguishable, or the status code alone becomes an existence oracle");
+
+        var a = await outOfScope.Content.ReadFromJsonAsync<JsonElement>();
+        var b = await neverExisted.Content.ReadFromJsonAsync<JsonElement>();
+
+        foreach (var discriminating in new[] { "type", "title", "status", "code", "detail" })
+        {
+            var inA = a.TryGetProperty(discriminating, out var va) ? va.ToString() : null;
+            var inB = b.TryGetProperty(discriminating, out var vb) ? vb.ToString() : null;
+            inA.Should().Be(inB,
+                $"'{discriminating}' differing between an out-of-scope code and one that never " +
+                "existed is exactly the existence oracle §9.2 forbids");
+        }
+    }
+
+    private static async Task AssertIndistinguishableFromUnknownAsync(
+        Func<string, Task<HttpResponseMessage>> attempt, string realCodeOfSomeoneElse)
+    {
+        await AssertIndistinguishableAsync(
+            await attempt(realCodeOfSomeoneElse), await attempt(NeverExistedProposalCode));
     }
 
     [Fact]

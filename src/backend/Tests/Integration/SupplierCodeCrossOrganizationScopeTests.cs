@@ -53,9 +53,28 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
         outOfScope.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "§9.2: out-of-scope access to an existing resource returns 404, not 403");
         neverExisted.StatusCode.Should().Be(outOfScope.StatusCode);
-        (await outOfScope.Content.ReadAsStringAsync())
-            .Should().Be(await neverExisted.Content.ReadAsStringAsync(),
-                "otherwise the response itself tells the caller that the other supplier exists");
+        // Byte equality no longer applies and that is §7 working, not a weaker assertion: every
+        // problem+json now carries traceId and correlationId (random per request) and instance (the
+        // caller's OWN path), so two requests can never produce identical bytes. None of the three
+        // can leak existence. The comparison is therefore over the fields that DO discriminate, each
+        // named, which is stricter than incidental byte equality.
+        await AssertDiscriminatingFieldsMatchAsync(outOfScope, neverExisted);
+    }
+
+    /// <summary>Compares only what could reveal existence - see the note at the call site.</summary>
+    private static async Task AssertDiscriminatingFieldsMatchAsync(HttpResponseMessage a, HttpResponseMessage b)
+    {
+        var left = await a.Content.ReadFromJsonAsync<JsonElement>();
+        var right = await b.Content.ReadFromJsonAsync<JsonElement>();
+
+        foreach (var field in new[] { "type", "title", "status", "code", "detail" })
+        {
+            var inLeft = left.TryGetProperty(field, out var vl) ? vl.ToString() : null;
+            var inRight = right.TryGetProperty(field, out var vr) ? vr.ToString() : null;
+            inLeft.Should().Be(inRight,
+                $"'{field}' differing between an out-of-scope code and one that never existed is " +
+                "exactly the existence oracle §9.2 forbids");
+        }
     }
 
     // ---- §12.2 PATCH /suppliers/{supplierCode} -------------------------------------------------
@@ -195,7 +214,7 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
 
         wrongOwner.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "the document exists, but not under B - and answering anything else confirms it exists");
-        (await wrongOwner.Content.ReadAsStringAsync()).Should().Be(await unknownOwner.Content.ReadAsStringAsync());
+        await AssertDiscriminatingFieldsMatchAsync(wrongOwner, unknownOwner);
 
         // Control: the same reviewer, the same document, under its REAL owner's code, is not
         // refused by the scope check.

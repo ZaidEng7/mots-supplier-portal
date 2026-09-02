@@ -122,6 +122,27 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         (await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null)).EnsureSuccessStatusCode();
     }
 
+    /// <summary>
+    /// Compares the fields that could reveal existence, rather than raw bytes.
+    ///
+    /// <para>§7 gives every problem+json a <c>traceId</c> and <c>correlationId</c> (random per
+    /// request) and an <c>instance</c> echoing the caller's OWN path, so two responses can never be
+    /// byte-identical again. None of the three can leak existence - the ids are random and the path
+    /// is the caller's own input. What must match is everything that describes the OUTCOME.</para>
+    /// </summary>
+    private static async Task AssertNoExistenceOracleAsync(HttpResponseMessage a, HttpResponseMessage b, string because)
+    {
+        var left = await a.Content.ReadFromJsonAsync<JsonElement>();
+        var right = await b.Content.ReadFromJsonAsync<JsonElement>();
+
+        foreach (var field in new[] { "type", "title", "status", "code", "detail" })
+        {
+            var inLeft = left.TryGetProperty(field, out var vl) ? vl.ToString() : null;
+            var inRight = right.TryGetProperty(field, out var vr) ? vr.ToString() : null;
+            inLeft.Should().Be(inRight, $"{because} ('{field}' differs)");
+        }
+    }
+
     // ---- 1. Supplier requests an RFQ they hold no invitation to -------------------------------
 
     /// <summary>
@@ -145,9 +166,8 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         invitedRead.StatusCode.Should().Be(HttpStatusCode.OK, "the actually-invited supplier must still see it");
         outsiderRead.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "API-ARCHITECTURE.md: out-of-scope access to an existing resource returns 404, not 403");
-        (await outsiderRead.Content.ReadAsStringAsync())
-            .Should().Be(await unknownRead.Content.ReadAsStringAsync(),
-                "'hidden by row-scope' and 'unknown public id' must be indistinguishable by design");
+        await AssertNoExistenceOracleAsync(outsiderRead, unknownRead,
+            "'hidden by row-scope' and 'unknown public id' must be indistinguishable by design");
     }
 
     // ---- 2. Supplier requests another supplier's proposal --------------------------------------
@@ -256,9 +276,8 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
 
         crossRead.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "an evaluator with no assignment on this RFQ is out of scope - 404, not 403");
-        (await crossRead.Content.ReadAsStringAsync())
-            .Should().Be(await unknownRead.Content.ReadAsStringAsync(),
-                "an unassigned evaluation and a non-existent one must be indistinguishable");
+        await AssertNoExistenceOracleAsync(crossRead, unknownRead,
+            "an unassigned evaluation and a non-existent one must be indistinguishable");
 
         // Scoring into another RFQ's evaluation is refused on the same boundary, not merely hidden.
         var crossScore = await evaluatorX.PostAsJsonAsync($"/api/v1/rfqs/{yCode}/my-evaluation/scores", new

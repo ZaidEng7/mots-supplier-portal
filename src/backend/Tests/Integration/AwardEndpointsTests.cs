@@ -197,7 +197,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
 
         selfApprove.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await selfApprove.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("segregation_of_duties_violation");
+        body.GetProperty("code").GetString().Should().Be("SEGREGATION_OF_DUTIES_VIOLATION");
 
         var afterAttempt = await manager.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/award");
         afterAttempt.GetProperty("state").GetString().Should().Be("PendingApproval", "a refused self-approval must not change the award's state");
@@ -255,7 +255,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
 
         recommend.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await recommend.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("finalized");
+        body.GetProperty("detail").GetString().Should().Contain("finalized");
     }
 
     // ---- Issue award: atomic winner/loser update + RFQ transition ----

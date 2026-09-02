@@ -54,7 +54,7 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
             "BRULE-098: the second writer must be rejected with a conflict, not silently overwritten");
 
         var conflict = await second.Content.ReadFromJsonAsync<JsonElement>();
-        conflict.GetProperty("error").GetString().Should().Be("concurrency_conflict");
+        conflict.GetProperty("code").GetString().Should().Be("CONCURRENCY_CONFLICT");
         conflict.GetProperty("currentRowVersion").GetUInt32().Should().NotBe(sharedVersion,
             "the client needs the winner's version so it can re-read and retry deliberately");
 

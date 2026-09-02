@@ -44,7 +44,7 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
 
         loginResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var error = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
-        error.GetProperty("error").GetString().Should().Be("email_not_verified");
+        error.GetProperty("code").GetString().Should().Be("EMAIL_NOT_VERIFIED");
     }
 
     [Fact]
