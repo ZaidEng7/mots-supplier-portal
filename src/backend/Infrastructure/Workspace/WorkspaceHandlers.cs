@@ -36,7 +36,9 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
     public async Task<WorkspaceDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct)
     {
         if (scope.OrganizationId is null) return null;
-        var rfq = await db.Rfqs.Include(r => r.Items).Include(r => r.Invitations)
+        // Sonar S8733: two sibling collection Includes (Items, Invitations) in one query multiply
+        // rows (a Cartesian product) - AsSplitQuery issues them as separate SQL queries instead.
+        var rfq = await db.Rfqs.AsSplitQuery().Include(r => r.Items).Include(r => r.Invitations)
             .FirstOrDefaultAsync(r => r.ReferenceCode == rfqReferenceCode && r.OrganizationId == scope.OrganizationId, ct);
         if (rfq is null) return null;
 
