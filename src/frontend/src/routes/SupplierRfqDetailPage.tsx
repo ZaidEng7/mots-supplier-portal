@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import { Badge, Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq, declineInvitation, postClarification, SupplierRfqApiError } from '../api/supplierRfqs'
 
@@ -40,7 +40,7 @@ export function SupplierRfqDetailPage() {
   })
 
   if (rfqQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
   if (rfqQuery.isError || !rfqQuery.data) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.notFound')}</p>
@@ -57,7 +57,7 @@ export function SupplierRfqDetailPage() {
           <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {rfq.referenceCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
           </h1>
-          <Badge tone={rfq.myInvitationStatus === 'Declined' ? 'danger' : 'info'}>{rfq.myInvitationStatus}</Badge>
+          <StatusChip machine="invitation" value={rfq.myInvitationStatus} />
         </div>
         {rfq.myInvitationStatus !== 'Declined' ? (
           <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode }}

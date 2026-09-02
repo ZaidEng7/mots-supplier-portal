@@ -16,7 +16,7 @@ const supplier = {
   displayNameEn: 'Resubmit Demo Co',
   description: 'seed', website: null, logoStorageKey: null, supplierGroup: null,
   onboardingState: 'InfoRequested',
-  lifecycleState: 'Pending',
+  lifecycleState: 'Active',
   currencyCode: 'SYP', legalInfo: null, primaryContactPhone: '+963900000000',
   representatives: [], addresses: [], contacts: [], branches: [], bankAccounts: [], categoryCodes: [],
 }

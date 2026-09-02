@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card } from '../../components/ui'
+import { Card, SkeletonList } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, type SupplierProfile } from '../../api/supplier'
 import { linkCategory, unlinkCategory } from '../../api/categoryLinks'
@@ -27,7 +27,7 @@ export function OfferingsPage() {
   })
 
   if (profileQuery.isLoading || categoriesQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   const linkedCodes = new Set(profile?.categoryCodes ?? [])

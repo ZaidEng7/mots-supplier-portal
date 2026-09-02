@@ -35,7 +35,7 @@ const supplier = {
   displayNameEn: 'Grouping Demo Co',
   description: null, website: null, logoStorageKey: null, supplierGroup: null,
   onboardingState: 'ProfileInProgress',
-  lifecycleState: 'Pending',
+  lifecycleState: 'Active',
   currencyCode: null, legalInfo: null, primaryContactPhone: null,
   representatives: [], addresses: [], contacts: [], branches: [], bankAccounts: [], categoryCodes: [],
 }

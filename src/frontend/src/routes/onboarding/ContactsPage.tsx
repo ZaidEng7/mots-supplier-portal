@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Representative, type Contact, type SupplierProfile } from '../../api/supplier'
 import { addRepresentative, updateRepresentative, removeRepresentative, setPrimaryRepresentative } from '../../api/representatives'
@@ -136,7 +136,7 @@ export function ContactsPage() {
   })
 
   if (profileQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   const representatives = profile?.representatives ?? []

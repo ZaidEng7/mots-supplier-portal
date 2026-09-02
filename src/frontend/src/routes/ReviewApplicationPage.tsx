@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Dialog, useToast, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '../components/ui'
+import { Badge, Button, Dialog, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import {
   getReviewerSupplierView,
   pickUpApplication,
@@ -18,6 +18,7 @@ import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiErr
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue, LEGAL_INFO_FIELDS, legalInfoValue } from './profileDisplayFields'
 import { lifecycleActionsFor } from './lifecycleActions'
 import { ReasonDialog } from '../components/ReasonDialog'
+import { formatDateTime } from '../lib/datetime'
 
 // MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
 // unknown codes, and these are the codes the server enforces the supplier's edit restriction
@@ -215,11 +216,11 @@ export function ReviewApplicationPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Badge tone={state === 'InfoRequested' ? 'warning' : 'info'}>{state}</Badge>
+          <StatusChip machine="onboarding" value={state} />
           {/* Lifecycle is shown only once it has begun; 'None' would be noise on an application
               that has not been approved yet. */}
           {lifecycle !== 'None' ? (
-            <Badge tone={lifecycle === 'Active' ? 'success' : 'danger'}>{lifecycle}</Badge>
+            <StatusChip machine="onboarding" value={lifecycle} />
           ) : null}
         </div>
       </div>
@@ -445,7 +446,7 @@ export function ReviewApplicationPage() {
               <li key={a.id} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
                 <div className="flex items-center gap-2">
                   <Badge tone={a.resolvedAt ? 'success' : 'warning'}>{a.resolvedAt ? t('onboarding.complete') : t('onboarding.missing')}</Badge>
-                  <span>{new Date(a.requestedAt).toLocaleString()}</span>
+                  <span>{formatDateTime(a.requestedAt, i18n.language)}</span>
                 </div>
                 <p style={{ color: 'var(--color-text-secondary)' }}>{a.reason}</p>
               </li>

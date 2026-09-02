@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Select, useToast } from '../../components/ui'
+import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
@@ -78,7 +78,7 @@ export function AwardPage() {
   })
 
   if (awardQuery.isLoading || evaluationQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   const showRecommendForm = !award || award.state === 'Rejected'
@@ -93,7 +93,7 @@ export function AwardPage() {
       {award ? (
         <Card title={t('award.status')}>
           <div className="flex flex-col gap-3">
-            <Badge tone={award.state === 'Awarded' ? 'success' : award.state === 'Rejected' ? 'danger' : 'info'}>{award.state}</Badge>
+            <StatusChip machine="award" value={award.state} />
             <p>{t('award.justification')}: {justificationForDisplay(award)}</p>
             <p style={{ color: 'var(--color-text-secondary)' }}>{t('award.revision', { count: award.recommendationRevision })}</p>
 

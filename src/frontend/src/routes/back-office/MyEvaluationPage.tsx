@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, useToast } from '../../components/ui'
+import { Badge, Button, Card, Input, SkeletonList, StatusChip, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { getMyEvaluation, scoreCriterion, submitMyEvaluation, EvaluationApiError } from '../../api/evaluations'
 
@@ -38,7 +38,7 @@ export function MyEvaluationPage() {
   })
 
   if (evaluationQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   if (!evaluation) {
@@ -56,7 +56,7 @@ export function MyEvaluationPage() {
         <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('evaluation.my.title')} — {referenceCode}
         </h1>
-        <Badge tone={isSubmitted ? 'success' : 'info'}>{evaluation.state}</Badge>
+        <StatusChip machine="evaluation" value={evaluation.state} />
       </div>
 
       {evaluation.proposalIds.map((proposalId) => {

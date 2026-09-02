@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, useToast } from '../../components/ui'
+import { Card, SkeletonList, useToast } from '../../components/ui'
 import { listRoles, updateRolePermissions, type Role, type RolesResponse } from '../../api/roles'
 import { SupplierApiError } from '../../api/supplier'
 
@@ -68,7 +68,7 @@ export function RolesPage() {
   }
 
   if (rolesQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   return (

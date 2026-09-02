@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { listOfferings, createOffering, updateOffering, deactivateOffering, type Offering, type OfferingPayload } from '../api/offerings'
 import { fetchCategories, fetchUnitsOfMeasure, fetchCurrencies } from '../api/reference'
@@ -237,7 +237,7 @@ export function OfferingCatalogPage() {
   }
 
   if (offeringsQuery.isLoading || categoriesQuery.isLoading || unitsQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   return (

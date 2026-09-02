@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import { Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import {
@@ -97,7 +97,7 @@ export function SupplierProposalPage() {
   })
 
   if (rfqQuery.isLoading || proposalQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
   if (rfqQuery.isError || !rfqQuery.data) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.notFound')}</p>
@@ -134,7 +134,7 @@ export function SupplierProposalPage() {
           <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {t('proposal.title')} — {rfq.referenceCode}
           </h1>
-          <Badge tone={proposal.state === 'Withdrawn' ? 'danger' : proposal.state === 'Submitted' ? 'success' : 'info'}>{proposal.state}</Badge>
+          <StatusChip machine="proposal" value={proposal.state} />
         </div>
         {isDraft ? (
           <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('proposal.submit')}</Button>
