@@ -69,4 +69,48 @@ public sealed class ConfigurationWarningTests
         // worse than none, because the next true one is not believed.
         RequiredConfiguration.Warnings(WithWindowAndCadence(45, 60, 30, 14, 3)).Should().BeEmpty();
     }
+
+    // ---- MSP-98: recurring jobs disabled outside Development ---------------------------------
+
+    /// <summary>
+    /// The same load-bearing case as the defaults test above: the shipped configuration sets nothing,
+    /// Jobs:EnableRecurring defaults to true, and a warning that fires on it would be noise.
+    /// </summary>
+    [Fact]
+    public void Recurring_jobs_at_their_default_are_silent()
+    {
+        RequiredConfiguration.Warnings(Build(("ASPNETCORE_ENVIRONMENT", "Production")))
+            .Should().NotContain(w => w.Contains("Jobs:EnableRecurring"));
+    }
+
+    /// <summary>
+    /// The case the warning exists for. A typo'd key cannot be caught by any test - a test asserting
+    /// the correct key passes whether or not the deployed environment reads the same one - so this
+    /// covers the value being set, which is what an operator can actually see and act on.
+    /// </summary>
+    [Fact]
+    public void Recurring_jobs_disabled_in_production_warns_about_the_consequence()
+    {
+        var warnings = RequiredConfiguration.Warnings(Build(
+            ("ASPNETCORE_ENVIRONMENT", "Production"),
+            ("Jobs:EnableRecurring", "false")));
+
+        var warning = warnings.Should().ContainSingle(w => w.Contains("Jobs:EnableRecurring")).Subject;
+        warning.Should().Contain("submission windows",
+            "the message has to say what stops working, not that a scheduler is off - the person " +
+            "reading it at boot knows what a tender is and may not know what a recurring job is");
+    }
+
+    /// <summary>
+    /// Development turns them off deliberately - the integration suite does exactly this - so
+    /// warning there would fire on every local run and train the reader to ignore the whole channel.
+    /// </summary>
+    [Fact]
+    public void Recurring_jobs_disabled_in_development_is_silent()
+    {
+        RequiredConfiguration.Warnings(Build(
+            ("ASPNETCORE_ENVIRONMENT", "Development"),
+            ("Jobs:EnableRecurring", "false")))
+            .Should().NotContain(w => w.Contains("Jobs:EnableRecurring"));
+    }
 }

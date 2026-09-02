@@ -121,11 +121,20 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 
 // Hangfire: durable background jobs (verification email, password-reset email) backed by Postgres
 // so a queued send survives an app restart (docs/architecture/00-foundational-decisions.md §2).
+// MSP-98: the schema is configuration rather than a constant. A hardcoded schema is a testability
+// problem in its own right - it makes "this host's Hangfire storage" and "every other host's
+// Hangfire storage" the same thing, so a test that needs to observe real scheduling has no way to do
+// it without writing into the storage every other test shares. Defaults to Hangfire's own
+// "hangfire", so nothing changes for any deployment that does not set it.
+var hangfireSchema = builder.Configuration.GetValue("Hangfire:SchemaName", defaultValue: "hangfire")!;
+
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
+    .UsePostgreSqlStorage(
+        c => c.UseNpgsqlConnection(connectionString),
+        new PostgreSqlStorageOptions { SchemaName = hangfireSchema }));
 builder.Services.AddHangfireServer();
 
 // Password-reset tokens get their own short lifespan (docs/security/SECURITY-ARCHITECTURE.md §1.7:
@@ -743,27 +752,92 @@ using (var storageScope = app.Services.CreateScope())
     await minioStorage.EnsureBucketExistsAsync(CancellationToken.None);
 }
 
-RecurringJob.AddOrUpdate<DocumentExpiryJob>(
-    "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+// MSP-98: recurring jobs are SCHEDULED only when this is on, and the integration test host turns
+// it off (PostgresApiFixture). Hangfire itself is untouched - the server still runs, enqueued jobs
+// (emails, outbox writes) still process, and a test that asks for a job explicitly still gets it,
+// because direct invocation resolves the job class from DI and never goes near the scheduler.
+//
+// WHY. Every job below mutates state that tests also assert on, on a cadence measured in minutes,
+// against the same database the whole suite shares. That produced one loud failure - award-erp-sync
+// synced an award the test had set up to fail, because the suite grew past a five-minute boundary -
+// and the loud one is the lucky case. The mirror image is a test asserting a state a job ALSO
+// produces (an RFQ reaching SubmissionClosed, a document reaching Expired) and passing because the
+// job did the work rather than the code under test. That test goes green and stays green.
+//
+// A configuration switch rather than a compiled-in conditional, because the fixture already
+// configures the host this way (UseSetting for the connection string, Minio, and the rest) and a
+// #if or an environment check would put the test host's behaviour somewhere the test host cannot
+// see it.
+// The recurring job ids, in one place: the registration block below, the removal loop that makes
+// suppression true of Hangfire's STORAGE rather than only of this startup, and the boot log line all
+// read the same list. Three copies would drift, and the one that drifts silently is the removal
+// loop - a job whose id is missing there stays scheduled under the test suite.
+string[] RecurringJobIds =
+[
+    "document-expiry-lifecycle", "draft-registration-cleanup",
+    "outbox-dispatch", "rfq-timeline", "award-erp-sync",
+];
 
-RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
-    "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+var recurringJobsEnabled = builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
 
-// Task #16: the dispatcher-shaped hole. Every 5 minutes, not daily like the two jobs above -
-// approval/compliance events sitting in the Outbox are meant to eventually reach an ERP, and a
-// daily cadence would make "eventually" mean "up to a day late" for no reason.
-RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
-    "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
+// THIS HOST's job manager, resolved from DI, rather than the static RecurringJob facade. The static
+// API writes to JobStorage.Current, which is process-wide: in a test process running more than one
+// host, the FIRST host to initialise wins and every later host silently registers into that one's
+// storage - schema override and all. Proven, not assumed: with the static API a derived host
+// configured for its own schema created the schema and put all five jobs in the shared one.
+// Behaviourally identical for the single-host production case.
+var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 
-// FEAT-07.6/FR-PWF-004: RFQ submission-window open/close is time-of-day precise, not daily - same
-// 5-minute cadence reasoning as the outbox dispatcher above.
-RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
-    "rfq-timeline", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+if (recurringJobsEnabled)
+{
+    recurringJobs.AddOrUpdate<DocumentExpiryJob>(
+        "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
-// EPIC-14/FEAT-14.5: same 5-minute cadence as outbox-dispatch above - the reconciliation half of
-// the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
-RecurringJob.AddOrUpdate<AwardErpSyncJob>(
-    "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
+        "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
+
+    // Task #16: the dispatcher-shaped hole. Every 5 minutes, not daily like the two jobs above -
+    // approval/compliance events sitting in the Outbox are meant to eventually reach an ERP, and a
+    // daily cadence would make "eventually" mean "up to a day late" for no reason.
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
+        "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
+
+    // FEAT-07.6/FR-PWF-004: RFQ submission-window open/close is time-of-day precise, not daily - same
+    // 5-minute cadence reasoning as the outbox dispatcher above.
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
+        "rfq-timeline", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+
+    // EPIC-14/FEAT-14.5: same 5-minute cadence as outbox-dispatch above - the reconciliation half of
+    // the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
+    recurringJobs.AddOrUpdate<AwardErpSyncJob>(
+        "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+}
+else
+{
+    // Skipping registration is not enough on its own. Hangfire PERSISTS recurring job definitions in
+    // hangfire.set/hangfire.hash, so a definition written by an earlier run against the same
+    // database would still be picked up and fired by this host's server. Removing them makes the
+    // suppression true of the storage rather than only of this startup path.
+    foreach (var jobId in RecurringJobIds)
+    {
+        recurringJobs.RemoveIfExists(jobId);
+    }
+}
+
+// MSP-98: a misconfiguration here is otherwise INVISIBLE. Jobs:EnableRecurring defaults to true, so
+// nothing changes by default - but a typo in the key (a stray case difference, a wrong section) in a
+// deployed environment silently stops rfq-timeline, and RFQ submission windows then never open and
+// never close. Tenders quietly stop working with no error anywhere.
+//
+// No test can catch that: a test asserting the correct key passes whether or not the deployed
+// configuration uses the same one. This makes the state visible on boot instead of inferable later
+// from the absence of behaviour. It is a mitigation, not a fix - it makes the failure loud, not
+// impossible.
+app.Logger.LogInformation(
+    "Recurring jobs {RecurringJobsState}: {RecurringJobCount} scheduled ({RecurringJobIds})",
+    recurringJobsEnabled ? "ENABLED" : "DISABLED",
+    recurringJobsEnabled ? RecurringJobIds.Length : 0,
+    recurringJobsEnabled ? string.Join(", ", RecurringJobIds) : "none");
 
 app.Run();
 
