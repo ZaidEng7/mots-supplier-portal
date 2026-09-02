@@ -242,12 +242,19 @@ public static class SupplierEndpoints
         // Self-service: the caller's own supplier record, resolved from the JWT's supplierId
         // claim (row-scoped) rather than a path parameter - the SPA never needs to know its
         // own reference code to drive onboarding.
-        group.MapPatch("/me/profile", async (
+        // §12-A/C3, §12.2: "PATCH /suppliers/{supplierCode} - edit draft profile". The handler still
+        // scopes to the caller's own SupplierId; the code in the path is checked against that scope
+        // FIRST, and an unknown code and someone else's code are the same 404 (§9.2).
+        group.MapPatch("/{supplierCode}", async (
+            string supplierCode,
             UpdateProfileRequest request,
             IValidator<UpdateProfileRequest> validator,
+            ISupplierCodeScope codeScope,
             IUpdateProfileHandler handler,
             CancellationToken ct) =>
         {
+            if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
+
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
 
@@ -556,10 +563,16 @@ public static class SupplierEndpoints
         .RequirePermission(Permissions.SupplierEdit)
         .WithName("AcceptTerms");
 
-        group.MapPost("/me/submit-application", async (
+        // §12.2: "POST /suppliers/{supplierCode}/onboarding/submit - ProfileInProgress -> Submitted",
+        // and §3's transition-as-sub-resource-POST rule names the same path.
+        group.MapPost("/{supplierCode}/onboarding/submit", async (
+            string supplierCode,
+            ISupplierCodeScope codeScope,
             ISubmitApplicationHandler handler,
             CancellationToken ct) =>
         {
+            if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
+
             var result = await handler.HandleAsync(ct);
 
             return result switch

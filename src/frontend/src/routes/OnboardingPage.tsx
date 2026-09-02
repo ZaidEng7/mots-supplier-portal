@@ -120,6 +120,7 @@ function DocumentGroup({
   isInfoRequested,
   flaggedDocCodes,
   blockingDocCodes,
+  supplierCode,
 }: {
   heading: string
   documents: DocumentTypeStatus[]
@@ -129,6 +130,7 @@ function DocumentGroup({
   flaggedDocCodes: Set<string>
   /** Document type codes the server named in its last submit rejection. */
   blockingDocCodes: Set<string>
+  supplierCode: string
 }) {
   // A required group with nothing in it would mean the document-type catalogue is empty, which is a
   // configuration fault rather than an empty state - so the heading is omitted entirely rather than
@@ -149,6 +151,7 @@ function DocumentGroup({
               doc={doc}
               canEdit={!isReadOnly && (!isInfoRequested || flaggedDocCodes.has(doc.code))}
               isBlocking={blockingDocCodes.has(doc.code)}
+              supplierCode={supplierCode}
             />
           ))}
         </ul>
@@ -157,9 +160,11 @@ function DocumentGroup({
   )
 }
 
-function DocumentRow({ doc, canEdit, isBlocking }: {
+function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
   doc: DocumentTypeStatus
   canEdit: boolean
+  /** §12-A/C3: uploads are addressed by supplier code (§12.3). */
+  supplierCode: string
   /** True once a submit attempt came back naming this document type as still missing. */
   isBlocking: boolean
 }) {
@@ -180,7 +185,7 @@ function DocumentRow({ doc, canEdit, isBlocking }: {
   const expiryInvalid = doc.expiryTracked && (!expiryDate || expiryDate <= new Date().toISOString().slice(0, 10))
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadDocument(doc.documentTypeId, file, undefined, doc.expiryTracked ? expiryDate : undefined),
+    mutationFn: (file: File) => uploadDocument(supplierCode, doc.documentTypeId, file, undefined, doc.expiryTracked ? expiryDate : undefined),
     onSuccess: () => {
       invalidateQuietly(queryClient, { queryKey: ['own-documents'] })
       notify({ kind: 'success', title: t('onboarding.documentUploaded') })
@@ -302,9 +307,15 @@ export function OnboardingPage() {
   // until it completes, and nothing was pushing that update to the client. The DB row was always
   // correct; only a manual reload (a fresh query) ever showed it, which read as the status chip
   // being permanently stuck. Poll while anything is still scanning, stop once nothing is.
+  // §12-A/C3: the supplier routes are addressed by supplier code now (§12.2, §12.3). The code
+  // comes from the profile the page already loads, so no extra request is made for it - and the
+  // dependent queries below are gated on having it rather than firing with an empty string.
+  const supplierCode = profileQuery.data?.referenceCode ?? ''
+
   const documentsQuery = useQuery({
-    queryKey: ['own-documents'],
-    queryFn: listOwnDocuments,
+    queryKey: ['own-documents', supplierCode],
+    enabled: supplierCode !== '',
+    queryFn: () => listOwnDocuments(supplierCode),
     refetchInterval: (query) => (query.state.data?.some((d) => d.latestDocument?.state === 'PendingScan') ? 2000 : false),
     // React Query pauses refetchInterval while the tab isn't visible/focused by default
     // (refetchIntervalInBackground) - reasonable for most polling, wrong for a scan the supplier
@@ -387,7 +398,7 @@ export function OnboardingPage() {
 
   const saveProfileMutation = useMutation({
     mutationFn: (values: ProfileFormValues) =>
-      updateProfile({
+      updateProfile(supplierCode, {
         description: values.description || null,
         website: values.website || null,
         supplierGroup: values.supplierGroup || null,
@@ -409,7 +420,7 @@ export function OnboardingPage() {
   const [submitBlockers, setSubmitBlockers] = useState<string[]>([])
 
   const submitMutation = useMutation({
-    mutationFn: submitApplication,
+    mutationFn: () => submitApplication(supplierCode),
     onSuccess: (data) => {
       setSubmitBlockers([])
       onProfile(data)
@@ -666,6 +677,7 @@ export function OnboardingPage() {
             isInfoRequested={isInfoRequested}
             flaggedDocCodes={flaggedDocCodes}
             blockingDocCodes={blockingDocCodes}
+            supplierCode={supplierCode}
           />
           <DocumentGroup
             heading={t('onboarding.optionalDocuments')}
@@ -675,6 +687,7 @@ export function OnboardingPage() {
             isInfoRequested={isInfoRequested}
             flaggedDocCodes={flaggedDocCodes}
             blockingDocCodes={blockingDocCodes}
+            supplierCode={supplierCode}
           />
         </div>
       </Card>

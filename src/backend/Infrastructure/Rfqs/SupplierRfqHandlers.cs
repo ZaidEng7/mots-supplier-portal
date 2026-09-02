@@ -2,6 +2,7 @@ using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Rfqs;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
@@ -76,10 +77,21 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
             .Select(r => new
             {
                 r.Id,
+                // §12-A/D: §12.4's documented list fields. Every one is a correlated subquery or a
+                // scalar on the row - NOTHING here loads a child collection. That is the whole point
+                // of Batch 0.2's projection work: `r.Items.Count()` becomes a COUNT in SQL, not a
+                // materialised Items list whose Count is then read in memory.
                 Dto = new SupplierRfqListItemDto(
                     r.ReferenceCode, r.TitleAr, r.TitleEn, r.State,
                     r.Invitations.Where(i => i.SupplierId == supplierId).Select(i => i.Status).FirstOrDefault(),
-                    r.CreatedAt),
+                    r.CreatedAt,
+                    r.PublishedAt,
+                    db.Organizations.Where(o => o.Id == r.OrganizationId)
+                        .Select(o => new BuyingOrgDto(o.ExternalId, o.LegalNameEn)).FirstOrDefault(),
+                    r.Items.Count(),
+                    db.Proposals.Any(pr => pr.RfqId == r.Id
+                        && pr.SupplierId == supplierId
+                        && pr.State == ProposalState.Draft)),
             })
             .Take(size + 1)
             .ToListAsync(ct);

@@ -32,7 +32,7 @@ describe('OnboardingPage document upload flow', () => {
 
   it('shows a success toast once a document is uploaded', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/documents': [{
+      '/api/v1/suppliers/SUP-2026-000002/documents': [{
         documentTypeId: 'id-commercial_registration',
         code: 'commercial_registration',
         nameAr: 'commercial_registration',

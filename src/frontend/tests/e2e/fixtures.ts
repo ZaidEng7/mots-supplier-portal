@@ -157,7 +157,7 @@ export async function mockBackend(page: Page) {
       return route.fulfill({ json: { accessToken: page.url().includes('/back-office') ? reviewerToken : supplierToken, accessTokenExpiresAt: new Date(Date.now() + 3600_000).toISOString() } })
     }
     if (p === '/api/v1/suppliers/me') return route.fulfill({ json: SUPPLIER_PROFILE })
-    if (p === '/api/v1/suppliers/me/documents') return route.fulfill({ json: DOCUMENT_TYPES })
+    if (p === '/api/v1/suppliers/SUP-2026-000001/documents') return route.fulfill({ json: DOCUMENT_TYPES })
     if (p === '/api/v1/suppliers/me/active-annotation') return route.fulfill({ json: null })
     if (p === '/api/v1/reference/currencies') return route.fulfill({ json: [{ code: 'SYP', nameAr: 'ليرة سورية', nameEn: 'Syrian Pound' }] })
     if (p === '/api/v1/reference/regions') return route.fulfill({ json: [{ code: 'DM', nameAr: 'دمشق', nameEn: 'Damascus' }] })

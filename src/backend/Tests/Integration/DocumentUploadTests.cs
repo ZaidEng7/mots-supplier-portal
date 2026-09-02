@@ -35,7 +35,7 @@ public sealed class DocumentUploadTests(PostgresApiFixture fixture)
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         content.Add(fileContent, "file", "cert.pdf");
 
-        var response = await client.PostAsync("/api/v1/suppliers/me/documents", content);
+        var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();

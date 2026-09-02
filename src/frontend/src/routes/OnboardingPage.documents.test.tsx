@@ -42,7 +42,7 @@ const supplier = {
 
 function mount(documents: ReturnType<typeof documentType>[]) {
   return mockFetch({
-    '/api/v1/suppliers/me/documents': documents,
+    '/api/v1/suppliers/SUP-2026-000001/documents': documents,
     '/api/v1/suppliers/me/annotations/active': null,
     '/api/v1/suppliers/me': supplier,
     '/api/v1/currencies': [],

@@ -39,6 +39,21 @@ public sealed class Rfq
     public string CurrencyCode { get; private set; } = null!;
     public RfqState State { get; private set; }
     public DateTimeOffset? PublishAt { get; private set; }
+
+    /// <summary>
+    /// When this RFQ was actually published. §12.4's list DTO specifies <c>publishedAt</c> and §6.3
+    /// names <c>-publishedAt</c> as the RFQ list's default sort; neither was satisfiable, because
+    /// <see cref="PublishAt"/> is a nullable, freely-editable SCHEDULED time - an intent, not a
+    /// record. An RFQ published immediately has PublishAt null.
+    ///
+    /// <para>Set once, in <see cref="Publish"/>, and never again: a re-publish is not a state this
+    /// machine has, and BRULE-038 forbids amending a live tender in place anyway.</para>
+    ///
+    /// <para>Null for every RFQ that has never been published, which is why it is NOT the buyer
+    /// list's keyset column - that list is mostly Drafts and a keyset on a nullable column drops
+    /// them. The buyer list stays on -createdAt, the divergence recorded in Batch 0.2.</para>
+    /// </summary>
+    public DateTimeOffset? PublishedAt { get; private set; }
     public DateTimeOffset? SubmissionOpensAt { get; private set; }
     public DateTimeOffset? SubmissionClosesAt { get; private set; }
     public DateTimeOffset? ClarificationDeadlineAt { get; private set; }
@@ -523,6 +538,7 @@ public sealed class Rfq
         }
 
         State = RfqState.Published;
+        PublishedAt = DateTimeOffset.UtcNow;
     }
 
     /// <summary>Published -> SubmissionOpen (BUSINESS-PROCESSES.md §3.1: system, "now &gt;=

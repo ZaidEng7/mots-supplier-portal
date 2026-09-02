@@ -37,12 +37,3 @@ public sealed class ListSupplierDocumentsHandler(AppDbContext db, IScopeContext 
     }
 }
 
-public sealed class ReviewerListDocumentsHandler(AppDbContext db) : IReviewerListDocumentsHandler
-{
-    public async Task<IReadOnlyList<DocumentTypeStatusDto>?> HandleAsync(Guid supplierId, CancellationToken ct)
-    {
-        var exists = await db.Suppliers.AnyAsync(s => s.Id == supplierId, ct);
-        if (!exists) return null;
-        return await ListSupplierDocumentsHandler.BuildAsync(db, supplierId, ct);
-    }
-}

@@ -56,7 +56,7 @@ describe('OnboardingPage resubmit flow', () => {
         annotationGetCount += 1
         return new Response(JSON.stringify(annotation), { status: 200 })
       }
-      if (url.includes('/api/v1/suppliers/me/documents')) {
+      if (url.includes('/api/v1/suppliers/SUP-2026-000001/documents')) {
         return new Response(JSON.stringify([]), { status: 200 })
       }
       if (url.includes('/api/v1/currencies')) {

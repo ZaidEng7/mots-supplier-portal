@@ -21,15 +21,16 @@ namespace MotsSupplierPortal.Tests.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
 {
-    private static HttpRequestMessage Patch(string rawJson) =>
-        new(HttpMethod.Patch, "/api/v1/suppliers/me/profile")
+    private static HttpRequestMessage Patch(string supplierCode, string rawJson) =>
+        new(HttpMethod.Patch, $"/api/v1/suppliers/{supplierCode}")
         {
             Content = new StringContent(rawJson, Encoding.UTF8, "application/json"),
         };
 
     private static async Task SeedProfileAsync(HttpClient client)
     {
-        var seed = await client.SendAsync(Patch("""
+        var supplierCode = await client.OwnSupplierCodeAsync();
+        var seed = await client.SendAsync(Patch(supplierCode, """
             {"description":"ORIGINAL-DESCRIPTION","website":"https://original.example",
              "supplierGroup":"ORIGINAL-GROUP","currencyCode":"SYP"}
             """));
@@ -41,9 +42,10 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Patch Semantics Co");
         await SeedProfileAsync(client);
+        var supplierCode = await client.OwnSupplierCodeAsync();
 
         // The exact payload from the review: entirely unknown field names.
-        var response = await client.SendAsync(Patch("""
+        var response = await client.SendAsync(Patch(supplierCode, """
             {"totallyBogusField":"xyz","descriptionEn":"SHOULD-NOT-APPLY"}
             """));
 
@@ -61,9 +63,10 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Patch Partial Co");
         await SeedProfileAsync(client);
+        var supplierCode = await client.OwnSupplierCodeAsync();
 
         // Patch ONE field. Everything else is absent from the body.
-        var response = await client.SendAsync(Patch("""{"description":"UPDATED-DESCRIPTION"}"""));
+        var response = await client.SendAsync(Patch(supplierCode, """{"description":"UPDATED-DESCRIPTION"}"""));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var after = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
@@ -85,9 +88,10 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Patch Null Co");
         await SeedProfileAsync(client);
+        var supplierCode = await client.OwnSupplierCodeAsync();
 
         // The distinction that makes Patch<T> worth having: null is an instruction, absence is not.
-        var response = await client.SendAsync(Patch("""{"description":null}"""));
+        var response = await client.SendAsync(Patch(supplierCode, """{"description":null}"""));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var after = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");

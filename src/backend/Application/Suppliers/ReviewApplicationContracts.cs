@@ -12,6 +12,29 @@ public sealed record ReviewQueueItemDto(
     string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt,
     Guid? AssignedReviewerId, string? AssignedReviewerName);
 
+/// <summary>
+/// The review queue's accepted <c>?state=</c> values - a NAMED SUBSET of SupplierOnboardingState,
+/// not the whole enum: the queue is "what is waiting for review", so Approved and Rejected are not
+/// filterable states here.
+///
+/// <para>Exposed on the contract because the endpoint has to reject an unrecognised value (a
+/// dropped value leaves an empty filter, and an empty filter returns the whole queue) and the
+/// handler has to map an accepted one. Two copies of this vocabulary would drift into exactly that
+/// gap.</para>
+/// </summary>
+public static class ReviewQueueFilterValues
+{
+    public static readonly IReadOnlySet<string> States =
+        new HashSet<string>(StringComparer.Ordinal) { "Submitted", "UnderReview", "InfoRequested" };
+
+    /// <summary>
+    /// The literal <c>?assignedTo=</c> values. Anything else must be a reviewer's own id; a value
+    /// that is neither is rejected rather than silently applying no assignee filter.
+    /// </summary>
+    public static readonly IReadOnlySet<string> AssigneeLiterals =
+        new HashSet<string>(StringComparer.Ordinal) { "me", "unassigned" };
+}
+
 public interface IListReviewQueueHandler
 {
     /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.

@@ -75,9 +75,25 @@ public sealed record RfqListItemDto(
 /// The supplier RFQ list row. <paramref name="MyInvitationStatus"/> is resolved in SQL against the
 /// calling supplier rather than by loading the Invitations collection and filtering in memory.
 /// </summary>
+/// <param name="BuyingOrg">§12.4's <c>buyingOrg { code, name }</c>.</param>
+/// <param name="ItemsCount">§12.4's <c>itemsCount</c>. Computed in SQL - see the handler.</param>
+/// <param name="HasDraftProposal">§12.4's <c>hasDraftProposal</c>, relative to the calling supplier.</param>
+/// <param name="PublishedAt">§12.4's <c>publishedAt</c>, now that the column exists (§12-A/C).</param>
 public sealed record SupplierRfqListItemDto(
     string ReferenceCode, string TitleAr, string TitleEn, RfqState State,
-    InvitationStatus MyInvitationStatus, DateTimeOffset CreatedAt);
+    InvitationStatus MyInvitationStatus, DateTimeOffset CreatedAt,
+    DateTimeOffset? PublishedAt, BuyingOrgDto? BuyingOrg, int ItemsCount, bool HasDraftProposal);
+
+/// <summary>
+/// §12.4's <c>"buyingOrg": { "code": "ORG-HTL-0007", "name": "Cham Palace Hotels" }</c>.
+///
+/// <para><b>Code is nullable because the schema has no organization short code.</b> Organization
+/// carries an Id (GUIDv7), names, contact details and an optional ExternalId - there is no
+/// <c>ORG-…</c> public reference anywhere, and minting one is out of this batch's scope. ExternalId
+/// is emitted when set, since it is the only externally-meaningful identifier the aggregate has,
+/// and null otherwise. Reported as a documented field the schema cannot produce.</para>
+/// </summary>
+public sealed record BuyingOrgDto(string? Code, string Name);
 
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,

@@ -178,13 +178,15 @@ export function ReviewApplicationPage() {
   })
 
   const approveDocMutation = useMutation({
-    mutationFn: approveDocument,
+    // §12-A/C3: document transitions are nested under the owning supplier (§3), and
+    // `referenceCode` here IS that supplier's code - the route param this page is keyed on.
+    mutationFn: (id: string) => approveDocument(referenceCode, id),
     onSuccess: invalidate,
     onError: (err) => notify({ kind: 'danger', title: t('review.approveFailed'), description: err instanceof DocumentApiError ? err.message : undefined }),
   })
 
   const rejectDocMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectDocument(id, reason),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectDocument(referenceCode, id, reason),
     onSuccess: invalidate,
     onError: (err) => notify({ kind: 'danger', title: t('review.rejectFailed'), description: err instanceof DocumentApiError ? err.message : undefined }),
   })

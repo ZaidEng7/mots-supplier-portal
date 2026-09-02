@@ -22,7 +22,13 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope)
         "compliance_field_changed_review_retriggered",
     ];
 
-    private static readonly IReadOnlyDictionary<string, SupplierOnboardingState> StateFilterMap = new Dictionary<string, SupplierOnboardingState>(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Keyed by the same vocabulary the endpoint validates against
+    /// (<see cref="ReviewQueueFilterValues.States"/>), and case-SENSITIVE to match it - a map that
+    /// accepted "underreview" while the endpoint's allow-list did not would put the two out of step
+    /// in the direction that silently widens.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, SupplierOnboardingState> StateFilterMap = new Dictionary<string, SupplierOnboardingState>(StringComparer.Ordinal)
     {
         ["Submitted"] = SupplierOnboardingState.Submitted,
         ["UnderReview"] = SupplierOnboardingState.UnderReview,
