@@ -29,7 +29,8 @@ public sealed class AuditTransactionOwnershipTests(PostgresApiFixture fixture)
         // Create one rather than assuming the shared database already holds a supplier: run in
         // isolation this class would otherwise fail on an empty table for reasons unrelated to what
         // it tests.
-        await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Ownership Probe Co");
+        var probeName = $"Ownership Probe Co {Guid.NewGuid():N}"[..30];
+        await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, probeName);
 
         Guid supplierId;
         string? originalDescription;
@@ -37,7 +38,12 @@ public sealed class AuditTransactionOwnershipTests(PostgresApiFixture fixture)
         await using (var arrange = fixture.Services.CreateAsyncScope())
         {
             var db = arrange.ServiceProvider.GetRequiredService<AppDbContext>();
-            var supplier = await db.Suppliers.FirstAsync();
+            // EPIC-13 fix: an unfiltered FirstAsync() picks whichever row Postgres happens to
+            // return first, with no ordering guarantee - the shared test database now regularly
+            // holds other suppliers already moved to Approved (e.g. WorkspaceEndpointsTests',
+            // AwardEndpointsTests' own setup helpers), so this must target the row THIS test just
+            // created, not "the first supplier in the whole table."
+            var supplier = await db.Suppliers.FirstAsync(s => s.DisplayNameEn == probeName);
             supplierId = supplier.Id;
             originalDescription = supplier.Description;
         }
