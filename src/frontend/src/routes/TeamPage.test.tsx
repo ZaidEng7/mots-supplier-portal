@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, listPage } from '../test/renderPage'
 
 const { TeamPage } = await import('./TeamPage')
 
@@ -18,7 +18,7 @@ describe('TeamPage invite flow', () => {
 
   it('shows a success toast once an invite is sent', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/users': { items: [], hasMore: false, nextCursor: null },
+      '/api/v1/suppliers/me/users': listPage([]),
     })
 
     renderPage(<TeamPage />)
@@ -37,11 +37,9 @@ describe('TeamPage invite flow', () => {
   it('shows a success toast once a member is disabled', async () => {
     restore = mockFetch({
       '/api/v1/suppliers/me/users/user-1/disable': {},
-      '/api/v1/suppliers/me/users': {
-        items: [{ userId: 'user-1', email: 'member@example.com', fullName: 'Existing Member', isActive: true }],
-        hasMore: false,
-        nextCursor: null,
-      },
+      '/api/v1/suppliers/me/users': listPage([
+        { userId: 'user-1', email: 'member@example.com', fullName: 'Existing Member', isActive: true },
+      ]),
     })
 
     renderPage(<TeamPage />)

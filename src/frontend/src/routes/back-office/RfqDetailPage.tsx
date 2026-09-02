@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -17,6 +17,7 @@ import {
   EvaluationApiError,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
+import { formatDate, formatDateTime } from '../../lib/datetime'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -231,7 +232,7 @@ export function RfqDetailPage() {
   })
 
   if (rfqQuery.isLoading || !rfq) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
   const isDraft = rfq.state === 'Draft'
@@ -252,7 +253,7 @@ export function RfqDetailPage() {
           <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {rfq.referenceCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
           </h1>
-          <Badge tone={rfq.state === 'Cancelled' ? 'danger' : 'info'}>{rfq.state}</Badge>
+          <StatusChip machine="rfq" value={rfq.state} />
         </div>
         <div className="flex gap-2">
           {isDraft ? (
@@ -278,9 +279,10 @@ export function RfqDetailPage() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap gap-2" aria-label={t('workspace.stages')}>
                 {workspaceQuery.data.stages.map((stage) => (
-                  <Badge key={stage.key} tone={stage.isCurrent ? 'brand' : stage.isCompleted ? 'success' : 'neutral'}>
-                    {stage.isCompleted ? '✓ ' : ''}{stage.key}
-                  </Badge>
+                  <span key={stage.key} className="inline-flex items-center gap-1">
+                    {stage.isCompleted ? <span aria-hidden="true">✓</span> : null}
+                    <StatusChip machine="rfq" value={stage.key} tone={stage.isCurrent ? 'brand' : stage.isCompleted ? 'success' : 'neutral'} />
+                  </span>
                 ))}
               </div>
               {workspaceQuery.data.nextActions.length > 0 ? (
@@ -430,10 +432,10 @@ export function RfqDetailPage() {
                 <TableRow key={inv.id}>
                   <TableCell>{isArabic ? inv.supplierDisplayNameAr : inv.supplierDisplayNameEn}</TableCell>
                   <TableCell>
-                    <Badge tone={inv.status === 'Declined' ? 'danger' : inv.status === 'Submitted' ? 'success' : 'info'}>{inv.status}</Badge>
+                    <StatusChip machine="invitation" value={inv.status} />
                   </TableCell>
-                  <TableCell>{new Date(inv.invitedAt).toLocaleDateString()}</TableCell>
-                  <TableCell>{inv.viewedAt ? new Date(inv.viewedAt).toLocaleDateString() : '—'}</TableCell>
+                  <TableCell>{formatDate(inv.invitedAt, i18n.language)}</TableCell>
+                  <TableCell>{inv.viewedAt ? formatDate(inv.viewedAt, i18n.language) : '—'}</TableCell>
                   <TableCell>{inv.declineReason ?? '—'}</TableCell>
                 </TableRow>
               ))}
@@ -549,7 +551,7 @@ export function RfqDetailPage() {
               {rfq.approvals.map((a) => (
                 <TableRow key={a.stepNo}>
                   <TableCell>{a.stepNo}</TableCell>
-                  <TableCell>{a.decision ? <Badge tone={a.decision === 'Approved' ? 'success' : 'warning'}>{a.decision}</Badge> : <Badge tone="info">{t('rfq.pending')}</Badge>}</TableCell>
+                  <TableCell>{a.decision ? <StatusChip machine="award" value={a.decision} /> : <Badge tone="info">{t('rfq.pending')}</Badge>}</TableCell>
                   <TableCell>{a.comment ?? '—'}</TableCell>
                 </TableRow>
               ))}
@@ -581,7 +583,7 @@ export function RfqDetailPage() {
           ) : (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <Badge tone={evaluation.state === 'Finalized' ? 'success' : 'info'}>{evaluation.state}</Badge>
+                <StatusChip machine="evaluation" value={evaluation.state} />
                 {evaluation.state !== 'NotStarted' ? (
                   <a href={`/back-office/rfqs/${referenceCode}/my-evaluation`}>
                     <Button size="sm" variant="secondary">{t('evaluation.my.title')}</Button>
@@ -631,7 +633,7 @@ export function RfqDetailPage() {
                       {evaluation.assignments.map((a) => (
                         <TableRow key={a.evaluatorUserId}>
                           <TableCell>{a.evaluatorUserId}</TableCell>
-                          <TableCell>{a.submittedAt ? new Date(a.submittedAt).toLocaleString() : '—'}</TableCell>
+                          <TableCell>{a.submittedAt ? formatDateTime(a.submittedAt, i18n.language) : '—'}</TableCell>
                           <TableCell>{a.recusedAt ? t('evaluation.recusedWithReason', { reason: a.recusalReason }) : '—'}</TableCell>
                           {evaluation.state !== 'Finalized' ? (
                             <TableCell>

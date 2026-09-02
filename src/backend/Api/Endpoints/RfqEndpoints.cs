@@ -112,9 +112,14 @@ public static class RfqEndpoints
     {
         var group = app.MapGroup("/api/v1/rfqs").WithTags("Rfqs");
 
-        group.MapGet("/", async (IListRfqsHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(ct)))
+        group.MapGet("/", async (string? cursor, int? pageSize, bool? withCount, HttpContext httpContext, IListRfqsHandler handler, CancellationToken ct) =>
+            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
         .RequirePermission(Permissions.RfqCreate)
+        // §6.3 gives "-publishedAt" as its worked example of an RFQ list default. It cannot be this
+        // list's key: this is the BUYER's list, which is mostly Drafts, and a draft has no
+        // PublishedAt - a keyset on a nullable column silently drops every row where it is null.
+        // -createdAt is the documented divergence, and is total over the same set.
+        .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"]))
         .WithName("ListRfqs");
 
         group.MapGet("/{referenceCode}", async (string referenceCode, IGetRfqHandler handler, CancellationToken ct) =>

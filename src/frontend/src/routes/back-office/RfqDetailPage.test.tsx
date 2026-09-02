@@ -309,7 +309,13 @@ describe('RfqDetailPage', () => {
 
     expect(await screen.findByText('Awaiting ERP Purchase Order sync')).toBeInTheDocument()
     expect(screen.getByText('This step is automatic or awaiting another party.')).toBeInTheDocument()
-    expect(screen.getByText('✓ Draft')).toBeInTheDocument()
+    // T2-33: the stage label now comes from UX-WRITING §7 via StatusChip, and the completed tick is
+    // a separate aria-hidden glyph rather than string-concatenated into the label - so the two are
+    // asserted separately. "Awarded" appears twice (the RFQ's own state chip and this stage), hence
+    // the stage tracker is scoped by its own accessible name before querying inside it.
+    expect(screen.getByText('✓')).toBeInTheDocument()
+    const stages = screen.getByLabelText('Lifecycle stages')
+    expect(within(stages).getByText('Draft')).toBeInTheDocument()
   })
 
   it('Cancelled: the workspace panel shows a cancelled banner instead of stages or actions', async () => {

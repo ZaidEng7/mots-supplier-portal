@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Card, Dialog, Field, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Button, Card, Dialog, Field, Input, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
+import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError } from '../../api/rfqs'
 
 /** FEAT-07.1/FR-RFQ-001. */
@@ -18,8 +19,15 @@ export function RfqListPage() {
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
 
-  const rfqsQuery = useQuery({ queryKey: ['rfqs'], queryFn: listRfqs })
-  const rfqs = rfqsQuery.data ?? []
+  // See SupplierRfqListPage for the reasoning: §6.1 makes RFQs cursor-default, so stopping at
+  // page one would hide every RFQ past the 20th with no visible symptom.
+  const rfqsQuery = useInfiniteQuery({
+    queryKey: ['rfqs'],
+    queryFn: ({ pageParam }) => listRfqs(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: nextPageParam,
+  })
+  const rfqs = rfqsQuery.data?.pages.flatMap((page) => page.data) ?? []
 
   const createMutation = useMutation({
     mutationFn: () => createRfq({
@@ -71,12 +79,21 @@ export function RfqListPage() {
                     </Link>
                   </TableCell>
                   <TableCell>{rfq.titleEn}</TableCell>
-                  <TableCell><Badge tone="info">{rfq.state}</Badge></TableCell>
+                  <TableCell><StatusChip machine="rfq" value={rfq.state} /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
+        {rfqsQuery.hasNextPage ? (
+          <Button
+            variant="secondary"
+            isLoading={rfqsQuery.isFetchingNextPage}
+            onClick={() => rfqsQuery.fetchNextPage()}
+          >
+            {t('rfq.loadMore')}
+          </Button>
+        ) : null}
       </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen} title={t('rfq.createTitle')}>

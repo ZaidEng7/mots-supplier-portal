@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import type { ListEnvelope } from './listEnvelope'
 import { SupplierApiError } from './supplier'
 
 export interface TeamMember {
@@ -13,12 +14,6 @@ export interface InvitePayload {
   fullName: string
 }
 
-/** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */
-export interface Page<T> {
-  items: T[]
-  hasMore: boolean
-  nextCursor: string | null
-}
 
 async function parseOrThrow<T>(res: Response): Promise<T> {
   const text = await res.text()
@@ -27,7 +22,7 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function listTeam(cursor?: string | null): Promise<Page<TeamMember>> {
+export async function listTeam(cursor?: string | null): Promise<ListEnvelope<TeamMember>> {
   const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
   const res = await apiFetch(`/api/v1/suppliers/me/users${qs}`)
   return parseOrThrow(res)

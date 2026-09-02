@@ -113,8 +113,8 @@ public sealed class ReviewQueueAssignmentTests(PostgresApiFixture fixture)
         (await reviewerA.PostAsync($"/api/v1/review/{claimedByA.ReferenceCode}/claim", null)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await reviewerB.PostAsync($"/api/v1/review/{claimedByB.ReferenceCode}/claim", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var page = await reviewerA.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?assignedTo=me&limit=100");
-        var codes = page.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("referenceCode").GetString()).ToList();
+        var page = await reviewerA.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?assignedTo=me&pageSize=100");
+        var codes = page.GetProperty("data").EnumerateArray().Select(i => i.GetProperty("referenceCode").GetString()).ToList();
 
         codes.Should().Contain(claimedByA.ReferenceCode);
         codes.Should().NotContain(claimedByB.ReferenceCode, "assignedTo=me must resolve against the caller, not return every claimed item");
@@ -136,8 +136,8 @@ public sealed class ReviewQueueAssignmentTests(PostgresApiFixture fixture)
             await db.SaveChangesAsync();
         }
 
-        var page = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?state=UnderReview&limit=100");
-        var codes = page.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("referenceCode").GetString()).ToList();
+        var page = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?state=UnderReview&pageSize=100");
+        var codes = page.GetProperty("data").EnumerateArray().Select(i => i.GetProperty("referenceCode").GetString()).ToList();
 
         codes.Should().Contain(underReview.ReferenceCode);
         codes.Should().NotContain(submitted.ReferenceCode, "state=UnderReview must exclude Submitted items");
@@ -160,8 +160,8 @@ public sealed class ReviewQueueAssignmentTests(PostgresApiFixture fixture)
 
         (await reviewer.PostAsync($"/api/v1/review/{claimed.ReferenceCode}/claim", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var page = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?assignedTo=unassigned&limit=100");
-        var codes = page.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("referenceCode").GetString()).ToList();
+        var page = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?assignedTo=unassigned&pageSize=100");
+        var codes = page.GetProperty("data").EnumerateArray().Select(i => i.GetProperty("referenceCode").GetString()).ToList();
 
         codes.Should().Contain(unclaimed.ReferenceCode);
         codes.Should().NotContain(claimed.ReferenceCode);

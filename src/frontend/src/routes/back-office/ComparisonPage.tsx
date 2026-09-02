@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { getComparison } from '../../api/comparison'
 import type { ComparisonProposal } from '../../api/comparison'
 
@@ -37,7 +37,7 @@ export function ComparisonPage() {
   const comparison = comparisonQuery.data ?? null
 
   if (comparisonQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonTable label={t('common.loading')} />
   }
   if (!comparison) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notFound')}</p>

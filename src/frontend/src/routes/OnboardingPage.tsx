@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Field, Input, Select, PhoneInput } from '../components/ui'
+import { Badge, Button, Card, Field, Input, PhoneInput, Select, StatusChip } from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -23,6 +23,7 @@ import {
 import { fetchCurrencies } from '../api/reference'
 import { listOwnDocuments, uploadDocument, getDocumentDownloadUrl, DocumentApiError, type DocumentTypeStatus } from '../api/documents'
 import { getOwnActiveAnnotation } from '../api/review'
+import { formatDateTime } from '../lib/datetime'
 
 const SUPPLIER_TYPES = ['Company', 'Individual', 'Partnership'] as const
 
@@ -48,17 +49,6 @@ type ProfileFormValues = z.infer<typeof profileSchema>
 // Matches SupplierDto.missingProfileFields' exact string values (Domain/Suppliers/Supplier.cs
 // GetMissingProfileFields), not arbitrary display keys - keep in sync if the backend list changes.
 const REQUIRED_FIELDS = ['legalInfo', 'currencyCode', 'address', 'categoryLink', 'primaryContactPhone'] as const
-
-const DOC_STATE_TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-  PendingScan: 'info',
-  Uploaded: 'success',
-  UnderReview: 'info',
-  Approved: 'success',
-  Rejected: 'danger',
-  ScanRejected: 'danger',
-  ExpiringSoon: 'warning',
-  Expired: 'danger',
-}
 
 // FEAT-05.8: "N days" countdown for documents approaching/past expiry, next to the state chip.
 // Western digits (numberingSystem latn) to match the rest of the app's tabular-numeral convention
@@ -117,6 +107,11 @@ function LogoUploader({ profile, canEdit, onProfile }: { profile: SupplierProfil
   )
 }
 
+/** Stable per-document anchor, so the submit error summary can link to the row it names. */
+function documentAnchorId(code: string): string {
+  return `document-row-${code}`
+}
+
 function DocumentGroup({
   heading,
   documents,
@@ -124,6 +119,7 @@ function DocumentGroup({
   isReadOnly,
   isInfoRequested,
   flaggedDocCodes,
+  blockingDocCodes,
 }: {
   heading: string
   documents: DocumentTypeStatus[]
@@ -131,6 +127,8 @@ function DocumentGroup({
   isReadOnly: boolean
   isInfoRequested: boolean
   flaggedDocCodes: Set<string>
+  /** Document type codes the server named in its last submit rejection. */
+  blockingDocCodes: Set<string>
 }) {
   // A required group with nothing in it would mean the document-type catalogue is empty, which is a
   // configuration fault rather than an empty state - so the heading is omitted entirely rather than
@@ -150,6 +148,7 @@ function DocumentGroup({
               key={doc.documentTypeId}
               doc={doc}
               canEdit={!isReadOnly && (!isInfoRequested || flaggedDocCodes.has(doc.code))}
+              isBlocking={blockingDocCodes.has(doc.code)}
             />
           ))}
         </ul>
@@ -158,7 +157,12 @@ function DocumentGroup({
   )
 }
 
-function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boolean }) {
+function DocumentRow({ doc, canEdit, isBlocking }: {
+  doc: DocumentTypeStatus
+  canEdit: boolean
+  /** True once a submit attempt came back naming this document type as still missing. */
+  isBlocking: boolean
+}) {
   const { t, i18n } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
@@ -196,9 +200,32 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
   const label = isArabic ? doc.nameAr : doc.nameEn
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-[0.375rem] p-3" style={{ border: '1px solid var(--color-border)' }}>
+    // id: the error summary below links straight to this row, per ACCESSIBILITY §7's error-summary
+    // requirement. tabIndex -1 so the link can move focus here at all - a plain <li> is not focusable.
+    <li
+      id={documentAnchorId(doc.code)}
+      tabIndex={-1}
+      className="flex items-center justify-between gap-3 rounded-[0.375rem] p-3"
+      style={{ border: '1px solid var(--color-border)' }}
+    >
       <div className="flex items-center gap-2">
-        <Badge tone={state ? DOC_STATE_TONE[state] : 'warning'}>{state ? t(`onboarding.docState.${state}`) : t('onboarding.missing')}</Badge>
+        {/* T2-33 addendum: document states resolve through StatusChip like every other machine.
+            The no-document branch is not a DocumentState, but it still has documented labels, so
+            it routes through the same chip rather than a hand-rolled Badge:
+
+            - `Required` (§7.2's first row; SCR-106 lists it first in its StatusBadge set) is the
+              RESTING label for a required type with nothing uploaded.
+            - `Missing` is what that becomes once the supplier has attempted to submit and this
+              document is still absent. Driven by the server's own 422 list (§12.2: "422 listing
+              exactly what is missing"), never by client-side guesswork about what will block.
+            - An OPTIONAL type with no upload gets no chip at all. Calling it "Required" would be
+              false, and SCR-106 is explicit that "optional docs never block"; the "(optional)"
+              marker beside the name already says what it is. */}
+        {state ? (
+          <StatusChip machine="document" value={state} />
+        ) : doc.isRequired ? (
+          <StatusChip machine="document" value={isBlocking ? 'Missing' : 'Required'} />
+        ) : null}
         {doc.latestDocument?.expiryDate && (state === 'Approved' || state === 'ExpiringSoon') ? (
           <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
             {expiryCountdownLabel(doc.latestDocument.expiryDate, i18n.language)}
@@ -264,7 +291,7 @@ function DocumentRow({ doc, canEdit }: { doc: DocumentTypeStatus; canEdit: boole
 }
 
 export function OnboardingPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const { notify } = useToast()
   const [termsChecked, setTermsChecked] = useState(false)
@@ -374,11 +401,24 @@ export function OnboardingPage() {
     onError: (err) => notifySaveError(err),
   })
 
+  // What the server said was still missing on the last submit attempt. Drives BOTH the escalation
+  // of each required document's chip from `Required` to `Missing` and the error summary below.
+  // API-ARCHITECTURE §12.2: the submit endpoint returns "422 listing exactly what is missing", so
+  // this is the server's answer rather than a second, client-side completeness rule that could
+  // disagree with it.
+  const [submitBlockers, setSubmitBlockers] = useState<string[]>([])
+
   const submitMutation = useMutation({
     mutationFn: submitApplication,
-    onSuccess: onProfile,
+    onSuccess: (data) => {
+      setSubmitBlockers([])
+      onProfile(data)
+    },
     onError: (err) => {
       if (err instanceof SupplierApiError && err.missingFields) {
+        setSubmitBlockers(err.missingFields)
+        // The toast stays: ACCESSIBILITY §6 says not to move focus to toasts, so it cannot be the
+        // only announcement of a blocking failure. The summary region below is the accessible one.
         notify({ kind: 'danger', title: t('onboarding.incomplete'), description: err.missingFields.join(', ') })
       } else {
         notify({ kind: 'danger', title: t('onboarding.submitFailed') })
@@ -421,6 +461,15 @@ export function OnboardingPage() {
   // the page: every document the API returned appears in exactly one group.
   const requiredDocuments = documents.filter((doc) => doc.isRequired)
   const optionalDocuments = documents.filter((doc) => !doc.isRequired)
+
+  // The 422's `missingFields` mixes missing PROFILE fields with missing DOCUMENT TYPE CODES
+  // (SubmitApplicationHandler concatenates the two). Intersecting against the real document
+  // catalogue is what separates them - and it means a profile-field name can never be rendered as
+  // a missing document, nor a code the catalogue no longer has.
+  const isArabic = i18n.language.startsWith('ar')
+  const submitBlockerCodes = new Set(submitBlockers)
+  const blockingDocuments = requiredDocuments.filter((doc) => submitBlockerCodes.has(doc.code))
+  const blockingDocCodes = new Set(blockingDocuments.map((doc) => doc.code))
   const currencyCode = profileForm.watch('currencyCode')
   const primaryContactPhone = profileForm.watch('primaryContactPhone')
   const supplierType = legalForm.watch('supplierType')
@@ -435,7 +484,7 @@ export function OnboardingPage() {
         <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('onboarding.title')}
         </h1>
-        <Badge tone={profile.onboardingState === 'Approved' ? 'success' : 'brand'}>{profile.onboardingState}</Badge>
+        <StatusChip machine="onboarding" value={profile.onboardingState} />
       </div>
 
       <OnboardingStepNav />
@@ -576,7 +625,7 @@ export function OnboardingPage() {
         {profile.termsAcceptedAt ? (
           <p style={{ color: 'var(--success-600)' }}>
             {t('onboarding.termsAcceptedNotice', {
-              date: new Date(profile.termsAcceptedAt).toLocaleString(),
+              date: formatDateTime(profile.termsAcceptedAt, i18n.language),
               version: profile.termsAcceptedVersion,
             })}
           </p>
@@ -616,6 +665,7 @@ export function OnboardingPage() {
             isReadOnly={isReadOnly}
             isInfoRequested={isInfoRequested}
             flaggedDocCodes={flaggedDocCodes}
+            blockingDocCodes={blockingDocCodes}
           />
           <DocumentGroup
             heading={t('onboarding.optionalDocuments')}
@@ -624,9 +674,43 @@ export function OnboardingPage() {
             isReadOnly={isReadOnly}
             isInfoRequested={isInfoRequested}
             flaggedDocCodes={flaggedDocCodes}
+            blockingDocCodes={blockingDocCodes}
           />
         </div>
       </Card>
+
+      {/*
+        ACCESSIBILITY.md §7, error summary: *"a focusable summary region (`role="alert"` or moved
+        focus) listing each error as a link jumping to its field - essential for long onboarding
+        forms and SR users."* The chip escalation alone is a colour and a word inside a long list;
+        a screen-reader user would have to walk every row to find what is blocking them. This
+        region is the announcement, and each entry jumps to the row it names.
+
+        SCREEN-SPECIFICATIONS §2 (SCR-106) adds *"Errors are per-card, `aria-live`"* - the per-card
+        half is the chip; this is the summary §7 additionally requires at submit.
+      */}
+      {blockingDocuments.length > 0 ? (
+        <div
+          role="alert"
+          className="rounded-[0.375rem] p-3"
+          style={{ border: '1px solid var(--color-danger-fg)', color: 'var(--color-danger-fg)' }}
+        >
+          <p className="font-[var(--fw-semibold)]">{t('onboarding.submitBlockedTitle')}</p>
+          <p className="text-[length:var(--text-body-sm)]">{t('onboarding.submitBlockedIntro')}</p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {blockingDocuments.map((doc) => (
+              <li key={doc.documentTypeId}>
+                <a
+                  href={`#${documentAnchorId(doc.code)}`}
+                  style={{ color: 'var(--color-danger-fg)', textDecoration: 'underline' }}
+                >
+                  {isArabic ? doc.nameAr : doc.nameEn}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {!isReadOnly ? (
         <div className="flex gap-3">

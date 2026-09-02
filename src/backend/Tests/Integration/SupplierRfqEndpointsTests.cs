@@ -118,7 +118,9 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var (client, supplierId) = await ActiveSupplierAsync($"Lister {Guid.NewGuid():N}"[..30]);
         var referenceCode = await CreatePublishedRfqWithInviteAsync(supplierId, "List And View RFQ");
 
-        var list = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/rfqs");
+        // The list returns the §5.2 envelope now, and projects a list item rather than the whole
+        // aggregate - myInvitationStatus is still on it, resolved server-side per caller.
+        var list = (await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/rfqs")).GetProperty("data");
         list.EnumerateArray().Should().Contain(r => r.GetProperty("referenceCode").GetString() == referenceCode);
         var listedState = list.EnumerateArray().Single(r => r.GetProperty("referenceCode").GetString() == referenceCode);
         listedState.GetProperty("myInvitationStatus").GetString().Should().Be(nameof(InvitationStatus.Invited));

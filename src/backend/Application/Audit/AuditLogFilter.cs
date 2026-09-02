@@ -19,4 +19,25 @@ public sealed record AuditLogFilter(
     DateTimeOffset? To)
 {
     public static readonly AuditLogFilter None = new(null, null, null, null, null, null);
+
+    /// <summary>
+    /// The filters actually applied, for the envelope's <c>meta.filtersApplied</c>
+    /// (API-ARCHITECTURE.md §5.2, whose example renders them as <c>["state=UnderReview,Rejected"]</c>).
+    /// Null when nothing was filtered, so <c>meta</c> distinguishes "no filter" from "a filter that
+    /// matched nothing" - two states a caller staring at an empty list needs to tell apart.
+    ///
+    /// <para>Values are the caller's own query values echoed back, never row content, so this cannot
+    /// leak audit data into a response the caller could not already see.</para>
+    /// </summary>
+    public IReadOnlyList<string>? Describe()
+    {
+        List<string> applied = [];
+        if (AggregateType is not null) applied.Add($"aggregateType={AggregateType}");
+        if (AggregateId is not null) applied.Add($"aggregateId={AggregateId}");
+        if (ActorUserId is not null) applied.Add($"actorUserId={ActorUserId}");
+        if (Action is not null) applied.Add($"action={Action}");
+        if (From is not null) applied.Add($"from={From:O}");
+        if (To is not null) applied.Add($"to={To:O}");
+        return applied.Count == 0 ? null : applied;
+    }
 }

@@ -29,12 +29,12 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope)
         ["InfoRequested"] = SupplierOnboardingState.InfoRequested,
     };
 
-    public async Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, string? state, string? assignedTo, CancellationToken ct)
+    public async Task<ListEnvelope<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, bool withCount, string? state, string? assignedTo, CancellationToken ct)
     {
         var states = state is not null && StateFilterMap.TryGetValue(state, out var single)
             ? [single]
             : new[] { SupplierOnboardingState.Submitted, SupplierOnboardingState.UnderReview, SupplierOnboardingState.InfoRequested };
-        var pageSize = Page<ReviewQueueItemDto>.ClampLimit(limit);
+        var pageSize = ListEnvelope<ReviewQueueItemDto>.ClampPageSize(limit);
 
         var query = db.Suppliers.Where(s => states.Contains(s.OnboardingState));
 
@@ -54,6 +54,11 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope)
         {
             query = query.Where(s => s.AssignedReviewerId == reviewerId);
         }
+
+        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
+        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
+        // shrink as the caller pages. A second query, so it is off unless asked for.
+        int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (ReviewQueueCursor.TryDecode(cursor, out var from))
         {
@@ -100,10 +105,26 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope)
                 r.AssignedReviewerId is { } rid ? reviewerNamesById.GetValueOrDefault(rid) : null))
             .ToList();
 
-        return new Page<ReviewQueueItemDto>(
+        return ListEnvelope<ReviewQueueItemDto>.Cursor(
             dtos,
             hasMore,
-            hasMore ? new ReviewQueueCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null);
+            hasMore ? new ReviewQueueCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null,
+            pageSize,
+            totalCount,
+            sort: "createdAt",
+            filtersApplied: DescribeFilters(state, assignedTo));
+    }
+    /// <summary>
+    /// The filters actually applied, for the envelope's <c>meta.filtersApplied</c> (§5.2, whose
+    /// example renders them as <c>["state=UnderReview,Rejected"]</c>). Null when unfiltered, so a
+    /// caller looking at an empty queue can tell "nothing is queued" from "nothing matched".
+    /// </summary>
+    private static IReadOnlyList<string>? DescribeFilters(string? state, string? assignedTo)
+    {
+        List<string> applied = [];
+        if (state is not null) applied.Add($"state={state}");
+        if (assignedTo is not null) applied.Add($"assignedTo={assignedTo}");
+        return applied.Count == 0 ? null : applied;
     }
 }
 

@@ -28,7 +28,14 @@ namespace MotsSupplierPortal.Tests.Integration;
 public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
 {
     private sealed record AuditEntry(Guid Id, DateTimeOffset OccurredAt, string AggregateType, Guid AggregateId, string Action, string? ActorLabel);
-    private sealed record AuditPage(List<AuditEntry> Items, bool HasMore, string? NextCursor, int? Total);
+    /// <summary>
+    /// Deserialization target for the documented §5.2 list envelope
+    /// (<c>{ data, pagination, meta }</c>), which replaced the flat
+    /// <c>{ items, hasMore, nextCursor, total }</c> shape.
+    /// </summary>
+    private sealed record AuditPage(List<AuditEntry> Data, AuditPagination Pagination);
+
+    private sealed record AuditPagination(string Mode, string? NextCursor, string? PrevCursor, int PageSize, int? TotalCount, bool HasMore);
 
     private static readonly DateTimeOffset Day0 = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Day1 = new(2020, 1, 2, 0, 0, 0, TimeSpan.Zero);
@@ -116,9 +123,9 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
         var probe = await SeedAsync();
 
-        var page = await SearchAsync(staff, $"aggregateType={probe.ProbeType}&limit=100");
+        var page = await SearchAsync(staff, $"aggregateType={probe.ProbeType}&pageSize=100");
 
-        page.Items.Should().HaveCount(7, "the probe set seeded exactly 7 rows under this synthetic type");
+        page.Data.Should().HaveCount(7, "the probe set seeded exactly 7 rows under this synthetic type");
     }
 
     [Fact]
@@ -127,11 +134,11 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
         var probe = await SeedAsync();
 
-        var page = await SearchAsync(staff, $"aggregateId={probe.AggregateA}&limit=100");
+        var page = await SearchAsync(staff, $"aggregateId={probe.AggregateA}&pageSize=100");
 
-        page.Items.Should().HaveCount(6, "6 of the 7 seeded rows are under aggregate A; " +
+        page.Data.Should().HaveCount(6, "6 of the 7 seeded rows are under aggregate A; " +
             "the 7th (r4) is under aggregate B and must be excluded by id alone, without a type filter");
-        page.Items.Should().OnlyContain(i => i.AggregateId == probe.AggregateA);
+        page.Data.Should().OnlyContain(i => i.AggregateId == probe.AggregateA);
     }
 
     [Fact]
@@ -140,9 +147,9 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
         var probe = await SeedAsync();
 
-        var page = await SearchAsync(staff, $"actorUserId={probe.ActorX}&limit=100");
+        var page = await SearchAsync(staff, $"actorUserId={probe.ActorX}&pageSize=100");
 
-        page.Items.Should().HaveCount(6, "actor X wrote 6 of the 7 seeded rows; r3 was actor Y");
+        page.Data.Should().HaveCount(6, "actor X wrote 6 of the 7 seeded rows; r3 was actor Y");
     }
 
     [Fact]
@@ -151,9 +158,9 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
         var probe = await SeedAsync();
 
-        var page = await SearchAsync(staff, $"action={probe.ActionP}&limit=100");
+        var page = await SearchAsync(staff, $"action={probe.ActionP}&pageSize=100");
 
-        page.Items.Should().HaveCount(6, "action P was used on 6 of the 7 seeded rows; r2 was action Q");
+        page.Data.Should().HaveCount(6, "action P was used on 6 of the 7 seeded rows; r2 was action Q");
     }
 
     [Fact]
@@ -166,21 +173,21 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         // strictly inside (Day2 x3), excluding Day0 and Day4.
         var fullRange = await SearchAsync(staff,
             $"aggregateType={probe.ProbeType}&from={Uri.EscapeDataString(Day1.ToString("O"))}" +
-            $"&to={Uri.EscapeDataString(Day3.ToString("O"))}&limit=100");
-        fullRange.Items.Should().HaveCount(5, "Day1, three rows at Day2, and Day3 fall inside " +
+            $"&to={Uri.EscapeDataString(Day3.ToString("O"))}&pageSize=100");
+        fullRange.Data.Should().HaveCount(5, "Day1, three rows at Day2, and Day3 fall inside " +
             "[Day1,Day3] inclusive; Day0 and Day4 do not");
 
         // Collapsing the range onto exactly one boundary instant proves that instant is INCLUDED,
         // not merely "close to" the edge.
         var exactlyLowerBoundary = await SearchAsync(staff,
             $"aggregateType={probe.ProbeType}&from={Uri.EscapeDataString(Day1.ToString("O"))}" +
-            $"&to={Uri.EscapeDataString(Day1.ToString("O"))}&limit=100");
-        exactlyLowerBoundary.Items.Should().HaveCount(1, "from == to == Day1 must still return the Day1 row");
+            $"&to={Uri.EscapeDataString(Day1.ToString("O"))}&pageSize=100");
+        exactlyLowerBoundary.Data.Should().HaveCount(1, "from == to == Day1 must still return the Day1 row");
 
         var exactlyUpperBoundary = await SearchAsync(staff,
             $"aggregateType={probe.ProbeType}&from={Uri.EscapeDataString(Day3.ToString("O"))}" +
-            $"&to={Uri.EscapeDataString(Day3.ToString("O"))}&limit=100");
-        exactlyUpperBoundary.Items.Should().HaveCount(1, "from == to == Day3 must still return the Day3 row");
+            $"&to={Uri.EscapeDataString(Day3.ToString("O"))}&pageSize=100");
+        exactlyUpperBoundary.Data.Should().HaveCount(1, "from == to == Day3 must still return the Day3 row");
     }
 
     [Fact]
@@ -194,18 +201,18 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         // so it must be included too.
         var page = await SearchAsync(staff,
             $"aggregateId={probe.AggregateA}&action={probe.ActionP}" +
-            $"&from={Uri.EscapeDataString(Day1.ToString("O"))}&to={Uri.EscapeDataString(Day3.ToString("O"))}&limit=100");
+            $"&from={Uri.EscapeDataString(Day1.ToString("O"))}&to={Uri.EscapeDataString(Day3.ToString("O"))}&pageSize=100");
 
-        page.Items.Should().HaveCount(3,
+        page.Data.Should().HaveCount(3,
             "r1, r3, and r5 all match aggregate A AND action P AND the date range; " +
             "r0/r6 fail the range, r2 fails the action, r4 fails the aggregate");
 
         // Adding the actor narrows it further: only r1 and r5 are also actor X (r3 is actor Y).
         var withActor = await SearchAsync(staff,
             $"aggregateId={probe.AggregateA}&action={probe.ActionP}&actorUserId={probe.ActorX}" +
-            $"&from={Uri.EscapeDataString(Day1.ToString("O"))}&to={Uri.EscapeDataString(Day3.ToString("O"))}&limit=100");
+            $"&from={Uri.EscapeDataString(Day1.ToString("O"))}&to={Uri.EscapeDataString(Day3.ToString("O"))}&pageSize=100");
 
-        withActor.Items.Should().HaveCount(2, "all four dimensions together exclude r3 (actor Y)");
+        withActor.Data.Should().HaveCount(2, "all four dimensions together exclude r3 (actor Y)");
     }
 
     [Fact]
@@ -229,9 +236,10 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Export_is_not_limited_to_one_page_worth_of_rows()
     {
-        // The search endpoint pages at 50 by default (Page.DefaultLimit); export must not inherit
-        // that cap - "everything the filter matches" is the export's contract, not "the current
-        // page". 60 rows under one synthetic type is comfortably past the default page size.
+        // The search endpoint pages at 20 by default - API-ARCHITECTURE.md §6.1's "pageSize
+        // default 20", which replaced this endpoint's own former default of 50. Export must not
+        // inherit that cap: "everything the filter matches" is the export's contract, not "the
+        // current page". 60 rows under one synthetic type is comfortably past the default page size.
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
         var tag = Guid.NewGuid().ToString("N")[..12];
@@ -258,8 +266,8 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         }
 
         var defaultPage = await SearchAsync(staff, $"aggregateType={probeType}");
-        defaultPage.Items.Should().HaveCount(50, "the default page size caps the search response");
-        defaultPage.HasMore.Should().BeTrue();
+        defaultPage.Data.Should().HaveCount(20, "the default page size caps the search response");
+        defaultPage.Pagination.HasMore.Should().BeTrue();
 
         var exported = await ExportRowsAsync(staff, $"aggregateType={probeType}");
         exported.Should().HaveCount(60, "export returns everything the filter matches, past the page cap");

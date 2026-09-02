@@ -21,7 +21,14 @@ namespace MotsSupplierPortal.Tests.Integration;
 public sealed class AuditPaginationTests(PostgresApiFixture fixture)
 {
     private sealed record AuditEntry(Guid Id, DateTimeOffset OccurredAt, string Action);
-    private sealed record AuditPage(List<AuditEntry> Items, bool HasMore, string? NextCursor, int? Total);
+    /// <summary>
+    /// Deserialization target for the documented §5.2 list envelope
+    /// (<c>{ data, pagination, meta }</c>), which replaced the flat
+    /// <c>{ items, hasMore, nextCursor, total }</c> shape.
+    /// </summary>
+    private sealed record AuditPage(List<AuditEntry> Data, AuditPagination Pagination);
+
+    private sealed record AuditPagination(string Mode, string? NextCursor, string? PrevCursor, int PageSize, int? TotalCount, bool HasMore);
 
     private async Task<Guid> SeedTrailAsync(HttpClient client, int rows)
     {
@@ -54,7 +61,7 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
 
     private static async Task<AuditPage> GetPageAsync(HttpClient client, string? cursor, int limit)
     {
-        var url = $"/api/v1/suppliers/me/audit?limit={limit}"
+        var url = $"/api/v1/suppliers/me/audit?pageSize={limit}"
             + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
         var response = await client.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -70,11 +77,11 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
 
         var page = await GetPageAsync(client, null, 10);
 
-        page.Items.Should().HaveCount(10, "the server must enforce the bound, not merely offer it");
-        page.HasMore.Should().BeTrue("more rows exist, and a caller that is not told this believes it has everything");
-        page.NextCursor.Should().NotBeNullOrEmpty();
-        page.Total.Should().BeNull(
-            "Total is deliberately absent here - it needs a COUNT over a table retained forever, " +
+        page.Data.Should().HaveCount(10, "the server must enforce the bound, not merely offer it");
+        page.Pagination.HasMore.Should().BeTrue("more rows exist, and a caller that is not told this believes it has everything");
+        page.Pagination.NextCursor.Should().NotBeNullOrEmpty();
+        page.Pagination.TotalCount.Should().BeNull(
+            "totalCount is deliberately absent here - it needs a COUNT over a table retained forever, " +
             "and means little under keyset paging where there is no page count to render");
     }
 
@@ -85,10 +92,10 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
         await SeedTrailAsync(client, 30);
 
         var first = await GetPageAsync(client, null, 10);
-        var second = await GetPageAsync(client, first.NextCursor, 10);
+        var second = await GetPageAsync(client, first.Pagination.NextCursor, 10);
 
-        second.Items.Should().HaveCount(10);
-        second.Items.Select(i => i.Id).Should().NotIntersectWith(first.Items.Select(i => i.Id),
+        second.Data.Should().HaveCount(10);
+        second.Data.Select(i => i.Id).Should().NotIntersectWith(first.Data.Select(i => i.Id),
             "a cursor that returns overlapping rows is not paging, it is re-reading");
     }
 
@@ -112,8 +119,8 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
         do
         {
             var page = await GetPageAsync(client, cursor, 5);
-            seen.AddRange(page.Items.Select(i => i.Id));
-            cursor = page.NextCursor;
+            seen.AddRange(page.Data.Select(i => i.Id));
+            cursor = page.Pagination.NextCursor;
             pages++;
             pages.Should().BeLessThan(50, "a cursor that never advances would loop forever");
         }
@@ -125,15 +132,20 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task Limit_is_clamped_so_a_caller_cannot_reinstate_the_unbounded_query()
+    public async Task Page_size_is_clamped_so_a_caller_cannot_reinstate_the_unbounded_query()
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Audit Paging Clamp");
-        await SeedTrailAsync(client, 30);
+        await SeedTrailAsync(client, 300);
 
         var page = await GetPageAsync(client, null, 100_000);
 
-        page.Items.Count.Should().BeLessThanOrEqualTo(200,
-            "the bound is enforced server-side; offering a limit a caller can override is not a bound");
+        // The ceiling is now the one API-ARCHITECTURE.md §6.1 states for every list endpoint -
+        // "pageSize default 20, min 1, max 100 (> 100 -> clamped + Warning header)" - rather than
+        // this endpoint's own former bound of 200. Seeded above the ceiling so the assertion can
+        // actually be violated: with only 30 rows it would hold whatever the clamp did.
+        page.Data.Count.Should().Be(100,
+            "the bound is enforced server-side; offering a page size a caller can override is not a bound");
+        page.Pagination.PageSize.Should().Be(100);
     }
 
     [Fact]
@@ -144,7 +156,7 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
 
         var page = await GetPageAsync(client, "not-a-real-cursor", 10);
 
-        page.Items.Should().HaveCount(10,
+        page.Data.Should().HaveCount(10,
             "an invented or truncated cursor is a caller mistake on a list read; answering with " +
             "page one is more useful than a 500 and leaks nothing");
     }

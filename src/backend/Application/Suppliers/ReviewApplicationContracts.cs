@@ -18,7 +18,7 @@ public interface IListReviewQueueHandler
     /// MSP-84: keyset-paged (see ReviewQueueCursor for why). FEAT-03.6: state restricts to one of
     /// the three queue-eligible OnboardingStates; assignedTo accepts "me" (resolved to the
     /// caller), "unassigned", or a literal reviewer user id - null means no assignment filter.</summary>
-    Task<Page<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, string? state, string? assignedTo, CancellationToken ct);
+    Task<ListEnvelope<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, bool withCount, string? state, string? assignedTo, CancellationToken ct);
 }
 
 public abstract record ClaimQueueItemResult

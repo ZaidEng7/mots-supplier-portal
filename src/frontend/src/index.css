@@ -37,3 +37,32 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* T2-32 skeleton shimmer. DESIGN-SYSTEM.md §6.17: "skeleton shaped like final content
+   (cards/rows/detail), shimmering with reduced motion respected". The global block above already
+   neutralises this animation's duration; the scoped rule below removes the animation and the
+   gradient outright, so the reduced-motion guarantee is greppable from the skeleton's own rule
+   rather than only inferable from a wildcard. Both are kept: the global is the safety net, this is
+   the statement of intent. */
+@keyframes msp-skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.msp-skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-bg-sunken) 25%,
+    var(--color-border) 37%,
+    var(--color-bg-sunken) 63%
+  );
+  background-size: 200% 100%;
+  animation: msp-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msp-skeleton {
+    animation-name: none;
+    background-image: none;
+  }
+}

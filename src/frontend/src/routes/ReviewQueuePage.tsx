@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Select, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, useToast } from '../components/ui'
+import { Badge, Button, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { listReviewQueue, claimReviewItem, unassignReviewItem, type ReviewQueueItem } from '../api/review'
 import { useAuthStore } from '../lib/authStore'
 import { invalidateQuietly } from '../lib/queryClient'
@@ -51,9 +52,9 @@ export function ReviewQueuePage() {
     queryKey: ['review-queue', filters.state, filters.assignedTo],
     queryFn: ({ pageParam }) => listReviewQueue(pageParam, filters),
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    getNextPageParam: nextPageParam,
   })
-  const items = queueQuery.data?.pages.flatMap((p) => p.items) ?? []
+  const items = queueQuery.data?.pages.flatMap((p) => p.data) ?? []
 
   const claimMutation = useMutation({
     mutationFn: (referenceCode: string) => claimReviewItem(referenceCode),
@@ -141,7 +142,7 @@ export function ReviewQueuePage() {
                 </TableCell>
                 <TableCell>{item.referenceCode}</TableCell>
                 <TableCell>
-                  <Badge tone={item.onboardingState === 'InfoRequested' ? 'warning' : 'info'}>{item.onboardingState}</Badge>
+                  <StatusChip machine="onboarding" value={item.onboardingState} />
                 </TableCell>
                 <TableCell>
                   <Badge tone={ageTone(ageHours)}>{formatAge(ageHours, isArabic)}</Badge>

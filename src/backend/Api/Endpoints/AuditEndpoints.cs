@@ -29,14 +29,20 @@ public static class AuditEndpoints
         // as an error.
         app.MapGet("/api/v1/suppliers/me/audit", async (
             string? cursor,
-            int? limit,
+            int? pageSize,
+            bool? withCount,
+            HttpContext httpContext,
             IGetAuditLogHandler handler,
             CancellationToken ct) =>
         {
-            var page = await handler.HandleOwnTrailAsync(cursor, limit, ct);
-            return Results.Ok(page);
+            var page = await handler.HandleOwnTrailAsync(cursor, pageSize, withCount == true, ct);
+            return ListResponse.Ok(httpContext, page, pageSize);
         })
         .RequireAuthorization()
+        // §6.3: the trail is strictly reverse-chronological - "what happened to me, most recent
+        // first". No alternative order is offered, so -occurredAt is both the default and the only
+        // whitelisted key; anything else is a 422 rather than an order the caller silently did not get.
+        .WithListQuery(ListQueryPolicy.Create("-occurredAt", ["occurredAt"]))
         .WithName("GetOwnSupplierAuditTrail")
         .WithTags("Audit");
 
@@ -52,15 +58,19 @@ public static class AuditEndpoints
             DateTimeOffset? from,
             DateTimeOffset? to,
             string? cursor,
-            int? limit,
+            int? pageSize,
+            bool? withCount,
+            HttpContext httpContext,
             IGetAuditLogHandler handler,
             CancellationToken ct) =>
         {
             var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, from, to);
-            var page = await handler.HandleFilteredAsync(filter, cursor, limit, ct);
-            return Results.Ok(page);
+            var page = await handler.HandleFilteredAsync(filter, cursor, pageSize, withCount == true, ct);
+            return ListResponse.Ok(httpContext, page, pageSize);
         })
         .RequirePermission(Permissions.AuditRead)
+        .WithListQuery(ListQueryPolicy.Create("-occurredAt", ["occurredAt"],
+            "aggregateType", "aggregateId", "actorUserId", "action", "from", "to"))
         .WithName("SearchAuditLog")
         .WithTags("Audit");
 

@@ -94,3 +94,27 @@ export function mockFetch(routes: Record<string, unknown>): () => void {
     globalThis.fetch = original
   }
 }
+
+/**
+ * Builds the documented §5.2 list envelope around `items` for a `mockFetch` route.
+ *
+ * <p>Every list endpoint returns `{ data, pagination, meta }`, and `useInfiniteQuery` reads
+ * `pagination.hasMore` before it renders anything - so a mock that returns a bare array, or the
+ * old flat `{ items, hasMore, nextCursor }`, crashes the page rather than failing an assertion.
+ * One builder so a new list test cannot reintroduce a hand-written envelope that drifts from the
+ * real one.</p>
+ */
+export function listPage<T>(items: T[], overrides: { hasMore?: boolean; nextCursor?: string | null } = {}) {
+  return {
+    data: items,
+    pagination: {
+      mode: 'cursor' as const,
+      nextCursor: overrides.nextCursor ?? null,
+      prevCursor: null,
+      pageSize: 20,
+      totalCount: null,
+      hasMore: overrides.hasMore ?? false,
+    },
+    meta: { sort: null, filtersApplied: null },
+  }
+}

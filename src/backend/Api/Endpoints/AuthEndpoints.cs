@@ -214,16 +214,19 @@ public static class AuthEndpoints
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (
             string? cursor,
-            int? limit,
+            int? pageSize,
+            bool? withCount,
             HttpContext httpContext,
             IListSessionsHandler handler,
             CancellationToken ct) =>
         {
             httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
-            var sessions = await handler.HandleAsync(currentToken, cursor, limit, ct);
-            return Results.Ok(sessions);
+            var sessions = await handler.HandleAsync(currentToken, cursor, pageSize, withCount == true, ct);
+            return ListResponse.Ok(httpContext, sessions, pageSize);
         })
         .RequireAuthorization()
+        // Newest session first, so "this device" and the most recent sign-ins are on page one.
+        .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"]))
         .WithName("ListSessions");
 
         group.MapPost("/sessions/{familyId:guid}/revoke", async (

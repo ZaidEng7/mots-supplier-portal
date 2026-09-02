@@ -42,20 +42,58 @@ internal static class SupplierRfqLoader
 
 public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContext scope) : ISupplierListInvitedRfqsHandler
 {
-    public async Task<IReadOnlyList<SupplierRfqDto>> HandleAsync(CancellationToken ct)
+    public async Task<ListEnvelope<SupplierRfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct)
     {
-        if (scope.SupplierId is null) return [];
+        var size = ListEnvelope<SupplierRfqListItemDto>.ClampPageSize(pageSize);
+        if (scope.SupplierId is null) return ListEnvelope<SupplierRfqListItemDto>.Empty(size);
 
-        var rfqs = await db.Rfqs
-            .Include(r => r.Items).Include(r => r.Requirements).Include(r => r.Attachments).Include(r => r.Invitations)
-            .Include(r => r.Clarifications).Include(r => r.Addenda)
-            .AsSplitQuery()
-            .Where(r => r.Invitations.Any(i => i.SupplierId == scope.SupplierId)
-                && r.State != RfqState.Draft && r.State != RfqState.InternalReview && r.State != RfqState.Approved)
-            .OrderByDescending(r => r.CreatedAt)
+        var supplierId = scope.SupplierId.Value;
+
+        // The invitation-scoping predicate and the pre-Published exclusion are UNCHANGED, and are
+        // applied before the cursor narrows the set - so they hold identically on every page, not
+        // just the first. CrossOrganizationScopeTests' paging test exists to prove exactly that.
+        var query = db.Rfqs
+            .Where(r => r.Invitations.Any(i => i.SupplierId == supplierId)
+                && r.State != RfqState.Draft && r.State != RfqState.InternalReview && r.State != RfqState.Approved);
+
+        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
+        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
+        // shrink as the caller pages. A second query, so it is off unless asked for.
+        int? totalCount = withCount ? await query.CountAsync(ct) : null;
+
+        if (RfqListCursor.TryDecode(cursor, out var from))
+        {
+            query = query.Where(r =>
+                r.CreatedAt < from.CreatedAt
+                || (r.CreatedAt == from.CreatedAt && r.Id.CompareTo(from.Id) < 0));
+        }
+
+        // MyInvitationStatus is resolved in SQL by a correlated subquery over this supplier's own
+        // invitation row - the Invitations collection is never loaded, so the previous
+        // `r.Invitations.Single(...)` in-memory filter is gone along with the include.
+        var rows = await query
+            .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
+            .Select(r => new
+            {
+                r.Id,
+                Dto = new SupplierRfqListItemDto(
+                    r.ReferenceCode, r.TitleAr, r.TitleEn, r.State,
+                    r.Invitations.Where(i => i.SupplierId == supplierId).Select(i => i.Status).FirstOrDefault(),
+                    r.CreatedAt),
+            })
+            .Take(size + 1)
             .ToListAsync(ct);
 
-        return [.. rfqs.Select(r => RfqDtoMapper.ToSupplierDto(r, r.Invitations.Single(i => i.SupplierId == scope.SupplierId), scope.SupplierId!.Value))];
+        var hasMore = rows.Count > size;
+        var items = hasMore ? rows[..size] : rows;
+
+        return ListEnvelope<SupplierRfqListItemDto>.Cursor(
+            [.. items.Select(r => r.Dto)],
+            hasMore,
+            hasMore ? new RfqListCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
+            size,
+            totalCount,
+            sort: "-createdAt");
     }
 }
 

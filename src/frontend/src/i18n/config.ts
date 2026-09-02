@@ -8,6 +8,62 @@ const resources = {
       appName: 'بوابة الموردين',
       nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       common: { loading: 'جاري التحميل...', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
+      // UX-WRITING.md §7 "Status labels (aligned to canonical state machines)" - transcribed
+      // verbatim, not authored here. §7 is "the single source for chip text and for the accessible
+      // name announced to screen readers", so these keys are the only place a domain state becomes
+      // words. InvitationStatus has NO §7 table; it is reported as a documentation gap rather than
+      // invented, and StatusChip falls back to the raw value for it.
+      status: {
+        // §7.1 "Supplier onboarding". The doc groups onboarding and lifecycle states in ONE
+        // table; the code splits them across SupplierOnboardingState and SupplierLifecycleState.
+        // Transcribed to the doc's grouping, so both code enums render through this one machine.
+        // SupplierLifecycleState.None has no §7.1 row - reported, not authored.
+        onboarding: {
+          Draft: 'مسودة', EmailVerified: 'تم التحقق من البريد', ProfileInProgress: 'قيد الإكمال',
+          Submitted: 'مُقدَّم', UnderReview: 'قيد المراجعة', InfoRequested: 'مطلوب معلومات',
+          Resubmitted: 'أُعيد التقديم', Approved: 'معتمد', Rejected: 'مرفوض',
+          Active: 'نشط', Suspended: 'موقوف', Deactivated: 'مُلغى التفعيل',
+        },
+        // §7.2 "Supplier document". Its "Required" row has no DocumentState member and is therefore
+        // not transcribed; PendingScan and ScanRejected are members with no §7.2 row. Both
+        // directions reported as documentation gaps.
+        document: {
+          // §7.2's first row. Not a DocumentState member - it is the resting label for a required
+          // type with nothing uploaded yet, which SCREEN-SPECIFICATIONS §2 (SCR-106) also lists
+          // first in its StatusBadge set: "(Required / Uploaded / UnderReview / Approved / Rejected)".
+          Required: 'مطلوب',
+          // Code-authored, no §7 row. What `Required` BECOMES once the supplier has attempted to
+          // submit and this document is still absent - a validation display state, not a document
+          // state. Carried over from the `onboarding.missing` key it replaces.
+          Missing: 'ناقص',
+          Uploaded: 'تم الرفع', UnderReview: 'قيد المراجعة', Approved: 'معتمد',
+          Rejected: 'مرفوض', ExpiringSoon: 'ينتهي قريباً', Expired: 'منتهٍ',
+          // Carried over verbatim from the pre-existing `onboarding.docState` namespace this
+          // replaces - NOT authored here. §7.2 has no row for either; removing them would regress
+          // the chip to raw English, so they are migrated and reported as a documentation gap.
+          PendingScan: 'جاري الفحص', ScanRejected: 'مرفوض (فحص الفيروسات)',
+        },
+        rfq: {
+          Draft: 'مسودة', InternalReview: 'مراجعة داخلية', Approved: 'معتمد', Published: 'منشور',
+          SubmissionOpen: 'مفتوح للتقديم', SubmissionClosed: 'أُغلق التقديم', UnderEvaluation: 'قيد التقييم',
+          Clarification: 'استيضاح', Shortlisting: 'إعداد القائمة المختصرة', Recommendation: 'توصية',
+          AwardApproval: 'اعتماد الترسية', Awarded: 'تمت الترسية', Completed: 'مكتمل', Cancelled: 'ملغى',
+        },
+        proposal: {
+          Draft: 'مسودة', Submitted: 'مُقدَّم', UnderReview: 'قيد المراجعة',
+          ClarificationRequested: 'مطلوب استيضاح', Revised: 'مُعدَّل', Shortlisted: 'ضمن القائمة المختصرة',
+          NotSelected: 'غير مختار', AwardOffered: 'عرض ترسية', Awarded: 'تمت الترسية',
+          Declined: 'مرفوض من المورد', Withdrawn: 'مسحوب',
+        },
+        evaluation: {
+          NotStarted: 'لم يبدأ', Assigned: 'مُسند', InProgress: 'قيد التنفيذ',
+          EvaluatorSubmitted: 'تم الإرسال', Consolidated: 'مُجمَّع', Finalized: 'نهائي',
+        },
+        award: {
+          Recommended: 'موصى به', PendingApproval: 'بانتظار الاعتماد', Approved: 'معتمد',
+          Rejected: 'مرفوض', Awarded: 'تمت الترسية',
+        },
+      },
       phone: {
         countryCode: 'رمز الدولة',
         localNumberPlaceholder: 'رقم الهاتف',
@@ -68,7 +124,10 @@ const resources = {
       onboarding: {
         title: 'استكمال بيانات المورد',
         checklist: 'قائمة المتطلبات',
-        missing: 'ناقص',
+        // `onboarding.missing` is gone: the label now lives in status.document.Missing, so the
+        // document chip has exactly one source like every other machine.
+        submitBlockedTitle: 'لا يمكن إرسال الطلب بعد',
+        submitBlockedIntro: 'الوثائق المطلوبة التالية ناقصة:',
         complete: 'مكتمل',
         save: 'حفظ',
         submit: 'إرسال الطلب',
@@ -129,16 +188,6 @@ const resources = {
         resubmit: 'إعادة الإرسال',
         resubmitted: 'تم إعادة إرسال الطلب للمراجعة',
         resubmitFailed: 'تعذر إعادة إرسال الطلب',
-        docState: {
-          PendingScan: 'جاري الفحص',
-          ScanRejected: 'مرفوض (فحص الفيروسات)',
-          Uploaded: 'تم الرفع',
-          UnderReview: 'قيد المراجعة',
-          Approved: 'معتمد',
-          Rejected: 'مرفوض',
-          ExpiringSoon: 'قارب على الانتهاء',
-          Expired: 'منتهي الصلاحية',
-        },
         termsLabel: 'الموافقة على الشروط والأحكام',
         termsTitle: 'الشروط والأحكام',
         termsCheckboxLabel: 'أقر بأنني قرأت ووافقت على الشروط والأحكام وسياسة معالجة البيانات الخاصة ببوابة الموردين.',
@@ -330,6 +379,7 @@ const resources = {
         add: 'طلب جديد',
         listTitle: 'قائمة الطلبات',
         empty: 'لا توجد طلبات بعد',
+        loadMore: 'عرض المزيد',
         createTitle: 'إنشاء طلب عرض أسعار',
         save: 'حفظ',
         cancel: 'إلغاء',
@@ -534,6 +584,7 @@ const resources = {
         subtitle: 'طلبات العروض التي دُعيت للمشاركة فيها.',
         listTitle: 'قائمة الدعوات',
         empty: 'لا توجد دعوات بعد',
+        loadMore: 'عرض المزيد',
         myStatus: 'حالتي',
         notFound: 'الطلب غير موجود',
         declineTitle: 'رفض الدعوة',
@@ -787,6 +838,43 @@ const resources = {
       appName: 'Supplier Portal',
       nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       common: { loading: 'Loading...', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
+      // See the Arabic block above for why these are transcription, not authorship.
+      status: {
+        onboarding: {
+          Draft: 'Draft', EmailVerified: 'Email verified', ProfileInProgress: 'In progress',
+          Submitted: 'Submitted', UnderReview: 'Under review', InfoRequested: 'Info requested',
+          Resubmitted: 'Resubmitted', Approved: 'Approved', Rejected: 'Rejected',
+          Active: 'Active', Suspended: 'Suspended', Deactivated: 'Deactivated',
+        },
+        document: {
+          Required: 'Required',
+          Missing: 'Missing',
+          Uploaded: 'Uploaded', UnderReview: 'Under review', Approved: 'Approved',
+          Rejected: 'Rejected', ExpiringSoon: 'Expiring soon', Expired: 'Expired',
+          PendingScan: 'Scanning', ScanRejected: 'Rejected (virus scan)',
+        },
+        rfq: {
+          Draft: 'Draft', InternalReview: 'Internal review', Approved: 'Approved', Published: 'Published',
+          SubmissionOpen: 'Open for submissions', SubmissionClosed: 'Submissions closed',
+          UnderEvaluation: 'Under evaluation', Clarification: 'Clarification', Shortlisting: 'Shortlisting',
+          Recommendation: 'Recommendation', AwardApproval: 'Award approval', Awarded: 'Awarded',
+          Completed: 'Completed', Cancelled: 'Cancelled',
+        },
+        proposal: {
+          Draft: 'Draft', Submitted: 'Submitted', UnderReview: 'Under review',
+          ClarificationRequested: 'Clarification requested', Revised: 'Revised', Shortlisted: 'Shortlisted',
+          NotSelected: 'Not selected', AwardOffered: 'Award offered', Awarded: 'Awarded',
+          Declined: 'Declined', Withdrawn: 'Withdrawn',
+        },
+        evaluation: {
+          NotStarted: 'Not started', Assigned: 'Assigned', InProgress: 'In progress',
+          EvaluatorSubmitted: 'Submitted', Consolidated: 'Consolidated', Finalized: 'Finalized',
+        },
+        award: {
+          Recommended: 'Recommended', PendingApproval: 'Pending approval', Approved: 'Approved',
+          Rejected: 'Rejected', Awarded: 'Awarded',
+        },
+      },
       phone: {
         countryCode: 'Country code',
         localNumberPlaceholder: 'Phone number',
@@ -847,7 +935,8 @@ const resources = {
       onboarding: {
         title: 'Complete Your Supplier Profile',
         checklist: 'Requirements checklist',
-        missing: 'Missing',
+        submitBlockedTitle: 'Your application cannot be submitted yet',
+        submitBlockedIntro: 'These required documents are missing:',
         complete: 'Complete',
         save: 'Save',
         submit: 'Submit application',
@@ -908,16 +997,6 @@ const resources = {
         resubmit: 'Resubmit',
         resubmitted: 'Application resubmitted for review',
         resubmitFailed: 'Could not resubmit application',
-        docState: {
-          PendingScan: 'Scanning',
-          ScanRejected: 'Rejected (virus scan)',
-          Uploaded: 'Uploaded',
-          UnderReview: 'Under review',
-          Approved: 'Approved',
-          Rejected: 'Rejected',
-          ExpiringSoon: 'Expiring soon',
-          Expired: 'Expired',
-        },
         termsLabel: 'Terms & Conditions accepted',
         termsTitle: 'Terms & Conditions',
         termsCheckboxLabel: 'I confirm I have read and accept the Supplier Portal Terms & Conditions and data-processing notice.',
@@ -1109,6 +1188,7 @@ const resources = {
         add: 'New RFQ',
         listTitle: 'RFQ List',
         empty: 'No RFQs yet',
+        loadMore: 'Load more',
         createTitle: 'Create RFQ',
         save: 'Save',
         cancel: 'Cancel',
@@ -1313,6 +1393,7 @@ const resources = {
         subtitle: 'Requests for Quotation you have been invited to.',
         listTitle: 'Invitations',
         empty: 'No invitations yet',
+        loadMore: 'Load more',
         myStatus: 'My status',
         notFound: 'RFQ not found',
         declineTitle: 'Decline invitation',
