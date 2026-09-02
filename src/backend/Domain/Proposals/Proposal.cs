@@ -308,4 +308,40 @@ public sealed class Proposal
         WithdrawnAt = DateTimeOffset.UtcNow;
         WithdrawReason = reason;
     }
+
+    /// <summary>EPIC-14/FEAT-14.4/FR-AWD-004: the winning proposal at award time. Guards on
+    /// 'Submitted' rather than 'Shortlisted' - DOMAIN-MODEL.md's own canonical machine routes
+    /// through Shortlisted first, but EPIC-13 (the epic that would ever move a proposal into it)
+    /// isn't built, so 'Shortlisted' is unreachable by any method on this aggregate today; treating
+    /// 'Submitted' as the award-eligible pre-state is this build's real, working substitute for a
+    /// stage that doesn't exist yet, not a silent skip of the real guard - eligibility itself is
+    /// still fully enforced (Finalized evaluation + passed thresholds), just by the Award aggregate
+    /// before it ever calls this method, the same cross-aggregate-guard split used everywhere else
+    /// in this codebase.
+    ///
+    /// <para><b>AwardOffered is skipped</b> - straight to Awarded, no supplier-facing accept/decline
+    /// step (BRULE-057/081's active-acceptance flow). Flagged as a real, interim scope decision:
+    /// nothing in this build lets a supplier decline an award, so "the winner accepted" is assumed
+    /// the instant the award is issued, not observed.</para></summary>
+    public void Award()
+    {
+        if (State != ProposalState.Submitted)
+        {
+            throw new DomainException($"Cannot award from state '{State}'; only 'Submitted' is valid.");
+        }
+        State = ProposalState.Awarded;
+    }
+
+    /// <summary>EPIC-14/FEAT-14.4/FR-AWD-004: every other Submitted proposal on the RFQ, moved in
+    /// the same handler call/SaveChanges as the winner's Award() - see AwardHandlers' own doc
+    /// comment on why this must never leave a window where some proposals are updated and others
+    /// aren't.</summary>
+    public void MarkNotSelected()
+    {
+        if (State != ProposalState.Submitted)
+        {
+            throw new DomainException($"Cannot mark not-selected from state '{State}'; only 'Submitted' is valid.");
+        }
+        State = ProposalState.NotSelected;
+    }
 }
