@@ -1,4 +1,5 @@
-using System.Text.Json;
+using System.Text.Json.Nodes;
+using MotsSupplierPortal.Api.Errors;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
@@ -99,30 +100,36 @@ internal sealed class ListQueryFilter(ListQueryPolicy policy) : IEndpointFilter
     /// without a round-trip, as §7.2's own rationale requires.
     /// </summary>
     private static IResult Problem(string type, string title, string code, string detail, string field) =>
-        Results.Json(new
+        new ProblemResult(type, title, code, detail, field);
+
+    /// <summary>
+    /// Routes through <see cref="ProblemResponse"/> so these guards stop being a special case:
+    /// before this they emitted their own hand-built problem+json, which the shaping middleware
+    /// passed through untouched - correct media type, correct slug, and missing `instance`,
+    /// `traceId` and `correlationId` that §7 requires on every error. The bilingual `errors[]` is
+    /// preserved as an RFC 9457 extension member.
+    /// </summary>
+    private sealed record ProblemResult(string Type, string Title, string Code, string Detail, string Field) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
         {
-            type,
-            title,
-            status = StatusCodes.Status422UnprocessableEntity,
-            detail,
-            code,
-            errors = new[]
+            var problem = ProblemResponse.Build(
+                httpContext, StatusCodes.Status422UnprocessableEntity, Type, Title, Code, Detail);
+
+            problem["errors"] = new JsonArray(new JsonObject
             {
-                new
+                ["field"] = Field,
+                ["code"] = Code,
+                ["messages"] = new JsonObject
                 {
-                    field,
-                    code,
-                    messages = new Dictionary<string, string>
-                    {
-                        ["ar"] = "معامل غير معروف في الطلب.",
-                        ["en"] = detail,
-                    },
+                    ["ar"] = "معامل غير معروف في الطلب.",
+                    ["en"] = Detail,
                 },
-            },
-        },
-        statusCode: StatusCodes.Status422UnprocessableEntity,
-        contentType: "application/problem+json",
-        options: JsonSerializerOptions.Web);
+            });
+
+            await ProblemResponse.WriteAsync(httpContext, problem);
+        }
+    }
 }
 
 internal static class ListQueryExtensions

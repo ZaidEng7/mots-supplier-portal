@@ -533,6 +533,11 @@ foreach (var warning in MotsSupplierPortal.Api.Configuration.RequiredConfigurati
     app.Logger.LogWarning("Configuration warning: {Warning}", warning);
 }
 
+// §7: every non-2xx (except 304) is application/problem+json. Registered BEFORE the concurrency
+// handler below and before the endpoints, so it is outermost among the error-shaping middleware and
+// therefore sees - and conforms - whatever they produce, including the 409 that handler writes.
+app.UseMiddleware<MotsSupplierPortal.Api.Errors.ProblemDetailsMiddleware>();
+
 app.UseSerilogRequestLogging();
 
 // EPIC-13/FEAT-13.5/FR-PWF-005: a RowVersion (xmin) mismatch on any write throws
@@ -599,6 +604,15 @@ app.UseResponseCompression();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // §7: "500 responses never include stack traces, SQL, or internal messages". That is a NEGATIVE
+    // about a path no ordinary request takes, so it can only be proven by deliberately taking it.
+    // Development-only, and it is the subject of ErrorModelTests' planted-secret assertion.
+    app.MapGet("/__test/throw", (Func<IResult>)(() =>
+        throw new InvalidOperationException(
+            "LEAK_CANARY_a7f3d2e1: connection string Host=db;Password=hunter2; at Table supplier.legal_info")))
+        .AllowAnonymous()
+        .WithName("TestThrow");
 
     using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
