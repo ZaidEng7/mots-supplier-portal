@@ -201,8 +201,13 @@ public static class Roles
         // EPIC-09/BUSINESS-PROCESSES.md §4.1: proposal.create/proposal.edit go to both supplier
         // roles; proposal.submit/proposal.withdraw are supplier_admin only per that table's own
         // actor column.
-        [SupplierAdmin] = [Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
-        [SupplierUser] = [Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.SupplierEdit],
+        // §12-A/C1: rfq.read joins both supplier roles because GET /rfqs and GET /rfqs/{code} are
+        // now ONE collection serving both personas (§12.4), gated by permission and filtered by
+        // row-scope (§9.2). A supplier reading the RFQs they were invited to is a read of an RFQ;
+        // the invitation-scoped handler behind it is unchanged, so this widens who may call the
+        // route, not what any caller can see.
+        [SupplierAdmin] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
+        [SupplierUser] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
         // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template

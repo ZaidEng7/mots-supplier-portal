@@ -65,15 +65,15 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
 
 export async function listInvitedRfqs(cursor?: string | null): Promise<ListEnvelope<SupplierRfqListItem>> {
   const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
-  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs${qs}`))
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs${qs}`))
 }
 
 export async function getInvitedRfq(referenceCode: string): Promise<SupplierRfq> {
-  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs/${referenceCode}`))
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}`))
 }
 
 export async function declineInvitation(referenceCode: string, reason: string | null): Promise<SupplierRfq> {
-  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs/${referenceCode}/decline`, {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations/decline`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
@@ -81,7 +81,7 @@ export async function declineInvitation(referenceCode: string, reason: string | 
 }
 
 export async function postClarification(referenceCode: string, question: string): Promise<SupplierRfq> {
-  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs/${referenceCode}/clarifications`, {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/clarifications`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question }),

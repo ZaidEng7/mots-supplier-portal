@@ -26,7 +26,7 @@ describe('SupplierRfqDetailPage', () => {
   afterEach(() => restore?.())
 
   it('renders RFQ items and the current invitation status', async () => {
-    restore = mockFetch({ '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': fixture('Viewed') })
+    restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed') })
 
     renderPage(<SupplierRfqDetailPage />)
 
@@ -35,7 +35,7 @@ describe('SupplierRfqDetailPage', () => {
   })
 
   it('declining shows a success toast', async () => {
-    restore = mockFetch({ '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': fixture('Invited') })
+    restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001': fixture('Invited') })
 
     renderPage(<SupplierRfqDetailPage />)
 
@@ -45,7 +45,7 @@ describe('SupplierRfqDetailPage', () => {
   })
 
   it('hides the decline action once already declined', async () => {
-    restore = mockFetch({ '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': fixture('Declined') })
+    restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001': fixture('Declined') })
 
     renderPage(<SupplierRfqDetailPage />)
 
@@ -65,7 +65,7 @@ describe('SupplierRfqDetailPage', () => {
 
   it('shows a PublishedToAll clarification without any asker-identity field, and asking a new question shows a success toast', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': {
+      '/api/v1/rfqs/RFQ-2026-000001': {
         ...fixture('Viewed'),
         clarifications: [
           { id: 'cl-1', question: 'What is the delivery incoterm?', answer: 'FOB.', visibility: 'PublishedToAll', askedAt: '2026-08-01T00:00:00Z', answeredAt: '2026-08-02T00:00:00Z', isMine: false },
@@ -87,7 +87,7 @@ describe('SupplierRfqDetailPage', () => {
 
   it('marks the asker’s own question as "My question"', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': {
+      '/api/v1/rfqs/RFQ-2026-000001': {
         ...fixture('Viewed'),
         clarifications: [
           { id: 'cl-1', question: 'My own question', answer: null, visibility: 'PrivateToAsker', askedAt: '2026-08-01T00:00:00Z', answeredAt: null, isMine: true },

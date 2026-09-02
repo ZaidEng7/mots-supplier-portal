@@ -108,15 +108,44 @@ public static class RfqEndpoints
         _ => Results.Problem(),
     };
 
+    /// <summary>Supplier-side result mapping, moved here with the routes it serves. 404 (never
+    /// 403) for a non-invited supplier, per §9.2's "avoid leaking existence".</summary>
+    private static IResult MapSupplierResult(SupplierRfqResult result) => result switch
+    {
+        SupplierRfqResult.Success s => Results.Ok(s.Rfq),
+        SupplierRfqResult.NotFoundOrNotInvited => Results.NotFound(),
+        SupplierRfqResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
+        _ => Results.Problem(),
+    };
+
     public static void MapRfqEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/rfqs").WithTags("Rfqs");
 
-        group.MapGet("/", async (string? cursor, int? pageSize, bool? withCount, HttpContext httpContext, IListRfqsHandler handler, CancellationToken ct) =>
-            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
+        // §12-A/C1: ONE collection, two personas. §12.4 heads this route "supplier-facing list of
+        // invited/published RFQs" while documenting a buyer transition in the same section, and
+        // §9.2 scopes by the caller's own supplierId/orgId rather than by path.
+        //
+        // The route converges; the HANDLERS DO NOT. Each persona keeps its own handler and its own
+        // DTO, and the endpoint only chooses between them. That is deliberate: a single handler
+        // deciding per-field what to include would make a cross-persona leak a runtime branch,
+        // where today it is structurally impossible - SupplierListInvitedRfqsHandler has no code
+        // path that can emit a buyer-only field because its DTO has no such member. Convergence
+        // was required by the contract; giving up that property was not.
+        group.MapGet("/", async (
+            string? cursor, int? pageSize, bool? withCount, HttpContext httpContext,
+            IScopeContext scope,
+            IListRfqsHandler buyerHandler,
+            ISupplierListInvitedRfqsHandler supplierHandler,
+            CancellationToken ct) =>
+            scope.SupplierId is not null
+                ? ListResponse.Ok(httpContext, await supplierHandler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize)
+                : ListResponse.Ok(httpContext, await buyerHandler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
         // rfq.read, not rfq.create: procurement_manager must approve RFQs (BUSINESS-PROCESSES.md
         // §3.1) and holds no authoring permission, so gating a read on create locked the approver
-        // out of the list they approve from.
+        // out of the list they approve from. Supplier roles hold it too now - §9.2 makes the
+        // permission the gate and row-scope the filter, and a supplier reading the RFQs they were
+        // invited to is a read of an RFQ.
         .RequirePermission(Permissions.RfqRead)
         // §6.3 gives "-publishedAt" as its worked example of an RFQ list default. It cannot be this
         // list's key: this is the BUYER's list, which is mostly Drafts, and a draft has no
@@ -125,13 +154,54 @@ public static class RfqEndpoints
         .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"]))
         .WithName("ListRfqs");
 
-        group.MapGet("/{referenceCode}", async (string referenceCode, IGetRfqHandler handler, CancellationToken ct) =>
+        // §12.4, explicitly: *"Fields visible per persona are row-scoped (a supplier never sees
+        // other suppliers' proposals or the evaluation internals)"* and *"- for buyers -
+        // invitations[]"*. Same dispatch-not-branch reasoning as the list above.
+        group.MapGet("/{referenceCode}", async (
+            string referenceCode,
+            IScopeContext scope,
+            IGetRfqHandler buyerHandler,
+            ISupplierGetRfqHandler supplierHandler,
+            CancellationToken ct) =>
         {
-            var rfq = await handler.HandleAsync(referenceCode, ct);
+            if (scope.SupplierId is not null)
+            {
+                return MapSupplierResult(await supplierHandler.HandleAsync(referenceCode, ct));
+            }
+
+            var rfq = await buyerHandler.HandleAsync(referenceCode, ct);
             return rfq is null ? Results.NotFound() : Results.Ok(rfq);
         })
         .RequirePermission(Permissions.RfqRead)
         .WithName("GetRfq");
+
+        // §3 lists "/rfqs/{rfqCode}/clarifications" as an RFQ sub-resource. The supplier-side POST
+        // moves here from /suppliers/me/rfqs/{code}/clarifications; the buyer-side answer/publish
+        // routes were already on this collection.
+        group.MapPost("/{referenceCode}/clarifications", async (
+            string referenceCode,
+            PostClarificationRequest request,
+            IValidator<PostClarificationRequest> validator,
+            ISupplierPostClarificationHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
+            return MapSupplierResult(await handler.HandleAsync(new PostClarificationQuestionCommand(referenceCode, request.Question), ct));
+        })
+        .RequirePermission(Permissions.ProposalCreate)
+        .WithName("SupplierPostClarification");
+
+        // INVENTION - reported as such. §3 names "/rfqs/{rfqCode}/invitations" as the sub-resource
+        // and makes state transitions POSTs on a sub-resource, but names no decline transition
+        // anywhere. This composes the two documented rules rather than transcribing a documented
+        // path: the invitation is what is being declined, so the transition hangs off it.
+        group.MapPost("/{referenceCode}/invitations/decline", async (
+            string referenceCode, DeclineInvitationRequest request, ISupplierDeclineInvitationHandler handler, CancellationToken ct) =>
+            MapSupplierResult(await handler.HandleAsync(new DeclineInvitationCommand(referenceCode, request.Reason), ct)))
+        .RequirePermission(Permissions.ProposalCreate)
+        .WithName("SupplierDeclineInvitation");
 
         group.MapPost("/", async (
             RfqBasicsRequest request,

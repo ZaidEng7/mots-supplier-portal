@@ -89,13 +89,13 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var referenceCode = await CreatePublishedRfqWithInviteAsync(invitedSupplierId, "Invite-Only RFQ");
         var (outsiderClient, _) = await ActiveSupplierAsync($"Outsider {Guid.NewGuid():N}"[..30]);
 
-        var invitedGet = await invitedClient.GetAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var invitedGet = await invitedClient.GetAsync($"/api/v1/rfqs/{referenceCode}");
         invitedGet.StatusCode.Should().Be(HttpStatusCode.OK, "the actually-invited supplier must see it");
 
-        var outsiderGet = await outsiderClient.GetAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var outsiderGet = await outsiderClient.GetAsync($"/api/v1/rfqs/{referenceCode}");
         outsiderGet.StatusCode.Should().Be(HttpStatusCode.NotFound, "a non-invited supplier must not be able to tell the RFQ exists");
 
-        var wrongReferenceCode = await outsiderClient.GetAsync("/api/v1/suppliers/me/rfqs/RFQ-2026-999999");
+        var wrongReferenceCode = await outsiderClient.GetAsync("/api/v1/rfqs/RFQ-2026-999999");
         wrongReferenceCode.StatusCode.Should().Be(HttpStatusCode.NotFound, "same 404 as a non-existent reference code - no oracle for 'does this RFQ exist'");
     }
 
@@ -107,7 +107,7 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var (outsiderClient, _) = await ActiveSupplierAsync($"DeclineOutsider {Guid.NewGuid():N}"[..30]);
         _ = invitedClient;
 
-        var declineAttempt = await outsiderClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/decline", new { reason = (string?)null });
+        var declineAttempt = await outsiderClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations/decline", new { reason = (string?)null });
 
         declineAttempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -120,12 +120,12 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
 
         // The list returns the §5.2 envelope now, and projects a list item rather than the whole
         // aggregate - myInvitationStatus is still on it, resolved server-side per caller.
-        var list = (await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/rfqs")).GetProperty("data");
+        var list = (await client.GetFromJsonAsync<JsonElement>("/api/v1/rfqs")).GetProperty("data");
         list.EnumerateArray().Should().Contain(r => r.GetProperty("referenceCode").GetString() == referenceCode);
         var listedState = list.EnumerateArray().Single(r => r.GetProperty("referenceCode").GetString() == referenceCode);
         listedState.GetProperty("myInvitationStatus").GetString().Should().Be(nameof(InvitationStatus.Invited));
 
-        var detail = await client.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var detail = await client.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         detail.GetProperty("myInvitationStatus").GetString().Should().Be(nameof(InvitationStatus.Viewed));
         detail.TryGetProperty("approvals", out _).Should().BeFalse("the supplier-facing shape excludes internal reviewer approvals");
     }
@@ -136,7 +136,7 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var (client, supplierId) = await ActiveSupplierAsync($"Decliner {Guid.NewGuid():N}"[..30]);
         var referenceCode = await CreatePublishedRfqWithInviteAsync(supplierId, "Decline RFQ");
 
-        var decline = await client.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/decline", new { reason = "Capacity constraints" });
+        var decline = await client.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations/decline", new { reason = "Capacity constraints" });
 
         decline.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await decline.Content.ReadFromJsonAsync<JsonElement>();
