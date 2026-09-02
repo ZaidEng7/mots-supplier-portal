@@ -473,8 +473,11 @@ public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAud
 /// <summary>FEAT-07.5/BUSINESS-PROCESSES.md §3.1: Approved -&gt; Published. BRULE-032/EPIC-08 gap
 /// closed: re-checks every currently-invited supplier's LifecycleState before publishing, since
 /// InviteSupplierHandler only guarantees Active AT INVITE time - time may have passed (and a
-/// supplier may have been suspended/deactivated) between invite and this transition.</summary>
-public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IPublishRfqHandler
+/// supplier may have been suspended/deactivated) between invite and this transition.
+/// FEAT-13.3 audit gap fix: notifies every invited supplier that submissions are now open -
+/// previously only the invite-time email told them an RFQ existed at all, with nothing marking the
+/// actual open-for-submission moment.</summary>
+public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IPublishRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(PublishRfqCommand command, CancellationToken ct)
     {
@@ -505,6 +508,17 @@ public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAud
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_published", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.Approved), toState: nameof(RfqState.Published), ct: ct);
         await db.SaveChangesAsync(ct);
+
+        if (invitedSupplierIds.Count > 0)
+        {
+            var userIds = await db.Users.Where(u => u.SupplierId != null && invitedSupplierIds.Contains(u.SupplierId.Value))
+                .Select(u => u.Id).ToListAsync(ct);
+            foreach (var userId in userIds)
+            {
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendRfqPublishedEmailAsync(userId, rfq.Id, CancellationToken.None));
+            }
+        }
+
         return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
@@ -535,8 +549,10 @@ public sealed class CloseRfqSubmissionHandler(AppDbContext db, IScopeContext sco
 }
 
 /// <summary>FEAT-07.8/BUSINESS-PROCESSES.md §3.1: cancel from any pre-Awarded state, reason
-/// mandatory.</summary>
-public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICancelRfqHandler
+/// mandatory. FEAT-13.3 audit gap fix: notifies every invited supplier AND, if an Evaluation had
+/// already been opened, every assigned evaluator - both had work in flight on this RFQ that just
+/// became moot, and neither was told before this fix.</summary>
+public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : ICancelRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(CancelRfqCommand command, CancellationToken ct)
     {
@@ -556,6 +572,29 @@ public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAudi
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_cancelled", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: fromState.ToString(), toState: nameof(RfqState.Cancelled), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
+
+        var invitedSupplierIds = rfq.Invitations.Select(i => i.SupplierId).ToList();
+        if (invitedSupplierIds.Count > 0)
+        {
+            var supplierUserIds = await db.Users.Where(u => u.SupplierId != null && invitedSupplierIds.Contains(u.SupplierId.Value))
+                .Select(u => u.Id).ToListAsync(ct);
+            foreach (var userId in supplierUserIds)
+            {
+                backgroundJobs.Enqueue<EmailJobs>(job => job.SendRfqCancelledEmailAsync(userId, rfq.Id, CancellationToken.None));
+            }
+        }
+
+        var evaluationId = await db.Evaluations.Where(e => e.RfqId == rfq.Id).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+        var evaluatorUserIds = evaluationId is null
+            ? []
+            : await db.EvaluationAssignments
+                .Where(a => a.EvaluationId == evaluationId.Value && a.RecusedAt == null)
+                .Select(a => a.EvaluatorUserId).Distinct().ToListAsync(ct);
+        foreach (var userId in evaluatorUserIds)
+        {
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendRfqCancelledEmailAsync(userId, rfq.Id, CancellationToken.None));
+        }
+
         return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 }
