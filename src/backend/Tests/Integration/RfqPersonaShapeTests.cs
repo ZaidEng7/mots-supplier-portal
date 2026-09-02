@@ -49,6 +49,11 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
     private static readonly string[] SupplierListItemKeys =
     [
         "referenceCode", "titleAr", "titleEn", "state", "myInvitationStatus", "createdAt",
+        // §12-A/D: §12.4's documented list fields. Each is here because a supplier is documented to
+        // receive it - and each is asserted absent from the buyer row below, because §12.4
+        // documents only the supplier shape and hasDraftProposal/myInvitationStatus are
+        // caller-relative.
+        "publishedAt", "buyingOrg", "itemsCount", "hasDraftProposal",
     ];
 
     /// <summary>
@@ -190,9 +195,13 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         var row = body.GetProperty("data").EnumerateArray()
             .Single(r => r.GetProperty("referenceCode").GetString() == code);
 
-        row.TryGetProperty("myInvitationStatus", out _).Should().BeFalse(
-            "\"for the calling supplier\" has no meaning for a buyer, and emitting it would be a lie " +
-            "rather than merely a redundant field");
+        foreach (var callerRelative in new[] { "myInvitationStatus", "hasDraftProposal" })
+        {
+            row.TryGetProperty(callerRelative, out _).Should().BeFalse(
+                $"'{callerRelative}' is relative to the CALLING SUPPLIER (§12.4 says so of " +
+                "invitationStatus in as many words), so emitting it to a buyer would be a lie rather " +
+                "than merely a redundant field");
+        }
     }
 
     // ---- ministry_viewer ----------------------------------------------------------------------
