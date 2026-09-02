@@ -109,66 +109,67 @@ public sealed class RecurringJobSuppressionTests(PostgresApiFixture fixture)
     /// so no deployment changes by default - but a typo in the key in a real environment silently
     /// stops rfq-timeline, and RFQ submission windows then never open and never close. Tenders stop
     /// working with no error anywhere. A misconfiguration that silently DISABLES is worse than one
-    /// that fails loudly, which is the same reasoning that made ?state=Approvd returning everything
-    /// unacceptable.</para>
+    /// that fails loudly.</para>
     ///
     /// <para><b>Exactly, both directions.</b> A missing id fails and an unexpected id fails, so a
     /// sixth job added without a decision about this list fails here rather than shipping
-    /// unscheduled - or scheduled and unsuppressed under the suite, which is the same hazard this
-    /// file exists to remove.</para>
+    /// unscheduled - or scheduled and unsuppressed under the suite, which is the hazard this file
+    /// exists to remove.</para>
     ///
-    /// <para><b>Isolation, stated plainly.</b> The derived host shares this fixture's database -
-    /// there is no separate Hangfire schema configured - so registering these five writes into
-    /// STORAGE THE REST OF THE SUITE USES. They are removed in a finally, and the last assertion
-    /// re-checks that shared storage is clean afterwards, so a failure mid-test cannot leave the
-    /// hazard behind. The residual window is the few seconds between registration and cleanup:
-    /// Hangfire computes the next occurrence from the cron AT registration, so a */5 job registered
-    /// now is not due until the next boundary and a daily one not until tomorrow - but this is a
-    /// narrowed window rather than a closed one, and it is the reason this test does its own
-    /// cleanup rather than trusting the fixture.</para>
+    /// <para><b>Its own Hangfire schema.</b> The first version of this test registered five real
+    /// recurring jobs into the storage the whole suite shares and deleted them afterwards, which
+    /// left a window of seconds in which the exact race this batch removed was back. The window was
+    /// small and self-cleaning, and it was still the suite doing the thing the suite exists to
+    /// prevent. The derived host now points Hangfire at its own schema, so the registration is
+    /// invisible to every other host - and because storage is genuinely separate, the finally-cleanup
+    /// and its post-condition are gone rather than merely reduced.</para>
     /// </summary>
     [Fact]
     public async Task With_the_flag_at_its_default_exactly_the_known_recurring_jobs_are_scheduled()
     {
+        // Unique per run: a leftover schema from an earlier run must not be able to answer for this
+        // one, which is the same reasoning as the stale-definition case above.
+        var schema = $"hangfire_ctl_{Guid.NewGuid():N}"[..24];
+
         await using var enabledHost = fixture.WithWebHostBuilder(builder =>
-            builder.UseSetting("Jobs:EnableRecurring", "true"));
-
-        try
         {
-            using var client = enabledHost.CreateClient();
-            _ = await client.GetAsync("/health/live");
+            builder.UseSetting("Jobs:EnableRecurring", "true");
+            builder.UseSetting("Hangfire:SchemaName", schema);
+        });
 
-            using var scope = enabledHost.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        using var client = enabledHost.CreateClient();
+        _ = await client.GetAsync("/health/live");
 
-            var scheduled = await db.Database
-                .SqlQuery<string>($@"SELECT value AS ""Value"" FROM hangfire.set WHERE key = 'recurring-jobs'")
-                .ToListAsync();
+        using var scope = enabledHost.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            scheduled.Should().BeEquivalentTo(KnownRecurringJobIds,
-                "with the flag at its default every one of these must be scheduled - a MISSING id is a " +
-                "job that silently stopped running in production, and an UNEXPECTED id is a new job " +
-                "nobody decided about, which would also be unsuppressed under this suite");
-        }
-        finally
-        {
-            using var cleanupScope = fixture.Services.CreateScope();
-            var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await cleanupDb.Database.ExecuteSqlRawAsync(
-                "DELETE FROM hangfire.set WHERE key = 'recurring-jobs';");
-            await cleanupDb.Database.ExecuteSqlRawAsync(
-                "DELETE FROM hangfire.hash WHERE key LIKE 'recurring-job:%';");
-        }
+        // Still Hangfire's REAL storage, just this host's own - the assertion is unchanged in
+        // strength: what is actually scheduled, read from the scheduler's own tables.
+        // The schema name is a literal in the SQL because an identifier cannot be parameterised.
+        // It is not caller input: this test generated it a few lines above from a Guid, and the
+        // format string below is built deliberately rather than interpolated into an EF Core
+        // FormattableString (which is what EF1002 exists to stop).
+        var scheduledSql = string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            @"SELECT value AS ""Value"" FROM {0}.set WHERE key = 'recurring-jobs'", schema);
+        var scheduled = await db.Database.SqlQueryRaw<string>(scheduledSql).ToListAsync();
 
-        // The post-condition: this test must not have left the suite worse than it found it.
-        using var verifyScope = fixture.Services.CreateScope();
-        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var remaining = await verifyDb.Database
+        scheduled.Should().BeEquivalentTo(KnownRecurringJobIds,
+            "with the flag at its default every one of these must be scheduled - a MISSING id is a " +
+            "job that silently stopped running in production, and an UNEXPECTED id is a new job " +
+            "nobody decided about, which would also be unsuppressed under this suite");
+
+        // THE ISOLATION, ASSERTED RATHER THAN DESCRIBED. Registering five real recurring jobs must
+        // have left the shared storage untouched; if this fails, the control has reintroduced the
+        // race for every test that runs after it.
+        using var sharedScope = fixture.Services.CreateScope();
+        var sharedDb = sharedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var shared = await sharedDb.Database
             .SqlQuery<string>($@"SELECT value AS ""Value"" FROM hangfire.set WHERE key = 'recurring-jobs'")
             .ToListAsync();
 
-        remaining.Should().BeEmpty(
-            "the control registers real recurring jobs into shared storage, so it has to clean up " +
-            "after itself - otherwise it reintroduces exactly the race this batch removed");
+        shared.Should().BeEmpty(
+            "the control schedules real jobs, and it must do so somewhere the rest of the suite " +
+            "cannot see - separate storage is the claim, and this is the evidence for it");
     }
 }

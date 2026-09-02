@@ -121,11 +121,20 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 
 // Hangfire: durable background jobs (verification email, password-reset email) backed by Postgres
 // so a queued send survives an app restart (docs/architecture/00-foundational-decisions.md §2).
+// MSP-98: the schema is configuration rather than a constant. A hardcoded schema is a testability
+// problem in its own right - it makes "this host's Hangfire storage" and "every other host's
+// Hangfire storage" the same thing, so a test that needs to observe real scheduling has no way to do
+// it without writing into the storage every other test shares. Defaults to Hangfire's own
+// "hangfire", so nothing changes for any deployment that does not set it.
+var hangfireSchema = builder.Configuration.GetValue("Hangfire:SchemaName", defaultValue: "hangfire")!;
+
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
+    .UsePostgreSqlStorage(
+        c => c.UseNpgsqlConnection(connectionString),
+        new PostgreSqlStorageOptions { SchemaName = hangfireSchema }));
 builder.Services.AddHangfireServer();
 
 // Password-reset tokens get their own short lifespan (docs/security/SECURITY-ARCHITECTURE.md §1.7:
@@ -771,28 +780,36 @@ string[] RecurringJobIds =
 
 var recurringJobsEnabled = builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
 
+// THIS HOST's job manager, resolved from DI, rather than the static RecurringJob facade. The static
+// API writes to JobStorage.Current, which is process-wide: in a test process running more than one
+// host, the FIRST host to initialise wins and every later host silently registers into that one's
+// storage - schema override and all. Proven, not assumed: with the static API a derived host
+// configured for its own schema created the schema and put all five jobs in the shared one.
+// Behaviourally identical for the single-host production case.
+var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+
 if (recurringJobsEnabled)
 {
-    RecurringJob.AddOrUpdate<DocumentExpiryJob>(
+    recurringJobs.AddOrUpdate<DocumentExpiryJob>(
         "document-expiry-lifecycle", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
-    RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Registrations.DraftCleanupJob>(
         "draft-registration-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Daily);
 
     // Task #16: the dispatcher-shaped hole. Every 5 minutes, not daily like the two jobs above -
     // approval/compliance events sitting in the Outbox are meant to eventually reach an ERP, and a
     // daily cadence would make "eventually" mean "up to a day late" for no reason.
-    RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>(
         "outbox-dispatch", job => job.DispatchPendingAsync(CancellationToken.None), "*/5 * * * *");
 
     // FEAT-07.6/FR-PWF-004: RFQ submission-window open/close is time-of-day precise, not daily - same
     // 5-minute cadence reasoning as the outbox dispatcher above.
-    RecurringJob.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Rfqs.RfqTimelineJob>(
         "rfq-timeline", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
 
     // EPIC-14/FEAT-14.5: same 5-minute cadence as outbox-dispatch above - the reconciliation half of
     // the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
-    RecurringJob.AddOrUpdate<AwardErpSyncJob>(
+    recurringJobs.AddOrUpdate<AwardErpSyncJob>(
         "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
 }
 else
@@ -803,7 +820,7 @@ else
     // suppression true of the storage rather than only of this startup path.
     foreach (var jobId in RecurringJobIds)
     {
-        RecurringJob.RemoveIfExists(jobId);
+        recurringJobs.RemoveIfExists(jobId);
     }
 }
 

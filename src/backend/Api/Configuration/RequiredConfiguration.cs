@@ -115,6 +115,25 @@ public static class RequiredConfiguration
                 $"silence is unwanted, add a {window}-day rung to Documents:RenewalReminderDays.");
         }
 
+        // MSP-98: recurring jobs switched off outside Development. Legal - a worker-less deployment
+        // is a real configuration, which is why this is a warning and not a startup failure - and
+        // almost certainly not intended anywhere else. Stated in terms of CONSEQUENCE rather than
+        // mechanism: the person reading this at boot may not know what a recurring job is in this
+        // system, but they do know what a tender is.
+        var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"];
+        var recurringEnabled = configuration.GetValue("Jobs:EnableRecurring", true);
+
+        if (!recurringEnabled && !string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add(
+                "Jobs:EnableRecurring is false, so no scheduled work will run in this environment. " +
+                "RFQ submission windows will never open and never close, document expiry will never " +
+                "be flagged, awards will never reconcile to the ERP, and queued outbox messages will " +
+                "never be dispatched - all silently, with no error anywhere. This is a legitimate " +
+                "setting for a deployment that runs no background worker; if this is not that, " +
+                "remove the setting or set it to true.");
+        }
+
         return warnings;
     }
 }
