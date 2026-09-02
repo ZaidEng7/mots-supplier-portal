@@ -27,14 +27,19 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
     /// Keyset-paged (MSP-66). See AuditCursor for why keyset rather than offset on this table
     /// specifically, and why the cursor carries Id as well as OccurredAt.
     /// </summary>
-    public async Task<Page<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, CancellationToken ct)
+    public async Task<ListEnvelope<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, bool withCount, CancellationToken ct)
     {
         // Deliberately not available to staff: "own trail" is meaningless without a SupplierId,
         // and returning the global log here would hand every staff caller an unfiltered dump.
-        if (scope.SupplierId is null) return new Page<AuditLogEntryDto>([], false);
+        if (scope.SupplierId is null) return ListEnvelope<AuditLogEntryDto>.Empty(ListEnvelope<AuditLogEntryDto>.DefaultPageSize);
 
-        var pageSize = Page<AuditLogEntryDto>.ClampLimit(limit);
+        var pageSize = ListEnvelope<AuditLogEntryDto>.ClampPageSize(limit);
         var query = ScopedQuery();
+
+        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
+        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
+        // shrink as the caller pages. A second query, so it is off unless asked for.
+        int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (AuditCursor.TryDecode(cursor, out var from))
         {
@@ -53,10 +58,13 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         var hasMore = rows.Count > pageSize;
         var items = hasMore ? rows[..pageSize] : rows;
 
-        return new Page<AuditLogEntryDto>(
+        return ListEnvelope<AuditLogEntryDto>.Cursor(
             items,
             hasMore,
-            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null);
+            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null,
+            pageSize,
+            totalCount,
+            sort: "-occurredAt");
     }
 
     /// <summary>
@@ -66,11 +74,16 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
     /// paging compose because both are ordinary WHERE clauses over the same IQueryable, applied
     /// before the ORDER BY/Take that Project performs.
     /// </summary>
-    public async Task<Page<AuditLogEntryDto>> HandleFilteredAsync(
-        AuditLogFilter filter, string? cursor, int? limit, CancellationToken ct)
+    public async Task<ListEnvelope<AuditLogEntryDto>> HandleFilteredAsync(
+        AuditLogFilter filter, string? cursor, int? limit, bool withCount, CancellationToken ct)
     {
-        var pageSize = Page<AuditLogEntryDto>.ClampLimit(limit);
+        var pageSize = ListEnvelope<AuditLogEntryDto>.ClampPageSize(limit);
         var query = ApplyFilter(ScopedQuery(), filter);
+
+        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
+        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
+        // shrink as the caller pages. A second query, so it is off unless asked for.
+        int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (AuditCursor.TryDecode(cursor, out var from))
         {
@@ -84,10 +97,14 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         var hasMore = rows.Count > pageSize;
         var items = hasMore ? rows[..pageSize] : rows;
 
-        return new Page<AuditLogEntryDto>(
+        return ListEnvelope<AuditLogEntryDto>.Cursor(
             items,
             hasMore,
-            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null);
+            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null,
+            pageSize,
+            totalCount,
+            sort: "-occurredAt",
+            filtersApplied: filter.Describe());
     }
 
     /// <summary>No Take, no materialization here - EF translates this to a single streamed SELECT

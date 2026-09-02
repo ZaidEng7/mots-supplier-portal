@@ -74,10 +74,10 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         string? cursor = null;
         do
         {
-            var page = await handler.HandleAsync(cursor, pageSize, null, null, CancellationToken.None);
-            all.AddRange(page.Items);
-            cursor = page.NextCursor;
-            if (!page.HasMore) break;
+            var page = await handler.HandleAsync(cursor, pageSize, withCount: false, null, null, CancellationToken.None);
+            all.AddRange(page.Data);
+            cursor = page.Pagination.NextCursor;
+            if (!page.Pagination.HasMore) break;
         } while (cursor is not null);
         return all;
     }
@@ -165,8 +165,8 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         });
         await db.SaveChangesAsync();
 
-        var page = await handler.HandleAsync(null, 50, null, null, CancellationToken.None);
-        var item = page.Items.Should().ContainSingle(i => i.ReferenceCode == supplier.ReferenceCode).Subject;
+        var page = await handler.HandleAsync(null, 50, withCount: false, null, null, CancellationToken.None);
+        var item = page.Data.Should().ContainSingle(i => i.ReferenceCode == supplier.ReferenceCode).Subject;
 
         item.EnteredQueueAt.Should().BeCloseTo(recentResubmission, TimeSpan.FromSeconds(1),
             "the newer resubmission must win over both the original submission and Supplier.CreatedAt");
@@ -192,10 +192,10 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         await db.SaveChangesAsync();
 
         // Page 1, size 2: expect s1, s2 (oldest-first order), with a cursor for continuation.
-        var page1 = await handler.HandleAsync(null, 2, null, null, CancellationToken.None);
-        page1.Items.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s1.ReferenceCode, s2.ReferenceCode]);
-        page1.HasMore.Should().BeTrue();
-        page1.NextCursor.Should().NotBeNull();
+        var page1 = await handler.HandleAsync(null, 2, withCount: false, null, null, CancellationToken.None);
+        page1.Data.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s1.ReferenceCode, s2.ReferenceCode]);
+        page1.Pagination.HasMore.Should().BeTrue();
+        page1.Pagination.NextCursor.Should().NotBeNull();
 
         // Between page fetches: s1 - already returned in page 1 - leaves the queue (approved).
         // This is the shape that breaks OFFSET paging specifically: removing a row before the
@@ -212,10 +212,10 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
             await mutDb.SaveChangesAsync();
         }
 
-        var page2 = await handler.HandleAsync(page1.NextCursor, 2, null, null, CancellationToken.None);
+        var page2 = await handler.HandleAsync(page1.Pagination.NextCursor, 2, withCount: false, null, null, CancellationToken.None);
 
         // s3 must be present - this is the row a position-based page 2 would have dropped.
-        page2.Items.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s3.ReferenceCode, s4.ReferenceCode],
+        page2.Data.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s3.ReferenceCode, s4.ReferenceCode],
             "s1 leaving the queue must not shift s3 out of view - it was never counted by position");
     }
 }

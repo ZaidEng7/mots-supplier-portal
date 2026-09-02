@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { nextPageParam } from '../api/listEnvelope'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Dialog, Field, Input, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
 import { useToast } from '../components/ui'
 import { listTeam, inviteTeamMember, disableTeamMember } from '../api/team'
 import { SupplierApiError } from '../api/supplier'
@@ -31,7 +32,7 @@ export function TeamPage() {
     queryKey: ['team'],
     queryFn: ({ pageParam }) => listTeam(pageParam),
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    getNextPageParam: nextPageParam,
   })
 
   const {
@@ -65,10 +66,10 @@ export function TeamPage() {
   })
 
   if (teamQuery.isLoading) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
+    return <SkeletonList label={t('common.loading')} />
   }
 
-  const members = teamQuery.data?.pages.flatMap((p) => p.items) ?? []
+  const members = teamQuery.data?.pages.flatMap((p) => p.data) ?? []
 
   return (
     <div className="flex flex-col gap-6">

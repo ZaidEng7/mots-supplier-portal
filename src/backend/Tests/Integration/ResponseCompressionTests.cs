@@ -43,7 +43,7 @@ public sealed class ResponseCompressionTests(PostgresApiFixture fixture)
             await db.SaveChangesAsync();
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me/audit?limit=40");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me/audit?pageSize=40");
         request.Headers.Add("Accept-Encoding", "gzip, br");
 
         using var response = await client.SendAsync(request);

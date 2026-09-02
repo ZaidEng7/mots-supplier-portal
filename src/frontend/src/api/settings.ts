@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import type { ListEnvelope } from './listEnvelope'
 
 export interface EnrollMfaResponse {
   sharedKey: string
@@ -49,14 +50,8 @@ export interface Session {
   isCurrent: boolean
 }
 
-/** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */
-export interface Page<T> {
-  items: T[]
-  hasMore: boolean
-  nextCursor: string | null
-}
 
-export async function listSessions(cursor?: string | null): Promise<Page<Session>> {
+export async function listSessions(cursor?: string | null): Promise<ListEnvelope<Session>> {
   const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
   const res = await apiFetch(`/api/v1/auth/sessions${qs}`)
   return parseOrThrow(res)

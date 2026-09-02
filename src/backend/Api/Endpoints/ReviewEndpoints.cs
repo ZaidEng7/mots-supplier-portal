@@ -52,9 +52,12 @@ public static class ReviewEndpoints
     {
         var group = app.MapGroup("/api/v1/review").WithTags("Review");
 
-        group.MapGet("/queue", async (string? cursor, int? limit, string? state, string? assignedTo, IListReviewQueueHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(cursor, limit, state, assignedTo, ct)))
+        group.MapGet("/queue", async (string? cursor, int? pageSize, bool? withCount, string? state, string? assignedTo, HttpContext httpContext, IListReviewQueueHandler handler, CancellationToken ct) =>
+            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, state, assignedTo, ct), pageSize))
             .RequirePermission(Permissions.SupplierReview)
+            // §6.3: oldest-first is the queue's whole point - a reviewer works the backlog from the
+            // end that has waited longest, so ascending createdAt is the default AND the only order.
+            .WithListQuery(ListQueryPolicy.Create("createdAt", ["createdAt"], "state", "assignedTo"))
             .WithName("ListReviewQueue");
 
         group.MapPost("/{referenceCode}/claim", async (string referenceCode, IClaimReviewItemHandler handler, CancellationToken ct) =>

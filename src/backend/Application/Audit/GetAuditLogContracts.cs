@@ -23,14 +23,14 @@ public interface IGetAuditLogHandler
 
     /// <summary>FR-AUD-003 second half: "suppliers see their own activity trail". The caller's own
     /// supplier's full trail across every aggregate it owns, with no aggregate id needed.</summary>
-    Task<Page<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, CancellationToken ct);
+    Task<ListEnvelope<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, bool withCount, CancellationToken ct);
 
     /// <summary>FR-AUD-004/MSP-75: staff-facing global search, gated by audit.read (same permission
     /// as <see cref="HandleAsync"/> - this is that same authority applied across aggregates instead
     /// of to one). Filterable by entity, actor, action, and date range (<see cref="AuditLogFilter"/>),
     /// combinable, and keyset-paged for the same reason HandleOwnTrailAsync is (ASM-085: this table
     /// is retained indefinitely and grows without bound).</summary>
-    Task<Page<AuditLogEntryDto>> HandleFilteredAsync(AuditLogFilter filter, string? cursor, int? limit, CancellationToken ct);
+    Task<ListEnvelope<AuditLogEntryDto>> HandleFilteredAsync(AuditLogFilter filter, string? cursor, int? limit, bool withCount, CancellationToken ct);
 
     /// <summary>The export path for the same search: same filter, same row-scoping, no page limit -
     /// an export is defined as "everything the filter matches", not "the current page". Streamed

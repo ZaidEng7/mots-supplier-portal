@@ -27,13 +27,13 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
         string? cursor = null;
         while (true)
         {
-            var url = cursor is null ? $"{basePath}?limit=2" : $"{basePath}?limit=2&cursor={Uri.EscapeDataString(cursor)}";
+            var url = cursor is null ? $"{basePath}?pageSize=2" : $"{basePath}?pageSize=2&cursor={Uri.EscapeDataString(cursor)}";
             var res = await client.GetAsync(url);
             res.EnsureSuccessStatusCode();
             var page = await res.Content.ReadFromJsonAsync<JsonElement>();
-            all.AddRange(page.GetProperty("items").Deserialize<List<T>>()!);
-            if (!page.GetProperty("hasMore").GetBoolean()) break;
-            cursor = page.GetProperty("nextCursor").GetString();
+            all.AddRange(page.GetProperty("data").Deserialize<List<T>>()!);
+            if (!page.GetProperty("pagination").GetProperty("hasMore").GetBoolean()) break;
+            cursor = page.GetProperty("pagination").GetProperty("nextCursor").GetString();
         }
         return all;
     }
@@ -111,22 +111,22 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
         await AddTeamMemberAsync(supplierId, bb);
         // primaryEmail ("itest-...") sorts between bb and zz1.
 
-        var page1Res = await client.GetAsync("/api/v1/suppliers/me/users/?limit=2");
+        var page1Res = await client.GetAsync("/api/v1/suppliers/me/users/?pageSize=2");
         var page1 = await page1Res.Content.ReadFromJsonAsync<JsonElement>();
-        page1.GetProperty("items").Deserialize<List<TeamMemberRow>>()!.Select(r => r.email)
+        page1.GetProperty("data").Deserialize<List<TeamMemberRow>>()!.Select(r => r.email)
             .Should().BeEquivalentTo([aa, bb], options => options.WithStrictOrdering());
-        var cursor1 = page1.GetProperty("nextCursor").GetString();
+        var cursor1 = page1.GetProperty("pagination").GetProperty("nextCursor").GetString();
 
         // Insert zz1 between page 1 and page 2 - it sorts after "bb-" (the cursor position), so a
         // forward keyset walk started before this insert must still see it.
         await AddTeamMemberAsync(supplierId, zz1);
 
-        var page2Res = await client.GetAsync($"/api/v1/suppliers/me/users/?limit=2&cursor={Uri.EscapeDataString(cursor1!)}");
+        var page2Res = await client.GetAsync($"/api/v1/suppliers/me/users/?pageSize=2&cursor={Uri.EscapeDataString(cursor1!)}");
         var page2 = await page2Res.Content.ReadFromJsonAsync<JsonElement>();
-        page2.GetProperty("items").Deserialize<List<TeamMemberRow>>()!.Select(r => r.email)
+        page2.GetProperty("data").Deserialize<List<TeamMemberRow>>()!.Select(r => r.email)
             .Should().BeEquivalentTo([primaryEmail, zz1], options => options.WithStrictOrdering(),
                 "zz1 was inserted after the page-1 cursor position, so the walk must reach it");
-        page2.GetProperty("hasMore").GetBoolean().Should().BeFalse();
+        page2.GetProperty("pagination").GetProperty("hasMore").GetBoolean().Should().BeFalse();
     }
 
     private async Task<Guid> AddSessionAsync(Guid userId, DateTimeOffset createdAt)
@@ -198,12 +198,12 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
         var s3 = await AddSessionAsync(userId, now.AddMinutes(-2));
         var s4 = await AddSessionAsync(userId, now.AddMinutes(-3));
 
-        var page1Res = await client.GetAsync("/api/v1/auth/sessions?limit=2");
+        var page1Res = await client.GetAsync("/api/v1/auth/sessions?pageSize=2");
         var page1 = await page1Res.Content.ReadFromJsonAsync<JsonElement>();
-        var page1Ids = page1.GetProperty("items").Deserialize<List<SessionRow>>()!.Select(r => Guid.Parse(r.familyId)).ToList();
+        var page1Ids = page1.GetProperty("data").Deserialize<List<SessionRow>>()!.Select(r => Guid.Parse(r.familyId)).ToList();
         page1Ids.Should().HaveCount(2);
         page1Ids.Should().Contain(s2, "s2 is the second-newest session and must be on page 1");
-        var cursor1 = page1.GetProperty("nextCursor").GetString();
+        var cursor1 = page1.GetProperty("pagination").GetProperty("nextCursor").GetString();
 
         // Revoke the already-fetched, most-recent session (the real login one) between fetches -
         // the shape that shifts an offset-based page 2 and drops the row right after the boundary.
@@ -218,9 +218,9 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
             await db.SaveChangesAsync();
         }
 
-        var page2Res = await client.GetAsync($"/api/v1/auth/sessions?limit=2&cursor={Uri.EscapeDataString(cursor1!)}");
+        var page2Res = await client.GetAsync($"/api/v1/auth/sessions?pageSize=2&cursor={Uri.EscapeDataString(cursor1!)}");
         var page2 = await page2Res.Content.ReadFromJsonAsync<JsonElement>();
-        var page2Ids = page2.GetProperty("items").Deserialize<List<SessionRow>>()!.Select(r => Guid.Parse(r.familyId)).ToList();
+        var page2Ids = page2.GetProperty("data").Deserialize<List<SessionRow>>()!.Select(r => Guid.Parse(r.familyId)).ToList();
         page2Ids.Should().BeEquivalentTo([s3, s4],
             "s3 must not be skipped and s4 must not be duplicated because the newest session left the list");
     }

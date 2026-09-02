@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
-import { renderPage, mockFetch } from './renderPage'
+import { renderPage, mockFetch, listPage } from './renderPage'
 import { TeamPage } from '../routes/TeamPage'
 
 /**
@@ -16,15 +16,11 @@ describe('page test harness', () => {
 
   it('renders a page with its providers and the data it fetched', async () => {
     restore = mockFetch({
-      // MSP-84: /suppliers/me/users returns Page<SupplierUserDto> now, not a bare array.
-      '/api/v1/suppliers/me/users': {
-        items: [
-          { userId: '11111111-1111-1111-1111-111111111111', email: 'first@example.com', fullName: 'First Member', isActive: true },
-          { userId: '22222222-2222-2222-2222-222222222222', email: 'second@example.com', fullName: 'Second Member', isActive: false },
-        ],
-        hasMore: false,
-        nextCursor: null,
-      },
+      // MSP-84: /suppliers/me/users returns the §5.2 list envelope, not a bare array.
+      '/api/v1/suppliers/me/users': listPage([
+        { userId: '11111111-1111-1111-1111-111111111111', email: 'first@example.com', fullName: 'First Member', isActive: true },
+        { userId: '22222222-2222-2222-2222-222222222222', email: 'second@example.com', fullName: 'Second Member', isActive: false },
+      ]),
     })
 
     renderPage(<TeamPage />)

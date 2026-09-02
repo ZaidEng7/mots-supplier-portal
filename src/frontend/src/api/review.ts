@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import type { ListEnvelope } from './listEnvelope'
 import type { DocumentTypeStatus } from './documents'
 import type { SupplierProfile } from './supplier'
 
@@ -12,12 +13,6 @@ export interface ReviewQueueItem {
   assignedReviewerName: string | null
 }
 
-/** MSP-84: matches backend Application/Common/Page.cs - keyset-paged, not offset. */
-export interface Page<T> {
-  items: T[]
-  hasMore: boolean
-  nextCursor: string | null
-}
 
 export interface ReviewAnnotation {
   id: string
@@ -60,7 +55,7 @@ export interface ReviewQueueFilters {
   assignedTo?: string | null
 }
 
-export async function listReviewQueue(cursor?: string | null, filters?: ReviewQueueFilters): Promise<Page<ReviewQueueItem>> {
+export async function listReviewQueue(cursor?: string | null, filters?: ReviewQueueFilters): Promise<ListEnvelope<ReviewQueueItem>> {
   const params = new URLSearchParams()
   if (cursor) params.set('cursor', cursor)
   if (filters?.state) params.set('state', filters.state)

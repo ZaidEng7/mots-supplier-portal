@@ -34,9 +34,11 @@ public static class SupplierUserEndpoints
     {
         var group = app.MapGroup("/api/v1/suppliers/me/users").WithTags("SupplierUsers");
 
-        group.MapGet("/", async (string? cursor, int? limit, IListSupplierUsersHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(cursor, limit, ct)))
+        group.MapGet("/", async (string? cursor, int? pageSize, bool? withCount, HttpContext httpContext, IListSupplierUsersHandler handler, CancellationToken ct) =>
+            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
         .RequirePermission(Permissions.SupplierUserManage)
+        // Alphabetical by email: a team list is read to find a person, not to see what changed last.
+        .WithListQuery(ListQueryPolicy.Create("email", ["email"]))
         .WithName("ListSupplierUsers");
 
         group.MapPost("/", async (

@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Field, Input } from '../components/ui'
 import { useToast } from '../components/ui'
+import { formatDateTime } from '../lib/datetime'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -79,7 +81,7 @@ function MfaSection() {
 }
 
 function SessionsSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
   // MSP-84: sessions are bounded per person, but real pagination is scoped for all four
@@ -88,7 +90,7 @@ function SessionsSection() {
     queryKey: ['sessions'],
     queryFn: ({ pageParam }) => listSessions(pageParam),
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    getNextPageParam: nextPageParam,
   })
 
   const revokeMutation = useMutation({
@@ -111,7 +113,7 @@ function SessionsSection() {
     return <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
   }
 
-  const sessions = sessionsQuery.data?.pages.flatMap((p) => p.items) ?? []
+  const sessions = sessionsQuery.data?.pages.flatMap((p) => p.data) ?? []
 
   return (
     <div className="flex flex-col gap-3">
@@ -127,7 +129,7 @@ function SessionsSection() {
                 {s.userAgent ?? t('settings.unknownDevice')} {s.isCurrent ? <Badge tone="brand">{t('settings.currentSession')}</Badge> : null}
               </p>
               <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
-                {s.ip ?? '—'} · {new Date(s.createdAt).toLocaleString()}
+                {s.ip ?? '—'} · {formatDateTime(s.createdAt, i18n.language)}
               </p>
             </div>
             {!s.isCurrent ? (

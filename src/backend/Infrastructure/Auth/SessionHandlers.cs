@@ -7,14 +7,14 @@ namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : IListSessionsHandler
 {
-    public async Task<Page<SessionDto>> HandleAsync(string? currentRefreshToken, string? cursor, int? limit, CancellationToken ct)
+    public async Task<ListEnvelope<SessionDto>> HandleAsync(string? currentRefreshToken, string? cursor, int? limit, bool withCount, CancellationToken ct)
     {
         if (scope.UserId is null)
         {
-            return new Page<SessionDto>([], false);
+            return ListEnvelope<SessionDto>.Empty(ListEnvelope<SessionDto>.DefaultPageSize);
         }
 
-        var pageSize = Page<SessionDto>.ClampLimit(limit);
+        var pageSize = ListEnvelope<SessionDto>.ClampPageSize(limit);
         var currentFamilyId = await ResolveCurrentFamilyIdAsync(currentRefreshToken, ct);
 
         // One row per session family, already reduced to a small, per-user-bounded set (a person
@@ -32,6 +32,10 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
             .Select(t => new SessionDto(t.FamilyId, t.Ip, t.UserAgent, t.CreatedAt, t.ExpiresAt, t.FamilyId == currentFamilyId))
             .AsEnumerable();
 
+        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the ordered set before
+        // the cursor narrows it, so it is a total rather than "how many are left".
+        int? totalCount = withCount ? ordered.Count() : null;
+
         if (SessionCursor.TryDecode(cursor, out var from))
         {
             ordered = ordered.Where(s =>
@@ -43,10 +47,13 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
         var hasMore = page.Count > pageSize;
         var items = hasMore ? page[..pageSize] : page;
 
-        return new Page<SessionDto>(
+        return ListEnvelope<SessionDto>.Cursor(
             items,
             hasMore,
-            hasMore ? new SessionCursor(items[^1].CreatedAt, items[^1].FamilyId).Encode() : null);
+            hasMore ? new SessionCursor(items[^1].CreatedAt, items[^1].FamilyId).Encode() : null,
+            pageSize,
+            totalCount,
+            sort: "-createdAt");
     }
 
     private async Task<Guid?> ResolveCurrentFamilyIdAsync(string? currentRefreshToken, CancellationToken ct)

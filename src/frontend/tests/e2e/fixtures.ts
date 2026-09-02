@@ -77,6 +77,20 @@ export const DOCUMENT_TYPES = [
   { documentTypeId: 'd3', code: 'chamber_membership', nameAr: 'عضوية الغرفة التجارية', nameEn: 'Chamber Membership', isRequired: false, expiryTracked: true, latestDocument: null },
 ]
 
+/**
+ * The documented §5.2 list envelope, `{ data, pagination, meta }`. Every list endpoint returns it,
+ * and `useInfiniteQuery` reads `pagination.hasMore` before rendering anything - so a route mocked
+ * as a bare array (or the old flat `{ items, hasMore, nextCursor }`) crashes the page under axe
+ * rather than merely rendering the wrong rows.
+ */
+function listPage<T>(items: T[]) {
+  return {
+    data: items,
+    pagination: { mode: 'cursor', nextCursor: null, prevCursor: null, pageSize: 20, totalCount: null, hasMore: false },
+    meta: { sort: null, filtersApplied: null },
+  }
+}
+
 export const RFQ_FIXTURE = {
   referenceCode: RFQ_REFERENCE_CODE, organizationId: 'org-1', titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
   descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Draft',
@@ -90,6 +104,22 @@ export const SUPPLIER_RFQ_FIXTURE = {
   descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Published',
   submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
   items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited', clarifications: [], addenda: [],
+}
+
+/**
+ * The list endpoints project a narrow list item - reference, both titles, state, createdAt (plus
+ * the caller's own invitation status on the supplier side) - not the whole aggregate. Kept separate
+ * from the detail fixtures above so a list page that starts reading a field the list does not send
+ * fails the a11y run instead of passing on a fixture that is richer than the wire.
+ */
+export const RFQ_LIST_ITEM_FIXTURE = {
+  referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
+  state: 'Draft', createdAt: '2026-08-01T00:00:00Z',
+}
+
+export const SUPPLIER_RFQ_LIST_ITEM_FIXTURE = {
+  referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
+  state: 'Published', myInvitationStatus: 'Invited', createdAt: '2026-08-01T00:00:00Z',
 }
 
 export const PROPOSAL_FIXTURE = {
@@ -131,11 +161,10 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/reference/currencies') return route.fulfill({ json: [{ code: 'SYP', nameAr: 'ليرة سورية', nameEn: 'Syrian Pound' }] })
     if (p === '/api/v1/reference/regions') return route.fulfill({ json: [{ code: 'DM', nameAr: 'دمشق', nameEn: 'Damascus' }] })
     if (p === '/api/v1/reference/categories') return route.fulfill({ json: [{ code: 'general', nameAr: 'عام', nameEn: 'General' }] })
-    // MSP-84: /suppliers/me/users and /auth/sessions return Page<T> now, not bare arrays.
-    if (p === '/api/v1/suppliers/me/users') return route.fulfill({ json: { items: [{ userId: 'u1', email: 'teammate@example.com', fullName: 'Teammate One', isActive: true }], hasMore: false, nextCursor: null } })
-    if (p === '/api/v1/auth/sessions') return route.fulfill({ json: { items: [{ familyId: 'f1', ip: '127.0.0.1', userAgent: 'axe-scan', createdAt: '2026-08-01T00:00:00Z', expiresAt: '2026-09-01T00:00:00Z', isCurrent: true }], hasMore: false, nextCursor: null } })
-    // MSP-84: /review/queue returns Page<ReviewQueueItemDto> now, not a bare array.
-    if (p === '/api/v1/review/queue') return route.fulfill({ json: { items: [{ referenceCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'UnderReview' }], hasMore: false, nextCursor: null } })
+    // MSP-84: /suppliers/me/users, /auth/sessions and /review/queue return the list envelope.
+    if (p === '/api/v1/suppliers/me/users') return route.fulfill({ json: listPage([{ userId: 'u1', email: 'teammate@example.com', fullName: 'Teammate One', isActive: true }]) })
+    if (p === '/api/v1/auth/sessions') return route.fulfill({ json: listPage([{ familyId: 'f1', ip: '127.0.0.1', userAgent: 'axe-scan', createdAt: '2026-08-01T00:00:00Z', expiresAt: '2026-09-01T00:00:00Z', isCurrent: true }]) })
+    if (p === '/api/v1/review/queue') return route.fulfill({ json: listPage([{ referenceCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'UnderReview' }]) })
     if (p === `/api/v1/review/${REFERENCE_CODE}`) return route.fulfill({ json: { supplier: SUPPLIER_PROFILE, documents: DOCUMENT_TYPES, annotationHistory: [] } })
     if (p === '/api/v1/registrations/verify' && method === 'POST') return route.fulfill({ json: {} })
     // Task #7/Stage C: list endpoints return real arrays, not the generic {} fallback below -
@@ -155,7 +184,7 @@ export async function mockBackend(page: Page) {
     // FEAT-11.1/EPIC-07: same class of bug - RfqListPage's rfqs.map() and
     // EvaluationTemplatesPage's templates.map() both crash on the generic {} fallback below.
     if (p === '/api/v1/evaluation-templates') return route.fulfill({ json: [EVALUATION_TEMPLATE_FIXTURE] })
-    if (p === '/api/v1/rfqs') return route.fulfill({ json: [RFQ_FIXTURE] })
+    if (p === '/api/v1/rfqs') return route.fulfill({ json: listPage([RFQ_LIST_ITEM_FIXTURE]) })
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: RFQ_FIXTURE })
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/invitations/candidates`) return route.fulfill({ json: [] })
     // EPIC-11: same class of bug - MyEvaluationPage reads evaluation.proposalIds.map() and would
@@ -185,7 +214,7 @@ export async function mockBackend(page: Page) {
     }
     // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
-    if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })
+    if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: listPage([SUPPLIER_RFQ_LIST_ITEM_FIXTURE]) })
     if (p === `/api/v1/suppliers/me/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: SUPPLIER_RFQ_FIXTURE })
     // EPIC-09: same class of bug - SupplierProposalPage would fall through to the generic {}
     // fallback below and crash reading proposal.items.
