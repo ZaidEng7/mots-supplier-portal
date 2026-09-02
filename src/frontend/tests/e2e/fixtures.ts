@@ -167,6 +167,9 @@ export async function mockBackend(page: Page) {
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/comparison`) {
       return route.fulfill({ json: { rfqReferenceCode: RFQ_REFERENCE_CODE, rfqTitleAr: 'طلب تجريبي', rfqTitleEn: 'A11y Test RFQ', evaluationState: 'NotStarted', rfqItems: [], proposals: [] } })
     }
+    // EPIC-14: same class of bug - AwardPage reads evaluation.results and would crash on the
+    // generic {} fallback below; null (200) for /award is the real "no award yet" shape.
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/award`) return route.fulfill({ json: null })
     // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
     if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: [SUPPLIER_RFQ_FIXTURE] })
