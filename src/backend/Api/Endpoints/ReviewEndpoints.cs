@@ -53,7 +53,17 @@ public static class ReviewEndpoints
         var group = app.MapGroup("/api/v1/review").WithTags("Review");
 
         group.MapGet("/queue", async (string? cursor, int? pageSize, bool? withCount, string? state, string? assignedTo, HttpContext httpContext, IListReviewQueueHandler handler, CancellationToken ct) =>
-            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, state, assignedTo, ct), pageSize))
+        {
+            // The queue's silent-widening case is the worst of the two: an unrecognised state does
+            // not merely empty the filter, it falls through to the DEFAULT three-state set, so
+            // ?state=Approvd returns the whole queue while reading as a filtered view.
+            if (!FilterValues.IsAllowed(state, ReviewQueueFilterValues.States, out var invalidState))
+            {
+                return FilterValues.InvalidFilterValue("state", invalidState!);
+            }
+
+            return ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, state, assignedTo, ct), pageSize);
+        })
             .RequirePermission(Permissions.SupplierReview)
             // §6.3: oldest-first is the queue's whole point - a reviewer works the backlog from the
             // end that has waited longest, so ascending createdAt is the default AND the only order.

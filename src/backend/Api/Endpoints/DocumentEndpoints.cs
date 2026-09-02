@@ -4,6 +4,7 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Storage;
 
 namespace MotsSupplierPortal.Api.Endpoints;
@@ -38,6 +39,15 @@ public static class DocumentEndpoints
             {
                 if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
                 return Results.Ok(await ownHandler.HandleOwnAsync(ct));
+            }
+
+            // An unrecognised state must not simply be dropped: dropping the only member leaves an
+            // EMPTY filter, and an empty filter returns everything - the caller asked to narrow and
+            // got the opposite, with no way to tell. Same failure shape as Batch 0.2's
+            // ?aggregateTyp=X, so the same answer: 422 rather than silent widening.
+            if (!FilterValues.TryParseEnumCsv<DocumentState>(state, out _, out var invalidState))
+            {
+                return FilterValues.InvalidFilterValue("state", invalidState!);
             }
 
             var requestedPage = page is null or < 1 ? 1 : page.Value;
