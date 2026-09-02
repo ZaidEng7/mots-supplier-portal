@@ -80,6 +80,25 @@ internal static class FilterValues
         return true;
     }
 
+    /// <summary>
+    /// For a filter whose accepted values are a few LITERALS or an identifier - the review queue's
+    /// <c>?assignedTo=</c> takes "me", "unassigned", or a specific reviewer's id.
+    ///
+    /// <para>A malformed id is an invalid VALUE, not an absent filter. Before this, anything that
+    /// was neither literal nor a parseable Guid fell out of the handler's if/else chain having
+    /// applied no predicate at all, so <c>?assignedTo=grbage</c> returned the whole queue - the same
+    /// silent widening as an unrecognised enum member, on a screen procurement staff use daily.</para>
+    /// </summary>
+    public static bool IsAllowedLiteralOrGuid(string? raw, IReadOnlySet<string> literals, out string? invalidToken)
+    {
+        invalidToken = null;
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+        if (literals.Contains(raw) || Guid.TryParse(raw, out _)) return true;
+
+        invalidToken = raw;
+        return false;
+    }
+
     /// <summary>RFC 9457 problem+json, bilingual per §7.2's validation shape.</summary>
     public static IResult InvalidFilterValue(string field, string invalidToken) =>
         Results.Json(new

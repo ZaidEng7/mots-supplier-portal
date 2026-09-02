@@ -170,4 +170,94 @@ public sealed class FilterValueRejectionTests(PostgresApiFixture fixture)
         (await reviewer.GetAsync("/api/v1/review/queue?state=UnderReview")).StatusCode
             .Should().Be(HttpStatusCode.OK, "control: the accepted vocabulary must still be accepted");
     }
+
+    // ---- GET /review/queue  ?assignedTo (two literals, or a reviewer id) ----------------------
+
+    /// <summary>
+    /// The dangerous case for this filter: neither literal nor a parseable id, so the handler's
+    /// if/else chain applied NO predicate and the whole queue came back. The non-empty control is
+    /// what stops "did not return everything" passing because there was nothing to return.
+    /// </summary>
+    [Fact]
+    public async Task Review_queue_an_invalid_assignedTo_does_not_return_the_unfiltered_queue()
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
+        await SeedQueuedSupplierAsync();
+
+        var response = await reviewer.GetAsync("/api/v1/review/queue?assignedTo=grbage");
+
+        await AssertRejectedAsync(response, "assignedTo");
+
+        var unfiltered = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?pageSize=100");
+        unfiltered.GetProperty("data").GetArrayLength().Should().BeGreaterThan(0,
+            "the queue this must not have returned is genuinely non-empty, or the rejection above " +
+            "proves nothing about widening");
+    }
+
+    /// <summary>
+    /// A malformed id is an invalid VALUE, not an absent filter - the distinction the old chain
+    /// silently collapsed.
+    /// </summary>
+    [Fact]
+    public async Task Review_queue_a_malformed_guid_assignedTo_is_rejected()
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
+
+        await AssertRejectedAsync(
+            await reviewer.GetAsync("/api/v1/review/queue?assignedTo=01a06349-not-a-guid"), "assignedTo");
+    }
+
+    /// <summary>
+    /// The control: all three legitimate forms still work. Without it the fix could have been
+    /// "reject everything", which passes every negative above.
+    /// </summary>
+    [Theory]
+    [InlineData("me")]
+    [InlineData("unassigned")]
+    [InlineData("01a06349-0d05-7992-9594-b3174d771ea5")]
+    public async Task Review_queue_the_three_valid_assignedTo_forms_still_work(string assignedTo)
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
+        await SeedQueuedSupplierAsync();
+
+        var response = await reviewer.GetAsync($"/api/v1/review/queue?assignedTo={Uri.EscapeDataString(assignedTo)}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// "unassigned" must still FILTER, not merely return 200 - the freshly-queued supplier below has
+    /// no reviewer, so it is in the unassigned set and absent from any specific reviewer's set.
+    /// </summary>
+    [Fact]
+    public async Task Review_queue_unassigned_and_a_reviewer_id_return_different_sets()
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
+        var code = await SeedQueuedSupplierAsync();
+
+        var unassigned = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?assignedTo=unassigned&pageSize=100");
+        var someoneElse = await reviewer.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/review/queue?assignedTo={Guid.CreateVersion7()}&pageSize=100");
+
+        unassigned.GetProperty("data").EnumerateArray()
+            .Select(r => r.GetProperty("referenceCode").GetString()).Should().Contain(code);
+        someoneElse.GetProperty("data").EnumerateArray()
+            .Select(r => r.GetProperty("referenceCode").GetString()).Should().NotContain(code,
+                "a reviewer id nobody holds must filter to nothing, not fall through to everything");
+    }
+
+    /// <summary>Puts one supplier in the review queue (Submitted, unassigned) and returns its code.</summary>
+    private async Task<string> SeedQueuedSupplierAsync()
+    {
+        var name = $"Queued {Guid.NewGuid():N}"[..24];
+        await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, name);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplier = await db.Suppliers.FirstAsync(s => s.DisplayNameEn == name);
+        await db.Suppliers.Where(s => s.Id == supplier.Id).ExecuteUpdateAsync(p => p
+            .SetProperty(s => s.OnboardingState, SupplierOnboardingState.Submitted)
+            .SetProperty(s => s.AssignedReviewerId, (Guid?)null));
+        return supplier.ReferenceCode;
+    }
 }

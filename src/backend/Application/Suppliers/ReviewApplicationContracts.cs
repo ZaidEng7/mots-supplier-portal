@@ -26,6 +26,13 @@ public static class ReviewQueueFilterValues
 {
     public static readonly IReadOnlySet<string> States =
         new HashSet<string>(StringComparer.Ordinal) { "Submitted", "UnderReview", "InfoRequested" };
+
+    /// <summary>
+    /// The literal <c>?assignedTo=</c> values. Anything else must be a reviewer's own id; a value
+    /// that is neither is rejected rather than silently applying no assignee filter.
+    /// </summary>
+    public static readonly IReadOnlySet<string> AssigneeLiterals =
+        new HashSet<string>(StringComparer.Ordinal) { "me", "unassigned" };
 }
 
 public interface IListReviewQueueHandler

@@ -62,6 +62,14 @@ public static class ReviewEndpoints
                 return FilterValues.InvalidFilterValue("state", invalidState!);
             }
 
+            // Same widening, different shape: a value that is neither literal nor a parseable id
+            // fell out of the handler's if/else chain having applied no predicate, so a typo
+            // returned the entire queue.
+            if (!FilterValues.IsAllowedLiteralOrGuid(assignedTo, ReviewQueueFilterValues.AssigneeLiterals, out var invalidAssignee))
+            {
+                return FilterValues.InvalidFilterValue("assignedTo", invalidAssignee!);
+            }
+
             return ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, state, assignedTo, ct), pageSize);
         })
             .RequirePermission(Permissions.SupplierReview)
