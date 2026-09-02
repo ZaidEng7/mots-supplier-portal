@@ -54,7 +54,7 @@ public sealed class MetricsEndpointTests(PostgresApiFixture fixture)
         // is a genuine 429, not a simulated one.
         for (var i = 0; i < 6; i++)
         {
-            await client.PostAsJsonAsync("/api/v1/registrations", new
+            await client.PostAsJsonAsync("/api/v1/auth/register", new
             {
                 displayNameAr = "شركة",
                 displayNameEn = $"Metrics Probe {i}",

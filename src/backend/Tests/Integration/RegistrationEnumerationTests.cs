@@ -41,8 +41,8 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         var client = fixture.CreateClient();
         var email = $"itest-{Guid.NewGuid():N}@example.com";
 
-        var first = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(email));
-        var second = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(email));
+        var first = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(email));
+        var second = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(email));
 
         first.StatusCode.Should().Be(second.StatusCode, "a caller must not be able to distinguish new from duplicate by status code");
 
@@ -64,10 +64,10 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         var client = fixture.CreateClient();
         var registrationNumber = $"RC-{Guid.NewGuid():N}"[..12];
 
-        var first = await client.PostAsJsonAsync("/api/v1/registrations",
+        var first = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com", registrationNumber));
         // Different email, same registration number - the OTHER duplicate vector, not email.
-        var second = await client.PostAsJsonAsync("/api/v1/registrations",
+        var second = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com", registrationNumber));
 
         first.StatusCode.Should().Be(second.StatusCode);
@@ -101,10 +101,10 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         for (var i = 0; i < trials; i++)
         {
             var email = $"itest-{Guid.NewGuid():N}@example.com";
-            await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(email));
+            await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(email));
 
             var stopwatch = Stopwatch.StartNew();
-            await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(email));
+            await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(email));
             stopwatch.Stop();
             duplicateTimes.Add(stopwatch.ElapsedMilliseconds);
         }
@@ -127,7 +127,7 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var existingUserId = await db.Users.Where(u => u.Email == existingEmail).Select(u => u.Id).SingleAsync();
 
-            var response = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(existingEmail));
+            var response = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(existingEmail));
             response.EnsureSuccessStatusCode();
 
             // Real Hangfire, real Postgres job store - same technique as EmailJobBehaviourTests'
@@ -151,7 +151,7 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         var registrationNumber = $"RC-{Guid.NewGuid():N}"[..12];
         var originalEmail = $"itest-{Guid.NewGuid():N}@example.com";
 
-        var original = await client.PostAsJsonAsync("/api/v1/registrations", RegistrationPayload(originalEmail, registrationNumber));
+        var original = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(originalEmail, registrationNumber));
         original.EnsureSuccessStatusCode();
 
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -161,7 +161,7 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         // A different email attempting to register the SAME registration number - the primary
         // user of the ORIGINAL supplier must be notified, not anyone tied to this new attempt
         // (there is no one - no account was created for it).
-        var duplicate = await client.PostAsJsonAsync("/api/v1/registrations",
+        var duplicate = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com", registrationNumber));
         duplicate.EnsureSuccessStatusCode();
 

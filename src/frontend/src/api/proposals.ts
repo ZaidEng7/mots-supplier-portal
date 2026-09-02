@@ -95,69 +95,77 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-const base = (referenceCode: string) => `/api/v1/suppliers/me/rfqs/${referenceCode}/proposal`
+/**
+ * §12-A/C2: two bases, because the API now has two.
+ *  - creation and discovery hang off the RFQ (§3 `/rfqs/{rfqCode}/proposals`, §12.5's create);
+ *  - everything acting on an EXISTING proposal is addressed by its own public code
+ *    (§3 `/proposals/{proposalCode}/items`, §12.5 `POST /proposals/{proposalCode}/submit`).
+ * Callers hold the proposal's own `referenceCode` from the create/get response.
+ */
+const rfqScoped = (rfqReferenceCode: string) => `/api/v1/rfqs/${rfqReferenceCode}/proposals`
+const base = (proposalReferenceCode: string) => `/api/v1/proposals/${proposalReferenceCode}`
 
-export async function startProposal(referenceCode: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(base(referenceCode), { method: 'POST' }))
+export async function startProposal(rfqReferenceCode: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(rfqScoped(rfqReferenceCode), { method: 'POST' }))
 }
 
-export async function getProposal(referenceCode: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(base(referenceCode)))
+export async function getProposal(rfqReferenceCode: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(rfqScoped(rfqReferenceCode)))
 }
 
-export async function setItemPricing(referenceCode: string, rfqItemId: string, payload: ItemPricingPayload): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/items/${rfqItemId}`, {
+export async function setItemPricing(proposalReferenceCode: string, rfqItemId: string, payload: ItemPricingPayload): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/items/${rfqItemId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }))
 }
 
-export async function removeItemPricing(referenceCode: string, rfqItemId: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/items/${rfqItemId}`, { method: 'DELETE' }))
+export async function removeItemPricing(proposalReferenceCode: string, rfqItemId: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/items/${rfqItemId}`, { method: 'DELETE' }))
 }
 
-export async function setCommercialTerms(referenceCode: string, payload: CommercialTermsPayload): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/terms`, {
+export async function setCommercialTerms(proposalReferenceCode: string, payload: CommercialTermsPayload): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/terms`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }))
 }
 
-export async function setNarrative(referenceCode: string, narrativeAr: string | null, narrativeEn: string | null): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/narrative`, {
+export async function setNarrative(proposalReferenceCode: string, narrativeAr: string | null, narrativeEn: string | null): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/narrative`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ narrativeAr, narrativeEn }),
   }))
 }
 
-export async function answerRequirement(referenceCode: string, requirementId: string, answerAr: string, answerEn: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/requirements/${requirementId}/answer`, {
+export async function answerRequirement(proposalReferenceCode: string, requirementId: string, answerAr: string, answerEn: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/requirements/${requirementId}/answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ answerAr, answerEn }),
   }))
 }
 
-export async function addProposalDocument(referenceCode: string, file: File, caption?: string): Promise<Proposal> {
+export async function addProposalDocument(proposalReferenceCode: string, file: File, caption?: string): Promise<Proposal> {
   const form = new FormData()
   form.append('file', file)
   if (caption) form.append('caption', caption)
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/documents`, { method: 'POST', body: form }))
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/documents`, { method: 'POST', body: form }))
 }
 
-export async function removeProposalDocument(referenceCode: string, documentId: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/documents/${documentId}`, { method: 'DELETE' }))
+export async function removeProposalDocument(proposalReferenceCode: string, documentId: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/documents/${documentId}`, { method: 'DELETE' }))
 }
 
-export async function submitProposal(referenceCode: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/submit`, { method: 'POST' }))
+export async function submitProposal(proposalReferenceCode: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/submit`, { method: 'POST' }))
 }
 
-export async function withdrawProposal(referenceCode: string, reason: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(referenceCode)}/withdraw`, {
+export async function withdrawProposal(proposalReferenceCode: string, reason: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/withdraw`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),

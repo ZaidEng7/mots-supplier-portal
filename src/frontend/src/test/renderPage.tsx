@@ -74,7 +74,14 @@ export function mockFetch(routes: Record<string, unknown>): () => void {
 
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    const match = Object.keys(routes).find((route) => url.includes(route))
+    // LONGEST match, not first declared. §12-A/C2 introduced nested routes where one declared
+    // path is a strict prefix of another - "/api/v1/rfqs/RFQ-1" and "/api/v1/rfqs/RFQ-1/proposals"
+    // - and a first-match-wins substring search answers the sub-route with the parent's fixture.
+    // That is silent: the page renders the wrong shape rather than failing, which cost real time
+    // to diagnose. Sorting by specificity makes declaration order irrelevant.
+    const match = Object.keys(routes)
+      .filter((route) => url.includes(route))
+      .sort((a, b) => b.length - a.length)[0]
 
     if (match === undefined) {
       throw new Error(

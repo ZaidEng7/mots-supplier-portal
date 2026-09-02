@@ -191,8 +191,9 @@ public sealed class ListQueryConformanceTests(PostgresApiFixture fixture)
     [InlineData("/api/v1/suppliers/me/audit")]
     [InlineData("/api/v1/auth/sessions")]
     [InlineData("/api/v1/review/queue")]
+    // §12-A/C1: the supplier and buyer RFQ lists converged onto this one route, so there is one
+    // row here where there were two - not a dropped case.
     [InlineData("/api/v1/rfqs")]
-    [InlineData("/api/v1/suppliers/me/rfqs")]
     [InlineData("/api/v1/suppliers/me/users")]
     public async Task Every_list_endpoint_rejects_an_unknown_filter_key(string path)
     {
@@ -244,7 +245,7 @@ public sealed class ListQueryConformanceTests(PostgresApiFixture fixture)
     /// </summary>
     [Theory]
     [InlineData("/api/v1/audit", "-occurredAt")]
-    [InlineData("/api/v1/suppliers/me/rfqs", "-createdAt")]
+    [InlineData("/api/v1/rfqs", "-createdAt")]
     public async Task The_default_sort_is_reported_in_meta(string path, string expected)
     {
         var client = path.StartsWith("/api/v1/audit")
@@ -291,7 +292,7 @@ public sealed class ListQueryConformanceTests(PostgresApiFixture fixture)
         var (client, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(
             fixture, $"EmptyList {Guid.NewGuid():N}"[..28]);
 
-        var response = await client.GetAsync("/api/v1/suppliers/me/rfqs");
+        var response = await client.GetAsync("/api/v1/rfqs");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadFromJsonAsync<JsonElement>())

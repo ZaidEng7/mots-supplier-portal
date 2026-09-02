@@ -68,17 +68,35 @@ public static class ProposalEndpoints
 
     public static void MapProposalEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/suppliers/me/rfqs/{referenceCode}/proposal").WithTags("Proposals");
+        // §12-A/C2. Two collections, per §3 and §12.5:
+        //  - creation and discovery hang off the RFQ ("/rfqs/{rfqCode}/proposals", §3's own
+        //    sub-resource example, and §12.5's "POST /rfqs/{rfqCode}/proposals" heading);
+        //  - everything addressing an EXISTING proposal is top-level by its own public code
+        //    ("/proposals/{proposalCode}/items" in §3, "PATCH /proposals/{proposalCode}" and
+        //    "POST /proposals/{proposalCode}/submit" in §12.5).
+        //
+        // The six edit sub-routes below move with the tree but keep their current shape - §12.5's
+        // collapse into one JSON Merge Patch is the next batch, deliberately not started here.
+        var rfqScoped = app.MapGroup("/api/v1/rfqs/{referenceCode}/proposals").WithTags("Proposals");
+        var group = app.MapGroup("/api/v1/proposals/{referenceCode}").WithTags("Proposals");
 
-        group.MapPost("/", async (string referenceCode, IStartProposalHandler handler, CancellationToken ct) =>
+        rfqScoped.MapPost("/", async (string referenceCode, IStartProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("StartProposal");
 
-        group.MapGet("/", async (string referenceCode, IGetProposalHandler handler, CancellationToken ct) =>
+        rfqScoped.MapGet("/", async (string referenceCode, IGetProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("GetProposal");
+
+        // §12-A/C2: the code-addressed read. §3 addresses a proposal's sub-resources at
+        // /proposals/{proposalCode}/…, so the resource itself must be readable there too;
+        // §12 documents PATCH and submit on this path but no GET, so the GET is an invention.
+        group.MapGet("/", async (string referenceCode, IGetProposalByCodeHandler handler, CancellationToken ct) =>
+            MapResult(await handler.HandleAsync(referenceCode, ct)))
+        .RequirePermission(Permissions.ProposalCreate)
+        .WithName("GetProposalByCode");
 
         group.MapPut("/terms", async (
             string referenceCode,

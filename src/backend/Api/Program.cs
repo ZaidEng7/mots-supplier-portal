@@ -266,6 +266,7 @@ builder.Services.AddScoped<ISupplierPostClarificationHandler, SupplierPostClarif
 // EPIC-09: Proposals.
 builder.Services.AddScoped<IStartProposalHandler, StartProposalHandler>();
 builder.Services.AddScoped<IGetProposalHandler, GetProposalHandler>();
+builder.Services.AddScoped<IGetProposalByCodeHandler, GetProposalByCodeHandler>();
 builder.Services.AddScoped<IManageProposalItemHandler, ManageProposalItemHandler>();
 builder.Services.AddScoped<ISetCommercialTermsHandler, SetCommercialTermsHandler>();
 builder.Services.AddScoped<ISetNarrativeHandler, SetNarrativeHandler>();
@@ -711,7 +712,6 @@ app.MapRoleEndpoints();
 app.MapOfferingEndpoints();
 app.MapEvaluationTemplateEndpoints();
 app.MapRfqEndpoints();
-app.MapSupplierRfqEndpoints();
 app.MapProposalEndpoints();
 app.MapEvaluationEndpoints();
 app.MapComparisonEndpoints();

@@ -28,7 +28,7 @@ public sealed class SupplierLifecycleEndpointTests(PostgresApiFixture fixture)
         var email = $"lifecycle-{Guid.NewGuid():N}@example.com";
         var client = fixture.CreateClient();
 
-        await client.PostAsJsonAsync("/api/v1/registrations", new
+        await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار",
             displayNameEn = name,

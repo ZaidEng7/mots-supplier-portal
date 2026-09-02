@@ -98,7 +98,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
 
         // Not yet Published, so the supplier-facing route itself 404s before the window guard ever runs -
         // the same invite-only-visibility boundary (EPIC-08) is what a supplier hits here.
-        var attempt = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "Too early?" });
+        var attempt = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Too early?" });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -112,7 +112,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
             clarificationDeadlineAt: DateTimeOffset.UtcNow.AddMilliseconds(200));
 
         await Task.Delay(TimeSpan.FromMilliseconds(400));
-        var attempt = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "Too late?" });
+        var attempt = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Too late?" });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await attempt.Content.ReadFromJsonAsync<JsonElement>();
@@ -128,7 +128,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var (outsiderClient, _) = await ActiveSupplierAsync($"NotInvited {Guid.NewGuid():N}"[..30]);
         _ = askerClient;
 
-        var attempt = await outsiderClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "Can I ask?" });
+        var attempt = await outsiderClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Can I ask?" });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -140,7 +140,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var (otherClient, otherSupplierId) = await ActiveSupplierAsync($"PrivateOther {Guid.NewGuid():N}"[..30]);
         var (officer, _, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Private Answer RFQ");
 
-        var post = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "What is the delivery incoterm?" });
+        var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "What is the delivery incoterm?" });
         post.StatusCode.Should().Be(HttpStatusCode.OK);
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
@@ -153,12 +153,12 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         buyerClarification.GetProperty("visibility").GetString().Should().Be("PrivateToAsker");
         buyerClarification.GetProperty("askedBySupplierId").GetGuid().Should().Be(askerSupplierId, "the buyer side always keeps the real asker for audit");
 
-        var askerOwnView = await askerClient.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var askerOwnView = await askerClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         var askerClarification = askerOwnView.GetProperty("clarifications").EnumerateArray().Single();
         askerClarification.GetProperty("answer").GetString().Should().Be("FOB.");
         askerClarification.GetProperty("isMine").GetBoolean().Should().BeTrue();
 
-        var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         otherView.GetProperty("clarifications").EnumerateArray().Should().BeEmpty("a PrivateToAsker clarification belonging to someone else is absent entirely, not merely anonymized");
     }
 
@@ -168,14 +168,14 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"PubAsker {Guid.NewGuid():N}"[..30]);
         var (otherClient, otherSupplierId) = await ActiveSupplierAsync($"PubOther {Guid.NewGuid():N}"[..30]);
         var (officer, _, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Published Answer RFQ");
-        var post = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "What is the delivery incoterm?" });
+        var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "What is the delivery incoterm?" });
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
         var answer = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "FOB.", publish = true });
         answer.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         var otherClarification = otherView.GetProperty("clarifications").EnumerateArray().Single();
         otherClarification.GetProperty("question").GetString().Should().Be("What is the delivery incoterm?");
         otherClarification.GetProperty("answer").GetString().Should().Be("FOB.");
@@ -191,18 +191,18 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"LatePubAsker {Guid.NewGuid():N}"[..30]);
         var (otherClient, otherSupplierId) = await ActiveSupplierAsync($"LatePubOther {Guid.NewGuid():N}"[..30]);
         var (officer, _, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Late Publish RFQ");
-        var post = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
+        var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
         await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A.", publish = false });
 
-        var beforePublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var beforePublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         beforePublish.GetProperty("clarifications").EnumerateArray().Should().BeEmpty();
 
         var publish = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish", null);
         publish.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var afterPublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var afterPublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         afterPublish.GetProperty("clarifications").EnumerateArray().Should().ContainSingle();
     }
 
@@ -212,7 +212,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"PermAsker {Guid.NewGuid():N}"[..30]);
         var (_, otherSupplierId) = await ActiveSupplierAsync($"PermOther {Guid.NewGuid():N}"[..30]);
         var (_, manager, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Permission RFQ");
-        var post = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
+        var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
@@ -254,7 +254,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var buyerView = await addendum.Content.ReadFromJsonAsync<JsonElement>();
         buyerView.GetProperty("addenda").EnumerateArray().Should().ContainSingle(a => a.GetProperty("titleEn").GetString() == "Deadline extended");
 
-        var supplierView = await askerClient.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/me/rfqs/{referenceCode}");
+        var supplierView = await askerClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         supplierView.GetProperty("addenda").EnumerateArray().Should().ContainSingle(a => a.GetProperty("titleEn").GetString() == "Deadline extended");
     }
 
@@ -264,7 +264,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"AuditAsker {Guid.NewGuid():N}"[..30]);
         var (_, otherSupplierId) = await ActiveSupplierAsync($"AuditOther {Guid.NewGuid():N}"[..30]);
         var (officer, _, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Audit RFQ");
-        var post = await askerClient.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
+        var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
         await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A.", publish = false });

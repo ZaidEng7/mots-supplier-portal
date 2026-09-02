@@ -109,17 +109,17 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
 
     private static async Task SubmitProposalAsync(HttpClient supplier, string referenceCode, Guid itemId)
     {
-        (await supplier.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null)).EnsureSuccessStatusCode();
-        await supplier.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/items/{itemId}", new
+        var proposalCode = await supplier.StartProposalAsync(referenceCode);
+        await supplier.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{itemId}", new
         { quantity = 5m, unitPrice = 10m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-        await supplier.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/terms", new
+        await supplier.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB",
             deliveryTermsAr = "٣ أيام", deliveryTermsEn = "3 days", warranty = (string?)null,
             validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
             validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
-        (await supplier.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null)).EnsureSuccessStatusCode();
+        (await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null)).EnsureSuccessStatusCode();
     }
 
     // ---- 1. Supplier requests an RFQ they hold no invitation to -------------------------------
@@ -138,9 +138,9 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         var (referenceCode, _, _, _, _) = await PublishRfqAsync(
             invitedSupplierId, "Cross-scope RFQ", DateTimeOffset.UtcNow.AddDays(1), DateTimeOffset.UtcNow.AddDays(8));
 
-        var invitedRead = await invited.GetAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}");
-        var outsiderRead = await outsider.GetAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}");
-        var unknownRead = await outsider.GetAsync($"/api/v1/suppliers/me/rfqs/{NonExistentReferenceCode}");
+        var invitedRead = await invited.GetAsync($"/api/v1/rfqs/{referenceCode}");
+        var outsiderRead = await outsider.GetAsync($"/api/v1/rfqs/{referenceCode}");
+        var unknownRead = await outsider.GetAsync($"/api/v1/rfqs/{NonExistentReferenceCode}");
 
         invitedRead.StatusCode.Should().Be(HttpStatusCode.OK, "the actually-invited supplier must still see it");
         outsiderRead.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -176,11 +176,11 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
 
         await SubmitProposalAsync(supplierA, referenceCode, itemId);
 
-        var bReadsBeforeStarting = await supplierB.GetAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal");
+        var bReadsBeforeStarting = await supplierB.GetAsync($"/api/v1/rfqs/{referenceCode}/proposals");
         bReadsBeforeStarting.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "B has not started a proposal - this must be B's own absent state, never A's submitted one");
 
-        var bStart = await supplierB.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+        var bStart = await supplierB.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         bStart.EnsureSuccessStatusCode();
         var bProposal = await bStart.Content.ReadFromJsonAsync<JsonElement>();
 
@@ -212,14 +212,14 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         // The two `GetProperty("data")` hops below are the ONLY change to this test: the list now
         // returns the documented §5.2 envelope `{ data, pagination, meta }` instead of a bare array,
         // so the root is an object. No assertion, control, or scoping expectation moved.
-        var aList = await supplierA.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/rfqs");
+        var aList = await supplierA.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
         var aCodes = aList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("referenceCode").GetString()).ToList();
 
         aCodes.Should().Contain(aCode, "A is invited to its own RFQ");
         aCodes.Should().NotContain(bCode, "B's RFQ exists and would appear here if the list were not invitation-scoped");
 
         // The negative is only meaningful if B's RFQ is genuinely visible to SOMEONE.
-        var bList = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/rfqs");
+        var bList = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
         bList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("referenceCode").GetString())
             .Should().Contain(bCode, "control: the seeded RFQ is real and reachable by its own invitee");
     }
@@ -334,8 +334,8 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         do
         {
             var url = cursor is null
-                ? "/api/v1/suppliers/me/rfqs?pageSize=2"
-                : $"/api/v1/suppliers/me/rfqs?pageSize=2&cursor={Uri.EscapeDataString(cursor)}";
+                ? "/api/v1/rfqs?pageSize=2"
+                : $"/api/v1/rfqs?pageSize=2&cursor={Uri.EscapeDataString(cursor)}";
             var body = await supplierA.GetFromJsonAsync<JsonElement>(url);
 
             seen.AddRange(body.GetProperty("data").EnumerateArray()
@@ -356,7 +356,7 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         }
 
         // Control: B's rows are real and reachable by B, so the negative above is about scoping.
-        var bFirstPage = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/rfqs?pageSize=100");
+        var bFirstPage = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
         bFirstPage.GetProperty("data").EnumerateArray()
             .Select(r => r.GetProperty("referenceCode").GetString()).Should().BeEquivalentTo(bCodes);
     }

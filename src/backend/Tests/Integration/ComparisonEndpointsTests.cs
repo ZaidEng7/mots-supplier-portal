@@ -107,18 +107,18 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
 
         async Task<Guid> SubmitProposalAsync(HttpClient supplier)
         {
-            var start = await supplier.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+            var start = await supplier.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
             var startBody = await start.Content.ReadFromJsonAsync<JsonElement>();
             var proposalReferenceCode = startBody.GetProperty("referenceCode").GetString()!;
-            await supplier.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/items/{requiredItemId}", new
+            await supplier.PutAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/items/{requiredItemId}", new
             { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-            await supplier.PostAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
-            await supplier.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/terms", new
+            await supplier.PostAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
+            await supplier.PutAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/terms", new
             {
                 currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB", deliveryTermsAr = "3 أيام", deliveryTermsEn = "3 days",
                 warranty = (string?)null, validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date), validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
             });
-            var submit = await supplier.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+            var submit = await supplier.PostAsync($"/api/v1/proposals/{proposalReferenceCode}/submit", null);
             submit.StatusCode.Should().Be(HttpStatusCode.OK);
 
             await using var innerScope = fixture.Services.CreateAsyncScope();

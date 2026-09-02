@@ -23,7 +23,7 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
         var client = fixture.CreateClient();
         var email = $"itest-{Guid.NewGuid():N}@example.com";
 
-        var registerResponse = await client.PostAsJsonAsync("/api/v1/registrations", new
+        var registerResponse = await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار",
             displayNameEn = "Integration Test Co",
@@ -54,7 +54,7 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
         var email = $"itest-{Guid.NewGuid():N}@example.com";
         const string password = "IntegrationTest#2026!";
 
-        await client.PostAsJsonAsync("/api/v1/registrations", new
+        await client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             displayNameAr = "شركة اختبار ٢",
             displayNameEn = "Integration Test Co 2",
@@ -76,7 +76,7 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
 
         var rawToken = await securityTokenService.IssueAsync(user!.Id, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), CancellationToken.None);
 
-        var verifyResponse = await client.PostAsJsonAsync("/api/v1/registrations/verify", new { token = rawToken });
+        var verifyResponse = await client.PostAsJsonAsync("/api/v1/auth/verify-email", new { token = rawToken });
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });

@@ -100,7 +100,7 @@ export interface RegisterSupplierPayload {
  * cannot tell the two apart. The existing account gets a "you already have an account" email
  * directly; nothing here reveals that to whoever submitted the duplicate. */
 export async function registerSupplier(payload: RegisterSupplierPayload): Promise<{ referenceCode: string | null }> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/registrations`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

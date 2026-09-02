@@ -37,7 +37,7 @@ describe('SupplierRfqListPage', () => {
   })
 
   it('shows the empty state when invited to nothing', async () => {
-    restore = mockFetch({ '/api/v1/suppliers/me/rfqs': listPage([]) })
+    restore = mockFetch({ '/api/v1/rfqs': listPage([]) })
 
     renderPage(<SupplierRfqListPage />)
 
@@ -48,7 +48,7 @@ describe('SupplierRfqListPage', () => {
     // Only the projected `SupplierRfqListItemDto` fields - the list no longer returns the whole
     // aggregate, so a fixture carrying items/attachments/clarifications would be lying about the wire.
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs': listPage([
+      '/api/v1/rfqs': listPage([
         {
           referenceCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ',
           state: 'Published', myInvitationStatus: 'Invited', createdAt: '2026-08-30T09:00:00Z',

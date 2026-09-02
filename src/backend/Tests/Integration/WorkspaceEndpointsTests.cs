@@ -129,16 +129,16 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         await Task.Delay(TimeSpan.FromSeconds(1.2));
         await RunTimelineJobAsync();
 
-        var start = await supplierClient.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal", null);
+        var start = await supplierClient.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         var proposalReferenceCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
-        await supplierClient.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/items/{itemId}", new
+        await supplierClient.PutAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/items/{itemId}", new
         { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-        await supplierClient.PutAsJsonAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/terms", new
+        await supplierClient.PutAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/terms", new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB", deliveryTermsAr = "3 أيام", deliveryTermsEn = "3 days",
             warranty = (string?)null, validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date), validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
-        await supplierClient.PostAsync($"/api/v1/suppliers/me/rfqs/{referenceCode}/proposal/submit", null);
+        await supplierClient.PostAsync($"/api/v1/proposals/{proposalReferenceCode}/submit", null);
 
         Guid proposalId;
         await using (var scope = fixture.Services.CreateAsyncScope())

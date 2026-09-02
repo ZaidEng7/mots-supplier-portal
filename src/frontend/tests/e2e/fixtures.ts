@@ -42,6 +42,7 @@ export const reviewerToken = fakeJwt({
 
 export const REFERENCE_CODE = 'SUP-2026-000001'
 export const RFQ_REFERENCE_CODE = 'RFQ-2026-000001'
+export const PROPOSAL_REFERENCE_CODE = 'PRP-2026-000001'
 
 export const SUPPLIER_PROFILE = {
   referenceCode: REFERENCE_CODE,
@@ -166,7 +167,7 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/auth/sessions') return route.fulfill({ json: listPage([{ familyId: 'f1', ip: '127.0.0.1', userAgent: 'axe-scan', createdAt: '2026-08-01T00:00:00Z', expiresAt: '2026-09-01T00:00:00Z', isCurrent: true }]) })
     if (p === '/api/v1/review/queue') return route.fulfill({ json: listPage([{ referenceCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'UnderReview' }]) })
     if (p === `/api/v1/review/${REFERENCE_CODE}`) return route.fulfill({ json: { supplier: SUPPLIER_PROFILE, documents: DOCUMENT_TYPES, annotationHistory: [] } })
-    if (p === '/api/v1/registrations/verify' && method === 'POST') return route.fulfill({ json: {} })
+    if (p === '/api/v1/auth/verify-email' && method === 'POST') return route.fulfill({ json: {} })
     // Task #7/Stage C: list endpoints return real arrays, not the generic {} fallback below -
     // an empty object crashes OrganizationsPage's .map() the same way any list page would.
     if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
@@ -214,14 +215,31 @@ export async function mockBackend(page: Page) {
     }
     // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
     // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
-    if (p === '/api/v1/suppliers/me/rfqs') return route.fulfill({ json: listPage([SUPPLIER_RFQ_LIST_ITEM_FIXTURE]) })
-    if (p === `/api/v1/suppliers/me/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: SUPPLIER_RFQ_FIXTURE })
+    if (p === '/api/v1/rfqs') return route.fulfill({ json: listPage([SUPPLIER_RFQ_LIST_ITEM_FIXTURE]) })
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: SUPPLIER_RFQ_FIXTURE })
     // EPIC-09: same class of bug - SupplierProposalPage would fall through to the generic {}
     // fallback below and crash reading proposal.items.
-    if (p === `/api/v1/suppliers/me/rfqs/${RFQ_REFERENCE_CODE}/proposal`) return route.fulfill({ json: PROPOSAL_FIXTURE })
+    // §12-A/C2: discovery hangs off the RFQ, the resource itself is code-addressed. Both are
+    // mocked because the page uses the first to learn the code it needs for the second.
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/proposals`) return route.fulfill({ json: PROPOSAL_FIXTURE })
+    if (p === `/api/v1/proposals/${PROPOSAL_REFERENCE_CODE}`) return route.fulfill({ json: PROPOSAL_FIXTURE })
 
-    // Anything else (mutation endpoints no initial render triggers, unanticipated GETs): benign
-    // empty success, so an unmocked call cannot crash the page under scan.
+    // §12-A/Part D: an unmatched GET now FAILS LOUDLY instead of returning `{}`.
+    //
+    // The generic fallback existed so mutation endpoints no render triggers could not crash a
+    // scan, and that part is kept. But for a GET it was actively harmful: a route renamed on the
+    // backend without updating this file kept "passing" here, because `{}` is a valid JSON body
+    // and a page rendering an empty state looks like a page rendering. That is precisely the silent
+    // 404 this batch's discipline exists to catch, and §11's OpenAPI/oasdiff gate - which would
+    // otherwise catch it - is documented but unbuilt.
+    if (method === 'GET') {
+      return route.fulfill({
+        status: 500,
+        json: { error: 'unmocked_get', detail: `e2e fixtures declare no GET route for ${p}` },
+      })
+    }
+
+    // Non-GET: benign empty success, unchanged.
     return route.fulfill({ status: 200, json: {} })
   })
 }

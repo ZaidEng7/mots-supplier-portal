@@ -40,8 +40,9 @@ describe('SupplierProposalPage', () => {
     const original = globalThis.fetch
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      if (url.endsWith('/proposal')) return new Response(null, { status: 404 })
-      if (url.includes('/api/v1/suppliers/me/rfqs/RFQ-2026-000001')) return new Response(JSON.stringify(RFQ_FIXTURE), { status: 200 })
+      // §12-A/C2: the proposal is discovered at /rfqs/{rfqCode}/proposals now.
+      if (url.endsWith('/proposals')) return new Response(null, { status: 404 })
+      if (url.includes('/api/v1/rfqs/RFQ-2026-000001')) return new Response(JSON.stringify(RFQ_FIXTURE), { status: 200 })
       throw new Error(`No mock declared for ${url}`)
     }) as typeof fetch
     restore = () => { globalThis.fetch = original }
@@ -53,8 +54,10 @@ describe('SupplierProposalPage', () => {
 
   it('Draft: shows the RFQ item for pricing, and saving a price shows a success toast', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001/proposal': proposalFixture('Draft'),
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      // §12-A/C2: mutations address the proposal by its own code.
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
 
     renderPage(<SupplierProposalPage />)
@@ -68,8 +71,10 @@ describe('SupplierProposalPage', () => {
 
   it('Draft: answering a requirement shows a success toast', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001/proposal': proposalFixture('Draft'),
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      // §12-A/C2: mutations address the proposal by its own code.
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
 
     renderPage(<SupplierProposalPage />)
@@ -83,8 +88,10 @@ describe('SupplierProposalPage', () => {
 
   it('Draft: submitting shows a success toast', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001/proposal': proposalFixture('Draft'),
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      // §12-A/C2: mutations address the proposal by its own code.
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
 
     renderPage(<SupplierProposalPage />)
@@ -96,10 +103,12 @@ describe('SupplierProposalPage', () => {
 
   it('Submitted: pricing/answer inputs are gone (state-gated editing) and withdraw is available', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001/proposal': proposalFixture('Submitted', {
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Submitted', {
         items: [{ id: 'pi-1', rfqItemId: 'item-1', quantity: 5, unitPrice: 10, discount: null, lineTotal: 50, leadTimeDays: null, notesAr: null, notesEn: null }],
       }),
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+      // §12-A/C2: mutations address the proposal by its own code.
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
 
     renderPage(<SupplierProposalPage />)
@@ -114,8 +123,10 @@ describe('SupplierProposalPage', () => {
 
   it('Withdrawn: withdraw action is hidden', async () => {
     restore = mockFetch({
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001/proposal': proposalFixture('Withdrawn'),
-      '/api/v1/suppliers/me/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Withdrawn'),
+      // §12-A/C2: mutations address the proposal by its own code.
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
 
     renderPage(<SupplierProposalPage />)
