@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import type { ListEnvelope } from './listEnvelope'
 import type { InvitationStatus, RfqItem, Requirement, RfqAttachment, RfqState, ClarificationVisibility, Addendum } from './rfqs'
 
 /** FEAT-10.3/FR-CLR-003: the supplier-facing shape - deliberately carries no asker identity at
@@ -17,6 +18,16 @@ export interface SupplierClarification {
 /** FEAT-08.6/FR-INV-006: the supplier-facing shape - deliberately narrower than the buyer's Rfq
  * (no Approvals, no OrganizationId) since a non-invited supplier must never even learn the RFQ
  * exists, let alone see internal reviewer state. */
+/** The supplier list row - projected, with the caller's own invitation status resolved in SQL. */
+export interface SupplierRfqListItem {
+  referenceCode: string
+  titleAr: string
+  titleEn: string
+  state: string
+  myInvitationStatus: InvitationStatus
+  createdAt: string
+}
+
 export interface SupplierRfq {
   referenceCode: string
   titleAr: string
@@ -52,8 +63,9 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function listInvitedRfqs(): Promise<SupplierRfq[]> {
-  return parseOrThrow(await apiFetch('/api/v1/suppliers/me/rfqs'))
+export async function listInvitedRfqs(cursor?: string | null): Promise<ListEnvelope<SupplierRfqListItem>> {
+  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return parseOrThrow(await apiFetch(`/api/v1/suppliers/me/rfqs${qs}`))
 }
 
 export async function getInvitedRfq(referenceCode: string): Promise<SupplierRfq> {

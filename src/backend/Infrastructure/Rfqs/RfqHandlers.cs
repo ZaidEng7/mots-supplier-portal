@@ -104,21 +104,56 @@ file static class RfqLoader
     }
 }
 
+/// <summary>
+/// T2 Item 2 + 3: projected and cursor-paginated.
+///
+/// <para>This previously ran <c>IncludeAll()</c> - seven child collections - plus a batched
+/// supplier-name query, for every RFQ in the organization, unpaginated, to render three scalar
+/// columns. The includes existed for <see cref="RfqDto"/>, the DETAIL shape; the list never touched
+/// them. It now projects <see cref="RfqListItemDto"/> in SQL and pages by keyset per
+/// API-ARCHITECTURE.md §6.1, which names RFQs a cursor-default collection.</para>
+///
+/// <para>Org scoping is unchanged and still the first predicate applied - it is part of the same
+/// WHERE the cursor narrows, so it holds on page two exactly as on page one.</para>
+/// </summary>
 public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : IListRfqsHandler
 {
-    public async Task<IReadOnlyList<RfqDto>> HandleAsync(CancellationToken ct)
+    public async Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct)
     {
-        if (scope.OrganizationId is null) return [];
-        var rfqs = await db.Rfqs.IncludeAll()
-            .Where(r => r.OrganizationId == scope.OrganizationId)
-            .OrderByDescending(r => r.CreatedAt)
+        var size = ListEnvelope<RfqListItemDto>.ClampPageSize(pageSize);
+        if (scope.OrganizationId is null) return ListEnvelope<RfqListItemDto>.Empty(size);
+
+        var query = db.Rfqs.Where(r => r.OrganizationId == scope.OrganizationId);
+
+        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
+        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
+        // shrink as the caller pages. A second query, so it is off unless asked for.
+        int? totalCount = withCount ? await query.CountAsync(ct) : null;
+
+        if (RfqListCursor.TryDecode(cursor, out var from))
+        {
+            query = query.Where(r =>
+                r.CreatedAt < from.CreatedAt
+                || (r.CreatedAt == from.CreatedAt && r.Id.CompareTo(from.Id) < 0));
+        }
+
+        // pageSize + 1: the extra row answers HasMore without a COUNT over the whole filtered set.
+        var rows = await query
+            .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
+            .Select(r => new { r.Id, Dto = new RfqListItemDto(r.ReferenceCode, r.TitleAr, r.TitleEn, r.State, r.CreatedAt) })
+            .Take(size + 1)
             .ToListAsync(ct);
 
-        // Batched once for the whole page rather than N+1 (ToDtoAsync's own per-call query would
-        // otherwise fire once per RFQ in the list).
-        var supplierIds = rfqs.SelectMany(r => r.Invitations).Select(i => i.SupplierId).Distinct().ToList();
-        var names = await RfqDtoMapper.SupplierNamesAsync(db, supplierIds, ct);
-        return [.. rfqs.Select(r => RfqDtoMapper.ToDto(r, names))];
+        var hasMore = rows.Count > size;
+        var items = hasMore ? rows[..size] : rows;
+
+        return ListEnvelope<RfqListItemDto>.Cursor(
+            [.. items.Select(r => r.Dto)],
+            hasMore,
+            hasMore ? new RfqListCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
+            size,
+            totalCount,
+            sort: "-createdAt");
     }
 }
 

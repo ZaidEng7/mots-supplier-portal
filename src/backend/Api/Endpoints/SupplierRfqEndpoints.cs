@@ -39,9 +39,12 @@ public static class SupplierRfqEndpoints
     {
         var group = app.MapGroup("/api/v1/suppliers/me/rfqs").WithTags("SupplierRfqs");
 
-        group.MapGet("/", async (ISupplierListInvitedRfqsHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(ct)))
+        group.MapGet("/", async (string? cursor, int? pageSize, bool? withCount, HttpContext httpContext, ISupplierListInvitedRfqsHandler handler, CancellationToken ct) =>
+            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
         .RequirePermission(Permissions.ProposalCreate)
+        // Same -createdAt divergence from §6.3's "-publishedAt" example as the buyer list, for a
+        // different reason: the RFQ aggregate has no PublishedAt column at all. See RfqEndpoints.
+        .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"]))
         .WithName("SupplierListInvitedRfqs");
 
         group.MapGet("/{referenceCode}", async (

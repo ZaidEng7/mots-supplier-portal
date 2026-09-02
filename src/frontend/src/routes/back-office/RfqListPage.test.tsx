@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, listPage } from '../../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -10,12 +10,12 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { RfqListPage } = await import('./RfqListPage')
 
+// The list endpoint projects `RfqListItemDto` - reference, both titles, state, createdAt - not the
+// full aggregate. The fixture carries exactly those fields, so a page that starts reading something
+// the list no longer sends fails here rather than in production.
 const RFQ_DRAFT = {
-  referenceCode: 'RFQ-2026-000001', organizationId: 'org-1', titleAr: 'طلب تجريبي', titleEn: 'Sample RFQ',
-  descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Draft',
-  publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
-  evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
-  items: [], requirements: [], attachments: [], approvals: [],
+  referenceCode: 'RFQ-2026-000001', titleAr: 'طلب تجريبي', titleEn: 'Sample RFQ',
+  state: 'Draft', createdAt: '2026-08-30T09:00:00Z',
 }
 
 const RFQ_PUBLISHED = { ...RFQ_DRAFT, referenceCode: 'RFQ-2026-000002', titleEn: 'Published RFQ', state: 'Published' }
@@ -27,7 +27,7 @@ describe('RfqListPage', () => {
   afterEach(() => restore?.())
 
   it('shows the empty state when no RFQs exist', async () => {
-    restore = mockFetch({ '/api/v1/rfqs': [] })
+    restore = mockFetch({ '/api/v1/rfqs': listPage([]) })
 
     renderPage(<RfqListPage />)
 
@@ -35,7 +35,7 @@ describe('RfqListPage', () => {
   })
 
   it('lists RFQs with their reference code, title, and real state badge', async () => {
-    restore = mockFetch({ '/api/v1/rfqs': [RFQ_DRAFT, RFQ_PUBLISHED] })
+    restore = mockFetch({ '/api/v1/rfqs': listPage([RFQ_DRAFT, RFQ_PUBLISHED]) })
 
     renderPage(<RfqListPage />)
 
@@ -48,7 +48,7 @@ describe('RfqListPage', () => {
   })
 
   it('creating an RFQ shows a success toast', async () => {
-    restore = mockFetch({ '/api/v1/rfqs': [] })
+    restore = mockFetch({ '/api/v1/rfqs': listPage([]) })
 
     renderPage(<RfqListPage />)
 

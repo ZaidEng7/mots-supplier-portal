@@ -1,4 +1,14 @@
 import { apiFetch } from './auth'
+import type { ListEnvelope } from './listEnvelope'
+
+/** The buyer list row - the projected shape, not the detail `Rfq`. */
+export interface RfqListItem {
+  referenceCode: string
+  titleAr: string
+  titleEn: string
+  state: RfqState
+  createdAt: string
+}
 
 export type RfqState =
   | 'Draft' | 'InternalReview' | 'Approved' | 'Published' | 'SubmissionOpen' | 'SubmissionClosed'
@@ -171,8 +181,9 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function listRfqs(): Promise<Rfq[]> {
-  return parseOrThrow(await apiFetch('/api/v1/rfqs'))
+export async function listRfqs(cursor?: string | null): Promise<ListEnvelope<RfqListItem>> {
+  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs${qs}`))
 }
 
 export async function getRfq(referenceCode: string): Promise<Rfq> {

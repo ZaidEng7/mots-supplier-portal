@@ -1,5 +1,7 @@
 using MotsSupplierPortal.Domain.Rfqs;
 
+using MotsSupplierPortal.Application.Common;
+
 namespace MotsSupplierPortal.Application.Rfqs;
 
 public sealed record RfqItemDto(
@@ -60,6 +62,22 @@ public sealed record SupplierRfqDto(
     DateTimeOffset? ClarificationDeadlineAt,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements, IReadOnlyList<RfqAttachmentDto> Attachments,
     InvitationStatus MyInvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
+
+/// <summary>
+/// The buyer RFQ list row (T2 Item 2). Deliberately NOT <see cref="RfqDto"/>: the detail DTO is the
+/// reason <c>IncludeAll()</c> loaded seven child collections per RFQ to render three scalar
+/// columns. Projected in SQL, so nothing is materialised that the list does not show.
+/// </summary>
+public sealed record RfqListItemDto(
+    string ReferenceCode, string TitleAr, string TitleEn, RfqState State, DateTimeOffset CreatedAt);
+
+/// <summary>
+/// The supplier RFQ list row. <paramref name="MyInvitationStatus"/> is resolved in SQL against the
+/// calling supplier rather than by loading the Invitations collection and filtering in memory.
+/// </summary>
+public sealed record SupplierRfqListItemDto(
+    string ReferenceCode, string TitleAr, string TitleEn, RfqState State,
+    InvitationStatus MyInvitationStatus, DateTimeOffset CreatedAt);
 
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
@@ -142,7 +160,7 @@ public abstract record SupplierRfqResult
 
 public interface IListRfqsHandler
 {
-    Task<IReadOnlyList<RfqDto>> HandleAsync(CancellationToken ct);
+    Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct);
 }
 
 public interface IGetRfqHandler
@@ -225,7 +243,7 @@ public interface ISuggestInvitationCandidatesHandler
 
 public interface ISupplierListInvitedRfqsHandler
 {
-    Task<IReadOnlyList<SupplierRfqDto>> HandleAsync(CancellationToken ct);
+    Task<ListEnvelope<SupplierRfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct);
 }
 
 public interface ISupplierGetRfqHandler
