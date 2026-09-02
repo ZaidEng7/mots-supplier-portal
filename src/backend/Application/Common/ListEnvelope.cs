@@ -8,13 +8,16 @@ namespace MotsSupplierPortal.Application.Common;
 /// fabricated value would be worse than emitting the documented null. Present because §5.2 lists it.</param>
 /// <param name="TotalCount">Omitted (null) unless the caller asks - §6.1: "totalCount omitted unless
 /// ?withCount=true". Serialised as null rather than dropped, so the shape is stable for clients.</param>
+/// <param name="Page">Page mode only (§12.3's worked response carries <c>"page": 1</c>); null under
+/// cursor mode, where there is no page number to report.</param>
 public sealed record PaginationEnvelope(
     string Mode,
     string? NextCursor,
     string? PrevCursor,
     int PageSize,
     int? TotalCount,
-    bool HasMore);
+    bool HasMore,
+    int? Page = null);
 
 /// <summary>
 /// The `meta` block of the list envelope (§5.2).
@@ -79,6 +82,38 @@ public sealed record ListEnvelope<T>(
         IReadOnlyList<string>? filtersApplied = null) =>
         new(data,
             new PaginationEnvelope("cursor", hasMore ? nextCursor : null, PrevCursor: null, pageSize, totalCount, hasMore),
+            new ListMetaEnvelope(sort, filtersApplied));
+
+    /// <summary>§6.1, page mode: *"Hard cap `page*pageSize <= 10 000` to protect the DB"*.</summary>
+    public const int MaxPageOffset = 10_000;
+
+    /// <summary>
+    /// True when <paramref name="page"/> and <paramref name="pageSize"/> would read past §6.1's
+    /// hard cap. The endpoint answers 422 *"advising cursor mode"*, which §6.1 states verbatim.
+    ///
+    /// <para>Evaluated on the CLAMPED page size, because the clamp is what the query will actually
+    /// use - refusing on the caller's unclamped 5000 while the server would have run 100 would
+    /// reject requests the cap was never meant to catch.</para>
+    /// </summary>
+    public static bool ExceedsPageCap(int page, int? requestedPageSize) =>
+        (long)Math.Max(page, 1) * ClampPageSize(requestedPageSize) > MaxPageOffset;
+
+    /// <summary>
+    /// A page-mode page (§6.1: *"Offset paging for finite admin grids. Always returns
+    /// `totalCount`"*), shaped as §12.3's worked response shows it: <c>mode</c>, <c>page</c>,
+    /// <c>pageSize</c>, <c>totalCount</c>, <c>hasMore</c> - and no cursors, which have no meaning
+    /// here and are emitted as null rather than fabricated.
+    /// </summary>
+    public static ListEnvelope<T> PageOf(
+        IReadOnlyList<T> data,
+        int page,
+        int pageSize,
+        int totalCount,
+        string? sort = null,
+        IReadOnlyList<string>? filtersApplied = null) =>
+        new(data,
+            new PaginationEnvelope("page", NextCursor: null, PrevCursor: null, pageSize, totalCount,
+                HasMore: (long)page * pageSize < totalCount, Page: page),
             new ListMetaEnvelope(sort, filtersApplied));
 
     /// <summary>An empty cursor-mode page. §5.2: "Empty results return `data: []` with `200`, never
