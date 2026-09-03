@@ -10,6 +10,22 @@ const resources = {
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
+      // SCR-500. The empty state is transcribed from UX-WRITING.md §4's own row for this persona:
+      // "Evaluator — nothing assigned | 'Nothing to evaluate' | 'Proposals assigned to you for
+      // scoring will appear here.' | —" (no action, per the table's own dash).
+      evaluationDashboard: {
+        title: 'تقييماتي',
+        tabs: { Assigned: 'مُسندة', InProgress: 'قيد التنفيذ', Submitted: 'مُرسلة' },
+        emptyTitle: 'لا يوجد ما يُقيَّم',
+        emptyBody: 'ستظهر هنا العروض المسندة إليك للتقييم.',
+        progress: 'أُنجز {{done}} من {{total}}',
+        due: 'الموعد المستهدف: {{date}}',
+        noDueDate: 'لا يوجد موعد مستهدف',
+        score: 'ابدأ التقييم',
+        review: 'عرض التقييم',
+        loadFailed: 'تعذر تحميل التقييمات',
+        retry: 'إعادة المحاولة',
+      },
       notifications: {
         title: 'الإشعارات',
         emptyTitle: 'لا توجد إشعارات بعد',
@@ -863,6 +879,19 @@ const resources = {
     translation: {
       appName: 'Supplier Portal',
       nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      evaluationDashboard: {
+        title: 'My evaluations',
+        tabs: { Assigned: 'Assigned', InProgress: 'In progress', Submitted: 'Submitted' },
+        emptyTitle: 'Nothing to evaluate',
+        emptyBody: 'Proposals assigned to you for scoring will appear here.',
+        progress: '{{done}} of {{total}} scored',
+        due: 'Due {{date}}',
+        noDueDate: 'No target date',
+        score: 'Start scoring',
+        review: 'View evaluation',
+        loadFailed: "Couldn't load your evaluations",
+        retry: 'Try again',
+      },
       notifications: {
         title: 'Notifications',
         emptyTitle: 'No notifications yet',

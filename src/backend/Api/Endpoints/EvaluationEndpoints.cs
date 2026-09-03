@@ -125,6 +125,31 @@ public static class EvaluationEndpoints
         .RequireIfMatch()
         .WithName("ReopenEvaluation");
 
+        // SCR-500 / FR-DSH-004 / T3-02. The evaluator's own assignments, across RFQs.
+        //
+        // A COLLECTION of its own rather than a sub-resource of one RFQ, because that is what it is:
+        // "the evaluations assigned to me" has no single parent RFQ, and hanging it off one would
+        // mean the caller already knowing which RFQ to ask about - which is the thing this screen
+        // exists to tell them. EPIC-11 was complete and unreachable for exactly that reason.
+        app.MapGet("/api/v1/my-evaluations", async (
+            string? tab,
+            IListMyAssignmentsHandler handler,
+            CancellationToken ct) =>
+        {
+            // An unrecognised tab must not be dropped: dropping the filter returns everything, so a
+            // caller that asked to narrow gets the opposite with no way to tell. Same answer as
+            // Batch 0.2's unknown filter values.
+            if (tab is not null && !MyAssignmentTabs.All.Contains(tab))
+            {
+                return FilterValues.InvalidFilterValue("tab", tab);
+            }
+
+            return Results.Ok(await handler.HandleAsync(tab, ct));
+        })
+        .RequirePermission(Permissions.EvaluationScore)
+        .WithTags("Evaluation")
+        .WithName("ListMyAssignments");
+
         var myGroup = app.MapGroup("/api/v1/rfqs/{referenceCode}/my-evaluation").WithTags("Evaluation");
 
         myGroup.MapGet("/", async (string referenceCode, IGetMyEvaluationHandler handler, CancellationToken ct) =>

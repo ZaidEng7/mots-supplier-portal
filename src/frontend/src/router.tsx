@@ -29,6 +29,7 @@ const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: 
 const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').then((m) => ({ default: m.OfferingCatalogPage })))
 const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
+const EvaluationDashboardPage = lazy(() => import('./routes/EvaluationDashboardPage').then((m) => ({ default: m.EvaluationDashboardPage })))
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
 const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
@@ -227,6 +228,29 @@ const offeringCatalogRoute = createRoute({
   component: OfferingCatalogPage,
 })
 
+// SCR-500 sits at "/evaluation" (SCREEN-INVENTORY's own route column, and what the epic names)
+// while IA §4.3 puts the evaluator's dashboard at "/bo". The two documents disagree; the inventory's
+// explicit route wins, and the conflict is reported. It renders in the back-office chrome because
+// §4.3 is unambiguous that an evaluator "enters the Back-office shell" - so this is a pathless
+// layout route, the same shape supplierLayoutRoute already uses, rather than a "/back-office" child
+// that would change the URL.
+const evaluatorLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'evaluator-layout',
+  beforeLoad: async () => ensureAuthenticated('/evaluation'),
+  component: () => (
+    <BackOfficeShell>
+      <Outlet />
+    </BackOfficeShell>
+  ),
+})
+
+const evaluationDashboardRoute = createRoute({
+  getParentRoute: () => evaluatorLayoutRoute,
+  path: '/evaluation',
+  component: EvaluationDashboardPage,
+})
+
 // SCR-900: "/notifications", all authenticated personas. Registered under BOTH shells rather than
 // once, because the two shells are two different URL spaces - a back-office user has no route under
 // the supplier layout at all. SCREEN-INVENTORY names one path; this is the same SCREEN reached
@@ -373,6 +397,7 @@ const routeTree = rootRoute.addChildren([
   verifyEmailRoute,
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
+  evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
   supplierLayoutRoute.addChildren([
     supplierDashboardRoute,
     onboardingRoute,
