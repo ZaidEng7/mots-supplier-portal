@@ -57,7 +57,11 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         workspace.GetProperty("awardState").ValueKind.Should().Be(JsonValueKind.Null);
 
         var stages = workspace.GetProperty("stages").EnumerateArray().ToList();
-        stages.Should().HaveCount(10, "only the 10 reachable RfqState values are shown, per the handler's own doc comment");
+        // T3-36 made Clarification, Shortlisting and Recommendation reachable, so the tracker shows
+        // 13 stages rather than 10. The three were excluded precisely because no code path produced
+        // them; leaving them out now would give an RFQ sitting in Clarification no current stage at
+        // all and mark everything before it complete.
+        stages.Should().HaveCount(13, "every reachable RfqState is shown, and T3-36 added three");
         var draftStage = stages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.Draft));
         draftStage.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
         draftStage.GetProperty("isCompleted").GetBoolean().Should().BeFalse();

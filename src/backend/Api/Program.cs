@@ -264,6 +264,8 @@ builder.Services.AddScoped<ISubmitRfqForReviewHandler, SubmitRfqForReviewHandler
 builder.Services.AddScoped<IReturnRfqForEditsHandler, ReturnRfqForEditsHandler>();
 builder.Services.AddScoped<IApproveRfqHandler, ApproveRfqHandler>();
 builder.Services.AddScoped<IPublishRfqHandler, PublishRfqHandler>();
+builder.Services.AddScoped<IRequestRfqClarificationHandler, RequestRfqClarificationHandler>();
+builder.Services.AddScoped<IResolveRfqClarificationHandler, ResolveRfqClarificationHandler>();
 builder.Services.AddScoped<ICloseRfqSubmissionHandler, CloseRfqSubmissionHandler>();
 builder.Services.AddScoped<ICancelRfqHandler, CancelRfqHandler>();
 builder.Services.AddScoped<RfqTimelineJob>();

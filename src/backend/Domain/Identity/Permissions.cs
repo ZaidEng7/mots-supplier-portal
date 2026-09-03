@@ -125,6 +125,17 @@ public static class Permissions
     /// <summary>FEAT-10.2/FR-CLR-002: answer a clarification question, privately or published -
     /// procurement_officer per that FR's own actor.</summary>
     public const string ClarificationAnswer = "clarification.answer";
+
+    /// <summary>
+    /// T3-36. BUSINESS-PROCESSES.md §3.1 names this permission for both clarification transitions:
+    /// "UnderEvaluation | Clarification | Request clarification | `procurement_officer`,`evaluator` /
+    /// `rfq.clarify`". Transcribed from the table rather than invented - but it is a NEW permission,
+    /// so any deployed environment needs it granted before those transitions can be used.
+    ///
+    /// <para>Distinct from <see cref="ClarificationAnswer"/>, which governs the submission-window Q&amp;A.
+    /// The two share a word and nothing else.</para>
+    /// </summary>
+    public const string RfqClarify = "rfq.clarify";
     /// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: issue an RFQ addendum - the "locked after
     /// Published except addenda" carve-out, distinct from RfqEdit since it is legal only Published+
     /// where RfqEdit is legal only Draft.</summary>
@@ -177,7 +188,7 @@ public static class Permissions
         RfqPublish, ProposalSubmit, EvaluationScore, AwardApprove, AdminUsersManage, AuditRead, AdminOrganizationsManage,
         AdminRolesManage, OfferingSearch, EvaluationTemplateManage,
         RfqRead, RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
-        ClarificationAnswer, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
+        ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry
     ];
@@ -212,11 +223,12 @@ public static class Roles
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
         // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template
         // management is procurement_manager/system_admin per BACKLOG.md's own actor list.
-        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqRead, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
+        [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqRead, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqClarify, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
         [ProcurementManager] = [Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject],
-        [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit],
+        // §3.1 names `evaluator` as an actor for "Request clarification" alongside the officer.
+        [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit, Permissions.RfqClarify],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
         // Ministry "read-only, cross-organization access to aggregate/governance metrics only",
         // and BRULE-087 defaults to aggregate-only where visibility is undecided. A raw audit-row

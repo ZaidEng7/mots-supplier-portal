@@ -104,6 +104,25 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
+        // T3-36. §3.1: "Shortlisting | Recommendation | Record recommendation |
+        // `procurement_officer`,`procurement_manager` / `award.recommend`". Same reasoning as
+        // shortlisting: the table names THIS operation's permission for the RFQ's own move, so
+        // recording the recommendation is the trigger. Guarded on Shortlisting, so an RFQ that
+        // reached UnderEvaluation before T3-36 is untouched and still routes directly.
+        if (rfq.State == RfqState.Shortlisting)
+        {
+            rfq.RecordRecommendation();
+
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqRecommendationRecorded,
+                await NotificationRecipients.AwardApproversAsync(db, rfq.OrganizationId, ct),
+                $"{NotificationTypes.RfqRecommendationRecorded}:{rfq.Id}:{award.RecommendationRevision}",
+                new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
+            await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_recommendation_recorded", scope.UserId,
+                referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.Shortlisting),
+                toState: nameof(RfqState.Recommendation), ct: ct);
+        }
+
         // §3.4 "- -> Recommended | In-app to approver" and "Rejected -> Recommended | In-app to
         // approver". The APPROVER POOL: nothing in the Identity domain resolves a single named
         // approver from the AwardApprove claim, so this notifies everyone who could approve it.
@@ -153,7 +172,11 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
         // succeed unconditionally regardless of RFQ state, a real cross-aggregate gap: the Award
         // could advance to PendingApproval on a dead or already-concluded RFQ. Explicitly refuse
         // every state outside the two legitimate ones instead of only handling the happy path.
-        if (rfq.State is not (RfqState.UnderEvaluation or RfqState.AwardApproval))
+        // T3-36 added Recommendation, which is §3.1's OWN source state for this row:
+        // "Recommendation | AwardApproval | Route for approval | `procurement_officer` /
+        // `award.recommend`". UnderEvaluation stays because every RFQ written before T3-36 reaches
+        // here from it, and AwardApproval stays for the legitimate reject-and-re-route cycle.
+        if (rfq.State is not (RfqState.Recommendation or RfqState.UnderEvaluation or RfqState.AwardApproval))
         {
             return new AwardMutationResult.InvalidState($"Cannot route award for approval: the RFQ is in state '{rfq.State}'.");
         }
@@ -162,7 +185,7 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
         try
         {
             award.RouteForApproval();
-            if (rfq.State == RfqState.UnderEvaluation) rfq.EnterAwardApproval();
+            if (rfq.State is RfqState.Recommendation or RfqState.UnderEvaluation) rfq.EnterAwardApproval();
         }
         catch (DomainException ex)
         {

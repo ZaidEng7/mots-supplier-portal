@@ -175,7 +175,9 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         var publishAttempt = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/publish", null);
 
-        publishAttempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // §3: "Illegal transitions return 409 Conflict … listing the current state and the allowed
+        // next states." This answered 400 until T3-36 built that response.
+        publishAttempt.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     [Fact]

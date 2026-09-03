@@ -135,6 +135,15 @@ public sealed record CloseRfqSubmissionCommand(string ReferenceCode, string? Rea
 
 public sealed record CancelRfqCommand(string ReferenceCode, string Reason);
 
+/// <summary>
+/// T3-36. BUSINESS-PROCESSES.md §3.1's "Request clarification" - the EVALUATION-phase pause, not the
+/// submission-window Q&amp;A. The reason is the guard the table names.
+/// </summary>
+public sealed record RequestRfqClarificationCommand(string ReferenceCode, string Reason);
+
+/// <summary>§3.1's "Clarification resolved".</summary>
+public sealed record ResolveRfqClarificationCommand(string ReferenceCode);
+
 public sealed record InviteSupplierCommand(string ReferenceCode, Guid SupplierId);
 
 public sealed record DeclineInvitationCommand(string ReferenceCode, string? Reason);
@@ -155,6 +164,17 @@ public abstract record RfqMutationResult
     /// timeline inconsistency, unbound template, etc.) with the exact DomainException message -
     /// same pattern as ProfileMutationResult.InvalidState/EvaluationTemplateMutationResult.InvalidState.</summary>
     public sealed record InvalidState(string Message) : RfqMutationResult;
+
+    /// <summary>
+    /// §3: "Illegal transitions return 409 Conflict (type: …/errors/invalid-state-transition)
+    /// listing the current state and the allowed next states."
+    ///
+    /// <para>Distinct from <see cref="InvalidState"/>, which covers every OTHER domain refusal - a
+    /// missing item, an unbound template, an inconsistent timeline. Those are 400s about the request;
+    /// this one is a 409 about the aggregate's position in its machine, and the difference matters to
+    /// a client deciding whether to fix the payload or refetch the resource.</para>
+    /// </summary>
+    public sealed record IllegalTransition(RfqState CurrentState, string Message) : RfqMutationResult;
     public sealed record InvalidCategory : RfqMutationResult;
     public sealed record InvalidUnitOfMeasure : RfqMutationResult;
     public sealed record InvalidEvaluationTemplate(string Message) : RfqMutationResult;
@@ -237,6 +257,16 @@ public interface IApproveRfqHandler
 public interface IPublishRfqHandler
 {
     Task<RfqMutationResult> HandleAsync(PublishRfqCommand command, CancellationToken ct);
+}
+
+public interface IRequestRfqClarificationHandler
+{
+    Task<RfqMutationResult> HandleAsync(RequestRfqClarificationCommand command, CancellationToken ct);
+}
+
+public interface IResolveRfqClarificationHandler
+{
+    Task<RfqMutationResult> HandleAsync(ResolveRfqClarificationCommand command, CancellationToken ct);
 }
 
 public interface ICloseRfqSubmissionHandler
