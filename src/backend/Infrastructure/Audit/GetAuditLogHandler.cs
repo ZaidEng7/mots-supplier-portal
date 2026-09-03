@@ -113,6 +113,17 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
     public IAsyncEnumerable<AuditLogEntryDto> StreamForExportAsync(AuditLogFilter filter, CancellationToken ct) =>
         Project(ApplyFilter(ScopedQuery(), filter)).AsAsyncEnumerable();
 
+    /// <summary>
+    /// The same rows HandleOwnTrailAsync pages through, unpaged. The scope check is repeated here
+    /// rather than delegated: ScopedQuery deliberately returns the WHOLE table for a caller with no
+    /// SupplierId, which is right for the staff search and wrong for this route, which is gated on
+    /// nothing but being signed in.
+    /// </summary>
+    public IAsyncEnumerable<AuditLogEntryDto> StreamOwnTrailForExportAsync(CancellationToken ct) =>
+        scope.SupplierId is null
+            ? AsyncEnumerable.Empty<AuditLogEntryDto>()
+            : Project(ScopedQuery()).AsAsyncEnumerable();
+
     /// <summary>Every predicate here is optional and independently combinable - null on a field
     /// leaves that dimension unfiltered rather than excluding rows. Reuses the three pre-existing
     /// indexes ((AggregateType,AggregateId,OccurredAt), (ActorUserId,OccurredAt), (OccurredAt,Id))

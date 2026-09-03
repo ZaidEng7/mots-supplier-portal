@@ -57,6 +57,47 @@ public static class AuditEndpoints
         .WithName("GetOwnSupplierAuditTrail")
         .WithTags("Audit");
 
+        // FR-AUD-003's export. Same handler method family, same scope, same gate as the list above -
+        // an export that applied a different scope from the list it exports is the leak that no
+        // list-level test can see, because nothing about the list changes when the export is wrong.
+        app.MapGet("/api/v1/suppliers/me/audit/export", async (
+            HttpContext httpContext,
+            IGetAuditLogHandler handler,
+            HttpResponse response,
+            CancellationToken ct) =>
+        {
+            response.ContentType = "text/csv; charset=utf-8";
+            response.Headers.ContentDisposition = "attachment; filename=my-activity-trail.csv";
+
+            await response.Body.WriteAsync(CsvFormat.Utf8Bom, ct);
+            await using var writer = new StreamWriter(response.Body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            // The scope is named in the artefact rather than left implicit. A trail export that does
+            // not say whose it is cannot be checked against what its reader was entitled to see -
+            // and unlike the staff export, this one's scope is the whole of its meaning.
+            var provenance = new ExportProvenance(
+                DateTimeOffset.UtcNow,
+                Scope: "one supplier's own activity trail (FR-AUD-003)",
+                Filters: []);
+
+            foreach (var line in provenance.ToCsvComments("activity trail export"))
+            {
+                await writer.WriteLineAsync(line);
+            }
+
+            await writer.WriteLineAsync("Id,OccurredAt,AggregateType,AggregateId,Action,FromState,ToState,ActorLabel");
+
+            await foreach (var entry in handler.StreamOwnTrailForExportAsync(ct))
+            {
+                await writer.WriteLineAsync(AuditCsvRow.Format(entry));
+            }
+
+            return Results.Empty;
+        })
+        .RequireAuthorization()
+        .WithName("ExportOwnSupplierAuditTrail")
+        .WithTags("Audit");
+
         // MSP-75/FR-AUD-004: staff-facing global search - filterable by entity, actor, action, and
         // date range, all optional and combinable. Gated by the same audit.read permission as the
         // per-aggregate read above; that endpoint stays as-is (bounded to one aggregate's own rows,

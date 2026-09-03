@@ -38,4 +38,17 @@ public interface IGetAuditLogHandler
     /// export bounded only by its filter must not buffer the whole result set in memory to produce
     /// it.</summary>
     IAsyncEnumerable<AuditLogEntryDto> StreamForExportAsync(AuditLogFilter filter, CancellationToken ct);
+
+    /// <summary>
+    /// FR-AUD-003's export: the supplier's OWN trail, scoped exactly as
+    /// <see cref="HandleOwnTrailAsync"/> scopes the list it exports.
+    ///
+    /// <para>Separate from <see cref="StreamForExportAsync"/> and not a filter over it, for the same
+    /// reason the list is separate: that method's scoping falls open for a caller with no
+    /// SupplierId, because for a staff caller "unrestricted" is the correct answer. Reached through
+    /// the supplier route it would be the wrong one - an export that hands a staff caller the entire
+    /// audit table from an endpoint gated only on being signed in. Yields nothing when there is no
+    /// supplier scope, matching the list's own behaviour rather than inventing a second one.</para>
+    /// </summary>
+    IAsyncEnumerable<AuditLogEntryDto> StreamOwnTrailForExportAsync(CancellationToken ct);
 }
