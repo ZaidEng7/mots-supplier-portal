@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Dashboards;
+using MotsSupplierPortal.Application.Dashboards;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Api.Errors;
@@ -265,6 +267,10 @@ builder.Services.AddScoped<IReturnRfqForEditsHandler, ReturnRfqForEditsHandler>(
 builder.Services.AddScoped<IApproveRfqHandler, ApproveRfqHandler>();
 builder.Services.AddScoped<IPublishRfqHandler, PublishRfqHandler>();
 builder.Services.AddScoped<IListMyAssignmentsHandler, ListMyAssignmentsHandler>();
+// EPIC-17: SCR-400, SCR-401, SCR-300.
+builder.Services.AddScoped<IProcurementDashboardHandler, ProcurementDashboardHandler>();
+builder.Services.AddScoped<IApprovalQueuesHandler, ApprovalQueuesHandler>();
+builder.Services.AddScoped<IReviewDashboardHandler, ReviewDashboardHandler>();
 builder.Services.AddScoped<IRequestRfqClarificationHandler, RequestRfqClarificationHandler>();
 builder.Services.AddScoped<IResolveRfqClarificationHandler, ResolveRfqClarificationHandler>();
 builder.Services.AddScoped<ICloseRfqSubmissionHandler, CloseRfqSubmissionHandler>();
@@ -757,6 +763,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithName("GetUnitsOfMeasure")
     .WithTags("Reference");
 
+app.MapDashboardEndpoints();
 app.MapNotificationEndpoints();
 app.MapRegistrationEndpoints();
 app.MapAuthEndpoints();
