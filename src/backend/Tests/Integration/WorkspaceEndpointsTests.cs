@@ -131,9 +131,8 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
 
         var start = await supplierClient.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         var proposalReferenceCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
-        await supplierClient.PutAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/items/{itemId}", new
-        { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-        await supplierClient.PutAsJsonAsync($"/api/v1/proposals/{proposalReferenceCode}/terms", new
+        await ProposalPatch.PriceItemAsync(supplierClient, proposalReferenceCode, itemId, 10m, 5m, (decimal?)null, 3, (string?)null, (string?)null );
+        await ProposalPatch.SetTermsAsync(supplierClient, proposalReferenceCode, new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB", deliveryTermsAr = "3 أيام", deliveryTermsEn = "3 days",
             warranty = (string?)null, validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date), validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),

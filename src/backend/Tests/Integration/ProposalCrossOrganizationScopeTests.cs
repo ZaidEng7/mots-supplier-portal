@@ -167,8 +167,7 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
         var (_, supplierB, proposalCodeOfA, itemId, _) = await RivalSuppliersOnOneRfqAsync();
 
         await AssertIndistinguishableFromUnknownAsync(
-            code => supplierB.PutAsJsonAsync($"/api/v1/proposals/{code}/items/{itemId}", new
-            { quantity = 1m, unitPrice = 1m, discount = (decimal?)null, leadTimeDays = 1, notesAr = (string?)null, notesEn = (string?)null }),
+            code => ProposalPatch.PriceItemAsync(supplierB, code, itemId, 1m, 1m, (decimal?)null, 1, (string?)null, (string?)null ),
             proposalCodeOfA);
     }
 
@@ -178,7 +177,7 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
         var (_, supplierB, proposalCodeOfA, _, _) = await RivalSuppliersOnOneRfqAsync();
 
         await AssertIndistinguishableFromUnknownAsync(
-            code => supplierB.PutAsJsonAsync($"/api/v1/proposals/{code}/terms", new
+            code => ProposalPatch.SetTermsAsync(supplierB, code, new
             {
                 currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB",
                 deliveryTermsAr = "٣ أيام", deliveryTermsEn = "3 days", warranty = (string?)null,
@@ -194,8 +193,7 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
         var (_, supplierB, proposalCodeOfA, _, requirementId) = await RivalSuppliersOnOneRfqAsync();
 
         await AssertIndistinguishableFromUnknownAsync(
-            code => supplierB.PostAsJsonAsync($"/api/v1/proposals/{code}/requirements/{requirementId}/answer",
-                new { answerAr = "نعم", answerEn = "Yes" }),
+            code => ProposalPatch.AnswerAsync(supplierB, code, requirementId, "نعم", "Yes" ),
             proposalCodeOfA);
     }
 
@@ -234,8 +232,7 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
         (await supplierA.GetAsync($"/api/v1/proposals/{proposalCodeOfA}")).StatusCode
             .Should().Be(HttpStatusCode.OK, "control: the owner reaches it by exactly the code B was refused");
 
-        (await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCodeOfA}/items/{itemId}", new
-        { quantity = 5m, unitPrice = 10m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null }))
+        (await ProposalPatch.PriceItemAsync(supplierA, proposalCodeOfA, itemId, 5m, 10m, (decimal?)null, 3, (string?)null, (string?)null ))
             .StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

@@ -287,6 +287,8 @@ builder.Services.AddScoped<IManageProposalItemHandler, ManageProposalItemHandler
 builder.Services.AddScoped<ISetCommercialTermsHandler, SetCommercialTermsHandler>();
 builder.Services.AddScoped<ISetNarrativeHandler, SetNarrativeHandler>();
 builder.Services.AddScoped<IAnswerRequirementHandler, AnswerRequirementHandler>();
+// §12.5: the one PATCH that replaces the five per-field edit sub-routes.
+builder.Services.AddScoped<IPatchProposalHandler, PatchProposalHandler>();
 builder.Services.AddScoped<IManageProposalDocumentHandler, ManageProposalDocumentHandler>();
 builder.Services.AddScoped<ISubmitProposalHandler, SubmitProposalHandler>();
 builder.Services.AddScoped<IWithdrawProposalHandler, WithdrawProposalHandler>();

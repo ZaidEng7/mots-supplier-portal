@@ -112,14 +112,14 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
     private async Task PriceAndAnswerAsync(HttpClient client, string proposalCode, Guid requiredItemId, Guid mandatoryRequirementId, DateOnly? validityEnd = null)
     {
-        await client.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
-        { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-        await client.PostAsJsonAsync($"/api/v1/proposals/{proposalCode}/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
-        await client.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
+        await ProposalPatch.PriceItemAsync(client, proposalCode, requiredItemId, 10m, 5m, (decimal?)null, 3, (string?)null, (string?)null );
+        await ProposalPatch.AnswerAsync(client, proposalCode, mandatoryRequirementId, "نعم", "Yes" );
+        var termsResponse = await ProposalPatch.SetTermsAsync(client, proposalCode, new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB", deliveryTermsAr = "3 أيام", deliveryTermsEn = "3 days",
             warranty = (string?)null, validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date), validityEnd = validityEnd ?? DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
+        termsResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.OK, await termsResponse.Content.ReadAsStringAsync());
     }
 
     /// <summary>
@@ -136,21 +136,21 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, requiredItemId, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Zero price RFQ");
         var proposalCode = await supplierA.StartProposalAsync(referenceCode);
 
-        var zero = await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
-        { quantity = 10m, unitPrice = 0m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
+        var zero = await ProposalPatch.PriceItemAsync(supplierA, proposalCode, requiredItemId, 10m, 0m, (decimal?)null, 3, (string?)null, (string?)null );
 
         zero.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var problem = await zero.Content.ReadFromJsonAsync<JsonElement>();
+        // §12.5 moved this edit onto the merge patch, so the path is where the value sits in the
+        // patch body - which is what §7.2's paths are for.
         var error = problem.GetProperty("errors").EnumerateArray()
-            .Single(e => e.GetProperty("field").GetString() == "unitPrice");
+            .Single(e => e.GetProperty("field").GetString() == "items[0].unitPrice");
 
         error.GetProperty("code").GetString().Should().Be("PRICE_NON_POSITIVE", "§7.2 names this code");
         error.GetProperty("messages").GetProperty("ar").GetString()
             .Should().Be("يجب أن يكون سعر الوحدة أكبر من صفر.", "transcribed verbatim from §7.2");
 
         // The neighbouring value still works, so this proves the boundary rather than a broken endpoint.
-        var positive = await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
-        { quantity = 10m, unitPrice = 0.01m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
+        var positive = await ProposalPatch.PriceItemAsync(supplierA, proposalCode, requiredItemId, 10m, 0.01m, (decimal?)null, 3, (string?)null, (string?)null );
         positive.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -244,8 +244,8 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (_, supplierBId) = await ActiveSupplierAsync($"MissingPriceOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, _, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Missing Price RFQ");
         var proposalCode = await supplierA.StartProposalAsync(referenceCode);
-        await supplierA.PostAsJsonAsync($"/api/v1/proposals/{proposalCode}/requirements/{mandatoryRequirementId}/answer", new { answerAr = "نعم", answerEn = "Yes" });
-        await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
+        await ProposalPatch.AnswerAsync(supplierA, proposalCode, mandatoryRequirementId, "نعم", "Yes" );
+        await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
         {
             currencyCode = "SYP", paymentTerms = (string?)null, incotermCode = (string?)null, deliveryTermsAr = (string?)null, deliveryTermsEn = (string?)null,
             warranty = (string?)null, validityStart = (DateOnly?)null, validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
@@ -265,9 +265,8 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (_, supplierBId) = await ActiveSupplierAsync($"MissingAnswerOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, requiredItemId, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Missing Answer RFQ");
         var proposalCode = await supplierA.StartProposalAsync(referenceCode);
-        await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
-        { quantity = 10m, unitPrice = 5m, discount = (decimal?)null, leadTimeDays = (int?)null, notesAr = (string?)null, notesEn = (string?)null });
-        await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
+        await ProposalPatch.PriceItemAsync(supplierA, proposalCode, requiredItemId, 10m, 5m, (decimal?)null, (int?)null, (string?)null, (string?)null );
+        await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
         {
             currencyCode = "SYP", paymentTerms = (string?)null, incotermCode = (string?)null, deliveryTermsAr = (string?)null, deliveryTermsEn = (string?)null,
             warranty = (string?)null, validityStart = (DateOnly?)null, validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
@@ -300,7 +299,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        submit.StatusCode.Should().Be(HttpStatusCode.OK);
+        submit.StatusCode.Should().Be(HttpStatusCode.OK, await submit.Content.ReadAsStringAsync());
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Submitted));
     }
@@ -371,5 +370,171 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var actions = await db.AuditLogs.Where(a => a.ReferenceCode == proposalReferenceCode).Select(a => a.Action).ToListAsync();
 
         actions.Should().Contain(["proposal_started", "proposal_item_priced", "proposal_requirement_answered", "proposal_terms_updated", "proposal_submitted"]);
+    }
+
+    // ---- §12.5: the merge-patch endpoint that replaced the five edit sub-routes ------------------
+
+    private async Task<(HttpClient Client, string ProposalCode, Guid RequiredItemId, Guid RequirementId)> DraftProposalAsync(string name)
+    {
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"{name} {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"{name}O {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, requiredItemId, _, requirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, $"{name} RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        return (supplierA, proposalCode, requiredItemId, requirementId);
+    }
+
+    /// <summary>
+    /// RFC 7396's central distinction, and the one a deserialised DTO cannot express: a member the
+    /// patch does not mention keeps its value, and a member sent as null is deleted. Both arrive as
+    /// null in a C# property, which is why the endpoint reads a JsonObject.
+    /// </summary>
+    [Fact]
+    public async Task An_omitted_member_is_left_alone_and_an_explicit_null_clears_it()
+    {
+        var (client, proposalCode, _, _) = await DraftProposalAsync("MergeSemantics");
+
+        await ProposalPatch.SetTermsAsync(client, proposalCode, new
+        {
+            currencyCode = "SYP", paymentTerms = "Net 30", warranty = "12 months",
+        });
+
+        // Mentions paymentTerms only. The warranty must survive - a DTO would have wiped it.
+        await ProposalPatch.SetTermsAsync(client, proposalCode, new { paymentTerms = "Net 60" });
+
+        var afterOmission = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        afterOmission.GetProperty("warranty").GetString().Should().Be("12 months",
+            "a member the patch does not mention is unchanged");
+        afterOmission.GetProperty("paymentTerms").GetString().Should().Be("Net 60");
+
+        // Now delete it explicitly.
+        await ProposalPatch.SetTermsAsync(client, proposalCode, new { warranty = (string?)null });
+
+        var afterNull = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        afterNull.GetProperty("warranty").ValueKind.Should().Be(JsonValueKind.Null,
+            "an explicit null is RFC 7396's delete");
+        afterNull.GetProperty("paymentTerms").GetString().Should().Be("Net 60",
+            "deleting one member must not disturb another");
+    }
+
+    [Fact]
+    public async Task The_same_distinction_holds_for_the_technical_response()
+    {
+        var (client, proposalCode, _, _) = await DraftProposalAsync("MergeNarrative");
+
+        await ProposalPatch.SetNarrativeAsync(client, proposalCode, "نص عربي", "English text");
+
+        // technicalResponse present, narrativeEn absent - the Arabic must survive.
+        await ProposalPatch.SendAsync(client, proposalCode, new { technicalResponse = new { narrativeEn = "Changed" } });
+
+        var after = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        after.GetProperty("narrativeAr").GetString().Should().Be("نص عربي");
+        after.GetProperty("narrativeEn").GetString().Should().Be("Changed");
+
+        await ProposalPatch.SendAsync(client, proposalCode, new { technicalResponse = new { narrativeAr = (string?)null } });
+
+        var cleared = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        cleared.GetProperty("narrativeAr").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    /// <summary>
+    /// RFC 7396 replaces an array rather than merging into it, which is how a line's pricing is
+    /// removed now that DELETE /items/{id} is gone.
+    /// </summary>
+    [Fact]
+    public async Task Sending_items_without_a_line_removes_that_lines_pricing()
+    {
+        var (client, proposalCode, requiredItemId, _) = await DraftProposalAsync("MergeItems");
+
+        await ProposalPatch.PriceItemAsync(client, proposalCode, requiredItemId, 10m, 5m);
+        var priced = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        priced.GetProperty("items").GetArrayLength().Should().Be(1, "control: the line really was priced");
+
+        var response = await ProposalPatch.SendAsync(client, proposalCode, new { items = Array.Empty<object>() });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var after = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        after.GetProperty("items").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_patch_only_accepts_the_merge_patch_media_type()
+    {
+        var (client, proposalCode, _, _) = await DraftProposalAsync("MergeMedia");
+
+        var response = await client.PatchAsJsonAsync($"/api/v1/proposals/{proposalCode}",
+            new { technicalResponse = new { narrativeEn = "plain json" } });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType,
+            "RFC 7396 has its own media type and absent-versus-null is exactly what it disambiguates");
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
+            .Should().Be("MIME_NOT_ALLOWED");
+    }
+
+    // ---- the rules the retired sub-routes carried, each proven on the new endpoint ---------------
+
+    [Fact]
+    public async Task Editing_after_submit_is_refused_the_way_the_sub_routes_refused_it()
+    {
+        var (client, proposalCode, requiredItemId, requirementId) = await DraftProposalAsync("MergeState");
+
+        await ProposalPatch.PriceItemAsync(client, proposalCode, requiredItemId, 10m, 5m);
+        await ProposalPatch.AnswerAsync(client, proposalCode, requirementId, "نعم", "Yes");
+        await ProposalPatch.SetTermsAsync(client, proposalCode, new
+        {
+            currencyCode = "SYP",
+            validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
+        });
+
+        var submit = await client.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
+        submit.StatusCode.Should().Be(HttpStatusCode.OK, await submit.Content.ReadAsStringAsync());
+
+        var afterSubmit = await ProposalPatch.SetNarrativeAsync(client, proposalCode, "late", "late");
+
+        afterSubmit.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "Draft-only editing is the aggregate's invariant, and the PATCH calls the same aggregate methods");
+    }
+
+    [Fact]
+    public async Task Commercial_terms_still_require_a_currency()
+    {
+        var (client, proposalCode, _, _) = await DraftProposalAsync("MergeCurrency");
+
+        var response = await ProposalPatch.SetTermsAsync(client, proposalCode, new { paymentTerms = "Net 30" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "the currency requirement lived in the aggregate and survives the route change");
+    }
+
+    [Fact]
+    public async Task An_answer_still_has_to_carry_both_languages()
+    {
+        var (client, proposalCode, _, requirementId) = await DraftProposalAsync("MergeAnswer");
+
+        var response = await ProposalPatch.SendAsync(client, proposalCode, new
+        {
+            technicalResponse = new { answers = new[] { new { requirementId, answerAr = "", answerEn = "" } } },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
+            "AnswerRequirementRequest's validator still runs - retiring the route did not retire its validation");
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetProperty("field").GetString())
+            .Should().Contain("technicalResponse.answers[0].answerAr",
+                "§7.2's path points at where the value sits in the patch body");
+    }
+
+    [Fact]
+    public async Task A_quantity_of_zero_is_still_refused()
+    {
+        var (client, proposalCode, requiredItemId, _) = await DraftProposalAsync("MergeQuantity");
+
+        var response = await ProposalPatch.SendAsync(client, proposalCode, new
+        {
+            items = new[] { new { rfqItemId = requiredItemId, quantity = 0m, unitPrice = 5m } },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 }
