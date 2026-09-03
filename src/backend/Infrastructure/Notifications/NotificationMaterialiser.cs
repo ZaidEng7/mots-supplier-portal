@@ -51,12 +51,15 @@ public sealed class NotificationMaterialiser(IServiceScopeFactory scopeFactory, 
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (IsDuplicateDedupeKey(ex))
+        catch (DbUpdateException duplicate) when (IsDuplicateDedupeKey(duplicate))
         {
             // The same event, delivered twice. One row is the correct outcome, and this is not an
             // error - so it must not mark the outbox message Failed, and must not surface to the
             // domain action that caused it (BRULE-099).
-            logger.LogDebug("Notification {Type} for {Recipient} already exists (dedupe key {DedupeKey})",
+            // The exception travels with the log line. It is expected here rather than exceptional,
+            // but a duplicate-key violation that turns out NOT to be the dedupe index is exactly the
+            // case where the constraint name in the exception is the only thing that explains it.
+            logger.LogDebug(duplicate, "Notification {Type} for {Recipient} already exists (dedupe key {DedupeKey})",
                 request.Type, request.RecipientUserId, request.DedupeKey);
         }
     }

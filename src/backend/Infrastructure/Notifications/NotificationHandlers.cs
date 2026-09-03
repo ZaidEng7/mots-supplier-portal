@@ -112,7 +112,7 @@ internal static class NotificationCursor
     public static bool TryDecode(string? cursor, out DateTimeOffset createdAt, out Guid id)
     {
         createdAt = default;
-        id = default;
+        id = Guid.Empty;
         if (string.IsNullOrWhiteSpace(cursor)) return false;
 
         try

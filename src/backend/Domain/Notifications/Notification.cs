@@ -69,7 +69,10 @@ public sealed class Notification : IVersionedAggregate
     /// </summary>
     public required string DedupeKey { get; init; }
 
-    /// <summary>§8.1's version. See the report for why marking-read still carries a precondition.</summary>
+    /// <summary>
+    /// §8.1's version. The setter is never called from this class - EF materialises xmin through it,
+    /// which is why it exists at all and why it is private.
+    /// </summary>
     public uint RowVersion { get; private set; }
 
     public bool IsRead => ReadAt is not null;
