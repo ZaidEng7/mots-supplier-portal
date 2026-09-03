@@ -193,7 +193,9 @@ public sealed class SupplierLifecycleEndpointTests(PostgresApiFixture fixture)
 
         var response = await TransitionAsync(staff, referenceCode, "suspend", "   ");
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest, "BRULE-096: the reason is mandatory");
+        // §7.2: a field-level validation failure is 422, not 400. 400 stays for a malformed or
+        // unmodelled body (NFR-SEC-005), which is a different kind of wrong.
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, "BRULE-096: the reason is mandatory");
     }
 
     [Fact]

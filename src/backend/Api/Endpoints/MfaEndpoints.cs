@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
@@ -59,7 +60,7 @@ public static class MfaEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
-                return Results.ValidationProblem(validation.ToDictionary());
+                return ValidationProblems.From(validation);
             }
 
             if (scope.UserId is null)

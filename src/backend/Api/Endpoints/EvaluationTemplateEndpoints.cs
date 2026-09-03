@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Evaluation;
@@ -68,7 +69,7 @@ public static class EvaluationTemplateEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new CreateEvaluationTemplateCommand(request.NameAr, request.NameEn), ct));
         })
@@ -82,7 +83,7 @@ public static class EvaluationTemplateEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddCriterionCommand(
                 id, request.NameAr, request.NameEn, request.Dimension, request.Weight, request.MaxScore,
@@ -100,7 +101,7 @@ public static class EvaluationTemplateEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.UpdateAsync(new UpdateCriterionCommand(
                 id, criterionId, request.NameAr, request.NameEn, request.Dimension, request.Weight, request.MaxScore,

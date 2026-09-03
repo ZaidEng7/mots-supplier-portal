@@ -113,6 +113,7 @@ describe('SupplierProposalPage', () => {
 
     renderPage(<SupplierProposalPage />)
 
+    // The fixture proposal has no currency yet, so the line total renders as a bare amount.
     expect(await screen.findByText('50')).toBeInTheDocument()
     expect(screen.queryByLabelText('Unit price - Widget')).not.toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Reason'), 'Pricing error')

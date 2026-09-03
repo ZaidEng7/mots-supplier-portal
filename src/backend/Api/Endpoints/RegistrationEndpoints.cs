@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Registrations;
@@ -76,7 +77,7 @@ public static class RegistrationEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
-                return Results.ValidationProblem(validation.ToDictionary());
+                return ValidationProblems.From(validation);
             }
 
             // Per-target on top of the group's per-IP "auth-strict" policy (SECURITY-ARCHITECTURE
@@ -150,7 +151,7 @@ public static class RegistrationEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
-                return Results.ValidationProblem(validation.ToDictionary());
+                return ValidationProblems.From(validation);
             }
 
             if (!perTargetRateLimiter.TryAcquire("resend-verification", request.Email.Trim().ToLowerInvariant()))

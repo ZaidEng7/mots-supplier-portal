@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Evaluations;
@@ -78,7 +79,7 @@ public static class EvaluationEndpoints
             IAssignEvaluatorsHandler handler, CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new AssignEvaluatorsCommand(referenceCode, request.EvaluatorUserIds), ct));
         })
@@ -90,7 +91,7 @@ public static class EvaluationEndpoints
             IRecuseEvaluatorHandler handler, CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new RecuseEvaluatorCommand(referenceCode, request.EvaluatorUserId, request.Reason), ct));
         })
@@ -112,7 +113,7 @@ public static class EvaluationEndpoints
             IReopenEvaluationHandler handler, CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new ReopenEvaluationCommand(referenceCode, request.Reason), ct));
         })
@@ -131,7 +132,7 @@ public static class EvaluationEndpoints
             IScoreCriterionHandler handler, CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMy(await handler.HandleAsync(new ScoreCriterionCommand(
                 referenceCode, request.ProposalId, request.CriterionId, request.RawScore, request.CommentAr, request.CommentEn), ct));

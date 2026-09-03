@@ -1,0 +1,904 @@
+// MOTS Supplier Portal - validation message catalogue (API-ARCHITECTURE.md §7.2)
+//
+// THIS FILE IS THE REVIEWABLE ARTEFACT. Every Arabic and English sentence the API can return for a
+// field-level validation failure is here, and nowhere else; the code reads this file rather than
+// carrying strings of its own. It is meant to be read end to end without opening any C#.
+//
+// One entry per (field, rule) pair. There are 92, matching the 92 pairs the validators declare -
+// ValidationCatalogueCoverageTests fails the build in BOTH directions: a rule with no entry here,
+// and an entry here for a rule that no longer exists.
+//
+//   "source": "§7.2"     transcribed verbatim from the API contract's worked exemplars
+//              "SPA"     reused verbatim from Arabic already shipping in the SPA (i18n/config.ts)
+//              "drafted" written for this catalogue and NOT YET APPROVED - read these hardest
+//
+//   "flag"    present only where the drafting involved a judgement call. One line saying which.
+//
+// On the Arabic. UX-WRITING.md §1.3 requires native authoring in professional MSA, not translation
+// of the English. Predicates agree with their subject's gender - «العنوان مطلوب» but «المدينة
+// مطلوبة» - which is why §9's fixed {field} patterns were not usable and each sentence is written
+// out. Numerals are Arabic-Indic, matching dates, counts and quantities in the SPA.
+
+[
+
+  // ========================================================================================
+  // Identity, access and invitations
+  // Login, password reset, MFA, and the two invite-acceptance flows (staff and supplier user).
+  // ========================================================================================
+  {
+    "key": "Email.NotEmpty",
+    "code": "EMAIL_REQUIRED",
+    "source": "drafted",
+    "ar": "البريد الإلكتروني مطلوب.",
+    "en": "Email is required.",
+    "usedIn": "AddContactRequest, AddRepresentativeRequest, ForgotPasswordRequest, InviteStaffRequest, InviteSupplierUserRequest, LoginRequest, RegisterSupplierRequest"
+  },
+  {
+    "key": "Email.EmailAddress",
+    "code": "EMAIL_INVALID",
+    "source": "§7.2",
+    "ar": "صيغة البريد الإلكتروني غير صحيحة.",
+    "en": "The email address format is invalid.",
+    "usedIn": "AddContactRequest, AddRepresentativeRequest, ForgotPasswordRequest, InviteStaffRequest, InviteSupplierUserRequest, LoginRequest, RegisterSupplierRequest"
+  },
+  {
+    "key": "Email.MaximumLength",
+    "code": "EMAIL_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز البريد الإلكتروني ٣٢٠ حرف.",
+    "en": "Email must not exceed 320 characters.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "Password.NotEmpty",
+    "code": "PASSWORD_REQUIRED",
+    "source": "drafted",
+    "ar": "كلمة المرور مطلوبة.",
+    "en": "Password is required.",
+    "usedIn": "AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, LoginRequest"
+  },
+  {
+    "key": "NewPassword.NotEmpty",
+    "code": "NEW_PASSWORD_REQUIRED",
+    "source": "drafted",
+    "ar": "كلمة المرور الجديدة مطلوبة.",
+    "en": "New password is required.",
+    "usedIn": "ResetPasswordRequest"
+  },
+  {
+    "key": "Token.NotEmpty",
+    "code": "TOKEN_REQUIRED",
+    "source": "drafted",
+    "ar": "رمز الرابط مطلوب.",
+    "en": "The link token is required.",
+    "usedIn": "AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, ResetPasswordRequest",
+    "flag": "Not a field the user types - it arrives in the invite/reset link. Wording assumes the message is only ever seen when a link is malformed."
+  },
+  {
+    "key": "Code.NotEmpty",
+    "code": "MFA_CODE_REQUIRED",
+    "source": "drafted",
+    "ar": "رمز التحقق مطلوب.",
+    "en": "Verification code is required.",
+    "usedIn": "ConfirmMfaRequest"
+  },
+  {
+    "key": "Code.Length",
+    "code": "MFA_CODE_INVALID_LENGTH",
+    "source": "drafted",
+    "ar": "يجب أن يتكون رمز التحقق من ٦ أرقام.",
+    "en": "The verification code must be 6 digits.",
+    "usedIn": "ConfirmMfaRequest"
+  },
+  {
+    "key": "FullName.NotEmpty",
+    "code": "FULL_NAME_REQUIRED",
+    "source": "SPA",
+    "ar": "الاسم الكامل مطلوب.",
+    "en": "Full name is required.",
+    "usedIn": "AddContactRequest, AddRepresentativeRequest, AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, InviteStaffRequest, InviteSupplierUserRequest"
+  },
+  {
+    "key": "FullName.MaximumLength",
+    "code": "FULL_NAME_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الاسم الكامل ٢٠٠ حرف.",
+    "en": "Full name must not exceed 200 characters.",
+    "usedIn": "AddContactRequest, AddRepresentativeRequest, InviteStaffRequest, InviteSupplierUserRequest"
+  },
+  {
+    "key": "Role.NotEmpty",
+    "code": "ROLE_REQUIRED",
+    "source": "drafted",
+    "ar": "الدور مطلوب.",
+    "en": "Role is required.",
+    "usedIn": "InviteStaffRequest",
+    "flag": "The SPA label for this concept is «الصفة» on the representative form; «الدور» is the security role. Chose «الدور» because this field is the staff security role, not a job title."
+  },
+  {
+    "key": "Permissions.NotNull",
+    "code": "PERMISSIONS_REQUIRED",
+    "source": "drafted",
+    "ar": "الصلاحيات مطلوبة.",
+    "en": "Permissions are required.",
+    "usedIn": "UpdateRolePermissionsRequest"
+  },
+
+  // ========================================================================================
+  // Supplier registration and legal profile
+  // ========================================================================================
+  {
+    "key": "DisplayNameAr.NotEmpty",
+    "code": "DISPLAY_NAME_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "اسم الشركة (عربي) مطلوب.",
+    "en": "Company name (Arabic) is required.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "DisplayNameAr.MaximumLength",
+    "code": "DISPLAY_NAME_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم الشركة (عربي) ٢٠٠ حرف.",
+    "en": "Company name (Arabic) must not exceed 200 characters.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "DisplayNameEn.NotEmpty",
+    "code": "DISPLAY_NAME_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "اسم الشركة (إنجليزي) مطلوب.",
+    "en": "Company name (English) is required.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "DisplayNameEn.MaximumLength",
+    "code": "DISPLAY_NAME_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم الشركة (إنجليزي) ٢٠٠ حرف.",
+    "en": "Company name (English) must not exceed 200 characters.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "LegalNameAr.NotEmpty",
+    "code": "LEGAL_NAME_AR_REQUIRED",
+    "source": "SPA",
+    "ar": "الاسم القانوني (عربي) مطلوب.",
+    "en": "Legal name (Arabic) is required.",
+    "usedIn": "CreateOrganizationRequest, UpdateLegalInfoRequest"
+  },
+  {
+    "key": "LegalNameAr.MaximumLength",
+    "code": "LEGAL_NAME_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الاسم القانوني (عربي) ٢٠٠ حرف.",
+    "en": "Legal name (Arabic) must not exceed 200 characters.",
+    "usedIn": "CreateOrganizationRequest, UpdateLegalInfoRequest"
+  },
+  {
+    "key": "LegalNameEn.NotEmpty",
+    "code": "LEGAL_NAME_EN_REQUIRED",
+    "source": "SPA",
+    "ar": "الاسم القانوني (إنجليزي) مطلوب.",
+    "en": "Legal name (English) is required.",
+    "usedIn": "CreateOrganizationRequest, UpdateLegalInfoRequest"
+  },
+  {
+    "key": "LegalNameEn.MaximumLength",
+    "code": "LEGAL_NAME_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الاسم القانوني (إنجليزي) ٢٠٠ حرف.",
+    "en": "Legal name (English) must not exceed 200 characters.",
+    "usedIn": "CreateOrganizationRequest, UpdateLegalInfoRequest"
+  },
+  {
+    "key": "RegistrationNumber.MaximumLength",
+    "code": "REGISTRATION_NUMBER_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز رقم السجل التجاري ١٠٠ حرف.",
+    "en": "Commercial registration number must not exceed 100 characters.",
+    "usedIn": "UpdateLegalInfoRequest"
+  },
+  {
+    "key": "TaxId.MaximumLength",
+    "code": "TAX_ID_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الرقم الضريبي ١٠٠ حرف.",
+    "en": "Tax identification number must not exceed 100 characters.",
+    "usedIn": "UpdateLegalInfoRequest"
+  },
+  {
+    "key": "RepresentativeName.NotEmpty",
+    "code": "REPRESENTATIVE_NAME_REQUIRED",
+    "source": "drafted",
+    "ar": "اسم الممثل الرئيسي مطلوب.",
+    "en": "Primary representative name is required.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "RepresentativeName.MaximumLength",
+    "code": "REPRESENTATIVE_NAME_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم الممثل الرئيسي ٢٠٠ حرف.",
+    "en": "Primary representative name must not exceed 200 characters.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "RepresentativePhone.NotEmpty",
+    "code": "REPRESENTATIVE_PHONE_REQUIRED",
+    "source": "drafted",
+    "ar": "رقم هاتف الممثل الرئيسي مطلوب.",
+    "en": "Primary representative phone number is required.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "RepresentativePhone.MaximumLength",
+    "code": "REPRESENTATIVE_PHONE_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز رقم هاتف الممثل الرئيسي ٣٠ حرفاً.",
+    "en": "Primary representative phone number must not exceed 30 characters.",
+    "usedIn": "RegisterSupplierRequest"
+  },
+  {
+    "key": "CurrencyCode.Value.Length",
+    "code": "PROFILE_CURRENCY_CODE_INVALID_LENGTH",
+    "source": "drafted",
+    "ar": "يجب أن يتكون رمز العملة من ٣ أحرف.",
+    "en": "Currency code must be 3 characters.",
+    "usedIn": "UpdateProfileRequest"
+  },
+
+  // ========================================================================================
+  // Addresses and branches
+  // ========================================================================================
+  {
+    "key": "Line1.NotEmpty",
+    "code": "ADDRESS_LINE1_REQUIRED",
+    "source": "SPA",
+    "ar": "العنوان مطلوب.",
+    "en": "Address is required.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "Line1.MaximumLength",
+    "code": "ADDRESS_LINE1_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز العنوان ٣٠٠ حرف.",
+    "en": "Address must not exceed 300 characters.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "City.NotEmpty",
+    "code": "CITY_REQUIRED",
+    "source": "SPA",
+    "ar": "المدينة مطلوبة.",
+    "en": "City is required.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "City.MaximumLength",
+    "code": "CITY_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم المدينة ١٠٠ حرف.",
+    "en": "City must not exceed 100 characters.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "Country.NotEmpty",
+    "code": "COUNTRY_REQUIRED",
+    "source": "SPA",
+    "ar": "الدولة مطلوبة.",
+    "en": "Country is required.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "Country.MaximumLength",
+    "code": "COUNTRY_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم الدولة ١٠٠ حرف.",
+    "en": "Country must not exceed 100 characters.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "RegionCode.NotEmpty",
+    "code": "REGION_REQUIRED",
+    "source": "drafted",
+    "ar": "المنطقة مطلوبة.",
+    "en": "Region is required.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "NameAr.NotEmpty",
+    "code": "NAME_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "الاسم (عربي) مطلوب.",
+    "en": "Name (Arabic) is required.",
+    "usedIn": "AddBranchRequest, UpdateBranchRequest, CreateEvaluationTemplateRequest, CreateOfferingRequest",
+    "flag": "Deliberately generic. The SPA has «اسم الفرع (عربي) مطلوب» but this key is shared by branches, evaluation templates and offerings, so a branch-specific sentence would be wrong on two of the three."
+  },
+  {
+    "key": "NameAr.MaximumLength",
+    "code": "NAME_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الاسم (عربي) ٢٠٠ حرف.",
+    "en": "Name (Arabic) must not exceed 200 characters.",
+    "usedIn": "AddBranchRequest, UpdateBranchRequest, CreateEvaluationTemplateRequest, CreateOfferingRequest"
+  },
+  {
+    "key": "NameEn.NotEmpty",
+    "code": "NAME_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "الاسم (إنجليزي) مطلوب.",
+    "en": "Name (English) is required.",
+    "usedIn": "AddBranchRequest, UpdateBranchRequest, CreateEvaluationTemplateRequest, CreateOfferingRequest"
+  },
+  {
+    "key": "NameEn.MaximumLength",
+    "code": "NAME_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الاسم (إنجليزي) ٢٠٠ حرف.",
+    "en": "Name (English) must not exceed 200 characters.",
+    "usedIn": "AddBranchRequest, UpdateBranchRequest, CreateEvaluationTemplateRequest, CreateOfferingRequest"
+  },
+
+  // ========================================================================================
+  // Bank accounts
+  // ========================================================================================
+  {
+    "key": "AccountHolderName.NotEmpty",
+    "code": "ACCOUNT_HOLDER_NAME_REQUIRED",
+    "source": "SPA",
+    "ar": "اسم صاحب الحساب مطلوب.",
+    "en": "Account holder name is required.",
+    "usedIn": "AddBankAccountRequest, UpdateBankAccountRequest"
+  },
+  {
+    "key": "AccountHolderName.MaximumLength",
+    "code": "ACCOUNT_HOLDER_NAME_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم صاحب الحساب ٢٠٠ حرف.",
+    "en": "Account holder name must not exceed 200 characters.",
+    "usedIn": "AddBankAccountRequest, UpdateBankAccountRequest"
+  },
+  {
+    "key": "AccountNumber.NotEmpty",
+    "code": "ACCOUNT_NUMBER_REQUIRED",
+    "source": "SPA",
+    "ar": "رقم الحساب مطلوب.",
+    "en": "Account number is required.",
+    "usedIn": "AddBankAccountRequest"
+  },
+  {
+    "key": "AccountNumber.MaximumLength",
+    "code": "ACCOUNT_NUMBER_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز رقم الحساب ٦٤ حرفاً.",
+    "en": "Account number must not exceed 64 characters.",
+    "usedIn": "AddBankAccountRequest, UpdateBankAccountRequest"
+  },
+  {
+    "key": "BankName.NotEmpty",
+    "code": "BANK_NAME_REQUIRED",
+    "source": "SPA",
+    "ar": "اسم البنك مطلوب.",
+    "en": "Bank name is required.",
+    "usedIn": "AddBankAccountRequest, UpdateBankAccountRequest"
+  },
+  {
+    "key": "BankName.MaximumLength",
+    "code": "BANK_NAME_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم البنك ٢٠٠ حرف.",
+    "en": "Bank name must not exceed 200 characters.",
+    "usedIn": "AddBankAccountRequest, UpdateBankAccountRequest"
+  },
+  {
+    "key": "CurrencyCode.NotEmpty",
+    "code": "CURRENCY_CODE_REQUIRED",
+    "source": "drafted",
+    "ar": "العملة مطلوبة.",
+    "en": "Currency is required.",
+    "usedIn": "AddBankAccountRequest, RfqBasicsRequest, SetCommercialTermsRequest"
+  },
+  {
+    "key": "CurrencyCode.Length",
+    "code": "CURRENCY_CODE_INVALID_LENGTH",
+    "source": "drafted",
+    "ar": "يجب أن يتكون رمز العملة من ٣ أحرف.",
+    "en": "Currency code must be 3 characters.",
+    "usedIn": "AddBankAccountRequest, UpdateBankAccountRequest"
+  },
+  {
+    "key": "CurrencyCode.MaximumLength",
+    "code": "CURRENCY_CODE_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز رمز العملة ٣ أحرف.",
+    "en": "Currency code must not exceed 3 characters.",
+    "usedIn": "RfqBasicsRequest, SetCommercialTermsRequest"
+  },
+
+  // ========================================================================================
+  // Offerings (categories, units, pricing)
+  // ========================================================================================
+  {
+    "key": "CategoryCode.NotEmpty",
+    "code": "CATEGORY_REQUIRED",
+    "source": "drafted",
+    "ar": "الفئة مطلوبة.",
+    "en": "Category is required.",
+    "usedIn": "CreateOfferingRequest, RfqItemRequest"
+  },
+  {
+    "key": "UnitOfMeasureCode.NotEmpty",
+    "code": "UNIT_OF_MEASURE_REQUIRED",
+    "source": "drafted",
+    "ar": "وحدة القياس مطلوبة.",
+    "en": "Unit of measure is required.",
+    "usedIn": "CreateOfferingRequest, RfqItemRequest"
+  },
+  {
+    "key": "Description.MaximumLength",
+    "code": "DESCRIPTION_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الوصف ٢٠٠٠ حرف.",
+    "en": "Description must not exceed 2000 characters.",
+    "usedIn": "CreateOfferingRequest"
+  },
+  {
+    "key": "PriceAmount.GreaterThanOrEqualTo",
+    "code": "PRICE_NEGATIVE",
+    "source": "drafted",
+    "ar": "يجب ألا يكون السعر بالسالب.",
+    "en": "Price must not be negative.",
+    "usedIn": "CreateOfferingRequest",
+    "flag": "Deliberately NOT the proposal rule. §7.2's PRICE_NON_POSITIVE covers the proposal unit price, which is now GreaterThan(0); an offering is a supplier's catalogue listing and no document rules on it, so zero stays accepted here and the sentence says only what the validator enforces. Open question - see the report."
+  },
+
+  // ========================================================================================
+  // RFQ basics, items and requirements
+  // ========================================================================================
+  {
+    "key": "TitleAr.NotEmpty",
+    "code": "TITLE_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "العنوان (عربي) مطلوب.",
+    "en": "Title (Arabic) is required.",
+    "usedIn": "IssueAddendumRequest, RfqBasicsRequest, RfqItemRequest"
+  },
+  {
+    "key": "TitleAr.MaximumLength",
+    "code": "TITLE_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز العنوان (عربي) ٣٠٠ حرف.",
+    "en": "Title (Arabic) must not exceed 300 characters.",
+    "usedIn": "IssueAddendumRequest, RfqBasicsRequest, RfqItemRequest"
+  },
+  {
+    "key": "TitleEn.NotEmpty",
+    "code": "TITLE_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "العنوان (إنجليزي) مطلوب.",
+    "en": "Title (English) is required.",
+    "usedIn": "IssueAddendumRequest, RfqBasicsRequest, RfqItemRequest"
+  },
+  {
+    "key": "TitleEn.MaximumLength",
+    "code": "TITLE_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز العنوان (إنجليزي) ٣٠٠ حرف.",
+    "en": "Title (English) must not exceed 300 characters.",
+    "usedIn": "IssueAddendumRequest, RfqBasicsRequest, RfqItemRequest"
+  },
+  {
+    "key": "SubmissionClosesAt.GreaterThan",
+    "code": "SUBMISSION_WINDOW_INVALID",
+    "source": "drafted",
+    "ar": "يجب أن يكون موعد إغلاق التقديم بعد موعد فتحه.",
+    "en": "The submission closing date must be after the opening date.",
+    "usedIn": "RfqBasicsRequest"
+  },
+  {
+    "key": "Quantity.GreaterThan",
+    "code": "QUANTITY_NON_POSITIVE",
+    "source": "drafted",
+    "ar": "يجب أن تكون الكمية أكبر من صفر.",
+    "en": "Quantity must be greater than zero.",
+    "usedIn": "RfqItemRequest, SetItemPricingRequest",
+    "flag": "Feminine agreement: «تكون», not «يكون». This is the case §9's fixed pattern could not express."
+  },
+  {
+    "key": "TextAr.NotEmpty",
+    "code": "REQUIREMENT_TEXT_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "نص المتطلب (عربي) مطلوب.",
+    "en": "Requirement text (Arabic) is required.",
+    "usedIn": "RequirementRequest"
+  },
+  {
+    "key": "TextAr.MaximumLength",
+    "code": "REQUIREMENT_TEXT_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز نص المتطلب (عربي) ٢٠٠٠ حرف.",
+    "en": "Requirement text (Arabic) must not exceed 2000 characters.",
+    "usedIn": "RequirementRequest"
+  },
+  {
+    "key": "TextEn.NotEmpty",
+    "code": "REQUIREMENT_TEXT_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "نص المتطلب (إنجليزي) مطلوب.",
+    "en": "Requirement text (English) is required.",
+    "usedIn": "RequirementRequest"
+  },
+  {
+    "key": "TextEn.MaximumLength",
+    "code": "REQUIREMENT_TEXT_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز نص المتطلب (إنجليزي) ٢٠٠٠ حرف.",
+    "en": "Requirement text (English) must not exceed 2000 characters.",
+    "usedIn": "RequirementRequest"
+  },
+  {
+    "key": "DescriptionAr.NotEmpty",
+    "code": "ADDENDUM_DESCRIPTION_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "وصف الملحق (عربي) مطلوب.",
+    "en": "Addendum description (Arabic) is required.",
+    "usedIn": "IssueAddendumRequest"
+  },
+  {
+    "key": "DescriptionAr.MaximumLength",
+    "code": "ADDENDUM_DESCRIPTION_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز وصف الملحق (عربي) ٤٠٠٠ حرف.",
+    "en": "Addendum description (Arabic) must not exceed 4000 characters.",
+    "usedIn": "IssueAddendumRequest"
+  },
+  {
+    "key": "DescriptionEn.NotEmpty",
+    "code": "ADDENDUM_DESCRIPTION_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "وصف الملحق (إنجليزي) مطلوب.",
+    "en": "Addendum description (English) is required.",
+    "usedIn": "IssueAddendumRequest"
+  },
+  {
+    "key": "DescriptionEn.MaximumLength",
+    "code": "ADDENDUM_DESCRIPTION_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز وصف الملحق (إنجليزي) ٤٠٠٠ حرف.",
+    "en": "Addendum description (English) must not exceed 4000 characters.",
+    "usedIn": "IssueAddendumRequest"
+  },
+  {
+    "key": "Comments.NotEmpty",
+    "code": "COMMENTS_REQUIRED",
+    "source": "drafted",
+    "ar": "الملاحظات مطلوبة.",
+    "en": "Comments are required.",
+    "usedIn": "ReturnForEditsRequest"
+  },
+  {
+    "key": "Comments.MaximumLength",
+    "code": "COMMENTS_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز الملاحظات ٢٠٠٠ حرف.",
+    "en": "Comments must not exceed 2000 characters.",
+    "usedIn": "ReturnForEditsRequest",
+    "flag": "Feminine plural agreement: «تتجاوز», not «يتجاوز»."
+  },
+  {
+    "key": "Reason.NotEmpty",
+    "code": "REASON_REQUIRED",
+    "source": "drafted",
+    "ar": "السبب مطلوب.",
+    "en": "A reason is required.",
+    "usedIn": "CancelRfqRequest, RecuseEvaluatorRequest, RejectApplicationRequest, RejectAwardRequest, ReopenEvaluationRequest, WithdrawProposalRequest"
+  },
+  {
+    "key": "Reason.MaximumLength",
+    "code": "REASON_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز السبب ٢٠٠٠ حرف.",
+    "en": "The reason must not exceed 2000 characters.",
+    "usedIn": "CancelRfqRequest, RecuseEvaluatorRequest, RejectApplicationRequest, RejectAwardRequest, ReopenEvaluationRequest, WithdrawProposalRequest"
+  },
+
+  // ========================================================================================
+  // Clarifications (questions and answers)
+  // ========================================================================================
+  {
+    "key": "Question.NotEmpty",
+    "code": "QUESTION_REQUIRED",
+    "source": "drafted",
+    "ar": "السؤال مطلوب.",
+    "en": "A question is required.",
+    "usedIn": "PostClarificationRequest"
+  },
+  {
+    "key": "Question.MaximumLength",
+    "code": "QUESTION_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز السؤال ٤٠٠٠ حرف.",
+    "en": "The question must not exceed 4000 characters.",
+    "usedIn": "PostClarificationRequest"
+  },
+  {
+    "key": "Answer.NotEmpty",
+    "code": "ANSWER_REQUIRED",
+    "source": "drafted",
+    "ar": "الإجابة مطلوبة.",
+    "en": "An answer is required.",
+    "usedIn": "AnswerClarificationRequest",
+    "flag": "Feminine agreement: «مطلوبة». The SPA label «إجابة» is a heading, not a sentence, so this is drafted rather than reused."
+  },
+  {
+    "key": "Answer.MaximumLength",
+    "code": "ANSWER_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز الإجابة ٤٠٠٠ حرف.",
+    "en": "The answer must not exceed 4000 characters.",
+    "usedIn": "AnswerClarificationRequest"
+  },
+
+  // ========================================================================================
+  // Proposals
+  // ========================================================================================
+  {
+    "key": "AnswerAr.NotEmpty",
+    "code": "PROPOSAL_ANSWER_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "الإجابة (عربي) مطلوبة.",
+    "en": "Answer (Arabic) is required.",
+    "usedIn": "AnswerRequirementRequest"
+  },
+  {
+    "key": "AnswerAr.MaximumLength",
+    "code": "PROPOSAL_ANSWER_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز الإجابة (عربي) ٤٠٠٠ حرف.",
+    "en": "Answer (Arabic) must not exceed 4000 characters.",
+    "usedIn": "AnswerRequirementRequest"
+  },
+  {
+    "key": "AnswerEn.NotEmpty",
+    "code": "PROPOSAL_ANSWER_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "الإجابة (إنجليزي) مطلوبة.",
+    "en": "Answer (English) is required.",
+    "usedIn": "AnswerRequirementRequest"
+  },
+  {
+    "key": "AnswerEn.MaximumLength",
+    "code": "PROPOSAL_ANSWER_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز الإجابة (إنجليزي) ٤٠٠٠ حرف.",
+    "en": "Answer (English) must not exceed 4000 characters.",
+    "usedIn": "AnswerRequirementRequest"
+  },
+  {
+    "key": "UnitPrice.GreaterThan",
+    "code": "PRICE_NON_POSITIVE",
+    "source": "§7.2",
+    "ar": "يجب أن يكون سعر الوحدة أكبر من صفر.",
+    "en": "Unit price must be greater than zero.",
+    "usedIn": "SetItemPricingRequest"
+  },
+
+  // ========================================================================================
+  // Evaluation (templates, criteria, scoring)
+  // ========================================================================================
+  {
+    "key": "MaxScore.GreaterThan",
+    "code": "MAX_SCORE_NON_POSITIVE",
+    "source": "drafted",
+    "ar": "يجب أن يكون الحد الأقصى للنقاط أكبر من صفر.",
+    "en": "Maximum score must be greater than zero.",
+    "usedIn": "CriterionRequest"
+  },
+  {
+    "key": "Weight.GreaterThan",
+    "code": "WEIGHT_NON_POSITIVE",
+    "source": "drafted",
+    "ar": "يجب أن يكون الوزن أكبر من صفر.",
+    "en": "Weight must be greater than zero.",
+    "usedIn": "CriterionRequest"
+  },
+  {
+    "key": "Weight.LessThanOrEqualTo",
+    "code": "WEIGHT_ABOVE_MAX",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الوزن ١٠٠.",
+    "en": "Weight must not exceed 100.",
+    "usedIn": "CriterionRequest"
+  },
+  {
+    "key": "Threshold.LessThanOrEqualTo",
+    "code": "THRESHOLD_ABOVE_MAX_SCORE",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز حد النجاح الحد الأقصى للنقاط.",
+    "en": "The pass threshold must not exceed the maximum score.",
+    "usedIn": "CriterionRequest",
+    "flag": "«حد النجاح» for threshold. The SPA renders this field as «الحد الأدنى», which reads as a minimum rather than a pass mark; chose the clearer term and flag the divergence."
+  },
+  {
+    "key": "RawScore.GreaterThanOrEqualTo",
+    "code": "SCORE_NEGATIVE",
+    "source": "drafted",
+    "ar": "يجب ألا تكون الدرجة بالسالب.",
+    "en": "Score must not be negative.",
+    "usedIn": "ScoreCriterionRequest",
+    "flag": "Feminine agreement: «تكون»."
+  },
+  {
+    "key": "EvaluatorUserIds.NotEmpty",
+    "code": "EVALUATORS_REQUIRED",
+    "source": "drafted",
+    "ar": "يجب اختيار مُقيّم واحد على الأقل.",
+    "en": "At least one evaluator must be selected.",
+    "usedIn": "AssignEvaluatorsRequest",
+    "flag": "Phrased as an instruction rather than «مطلوبة», because the field is a list and «قائمة المقيّمين مطلوبة» reads as a missing list rather than an empty selection."
+  },
+
+  // ========================================================================================
+  // Awards
+  // ========================================================================================
+  {
+    "key": "JustificationAr.NotEmpty",
+    "code": "JUSTIFICATION_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "المبرر (عربي) مطلوب.",
+    "en": "Justification (Arabic) is required.",
+    "usedIn": "RecommendAwardRequest"
+  },
+  {
+    "key": "JustificationAr.MaximumLength",
+    "code": "JUSTIFICATION_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز المبرر (عربي) ٤٠٠٠ حرف.",
+    "en": "Justification (Arabic) must not exceed 4000 characters.",
+    "usedIn": "RecommendAwardRequest"
+  },
+  {
+    "key": "JustificationEn.NotEmpty",
+    "code": "JUSTIFICATION_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "المبرر (إنجليزي) مطلوب.",
+    "en": "Justification (English) is required.",
+    "usedIn": "RecommendAwardRequest"
+  },
+  {
+    "key": "JustificationEn.MaximumLength",
+    "code": "JUSTIFICATION_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز المبرر (إنجليزي) ٤٠٠٠ حرف.",
+    "en": "Justification (English) must not exceed 4000 characters.",
+    "usedIn": "RecommendAwardRequest"
+  },
+
+  // ========================================================================================
+  // Buying entities (organizations)
+  // ========================================================================================
+  {
+    "key": "Name.NotEmpty",
+    "code": "NAME_REQUIRED",
+    "source": "SPA",
+    "ar": "الاسم مطلوب.",
+    "en": "Name is required.",
+    "usedIn": "AddOrgUnitRequest"
+  },
+  {
+    "key": "Name.MaximumLength",
+    "code": "NAME_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز الاسم ٢٠٠ حرف.",
+    "en": "Name must not exceed 200 characters.",
+    "usedIn": "AddOrgUnitRequest"
+  },
+  {
+    "key": "ContactEmail.EmailAddress",
+    "code": "CONTACT_EMAIL_INVALID",
+    "source": "drafted",
+    "ar": "صيغة البريد الإلكتروني لجهة الاتصال غير صحيحة.",
+    "en": "The contact email address format is invalid.",
+    "usedIn": "CreateOrganizationRequest",
+    "flag": "A variant of §7.2's EMAIL_INVALID rather than the exemplar itself, because this is a second email field on the same form and an identical sentence would not say which one failed."
+  },
+  {
+    "key": "OrganizationId.NotEmpty",
+    "code": "ORGANIZATION_REQUIRED",
+    "source": "drafted",
+    "ar": "الجهة الشرائية مطلوبة.",
+    "en": "Buying entity is required.",
+    "usedIn": "CreateSupplierOrgLinkRequest"
+  },
+
+  // ========================================================================================
+  // Rules that are not a plain RuleFor: collection child rules, cross-field checks, and the
+  // config-driven required fields that a validator adds by hand. Each still reaches a supplier as
+  // a field error, so each still needs Arabic.
+  // ========================================================================================
+  {
+    "key": "Attributes[].Key.NotEmpty",
+    "code": "OFFERING_ATTRIBUTE_KEY_REQUIRED",
+    "source": "drafted",
+    "ar": "اسم الخاصية مطلوب.",
+    "en": "Attribute name is required.",
+    "usedIn": "CreateOfferingRequest (child rules on Attributes)"
+  },
+  {
+    "key": "Attributes[].Key.MaximumLength",
+    "code": "OFFERING_ATTRIBUTE_KEY_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز اسم الخاصية ١٠٠ حرف.",
+    "en": "Attribute name must not exceed 100 characters.",
+    "usedIn": "CreateOfferingRequest (child rules on Attributes)"
+  },
+  {
+    "key": "Attributes[].Value.NotEmpty",
+    "code": "OFFERING_ATTRIBUTE_VALUE_REQUIRED",
+    "source": "drafted",
+    "ar": "قيمة الخاصية مطلوبة.",
+    "en": "Attribute value is required.",
+    "usedIn": "CreateOfferingRequest (child rules on Attributes)",
+    "flag": "Feminine agreement: «مطلوبة»."
+  },
+  {
+    "key": "Attributes[].Value.MaximumLength",
+    "code": "OFFERING_ATTRIBUTE_VALUE_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز قيمة الخاصية ٥٠٠ حرف.",
+    "en": "Attribute value must not exceed 500 characters.",
+    "usedIn": "CreateOfferingRequest (child rules on Attributes)"
+  },
+  {
+    "key": ".Must",
+    "code": "REQUEST_INFO_NOTHING_FLAGGED",
+    "source": "drafted",
+    "ar": "يجب تحديد قسم واحد أو وثيقة واحدة على الأقل.",
+    "en": "At least one section or document must be flagged.",
+    "usedIn": "RequestInfoRequest (whole-request rule)",
+    "flag": "A whole-request rule, so it has no field path - it is emitted with an empty \"field\" and belongs at the top of the form rather than on an input."
+  },
+  {
+    "key": "FlaggedProfileFields.Must",
+    "code": "UNKNOWN_PROFILE_FIELD_CODE",
+    "source": "drafted",
+    "ar": "أحد رموز حقول الملف المحددة غير معروف.",
+    "en": "One or more of the flagged profile field codes is not recognised.",
+    "usedIn": "RequestInfoRequest",
+    "flag": "The English rule lists the valid codes in its message; a catalogue sentence cannot interpolate them, so the list is dropped. Reviewer-facing only - a supplier never sees this."
+  },
+  {
+    "key": "CurrencyCode.Value.MustAsync",
+    "code": "CURRENCY_UNKNOWN",
+    "source": "drafted",
+    "ar": "رمز العملة غير معروف أو غير مفعّل.",
+    "en": "Unknown or inactive currency code.",
+    "usedIn": "UpdateProfileRequest"
+  },
+  {
+    "key": "RegistrationNumber.NotEmpty",
+    "code": "REGISTRATION_NUMBER_REQUIRED",
+    "source": "drafted",
+    "ar": "رقم السجل التجاري مطلوب.",
+    "en": "Commercial registration number is required.",
+    "usedIn": "UpdateLegalInfoRequest (only when configured as required)"
+  },
+  {
+    "key": "TaxId.NotEmpty",
+    "code": "TAX_ID_REQUIRED",
+    "source": "drafted",
+    "ar": "الرقم الضريبي مطلوب.",
+    "en": "Tax identification number is required.",
+    "usedIn": "UpdateLegalInfoRequest (only when configured as required)"
+  },
+  {
+    "key": "EstablishedOn.NotEmpty",
+    "code": "ESTABLISHED_ON_REQUIRED",
+    "source": "drafted",
+    "ar": "تاريخ التأسيس مطلوب.",
+    "en": "Date of establishment is required.",
+    "usedIn": "UpdateLegalInfoRequest (only when configured as required)"
+  }
+]

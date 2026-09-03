@@ -24,6 +24,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- §7.2's message catalogue. Embedded rather than copied to disk so there is one copy, it
+         cannot be edited in a deployed environment without a rebuild, and ValidationCatalogue can
+         load it without a file path. -->
+    <EmbeddedResource Include="Errors\ValidationCatalogue.jsonc" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Application\MotsSupplierPortal.Application.csproj" />
     <ProjectReference Include="..\Infrastructure\MotsSupplierPortal.Infrastructure.csproj" />
   </ItemGroup>

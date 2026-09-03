@@ -1,3 +1,4 @@
+import { formatCurrency } from '../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -20,6 +21,7 @@ export function SupplierProposalPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
+  const locale = isArabic ? 'ar' : 'en-GB'
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
@@ -164,8 +166,8 @@ export function SupplierProposalPage() {
                 <TableRow key={item.id}>
                   <TableCell>{isArabic ? item.titleAr : item.titleEn}{item.isOptional ? null : <span aria-hidden="true"> *</span>}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
-                  <TableCell>{priced ? priced.unitPrice : '—'}</TableCell>
-                  <TableCell>{priced ? priced.lineTotal : '—'}</TableCell>
+                  <TableCell>{priced ? formatCurrency(priced.unitPrice, proposal.currencyCode, locale) : '—'}</TableCell>
+                  <TableCell>{priced ? formatCurrency(priced.lineTotal, proposal.currencyCode, locale) : '—'}</TableCell>
                   {isDraft ? (
                     <TableCell>
                       <div className="flex items-center gap-1">

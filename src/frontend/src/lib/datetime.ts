@@ -18,9 +18,12 @@
  * those examples are what an Arabic reader was actually shown: §3.1's «حجم هذا الملف ١٤ ميغابايت»
  * and «٣٠ أغسطس ٢٠٢٦، الساعة ١٤:٠٠ (+٣)». Ruled by the product owner in favour of the examples.</p>
  *
- * <p><b>Currency is deliberately out of scope</b> and untouched by this module. No document rules on
- * money specifically, and prices are the highest-stakes number in a tender - that is a decision to
- * be taken on purpose, not inherited from example copy. Open ruling, reported as such.</p>
+ * <p><b>Currency was deliberately out of scope</b> when this module was written: no document ruled on
+ * money specifically, and prices are the highest-stakes number in a tender, so it was left as an
+ * open question rather than inherited from example copy. <b>The product owner has since ruled that
+ * money renders in Eastern Arabic digits like everything else</b>, so {@link formatCurrency} lives
+ * here and shares {@link numberingSystemFor} with the dates - the point of one module is that a
+ * price and a deadline on the same screen cannot disagree about what a numeral looks like.</p>
  *
  * <p>The configurability half of §6.1 is still not built: nothing in this codebase stores a
  * tenant/user numeral preference, so there is no setting to read. Locale default only.</p>
@@ -222,4 +225,36 @@ export function formatRelative(
     if (Math.abs(diff) >= ms) return rtf.format(Math.trunc(diff / ms), unit)
   }
   return rtf.format(Math.trunc(diff / 1000), 'second')
+}
+
+/**
+ * Money, in the locale's numerals. «١٬٢٥٠٫٠٠ ل.س.» / "SYP 1,250.00".
+ *
+ * <p>Replaces two hand-rolled `Intl.NumberFormat` calls that pinned `ar-SY-u-nu-latn` - Arabic
+ * layout, Western digits - which was correct under the old exclusion and is wrong under the new
+ * ruling. Currency codes come from the API and are not validated here: an unknown code makes
+ * `Intl.NumberFormat` throw, so it falls back to rendering the amount alone rather than blanking a
+ * price or crashing a table.</p>
+ */
+export function formatCurrency(
+  value: number | null | undefined,
+  currencyCode: string | null | undefined,
+  locale?: string,
+): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return ''
+  const resolved = resolveLocale(locale)
+  const numberingSystem = numberingSystemFor(resolved)
+  const plain = () => new Intl.NumberFormat(resolved, { numberingSystem }).format(value)
+
+  // No code means the amount genuinely has no currency yet - a proposal before its commercial terms
+  // are set, for instance. The two hand-rolled formatters this replaces defaulted to USD, which
+  // renders "$50.00" for an amount that is not dollars: a false statement on a commercial document,
+  // and a worse one than showing the bare number.
+  if (!currencyCode) return plain()
+
+  try {
+    return new Intl.NumberFormat(resolved, { style: 'currency', currency: currencyCode, numberingSystem }).format(value)
+  } catch {
+    return plain()
+  }
 }

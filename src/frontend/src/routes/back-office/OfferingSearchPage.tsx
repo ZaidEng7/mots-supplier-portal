@@ -1,3 +1,4 @@
+import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -75,7 +76,7 @@ export function OfferingSearchPage() {
                   <TableCell>{categoryLabel(o.categoryCode)}</TableCell>
                   <TableCell>
                     {o.priceAmount !== null
-                      ? new Intl.NumberFormat(isArabic ? 'ar-SY-u-nu-latn' : 'en-US', { style: 'currency', currency: o.currencyCode ?? 'USD' }).format(o.priceAmount)
+                      ? formatCurrency(o.priceAmount, o.currencyCode, isArabic ? 'ar' : 'en-GB')
                       : '—'}
                   </TableCell>
                   <TableCell>

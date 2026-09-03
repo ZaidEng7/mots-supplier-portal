@@ -43,6 +43,12 @@ const resources = {
           // the chip to raw English, so they are migrated and reported as a documentation gap.
           PendingScan: 'جاري الفحص', ScanRejected: 'مرفوض (فحص الفيروسات)',
         },
+        // UX-WRITING.md §7.6 "Award / Approval & ERP sync". Three rows, transcribed. The enum's
+        // fourth member, NotRequested, has NO entry on purpose: §7.6 has no row for it because
+        // nothing has been asked of the ERP yet, so it is not a sync state - rendering it as
+        // "pending" would tell a procurement officer a request is in flight when none was made.
+        // Absence is the label. AwardPage renders no chip at all for it.
+        erpSync: { Requested: 'بانتظار المزامنة', Synced: 'تمت المزامنة', Failed: 'فشل المزامنة' },
         rfq: {
           Draft: 'مسودة', InternalReview: 'مراجعة داخلية', Approved: 'معتمد', Published: 'منشور',
           SubmissionOpen: 'مفتوح للتقديم', SubmissionClosed: 'أُغلق التقديم', UnderEvaluation: 'قيد التقييم',
@@ -853,6 +859,8 @@ const resources = {
           Rejected: 'Rejected', ExpiringSoon: 'Expiring soon', Expired: 'Expired',
           PendingScan: 'Scanning', ScanRejected: 'Rejected (virus scan)',
         },
+        // §7.6. NotRequested has no entry - see the Arabic block above.
+        erpSync: { Requested: 'Sync pending', Synced: 'Synced', Failed: 'Sync failed' },
         rfq: {
           Draft: 'Draft', InternalReview: 'Internal review', Approved: 'Approved', Published: 'Published',
           SubmissionOpen: 'Open for submissions', SubmissionClosed: 'Submissions closed',
