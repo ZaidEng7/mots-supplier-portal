@@ -30,6 +30,9 @@ const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').th
 const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const EvaluationDashboardPage = lazy(() => import('./routes/EvaluationDashboardPage').then((m) => ({ default: m.EvaluationDashboardPage })))
+const ProcurementDashboardPage = lazy(() => import('./routes/back-office/ProcurementDashboardPage').then((m) => ({ default: m.ProcurementDashboardPage })))
+const ApprovalQueuesPage = lazy(() => import('./routes/back-office/ApprovalQueuesPage').then((m) => ({ default: m.ApprovalQueuesPage })))
+const ReviewDashboardPage = lazy(() => import('./routes/back-office/ReviewDashboardPage').then((m) => ({ default: m.ReviewDashboardPage })))
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
 const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
@@ -256,6 +259,28 @@ const evaluationDashboardRoute = createRoute({
 // the supplier layout at all. SCREEN-INVENTORY names one path; this is the same SCREEN reached
 // through each persona's own shell, which is the closest the router can come to that without giving
 // staff a supplier chrome.
+// EPIC-17. SCREEN-INVENTORY routes these at /procurement, /procurement/approvals and /review; they
+// render in the back-office chrome their personas already live in, so they hang off that layout and
+// their real paths carry the /back-office prefix. The inventory's paths and this app's URL space
+// disagree here exactly as they did for SCR-500 - reported rather than resolved by renaming a shell.
+const procurementDashboardRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/procurement',
+  component: ProcurementDashboardPage,
+})
+
+const approvalQueuesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/procurement/approvals',
+  component: ApprovalQueuesPage,
+})
+
+const reviewDashboardRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/review-dashboard',
+  component: ReviewDashboardPage,
+})
+
 const notificationsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/notifications',
@@ -413,7 +438,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

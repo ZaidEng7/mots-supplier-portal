@@ -107,7 +107,9 @@ test('the route denominator is what the router actually declares, not what this 
   // through each persona's own shell, because the two shells are two different URL spaces.
   // 36 (EPIC-17/SCR-500): /evaluation, the evaluator dashboard. Back-office chrome on a root path,
   // per SCREEN-INVENTORY's route column and IA §4.3's shell.
-  expect(routes.length).toBe(36)
+  // 39 (EPIC-17 part 2): /back-office/procurement, /back-office/procurement/approvals and
+  // /back-office/review-dashboard - SCR-400, SCR-401 and SCR-300.
+  expect(routes.length).toBe(39)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
