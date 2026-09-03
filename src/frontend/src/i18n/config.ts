@@ -15,6 +15,55 @@ const resources = {
       // scoring will appear here.' | —" (no action, per the table's own dash).
       // SCR-400 §10, SCR-401, SCR-300 (FR-DSH-002). KPI labels are drafted: the specs name the
       // tiles in English prose and no Arabic copy exists for them in UX-WRITING.
+      // ═══════════════════════════════════════════════════════════════════════════════════════
+      // EPIC-16 · ARABIC FOR REVIEW (part 2 of 2; part 1 is `status.invitation` above).
+      //
+      //   [§7-style drafted]  authored here in the style of §7's tables - NOT YET APPROVED
+      //   [reused]            already approved elsewhere in this file, repeated for consistency
+      //
+      // InvitationStatus has no §7 table - five members that ship on the wire (§12.4's
+      // invitationStatus) and render as chips with nothing to say. Drafted below in §7's register:
+      // professional MSA, authored rather than translated, gender agreeing with the subject (الدعوة
+      // is feminine, which is why Declined is not «مرفوض»).
+      // ═══════════════════════════════════════════════════════════════════════════════════════
+      supplierDashboard: {
+        title: 'لوحة المورد',                     // [§7-style drafted]
+        greeting: 'أهلاً بك، {{name}}',          // [§7-style drafted]
+        kpis: {
+          openInvitations: 'دعوات مفتوحة',        // [§7-style drafted]
+          draftProposals: 'عروض مسودة',           // [§7-style drafted]
+          submittedProposals: 'عروض مُقدَّمة',      // [§7-style drafted] reuses §7.4's «مُقدَّم» as an adjective
+          documentsNeedingAttention: 'وثائق بحاجة إلى إجراء', // [§7-style drafted]
+        },
+        actionRequired: {
+          title: 'يتطلب إجراءً',                                        // [§7-style drafted]
+          expiringDocuments: 'وثائق تقترب من الانتهاء ({{count}})',      // [§7-style drafted]
+          rejectedDocuments: 'وثائق مرفوضة ({{count}})',                 // [§7-style drafted]
+          invitationsClosingSoon: 'دعوات تُغلق قريباً ({{count}})',        // [§7-style drafted]
+          clarificationsAnswered: 'استيضاحات تمت الإجابة عليها ({{count}})', // [§7-style drafted] §8's glossary term
+          awardOffers: 'عروض ترسية ({{count}})',                         // [§7-style drafted] §8's «ترسية»
+          dismiss: 'إخفاء',                                              // [§7-style drafted]
+        },
+        invitations: 'الدعوات والمواعيد',          // [§7-style drafted]
+        proposals: 'عروضي',                        // [§7-style drafted]
+        validUntil: 'سارٍ حتى {{date}}',            // [§7-style drafted]
+        noValidity: 'لا يوجد تاريخ سريان',          // [§7-style drafted]
+        profileHealth: 'اكتمال الملف والوثائق',      // [§7-style drafted]
+        completeness: 'اكتمال الوثائق المطلوبة: {{done}} من {{total}}', // [§7-style drafted]
+        nextDocument: 'الوثيقة التالية المطلوبة: {{code}}',              // [§7-style drafted]
+        allDocuments: 'اكتملت جميع الوثائق المطلوبة.',                   // [§7-style drafted]
+        notifications: 'آخر الإشعارات',            // [§7-style drafted]
+        openNotifications: 'عرض الإشعارات',        // [reused] wording of procurementDashboard.openNotifications
+        // §1's not-yet-approved state. Deliberately not an empty dashboard - see the report.
+        pendingTitle: 'طلب التسجيل قيد المراجعة',   // [§7-style drafted]
+        pendingBody: 'سنُعلمك فور اعتماد ملفكم. يمكنك متابعة استكمال بياناتكم في هذه الأثناء.', // [§7-style drafted]
+        pendingCta: 'متابعة استكمال الملف',         // [§7-style drafted]
+        erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.', // [§7-style drafted] §9's sync tone
+        emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
+        emptyBody: 'ستظهر هنا دعوات طلبات عروض الأسعار عند دعوتكم للمشاركة.', // [§7-style drafted]
+        loadFailed: 'تعذر تحميل هذا القسم',         // [§7-style drafted] per-widget, not per-page
+        retry: 'إعادة المحاولة',                    // [reused]
+      },
       procurementDashboard: {
         title: 'لوحة المشتريات',
         from: 'من', to: 'إلى',
@@ -103,8 +152,8 @@ const resources = {
       // UX-WRITING.md §7 "Status labels (aligned to canonical state machines)" - transcribed
       // verbatim, not authored here. §7 is "the single source for chip text and for the accessible
       // name announced to screen readers", so these keys are the only place a domain state becomes
-      // words. InvitationStatus has NO §7 table; it is reported as a documentation gap rather than
-      // invented, and StatusChip falls back to the raw value for it.
+      // words. InvitationStatus has NO §7 table; EPIC-16 drafts its five labels in §7's style - see
+      // the tagged review block above - because this screen renders them as chips.
       status: {
         // §7.1 "Supplier onboarding". The doc groups onboarding and lifecycle states in ONE
         // table; the code splits them across SupplierOnboardingState and SupplierLifecycleState.
@@ -141,6 +190,22 @@ const resources = {
         // "pending" would tell a procurement officer a request is in flight when none was made.
         // Absence is the label. AwardPage renders no chip at all for it.
         erpSync: { Requested: 'بانتظار المزامنة', Synced: 'تمت المزامنة', Failed: 'فشل المزامنة' },
+        // EPIC-16 · ARABIC FOR REVIEW (part 1 of 2; part 2 is the `supplierDashboard` block below).
+        //
+        // §7 has NO invitation table. These five ship on the wire (§12.4's invitationStatus) and
+        // render as chips, so they are drafted here in §7's own register: professional MSA, authored
+        // rather than translated, gender agreeing with the subject - الدعوة is feminine, which is why
+        // Declined is not «مرفوض».
+        //
+        //   [§7-style drafted]  authored here - NOT YET APPROVED
+        //   [reused]            already approved elsewhere in this file, kept identical
+        invitation: {
+          Invited: 'مدعو',           // [§7-style drafted] masculine; the subject is المورد
+          Viewed: 'تمت المشاهدة',     // [§7-style drafted] §9's «تم الحفظ» construction
+          Responding: 'قيد الرد',     // [§7-style drafted] mirrors §7.3's «قيد التقييم»
+          Submitted: 'مُقدَّم',         // [reused] §7.4's Proposal:Submitted - same concept, same word
+          Declined: 'معتذر عنها',     // [§7-style drafted] feminine; declining an invitation is اعتذار, not رفض
+        },
         rfq: {
           Draft: 'مسودة', InternalReview: 'مراجعة داخلية', Approved: 'معتمد', Published: 'منشور',
           SubmissionOpen: 'مفتوح للتقديم', SubmissionClosed: 'أُغلق التقديم', UnderEvaluation: 'قيد التقييم',
@@ -940,6 +1005,43 @@ const resources = {
     translation: {
       appName: 'Supplier Portal',
       nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      supplierDashboard: {
+        title: 'Supplier dashboard',
+        greeting: 'Welcome, {{name}}',
+        kpis: {
+          openInvitations: 'Open invitations',
+          draftProposals: 'Draft proposals',
+          submittedProposals: 'Submitted proposals',
+          documentsNeedingAttention: 'Documents needing attention',
+        },
+        actionRequired: {
+          title: 'Needs your attention',
+          expiringDocuments: 'Documents expiring ({{count}})',
+          rejectedDocuments: 'Rejected documents ({{count}})',
+          invitationsClosingSoon: 'Invitations closing soon ({{count}})',
+          clarificationsAnswered: 'Clarifications answered ({{count}})',
+          awardOffers: 'Award offers ({{count}})',
+          dismiss: 'Dismiss',
+        },
+        invitations: 'Invitations & deadlines',
+        proposals: 'My proposals',
+        validUntil: 'Valid until {{date}}',
+        noValidity: 'No validity date',
+        profileHealth: 'Profile & document health',
+        completeness: 'Required documents: {{done}} of {{total}}',
+        nextDocument: 'Next required document: {{code}}',
+        allDocuments: 'All required documents are in place.',
+        notifications: 'Recent notifications',
+        openNotifications: 'View notifications',
+        pendingTitle: 'Your application is under review',
+        pendingBody: "We'll let you know as soon as your profile is approved. You can keep completing it in the meantime.",
+        pendingCta: 'Continue your profile',
+        erpDegraded: 'Purchase-order sync is paused. This does not affect your proposal.',
+        emptyTitle: 'No invitations yet',
+        emptyBody: "RFQ invitations will appear here when a buyer invites you.",
+        loadFailed: "Couldn't load this section",
+        retry: 'Try again',
+      },
       procurementDashboard: {
         title: 'Procurement dashboard',
         from: 'From', to: 'To',
@@ -1039,6 +1141,10 @@ const resources = {
         },
         // §7.6. NotRequested has no entry - see the Arabic block above.
         erpSync: { Requested: 'Sync pending', Synced: 'Synced', Failed: 'Sync failed' },
+        invitation: {
+          Invited: 'Invited', Viewed: 'Viewed', Responding: 'Responding',
+          Submitted: 'Submitted', Declined: 'Declined',
+        },
         rfq: {
           Draft: 'Draft', InternalReview: 'Internal review', Approved: 'Approved', Published: 'Published',
           SubmissionOpen: 'Open for submissions', SubmissionClosed: 'Submissions closed',
