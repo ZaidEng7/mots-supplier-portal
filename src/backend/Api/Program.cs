@@ -321,6 +321,12 @@ builder.Services.AddScoped<ISubmitEvaluatorHandler, SubmitEvaluatorHandler>();
 // EPIC-12: Comparison (derived read-side view over Proposal + Evaluation).
 builder.Services.AddScoped<IGetComparisonHandler, GetComparisonHandler>();
 
+// FEAT-19.4: the export engine's fonts. Singleton because a Face and a Font are native handles and
+// re-creating them per request would dominate the cost of an export with thousands of rows. Both
+// faces are read-only after construction and HarfBuzz shaping does not mutate them, so sharing one
+// instance across requests is safe.
+builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Reporting.ReportFonts>();
+
 // EPIC-14: Award (recommendation -> approval -> issue -> ERP PO).
 builder.Services.AddScoped<IGetAwardHandler, GetAwardHandler>();
 builder.Services.AddScoped<IRecommendAwardHandler, RecommendAwardHandler>();
