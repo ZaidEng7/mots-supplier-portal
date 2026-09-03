@@ -37,7 +37,18 @@ public static class ComparisonExport
     /// <summary>The marker for a value the two-envelope gate has not opened yet.</summary>
     private static string NotVisible(string locale) => locale == "en" ? "(not yet visible)" : "(غير متاح بعد)";
 
-    private static string NotRanked(string locale) => locale == "en" ? "—" : "—";
+    /// <summary>
+    /// A proposal with no rank. An em dash in both languages - it is a typographic mark, not a word,
+    /// so there is nothing here to translate.
+    ///
+    /// <para>This was written as a locale ternary returning the same string on both branches, which
+    /// Sonar correctly reports as a BUG (S3923) rather than a style problem: a conditional whose
+    /// branches are identical is either a copy-paste error or a translation someone forgot to
+    /// finish, and there is no way to tell which by reading it. Here it was the latter shape without
+    /// the intent - so the constant says so instead of a condition implying a difference that does
+    /// not exist.</para>
+    /// </summary>
+    private const string NotRanked = "—";
 
     public static string Title(ComparisonDto comparison, string locale) =>
         locale == "en"
@@ -77,7 +88,7 @@ public static class ComparisonExport
         // Icon AND text, never one without the other.
         1 => $"{BestValueMarker} 1 — {BestValueLabel(locale)}",
         { } rank => Digits(rank.ToString(CultureInfo.InvariantCulture), locale),
-        null => NotRanked(locale),
+        null => NotRanked,
     };
 
     private static string Money(decimal? amount, string? currencyCode, string locale)
