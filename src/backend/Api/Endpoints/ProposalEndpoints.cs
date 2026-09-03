@@ -3,6 +3,7 @@ using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
+using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Domain.Identity;
@@ -261,39 +262,9 @@ public static class ProposalEndpoints
             if (file is null || file.Length == 0) return Results.BadRequest(new { error = "file_required" });
 
             var caption = form["caption"].ToString();
-        // ---------------------------------------------------------------------------------------
-        // T-025: this path is NOT quarantined, and supplier documents are. That asymmetry is
-        // deliberate as of this commit, and recorded here so it stops being silent.
-        //
-        // What blocks closing it is NOT the scanner. ClamAvScanner is real, wired, and fail-closed.
-        // It is that quarantine-first is a STATE MACHINE, and this aggregate has no state: the
-        // supplier-document flow works through DocumentState.PendingScan/ScanRejected and the
-        // MarkScanClean/MarkScanRejected domain methods, and neither RfqAttachment nor
-        // ProposalDocument has a state field, a transition, or anything to gate a download on.
-        // Closing it means new domain state on two aggregates, two migrations, a download gate, and
-        // a decision about what the rows already in the table are.
-        //
-        // That last one is the part that is not ours. OQ-014 tags AV scanning
-        // [REQUIRES BUSINESS CONFIRMATION] - whether these attachments must be scanned at all, and
-        // what happens to a file that fails, is a policy nobody has stated. Guessing it would mean
-        // either quarantining files procurement expects to publish immediately, or writing a
-        // scan-state column that always says Clean, which is worse than no column.
-        //
-        // The urgency changed in PR #103: before it, nothing could download these, so unscanned
-        // bytes sat in a bucket. Now they are reachable. See BACKLOG-REMEDIATION.md T-025.
-        // ---------------------------------------------------------------------------------------
-
-            // T-026: the key is built from SERVER-SIDE values only. It used to interpolate both the
-            // route's reference code and the client's own file name, and a name containing "../"
-            // shapes the object key - as does a reference code, which is route input and is not
-            // validated until the handler runs, several lines below this.
-            //
-            // The original file name is not lost: it is stored on the row and is what the download's
-            // Content-Disposition uses. It is metadata about the object, never part of its address.
-            //
-            // Flat rather than prefixed by reference code. The grouping was the only thing the
-            // interpolation bought, and the row already ties the object to its parent.
-            var storageKey = $"proposal-documents/{Guid.CreateVersion7()}";
+            // Server-side key, and the quarantine gap both these paths share, are explained once in
+            // AttachmentStorageKey rather than twice here.
+            var storageKey = AttachmentStorageKey.For(AttachmentStorageKey.ProposalDocumentPrefix);
 
             await using (var stream = file.OpenReadStream())
             {
