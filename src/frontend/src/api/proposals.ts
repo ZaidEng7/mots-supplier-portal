@@ -85,7 +85,7 @@ export class ProposalApiError extends Error {
     const b = body as ProblemDetails | null
     super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
-    this.isConcurrencyConflict = status === 409 && hasCode(b, 'CONCURRENCY_CONFLICT')
+    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
   }
 }
 
@@ -114,40 +114,43 @@ export async function getProposal(rfqReferenceCode: string): Promise<Proposal> {
   return parseOrThrow(await apiFetch(rfqScoped(rfqReferenceCode)))
 }
 
-export async function setItemPricing(proposalReferenceCode: string, rfqItemId: string, payload: ItemPricingPayload): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/items/${rfqItemId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+/**
+ * §12.5's one edit route, replacing the five per-field calls this file used to make.
+ *
+ * <p>RFC 7396 merge patch, with its own media type: a member the object omits is left alone, and an
+ * explicit `null` deletes. That distinction is the reason callers build the patch object rather than
+ * passing a full DTO - sending `{ warranty: undefined }` and `{ warranty: null }` must mean
+ * different things, and only the first is "I am not editing my warranty".</p>
+ *
+ * <p>`If-Match` is attached by apiFetch from the ETag of the last read (§8.1). A stale one comes back
+ * as 412 and the editor reconciles, per SCR-151.</p>
+ */
+export async function patchProposal(proposalReferenceCode: string, patch: ProposalPatch): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(base(proposalReferenceCode), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/merge-patch+json' },
+    body: JSON.stringify(patch),
   }))
 }
 
-export async function removeItemPricing(proposalReferenceCode: string, rfqItemId: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/items/${rfqItemId}`, { method: 'DELETE' }))
+export interface ProposalPatch {
+  items?: ItemPatch[]
+  commercialTerms?: Partial<CommercialTermsPayload>
+  technicalResponse?: {
+    narrativeAr?: string | null
+    narrativeEn?: string | null
+    answers?: { requirementId: string; answerAr: string; answerEn: string }[]
+  }
 }
 
-export async function setCommercialTerms(proposalReferenceCode: string, payload: CommercialTermsPayload): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/terms`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }))
-}
-
-export async function setNarrative(proposalReferenceCode: string, narrativeAr: string | null, narrativeEn: string | null): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/narrative`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ narrativeAr, narrativeEn }),
-  }))
-}
-
-export async function answerRequirement(proposalReferenceCode: string, requirementId: string, answerAr: string, answerEn: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/requirements/${requirementId}/answer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answerAr, answerEn }),
-  }))
+export interface ItemPatch {
+  rfqItemId: string
+  quantity: number
+  unitPrice: number
+  discount?: number | null
+  leadTimeDays?: number | null
+  notesAr?: string | null
+  notesEn?: string | null
 }
 
 export async function addProposalDocument(proposalReferenceCode: string, file: File, caption?: string): Promise<Proposal> {

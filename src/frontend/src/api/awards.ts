@@ -42,7 +42,7 @@ export class AwardApiError extends Error {
     const b = body as ProblemDetails | null
     super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
-    this.isConcurrencyConflict = status === 409 && hasCode(b, 'CONCURRENCY_CONFLICT')
+    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
   }
 }
 

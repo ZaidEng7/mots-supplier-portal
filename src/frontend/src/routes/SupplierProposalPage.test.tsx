@@ -52,6 +52,56 @@ describe('SupplierProposalPage', () => {
     expect(await screen.findByRole('button', { name: 'Start proposal' })).toBeInTheDocument()
   })
 
+
+  it('a 412 opens the SCR-151 reconcile dialog rather than a toast', async () => {
+    // SCR-151: "*Concurrency conflict:* Dialog 'This proposal changed in another tab/user' →
+    // reload/merge". §8.1 delivers that case as 412 ETAG_MISMATCH.
+    const original = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const method = (init?.method ?? 'GET').toUpperCase()
+
+      if (method === 'PATCH') {
+        return new Response(JSON.stringify({
+          type: 'https://api.mots-portal.sy/errors/precondition-failed',
+          title: 'The precondition failed.', status: 412, code: 'ETAG_MISMATCH',
+        }), { status: 412, headers: { 'Content-Type': 'application/problem+json' } })
+      }
+      if (url.endsWith('/rfqs/RFQ-2026-000001/proposals')) return new Response(JSON.stringify(proposalFixture('Draft')), { status: 200 })
+      if (url.includes('/api/v1/proposals/PRP-2026-000001')) return new Response(JSON.stringify(proposalFixture('Draft')), { status: 200 })
+      if (url.includes('/api/v1/rfqs/RFQ-2026-000001')) return new Response(JSON.stringify(RFQ_FIXTURE), { status: 200 })
+      throw new Error(`No mock declared for ${url}`)
+    }) as typeof fetch
+    restore = () => { globalThis.fetch = original }
+
+    renderPage(<SupplierProposalPage />)
+
+    const price = await screen.findByLabelText('Unit price - Widget')
+    await userEvent.type(price, '25')
+    await userEvent.click(screen.getByRole('button', { name: 'Save price' }))
+
+    expect(await screen.findByText('This proposal changed somewhere else')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+  })
+
+  it('the Save price button is disabled until a price is entered', async () => {
+    // A blank input used to be coerced to 0 and sent, which recorded a free bid before §7.2's rule
+    // and produces an unexplained 422 after it.
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+    })
+
+    renderPage(<SupplierProposalPage />)
+
+    const save = await screen.findByRole('button', { name: 'Save price' })
+    expect(save).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText('Unit price - Widget'), '25')
+    expect(save).toBeEnabled()
+  })
+
   it('Draft: shows the RFQ item for pricing, and saving a price shows a success toast', async () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),

@@ -7,7 +7,7 @@ const resources = {
     translation: {
       appName: 'بوابة الموردين',
       nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
-      common: { loading: 'جاري التحميل...', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
+      common: { loading: 'جاري التحميل...', cancel: 'إلغاء', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
       // UX-WRITING.md §7 "Status labels (aligned to canonical state machines)" - transcribed
       // verbatim, not authored here. §7 is "the single source for chip text and for the accessible
       // name announced to screen readers", so these keys are the only place a domain state becomes
@@ -611,6 +611,11 @@ const resources = {
       },
       proposal: {
         title: 'العرض',
+        // SCR-151: "*Concurrency conflict:* Dialog 'This proposal changed in another tab/user' →
+        // reload/merge". Reload only - there is no merge UI, and inventing one was not specified.
+        conflictTitle: 'تم تعديل هذا العرض في مكان آخر',
+        conflictBody: 'قام مستخدم آخر - أو تبويب آخر - بتعديل هذا العرض بعد فتحك له. أعد التحميل للاطلاع على النسخة الحالية قبل حفظ تغييراتك.',
+        conflictReload: 'إعادة التحميل',
         start: 'بدء تقديم العرض',
         goToMyProposal: 'الذهاب إلى عرضي',
         submit: 'إرسال العرض',
@@ -843,7 +848,7 @@ const resources = {
     translation: {
       appName: 'Supplier Portal',
       nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
-      common: { loading: 'Loading...', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
+      common: { loading: 'Loading...', cancel: 'Cancel', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
       // See the Arabic block above for why these are transcription, not authorship.
       status: {
         onboarding: {
@@ -1422,6 +1427,9 @@ const resources = {
       },
       proposal: {
         title: 'Proposal',
+        conflictTitle: 'This proposal changed somewhere else',
+        conflictBody: 'Another user - or another tab - changed this proposal after you opened it. Reload to see the current version before saving your changes.',
+        conflictReload: 'Reload',
         start: 'Start proposal',
         goToMyProposal: 'Go to my proposal',
         submit: 'Submit proposal',
