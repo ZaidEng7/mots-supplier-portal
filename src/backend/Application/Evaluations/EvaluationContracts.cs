@@ -14,7 +14,9 @@ public sealed record ConsolidatedResultDto(Guid ProposalId, bool TechnicallyQual
 /// EvaluationAssignmentDto's own doc comment); Results is empty until Consolidate() has run.</summary>
 public sealed record EvaluationDto(
     Guid Id, Guid RfqId, string RfqReferenceCode, EvaluationState State,
-    IReadOnlyList<EvaluationCriterionDto> Criteria, IReadOnlyList<EvaluationAssignmentDto> Assignments, IReadOnlyList<ConsolidatedResultDto> Results);
+    IReadOnlyList<EvaluationCriterionDto> Criteria, IReadOnlyList<EvaluationAssignmentDto> Assignments, IReadOnlyList<ConsolidatedResultDto> Results,
+    // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
+    uint RowVersion);
 
 /// <summary>One evaluator's own score for one (Proposal, Criterion) - the row-level unit blind
 /// scoring is enforced against. Never returned for any evaluator other than the caller.</summary>

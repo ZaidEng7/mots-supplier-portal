@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Evaluation;
@@ -33,7 +34,7 @@ public sealed record CriterionSnapshotInput(
 /// than inventing a second "exclude for non-response" action): removing them from the active set
 /// changes what "every actively-assigned evaluator" means, without ever fabricating a quorum
 /// fraction.</para></summary>
-public sealed class Evaluation
+public sealed class Evaluation : IVersionedAggregate
 {
     private readonly List<EvaluationCriterionSnapshot> _criteria = [];
     private readonly List<EvaluationAssignment> _assignments = [];

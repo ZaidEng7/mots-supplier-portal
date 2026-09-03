@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
@@ -49,6 +50,7 @@ public static class AwardEndpoints
             return award is null ? Results.NotFound() : Results.Ok(award);
         })
         .RequirePermission(Permissions.AwardRecommend)
+        .WithETag()
         .WithName("GetAward");
 
         group.MapPost("/recommend", async (
@@ -66,11 +68,13 @@ public static class AwardEndpoints
         group.MapPost("/route-for-approval", async (string referenceCode, IRouteAwardForApprovalHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new RouteAwardForApprovalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardRecommend)
+        .RequireIfMatch()
         .WithName("RouteAwardForApproval");
 
         group.MapPost("/approve", async (string referenceCode, IApproveAwardHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ApproveAwardCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardApprove)
+        .RequireIfMatch()
         .WithName("ApproveAward");
 
         group.MapPost("/reject", async (
@@ -83,11 +87,13 @@ public static class AwardEndpoints
             return MapMutation(await handler.HandleAsync(new RejectAwardCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.AwardReject)
+        .RequireIfMatch()
         .WithName("RejectAward");
 
         group.MapPost("/execute", async (string referenceCode, IExecuteAwardHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ExecuteAwardCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardApprove)
+        .RequireIfMatch()
         .WithName("ExecuteAward");
 
         group.MapPost("/retry-erp-sync", async (string referenceCode, IRetryErpSyncHandler handler, CancellationToken ct) =>

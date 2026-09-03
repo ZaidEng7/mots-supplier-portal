@@ -162,16 +162,16 @@ export interface RequirementPayload {
  * EvaluationTemplateApiError. */
 export class RfqApiError extends Error {
   status: number
-  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict - the API's global concurrency-exception
-   * handler (Program.cs) returns this same { error: "concurrency_conflict" } 409 shape
-   * SupplierApiError's own isConcurrencyConflict already established, so every caller checks the
-   * one flag rather than string-matching a message. */
+  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict. §8.1 (T3-34) moved this from the API's own
+   * { error: "concurrency_conflict" } 409 to the documented 412 ETAG_MISMATCH - a lost update is a
+   * failed precondition, not one of §7.1's three conflicts. Every caller still checks the one flag
+   * rather than string-matching a message. */
   isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
     const b = body as ProblemDetails | null
     super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
-    this.isConcurrencyConflict = status === 409 && hasCode(b, 'CONCURRENCY_CONFLICT')
+    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
   }
 }
 

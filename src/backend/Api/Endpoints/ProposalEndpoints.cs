@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
@@ -70,6 +72,93 @@ public static class ProposalEndpoints
         _ => Results.Problem(),
     };
 
+    private const string MergePatchContentType = "application/merge-patch+json";
+
+    private static IResult MapPatchResult(ProposalPatchResult result) => result switch
+    {
+        ProposalPatchResult.Success s => Results.Ok(s.Proposal),
+        ProposalPatchResult.NotFoundOrNotInvited => Results.NotFound(),
+        ProposalPatchResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
+        ProposalPatchResult.Invalid bad => Results.BadRequest(new { error = bad.Code, message = bad.Detail, field = bad.Field }),
+        _ => Results.Problem(),
+    };
+
+
+    /// <summary>
+    /// Runs the retired sub-routes' validators over the merge patch, re-pathing each failure to the
+    /// member it came from. Returns null when everything present is valid - including when nothing
+    /// is present, which RFC 7396 makes a legitimate no-op rather than an error.
+    /// </summary>
+    private static async Task<IResult?> ValidatePatchAsync(
+        JsonObject patch,
+        IValidator<SetItemPricingRequest> itemValidator,
+        IValidator<SetCommercialTermsRequest> termsValidator,
+        IValidator<AnswerRequirementRequest> answerValidator,
+        CancellationToken ct)
+    {
+        var failures = new List<FluentValidation.Results.ValidationFailure>();
+
+        if (patch["items"] is JsonArray items)
+        {
+            for (var index = 0; index < items.Count; index++)
+            {
+                if (items[index] is not JsonObject item) continue;
+
+                var request = new SetItemPricingRequest(
+                    item["quantity"]?.GetValue<decimal>() ?? 0m,
+                    item["unitPrice"]?.GetValue<decimal>() ?? 0m,
+                    item["discount"]?.GetValue<decimal>(),
+                    item["leadTimeDays"]?.GetValue<int>(),
+                    item["notesAr"]?.GetValue<string>(),
+                    item["notesEn"]?.GetValue<string>());
+
+                AddPrefixed(failures, await itemValidator.ValidateAsync(request, ct), $"items[{index}]");
+            }
+        }
+
+        if (patch["commercialTerms"] is JsonObject terms && terms["currencyCode"] is not null)
+        {
+            var request = new SetCommercialTermsRequest(
+                terms["currencyCode"]!.GetValue<string>(),
+                terms["paymentTerms"]?.GetValue<string>(), terms["incotermCode"]?.GetValue<string>(),
+                terms["deliveryTermsAr"]?.GetValue<string>(), terms["deliveryTermsEn"]?.GetValue<string>(),
+                terms["warranty"]?.GetValue<string>(), null, null);
+
+            AddPrefixed(failures, await termsValidator.ValidateAsync(request, ct), "commercialTerms");
+        }
+
+        if (patch["technicalResponse"] is JsonObject response && response["answers"] is JsonArray answers)
+        {
+            for (var index = 0; index < answers.Count; index++)
+            {
+                if (answers[index] is not JsonObject answer) continue;
+
+                var request = new AnswerRequirementRequest(
+                    answer["answerAr"]?.GetValue<string>() ?? string.Empty,
+                    answer["answerEn"]?.GetValue<string>() ?? string.Empty);
+
+                AddPrefixed(failures, await answerValidator.ValidateAsync(request, ct), $"technicalResponse.answers[{index}]");
+            }
+        }
+
+        return failures.Count == 0 ? null : ValidationProblems.From(new FluentValidation.Results.ValidationResult(failures));
+    }
+
+    private static void AddPrefixed(
+        List<FluentValidation.Results.ValidationFailure> into,
+        FluentValidation.Results.ValidationResult result,
+        string prefix)
+    {
+        foreach (var failure in result.Errors)
+        {
+            into.Add(new FluentValidation.Results.ValidationFailure($"{prefix}.{failure.PropertyName}", failure.ErrorMessage)
+            {
+                ErrorCode = failure.ErrorCode,
+                AttemptedValue = failure.AttemptedValue,
+            });
+        }
+    }
+
     public static void MapProposalEndpoints(this IEndpointRouteBuilder app)
     {
         // §12-A/C2. Two collections, per §3 and §12.5:
@@ -92,6 +181,7 @@ public static class ProposalEndpoints
         rfqScoped.MapGet("/", async (string referenceCode, IGetProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
+        .WithETag()
         .WithName("GetProposal");
 
         // §12-A/C2: the code-addressed read. §3 addresses a proposal's sub-resources at
@@ -100,69 +190,60 @@ public static class ProposalEndpoints
         group.MapGet("/", async (string referenceCode, IGetProposalByCodeHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
+        .WithETag()
         .WithName("GetProposalByCode");
 
-        group.MapPut("/terms", async (
+        // §12.5: "PATCH /proposals/{proposalCode} - edit draft (line items, terms) with If-Match",
+        // returning "200 OK with recomputed totals and new ETag". §4 states the rule normatively:
+        // "PATCH | Partial update (JSON Merge Patch, RFC 7396) of draft-editable resources".
+        //
+        // This ONE route replaces five: PUT /terms, PUT /narrative, PUT /items/{id},
+        // DELETE /items/{id} and POST /requirements/{id}/answer. They are retired outright rather
+        // than deprecated - two ways to edit one resource is how the wrong one becomes permanent,
+        // and with §8.1 in force they would also be five separate version checks over what a
+        // supplier experiences as one edit.
+        //
+        // The body is read as a JsonNode, not a DTO, because merge patch distinguishes an ABSENT
+        // member ("leave it") from an explicit null ("delete it") and a deserialised DTO cannot -
+        // both arrive as null. See ProposalMergePatch.
+        group.MapPatch("/", async (
             string referenceCode,
-            SetCommercialTermsRequest request,
-            IValidator<SetCommercialTermsRequest> validator,
-            ISetCommercialTermsHandler handler,
+            HttpContext http,
+            IPatchProposalHandler handler,
+            IValidator<SetItemPricingRequest> itemValidator,
+            IValidator<SetCommercialTermsRequest> termsValidator,
+            IValidator<AnswerRequirementRequest> answerValidator,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
+            // RFC 7396 defines its own media type, and §4 names merge patch specifically. Accepting
+            // application/json here would leave the semantics ambiguous at exactly the point where
+            // absent-versus-null decides whether a supplier keeps their warranty text.
+            var contentType = http.Request.ContentType ?? string.Empty;
+            if (!contentType.StartsWith(MergePatchContentType, StringComparison.OrdinalIgnoreCase))
+            {
+                return new UnsupportedMediaTypeResult();
+            }
 
-            return MapResult(await handler.HandleAsync(new SetCommercialTermsCommand(
-                referenceCode, request.CurrencyCode, request.PaymentTerms, request.IncotermCode,
-                request.DeliveryTermsAr, request.DeliveryTermsEn, request.Warranty, request.ValidityStart, request.ValidityEnd), ct));
+            var body = await http.Request.ReadFromJsonAsync<JsonNode>(ct);
+            if (body is not JsonObject patch)
+            {
+                return ValidationProblems.MalformedMergePatch(http);
+            }
+
+            // The sub-routes each ran a FluentValidation validator before touching the aggregate, and
+            // §7.2's catalogue is keyed by those rules. Retiring the routes must not retire their
+            // validation, so the same validators run here over the same shapes - with the failures
+            // re-pathed to where they actually live in the patch body (items[0].unitPrice, not
+            // UnitPrice), because §7.2's paths exist so the editor can map an error onto an input.
+            var invalid = await ValidatePatchAsync(patch, itemValidator, termsValidator, answerValidator, ct);
+            if (invalid is not null) return invalid;
+
+            return MapPatchResult(await handler.HandleAsync(referenceCode, new ProposalMergePatch(patch), ct));
         })
         .RequirePermission(Permissions.ProposalEdit)
-        .WithName("SetProposalCommercialTerms");
-
-        group.MapPut("/narrative", async (
-            string referenceCode, SetNarrativeRequest request, ISetNarrativeHandler handler, CancellationToken ct) =>
-            MapResult(await handler.HandleAsync(new SetNarrativeCommand(referenceCode, request.NarrativeAr, request.NarrativeEn), ct)))
-        .RequirePermission(Permissions.ProposalEdit)
-        .WithName("SetProposalNarrative");
-
-        group.MapPut("/items/{rfqItemId:guid}", async (
-            string referenceCode,
-            Guid rfqItemId,
-            SetItemPricingRequest request,
-            IValidator<SetItemPricingRequest> validator,
-            IManageProposalItemHandler handler,
-            CancellationToken ct) =>
-        {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
-            return MapResult(await handler.SetAsync(new SetItemPricingCommand(
-                referenceCode, rfqItemId, request.Quantity, request.UnitPrice, request.Discount, request.LeadTimeDays, request.NotesAr, request.NotesEn), ct));
-        })
-        .RequirePermission(Permissions.ProposalEdit)
-        .WithName("SetProposalItemPricing");
-
-        group.MapDelete("/items/{rfqItemId:guid}", async (
-            string referenceCode, Guid rfqItemId, IManageProposalItemHandler handler, CancellationToken ct) =>
-            MapResult(await handler.RemoveAsync(new RemoveItemPricingCommand(referenceCode, rfqItemId), ct)))
-        .RequirePermission(Permissions.ProposalEdit)
-        .WithName("RemoveProposalItemPricing");
-
-        group.MapPost("/requirements/{requirementId:guid}/answer", async (
-            string referenceCode,
-            Guid requirementId,
-            AnswerRequirementRequest request,
-            IValidator<AnswerRequirementRequest> validator,
-            IAnswerRequirementHandler handler,
-            CancellationToken ct) =>
-        {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
-            return MapResult(await handler.HandleAsync(new AnswerRequirementCommand(referenceCode, requirementId, request.AnswerAr, request.AnswerEn), ct));
-        })
-        .RequirePermission(Permissions.ProposalEdit)
-        .WithName("AnswerProposalRequirement");
+        .RequireIfMatch()
+        .WithETag()
+        .WithName("PatchProposal");
 
         // FEAT-09.3/FR-PRP-004: same inline IFileStorage pattern as RfqEndpoints' attachment upload
         // (no AV-scan quarantine flow here either - see ManageProposalDocumentHandler's own comment).
@@ -202,6 +283,7 @@ public static class ProposalEndpoints
         group.MapPost("/submit", async (string referenceCode, ISubmitProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(new SubmitProposalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.ProposalSubmit)
+        .RequireIfMatch()
         .WithName("SubmitProposal");
 
         group.MapPost("/withdraw", async (
@@ -217,6 +299,7 @@ public static class ProposalEndpoints
             return MapResult(await handler.HandleAsync(new WithdrawProposalCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.ProposalWithdraw)
+        .RequireIfMatch()
         .WithName("WithdrawProposal");
     }
 }

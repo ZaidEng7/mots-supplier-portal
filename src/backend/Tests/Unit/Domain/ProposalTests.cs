@@ -60,6 +60,34 @@ public class ProposalTests
         proposal.Items.Single().LineTotal.Should().Be(48m); // 10*5 - 2
     }
 
+    /// <summary>
+    /// §7.2's PRICE_NON_POSITIVE, asserted at the aggregate rather than only through the endpoint.
+    /// The API validator says the same thing; an invariant that lives only in a validator is one
+    /// route away from not existing.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.01)]
+    public void SetItemPricing_rejects_a_non_positive_unit_price(decimal unitPrice)
+    {
+        var proposal = CreateDraft();
+
+        var act = () => proposal.SetItemPricing(RequiredItemId, 1m, unitPrice, null, null, null, null);
+
+        act.Should().Throw<DomainException>().WithMessage("*greater than zero*");
+    }
+
+    [Fact]
+    public void SetItemPricing_accepts_the_smallest_positive_price()
+    {
+        // The control: the guard rejects zero and below, not every small number.
+        var proposal = CreateDraft();
+
+        proposal.SetItemPricing(RequiredItemId, 1m, 0.01m, null, null, null, null);
+
+        proposal.Items.Should().ContainSingle(i => i.UnitPrice == 0.01m);
+    }
+
     [Fact]
     public void SetItemPricing_rejects_non_positive_quantity()
     {

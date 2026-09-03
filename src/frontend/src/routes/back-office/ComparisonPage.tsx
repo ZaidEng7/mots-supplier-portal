@@ -1,4 +1,4 @@
-import { formatCurrency } from '../../lib/datetime'
+import { formatCurrency, formatNumber } from '../../lib/datetime'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -197,7 +197,7 @@ export function ComparisonPage() {
                       <TableCell key={p.supplierId} highlight={highlight}>
                         {score ? (
                           <span className="flex items-center gap-2">
-                            <span className="num" dir="ltr">{score.averageScore.toFixed(1)} / {score.maxScore}</span>
+                            <span className="num" dir="ltr">{formatNumber(score.averageScore, locale, 1)} / {formatNumber(score.maxScore, locale, 0)}</span>
                             {score.metThreshold !== null ? (
                               <Badge tone={score.metThreshold ? 'success' : 'danger'}>
                                 {score.metThreshold ? t('comparison.pass') : t('comparison.fail')}
@@ -226,7 +226,7 @@ export function ComparisonPage() {
                 <TableCell sticky className="font-[var(--fw-semibold)]">{t('comparison.weightedTotal')}</TableCell>
                 {proposals.map((p) => (
                   <TableCell key={p.supplierId} highlight={weightedTotalHighlight.has(p.supplierId)}>
-                    {p.weightedTotal !== null ? <span className="num font-[var(--fw-semibold)]" dir="ltr">{p.weightedTotal.toFixed(2)}</span> : '—'}
+                    {p.weightedTotal !== null ? <span className="num font-[var(--fw-semibold)]" dir="ltr">{formatNumber(p.weightedTotal, locale)}</span> : '—'}
                   </TableCell>
                 ))}
               </TableRow>

@@ -1,3 +1,4 @@
+import { forgetETags, lookupETag, rememberETag } from './etags'
 import { useAuthStore } from '../lib/authStore'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
@@ -111,16 +112,23 @@ export async function registerSupplier(payload: RegisterSupplierPayload): Promis
 /** fetch wrapper that attaches the in-memory access token and retries once via the
  * httpOnly refresh cookie on a 401 before giving up (docs/architecture ASVS L2 token handling). */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const isMutation = method !== 'GET' && method !== 'HEAD'
+
   const doFetch = () => {
     const token = useAuthStore.getState().accessToken
-    return fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      credentials: 'include',
-      headers: {
-        ...(init.headers ?? {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    })
+
+    // §8.1: the version this caller last read travels back as If-Match on a mutation. Attached here
+    // rather than at each call site - see api/etags.ts. An explicit If-Match always wins, so a
+    // caller that has just reconciled a 412 can send the version it chose.
+    const ifMatch = isMutation ? lookupETag(path) : undefined
+    const headers: Record<string, string> = {
+      ...(init.headers as Record<string, string> | undefined ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    }
+    if (ifMatch && !('If-Match' in headers)) headers['If-Match'] = ifMatch
+
+    return fetch(`${API_BASE_URL}${path}`, { ...init, credentials: 'include', headers })
   }
 
   let res = await doFetch()
@@ -133,5 +141,16 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       useAuthStore.getState().clearSession()
     }
   }
+  rememberETag(path, res.headers.get('ETag'))
+  if (isMutation && res.ok) forgetETags(path)
+
+  // A 428 means this client failed to send a header it should always send: a bug in the transport
+  // above, not a state the user can do anything about. Surfaced loudly rather than folded into the
+  // generic error path, where it would reach a supplier as an unexplained failure to save.
+  if (res.status === 428) {
+    console.error(`[concurrency] ${method} ${path} was refused for a missing If-Match. ` +
+      'The resource was mutated without a prior read, or its ETag was never stored.')
+  }
+
   return res
 }

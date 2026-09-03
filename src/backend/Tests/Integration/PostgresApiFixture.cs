@@ -63,6 +63,20 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         _ = Services;
     }
 
+    /// <summary>
+    /// Every client in the suite carries <see cref="ETagAttachingHandler"/>, so §8.1's If-Match
+    /// requirement does not have to be repeated in each of the ~300 assertions written before it.
+    /// The concurrency tests construct their own client without it - a handler that always sends a
+    /// current version cannot observe a stale one.
+    /// </summary>
+    /// `new` rather than `override` because WebApplicationFactory.CreateClient is not virtual.
+    /// Every call site in the suite has the fixture as its static type, so they all bind to this one.
+    public new HttpClient CreateClient() =>
+        CreateDefaultClient(new ETagAttachingHandler());
+
+    /// <summary>A client WITHOUT the ETag handler, for tests that need to control the header.</summary>
+    public HttpClient CreateRawClient() => ((WebApplicationFactory<Program>)this).CreateClient();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");

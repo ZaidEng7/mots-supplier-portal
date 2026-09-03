@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Domain.Suppliers;
@@ -148,6 +149,7 @@ public static class ReviewEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierApprove)
+        .RequireIfMatch()
         .WithName("ApproveApplication");
 
         group.MapPost("/{referenceCode}/reject", async (
@@ -170,6 +172,7 @@ public static class ReviewEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierReject)
+        .RequireIfMatch()
         .WithName("RejectApplication");
 
         // FR-ONB-009 post-approval lifecycle (MSP-63). Suspended and Deactivated were unreachable
@@ -229,6 +232,7 @@ public static class ReviewEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierRequestInfo)
+        .RequireIfMatch()
         .WithName("RequestApplicationInfo");
 
         app.MapGet("/api/v1/suppliers/me/active-annotation", async (
@@ -257,6 +261,7 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierEdit)
         .WithTags("Suppliers")
+        .RequireIfMatch()
         .WithName("ResubmitApplication");
     }
 }

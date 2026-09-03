@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Proposals;
@@ -48,7 +49,7 @@ namespace MotsSupplierPortal.Domain.Proposals;
 /// them would be dead scaffolding; this is an open gap for whichever future work adds a real delete
 /// affordance (or a codebase-wide soft-delete pass), not a decision that soft-delete doesn't
 /// apply.</para></summary>
-public sealed class Proposal
+public sealed class Proposal : IVersionedAggregate
 {
     private readonly List<ProposalItem> _items = [];
     private readonly List<ProposalDocument> _documents = [];
@@ -120,7 +121,11 @@ public sealed class Proposal
     {
         EnsureDraftEditable();
         if (quantity <= 0) throw new DomainException("Quantity must be positive.");
-        if (unitPrice < 0) throw new DomainException("Unit price cannot be negative.");
+        // §7.2 documents this rule as PRICE_NON_POSITIVE ("must be greater than zero") and the API
+        // validator enforces it. The guard here permitted zero, so the invariant's own home was the
+        // laxer of the two: nothing can reach this aggregate except through that endpoint today, but
+        // a second write path would have inherited the looser rule silently.
+        if (unitPrice <= 0) throw new DomainException("Unit price must be greater than zero.");
 
         var existing = _items.FirstOrDefault(i => i.RfqItemId == rfqItemId);
         if (existing is not null)

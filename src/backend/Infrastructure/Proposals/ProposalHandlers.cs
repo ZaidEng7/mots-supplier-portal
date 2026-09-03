@@ -27,7 +27,8 @@ internal static class ProposalDtoMapper
         proposal.SubmittedAt, proposal.WithdrawnAt, proposal.WithdrawReason,
         [.. proposal.Items.Select(i => new ProposalItemDto(i.Id, i.RfqItemId, i.Quantity, i.UnitPrice, i.Discount, i.LineTotal, i.LeadTimeDays, i.NotesAr, i.NotesEn))],
         [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt))],
-        [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))]);
+        [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))],
+        proposal.RowVersion);
 }
 
 /// <summary>Resolves (Rfq, Invitation, Proposal?) for the caller's own SupplierId - reuses

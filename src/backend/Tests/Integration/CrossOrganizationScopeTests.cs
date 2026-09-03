@@ -110,9 +110,8 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
     private static async Task SubmitProposalAsync(HttpClient supplier, string referenceCode, Guid itemId)
     {
         var proposalCode = await supplier.StartProposalAsync(referenceCode);
-        await supplier.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{itemId}", new
-        { quantity = 5m, unitPrice = 10m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
-        await supplier.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/terms", new
+        await ProposalPatch.PriceItemAsync(supplier, proposalCode, itemId, 5m, 10m, (decimal?)null, 3, (string?)null, (string?)null );
+        await ProposalPatch.SetTermsAsync(supplier, proposalCode, new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB",
             deliveryTermsAr = "٣ أيام", deliveryTermsEn = "3 days", warranty = (string?)null,

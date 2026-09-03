@@ -69,7 +69,14 @@ public static class ValidationProblems
         foreach (var failure in validation.Errors)
         {
             var rule = RuleNameFor(failure.ErrorCode ?? string.Empty);
-            var entry = rule is null ? null : ValidationCatalogue.Find(failure.PropertyName, rule);
+            // §12.5's PATCH re-paths a failure to where it sits in the merge patch body
+            // ("items[0].UnitPrice"), because §7.2's paths exist for the editor to map onto an
+            // input. The catalogue is keyed by the rule's own property, so the lookup falls back to
+            // the last segment - otherwise every patched field would answer in English.
+            var entry = rule is null
+                ? null
+                : ValidationCatalogue.Find(failure.PropertyName, rule)
+                  ?? ValidationCatalogue.Find(LastSegment(failure.PropertyName), rule);
 
             var error = new JsonObject
             {
@@ -97,6 +104,9 @@ public static class ValidationProblems
         return problem;
     }
 
+    private static string LastSegment(string? propertyName) =>
+        (propertyName ?? string.Empty).Split('.')[^1];
+
     private static bool IsSensitive(string? propertyName)
     {
         var last = (propertyName ?? string.Empty).Split('.')[^1];
@@ -115,6 +125,21 @@ public static class ValidationProblems
 
         if (name.Length == 0 || !char.IsUpper(name[0])) return segment;
         return char.ToLowerInvariant(name[0]) + name[1..] + suffix;
+    }
+
+
+    /// <summary>
+    /// §12.5's PATCH could not be read as a JSON object. Not a validation failure - there are no
+    /// fields to name - so it is 400 MALFORMED_JSON rather than 422.
+    /// </summary>
+    public static IResult MalformedMergePatch(HttpContext context) =>
+        new MalformedResult(ProblemResponse.Build(context, StatusCodes.Status400BadRequest,
+            ProblemTypes.MalformedRequest, "The request body could not be read.", "MALFORMED_JSON",
+            "A JSON Merge Patch body must be a JSON object."));
+
+    private sealed record MalformedResult(JsonObject Body) : IResult
+    {
+        public Task ExecuteAsync(HttpContext httpContext) => ProblemResponse.WriteAsync(httpContext, Body);
     }
 
     private sealed record ValidationProblemResult(ValidationResult Validation) : IResult

@@ -108,7 +108,9 @@ export class SupplierApiError extends Error {
   missingFields?: string[]
   fieldErrors?: Record<string, string[]>
   /** MSP-65: someone else saved this supplier since we read it. Callers surface a localized
-   * message (NFR-USE-004) rather than the raw 409 - see `errors.concurrencyConflict`. */
+   * message (NFR-USE-004) rather than the raw 412 - see `errors.concurrencyConflict`. §8.1 moved
+   * this from a 409 { error: "concurrency_conflict" } to a 412 ETAG_MISMATCH: a lost update is a
+   * failed precondition, and 409 now means only what §7.1 says it means. */
   isConcurrencyConflict: boolean
   /** MSP-77: refused because the field is not in the reviewer's flagged set while InfoRequested. */
   isFieldNotFlagged: boolean
@@ -119,7 +121,7 @@ export class SupplierApiError extends Error {
     this.status = status
     this.missingFields = b?.missingFields as string[] | undefined
     this.fieldErrors = b?.errors as Record<string, string[]> | undefined
-    this.isConcurrencyConflict = status === 409 && hasCode(b, 'CONCURRENCY_CONFLICT')
+    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
     this.isFieldNotFlagged = status === 403 && hasCode(b, 'FIELD_NOT_FLAGGED')
   }
 }

@@ -55,7 +55,8 @@ internal static class RfqDtoMapper
             (string Ar, string En) name = supplierNames.TryGetValue(c.AskedBySupplierId, out var n) ? n : ("", "");
             return new ClarificationDto(c.Id, c.AskedBySupplierId, name.Ar, name.En, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt);
         })],
-        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))]);
+        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))],
+        rfq.RowVersion);
 
     /// <summary>FEAT-10.3/FR-CLR-003: the anonymization boundary. Only <paramref name="supplierId"/>'s
     /// own clarifications (any Visibility) plus every OTHER supplier's PublishedToAll clarifications

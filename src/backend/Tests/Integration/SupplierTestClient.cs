@@ -20,6 +20,24 @@ public static class SupplierTestClient
     /// <summary>Returns a client whose Authorization header carries a live access token for a
     /// freshly registered supplier. Each call creates a distinct supplier, so tests sharing the
     /// collection's single database do not collide.</summary>
+    /// <summary>
+    /// The same authenticated caller, but on a client that does NOT attach ETags automatically.
+    ///
+    /// <para>The suite's default client sends a current If-Match on every mutation, which is what
+    /// keeps three hundred tests written before §8.1 passing. A test about the precondition itself
+    /// needs a caller that sends exactly what the test says it sends and nothing else.</para>
+    /// </summary>
+    public static Task<HttpClient> CloneWithoutETagsAsync(PostgresApiFixture fixture, HttpClient authenticated)
+    {
+        var raw = fixture.CreateRawClient();
+        raw.DefaultRequestHeaders.Authorization = authenticated.DefaultRequestHeaders.Authorization;
+        foreach (var header in authenticated.DefaultRequestHeaders.Where(h => h.Key != "Authorization"))
+        {
+            raw.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+        }
+        return Task.FromResult(raw);
+    }
+
     public static async Task<HttpClient> CreateVerifiedSupplierAsync(PostgresApiFixture fixture, string displayNameEn) =>
         (await CreateVerifiedSupplierWithEmailAsync(fixture, displayNameEn)).Client;
 

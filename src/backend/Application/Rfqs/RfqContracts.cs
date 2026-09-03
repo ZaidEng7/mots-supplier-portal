@@ -50,7 +50,9 @@ public sealed record RfqDto(
     Guid? EvaluationTemplateId, int? EvaluationTemplateVersion, string? CancelReason,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements,
     IReadOnlyList<RfqAttachmentDto> Attachments, IReadOnlyList<RfqApprovalDto> Approvals,
-    IReadOnlyList<InvitationDto> Invitations, IReadOnlyList<ClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
+    IReadOnlyList<InvitationDto> Invitations, IReadOnlyList<ClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda,
+    // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
+    uint RowVersion);
 
 /// <summary>FEAT-08.6/FR-INV-006: the supplier-facing shape of an RFQ - deliberately narrower than
 /// RfqDto. Excludes Approvals (internal reviewer comments/decisions) and OrganizationId's sibling

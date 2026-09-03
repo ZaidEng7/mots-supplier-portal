@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Evaluation;
@@ -40,7 +41,7 @@ public enum ScoringType
 /// the caller (RFQ authoring) decides whether forking is what it wants, the template aggregate only
 /// enforces that the referenced row itself can never change under a live RFQ.</para>
 /// </summary>
-public sealed class EvaluationTemplate
+public sealed class EvaluationTemplate : IVersionedAggregate
 {
     private readonly List<Criterion> _criteria = [];
 

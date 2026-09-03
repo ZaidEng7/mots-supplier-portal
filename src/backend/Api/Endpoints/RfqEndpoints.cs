@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
@@ -174,6 +175,7 @@ public static class RfqEndpoints
             return rfq is null ? Results.NotFound() : Results.Ok(rfq);
         })
         .RequirePermission(Permissions.RfqRead)
+        .WithETag()
         .WithName("GetRfq");
 
         // §3 lists "/rfqs/{rfqCode}/clarifications" as an RFQ sub-resource. The supplier-side POST
@@ -239,6 +241,7 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
         .WithName("UpdateRfqBasics");
 
         group.MapPost("/{referenceCode}/items", async (
@@ -330,12 +333,14 @@ public static class RfqEndpoints
             string referenceCode, BindEvaluationTemplateRequest request, IBindEvaluationTemplateHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new BindEvaluationTemplateCommand(referenceCode, request.EvaluationTemplateId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
         .WithName("BindEvaluationTemplate");
 
         group.MapPost("/{referenceCode}/submit-review", async (
             string referenceCode, ISubmitRfqForReviewHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new SubmitRfqForReviewCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqSubmitReview)
+        .RequireIfMatch()
         .WithName("SubmitRfqForReview");
 
         group.MapPost("/{referenceCode}/return", async (
@@ -351,24 +356,28 @@ public static class RfqEndpoints
             return MapMutation(await handler.HandleAsync(new ReturnRfqForEditsCommand(referenceCode, request.Comments), ct));
         })
         .RequirePermission(Permissions.RfqReview)
+        .RequireIfMatch()
         .WithName("ReturnRfqForEdits");
 
         group.MapPost("/{referenceCode}/approve", async (
             string referenceCode, IApproveRfqHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ApproveRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqApprove)
+        .RequireIfMatch()
         .WithName("ApproveRfq");
 
         group.MapPost("/{referenceCode}/publish", async (
             string referenceCode, IPublishRfqHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new PublishRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqPublish)
+        .RequireIfMatch()
         .WithName("PublishRfq");
 
         group.MapPost("/{referenceCode}/close", async (
             string referenceCode, CloseSubmissionRequest request, ICloseRfqSubmissionHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new CloseRfqSubmissionCommand(referenceCode, request.Reason), ct)))
         .RequirePermission(Permissions.RfqClose)
+        .RequireIfMatch()
         .WithName("CloseRfqSubmission");
 
         group.MapPost("/{referenceCode}/cancel", async (
@@ -384,6 +393,7 @@ public static class RfqEndpoints
             return MapMutation(await handler.HandleAsync(new CancelRfqCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqCancel)
+        .RequireIfMatch()
         .WithName("CancelRfq");
 
         group.MapPost("/{referenceCode}/invitations", async (

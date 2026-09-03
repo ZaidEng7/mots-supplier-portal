@@ -17,6 +17,42 @@ on:
     branches: [main]
 
 jobs:
+  # Task #24 addendum. The fast half of the backend's checks, duplicated into their own job so a
+  # compile error or a broken unit test reports in about ninety seconds instead of the eight minutes
+  # the `backend` job takes.
+  #
+  # Duplication rather than extraction, on purpose. The unit and architecture suites CANNOT simply
+  # move out of `backend`: their coverage reports have to be written on disk beside `sonar end`,
+  # which is why MSP-70 pulled the integration suite back into that job in the first place. Moving
+  # them here would delete their contribution to the coverage the quality gate enforces - a gate
+  # weakening dressed up as a speed-up. So this job re-runs them WITHOUT coverage, purely for the
+  # signal, and `backend` still runs them exactly as before for the measurement.
+  #
+  # Deliberately NOT a required check: it proves a subset of what `Backend (.NET)` proves, so making
+  # it required would add a second thing to keep green without adding a second thing being checked.
+  # Its value is the latency of the failure, not the failure itself.
+  fast-checks:
+    name: Fast checks (build, unit, architecture)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore src/backend/MotsSupplierPortal.slnx
+
+      - name: Build
+        run: dotnet build src/backend/MotsSupplierPortal.slnx --no-restore --configuration Release
+
+      - name: Unit tests
+        run: dotnet test src/backend/Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal"
+
+      - name: Architecture tests (NetArchTest)
+        run: dotnet test src/backend/Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal"
+
   backend:
     name: Backend (.NET)
     runs-on: ubuntu-latest
@@ -900,7 +936,10 @@ jobs:
   docker-build:
     name: Container image build
     runs-on: ubuntu-latest
-    needs: [backend]
+    # No `needs:`. This job checks out the source and runs `docker build` against the Dockerfile -
+    # it consumes nothing the `backend` job produces, so waiting eight minutes to spend forty
+    # seconds bought only the ordering of two independent failures. A broken Dockerfile now reports
+    # at the same time as a broken test rather than after it.
     steps:
       - uses: actions/checkout@v4
 

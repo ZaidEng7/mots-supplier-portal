@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Rfqs;
@@ -19,7 +20,7 @@ namespace MotsSupplierPortal.Domain.Rfqs;
 /// (no Outbox handler consumes an RFQ event to sync it), so adding unused sync columns now would
 /// be dead scaffolding; add them together with the actual ERP integration when it is built.</para>
 /// </summary>
-public sealed class Rfq
+public sealed class Rfq : IVersionedAggregate
 {
     private readonly List<RfqItem> _items = [];
     private readonly List<Requirement> _requirements = [];

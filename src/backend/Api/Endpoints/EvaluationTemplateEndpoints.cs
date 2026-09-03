@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
@@ -60,6 +61,7 @@ public static class EvaluationTemplateEndpoints
             var template = await handler.HandleAsync(id, ct);
             return template is null ? Results.NotFound() : Results.Ok(template);
         })
+        .WithETag()
         .WithName("GetEvaluationTemplate");
 
         group.MapPost("/", async (
@@ -117,10 +119,12 @@ public static class EvaluationTemplateEndpoints
 
         group.MapPost("/{id:guid}/activate", async (Guid id, IActivateEvaluationTemplateHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(id, ct)))
+        .RequireIfMatch()
         .WithName("ActivateEvaluationTemplate");
 
         group.MapPost("/{id:guid}/archive", async (Guid id, IArchiveEvaluationTemplateHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(id, ct)))
+        .RequireIfMatch()
         .WithName("ArchiveEvaluationTemplate");
 
         group.MapPost("/{id:guid}/fork", async (Guid id, IForkEvaluationTemplateHandler handler, CancellationToken ct) =>

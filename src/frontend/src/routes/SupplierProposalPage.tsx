@@ -1,5 +1,6 @@
 import { formatCurrency } from '../lib/datetime'
 import { useState } from 'react'
+import { Dialog } from '../components/ui/Dialog'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -7,7 +8,7 @@ import { Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableC
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import {
-  startProposal, getProposal, setItemPricing, setCommercialTerms, answerRequirement,
+  startProposal, getProposal, patchProposal,
   addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, ProposalApiError,
 } from '../api/proposals'
 
@@ -46,7 +47,22 @@ export function SupplierProposalPage() {
   // threading `referenceCode` into functions that no longer mean it.
   const proposalCode = proposalQuery.data?.referenceCode ?? ''
 
+  // SCR-151: "*Concurrency conflict:* `Dialog` 'This proposal changed in another tab/user' →
+  // reload/merge." §8.1 delivers it as a 412 ETAG_MISMATCH. Reload is offered; MERGE is not, because
+  // there is no merge UI in this codebase and inventing one here would be a screen nobody specified
+  // - reported rather than approximated.
+  const [conflictOpen, setConflictOpen] = useState(false)
+
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['proposal', referenceCode] })
+  /** A 412 is not a message - it is a state the supplier has to resolve. Everything else is a toast. */
+  const onMutationError = (err: unknown, fallback: string) => {
+    if (err instanceof ProposalApiError && err.isConcurrencyConflict) {
+      setConflictOpen(true)
+      return
+    }
+    notify({ kind: 'danger', title: errorMessage(err, fallback) })
+  }
+
   const errorMessage = (err: unknown, fallback: string) =>
     err instanceof ProposalApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof ProposalApiError ? err.message : fallback
 
@@ -56,40 +72,54 @@ export function SupplierProposalPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.startFailed')) }),
   })
 
+  // §12.5: one PATCH per edit, and the items array is sent WHOLE because RFC 7396 replaces an array
+  // rather than merging into it. Pricing one line therefore means sending every priced line - which
+  // is also what makes removing one possible now that DELETE /items/{id} is gone.
+  const pricedItems = (proposalQuery.data?.items ?? []).map((i) => ({
+    rfqItemId: i.rfqItemId, quantity: i.quantity, unitPrice: i.unitPrice,
+    discount: i.discount, leadTimeDays: i.leadTimeDays, notesAr: i.notesAr, notesEn: i.notesEn,
+  }))
+
   const priceMutation = useMutation({
     mutationFn: ({ rfqItemId, quantity, unitPrice }: { rfqItemId: string; quantity: number; unitPrice: number }) =>
-      setItemPricing(proposalCode, rfqItemId, { quantity, unitPrice, discount: null, leadTimeDays: null, notesAr: null, notesEn: null }),
+      patchProposal(proposalCode, {
+        items: [...pricedItems.filter((i) => i.rfqItemId !== rfqItemId), { rfqItemId, quantity, unitPrice }],
+      }),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.itemPriced') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
+    onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
 
   const answerMutation = useMutation({
     mutationFn: ({ requirementId, ar, en }: { requirementId: string; ar: string; en: string }) =>
-      answerRequirement(proposalCode, requirementId, ar, en),
+      patchProposal(proposalCode, { technicalResponse: { answers: [{ requirementId, answerAr: ar, answerEn: en }] } }),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.requirementAnswered') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
+    onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
 
   const termsMutation = useMutation({
-    mutationFn: () => setCommercialTerms(proposalCode, {
-      currencyCode, paymentTerms: paymentTerms || null, incotermCode: incotermCode || null,
-      deliveryTermsAr: null, deliveryTermsEn: null, warranty: null,
-      validityStart: null, validityEnd: validityEnd || null,
+    // Only the fields this form owns are mentioned. Sending deliveryTerms/warranty as null here -
+    // which the per-field PUT did - would DELETE values the supplier set elsewhere, because under
+    // merge patch an explicit null is a delete rather than "no opinion".
+    mutationFn: () => patchProposal(proposalCode, {
+      commercialTerms: {
+        currencyCode, paymentTerms: paymentTerms || null, incotermCode: incotermCode || null,
+        validityEnd: validityEnd || null,
+      },
     }),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.termsSaved') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
+    onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
 
   const documentMutation = useMutation({
     mutationFn: (file: File) => addProposalDocument(proposalCode, file),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.documentAdded') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
+    onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
 
   const removeDocumentMutation = useMutation({
     mutationFn: (documentId: string) => removeProposalDocument(proposalCode, documentId),
     onSuccess: () => invalidate(),
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.saveFailed')) }),
+    onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
 
   const submitMutation = useMutation({
@@ -177,11 +207,15 @@ export function SupplierProposalPage() {
                         <Input type="number" aria-label={`${t('proposal.unitPrice')} - ${item.titleEn}`} placeholder={t('proposal.unitPrice')}
                           value={draft.unitPrice || (priced?.unitPrice ?? '')} className="w-24"
                           onChange={(e) => setPricingDrafts((prev) => ({ ...prev, [item.id]: { ...draft, unitPrice: e.target.value } }))} />
+                        {/* A blank price is not a price. This used to coerce an empty input to 0
+                            and send it, which recorded a free bid before §7.2's rule and produces an
+                            unexplained 422 after it - the button is simply disabled instead. */}
                         <Button size="sm" isLoading={priceMutation.isPending}
+                          disabled={!(draft.unitPrice || priced?.unitPrice)}
                           onClick={() => priceMutation.mutate({
                             rfqItemId: item.id,
                             quantity: Number(draft.quantity || priced?.quantity || item.quantity),
-                            unitPrice: Number(draft.unitPrice || priced?.unitPrice || 0),
+                            unitPrice: Number(draft.unitPrice || priced?.unitPrice),
                           })}>
                           {t('proposal.savePrice')}
                         </Button>
@@ -277,6 +311,18 @@ export function SupplierProposalPage() {
           </div>
         </Card>
       ) : null}
+
+      <Dialog
+        open={conflictOpen}
+        onOpenChange={setConflictOpen}
+        title={t('proposal.conflictTitle')}
+        description={t('proposal.conflictBody')}
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConflictOpen(false)}>{t('common.cancel')}</Button>
+          <Button onClick={() => { setConflictOpen(false); invalidate() }}>{t('proposal.conflictReload')}</Button>
+        </div>
+      </Dialog>
     </div>
   )
 }
