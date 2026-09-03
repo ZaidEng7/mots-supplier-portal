@@ -310,11 +310,11 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         var probes = await SeedAsync();
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        // The control, and the non-vacuity guard: the unfiltered query really does return rows, so a
-        // later "did not widen" assertion is about the filter and not about an empty database.
+        // Control and non-vacuity guard: the unfiltered query really does return rows, so the 422
+        // below is the endpoint refusing this bound rather than an empty database answering nothing.
         var unfiltered = await staff.GetFromJsonAsync<AuditPage>(
             $"/api/v1/audit?aggregateType={probes.ProbeType}");
-        unfiltered!.Data.Should().NotBeEmpty("control: there are rows this filter could have widened to");
+        unfiltered!.Data.Should().NotBeEmpty("control: the endpoint returns rows for this filter");
 
         var response = await staff.GetAsync(
             $"/api/v1/audit?aggregateType={probes.ProbeType}&from=nonsense&to={Uri.EscapeDataString(Day4.ToString("O"))}");
@@ -330,22 +330,22 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task A_malformed_from_on_its_own_is_refused_and_returns_nothing_wider()
+    public async Task A_malformed_from_on_its_own_is_refused_as_a_filter_value()
     {
         var probes = await SeedAsync();
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
         var unfiltered = await staff.GetFromJsonAsync<AuditPage>(
             $"/api/v1/audit?aggregateType={probes.ProbeType}");
-        unfiltered!.Data.Should().NotBeEmpty("control: the set this could widen to is non-empty");
+        unfiltered!.Data.Should().NotBeEmpty("control: the endpoint answers this filter with rows");
 
         var response = await staff.GetAsync($"/api/v1/audit?aggregateType={probes.ProbeType}&from=2020-13-45");
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
-            "a bound that cannot be read must not become a bound that was never applied");
+            "422, not binding's 400: the request is well formed and one filter VALUE is unprocessable");
 
-        // And nothing was returned at all - the request failed rather than succeeding with a wider
-        // range, which is the whole distinction.
+        // And no list envelope came back - the request failed rather than answering with some other
+        // range.
         (await response.Content.ReadAsStringAsync()).Should().NotContain("\"data\"");
     }
 
@@ -366,8 +366,9 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_export_refuses_a_malformed_bound_too()
     {
-        // The reason this is Phase 0 of a reporting epic: an export with a silently widened range is
-        // indistinguishable from a correct one once it is a file attached to a dispute.
+        // The list and the export share a filter type and must share its error. An export that
+        // answered 400 MALFORMED_JSON where the list answers 422 would be two contracts for one
+        // filter.
         var probes = await SeedAsync();
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
@@ -439,5 +440,97 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         {
             csv.Should().NotContain(entry.Id.ToString(), "a row outside the range must not be in the file");
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // EPIC-19 part 2, Phase 0: the identifier filters, same mechanism as the date bounds.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_malformed_actorUserId_names_the_field_it_could_not_read()
+    {
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        // Controls in both directions: the filter is real (it narrows) and the endpoint has data.
+        // Without these the 422 below could be an endpoint that refuses everything, or an empty
+        // table that would look identical either way.
+        var unfiltered = await SearchAsync(staff, $"aggregateType={probes.ProbeType}");
+        unfiltered.Data.Should().NotBeEmpty("control: the endpoint returns rows unfiltered by actor");
+
+        var narrowed = await SearchAsync(staff, $"aggregateType={probes.ProbeType}&actorUserId={probes.ActorY}");
+        narrowed.Data.Should().NotBeEmpty("control: a well-formed actor filter still returns that actor's rows");
+        narrowed.Data.Count.Should().BeLessThan(unfiltered.Data.Count,
+            "control: the actor filter genuinely narrows, so it is a filter and not a no-op");
+
+        var response = await staff.GetAsync(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}&actorUserId=not-a-guid");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
+            "422 naming actorUserId, not binding's 400 MALFORMED_JSON, which names nothing");
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE");
+        problem.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetProperty("field").GetString())
+            .Should().Contain("actorUserId");
+    }
+
+    [Fact]
+    public async Task A_malformed_aggregateId_names_the_field_it_could_not_read()
+    {
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var unfiltered = await SearchAsync(staff, $"aggregateType={probes.ProbeType}");
+        var narrowed = await SearchAsync(staff, $"aggregateType={probes.ProbeType}&aggregateId={probes.AggregateB}");
+        narrowed.Data.Should().NotBeEmpty("control: a well-formed aggregate filter returns that aggregate's rows");
+        narrowed.Data.Count.Should().BeLessThan(unfiltered.Data.Count, "control: the filter narrows");
+
+        var response = await staff.GetAsync(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}&aggregateId=00000000-not-a-guid");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetProperty("field").GetString())
+            .Should().Contain("aggregateId");
+    }
+
+    [Fact]
+    public async Task The_export_refuses_a_malformed_identifier_too()
+    {
+        // The list and the export share a filter type; until now they did not share its error.
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var control = await staff.GetAsync(
+            $"/api/v1/audit/export?aggregateType={probes.ProbeType}&actorUserId={probes.ActorY}");
+        control.StatusCode.Should().Be(HttpStatusCode.OK, "control: a well-formed actor id exports fine");
+
+        var response = await staff.GetAsync(
+            $"/api/v1/audit/export?aggregateType={probes.ProbeType}&actorUserId=not-a-guid");
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task A_malformed_withCount_is_refused_rather_than_silently_omitting_the_total()
+    {
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        // Control in both directions: withCount=true produces a total, omitting it leaves the total
+        // out. So the parameter does something, and the 422 below is about the value it was given.
+        var counted = await SearchAsync(staff, $"aggregateType={probes.ProbeType}&withCount=true");
+        counted.Pagination.TotalCount.Should().NotBeNull("control: a well-formed withCount is honoured");
+
+        var uncounted = await SearchAsync(staff, $"aggregateType={probes.ProbeType}");
+        uncounted.Pagination.TotalCount.Should().BeNull("control: absent means no total");
+
+        var response = await staff.GetAsync($"/api/v1/audit?aggregateType={probes.ProbeType}&withCount=yes");
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetProperty("field").GetString())
+            .Should().Contain("withCount");
     }
 }

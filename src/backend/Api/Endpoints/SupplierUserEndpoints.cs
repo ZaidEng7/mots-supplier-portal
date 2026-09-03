@@ -35,8 +35,20 @@ public static class SupplierUserEndpoints
     {
         var group = app.MapGroup("/api/v1/suppliers/me/users").WithTags("SupplierUsers");
 
-        group.MapGet("/", async (string? cursor, int? pageSize, bool? withCount, HttpContext httpContext, IListSupplierUsersHandler handler, CancellationToken ct) =>
-            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
+        group.MapGet("/", async (string? cursor, int? pageSize, string? withCount, HttpContext httpContext, IListSupplierUsersHandler handler, CancellationToken ct) =>
+        {
+            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
+            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
+            // no body, and one that names no field. Parsed as text so the refusal is the same
+            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
+            var page = await handler.HandleAsync(cursor, pageSize, FilterValues.BoolOrFalse(withCount), ct);
+            return ListResponse.Ok(httpContext, page, pageSize);
+        })
         .RequirePermission(Permissions.SupplierUserManage)
         // Alphabetical by email: a team list is read to find a person, not to see what changed last.
         .WithListQuery(ListQueryPolicy.Create("email", ["email"]))

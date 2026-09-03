@@ -27,9 +27,10 @@ public static class DashboardEndpoints
             IProcurementDashboardHandler handler,
             CancellationToken ct) =>
         {
-            // EPIC-19 Phase 0's sweep found this: SCR-400's period filter had the same silent
-            // widening the audit endpoint did. A malformed bound bound to null, and a null bound is
-            // an absent filter - so ?from=nonsense quietly showed a wider period than was asked for.
+            // Same treatment as the audit endpoint's bounds, for the same corrected reason: a
+            // malformed bound was ALREADY refused by model binding - it never widened the period -
+            // but with a 400 MALFORMED_JSON that names no field and carries no bilingual message.
+            // See FilterValues.TryParseDateBound for the correction and how it was verified.
             if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
             {
                 return FilterValues.InvalidFilterValue("from", badFrom!);

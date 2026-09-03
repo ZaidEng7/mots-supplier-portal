@@ -54,8 +54,17 @@ public static class ReviewEndpoints
     {
         var group = app.MapGroup("/api/v1/review").WithTags("Review");
 
-        group.MapGet("/queue", async (string? cursor, int? pageSize, bool? withCount, string? state, string? assignedTo, HttpContext httpContext, IListReviewQueueHandler handler, CancellationToken ct) =>
+        group.MapGet("/queue", async (string? cursor, int? pageSize, string? withCount, string? state, string? assignedTo, HttpContext httpContext, IListReviewQueueHandler handler, CancellationToken ct) =>
         {
+            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
+            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
+            // no body, and one that names no field. Parsed as text so the refusal is the same
+            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
             // The queue's silent-widening case is the worst of the two: an unrecognised state does
             // not merely empty the filter, it falls through to the DEFAULT three-state set, so
             // ?state=Approvd returns the whole queue while reading as a filtered view.
@@ -72,7 +81,7 @@ public static class ReviewEndpoints
                 return FilterValues.InvalidFilterValue("assignedTo", invalidAssignee!);
             }
 
-            return ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, withCount == true, state, assignedTo, ct), pageSize);
+            return ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, FilterValues.BoolOrFalse(withCount), state, assignedTo, ct), pageSize);
         })
             .RequirePermission(Permissions.SupplierReview)
             // §6.3: oldest-first is the queue's whole point - a reviewer works the backlog from the

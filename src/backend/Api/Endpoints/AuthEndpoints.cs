@@ -216,13 +216,22 @@ public static class AuthEndpoints
         group.MapGet("/sessions", async (
             string? cursor,
             int? pageSize,
-            bool? withCount,
+            string? withCount,
             HttpContext httpContext,
             IListSessionsHandler handler,
             CancellationToken ct) =>
         {
+            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
+            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
+            // no body, and one that names no field. Parsed as text so the refusal is the same
+            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
             httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
-            var sessions = await handler.HandleAsync(currentToken, cursor, pageSize, withCount == true, ct);
+            var sessions = await handler.HandleAsync(currentToken, cursor, pageSize, FilterValues.BoolOrFalse(withCount), ct);
             return ListResponse.Ok(httpContext, sessions, pageSize);
         })
         .RequireAuthorization()

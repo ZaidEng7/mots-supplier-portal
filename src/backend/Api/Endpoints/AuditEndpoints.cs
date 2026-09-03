@@ -31,12 +31,21 @@ public static class AuditEndpoints
         app.MapGet("/api/v1/suppliers/me/audit", async (
             string? cursor,
             int? pageSize,
-            bool? withCount,
+            string? withCount,
             HttpContext httpContext,
             IGetAuditLogHandler handler,
             CancellationToken ct) =>
         {
-            var page = await handler.HandleOwnTrailAsync(cursor, pageSize, withCount == true, ct);
+            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
+            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
+            // no body, and one that names no field. Parsed as text so the refusal is the same
+            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
+            var page = await handler.HandleOwnTrailAsync(cursor, pageSize, FilterValues.BoolOrFalse(withCount), ct);
             return ListResponse.Ok(httpContext, page, pageSize);
         })
         .RequireAuthorization()
@@ -53,19 +62,42 @@ public static class AuditEndpoints
         // nothing to filter within it that isn't already the whole answer).
         app.MapGet("/api/v1/audit", async (
             string? aggregateType,
-            Guid? aggregateId,
-            Guid? actorUserId,
+            string? aggregateId,
+            string? actorUserId,
             string? action,
             string? from,
             string? to,
             string? cursor,
             int? pageSize,
-            bool? withCount,
+            string? withCount,
             HttpContext httpContext,
             IGetAuditLogHandler handler,
             CancellationToken ct) =>
         {
-            // A malformed bound is refused, not dropped. See FilterValues.TryParseDateBound.
+            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
+            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
+            // no body, and one that names no field. Parsed as text so the refusal is the same
+            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
+            // A malformed identifier is refused for the same reason a malformed date is: bound to
+            // `Guid?` it arrived as null, and a null id is an ABSENT filter, so a search narrowed to
+            // one actor answered with every actor's rows. See FilterValues.TryParseGuidFilter.
+            if (!FilterValues.TryParseGuidFilter(aggregateId, out var aggregateIdValue, out var badAggregateId))
+            {
+                return FilterValues.InvalidFilterValue("aggregateId", badAggregateId!);
+            }
+
+            if (!FilterValues.TryParseGuidFilter(actorUserId, out var actorUserIdValue, out var badActorUserId))
+            {
+                return FilterValues.InvalidFilterValue("actorUserId", badActorUserId!);
+            }
+
+            // A malformed bound earns a 422 naming the field, rather than binding's bare 400.
+            // See FilterValues.TryParseDateBound - including the correction to why.
             if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
             {
                 return FilterValues.InvalidFilterValue("from", badFrom!);
@@ -76,8 +108,8 @@ public static class AuditEndpoints
                 return FilterValues.InvalidFilterValue("to", badTo!);
             }
 
-            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, fromBound, toBound);
-            var page = await handler.HandleFilteredAsync(filter, cursor, pageSize, withCount == true, ct);
+            var filter = new AuditLogFilter(aggregateType, aggregateIdValue, actorUserIdValue, action, fromBound, toBound);
+            var page = await handler.HandleFilteredAsync(filter, cursor, pageSize, FilterValues.BoolOrFalse(withCount), ct);
             return ListResponse.Ok(httpContext, page, pageSize);
         })
         .RequirePermission(Permissions.AuditRead)
@@ -91,8 +123,8 @@ public static class AuditEndpoints
         // in memory first, so an export is not bounded by how much the process can hold at once.
         app.MapGet("/api/v1/audit/export", async (
             string? aggregateType,
-            Guid? aggregateId,
-            Guid? actorUserId,
+            string? aggregateId,
+            string? actorUserId,
             string? action,
             string? from,
             string? to,
@@ -100,8 +132,22 @@ public static class AuditEndpoints
             HttpResponse response,
             CancellationToken ct) =>
         {
-            // The export refuses a malformed bound for the same reason the list does, and more
-            // urgently: a file with a silently widened range is indistinguishable from a correct one.
+            // A malformed identifier is refused for the same reason a malformed date is: bound to
+            // `Guid?` it arrived as null, and a null id is an ABSENT filter, so a search narrowed to
+            // one actor answered with every actor's rows. See FilterValues.TryParseGuidFilter.
+            if (!FilterValues.TryParseGuidFilter(aggregateId, out var aggregateIdValue, out var badAggregateId))
+            {
+                return FilterValues.InvalidFilterValue("aggregateId", badAggregateId!);
+            }
+
+            if (!FilterValues.TryParseGuidFilter(actorUserId, out var actorUserIdValue, out var badActorUserId))
+            {
+                return FilterValues.InvalidFilterValue("actorUserId", badActorUserId!);
+            }
+
+            // The export answers a malformed bound exactly as the list does. Both were already
+            // refused by binding; what changes is that the refusal now names which bound and says so
+            // in both languages, instead of MALFORMED_JSON on a request with no body.
             if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
             {
                 return FilterValues.InvalidFilterValue("from", badFrom!);
@@ -112,7 +158,7 @@ public static class AuditEndpoints
                 return FilterValues.InvalidFilterValue("to", badTo!);
             }
 
-            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, fromBound, toBound);
+            var filter = new AuditLogFilter(aggregateType, aggregateIdValue, actorUserIdValue, action, fromBound, toBound);
 
             response.ContentType = "text/csv; charset=utf-8";
             response.Headers.ContentDisposition = "attachment; filename=audit-log-export.csv";

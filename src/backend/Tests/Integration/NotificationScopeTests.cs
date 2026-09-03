@@ -146,4 +146,73 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // EPIC-19 part 2, Phase 0: ?unreadOnly gets the filter-value error, not binding's 400.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Marks a seeded notification read, so the unread filter has something to exclude.
+    /// </summary>
+    private async Task MarkReadAsync(Guid notificationId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.Notifications.FindAsync(notificationId);
+        row!.MarkRead(DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task A_malformed_unreadOnly_is_refused_rather_than_returning_every_notification()
+    {
+        var (client, userId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer);
+
+        var unread = await SeedNotificationAsync(userId, "unread");
+        var read = await SeedNotificationAsync(userId, "read");
+        await MarkReadAsync(read);
+
+        // Controls in both directions. Without the filter the read row is present; with a
+        // well-formed filter it is gone and the unread row survives. So the filter is real, and the
+        // 422 below is about the value rather than an endpoint that refuses everything.
+        var all = await IdsAsync(client, "/api/v1/notifications");
+        all.Should().Contain(read, "control: unfiltered, the read notification is in the list");
+        all.Should().Contain(unread);
+
+        var narrowed = await IdsAsync(client, "/api/v1/notifications?unreadOnly=true");
+        narrowed.Should().Contain(unread, "control: a well-formed filter keeps the unread row");
+        narrowed.Should().NotContain(read, "control: a well-formed filter genuinely narrows");
+
+        // "maybe" was already refused - by model binding, with a 400 MALFORMED_JSON that names no
+        // field. This asserts the 422 that names unreadOnly and says so in both languages.
+        var response = await client.GetAsync("/api/v1/notifications?unreadOnly=maybe");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE");
+        problem.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetProperty("field").GetString())
+            .Should().Contain("unreadOnly");
+    }
+
+    [Fact]
+    public async Task Both_boolean_spellings_of_unreadOnly_are_still_accepted()
+    {
+        // The guard must refuse what it cannot read without narrowing what it accepts: "TRUE" and
+        // "False" are bool.TryParse's own vocabulary and were valid before this change.
+        var (client, userId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer);
+        await SeedNotificationAsync(userId, "vocabulary");
+
+        foreach (var spelling in new[] { "true", "TRUE", "false", "False" })
+        {
+            var response = await client.GetAsync($"/api/v1/notifications?unreadOnly={spelling}");
+            response.StatusCode.Should().Be(HttpStatusCode.OK, $"'{spelling}' is a boolean the filter always took");
+        }
+    }
+
+    private static async Task<List<Guid>> IdsAsync(HttpClient client, string url)
+    {
+        var body = await client.GetFromJsonAsync<JsonElement>(url);
+        return body.GetProperty("data").EnumerateArray().Select(n => n.GetProperty("id").GetGuid()).ToList();
+    }
 }

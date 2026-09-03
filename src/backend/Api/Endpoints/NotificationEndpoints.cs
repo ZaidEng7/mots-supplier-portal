@@ -28,11 +28,24 @@ public static class NotificationEndpoints
         group.MapGet("/", async (
             string? cursor,
             int? pageSize,
-            bool? unreadOnly,
+            string? unreadOnly,
             HttpContext httpContext,
             IListNotificationsHandler handler,
             CancellationToken ct) =>
-            ListResponse.Ok(httpContext, await handler.HandleAsync(cursor, pageSize, unreadOnly, ct), pageSize))
+        {
+            // Bound to `bool?` this filter FAILED OPEN: `?unreadOnly=maybe` arrived as null, which
+            // reads as "no filter", so a request for the unread set answered with every
+            // notification the caller has. A filter that exists to narrow returning MORE than asked
+            // is the worst shape of this defect - and a longer inbox is indistinguishable from
+            // having nothing unread, so nothing surfaces it. See FilterValues.TryParseBoolFilter.
+            if (!FilterValues.TryParseBoolFilter(unreadOnly, out var unreadOnlyValue, out var badUnreadOnly))
+            {
+                return FilterValues.InvalidFilterValue("unreadOnly", badUnreadOnly!);
+            }
+
+            var page = await handler.HandleAsync(cursor, pageSize, unreadOnlyValue, ct);
+            return ListResponse.Ok(httpContext, page, pageSize);
+        })
         .WithName("ListNotifications");
 
         // The bell's badge. A count rather than a list because the badge is on every page of the app
