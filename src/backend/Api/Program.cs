@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Api.Errors;
+using MotsSupplierPortal.Api.Concurrency;
 using System.IO.Compression;
 using System.Threading.RateLimiting;
 using FluentValidation;
@@ -117,7 +119,12 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Host=localhost;Port=5432;Database=mots_supplier_portal;Username=postgres;Password=postgres";
 
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+// The interceptor is resolved per scope so it can see the current request's If-Match header; see
+// ExpectedVersionInterceptor for why this is not a SaveChangesAsync override.
+builder.Services.AddScoped<ExpectedVersionInterceptor>();
+builder.Services.AddDbContext<AppDbContext>((sp, options) => options
+    .UseNpgsql(connectionString)
+    .AddInterceptors(sp.GetRequiredService<ExpectedVersionInterceptor>()));
 
 // Hangfire: durable background jobs (verification email, password-reset email) backed by Postgres
 // so a queued send survives an app restart (docs/architecture/00-foundational-decisions.md §2).
@@ -547,9 +554,8 @@ app.UseSerilogRequestLogging();
 // two handlers) - every other aggregate's mutating endpoint (Rfq/Proposal/Evaluation/Award) let it
 // propagate unhandled to a raw 500, an audit finding from this epic's own FEAT-13.5 pass. Handled
 // globally, once, here, rather than wrapping every handler's own SaveChangesAsync call individually
-// - reusing the EXACT SAME shape Supplier's own SupplierEndpoints.cs already returns
-// ({ error: "concurrency_conflict" }) so the one frontend error-shape callers already check for
-// keeps working everywhere, not just on Supplier screens.
+// - and, since §8.1, answering with the documented 412 rather than the ad-hoc
+// ({ error: "concurrency_conflict" }) 409 this used to emit.
 app.Use(async (context, next) =>
 {
     try
@@ -558,11 +564,22 @@ app.Use(async (context, next) =>
     }
     catch (DbUpdateConcurrencyException)
     {
+        // §8.1: "Stale If-Match -> 412 Precondition Failed (ETAG_MISMATCH) - the SPA refetches and
+        // reconciles." This used to answer 409 { error: "concurrency_conflict" }, a shape the SPA
+        // string-matched in five places. 409 now means only what §7.1 says it means - an illegal
+        // state transition, a duplicate, a unique violation - and a lost update is a precondition
+        // failure, which is a different thing and has its own documented status.
+        //
+        // The endpoint filter has already rejected a MISSING or malformed If-Match. Reaching here
+        // means the caller sent a well-formed version and the database found the row had moved, so
+        // this is the genuinely stale case and the only one the database can decide.
         if (!context.Response.HasStarted)
         {
             context.Response.Clear();
-            context.Response.StatusCode = StatusCodes.Status409Conflict;
-            await context.Response.WriteAsJsonAsync(new { error = "concurrency_conflict" });
+            await ProblemResponse.WriteAsync(context, ProblemResponse.Build(
+                context, StatusCodes.Status412PreconditionFailed, ProblemTypes.PreconditionFailed,
+                "The precondition failed.", "ETAG_MISMATCH",
+                "This resource changed after you loaded it. Refetch it and reapply your change."));
         }
     }
 });

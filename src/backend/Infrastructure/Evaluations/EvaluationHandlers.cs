@@ -19,7 +19,8 @@ internal static class EvaluationDtoMapper
         evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
         [.. evaluation.Criteria.Select(ToCriterionDto)],
         [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(a.EvaluatorUserId, a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
-        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank))]);
+        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank))],
+        evaluation.RowVersion);
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
         new(c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType, c.IsFinancial);

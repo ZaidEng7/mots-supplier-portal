@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using FluentValidation.Results;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
@@ -198,6 +199,7 @@ public static class SupplierEndpoints
             };
         })
         .RequireAuthorization()
+        .WithETag()
         .WithName("GetSupplier");
 
         group.MapGet("/me", async (IGetSupplierHandler handler, CancellationToken ct) =>
@@ -212,18 +214,19 @@ public static class SupplierEndpoints
             };
         })
         .RequireAuthorization()
+        .WithETag()
         .WithName("GetOwnSupplier");
 
-        // MSP-65: `concurrency_conflict` is a stable machine code the SPA maps to a localized
-        // message (NFR-USE-004) - the raw 409 body is never shown to a user. currentRowVersion
-        // lets the client re-read and retry deliberately rather than blind-retrying.
+        // §8.1: a lost update is a PRECONDITION failure, not a conflict. This returned 409
+        // { error: "concurrency_conflict", currentRowVersion } under MSP-65, which predates the
+        // contract; 409 now means only what §7.1 says it means. The winner's version travels back
+        // as the ETag header rather than a body field, because that is where a client looking to
+        // re-read and retry will already be looking for it.
         static IResult MapProfileResult(UpdateProfileResult result) => result switch
         {
             UpdateProfileResult.Success s => Results.Ok(s.Supplier),
             UpdateProfileResult.NotFoundOrOutOfScope => Results.NotFound(),
-            UpdateProfileResult.Conflict c => Results.Json(
-                new { error = "concurrency_conflict", currentRowVersion = c.CurrentRowVersion },
-                statusCode: StatusCodes.Status409Conflict),
+            UpdateProfileResult.Conflict c => new StaleVersionResult(c.CurrentRowVersion),
             // MSP-77: 403, not 409 - the caller is not permitted to edit this field right now,
             // which is an authorization outcome rather than a state clash.
             UpdateProfileResult.NotEditable n => Results.Json(
@@ -268,6 +271,7 @@ public static class SupplierEndpoints
             return MapProfileResult(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
         .WithName("UpdateSupplierProfile");
 
         // FEAT-04.2/MSP-51.
@@ -590,6 +594,23 @@ public static class SupplierEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierSubmit)
+        .RequireIfMatch()
         .WithName("SubmitSupplierApplication");
+    }
+}
+
+/// <summary>
+/// §8.1's 412 for the one handler that detects staleness itself rather than letting EF throw.
+/// Carries the winner's current version back as an ETag so the client can re-read deliberately.
+/// </summary>
+internal sealed record StaleVersionResult(uint CurrentRowVersion) : IResult
+{
+    public Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.SetETag(CurrentRowVersion);
+        return ProblemResponse.WriteAsync(httpContext, ProblemResponse.Build(
+            httpContext, StatusCodes.Status412PreconditionFailed, ProblemTypes.PreconditionFailed,
+            "The precondition failed.", "ETAG_MISMATCH",
+            "This resource changed after you loaded it. Refetch it and reapply your change."));
     }
 }

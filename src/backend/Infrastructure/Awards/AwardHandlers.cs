@@ -22,7 +22,8 @@ internal static class AwardDtoMapper
         award.RecommendedByUserId, award.RecommendedAt, award.RecommendationRevision,
         [.. award.Approvals.Select(a => new AwardApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))],
         award.AwardedAt, award.ComparisonSnapshotJson,
-        award.ErpSyncStatus, award.ExternalPurchaseOrderRef, award.ErpSyncedAt, award.ErpRetryCount);
+        award.ErpSyncStatus, award.ExternalPurchaseOrderRef, award.ErpSyncedAt, award.ErpRetryCount,
+        award.RowVersion);
 }
 
 file static class AwardLoader

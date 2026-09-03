@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Proposals;
@@ -48,7 +49,7 @@ namespace MotsSupplierPortal.Domain.Proposals;
 /// them would be dead scaffolding; this is an open gap for whichever future work adds a real delete
 /// affordance (or a codebase-wide soft-delete pass), not a decision that soft-delete doesn't
 /// apply.</para></summary>
-public sealed class Proposal
+public sealed class Proposal : IVersionedAggregate
 {
     private readonly List<ProposalItem> _items = [];
     private readonly List<ProposalDocument> _documents = [];

@@ -64,6 +64,36 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Award> Awards => Set<Award>();
     public DbSet<Approval> Approvals => Set<Approval>();
 
+    /// <summary>
+    /// §8.1's stale-version check, applied once here rather than in every handler.
+    ///
+    /// <para>EF only enforces optimistic concurrency if something sets the ORIGINAL value of the
+    /// version property to what the CALLER believed it was. Without that it compares the row against
+    /// the copy it just read, which always matches - the guard MSP-65 described as "decoration".
+    /// Two handlers did it by hand; the other forty-odd aggregate writes did not, so every one of
+    /// them was silently last-write-wins.</para>
+    ///
+    /// <para>Applied only when exactly ONE versioned root is being modified. A request that touches
+    /// two would otherwise have one caller-supplied version stamped onto both, which is worse than
+    /// no guard: it would fail the write that was never contended. That case does not arise today
+    /// and is asserted by a test rather than assumed.</para>
+    /// </summary>
+    public void ApplyExpectedVersion(uint expected)
+    {
+        var roots = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Modified && e.Entity is IVersionedAggregate)
+            .ToList();
+
+        if (roots.Count != 1) return;
+
+        roots[0].Property(nameof(IVersionedAggregate.RowVersion)).OriginalValue = expected;
+    }
+
+    /// <summary>How many versioned roots the current change set would write. Exposed so a test can
+    /// assert the "exactly one" precondition above rather than trusting it.</summary>
+    public int ModifiedVersionedRootCount() =>
+        ChangeTracker.Entries().Count(e => e.State == EntityState.Modified && e.Entity is IVersionedAggregate);
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

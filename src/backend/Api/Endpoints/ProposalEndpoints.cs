@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
@@ -92,6 +93,7 @@ public static class ProposalEndpoints
         rfqScoped.MapGet("/", async (string referenceCode, IGetProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
+        .WithETag()
         .WithName("GetProposal");
 
         // §12-A/C2: the code-addressed read. §3 addresses a proposal's sub-resources at
@@ -100,6 +102,7 @@ public static class ProposalEndpoints
         group.MapGet("/", async (string referenceCode, IGetProposalByCodeHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
+        .WithETag()
         .WithName("GetProposalByCode");
 
         group.MapPut("/terms", async (
@@ -117,12 +120,14 @@ public static class ProposalEndpoints
                 request.DeliveryTermsAr, request.DeliveryTermsEn, request.Warranty, request.ValidityStart, request.ValidityEnd), ct));
         })
         .RequirePermission(Permissions.ProposalEdit)
+        .RequireIfMatch()
         .WithName("SetProposalCommercialTerms");
 
         group.MapPut("/narrative", async (
             string referenceCode, SetNarrativeRequest request, ISetNarrativeHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(new SetNarrativeCommand(referenceCode, request.NarrativeAr, request.NarrativeEn), ct)))
         .RequirePermission(Permissions.ProposalEdit)
+        .RequireIfMatch()
         .WithName("SetProposalNarrative");
 
         group.MapPut("/items/{rfqItemId:guid}", async (
@@ -140,6 +145,7 @@ public static class ProposalEndpoints
                 referenceCode, rfqItemId, request.Quantity, request.UnitPrice, request.Discount, request.LeadTimeDays, request.NotesAr, request.NotesEn), ct));
         })
         .RequirePermission(Permissions.ProposalEdit)
+        .RequireIfMatch()
         .WithName("SetProposalItemPricing");
 
         group.MapDelete("/items/{rfqItemId:guid}", async (
@@ -162,6 +168,7 @@ public static class ProposalEndpoints
             return MapResult(await handler.HandleAsync(new AnswerRequirementCommand(referenceCode, requirementId, request.AnswerAr, request.AnswerEn), ct));
         })
         .RequirePermission(Permissions.ProposalEdit)
+        .RequireIfMatch()
         .WithName("AnswerProposalRequirement");
 
         // FEAT-09.3/FR-PRP-004: same inline IFileStorage pattern as RfqEndpoints' attachment upload
@@ -202,6 +209,7 @@ public static class ProposalEndpoints
         group.MapPost("/submit", async (string referenceCode, ISubmitProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(new SubmitProposalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.ProposalSubmit)
+        .RequireIfMatch()
         .WithName("SubmitProposal");
 
         group.MapPost("/withdraw", async (
@@ -217,6 +225,7 @@ public static class ProposalEndpoints
             return MapResult(await handler.HandleAsync(new WithdrawProposalCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.ProposalWithdraw)
+        .RequireIfMatch()
         .WithName("WithdrawProposal");
     }
 }

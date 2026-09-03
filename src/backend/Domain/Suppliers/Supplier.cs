@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 namespace MotsSupplierPortal.Domain.Suppliers;
 
 public enum SupplierSyncStatus
@@ -11,7 +12,7 @@ public enum SupplierSyncStatus
 /// Central supplier master the portal owns until ERP approval (docs/architecture/DOMAIN-MODEL.md §5.3).
 /// The domain — not the API, not the UI — is the sole authority on legal state transitions.
 /// </summary>
-public sealed class Supplier
+public sealed class Supplier : IVersionedAggregate
 {
     private readonly List<Representative> _representatives = [];
     private readonly List<Address> _addresses = [];

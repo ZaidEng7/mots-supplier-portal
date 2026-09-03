@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
@@ -67,6 +68,7 @@ public static class EvaluationEndpoints
             return evaluation is null ? Results.NotFound() : Results.Ok(evaluation);
         })
         .RequirePermission(Permissions.EvaluationOpen)
+        .WithETag()
         .WithName("GetEvaluation");
 
         group.MapPost("/open", async (string referenceCode, IOpenEvaluationHandler handler, CancellationToken ct) =>
@@ -101,11 +103,13 @@ public static class EvaluationEndpoints
         group.MapPost("/consolidate", async (string referenceCode, IConsolidateEvaluationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ConsolidateEvaluationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.EvaluationConsolidate)
+        .RequireIfMatch()
         .WithName("ConsolidateEvaluation");
 
         group.MapPost("/finalize", async (string referenceCode, IFinalizeEvaluationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new FinalizeEvaluationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.EvaluationFinalize)
+        .RequireIfMatch()
         .WithName("FinalizeEvaluation");
 
         group.MapPost("/reopen", async (
@@ -118,6 +122,7 @@ public static class EvaluationEndpoints
             return MapMutation(await handler.HandleAsync(new ReopenEvaluationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.EvaluationReopen)
+        .RequireIfMatch()
         .WithName("ReopenEvaluation");
 
         var myGroup = app.MapGroup("/api/v1/rfqs/{referenceCode}/my-evaluation").WithTags("Evaluation");

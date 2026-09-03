@@ -13,7 +13,8 @@ internal static class EvaluationTemplateDtoMapper
         t.Id, t.FamilyId, t.Version, t.NameAr, t.NameEn, t.Status, t.IsReferenced,
         [.. t.Criteria.OrderBy(c => c.SortOrder).Select(c => new CriterionDto(
             c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType,
-            c.GuidanceAr, c.GuidanceEn, c.SortOrder))]);
+            c.GuidanceAr, c.GuidanceEn, c.SortOrder))],
+        t.RowVersion);
 }
 
 /// <summary>FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07. Portal-only, no row-scoping beyond

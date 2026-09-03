@@ -1,14 +1,16 @@
-using Microsoft.Net.Http.Headers;
+using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Application.Common;
 
 namespace MotsSupplierPortal.Api.Authorization;
 
 /// <summary>
-/// Reads the caller's expected row version from the standard <c>If-Match</c> header (MSP-65).
-/// Accepts the value both bare (<c>If-Match: 12345</c>) and quoted as a proper ETag
-/// (<c>If-Match: "12345"</c>), since HTTP requires the quotes but hand-written clients routinely
-/// omit them and silently losing the guard over a punctuation detail is exactly the failure mode
-/// this ticket exists to remove.
+/// Reads the caller's expected row version from the standard <c>If-Match</c> header (MSP-65, §8.1).
+///
+/// <para><b>The wire format changed with §8.1.</b> This used to accept a bare decimal
+/// (<c>If-Match: 12345</c>) because that is what the DTO exposed; §8.1 specifies the version
+/// base64url-encoded inside an entity-tag, and <see cref="ETag"/> is now the only reader. The old
+/// format is deliberately NOT still accepted - two live wire formats for one header is how the
+/// wrong one becomes permanent, and the only client moves in the same change.</para>
 /// </summary>
 public sealed class HttpConcurrencyContext(IHttpContextAccessor accessor) : IConcurrencyContext
 {
@@ -16,11 +18,11 @@ public sealed class HttpConcurrencyContext(IHttpContextAccessor accessor) : ICon
     {
         get
         {
-            var raw = accessor.HttpContext?.Request.Headers[HeaderNames.IfMatch].ToString();
-            if (string.IsNullOrWhiteSpace(raw) || raw == "*") return null;
-
-            var unquoted = raw.Trim().Trim('"');
-            return uint.TryParse(unquoted, out var version) ? version : null;
+            // Read from the endpoint filter's output, not straight from the header. Only routes
+            // that declare RequireIfMatch() participate in §8.1's contract, and the filter has
+            // already validated the value by the time it lands here - so a header sent to any other
+            // endpoint is inert rather than a precondition nobody promised.
+            return accessor.HttpContext?.Items[ConcurrencyEndpoints.ExpectedVersionKey] as uint?;
         }
     }
 }

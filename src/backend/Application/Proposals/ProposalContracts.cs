@@ -24,7 +24,11 @@ public sealed record ProposalDto(
     string? Warranty, DateOnly? ValidityStart, DateOnly? ValidityEnd,
     string? NarrativeAr, string? NarrativeEn,
     DateTimeOffset? SubmittedAt, DateTimeOffset? WithdrawnAt, string? WithdrawReason,
-    IReadOnlyList<ProposalItemDto> Items, IReadOnlyList<ProposalDocumentDto> Documents, IReadOnlyList<RequirementAnswerDto> RequirementAnswers);
+    IReadOnlyList<ProposalItemDto> Items, IReadOnlyList<ProposalDocumentDto> Documents, IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
+    // §8.1: the version this read saw, so the endpoint can emit it as an ETag and the caller can
+    // send it back as If-Match. Carried on the DTO rather than fetched separately because the read
+    // has already loaded the aggregate that knows it.
+    uint RowVersion);
 
 public sealed record SetItemPricingCommand(
     string ProposalReferenceCode, Guid RfqItemId, decimal Quantity, decimal UnitPrice, decimal? Discount, int? LeadTimeDays, string? NotesAr, string? NotesEn);

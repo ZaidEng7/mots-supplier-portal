@@ -16,7 +16,9 @@ public sealed record AwardDto(
     Guid RecommendedByUserId, DateTimeOffset RecommendedAt, int RecommendationRevision,
     IReadOnlyList<AwardApprovalDto> Approvals,
     DateTimeOffset? AwardedAt, string? ComparisonSnapshotJson,
-    ErpSyncStatus ErpSyncStatus, string? ExternalPurchaseOrderRef, DateTimeOffset? ErpSyncedAt, int ErpRetryCount);
+    ErpSyncStatus ErpSyncStatus, string? ExternalPurchaseOrderRef, DateTimeOffset? ErpSyncedAt, int ErpRetryCount,
+    // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
+    uint RowVersion);
 
 public sealed record RecommendAwardCommand(string RfqReferenceCode, Guid WinningProposalId, string JustificationAr, string JustificationEn);
 public sealed record RouteAwardForApprovalCommand(string RfqReferenceCode);

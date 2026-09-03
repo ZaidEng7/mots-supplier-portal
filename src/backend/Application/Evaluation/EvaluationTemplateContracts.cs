@@ -8,7 +8,9 @@ public sealed record CriterionDto(
 
 public sealed record EvaluationTemplateDto(
     Guid Id, Guid FamilyId, int Version, string NameAr, string NameEn, EvaluationTemplateStatus Status,
-    bool IsReferenced, IReadOnlyList<CriterionDto> Criteria);
+    bool IsReferenced, IReadOnlyList<CriterionDto> Criteria,
+    // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
+    uint RowVersion);
 
 public sealed record CreateEvaluationTemplateCommand(string NameAr, string NameEn);
 

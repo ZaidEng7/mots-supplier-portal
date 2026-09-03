@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Awards;
@@ -26,7 +27,7 @@ namespace MotsSupplierPortal.Domain.Awards;
 /// require them to keep changing after Awarded (Requested -&gt; Synced|Failed -&gt; retry) for the
 /// award to ever reach RFQ Completion. The decision itself - Recommendation, Approvals,
 /// AwardDecision fields, ComparisonSnapshotJson - never changes again.</para></summary>
-public sealed class Award
+public sealed class Award : IVersionedAggregate
 {
     private readonly List<Approval> _approvals = [];
 
