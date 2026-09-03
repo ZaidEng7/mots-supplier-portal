@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUSINESS_TIME_ZONE, formatDate, formatDateTime, formatDeadline, formatRelative } from './datetime'
+import { BUSINESS_TIME_ZONE, formatCurrency, formatDate, formatDateTime, formatDeadline, formatRelative } from './datetime'
 
 /**
  * T2-29. These tests are only meaningful when the runner's own zone is NOT Damascus - otherwise
@@ -145,5 +145,30 @@ describe('formatRelative', () => {
 
   it('returns an empty string for a missing value', () => {
     expect(formatRelative(null, 'en', now)).toBe('')
+  })
+})
+
+describe('formatCurrency', () => {
+  // The product owner's ruling reversing R-1: money renders in Eastern Arabic digits like dates,
+  // counts and quantities. Before this the two catalogue pages pinned `ar-SY-u-nu-latn`, so a
+  // supplier saw Arabic layout with Western digits - the one place in the UI that disagreed.
+  it('renders Eastern Arabic digits in Arabic', () => {
+    const formatted = formatCurrency(1250, 'SYP', 'ar')
+
+    expect(formatted).toMatch(/[٠-٩]/)
+    expect(formatted).not.toMatch(/[0-9]/)
+  })
+
+  it('renders Western digits in English', () => {
+    expect(formatCurrency(1250, 'SYP', 'en-GB')).toMatch(/1,250/)
+  })
+
+  it('falls back to a bare amount rather than throwing on an unknown currency code', () => {
+    expect(formatCurrency(10, 'NOT-A-CODE', 'en-GB')).toBe('10')
+  })
+
+  it('is empty for a missing amount', () => {
+    expect(formatCurrency(null, 'SYP', 'ar')).toBe('')
+    expect(formatCurrency(undefined, 'SYP', 'ar')).toBe('')
   })
 })

@@ -1,3 +1,4 @@
+import { formatCurrency } from '../lib/datetime'
 import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -275,7 +276,7 @@ export function OfferingCatalogPage() {
                   <TableCell>{unitLabel(o.unitOfMeasureCode)}</TableCell>
                   <TableCell>
                     {o.priceAmount !== null
-                      ? new Intl.NumberFormat(isArabic ? 'ar-SY-u-nu-latn' : 'en-US', { style: 'currency', currency: o.currencyCode ?? 'USD' }).format(o.priceAmount)
+                      ? formatCurrency(o.priceAmount, o.currencyCode, isArabic ? 'ar' : 'en-GB')
                       : '—'}
                   </TableCell>
                   <TableCell>
