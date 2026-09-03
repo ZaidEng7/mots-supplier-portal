@@ -38,6 +38,53 @@ public static class SupplierTestClient
         return Task.FromResult(raw);
     }
 
+    /// <summary>
+    /// A SECOND user belonging to the same supplier, for the tests that need to prove a screen is
+    /// scoped to the supplier rather than to the person reading it.
+    ///
+    /// <para>Seeded through UserManager rather than the invite flow: the invite is a separate
+    /// feature with its own tests, and driving it here would make a scoping test fail whenever
+    /// invitations broke.</para>
+    /// </summary>
+    public static async Task<HttpClient> CreateColleagueAsync(PostgresApiFixture fixture, Guid supplierId)
+    {
+        var client = fixture.CreateClient();
+        var email = $"colleague-{Guid.NewGuid():N}@supplier.example";
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+            var user = new AppUser
+            {
+                Id = Guid.CreateVersion7(),
+                UserName = email,
+                Email = email,
+                FullName = "Integration Colleague",
+                EmailConfirmed = true,
+                IsActive = true,
+                SupplierId = supplierId,
+                OrganizationId = null,
+            };
+
+            var created = await userManager.CreateAsync(user, Password);
+            if (!created.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    "Could not create the colleague: " + string.Join(", ", created.Errors.Select(e => e.Description)));
+            }
+
+            await userManager.AddToRoleAsync(user, Roles.SupplierUser);
+        }
+
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = Password });
+        var body = await login.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", body.GetProperty("accessToken").GetString());
+
+        return client;
+    }
+
     public static async Task<HttpClient> CreateVerifiedSupplierAsync(PostgresApiFixture fixture, string displayNameEn) =>
         (await CreateVerifiedSupplierWithEmailAsync(fixture, displayNameEn)).Client;
 
