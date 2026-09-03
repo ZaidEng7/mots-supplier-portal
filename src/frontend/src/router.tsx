@@ -28,6 +28,7 @@ const OfferingsPage = lazy(() => import('./routes/onboarding/OfferingsPage').the
 const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: m.TeamPage })))
 const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').then((m) => ({ default: m.OfferingCatalogPage })))
 const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
 const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
@@ -226,6 +227,23 @@ const offeringCatalogRoute = createRoute({
   component: OfferingCatalogPage,
 })
 
+// SCR-900: "/notifications", all authenticated personas. Registered under BOTH shells rather than
+// once, because the two shells are two different URL spaces - a back-office user has no route under
+// the supplier layout at all. SCREEN-INVENTORY names one path; this is the same SCREEN reached
+// through each persona's own shell, which is the closest the router can come to that without giving
+// staff a supplier chrome.
+const notificationsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/notifications',
+  component: NotificationsPage,
+})
+
+const backOfficeNotificationsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/notifications',
+  component: NotificationsPage,
+})
+
 const settingsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/settings',
@@ -365,11 +383,12 @@ const routeTree = rootRoute.addChildren([
     teamRoute,
     offeringCatalogRoute,
     settingsRoute,
+    notificationsRoute,
     supplierRfqListRoute,
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

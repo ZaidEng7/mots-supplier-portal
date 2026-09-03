@@ -7,6 +7,21 @@ const resources = {
     translation: {
       appName: 'بوابة الموردين',
       nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
+      // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
+      // transcribed - reported as a documentation gap rather than presented as approved.
+      notifications: {
+        title: 'الإشعارات',
+        emptyTitle: 'لا توجد إشعارات بعد',
+        emptyBody: 'ستظهر هنا التحديثات المتعلقة بطلبات عروض الأسعار وعروضك والترسيات.',
+        markAllRead: 'تعليم الكل كمقروء',
+        markRead: 'تعليم كمقروء',
+        open: 'فتح',
+        loadFailed: 'تعذر تحميل الإشعارات',
+        retry: 'إعادة المحاولة',
+        bell: 'الإشعارات',
+        bellWithCount: 'الإشعارات، {{count}} غير مقروء',
+      },
       common: { loading: 'جاري التحميل...', cancel: 'إلغاء', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
       // UX-WRITING.md §7 "Status labels (aligned to canonical state machines)" - transcribed
       // verbatim, not authored here. §7 is "the single source for chip text and for the accessible
@@ -848,6 +863,18 @@ const resources = {
     translation: {
       appName: 'Supplier Portal',
       nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      notifications: {
+        title: 'Notifications',
+        emptyTitle: 'No notifications yet',
+        emptyBody: 'Updates about RFQs, your proposals and awards will appear here.',
+        markAllRead: 'Mark all as read',
+        markRead: 'Mark as read',
+        open: 'Open',
+        loadFailed: "Couldn't load notifications",
+        retry: 'Try again',
+        bell: 'Notifications',
+        bellWithCount: 'Notifications, {{count}} unread',
+      },
       common: { loading: 'Loading...', cancel: 'Cancel', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
       // See the Arabic block above for why these are transcription, not authorship.
       status: {

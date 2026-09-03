@@ -103,7 +103,9 @@ test('the route denominator is what the router actually declares, not what this 
   // 31 (EPIC-11): /back-office/rfqs/$referenceCode/my-evaluation added.
   // 32 (EPIC-12): /back-office/rfqs/$referenceCode/comparison added.
   // 33 (EPIC-14): /back-office/rfqs/$referenceCode/award added.
-  expect(routes.length).toBe(33)
+  // 35 (EPIC-15/SCR-900): /notifications and /back-office/notifications added - one screen, reached
+  // through each persona's own shell, because the two shells are two different URL spaces.
+  expect(routes.length).toBe(35)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
