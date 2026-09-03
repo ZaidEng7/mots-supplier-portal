@@ -603,11 +603,127 @@ public sealed class Rfq : IVersionedAggregate
     /// stub OpenEvaluation's own doc comment already documents for the states after it. Routing an
     /// Award for approval is the one real trigger THIS epic needs into AwardApproval, so it accepts
     /// UnderEvaluation directly rather than a three-state chain nothing can produce yet.</summary>
-    public void EnterAwardApproval()
+    /// <summary>
+    /// T3-36. BUSINESS-PROCESSES.md §3.1: "UnderEvaluation | Clarification | Request clarification |
+    /// `procurement_officer`,`evaluator` / `rfq.clarify` | Reason; targeted supplier(s)".
+    ///
+    /// <para>This is the EVALUATION-phase clarification, not the submission-window Q&amp;A that
+    /// <see cref="PostClarificationQuestion"/> serves. The two share a word and nothing else: one pauses the
+    /// evaluation of an RFQ, the other is a question a supplier asks before bidding.</para>
+    /// </summary>
+    /// <summary>
+    /// §3's rule: "Illegal transitions return 409 Conflict … listing the current state and the
+    /// allowed next states."
+    ///
+    /// <para>Declared here, beside the transitions, rather than in an endpoint: a machine whose
+    /// legal moves live somewhere other than the aggregate has two answers to the same question, and
+    /// the one clients see is the one nobody runs. T3-36 makes this load-bearing - Clarification,
+    /// Shortlisting and Recommendation change what follows UnderEvaluation, and a stale list would
+    /// tell a caller the old answer.</para>
+    /// </summary>
+    public static IReadOnlyList<RfqState> AllowedNextFrom(RfqState state) => state switch
+    {
+        RfqState.Draft => [RfqState.InternalReview, RfqState.Cancelled],
+        RfqState.InternalReview => [RfqState.Draft, RfqState.Approved, RfqState.Cancelled],
+        RfqState.Approved => [RfqState.Published, RfqState.Cancelled],
+        RfqState.Published => [RfqState.SubmissionOpen, RfqState.Cancelled],
+        RfqState.SubmissionOpen => [RfqState.SubmissionClosed, RfqState.Cancelled],
+        RfqState.SubmissionClosed => [RfqState.UnderEvaluation, RfqState.Cancelled],
+
+        // T3-36: three states that were previously unreachable now sit here. UnderEvaluation also
+        // still lists AwardApproval, because rows written before this change reach it directly.
+        RfqState.UnderEvaluation =>
+            [RfqState.Clarification, RfqState.Shortlisting, RfqState.AwardApproval, RfqState.Cancelled],
+        RfqState.Clarification => [RfqState.UnderEvaluation, RfqState.Cancelled],
+        RfqState.Shortlisting => [RfqState.Recommendation, RfqState.Cancelled],
+        RfqState.Recommendation => [RfqState.AwardApproval, RfqState.Cancelled],
+
+        RfqState.AwardApproval => [RfqState.Awarded, RfqState.Recommendation, RfqState.Cancelled],
+        RfqState.Awarded => [RfqState.Completed],
+
+        // Terminal. Cancel is reachable from "any pre-Awarded state", which these are not.
+        RfqState.Completed or RfqState.Cancelled => [],
+        _ => [],
+    };
+
+    public void RequestClarification(string reason)
     {
         if (State != RfqState.UnderEvaluation)
         {
-            throw new DomainException($"Cannot enter award approval from state '{State}'; only 'UnderEvaluation' is valid.");
+            throw new DomainException($"Cannot request clarification from state '{State}'; only 'UnderEvaluation' is valid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A reason is required to request clarification.");
+        }
+
+        State = RfqState.Clarification;
+    }
+
+    /// <summary>
+    /// §3.1: "Clarification | UnderEvaluation | Clarification resolved | `procurement_officer` /
+    /// `rfq.clarify` | Response received or window elapsed".
+    ///
+    /// <para>The guard the table names - "response received or window elapsed" - is not checkable
+    /// here: neither fact lives on this aggregate. The state guard is what this method can enforce,
+    /// and the officer's judgement is what the transition records. Named rather than pretended.</para>
+    /// </summary>
+    public void ResolveClarification()
+    {
+        if (State != RfqState.Clarification)
+        {
+            throw new DomainException($"Cannot resolve clarification from state '{State}'; only 'Clarification' is valid.");
+        }
+
+        State = RfqState.UnderEvaluation;
+    }
+
+    /// <summary>
+    /// §3.1: "UnderEvaluation | Shortlisting | Begin shortlisting |
+    /// `procurement_officer`,`procurement_manager` / `evaluation.consolidate` | Evaluation
+    /// Consolidated/Finalized (§5)".
+    ///
+    /// <para>The guard is cross-aggregate - it is the EVALUATION that must be consolidated - so the
+    /// caller checks it, exactly as every other cross-aggregate precondition in this codebase is
+    /// checked by the handler that holds both aggregates.</para>
+    /// </summary>
+    public void BeginShortlisting()
+    {
+        if (State != RfqState.UnderEvaluation)
+        {
+            throw new DomainException($"Cannot begin shortlisting from state '{State}'; only 'UnderEvaluation' is valid.");
+        }
+
+        State = RfqState.Shortlisting;
+    }
+
+    /// <summary>
+    /// §3.1: "Shortlisting | Recommendation | Record recommendation |
+    /// `procurement_officer`,`procurement_manager` / `award.recommend` | ≥1 proposal passes
+    /// thresholds; justification captured".
+    /// </summary>
+    public void RecordRecommendation()
+    {
+        if (State != RfqState.Shortlisting)
+        {
+            throw new DomainException($"Cannot record a recommendation from state '{State}'; only 'Shortlisting' is valid.");
+        }
+
+        State = RfqState.Recommendation;
+    }
+
+    public void EnterAwardApproval()
+    {
+        // §3.1's own row is "Recommendation | AwardApproval | Route for approval". UnderEvaluation is
+        // ALSO accepted, and deliberately: every RFQ that exists today reached AwardApproval from
+        // UnderEvaluation, because the three intermediate states were unreachable until T3-36. A row
+        // written before this change must keep transitioning exactly as it did - there is no backfill,
+        // and a guard that only admitted the new path would strand it.
+        if (State is not (RfqState.Recommendation or RfqState.UnderEvaluation))
+        {
+            throw new DomainException(
+                $"Cannot enter award approval from state '{State}'; only 'Recommendation' or 'UnderEvaluation' is valid.");
         }
         State = RfqState.AwardApproval;
     }

@@ -251,6 +251,26 @@ public sealed class ConsolidateEvaluationHandler(AppDbContext db, IScopeContext 
             db.Entry(result).State = EntityState.Added;
         }
 
+        // T3-36. §3.1: "UnderEvaluation | Shortlisting | Begin shortlisting |
+        // `procurement_officer`,`procurement_manager` / `evaluation.consolidate` | Evaluation
+        // Consolidated/Finalized". The permission the table names for that transition is THIS
+        // operation's permission, and the guard it names is this operation's outcome - so
+        // consolidating is the trigger, rather than a second endpoint an officer would have to
+        // remember to call to keep the RFQ's state honest.
+        if (rfq.State == RfqState.UnderEvaluation)
+        {
+            rfq.BeginShortlisting();
+
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqShortlistingStarted,
+                await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+                $"{NotificationTypes.RfqShortlistingStarted}:{rfq.Id}",
+                new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
+            await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_shortlisting_started", scope.UserId,
+                referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.UnderEvaluation),
+                toState: nameof(RfqState.Shortlisting), ct: ct);
+        }
+
         // §3.3 "EvaluatorSubmitted -> Consolidated | In-app to committee".
         NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationConsolidated,
             await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),

@@ -18,6 +18,13 @@ public static class NotificationTypes
     public const string RfqSubmissionOpened = "rfq.submission_opened";
     public const string RfqSubmissionClosed = "rfq.submission_closed";
 
+    // T3-36: three states became reachable, and §3.1 names a notification for each transition into
+    // and out of them.
+    public const string RfqClarificationRequested = "rfq.clarification_requested";
+    public const string RfqClarificationResolved = "rfq.clarification_resolved";
+    public const string RfqShortlistingStarted = "rfq.shortlisting_started";
+    public const string RfqRecommendationRecorded = "rfq.recommendation_recorded";
+
     // ---- Evaluation (BUSINESS-PROCESSES §3.3) ----
     public const string EvaluationOpened = "evaluation.opened";
     public const string EvaluatorSubmitted = "evaluation.evaluator_submitted";
@@ -42,6 +49,7 @@ public static class NotificationTypes
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         RfqSubmittedForReview, RfqReturnedForEdits, RfqApproved, RfqSubmissionOpened, RfqSubmissionClosed,
+        RfqClarificationRequested, RfqClarificationResolved, RfqShortlistingStarted, RfqRecommendationRecorded,
         EvaluationOpened, EvaluatorSubmitted, EvaluationConsolidated, EvaluationFinalized,
         EvaluationReopened, EvaluatorRecused,
         AwardRecommended, AwardRoutedForApproval, AwardApproved, AwardRejected, AwardReRecommended,

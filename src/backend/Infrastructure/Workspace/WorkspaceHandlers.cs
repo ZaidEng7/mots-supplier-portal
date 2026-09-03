@@ -30,6 +30,11 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
     [
         RfqState.Draft, RfqState.InternalReview, RfqState.Approved, RfqState.Published,
         RfqState.SubmissionOpen, RfqState.SubmissionClosed, RfqState.UnderEvaluation,
+        // T3-36: reachable now. They were excluded because no code path could produce them, and
+        // leaving them out AFTER they became reachable would be worse than the empty columns that
+        // prompted the ticket - an RFQ sitting in Clarification would have no current stage at all,
+        // and the tracker would mark every stage up to it complete.
+        RfqState.Clarification, RfqState.Shortlisting, RfqState.Recommendation,
         RfqState.AwardApproval, RfqState.Awarded, RfqState.Completed,
     ];
 

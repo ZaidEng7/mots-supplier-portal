@@ -187,6 +187,8 @@ public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAudi
                 command.PublishAt, command.SubmissionOpensAt, command.SubmissionClosesAt,
                 command.ClarificationDeadlineAt, command.EvaluationTargetDate);
         }
+        // No IllegalTransition branch here: creation has no current state to report an allowed-next
+        // set against, so every refusal from Rfq.Create is a 400 about the request.
         catch (DomainException ex)
         {
             return new RfqMutationResult.InvalidState(ex.Message);
@@ -215,7 +217,7 @@ public sealed class UpdateRfqBasicsHandler(AppDbContext db, IScopeContext scope,
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_updated", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
@@ -252,7 +254,7 @@ public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, I
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         db.RfqItems.Add(item);
@@ -272,7 +274,7 @@ public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, I
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_item_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
@@ -295,7 +297,7 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         db.Requirements.Add(requirement);
@@ -315,7 +317,7 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
@@ -340,7 +342,7 @@ public sealed class ManageRfqAttachmentHandler(AppDbContext db, IScopeContext sc
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         db.RfqAttachments.Add(attachment);
@@ -360,7 +362,7 @@ public sealed class ManageRfqAttachmentHandler(AppDbContext db, IScopeContext sc
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_attachment_removed", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
@@ -415,7 +417,7 @@ public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_evaluation_template_bound", scope.UserId,
@@ -439,7 +441,7 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex, RfqState.InternalReview);
         }
 
         // Same client-assigned-GUIDv7 gotcha as every other child Add in this codebase
@@ -479,7 +481,7 @@ public sealed class ReturnRfqForEditsHandler(AppDbContext db, IScopeContext scop
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex, RfqState.Draft);
         }
 
         // §3.1 "InternalReview -> Draft | In-app to officer". The OFFICER POOL, not the individual:
@@ -511,7 +513,7 @@ public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAud
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex, RfqState.Approved);
         }
 
         // §3.1 "InternalReview -> Approved | In-app to officer".
@@ -558,7 +560,7 @@ public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAud
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex, RfqState.Published);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_published", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -581,6 +583,79 @@ public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAud
 
 /// <summary>FEAT-07.6/BUSINESS-PROCESSES.md §3.1: manual early close of the submission window
 /// (the scheduled deadline-driven close is RfqTimelineJob, a system actor, not this handler).</summary>
+/// <summary>
+/// T3-36. §3.1: "UnderEvaluation | Clarification | Request clarification |
+/// `procurement_officer`,`evaluator` / `rfq.clarify` | Reason; targeted supplier(s)".
+///
+/// <para>Same shape as every other transition handler in this file - load scoped, call the
+/// aggregate, catch the two refusal kinds, audit with from/to states, save. Deliberately not a new
+/// pattern: three states becoming reachable is a gap in the machine, not a reason to invent a second
+/// way of moving through it.</para>
+/// </summary>
+public sealed class RequestRfqClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IRequestRfqClarificationHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(RequestRfqClarificationCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.RequestClarification(command.Reason);
+        }
+        catch (DomainException ex)
+        {
+            return RfqTransitions.Refusal(rfq, ex, RfqState.Clarification);
+        }
+
+        // §3.1's notification column: "Email + in-app to targeted supplier". The invitees are who the
+        // clarification is addressed to, and EPIC-15's catalogue is where the words live.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqClarificationRequested,
+            await NotificationRecipients.RfqInviteeUsersAsync(db, rfq.Id, ct),
+            $"{NotificationTypes.RfqClarificationRequested}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_requested", scope.UserId,
+            referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.UnderEvaluation),
+            toState: nameof(RfqState.Clarification), reason: command.Reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}
+
+/// <summary>T3-36. §3.1: "Clarification | UnderEvaluation | Clarification resolved".</summary>
+public sealed class ResolveRfqClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IResolveRfqClarificationHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(ResolveRfqClarificationCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.ResolveClarification();
+        }
+        catch (DomainException ex)
+        {
+            return RfqTransitions.Refusal(rfq, ex, RfqState.UnderEvaluation);
+        }
+
+        // §3.1: "In-app to committee".
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqClarificationResolved,
+            await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.RfqClarificationResolved}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_resolved", scope.UserId,
+            referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.Clarification),
+            toState: nameof(RfqState.UnderEvaluation), ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}
+
 public sealed class CloseRfqSubmissionHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICloseRfqSubmissionHandler
 {
     public async Task<RfqMutationResult> HandleAsync(CloseRfqSubmissionCommand command, CancellationToken ct)
@@ -594,7 +669,7 @@ public sealed class CloseRfqSubmissionHandler(AppDbContext db, IScopeContext sco
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex, RfqState.SubmissionClosed);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submission_closed", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -622,7 +697,7 @@ public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAudi
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex, RfqState.Cancelled);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_cancelled", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -684,7 +759,7 @@ public sealed class InviteSupplierHandler(AppDbContext db, IScopeContext scope, 
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         db.Invitations.Add(invitation);
@@ -767,7 +842,7 @@ public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext sc
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_answered", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -824,7 +899,7 @@ public sealed class PublishClarificationHandler(AppDbContext db, IScopeContext s
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_published", scope.UserId,
@@ -855,7 +930,7 @@ public sealed class IssueAddendumHandler(AppDbContext db, IScopeContext scope, I
         }
         catch (DomainException ex)
         {
-            return new RfqMutationResult.InvalidState(ex.Message);
+            return RfqTransitions.Refusal(rfq, ex);
         }
 
         db.Addenda.Add(addendum);

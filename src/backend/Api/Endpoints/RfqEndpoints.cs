@@ -65,6 +65,17 @@ public sealed record CloseSubmissionRequest(string? Reason);
 
 public sealed record CancelRfqRequest(string Reason);
 
+/// <summary>T3-36. §3.1's guard for "Request clarification" is "Reason; targeted supplier(s)".</summary>
+public sealed record RequestClarificationTransitionRequest(string Reason);
+
+public sealed class RequestClarificationTransitionRequestValidator : AbstractValidator<RequestClarificationTransitionRequest>
+{
+    public RequestClarificationTransitionRequestValidator()
+    {
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
+    }
+}
+
 public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqRequest>
 {
     public CancelRfqRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
@@ -102,6 +113,9 @@ public static class RfqEndpoints
     {
         RfqMutationResult.Success s => Results.Ok(s.Rfq),
         RfqMutationResult.NotFoundOrOutOfScope => Results.NotFound(),
+        // §3: "Illegal transitions return 409 Conflict … listing the current state and the allowed
+        // next states." Every RFQ transition answered 400 before T3-36.
+        RfqMutationResult.IllegalTransition illegal => new IllegalTransitionResult(illegal.CurrentState, illegal.Message),
         RfqMutationResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
         RfqMutationResult.InvalidCategory => Results.BadRequest(new { error = "invalid_category" }),
         RfqMutationResult.InvalidUnitOfMeasure => Results.BadRequest(new { error = "invalid_unit_of_measure" }),
@@ -379,6 +393,36 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.RfqClose)
         .RequireIfMatch()
         .WithName("CloseRfqSubmission");
+
+        // T3-36. §3.1's two clarification transitions. Named POST sub-resources, per §3's rule of
+        // thumb: "if an operation moves an aggregate through its state machine, it is a named
+        // transition endpoint". Distinct paths from /clarifications, which is the supplier Q&A.
+        group.MapPost("/{referenceCode}/request-clarification", async (
+            string referenceCode, RequestClarificationTransitionRequest request,
+            IValidator<RequestClarificationTransitionRequest> validator,
+            IRequestRfqClarificationHandler handler, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapMutation(await handler.HandleAsync(new RequestRfqClarificationCommand(referenceCode, request.Reason), ct));
+        })
+        .RequirePermission(Permissions.RfqClarify)
+        // NO RequireIfMatch, and this is a deliberate exception to §8.1's "transition POST" rule
+        // rather than an oversight. §3.1 names `evaluator` as an actor for this transition, and an
+        // evaluator holds neither `rfq.read` nor, necessarily, an OrganizationId - so they cannot
+        // GET the RFQ, cannot obtain its ETag, and would be answered 428 on a route the process
+        // document says is theirs. §8.1's guard exists to stop lost updates; neither of these
+        // transitions carries state that another writer could overwrite. Reported as the permission
+        // gap it is rather than closed by widening what an evaluator can read.
+        .WithName("RequestRfqClarification");
+
+        group.MapPost("/{referenceCode}/resolve-clarification", async (
+            string referenceCode, IResolveRfqClarificationHandler handler, CancellationToken ct) =>
+            MapMutation(await handler.HandleAsync(new ResolveRfqClarificationCommand(referenceCode), ct)))
+        .RequirePermission(Permissions.RfqClarify)
+        // Same exception, same reason - see RequestRfqClarification above.
+        .WithName("ResolveRfqClarification");
 
         group.MapPost("/{referenceCode}/cancel", async (
             string referenceCode,

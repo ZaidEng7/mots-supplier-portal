@@ -213,7 +213,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
 
         var approve = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
-        approve.StatusCode.Should().Be(HttpStatusCode.OK);
+        approve.StatusCode.Should().Be(HttpStatusCode.OK, await approve.Content.ReadAsStringAsync());
         var approveBody = await approve.Content.ReadFromJsonAsync<JsonElement>();
         approveBody.GetProperty("state").GetString().Should().Be("Approved");
     }
