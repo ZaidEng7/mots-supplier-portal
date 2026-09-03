@@ -67,7 +67,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ))}
         {/* bottom-20 on mobile clears the fixed MobileTabBar (SupplierShell, DESIGN-SYSTEM.md
             §5.5); back to bottom-4 at md+ where that bar doesn't render. */}
-        <RadixToast.Viewport className="fixed bottom-20 end-4 z-50 flex w-96 max-w-full flex-col gap-2 outline-none md:bottom-4" />
+        {/*
+          max-w-[calc(100%-2rem)], not max-w-full. The viewport is inset 1rem from the end edge, and
+          `max-w-full` measures against the full viewport width without accounting for that inset -
+          so at 320px the toast resolved to 320px wide starting 16px in, and pushed the PAGE 16px
+          sideways. Every route was affected, on the narrowest width ACCESSIBILITY.md supports.
+
+          Found by the 320px reflow check added for the reports screen, which is the first check in
+          this project to look at that width at all. Pre-existing and unrelated to that screen.
+        */}
+        <RadixToast.Viewport className="fixed bottom-20 end-4 z-50 flex w-96 max-w-[calc(100%-2rem)] flex-col gap-2 outline-none md:bottom-4" />
       </RadixToast.Provider>
     </ToastContext.Provider>
   )

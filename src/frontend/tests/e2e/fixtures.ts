@@ -170,6 +170,26 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/auth/verify-email' && method === 'POST') return route.fulfill({ json: {} })
     // Task #7/Stage C: list endpoints return real arrays, not the generic {} fallback below -
     // an empty object crashes OrganizationsPage's .map() the same way any list page would.
+    // EPIC-19 reports. Real shapes, not {}: the page maps over four arrays, and an empty object
+    // renders the error state - which would make an axe scan or a reflow measurement a scan of an
+    // error message rather than of the screen.
+    if (p === '/api/v1/reports/procurement') return route.fulfill({ json: {
+      rfqsByState: [{ key: 'Draft', count: 6 }, { key: 'Published', count: 12 }],
+      cycleTimes: [
+        { key: 'ReviewToApproved', sampleSize: 24, medianHours: 18.5 },
+        { key: 'EvaluationToAward', sampleSize: 0, medianHours: null },
+      ],
+      awardsByState: [{ key: 'Recommended', count: 3 }],
+      totalRfqs: 18,
+      coverageFloor: '2026-06-05T09:00:00Z',
+    } })
+    if (p === '/api/v1/reports/compliance') return route.fulfill({ json: {
+      suppliersByLifecycleState: [{ key: 'Active', count: 41 }],
+      documentsByState: [{ key: 'ExpiringSoon', count: 7 }, { key: 'Approved', count: 88 }],
+      totalSuppliers: 41,
+      documentsExpiringSoon: 7,
+      documentsExpired: 2,
+    } })
     if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
     // Closure batch (EPIC-01/06): same class of bug - RolesPage's roles.flatMap() and
     // OfferingCatalogPage's offerings.map() both crash on {} the same way OrganizationsPage did.

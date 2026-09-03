@@ -56,6 +56,9 @@ export default defineConfig({
     // NFR-A11Y: prefers-reduced-motion guard in index.css - proves the media query actually
     // changes rendered transition duration, not just that the rule text exists.
     chromeProject('reduced-motion', 'reduced-motion.spec.ts'),
+    // ACCESSIBILITY.md's reflow clause at 320px, on the reports screen this batch added - four
+    // tables, which is the control most likely to force a page to scroll sideways.
+    chromeProject('reports-reflow', 'reports-reflow.spec.ts'),
     // Task #22/NFR-A11Y-002: real keyboard-only interaction (Tab/Enter/Escape/Arrow), not axe's
     // static DOM/ARIA checks - axe cannot verify tab order, focus traps, or that a control is
     // operable rather than merely focusable.
