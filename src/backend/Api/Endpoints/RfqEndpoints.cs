@@ -349,6 +349,30 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.RfqEdit)
         .WithName("AddRfqAttachment");
 
+        // T3-01: the read path FEAT-07.2 never had. Upload and delete existed; a buyer could attach
+        // the specification an invited supplier is meant to bid against, and that supplier could
+        // never open it.
+        //
+        // Gated on rfq.read rather than rfq.edit: an invited SUPPLIER must reach this, and they hold
+        // no editing permission on a buyer's RFQ. Row scope is the handler's - it is "your
+        // organization's RFQ" for staff and "an RFQ you were invited to, once published" for a
+        // supplier, and neither is expressible as a declarative policy.
+        group.MapGet("/{referenceCode}/attachments/{attachmentId:guid}/download-url", async (
+            string referenceCode,
+            Guid attachmentId,
+            IGetRfqAttachmentDownloadUrlHandler handler,
+            CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(referenceCode, attachmentId, ct);
+            return result switch
+            {
+                RfqAttachmentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                _ => Results.NotFound(),
+            };
+        })
+        .RequirePermission(Permissions.RfqRead)
+        .WithName("GetRfqAttachmentDownloadUrl");
+
         group.MapDelete("/{referenceCode}/attachments/{attachmentId:guid}", async (
             string referenceCode, Guid attachmentId, IManageRfqAttachmentHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRfqAttachmentCommand(referenceCode, attachmentId), ct)))

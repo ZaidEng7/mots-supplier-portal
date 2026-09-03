@@ -120,4 +120,57 @@ public sealed class OfferingBuyerSearchTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
+
+    [Fact]
+    public async Task A_wildcard_in_the_search_box_is_a_character_not_a_pattern()
+    {
+        // Interpolated raw into $"%{query}%", the caller's own `%` and `_` were LIKE syntax rather
+        // than text: `?query=%` matched every row and `a_c` matched "abc". The value was always a
+        // parameter, so this is not injection - it is that the caller's string stopped meaning what
+        // it says.
+        var name = $"Wildcard Search {Guid.NewGuid():N}"[..30];
+        var (supplierClient, _) = await ActiveSupplierAsync(name);
+
+        var marker = $"Zqx{Guid.NewGuid():N}"[..12];
+        await supplierClient.PostAsJsonAsync("/api/v1/suppliers/me/offerings", ValidPayload($"{marker} Tour"));
+
+        var buyer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer);
+
+        // Control: a real substring finds it, so the searching itself works and the negatives below
+        // are about wildcards rather than about a search that returns nothing.
+        var hit = await buyer.GetFromJsonAsync<JsonElement>($"/api/v1/offerings/search?query={marker}");
+        hit.EnumerateArray().Should().ContainSingle(o => o.GetProperty("nameEn").GetString() == $"{marker} Tour");
+
+        // A bare `%` is now a literal percent sign, which nothing here contains - so it matches
+        // NOTHING rather than everything.
+        var wildcard = await buyer.GetFromJsonAsync<JsonElement>("/api/v1/offerings/search?query=%25");
+        wildcard.EnumerateArray().Should().NotContain(o => o.GetProperty("nameEn").GetString() == $"{marker} Tour",
+            "'%' is a character the caller typed, not 'match everything'");
+
+        // And `_` is a literal underscore, not "any single character".
+        var underscore = await buyer.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/offerings/search?query={marker[..3]}_{marker[4..]}");
+        underscore.EnumerateArray().Should().NotContain(o => o.GetProperty("nameEn").GetString() == $"{marker} Tour",
+            "'_' is a character, not a single-character wildcard");
+    }
+
+    [Fact]
+    public async Task A_literal_percent_in_a_name_is_still_findable()
+    {
+        // The other direction, and the reason escaping has to handle the escape character first: a
+        // supplier whose offering genuinely contains '%' must still be searchable for it.
+        var name = $"Percent Search {Guid.NewGuid():N}"[..30];
+        var (supplierClient, _) = await ActiveSupplierAsync(name);
+
+        var marker = $"Pct{Guid.NewGuid():N}"[..10];
+        await supplierClient.PostAsJsonAsync("/api/v1/suppliers/me/offerings", ValidPayload($"{marker} 50% Discount Tour"));
+
+        var buyer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer);
+        var results = await buyer.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/offerings/search?query={Uri.EscapeDataString($"{marker} 50%")}");
+
+        results.EnumerateArray().Should().ContainSingle(
+            o => o.GetProperty("nameEn").GetString() == $"{marker} 50% Discount Tour",
+            "escaping must make '%' searchable, not unsearchable");
+    }
 }
