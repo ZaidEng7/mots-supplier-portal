@@ -537,4 +537,76 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
+
+    /// <summary>
+    /// BUSINESS-PROCESSES.md §4.1's withdrawal row, quoted in full because it is the whole basis for
+    /// this being a defect rather than correct behaviour:
+    ///
+    /// <para><i>"Draft / Submitted | Withdrawn | Withdraw | supplier_admin / proposal.withdraw |
+    /// RFQ still SubmissionOpen (window open) | Release from consideration; <b>re-submission allowed
+    /// while window open (new draft)</b> | ..."</i></para>
+    ///
+    /// <para>The documents permit re-entry explicitly, and name its mechanism: a NEW DRAFT, not an
+    /// un-withdrawal of the old proposal. So the withdrawn row stays withdrawn - it is the record
+    /// that a withdrawal happened - and the supplier gets a fresh one.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_supplier_who_withdraws_can_start_a_new_draft_while_the_window_is_open()
+    {
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"Rejoin {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"RejoinOther {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, requiredItemId, _, mandatoryRequirementId) =
+            await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Rejoin RFQ");
+
+        var firstCode = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, firstCode, requiredItemId, mandatoryRequirementId);
+        (await supplierA.PostAsync($"/api/v1/proposals/{firstCode}/submit", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var withdraw = await supplierA.PostAsJsonAsync($"/api/v1/proposals/{firstCode}/withdraw", new { reason = "Correcting a price" });
+        withdraw.StatusCode.Should().Be(HttpStatusCode.OK, await withdraw.Content.ReadAsStringAsync());
+
+        // The re-entry the table permits. Before this fix, starting again returned the WITHDRAWN
+        // proposal - which every edit path then refuses, because it is not a Draft - so a supplier
+        // who withdrew to correct a price could never bid again on that RFQ.
+        var start = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
+        start.StatusCode.Should().Be(HttpStatusCode.OK, await start.Content.ReadAsStringAsync());
+
+        var body = await start.Content.ReadFromJsonAsync<JsonElement>();
+        var secondCode = body.GetProperty("referenceCode").GetString()!;
+
+        secondCode.Should().NotBe(firstCode, "the table says a NEW draft, not an un-withdrawal");
+        body.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Draft));
+
+        // And it is a working draft, not just a row: the supplier can price and submit it. Asserting
+        // only that a Draft came back would pass on a proposal that no edit path accepts, which is
+        // the exact shape of the defect.
+        await PriceAndAnswerAsync(supplierA, secondCode, requiredItemId, mandatoryRequirementId);
+        (await supplierA.PostAsync($"/api/v1/proposals/{secondCode}/submit", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // The withdrawn proposal is still withdrawn. Re-entry must not rewrite the record that a
+        // withdrawal took place - procurement was notified of it.
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var first = await db.Proposals.AsNoTracking().FirstAsync(pr => pr.ReferenceCode == firstCode);
+        first.State.Should().Be(ProposalState.Withdrawn);
+        first.WithdrawnAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Starting_twice_without_withdrawing_still_returns_the_same_draft()
+    {
+        // The control on the other side. FEAT-09.1's start is idempotent, and the fix above must not
+        // turn a double-click into two proposals - which is the failure mode of relaxing a
+        // uniqueness rule without narrowing it.
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"Idem {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"IdemOther {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Idempotent RFQ");
+
+        var first = await supplierA.StartProposalAsync(referenceCode);
+        var second = await supplierA.StartProposalAsync(referenceCode);
+
+        second.Should().Be(first, "a second start returns the existing draft, it does not create another");
+    }
 }
