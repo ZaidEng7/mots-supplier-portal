@@ -1,4 +1,4 @@
-import { formatCurrency } from '../lib/datetime'
+import { formatCurrency, formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { Dialog } from '../components/ui/Dialog'
 import { useTranslation } from 'react-i18next'
@@ -195,7 +195,7 @@ export function SupplierProposalPage() {
               return (
                 <TableRow key={item.id}>
                   <TableCell>{isArabic ? item.titleAr : item.titleEn}{item.isOptional ? null : <span aria-hidden="true"> *</span>}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
                   <TableCell>{priced ? formatCurrency(priced.unitPrice, proposal.currencyCode, locale) : '—'}</TableCell>
                   <TableCell>{priced ? formatCurrency(priced.lineTotal, proposal.currencyCode, locale) : '—'}</TableCell>
                   {isDraft ? (

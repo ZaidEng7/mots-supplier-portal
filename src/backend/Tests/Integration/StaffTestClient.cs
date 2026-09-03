@@ -35,7 +35,12 @@ public static class StaffTestClient
     /// which is correct for every non-RFQ staff test but means "no organization, no RFQ access" -
     /// same shape as scope.SupplierId is null meaning "no supplier, no access" on the supplier
     /// side. Callers testing RFQ endpoints must use this overload with a real Organization's Id.</summary>
-    public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role, Guid? organizationId)
+    public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role, Guid? organizationId) =>
+        (await CreateWithEmailAsync(fixture, role, organizationId)).Client;
+
+    /// <summary>The same user, with the generated email returned so a caller can resolve its id.</summary>
+    public static async Task<(HttpClient Client, string Email)> CreateWithEmailAsync(
+        PostgresApiFixture fixture, string role, Guid? organizationId)
     {
         var client = fixture.CreateClient();
         var email = $"staff-{Guid.NewGuid():N}@ministry.example";
@@ -74,7 +79,7 @@ public static class StaffTestClient
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", body.GetProperty("accessToken").GetString());
 
-        return client;
+        return (client, email);
     }
 
     /// <summary>EPIC-11: evaluator-assignment tests need the real UserId to assign, not just an

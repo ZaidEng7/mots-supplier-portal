@@ -14,4 +14,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- EPIC-15's copy catalogue. Embedded for the same reason §7.2's is: one copy, unmodifiable in
+         a deployed environment without a rebuild, loadable without a file path. -->
+    <EmbeddedResource Include="Notifications\NotificationCatalogue.jsonc" />
+  </ItemGroup>
+
 </Project>

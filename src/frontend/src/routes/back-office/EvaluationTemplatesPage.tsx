@@ -1,3 +1,4 @@
+import { formatNumber } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -17,7 +18,8 @@ const SCORING_TYPES: ScoringType[] = ['Numeric', 'Scale', 'Boolean', 'Formula']
  * both domain invariants (EvaluationTemplate.cs); this page surfaces the exact refusal message the
  * domain raises rather than re-deriving validation client-side. */
 export function EvaluationTemplatesPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
@@ -142,7 +144,7 @@ export function EvaluationTemplatesPage() {
                       <TableRow key={c.id}>
                         <TableCell>{c.nameEn}</TableCell>
                         <TableCell>{c.dimension}</TableCell>
-                        <TableCell>{c.weight}</TableCell>
+                        <TableCell>{formatNumber(c.weight, locale, 0)}</TableCell>
                         <TableCell>{c.maxScore}</TableCell>
                       </TableRow>
                     ))}

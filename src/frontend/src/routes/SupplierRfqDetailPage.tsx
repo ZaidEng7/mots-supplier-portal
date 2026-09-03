@@ -1,3 +1,4 @@
+import { formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +14,7 @@ export function SupplierRfqDetailPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
+  const locale = isArabic ? 'ar' : 'en-GB'
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const [declineReason, setDeclineReason] = useState('')
@@ -81,7 +83,7 @@ export function SupplierRfqDetailPage() {
                 <TableRow key={item.id}>
                   <TableCell>{item.lineNo}</TableCell>
                   <TableCell>{isArabic ? item.titleAr : item.titleEn}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

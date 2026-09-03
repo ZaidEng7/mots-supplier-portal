@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MotsSupplierPortal.Application.Common;
@@ -47,6 +49,12 @@ public sealed class AwardErpSyncJob(AppDbContext db, IErpPurchaseOrderAdapter ad
                 award.MarkErpSynced(externalRef);
                 if (rfq.State == RfqState.Awarded) rfq.Complete();
 
+                // §3.4 "ErpPoRequested -> ErpPoSynced | In-app to procurement".
+                NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardErpSynced,
+                    await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+                    $"{NotificationTypes.AwardErpSynced}:{award.Id}",
+                    new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
+
                 await auditLogger.LogAsync("Award", award.Id, "award.erp_po_synced", actorLabel: "system",
                     referenceCode: rfq.ReferenceCode, toState: nameof(ErpSyncStatus.Synced), ct: ct);
                 await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_completed", actorLabel: "system",
@@ -55,6 +63,14 @@ public sealed class AwardErpSyncJob(AppDbContext db, IErpPurchaseOrderAdapter ad
             catch (Exception ex)
             {
                 award.MarkErpFailed();
+                // §3.4 "ErpPoRequested -> ErpPoFailed | Alert to `system_admin`". Platform-level, so
+                // not organization-scoped. BRULE-099: this notification exists BECAUSE the award
+                // stands - the failure must not undo it, and the alert is how someone finds out.
+                NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardErpFailed,
+                    await NotificationRecipients.SystemAdminsAsync(db, ct),
+                    $"{NotificationTypes.AwardErpFailed}:{award.Id}:{award.ErpRetryCount}",
+                    new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
+
                 await auditLogger.LogAsync("Award", award.Id, "award.erp_po_failed", actorLabel: "system",
                     referenceCode: rfq.ReferenceCode, toState: nameof(ErpSyncStatus.Failed), ct: ct);
                 logger.LogError(ex, "Award {AwardId} ERP Purchase Order sync failed (attempt {RetryCount})", award.Id, award.ErpRetryCount);

@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -447,6 +449,13 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
         // DbUpdateConcurrencyException on the NEXT SaveChanges that touches this aggregate.
         db.RfqApprovals.Add(rfq.Approvals.Single(a => a.Decision is null));
 
+        // §3.1 "Draft -> InternalReview | In-app to `procurement_manager`". Enqueued INSIDE the
+        // transaction (D-5): a notification must not fire for a submission that rolled back.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqSubmittedForReview,
+            await NotificationRecipients.ProcurementManagersAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.RfqSubmittedForReview}:{rfq.Id}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submitted_for_review", scope.UserId,
             referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.Draft), toState: nameof(RfqState.InternalReview), ct: ct);
         await db.SaveChangesAsync(ct);
@@ -473,6 +482,12 @@ public sealed class ReturnRfqForEditsHandler(AppDbContext db, IScopeContext scop
             return new RfqMutationResult.InvalidState(ex.Message);
         }
 
+        // §3.1 "InternalReview -> Draft | In-app to officer". The OFFICER POOL, not the individual:
+        // nothing records which officer owns an RFQ. Reported as an open question.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqReturnedForEdits,
+            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.RfqReturnedForEdits}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_returned", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.InternalReview), toState: nameof(RfqState.Draft), reason: command.Comments, ct: ct);
         await db.SaveChangesAsync(ct);
@@ -499,6 +514,11 @@ public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAud
             return new RfqMutationResult.InvalidState(ex.Message);
         }
 
+        // §3.1 "InternalReview -> Approved | In-app to officer".
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqApproved,
+            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.RfqApproved}:{rfq.Id}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_approved", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(RfqState.InternalReview), toState: nameof(RfqState.Approved), ct: ct);
         await db.SaveChangesAsync(ct);

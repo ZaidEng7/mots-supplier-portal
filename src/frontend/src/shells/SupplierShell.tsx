@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { LanguageSwitch } from '../components/LanguageSwitch'
+import { NotificationBell } from '../components/NotificationBell'
 import { MobileTabBar } from '../components/MobileTabBar'
 import { Button } from '../components/ui'
 import { useAuthStore } from '../lib/authStore'
@@ -58,6 +59,7 @@ export function SupplierShell({ children }: Props) {
           </nav>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <LanguageSwitch />
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             {t('nav.logout')}

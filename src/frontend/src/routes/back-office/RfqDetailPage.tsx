@@ -334,7 +334,7 @@ export function RfqDetailPage() {
                   <TableCell>{item.lineNo}</TableCell>
                   <TableCell>{isArabic ? item.titleAr : item.titleEn}</TableCell>
                   <TableCell>{item.categoryCode}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
                   {isDraft ? (
                     <TableCell>
                       <Button size="sm" variant="ghost" onClick={() => removeItemMutation.mutate(item.id)}>{t('rfq.remove')}</Button>
@@ -607,7 +607,7 @@ export function RfqDetailPage() {
                       <TableRow key={c.id}>
                         <TableCell>{isArabic ? c.nameAr : c.nameEn}</TableCell>
                         <TableCell>{c.dimension}</TableCell>
-                        <TableCell>{c.weight}</TableCell>
+                        <TableCell>{formatNumber(c.weight, locale, 0)}</TableCell>
                         <TableCell>{c.threshold ?? '—'}</TableCell>
                         <TableCell>
                           <Badge tone={c.isFinancial ? 'warning' : 'info'}>
