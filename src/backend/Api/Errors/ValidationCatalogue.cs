@@ -34,8 +34,11 @@ public static class ValidationCatalogue
     /// </summary>
     public static string Normalize(string? field) => IndexPattern.Replace(field ?? string.Empty, "[]");
 
+    // The timeout is belt-and-braces rather than a real risk - the pattern is linear and the input is
+    // a property name from a validator, not user text - but a regex without one is a standing
+    // invitation for the next pattern here to be written the same way and actually backtrack.
     private static readonly System.Text.RegularExpressions.Regex IndexPattern =
-        new(@"\[\d+\]", System.Text.RegularExpressions.RegexOptions.Compiled);
+        new(@"\[\d+\]", System.Text.RegularExpressions.RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private static FrozenDictionary<string, Entry> Load()
     {
