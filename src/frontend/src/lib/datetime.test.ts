@@ -167,6 +167,10 @@ describe('formatCurrency', () => {
     expect(formatCurrency(10, 'NOT-A-CODE', 'en-GB')).toBe('10')
   })
 
+  it('renders a bare amount when there is no currency code, rather than inventing dollars', () => {
+    expect(formatCurrency(50, null, 'en-GB')).toBe('50')
+  })
+
   it('is empty for a missing amount', () => {
     expect(formatCurrency(null, 'SYP', 'ar')).toBe('')
     expect(formatCurrency(undefined, 'SYP', 'ar')).toBe('')

@@ -112,7 +112,9 @@ describe('ComparisonPage', () => {
     expect(within(qualificationRow).getByText('Not qualified')).toBeInTheDocument()
 
     const grandTotalRow = rows.find((r) => within(r).queryByText('Grand total'))!
-    expect(within(grandTotalRow).getByText(/50\.00/)).toBeInTheDocument()
+    // Formatted through the shared formatter now, so the currency travels with the figure instead of
+    // being a bare toFixed(2) beside a code. SYP carries no minor units in ICU, hence "SYP 50".
+    expect(within(grandTotalRow).getByText(/SYP\s*50/)).toBeInTheDocument()
     expect(within(grandTotalRow).getByText('Not visible')).toBeInTheDocument()
 
     const weightedTotalRow = rows.find((r) => within(r).queryByText('Weighted total'))!

@@ -244,14 +244,17 @@ export function formatCurrency(
   if (value === null || value === undefined || Number.isNaN(value)) return ''
   const resolved = resolveLocale(locale)
   const numberingSystem = numberingSystemFor(resolved)
+  const plain = () => new Intl.NumberFormat(resolved, { numberingSystem }).format(value)
+
+  // No code means the amount genuinely has no currency yet - a proposal before its commercial terms
+  // are set, for instance. The two hand-rolled formatters this replaces defaulted to USD, which
+  // renders "$50.00" for an amount that is not dollars: a false statement on a commercial document,
+  // and a worse one than showing the bare number.
+  if (!currencyCode) return plain()
 
   try {
-    return new Intl.NumberFormat(resolved, {
-      style: 'currency',
-      currency: currencyCode ?? 'USD',
-      numberingSystem,
-    }).format(value)
+    return new Intl.NumberFormat(resolved, { style: 'currency', currency: currencyCode, numberingSystem }).format(value)
   } catch {
-    return new Intl.NumberFormat(resolved, { numberingSystem }).format(value)
+    return plain()
   }
 }

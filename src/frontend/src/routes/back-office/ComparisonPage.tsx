@@ -1,3 +1,4 @@
+import { formatCurrency } from '../../lib/datetime'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -32,6 +33,7 @@ export function ComparisonPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode/comparison' })
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
+  const locale = isArabic ? 'ar' : 'en-GB'
 
   const comparisonQuery = useQuery({ queryKey: ['comparison', referenceCode], queryFn: () => getComparison(referenceCode) })
   const comparison = comparisonQuery.data ?? null
@@ -120,7 +122,7 @@ export function ComparisonPage() {
                   <TableCell key={p.supplierId} highlight={highlight}>
                     {price ? (
                       <span className="num" dir="ltr">
-                        {price.unitPrice.toFixed(2)} {p.currencyCode}
+                        {formatCurrency(price.unitPrice, p.currencyCode, locale)}
                       </span>
                     ) : (
                       <span style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notVisible')}</span>
@@ -136,7 +138,7 @@ export function ComparisonPage() {
               <TableCell key={p.supplierId} highlight={grandTotalHighlight.has(p.supplierId)}>
                 {p.grandTotal !== null ? (
                   <span className="num font-[var(--fw-semibold)]" dir="ltr">
-                    {p.grandTotal.toFixed(2)} {p.currencyCode}
+                    {formatCurrency(p.grandTotal, p.currencyCode, locale)}
                   </span>
                 ) : (
                   <span style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notVisible')}</span>
