@@ -149,14 +149,26 @@ public static class RfqEndpoints
         // path that can emit a buyer-only field because its DTO has no such member. Convergence
         // was required by the contract; giving up that property was not.
         group.MapGet("/", async (
-            string? cursor, int? pageSize, bool? withCount, HttpContext httpContext,
+            string? cursor, int? pageSize, string? withCount, HttpContext httpContext,
             IScopeContext scope,
             IListRfqsHandler buyerHandler,
             ISupplierListInvitedRfqsHandler supplierHandler,
             CancellationToken ct) =>
-            scope.SupplierId is not null
-                ? ListResponse.Ok(httpContext, await supplierHandler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize)
-                : ListResponse.Ok(httpContext, await buyerHandler.HandleAsync(cursor, pageSize, withCount == true, ct), pageSize))
+        {
+            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
+            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
+            // no body, and one that names no field. Parsed as text so the refusal is the same
+            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
+            var wantsCount = FilterValues.BoolOrFalse(withCount);
+            return scope.SupplierId is not null
+                ? ListResponse.Ok(httpContext, await supplierHandler.HandleAsync(cursor, pageSize, wantsCount, ct), pageSize)
+                : ListResponse.Ok(httpContext, await buyerHandler.HandleAsync(cursor, pageSize, wantsCount, ct), pageSize);
+        })
         // rfq.read, not rfq.create: procurement_manager must approve RFQs (BUSINESS-PROCESSES.md
         // §3.1) and holds no authoring permission, so gating a read on create locked the approver
         // out of the list they approve from. Supplier roles hold it too now - §9.2 makes the

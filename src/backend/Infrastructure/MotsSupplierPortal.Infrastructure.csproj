@@ -18,6 +18,15 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageReference Include="Serilog" Version="4.4.0" />
+    <!-- FEAT-19.4 export engine. SkiaSharp draws and emits the PDF (SKDocument.CreatePdf);
+         HarfBuzzSharp shapes Arabic. Both MIT. The NativeAssets.Linux packages are NOT optional:
+         the main packages carry macOS and Windows natives only, and this API ships in a Linux
+         container - a PDF endpoint that works on a developer's machine and throws DllNotFound in
+         production is the failure this line exists to prevent. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.0" />
+    <PackageReference Include="HarfBuzzSharp" Version="8.3.1.1" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="8.3.1.1" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
   </ItemGroup>
 
@@ -29,6 +38,16 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+
+  <!-- Both faces are EMBEDDED, not resolved from the host. A PDF that renders on a machine with
+       Arabic system fonts and shows .notdef boxes on a reviewer's is not a working export, and the
+       container this ships in has no fonts installed at all. Licensing: SIL Open Font License 1.1,
+       which permits embedding; OFL.txt ships beside them. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Reporting/Fonts/NotoNaskhArabic-Regular.ttf" />
+    <EmbeddedResource Include="Reporting/Fonts/NotoSans-Regular.ttf" />
   </ItemGroup>
 
 </Project>

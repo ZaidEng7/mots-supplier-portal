@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using MotsSupplierPortal.Api.Errors;
 
@@ -99,6 +100,120 @@ internal static class FilterValues
         invalidToken = raw;
         return false;
     }
+
+    /// <summary>
+    /// Parses a date-bound query parameter into the right error, and pins the format.
+    ///
+    /// <para><b>Corrected rationale.</b> An earlier version of this comment claimed that binding
+    /// <c>?from</c> to <c>DateTimeOffset?</c> made a malformed value bind to NULL, so
+    /// <c>?from=nonsense</c> silently widened the range. <b>That was wrong and was never observed.</b>
+    /// ASP.NET Core minimal APIs do not bind an unparseable value to null - they throw
+    /// <c>BadHttpRequestException</c>, which this API's middleware shapes into a 400. The request was
+    /// always refused. Verified by probing the running API on a parameter that still binds this way
+    /// (<c>?pageSize=abc</c>), which answers 400 <c>MALFORMED_JSON</c>, not 200 with a default.</para>
+    ///
+    /// <para><b>What is actually wrong with that 400.</b> It is the wrong error for the situation and
+    /// it says nothing useful. The request is syntactically fine and one filter VALUE is
+    /// unprocessable, which is 422 and not 400; the code is <c>MALFORMED_JSON</c> on a GET that
+    /// carries no JSON at all; and the body names no field and carries no bilingual <c>errors[]</c>,
+    /// so the SPA cannot mark the input the user got wrong and has nothing to render in Arabic. Every
+    /// other filter guard in this file already answers 422/<c>INVALID_FILTER_VALUE</c> with both. This
+    /// is a contract fix, not a data-exposure fix, and it is worth having on those terms alone.</para>
+    ///
+    /// <para>Round-trip formats only (ISO-8601). A date parsed under the server's current culture
+    /// would make the same query mean different ranges on different hosts, which is the §12.5 bug
+    /// that reached a 500 before it was pinned. This part was and remains real.</para>
+    /// </summary>
+    public static bool TryParseDateBound(string? raw, out DateTimeOffset? value, out string? invalidToken)
+    {
+        value = null;
+        invalidToken = null;
+
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+
+        if (DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind | DateTimeStyles.AllowWhiteSpaces, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        invalidToken = raw;
+        return false;
+    }
+
+    /// <summary>
+    /// Parses an identifier-valued filter, refusing what it cannot read.
+    ///
+    /// <para>Same mechanism and same correction as <see cref="TryParseDateBound"/>: bound to
+    /// <c>Guid?</c>, <c>?actorUserId=not-a-guid</c> was already REFUSED by model binding - it never
+    /// widened to every actor's rows. What it earned was a 400 naming no field, which tells a caller
+    /// that mistyped one id nothing about which one. This makes it the 422 the rest of the filter
+    /// vocabulary uses.</para>
+    ///
+    /// <para>Deliberately <c>Guid.TryParse</c> rather than <c>TryParseExact("D")</c>: the braced and
+    /// hyphenless forms are the same identifier, and rejecting them would refuse a value that is not
+    /// actually ambiguous. Only what cannot name an id at all is refused.</para>
+    /// </summary>
+    public static bool TryParseGuidFilter(string? raw, out Guid? value, out string? invalidToken)
+    {
+        value = null;
+        invalidToken = null;
+
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+
+        if (Guid.TryParse(raw, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        invalidToken = raw;
+        return false;
+    }
+
+    /// <summary>
+    /// Parses a boolean query parameter, refusing what it cannot read.
+    ///
+    /// <para><b>Corrected: this does not fail open.</b> The claim that a malformed <c>bool?</c> binds
+    /// to null - so <c>?unreadOnly=maybe</c> returns every notification, read ones included - was
+    /// wrong and was never observed. Binding refuses it with a 400, exactly as it does for a date or
+    /// a Guid. The filter has never failed open.</para>
+    ///
+    /// <para>It is fixed here for the same contract reason as the others: 400
+    /// <c>MALFORMED_JSON</c> is the wrong code for an unprocessable filter value on a GET with no
+    /// body, and it names no field. <c>?withCount</c> takes the same treatment because it binds the
+    /// same way; an exception for the parameter that matters least would just be a second
+    /// vocabulary.</para>
+    ///
+    /// <para>Accepted vocabulary is <c>bool.TryParse</c>'s: "true"/"false", case-insensitive. NOT
+    /// "1"/"0"/"yes" - widening what the filter accepts is a separate decision from refusing what it
+    /// cannot read, and this is only the second.</para>
+    /// </summary>
+    public static bool TryParseBoolFilter(string? raw, out bool value, out string? invalidToken)
+    {
+        value = false;
+        invalidToken = null;
+
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+
+        if (bool.TryParse(raw, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        invalidToken = raw;
+        return false;
+    }
+
+    /// <summary>
+    /// Reads a boolean filter that has already been validated by <see cref="TryParseBoolFilter"/>.
+    /// Separate from the parse so a call site cannot accidentally treat "not a boolean" as false -
+    /// the thing this whole guard exists to stop.
+    /// </summary>
+    public static bool BoolOrFalse(string? raw) =>
+        !string.IsNullOrWhiteSpace(raw) && bool.TryParse(raw, out var parsed) && parsed;
 
     /// <summary>
     /// RFC 9457 problem+json, bilingual per §7.2's validation shape, built through

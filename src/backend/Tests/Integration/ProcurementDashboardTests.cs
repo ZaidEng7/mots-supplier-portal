@@ -174,4 +174,25 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task A_malformed_period_bound_is_refused_rather_than_silently_dropped()
+    {
+        // A malformed period bound is unprocessable, not malformed JSON. It was always REFUSED -
+        // model binding threw and the middleware answered 400 - so this is about the error being the
+        // right one and naming the field, not about a period that widened. The earlier comment here
+        // claimed widening; that claim was wrong. See FilterValues.TryParseDateBound.
+        var org = await OrgWithRfqsAsync("BadPeriod", draftCount: 2);
+
+        // The control and the non-vacuity guard: the unfiltered dashboard really does return rows.
+        (await DashboardAsync(org.Officer)).GetProperty("kpis").GetProperty("activeRfqs").GetInt32()
+            .Should().Be(2, "control: the dashboard works and has data, so the 422 below is about the bound");
+
+        var response = await org.Officer.GetAsync("/api/v1/procurement/dashboard?from=nonsense");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE",
+            "not MALFORMED_JSON - this is a GET carrying no JSON, and one filter value is the problem");
+    }
 }

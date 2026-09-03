@@ -22,12 +22,26 @@ public static class DashboardEndpoints
         // SCR-400. §10's persona list is "procurement_officer, procurement_manager", and rfq.read is
         // what both hold and what the screen's own "open RFQ" action needs.
         app.MapGet("/api/v1/procurement/dashboard", async (
-            DateTimeOffset? from,
-            DateTimeOffset? to,
+            string? from,
+            string? to,
             IProcurementDashboardHandler handler,
             CancellationToken ct) =>
         {
-            var dashboard = await handler.HandleAsync(from, to, ct);
+            // Same treatment as the audit endpoint's bounds, for the same corrected reason: a
+            // malformed bound was ALREADY refused by model binding - it never widened the period -
+            // but with a 400 MALFORMED_JSON that names no field and carries no bilingual message.
+            // See FilterValues.TryParseDateBound for the correction and how it was verified.
+            if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
+            {
+                return FilterValues.InvalidFilterValue("from", badFrom!);
+            }
+
+            if (!FilterValues.TryParseDateBound(to, out var toBound, out var badTo))
+            {
+                return FilterValues.InvalidFilterValue("to", badTo!);
+            }
+
+            var dashboard = await handler.HandleAsync(fromBound, toBound, ct);
             return dashboard is null ? Results.NotFound() : Results.Ok(dashboard);
         })
         .RequirePermission(Permissions.RfqRead)
