@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using MotsSupplierPortal.Api.Errors;
 
@@ -105,6 +106,40 @@ internal static class FilterValues
     /// <see cref="ProblemResponse"/> so it carries §7's full base shape - instance, traceId and
     /// correlationId included - rather than only the members this guard happens to set.
     /// </summary>
+    /// <summary>
+    /// Parses a date-bound query parameter, refusing what it cannot read.
+    ///
+    /// <para><b>The bug this exists to stop.</b> Binding <c>?from</c> straight to
+    /// <c>DateTimeOffset?</c> means a malformed value binds to NULL - and a null bound is not a
+    /// rejected filter, it is an ABSENT one. <c>?from=nonsense</c> therefore returned rows older
+    /// than the caller asked for, silently. Same widening class as the unknown-filter-value bugs
+    /// §12-A fixed, reached by a different route: model binding rather than a parse chain.</para>
+    ///
+    /// <para>EPIC-19 is what makes it matter. An audit export whose date range quietly widened is
+    /// the artefact that gets attached to a dispute, and nothing about the file looks wrong.</para>
+    ///
+    /// <para>Round-trip formats only (ISO-8601). A date parsed under the server's current culture
+    /// would make the same query mean different ranges on different hosts, which is the §12.5 bug
+    /// that reached a 500 before it was pinned.</para>
+    /// </summary>
+    public static bool TryParseDateBound(string? raw, out DateTimeOffset? value, out string? invalidToken)
+    {
+        value = null;
+        invalidToken = null;
+
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+
+        if (DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind | DateTimeStyles.AllowWhiteSpaces, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        invalidToken = raw;
+        return false;
+    }
+
     public static IResult InvalidFilterValue(string field, string invalidToken) =>
         new InvalidFilterValueResult(field, invalidToken);
 

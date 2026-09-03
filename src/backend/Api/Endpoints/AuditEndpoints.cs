@@ -55,8 +55,8 @@ public static class AuditEndpoints
             Guid? aggregateId,
             Guid? actorUserId,
             string? action,
-            DateTimeOffset? from,
-            DateTimeOffset? to,
+            string? from,
+            string? to,
             string? cursor,
             int? pageSize,
             bool? withCount,
@@ -64,7 +64,18 @@ public static class AuditEndpoints
             IGetAuditLogHandler handler,
             CancellationToken ct) =>
         {
-            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, from, to);
+            // A malformed bound is refused, not dropped. See FilterValues.TryParseDateBound.
+            if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
+            {
+                return FilterValues.InvalidFilterValue("from", badFrom!);
+            }
+
+            if (!FilterValues.TryParseDateBound(to, out var toBound, out var badTo))
+            {
+                return FilterValues.InvalidFilterValue("to", badTo!);
+            }
+
+            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, fromBound, toBound);
             var page = await handler.HandleFilteredAsync(filter, cursor, pageSize, withCount == true, ct);
             return ListResponse.Ok(httpContext, page, pageSize);
         })
@@ -82,13 +93,25 @@ public static class AuditEndpoints
             Guid? aggregateId,
             Guid? actorUserId,
             string? action,
-            DateTimeOffset? from,
-            DateTimeOffset? to,
+            string? from,
+            string? to,
             IGetAuditLogHandler handler,
             HttpResponse response,
             CancellationToken ct) =>
         {
-            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, from, to);
+            // The export refuses a malformed bound for the same reason the list does, and more
+            // urgently: a file with a silently widened range is indistinguishable from a correct one.
+            if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
+            {
+                return FilterValues.InvalidFilterValue("from", badFrom!);
+            }
+
+            if (!FilterValues.TryParseDateBound(to, out var toBound, out var badTo))
+            {
+                return FilterValues.InvalidFilterValue("to", badTo!);
+            }
+
+            var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, fromBound, toBound);
 
             response.ContentType = "text/csv";
             response.Headers.ContentDisposition = "attachment; filename=audit-log-export.csv";
@@ -100,6 +123,9 @@ public static class AuditEndpoints
             {
                 await writer.WriteLineAsync(AuditCsvRow.Format(entry));
             }
+
+            // The body is already written; this only satisfies the lambda's return type.
+            return Results.Empty;
         })
         .RequirePermission(Permissions.AuditRead)
         .WithName("ExportAuditLog")

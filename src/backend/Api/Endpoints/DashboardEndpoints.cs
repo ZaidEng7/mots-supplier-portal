@@ -22,12 +22,25 @@ public static class DashboardEndpoints
         // SCR-400. §10's persona list is "procurement_officer, procurement_manager", and rfq.read is
         // what both hold and what the screen's own "open RFQ" action needs.
         app.MapGet("/api/v1/procurement/dashboard", async (
-            DateTimeOffset? from,
-            DateTimeOffset? to,
+            string? from,
+            string? to,
             IProcurementDashboardHandler handler,
             CancellationToken ct) =>
         {
-            var dashboard = await handler.HandleAsync(from, to, ct);
+            // EPIC-19 Phase 0's sweep found this: SCR-400's period filter had the same silent
+            // widening the audit endpoint did. A malformed bound bound to null, and a null bound is
+            // an absent filter - so ?from=nonsense quietly showed a wider period than was asked for.
+            if (!FilterValues.TryParseDateBound(from, out var fromBound, out var badFrom))
+            {
+                return FilterValues.InvalidFilterValue("from", badFrom!);
+            }
+
+            if (!FilterValues.TryParseDateBound(to, out var toBound, out var badTo))
+            {
+                return FilterValues.InvalidFilterValue("to", badTo!);
+            }
+
+            var dashboard = await handler.HandleAsync(fromBound, toBound, ct);
             return dashboard is null ? Results.NotFound() : Results.Ok(dashboard);
         })
         .RequirePermission(Permissions.RfqRead)

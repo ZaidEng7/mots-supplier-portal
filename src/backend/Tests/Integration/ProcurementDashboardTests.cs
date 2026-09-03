@@ -174,4 +174,24 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task A_malformed_period_bound_is_refused_rather_than_silently_dropped()
+    {
+        // Found by EPIC-19 Phase 0's sweep, in code this project wrote one batch earlier: a
+        // DateTimeOffset? query parameter binds a malformed value to NULL, and a null bound is an
+        // ABSENT filter rather than a rejected one - so the dashboard showed a wider period than was
+        // asked for and said nothing.
+        var org = await OrgWithRfqsAsync("BadPeriod", draftCount: 2);
+
+        // The control and the non-vacuity guard: the unfiltered dashboard really does return rows.
+        (await DashboardAsync(org.Officer)).GetProperty("kpis").GetProperty("activeRfqs").GetInt32()
+            .Should().Be(2, "control: there is data a widened filter could have exposed");
+
+        var response = await org.Officer.GetAsync("/api/v1/procurement/dashboard?from=nonsense");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE");
+    }
 }

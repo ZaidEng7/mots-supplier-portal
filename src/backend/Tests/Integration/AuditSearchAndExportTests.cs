@@ -285,4 +285,91 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         var export = await staff.GetAsync("/api/v1/audit/export");
         export.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
+
+    // ---- EPIC-19 Phase 0: malformed date bounds ------------------------------------------------
+
+    /// <summary>
+    /// The bug: <c>?from</c> bound to <c>DateTimeOffset?</c>, so a malformed value bound to NULL -
+    /// and a null bound is an ABSENT filter, not a rejected one. The endpoint returned rows OLDER
+    /// than the caller asked for, and said nothing.
+    ///
+    /// <para>Both regression tests assert against a genuinely non-empty unfiltered set, so
+    /// "it did not return everything" cannot pass because there was nothing to return.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_malformed_from_with_a_valid_to_is_refused_rather_than_dropped()
+    {
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        // The control, and the non-vacuity guard: the unfiltered query really does return rows, so a
+        // later "did not widen" assertion is about the filter and not about an empty database.
+        var unfiltered = await staff.GetFromJsonAsync<AuditPage>(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}");
+        unfiltered!.Data.Should().NotBeEmpty("control: there are rows this filter could have widened to");
+
+        var response = await staff.GetAsync(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}&from=nonsense&to={Uri.EscapeDataString(Day4.ToString("O"))}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE",
+            "the same code every other filter guard uses - a new one would be a second vocabulary");
+        problem.GetProperty("type").GetString().Should().EndWith("/errors/validation");
+        problem.GetProperty("errors").EnumerateArray()
+            .Select(e => e.GetProperty("field").GetString())
+            .Should().Contain("from");
+    }
+
+    [Fact]
+    public async Task A_malformed_from_on_its_own_is_refused_and_returns_nothing_wider()
+    {
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var unfiltered = await staff.GetFromJsonAsync<AuditPage>(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}");
+        unfiltered!.Data.Should().NotBeEmpty("control: the set this could widen to is non-empty");
+
+        var response = await staff.GetAsync($"/api/v1/audit?aggregateType={probes.ProbeType}&from=2020-13-45");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
+            "a bound that cannot be read must not become a bound that was never applied");
+
+        // And nothing was returned at all - the request failed rather than succeeding with a wider
+        // range, which is the whole distinction.
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("\"data\"");
+    }
+
+    [Fact]
+    public async Task A_valid_bound_still_filters()
+    {
+        // Both directions: the guard must not have turned every date bound into a refusal.
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var page = await staff.GetFromJsonAsync<AuditPage>(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}&from={Uri.EscapeDataString(Day2.ToString("O"))}");
+
+        page!.Data.Should().NotBeEmpty();
+        page.Data.Should().OnlyContain(e => e.OccurredAt >= Day2, "the bound is applied, not merely accepted");
+    }
+
+    [Fact]
+    public async Task The_export_refuses_a_malformed_bound_too()
+    {
+        // The reason this is Phase 0 of a reporting epic: an export with a silently widened range is
+        // indistinguishable from a correct one once it is a file attached to a dispute.
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var control = await staff.GetAsync($"/api/v1/audit/export?aggregateType={probes.ProbeType}");
+        control.StatusCode.Should().Be(HttpStatusCode.OK, "control: the export works with no bound at all");
+
+        var response = await staff.GetAsync($"/api/v1/audit/export?aggregateType={probes.ProbeType}&from=nonsense");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        response.Content.Headers.ContentType!.MediaType.Should().NotBe("text/csv",
+            "a refused export must not also emit a CSV body");
+    }
 }
