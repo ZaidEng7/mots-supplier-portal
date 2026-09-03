@@ -91,9 +91,10 @@ interface StatusChipProps {
  * Arabic user read the raw English identifier. Routing every one through here means a new state
  * gets a label in one place, and the coverage test fails if it does not get one at all.</p>
  *
- * <p>Falls back to the raw value when a machine has no authored labels (invitation, erpSync) -
- * visibly unchanged from today's behaviour, deliberately not papered over with an invented
- * translation.</p>
+ * <p>Falls back to the raw value when a machine has no authored labels - which is now `erpSync`
+ * alone: EPIC-16 drafted the five invitation labels §7 never tabulated, because SCR-120 renders
+ * them as chips and a supplier reading "Responding" in English on an Arabic page was the visible
+ * end of that gap.</p>
  */
 export function StatusChip({ machine, value, tone }: StatusChipProps) {
   const { t } = useTranslation()

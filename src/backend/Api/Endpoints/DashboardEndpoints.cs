@@ -47,6 +47,22 @@ public static class DashboardEndpoints
         .WithTags("Dashboards")
         .WithName("ApprovalQueues");
 
+        // SCR-120. The supplier's own dashboard, scoped to their SupplierId.
+        //
+        // Gated on supplier.read rather than a dashboard permission: SCREEN-SPECIFICATIONS §1 gives
+        // this screen to supplier_admin AND supplier_user ("delegated - sees only permitted
+        // widgets"), and reading your own supplier record is the least either can do.
+        app.MapGet("/api/v1/suppliers/me/dashboard", async (
+            ISupplierDashboardHandler handler,
+            CancellationToken ct) =>
+        {
+            var dashboard = await handler.HandleAsync(ct);
+            return dashboard is null ? Results.NotFound() : Results.Ok(dashboard);
+        })
+        .RequireAuthorization()
+        .WithTags("Dashboards")
+        .WithName("SupplierDashboard");
+
         // SCR-300. Onboarding review has no organization dimension - a supplier onboards onto the
         // platform, not into a buying entity - so the permission IS the scope here.
         app.MapGet("/api/v1/review/dashboard", async (

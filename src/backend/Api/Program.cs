@@ -271,6 +271,7 @@ builder.Services.AddScoped<IListMyAssignmentsHandler, ListMyAssignmentsHandler>(
 builder.Services.AddScoped<IProcurementDashboardHandler, ProcurementDashboardHandler>();
 builder.Services.AddScoped<IApprovalQueuesHandler, ApprovalQueuesHandler>();
 builder.Services.AddScoped<IReviewDashboardHandler, ReviewDashboardHandler>();
+builder.Services.AddScoped<ISupplierDashboardHandler, SupplierDashboardHandler>();
 builder.Services.AddScoped<IRequestRfqClarificationHandler, RequestRfqClarificationHandler>();
 builder.Services.AddScoped<IResolveRfqClarificationHandler, ResolveRfqClarificationHandler>();
 builder.Services.AddScoped<ICloseRfqSubmissionHandler, CloseRfqSubmissionHandler>();
