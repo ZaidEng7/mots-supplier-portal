@@ -155,7 +155,7 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_permission");
+        body.GetProperty("code").GetString().Should().Be("INVALID_PERMISSION");
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("would_lock_out_role_management");
+        body.GetProperty("code").GetString().Should().Be("WOULD_LOCK_OUT_ROLE_MANAGEMENT");
 
         // And nothing was actually changed.
         var after = await admin.GetAsync("/api/v1/admin/roles");

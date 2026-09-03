@@ -1,3 +1,4 @@
+import { problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 import type { DocumentTypeStatus } from './documents'
@@ -32,8 +33,8 @@ export interface ReviewerSupplierView {
 export class ReviewApiError extends Error {
   status: number
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string } | null
-    super(b?.error ?? `Request failed: ${status}`)
+    const b = body as ProblemDetails | null
+    super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
   }
 }

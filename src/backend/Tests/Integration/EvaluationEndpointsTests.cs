@@ -156,7 +156,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
 
         attempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await attempt.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("not yet passed technical qualification");
+        body.GetProperty("detail").GetString().Should().Contain("not yet passed technical qualification");
     }
 
     /// <summary>The report's own required proof: once a proposal is disqualified (technical score

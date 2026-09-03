@@ -223,7 +223,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("required RFQ items must be priced");
+        body.GetProperty("detail").GetString().Should().Contain("required RFQ items must be priced");
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("mandatory requirements must be answered");
+        body.GetProperty("detail").GetString().Should().Contain("mandatory requirements must be answered");
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().MatchRegex("not currently accepting submissions|submission window has closed");
+        body.GetProperty("detail").GetString().Should().MatchRegex("not currently accepting submissions|submission window has closed");
     }
 
     [Fact]

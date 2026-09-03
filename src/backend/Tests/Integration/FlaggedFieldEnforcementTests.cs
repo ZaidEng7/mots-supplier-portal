@@ -90,7 +90,7 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
             "though the UI would simply have disabled the input");
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("field_not_flagged");
+        body.GetProperty("code").GetString().Should().Be("FIELD_NOT_FLAGGED");
     }
 
     [Fact]

@@ -83,7 +83,7 @@ describe('AwardPage', () => {
 
     const { AwardApiError } = await import('../../api/awards')
     vi.spyOn(await import('../../api/awards'), 'approveAward').mockRejectedValueOnce(
-      new AwardApiError(400, { error: 'segregation_of_duties_violation', message: 'Segregation of duties: the approver must differ from the recommender.' }),
+      new AwardApiError(400, { code: 'SEGREGATION_OF_DUTIES_VIOLATION', detail: 'Segregation of duties: the approver must differ from the recommender.' }),
     )
     restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001/award': awardFixture(), '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluationFixture() })
     renderPage(<AwardPage />)

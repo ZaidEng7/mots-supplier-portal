@@ -1,3 +1,4 @@
+import { hasCode, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 
@@ -167,10 +168,10 @@ export class RfqApiError extends Error {
    * one flag rather than string-matching a message. */
   isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string; message?: string } | null
-    super(b?.message ?? b?.error ?? `Request failed: ${status}`)
+    const b = body as ProblemDetails | null
+    super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
-    this.isConcurrencyConflict = status === 409 && b?.error === 'concurrency_conflict'
+    this.isConcurrencyConflict = status === 409 && hasCode(b, 'CONCURRENCY_CONFLICT')
   }
 }
 

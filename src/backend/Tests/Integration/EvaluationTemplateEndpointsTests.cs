@@ -54,8 +54,8 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
 
         activate.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await activate.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_state");
-        body.GetProperty("message").GetString().Should().Contain("sum to exactly 100");
+        body.GetProperty("code").GetString().Should().Be("INVALID_STATE");
+        body.GetProperty("detail").GetString().Should().Contain("sum to exactly 100");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         });
         editAttempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var editBody = await editAttempt.Content.ReadFromJsonAsync<JsonElement>();
-        editBody.GetProperty("message").GetString().Should().Contain("immutable");
+        editBody.GetProperty("detail").GetString().Should().Contain("immutable");
 
         // Forking produces a new, independent version that IS editable.
         var forkResponse = await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/fork", null);

@@ -94,7 +94,7 @@ public sealed class OfferingTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_category");
+        body.GetProperty("code").GetString().Should().Be("INVALID_CATEGORY");
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class OfferingTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_unit_of_measure");
+        body.GetProperty("code").GetString().Should().Be("INVALID_UNIT_OF_MEASURE");
     }
 
     [Fact]

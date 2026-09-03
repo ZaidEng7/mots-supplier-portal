@@ -1,4 +1,5 @@
-using System.Text.Json;
+using System.Text.Json.Nodes;
+using MotsSupplierPortal.Api.Errors;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
@@ -99,30 +100,35 @@ internal static class FilterValues
         return false;
     }
 
-    /// <summary>RFC 9457 problem+json, bilingual per §7.2's validation shape.</summary>
+    /// <summary>
+    /// RFC 9457 problem+json, bilingual per §7.2's validation shape, built through
+    /// <see cref="ProblemResponse"/> so it carries §7's full base shape - instance, traceId and
+    /// correlationId included - rather than only the members this guard happens to set.
+    /// </summary>
     public static IResult InvalidFilterValue(string field, string invalidToken) =>
-        Results.Json(new
+        new InvalidFilterValueResult(field, invalidToken);
+
+    private sealed record InvalidFilterValueResult(string Field, string InvalidToken) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
         {
-            type = ValidationType,
-            title = "Unknown filter value.",
-            status = StatusCodes.Status422UnprocessableEntity,
-            code = "INVALID_FILTER_VALUE",
-            detail = $"'{invalidToken}' is not a value the '{field}' filter accepts.",
-            errors = new[]
+            var detail = $"'{InvalidToken}' is not a value the '{Field}' filter accepts.";
+            var problem = ProblemResponse.Build(
+                httpContext, StatusCodes.Status422UnprocessableEntity, ValidationType,
+                "Unknown filter value.", "INVALID_FILTER_VALUE", detail);
+
+            problem["errors"] = new JsonArray(new JsonObject
             {
-                new
+                ["field"] = Field,
+                ["code"] = "INVALID_FILTER_VALUE",
+                ["messages"] = new JsonObject
                 {
-                    field,
-                    code = "INVALID_FILTER_VALUE",
-                    messages = new Dictionary<string, string>
-                    {
-                        ["ar"] = "قيمة غير معروفة في عامل التصفية.",
-                        ["en"] = $"'{invalidToken}' is not a value the '{field}' filter accepts.",
-                    },
+                    ["ar"] = "قيمة غير معروفة في عامل التصفية.",
+                    ["en"] = detail,
                 },
-            },
-        },
-        statusCode: StatusCodes.Status422UnprocessableEntity,
-        contentType: "application/problem+json",
-        options: JsonSerializerOptions.Web);
+            });
+
+            await ProblemResponse.WriteAsync(httpContext, problem);
+        }
+    }
 }

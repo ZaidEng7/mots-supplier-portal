@@ -161,7 +161,7 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("at least one RFQ item");
+        body.GetProperty("detail").GetString().Should().Contain("at least one RFQ item");
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         });
         badCategory.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var badCategoryBody = await badCategory.Content.ReadFromJsonAsync<JsonElement>();
-        badCategoryBody.GetProperty("error").GetString().Should().Be("invalid_category");
+        badCategoryBody.GetProperty("code").GetString().Should().Be("INVALID_CATEGORY");
 
         var badUom = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
         {
@@ -280,7 +280,7 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         });
         badUom.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var badUomBody = await badUom.Content.ReadFromJsonAsync<JsonElement>();
-        badUomBody.GetProperty("error").GetString().Should().Be("invalid_unit_of_measure");
+        badUomBody.GetProperty("code").GetString().Should().Be("INVALID_UNIT_OF_MEASURE");
     }
 
     /// <summary>FEAT-07.6/FR-PWF-004: the real proof the scheduled job (not a user action) opens
@@ -353,7 +353,7 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         invite.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await invite.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("supplier_not_active");
+        body.GetProperty("code").GetString().Should().Be("SUPPLIER_NOT_ACTIVE");
     }
 
     [Fact]
@@ -370,7 +370,7 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         secondInvite.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await secondInvite.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("already been invited");
+        body.GetProperty("detail").GetString().Should().Contain("already been invited");
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         publish.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await publish.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("supplier_not_active");
+        body.GetProperty("code").GetString().Should().Be("SUPPLIER_NOT_ACTIVE");
         var stillApproved = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         stillApproved.GetProperty("state").GetString().Should().Be(nameof(RfqState.Approved));
     }

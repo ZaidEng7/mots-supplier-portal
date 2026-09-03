@@ -116,7 +116,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
 
         attempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await attempt.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("message").GetString().Should().Contain("clarification window has closed");
+        body.GetProperty("detail").GetString().Should().Contain("clarification window has closed");
     }
 
     [Fact]

@@ -120,7 +120,7 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_role");
+        body.GetProperty("code").GetString().Should().Be("INVALID_ROLE");
     }
 
     [Fact]
@@ -247,7 +247,7 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
 
         second.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await second.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_or_expired_token");
+        body.GetProperty("code").GetString().Should().Be("INVALID_OR_EXPIRED_TOKEN");
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetString().Should().Be("invalid_or_expired_token");
+        body.GetProperty("code").GetString().Should().Be("INVALID_OR_EXPIRED_TOKEN");
     }
 
     [Fact]

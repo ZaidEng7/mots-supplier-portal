@@ -1,3 +1,4 @@
+import { problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
 /** Backend returns { error: "invalid_state", message: "<precise domain message>" } for every
@@ -7,8 +8,8 @@ import { apiFetch } from './auth'
 export class EvaluationTemplateApiError extends Error {
   status: number
   constructor(status: number, body: unknown) {
-    const b = body as { error?: string; message?: string } | null
-    super(b?.message ?? b?.error ?? `Request failed: ${status}`)
+    const b = body as ProblemDetails | null
+    super(problemMessage(b, `Request failed: ${status}`))
     this.status = status
   }
 }
