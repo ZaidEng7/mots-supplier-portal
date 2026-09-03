@@ -70,7 +70,7 @@ public static class ProblemResponse
     {
         context.Response.StatusCode = problem["status"]!.GetValue<int>();
         context.Response.ContentType = ContentType;
-        await context.Response.WriteAsync(problem.ToJsonString(JsonSerializerOptions.Web));
+        await context.Response.WriteAsync(problem.ToJsonString(JsonSerializerOptions.Web), context.RequestAborted);
     }
 
     private static string? CorrelationIdOf(HttpContext context) =>

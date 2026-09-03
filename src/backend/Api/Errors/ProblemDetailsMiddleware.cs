@@ -91,12 +91,12 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
             return;
         }
 
-        var raw = await new StreamReader(buffer).ReadToEndAsync();
+        var raw = await new StreamReader(buffer).ReadToEndAsync(context.RequestAborted);
 
         if (IsAlreadyProblemJson(context))
         {
             context.Response.ContentLength = null;
-            await originalBody.WriteAsync(System.Text.Encoding.UTF8.GetBytes(raw));
+            await originalBody.WriteAsync(System.Text.Encoding.UTF8.GetBytes(raw), context.RequestAborted);
             return;
         }
 

@@ -608,9 +608,15 @@ if (app.Environment.IsDevelopment())
     // §7: "500 responses never include stack traces, SQL, or internal messages". That is a NEGATIVE
     // about a path no ordinary request takes, so it can only be proven by deliberately taking it.
     // Development-only, and it is the subject of ErrorModelTests' planted-secret assertion.
+    // S2068 fires on the literal below. The credential is fake, is never used to authenticate
+    // anything, and exists precisely so a test can assert it does NOT reach the response body -
+    // removing it would delete the evidence the assertion depends on. Suppressed at the site
+    // rather than project-wide, so a real hard-coded credential elsewhere still fails the build.
+#pragma warning disable S2068 // Hard-coded credentials are security-sensitive
     app.MapGet("/__test/throw", (Func<IResult>)(() =>
         throw new InvalidOperationException(
             "LEAK_CANARY_a7f3d2e1: connection string Host=db;Password=hunter2; at Table supplier.legal_info")))
+#pragma warning restore S2068
         .AllowAnonymous()
         .WithName("TestThrow");
 
