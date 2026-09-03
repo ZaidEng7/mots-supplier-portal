@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -363,6 +365,19 @@ public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope
         {
             return new ProposalResult.InvalidState(ex.Message);
         }
+
+        // §3.2 "Draft / Submitted -> Withdrawn | In-app to supplier + procurement". Two groups: the
+        // supplier's own users (so a colleague sees the withdrawal) and the RFQ's committee.
+        var withdrawRecipients = await NotificationRecipients.SupplierUsersAsync(db, proposal.SupplierId, ct);
+        withdrawRecipients.AddRange(await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct));
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalWithdrawn, withdrawRecipients,
+            $"{NotificationTypes.ProposalWithdrawn}:{proposal.Id}",
+            new Dictionary<string, string?>
+            {
+                ["rfqCode"] = rfq.ReferenceCode,
+                ["proposalCode"] = proposal.ReferenceCode,
+                ["proposalId"] = proposal.Id.ToString(),
+            });
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_withdrawn", scope.UserId, referenceCode: proposal.ReferenceCode,
             fromState: fromState.ToString(), toState: nameof(ProposalState.Withdrawn), reason: command.Reason, ct: ct);

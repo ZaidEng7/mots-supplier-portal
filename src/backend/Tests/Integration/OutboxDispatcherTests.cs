@@ -25,6 +25,31 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         CreatedAt = DateTimeOffset.UtcNow,
     };
 
+    /// <summary>
+    /// Dispatches until this test's own row has been processed, bounded.
+    ///
+    /// <para>A single run used to be enough because the outbox was empty except for what the test
+    /// seeded. EPIC-15 put notifications on the same road, so the shared database now holds pending
+    /// rows written by every other test in the suite - and the dispatcher deliberately takes only
+    /// BatchSize per run, ordered oldest-first. Waiting for THIS row rather than assuming one pass
+    /// reaches it is the fix; raising the batch size to make the assumption true again would be
+    /// testing a number instead of the behaviour.</para>
+    /// </summary>
+    private static async Task DispatchUntilProcessedAsync(OutboxDispatcher dispatcher, AppDbContext db, Guid messageId)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await dispatcher.DispatchPendingAsync();
+
+            var status = await db.OutboxMessages.AsNoTracking()
+                .Where(m => m.Id == messageId).Select(m => m.SyncStatus).SingleAsync();
+            if (status != OutboxSyncStatus.Pending) return;
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            $"Outbox message {messageId} was still Pending after 50 dispatch runs.");
+    }
+
     [Fact]
     public async Task Pending_rows_are_marked_Sent_after_a_dispatch_run()
     {
@@ -36,7 +61,7 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         await db.SaveChangesAsync();
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
-        await dispatcher.DispatchPendingAsync();
+        await DispatchUntilProcessedAsync(dispatcher, db, message.Id);
 
         var reloaded = await db.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
         reloaded.SyncStatus.Should().Be(OutboxSyncStatus.Sent);
@@ -56,7 +81,7 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         await db.SaveChangesAsync();
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
-        await dispatcher.DispatchPendingAsync();
+        await DispatchUntilProcessedAsync(dispatcher, db, message.Id);
 
         var afterFirstRun = await db.OutboxMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
         var processedAtAfterFirstRun = afterFirstRun.ProcessedAt;
@@ -86,7 +111,14 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         await db.SaveChangesAsync();
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
-        await dispatcher.DispatchPendingAsync();
+
+        // Enough runs to clear this test's own rows plus whatever the rest of the suite left in the
+        // shared outbox ahead of them. The assertion below is still about THIS test's rows.
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await dispatcher.DispatchPendingAsync();
+            if (!await db.OutboxMessages.AnyAsync(m => m.Type.StartsWith(tag) && m.SyncStatus == OutboxSyncStatus.Pending)) break;
+        }
 
         var stillPending = await db.OutboxMessages
             .Where(m => m.Type.StartsWith(tag) && m.SyncStatus == OutboxSyncStatus.Pending)
@@ -125,11 +157,22 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         listener.SetMeasurementEventCallback<int>((instrument, measurement, tags, state) => values.Add(measurement));
         listener.Start();
 
-        listener.RecordObservableInstruments();
-        var baseline = values[^1];
-
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Drain first. EPIC-15 put notifications on the outbox, so the shared database now carries a
+        // backlog from every other test - and this test's second measurement asserts the gauge
+        // returns to its baseline, which is only meaningful if a dispatch run can actually reach
+        // everything that was pending when the baseline was taken.
+        var drainDispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await drainDispatcher.DispatchPendingAsync();
+            if (!await db.OutboxMessages.AnyAsync(m => m.SyncStatus == OutboxSyncStatus.Pending)) break;
+        }
+
+        listener.RecordObservableInstruments();
+        var baseline = values[^1];
         const int seeded = 7;
         for (var i = 0; i < seeded; i++)
         {

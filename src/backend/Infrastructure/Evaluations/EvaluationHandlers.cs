@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -118,6 +120,15 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         var evaluation = EvaluationAggregate.Create(rfq.Id, criteriaInputs);
         db.Evaluations.Add(evaluation);
 
+        // §3.1 "SubmissionClosed -> UnderEvaluation | In-app to `evaluator`s". No assignments exist
+        // yet at this moment, so this is the committee that runs the RFQ rather than a list of
+        // assignees - the assignment notification (§3.3 "NotStarted -> Assigned") is the one that
+        // reaches individual evaluators, and it already exists as an email.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationOpened,
+            await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.EvaluationOpened}:{rfq.Id}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_evaluation_opened", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: fromState.ToString(), toState: nameof(RfqState.UnderEvaluation), ct: ct);
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_created", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -200,6 +211,14 @@ public sealed class RecuseEvaluatorHandler(AppDbContext db, IScopeContext scope,
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
 
+        // §3.3 has no row for recusal - it is a within-state event, not a transition. Notifying the
+        // officers who own the assignment is the defensible reading, and it is flagged as such in
+        // the catalogue rather than presented as transcribed.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorRecused,
+            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.EvaluatorRecused}:{evaluation.Id}:{command.EvaluatorUserId}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
+
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_evaluator_recused", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: command.EvaluatorUserId.ToString(), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
@@ -231,6 +250,12 @@ public sealed class ConsolidateEvaluationHandler(AppDbContext db, IScopeContext 
         {
             db.Entry(result).State = EntityState.Added;
         }
+
+        // §3.3 "EvaluatorSubmitted -> Consolidated | In-app to committee".
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationConsolidated,
+            await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.EvaluationConsolidated}:{evaluation.Id}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_consolidated", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.Consolidated), ct: ct);
@@ -274,6 +299,12 @@ public sealed class FinalizeEvaluationHandler(AppDbContext db, IScopeContext sco
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
 
+        // §3.3 "Consolidated -> Finalized | In-app to committee".
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationFinalized,
+            await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.EvaluationFinalized}:{evaluation.Id}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
+
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_finalized", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.Finalized), ct: ct);
         await db.SaveChangesAsync(ct);
@@ -297,6 +328,13 @@ public sealed class ReopenEvaluationHandler(AppDbContext db, IScopeContext scope
         {
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
+
+        // §3.3 "Consolidated -> InProgress | In-app to affected evaluators" - the assigned, non-recused
+        // evaluators, which is what "affected" means here.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationReopened,
+            await NotificationRecipients.AssignedEvaluatorsAsync(db, evaluation.Id, ct),
+            $"{NotificationTypes.EvaluationReopened}:{evaluation.Id}:{DateTimeOffset.UtcNow.Ticks}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_reopened", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.InProgress), reason: command.Reason, ct: ct);
@@ -392,6 +430,17 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
         catch (DomainException ex)
         {
             return new MyEvaluationResult.InvalidState(ex.Message);
+        }
+
+        // §3.3 "InProgress -> EvaluatorSubmitted | In-app to `procurement_officer` WHEN ALL IN". The
+        // condition is part of the rule, not an optimisation: telling the officer to consolidate
+        // while two evaluators are still scoring is a false prompt.
+        if (evaluation.State == EvaluationState.EvaluatorSubmitted)
+        {
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorSubmitted,
+                await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+                $"{NotificationTypes.EvaluatorSubmitted}:{evaluation.Id}",
+                new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
         }
 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_evaluator_submitted", scope.UserId,

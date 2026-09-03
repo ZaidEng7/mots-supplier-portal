@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
@@ -25,7 +26,11 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// of the real EPIC-23 transport that would need it, per this session's own YAGNI standard - revisit
 /// when EPIC-23 lands and Failed becomes a real, observable outcome.</para>
 /// </summary>
-public sealed class OutboxDispatcher(AppDbContext db, IOutboxTransport transport, ILogger<OutboxDispatcher> logger)
+public sealed class OutboxDispatcher(
+    AppDbContext db,
+    IOutboxTransport transport,
+    INotificationMaterialiser materialiser,
+    ILogger<OutboxDispatcher> logger)
 {
     /// <summary>Bounded per run, not unbounded - the same reasoning as every keyset-paged list in
     /// this codebase (MSP-66): a batch that grows with the backlog turns one slow run into a
@@ -45,7 +50,19 @@ public sealed class OutboxDispatcher(AppDbContext db, IOutboxTransport transport
         {
             try
             {
-                await transport.SendAsync(message.Id, message.Type, message.PayloadJson, ct);
+                // EPIC-15: notification messages are MATERIALISED here rather than handed to the ERP
+                // transport. They are the same kind of thing - work that must survive the commit of
+                // the state change that caused it - so they travel the same road; but their
+                // destination is a row in shared.notification, not an outbound integration.
+                if (message.Type == NotificationRequest.OutboxType)
+                {
+                    await materialiser.MaterialiseAsync(NotificationRequest.FromPayloadJson(message.PayloadJson), ct);
+                }
+                else
+                {
+                    await transport.SendAsync(message.Id, message.Type, message.PayloadJson, ct);
+                }
+
                 message.SyncStatus = OutboxSyncStatus.Sent;
             }
             catch (Exception ex)

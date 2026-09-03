@@ -6,6 +6,7 @@ using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.ReferenceData;
@@ -37,6 +38,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -520,6 +522,37 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(a => a.FlaggedProfileFields).HasColumnType("text[]");
             entity.Property(a => a.FlaggedDocumentTypeIds).HasColumnType("uuid[]");
             entity.HasIndex(a => new { a.SupplierId, a.ResolvedAt });
+        });
+
+        // EPIC-15/T3-14. DATABASE-MODEL.md §2.7 specifies this table in full; it is transcribed
+        // rather than designed, including the two things that carry the guarantees:
+        //   U(dedupe_key)              - the idempotency guarantee, so the same event delivered
+        //                                twice produces one row rather than two
+        //   IX(recipient_user_id, read_at) - the bell's own query (unread for this user), which is
+        //                                on every page of the app for every authenticated persona
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("notification", "shared");
+            entity.HasKey(n => n.Id);
+            entity.Property(n => n.Type).HasMaxLength(200).IsRequired();
+            entity.Property(n => n.Channel).HasConversion<string>().HasMaxLength(20);
+            entity.Property(n => n.DeliveryStatus).HasConversion<string>().HasMaxLength(20);
+            entity.Property(n => n.TitleAr).HasMaxLength(300).IsRequired();
+            entity.Property(n => n.TitleEn).HasMaxLength(300).IsRequired();
+            entity.Property(n => n.BodyAr).HasMaxLength(2000).IsRequired();
+            entity.Property(n => n.BodyEn).HasMaxLength(2000).IsRequired();
+            entity.Property(n => n.DataJson).HasColumnName("data").HasColumnType("jsonb").IsRequired();
+            entity.Property(n => n.DedupeKey).HasMaxLength(400).IsRequired();
+
+            entity.HasIndex(n => n.DedupeKey).IsUnique();
+            entity.HasIndex(n => new { n.RecipientUserId, n.ReadAt });
+
+            entity.HasOne<AppUser>().WithMany()
+                .HasForeignKey(n => n.RecipientUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // xmin, as every other versioned aggregate maps it (§8.1).
+            entity.Property(n => n.RowVersion).IsRowVersion();
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

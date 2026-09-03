@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Api.Errors;
 using MotsSupplierPortal.Api.Concurrency;
 using System.IO.Compression;
@@ -401,6 +403,12 @@ builder.Services.AddScoped<IGetOwnActiveAnnotationHandler, GetOwnActiveAnnotatio
 // Task #16: the missing Outbox dispatcher. IOutboxTransport is the same shape as IEmailSender -
 // LoggingOutboxTransport stands in for the not-yet-built EPIC-23 ERP integration.
 builder.Services.AddSingleton<IOutboxTransport, MotsSupplierPortal.Infrastructure.Suppliers.LoggingOutboxTransport>();
+// EPIC-15: the dispatcher materialises notification messages rather than sending them onward.
+builder.Services.AddScoped<IListNotificationsHandler, ListNotificationsHandler>();
+builder.Services.AddScoped<IUnreadNotificationCountHandler, UnreadNotificationCountHandler>();
+builder.Services.AddScoped<IMarkNotificationReadHandler, MarkNotificationReadHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Notifications.INotificationMaterialiser,
+    MotsSupplierPortal.Infrastructure.Notifications.NotificationMaterialiser>();
 builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>();
 // Singleton, constructed eagerly right after the app is built (see below) - an ObservableGauge
 // that nobody ever constructs never wires up its callback, which reads as a working /metrics
@@ -746,6 +754,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithName("GetUnitsOfMeasure")
     .WithTags("Reference");
 
+app.MapNotificationEndpoints();
 app.MapRegistrationEndpoints();
 app.MapAuthEndpoints();
 app.MapMfaEndpoints();

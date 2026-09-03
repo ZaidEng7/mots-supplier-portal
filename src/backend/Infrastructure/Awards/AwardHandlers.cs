@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -102,6 +104,16 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
+        // §3.4 "- -> Recommended | In-app to approver" and "Rejected -> Recommended | In-app to
+        // approver". The APPROVER POOL: nothing in the Identity domain resolves a single named
+        // approver from the AwardApprove claim, so this notifies everyone who could approve it.
+        // Reported as the open business question it is.
+        NotificationOutbox.EnqueueMany(db,
+            action == "award.re_recommended" ? NotificationTypes.AwardReRecommended : NotificationTypes.AwardRecommended,
+            await NotificationRecipients.AwardApproversAsync(db, rfq.OrganizationId, ct),
+            $"{action}:{award.Id}:{award.RecommendationRevision}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
+
         await auditLogger.LogAsync("Award", award.Id, action, scope.UserId, referenceCode: rfq.ReferenceCode,
             toState: nameof(AwardState.Recommended), reason: null, ct: ct);
         await db.SaveChangesAsync(ct);
@@ -166,6 +178,12 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
             db.Entry(approval).State = EntityState.Added;
         }
 
+        // §3.4 "Recommended -> PendingApproval | Email + in-app to approver(s)".
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardRoutedForApproval,
+            await NotificationRecipients.AwardApproversAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.AwardRoutedForApproval}:{award.Id}:{award.RecommendationRevision}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
+
         await auditLogger.LogAsync("Award", award.Id, "award.pending_approval", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(AwardState.Recommended), toState: nameof(AwardState.PendingApproval), ct: ct);
         await db.SaveChangesAsync(ct);
@@ -207,6 +225,12 @@ public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IA
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
+        // §3.4 "PendingApproval -> Approved | In-app to officer".
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardApproved,
+            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.AwardApproved}:{award.Id}:{award.RecommendationRevision}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
+
         await auditLogger.LogAsync("Award", award.Id, "award.approved", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(AwardState.PendingApproval), toState: nameof(AwardState.Approved), ct: ct);
         await db.SaveChangesAsync(ct);
@@ -235,6 +259,13 @@ public sealed class RejectAwardHandler(AppDbContext db, IScopeContext scope, IAu
         {
             return new AwardMutationResult.InvalidState(ex.Message);
         }
+
+        // §3.4 "PendingApproval -> Rejected | In-app to officer". The rejection REASON stays out of
+        // the payload and out of the words (BRULE-091); the officer reads it on the award screen.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardRejected,
+            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.AwardRejected}:{award.Id}:{award.RecommendationRevision}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
 
         await auditLogger.LogAsync("Award", award.Id, "award.rejected", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(AwardState.PendingApproval), toState: nameof(AwardState.Rejected), reason: command.Reason, ct: ct);

@@ -1,0 +1,222 @@
+// MOTS Supplier Portal - notification copy catalogue (EPIC-15 / T3-14)
+//
+// THIS FILE IS THE REVIEWABLE ARTEFACT, on the same footing as ValidationCatalogue.jsonc: every
+// word a notification can show is here, and nowhere else. It is meant to be read end to end
+// without opening any C#.
+//
+// One entry per notification type. NotificationCatalogueCoverageTests fails the build in BOTH
+// directions - a type with no copy, and copy for a type nothing emits.
+//
+//   "source":  "§9"      transcribed from UX-WRITING.md §9's authored message library
+//              "drafted" written for this catalogue and NOT YET APPROVED - read these hardest
+//
+//   "recipients" is transcribed from the BUSINESS-PROCESSES.md transition table that names the
+//   event. It documents who the code notifies, so a reviewer can check the code against the table
+//   without reading the handler.
+//
+// On the Arabic. UX-WRITING.md §1.3 requires native authoring in professional MSA, not translation.
+// §10 adds the shape: lead with what happened and which object, then why it matters, then the link.
+// Predicates agree with their subject's gender. Reference codes are interpolated and bidi-isolated
+// by the renderer (RTL §5.3), never concatenated into the sentence by hand.
+//
+// BRULE-091: no personal or sensitive data. That is enforced on the payload by
+// NotificationPayload.AllowedKeys - but it applies here too, which is why no body carries a price,
+// a rejection reason, or anyone's name. The words say what happened; the screen behind the link
+// carries the detail, where the reader's own permissions already apply.
+
+[
+
+  // ======================================================================================
+  // RFQ lifecycle
+  // BUSINESS-PROCESSES.md §3.1's Notifications column names each recipient.
+  // ======================================================================================
+  {
+    "type": "rfq.submitted_for_review",
+    "source": "drafted",
+    "recipients": "In-app to procurement_manager",
+    "titleAr": "طلب بانتظار مراجعتك",
+    "titleEn": "An RFQ is waiting for your review",
+    "bodyAr": "قُدّم الطلب {rfqCode} للمراجعة الداخلية. راجعه لاعتماده أو إعادته للتعديل.",
+    "bodyEn": "RFQ {rfqCode} was submitted for internal review. Review it to approve or return it for edits."
+  },
+  {
+    "type": "rfq.returned_for_edits",
+    "source": "drafted",
+    "recipients": "In-app to officer",
+    "titleAr": "أُعيد الطلب للتعديل",
+    "titleEn": "An RFQ was returned for edits",
+    "bodyAr": "أُعيد الطلب {rfqCode} إليك للتعديل. راجع الملاحظات ثم أعد تقديمه.",
+    "bodyEn": "RFQ {rfqCode} was returned to you for edits. Review the comments and submit it again."
+  },
+  {
+    "type": "rfq.approved",
+    "source": "drafted",
+    "recipients": "In-app to officer",
+    "titleAr": "تم اعتماد الطلب",
+    "titleEn": "Your RFQ was approved",
+    "bodyAr": "اعتُمد الطلب {rfqCode}. يمكنك الآن نشره للموردين المدعوين.",
+    "bodyEn": "RFQ {rfqCode} was approved. You can now publish it to the invited suppliers."
+  },
+  {
+    "type": "rfq.submission_opened",
+    "source": "drafted",
+    "recipients": "In-app to invitees",
+    "titleAr": "فُتح باب التقديم",
+    "titleEn": "Submissions are open",
+    "bodyAr": "فُتح باب التقديم للطلب {rfqCode}. قدّم عرضك قبل الموعد النهائي.",
+    "bodyEn": "Submissions are now open for RFQ {rfqCode}. Send your proposal before the deadline."
+  },
+  {
+    "type": "rfq.submission_closed",
+    "source": "drafted",
+    "recipients": "In-app to invitees + committee",
+    "titleAr": "أُغلق باب التقديم",
+    "titleEn": "Submissions are closed",
+    "bodyAr": "أُغلق باب التقديم للطلب {rfqCode}. لم تعد العروض الجديدة مقبولة.",
+    "bodyEn": "Submissions for RFQ {rfqCode} are closed. New proposals are no longer accepted."
+  },
+
+  // ======================================================================================
+  // Evaluation
+  // BUSINESS-PROCESSES.md §3.3.
+  // ======================================================================================
+  {
+    "type": "evaluation.opened",
+    "source": "drafted",
+    "recipients": "In-app to evaluators",
+    "titleAr": "بدأ تقييم الطلب",
+    "titleEn": "Evaluation has started",
+    "bodyAr": "فُتح تقييم الطلب {rfqCode}. ابدأ بتقييم العروض المسندة إليك.",
+    "bodyEn": "Evaluation for RFQ {rfqCode} is open. Start scoring the proposals assigned to you."
+  },
+  {
+    "type": "evaluation.evaluator_submitted",
+    "source": "drafted",
+    "recipients": "In-app to procurement_officer when all in",
+    "titleAr": "اكتمل تقييم جميع المقيّمين",
+    "titleEn": "All evaluators have submitted",
+    "bodyAr": "أرسل جميع المقيّمين درجاتهم للطلب {rfqCode}. يمكنك توحيد النتائج.",
+    "bodyEn": "Every evaluator has submitted their scores for RFQ {rfqCode}. You can consolidate the results."
+  },
+  {
+    "type": "evaluation.consolidated",
+    "source": "drafted",
+    "recipients": "In-app to committee",
+    "titleAr": "تم توحيد نتائج التقييم",
+    "titleEn": "Evaluation results were consolidated",
+    "bodyAr": "وُحّدت نتائج تقييم الطلب {rfqCode}. راجع الترتيب قبل الاعتماد.",
+    "bodyEn": "The evaluation results for RFQ {rfqCode} were consolidated. Review the ranking before finalizing."
+  },
+  {
+    "type": "evaluation.finalized",
+    "source": "drafted",
+    "recipients": "In-app to committee",
+    "titleAr": "تم اعتماد نتائج التقييم",
+    "titleEn": "Evaluation was finalized",
+    "bodyAr": "اعتُمدت نتائج تقييم الطلب {rfqCode} بشكل نهائي.",
+    "bodyEn": "The evaluation for RFQ {rfqCode} was finalized."
+  },
+  {
+    "type": "evaluation.reopened",
+    "source": "drafted",
+    "recipients": "In-app to affected evaluators",
+    "titleAr": "أُعيد فتح التقييم",
+    "titleEn": "The evaluation was reopened",
+    "bodyAr": "أُعيد فتح تقييم الطلب {rfqCode}. راجع درجاتك وأعد إرسالها.",
+    "bodyEn": "The evaluation for RFQ {rfqCode} was reopened. Review your scores and submit them again."
+  },
+  {
+    "type": "evaluation.evaluator_recused",
+    "source": "drafted",
+    "recipients": "In-app to procurement_officer",
+    "titleAr": "تنحّى أحد المقيّمين",
+    "titleEn": "An evaluator recused themselves",
+    "bodyAr": "تنحّى أحد المقيّمين عن تقييم الطلب {rfqCode}. قد تحتاج إلى إسناد بديل.",
+    "bodyEn": "An evaluator stepped down from the evaluation of RFQ {rfqCode}. You may need to assign a replacement.",
+    "flag": "§3.3's table has no row for recusal - it is a within-state event, not a transition. The recipient is chosen as the officer who owns the assignment; see the report."
+  },
+
+  // ======================================================================================
+  // Award
+  // BUSINESS-PROCESSES.md §3.4.
+  // ======================================================================================
+  {
+    "type": "award.recommended",
+    "source": "drafted",
+    "recipients": "In-app to approver",
+    "titleAr": "توصية ترسية بانتظار المراجعة",
+    "titleEn": "An award recommendation is ready",
+    "bodyAr": "سُجّلت توصية ترسية للطلب {rfqCode}. راجعها قبل توجيهها للاعتماد.",
+    "bodyEn": "An award recommendation was recorded for RFQ {rfqCode}. Review it before routing it for approval."
+  },
+  {
+    "type": "award.routed_for_approval",
+    "source": "drafted",
+    "recipients": "Email + in-app to approver(s)",
+    "titleAr": "ترسية بانتظار اعتمادك",
+    "titleEn": "An award needs your approval",
+    "bodyAr": "وُجّهت ترسية الطلب {rfqCode} لاعتمادك. راجع التوصية واتخذ قرارك.",
+    "bodyEn": "The award for RFQ {rfqCode} was routed for your approval. Review the recommendation and decide."
+  },
+  {
+    "type": "award.approved",
+    "source": "drafted",
+    "recipients": "In-app to officer",
+    "titleAr": "تم اعتماد الترسية",
+    "titleEn": "The award was approved",
+    "bodyAr": "اعتُمدت ترسية الطلب {rfqCode}. يمكنك الآن تنفيذها.",
+    "bodyEn": "The award for RFQ {rfqCode} was approved. You can now execute it."
+  },
+  {
+    "type": "award.rejected",
+    "source": "drafted",
+    "recipients": "In-app to officer",
+    "titleAr": "رُفضت الترسية",
+    "titleEn": "The award was rejected",
+    "bodyAr": "رُفضت ترسية الطلب {rfqCode}. راجع سبب الرفض وأعد التوصية.",
+    "bodyEn": "The award for RFQ {rfqCode} was rejected. Review the reason and recommend again.",
+    "flag": "The rejection REASON is deliberately absent from the body. BRULE-091 keeps it out of the payload, and the officer reads it on the award screen the link opens."
+  },
+  {
+    "type": "award.re_recommended",
+    "source": "drafted",
+    "recipients": "In-app to approver",
+    "titleAr": "أُعيدت توصية الترسية",
+    "titleEn": "The award was recommended again",
+    "bodyAr": "أُعيد تقديم توصية ترسية الطلب {rfqCode} بعد الرفض.",
+    "bodyEn": "A new award recommendation for RFQ {rfqCode} was submitted after the rejection."
+  },
+  {
+    "type": "award.erp_synced",
+    "source": "drafted",
+    "recipients": "In-app to procurement",
+    "titleAr": "تمت المزامنة مع نظام تخطيط الموارد",
+    "titleEn": "The award synced to the ERP",
+    "bodyAr": "تمت مزامنة ترسية الطلب {rfqCode} وإنشاء أمر الشراء.",
+    "bodyEn": "The award for RFQ {rfqCode} synced and a purchase order was created."
+  },
+  {
+    "type": "award.erp_failed",
+    "source": "§9 (body)",
+    "recipients": "Alert to system_admin",
+    "titleAr": "فشلت المزامنة مع نظام تخطيط الموارد",
+    "titleEn": "ERP sync failed",
+    "bodyAr": "تم تسجيل ترسية الطلب {rfqCode}. ستُعاد المزامنة مع النظام تلقائياً.",
+    "bodyEn": "The award for RFQ {rfqCode} is recorded. Syncing to the ERP will retry automatically.",
+    "flag": "Body transcribed from §9's `sync.pending` («تم تسجيل {object}. ستُعاد المزامنة مع النظام تلقائياً.»), which is the exact case - reassuring, not alarmist, per §10. The title is drafted."
+  },
+
+  // ======================================================================================
+  // Proposal
+  // BUSINESS-PROCESSES.md §3.2.
+  // ======================================================================================
+  {
+    "type": "proposal.withdrawn",
+    "source": "drafted",
+    "recipients": "In-app to supplier + procurement",
+    "titleAr": "تم سحب العرض",
+    "titleEn": "A proposal was withdrawn",
+    "bodyAr": "سُحب العرض {proposalCode} المقدَّم على الطلب {rfqCode}.",
+    "bodyEn": "Proposal {proposalCode} on RFQ {rfqCode} was withdrawn."
+  }
+]

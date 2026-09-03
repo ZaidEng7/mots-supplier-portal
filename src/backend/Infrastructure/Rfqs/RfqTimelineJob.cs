@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Rfqs;
@@ -31,6 +33,16 @@ public sealed class RfqTimelineJob(AppDbContext db, IAuditLogger auditLogger)
         foreach (var rfq in toOpen)
         {
             rfq.OpenSubmissionWindow();
+
+            // §3.1 "Published -> SubmissionOpen | In-app to invitees". A CLOCK-triggered transition,
+            // but still a state change - so the notification travels the Outbox in this same
+            // transaction (D-5), not a separate Hangfire enqueue. The clock decided WHEN; what is
+            // being announced is the state change, and it must not outlive a rollback.
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqSubmissionOpened,
+                await NotificationRecipients.RfqInviteeUsersAsync(db, rfq.Id, ct),
+                $"{NotificationTypes.RfqSubmissionOpened}:{rfq.Id}",
+                new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
             await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submission_opened", actorLabel: "system",
                 referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.Published), toState: nameof(RfqState.SubmissionOpen), ct: ct);
         }
@@ -42,6 +54,15 @@ public sealed class RfqTimelineJob(AppDbContext db, IAuditLogger auditLogger)
         foreach (var rfq in toClose)
         {
             rfq.CloseSubmissionWindow(reason: null, isEarlyClose: false);
+
+            // §3.1 "SubmissionOpen -> SubmissionClosed | In-app to invitees + committee" - two
+            // groups, both named by the table.
+            var closedRecipients = await NotificationRecipients.RfqInviteeUsersAsync(db, rfq.Id, ct);
+            closedRecipients.AddRange(await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct));
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqSubmissionClosed, closedRecipients,
+                $"{NotificationTypes.RfqSubmissionClosed}:{rfq.Id}",
+                new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
             await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submission_closed", actorLabel: "system",
                 referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.SubmissionOpen), toState: nameof(RfqState.SubmissionClosed), ct: ct);
         }
