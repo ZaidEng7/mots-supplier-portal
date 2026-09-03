@@ -1,3 +1,5 @@
+using FluentValidation.Results;
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Application.Common;
 using Microsoft.EntityFrameworkCore;
@@ -56,15 +58,18 @@ public sealed class UpdateLegalInfoRequestValidator : AbstractValidator<UpdateLe
                 .Select(c => c.FieldCode)
                 .ToListAsync(ct);
 
+            // The failures are raised with FluentValidation's own NotEmpty error code rather than a
+            // bare message, so §7.2's catalogue resolves them to Arabic exactly as a declared
+            // NotEmpty rule would. Without the code they would fall through to the English below.
             if (required.Contains("legalNameAr") && string.IsNullOrWhiteSpace(request.LegalNameAr))
-                context.AddFailure(nameof(request.LegalNameAr), "'Legal Name Ar' must not be empty.");
+                context.AddFailure(new ValidationFailure(nameof(request.LegalNameAr), "'Legal Name Ar' must not be empty.") { ErrorCode = "NotEmptyValidator" });
             if (required.Contains("legalNameEn") && string.IsNullOrWhiteSpace(request.LegalNameEn))
-                context.AddFailure(nameof(request.LegalNameEn), "'Legal Name En' must not be empty.");
+                context.AddFailure(new ValidationFailure(nameof(request.LegalNameEn), "'Legal Name En' must not be empty.") { ErrorCode = "NotEmptyValidator" });
             if (required.Contains("registrationNumber") && string.IsNullOrWhiteSpace(request.RegistrationNumber))
-                context.AddFailure(nameof(request.RegistrationNumber), "'Registration Number' must not be empty.");
+                context.AddFailure(new ValidationFailure(nameof(request.RegistrationNumber), "'Registration Number' must not be empty.") { ErrorCode = "NotEmptyValidator" });
             if (required.Contains("taxId") && string.IsNullOrWhiteSpace(request.TaxId))
-                context.AddFailure(nameof(request.TaxId), "'Tax Id' must not be empty.");
-            if (required.Contains("establishedOn") && request.EstablishedOn is null)
+                context.AddFailure(new ValidationFailure(nameof(request.TaxId), "'Tax Id' must not be empty.") { ErrorCode = "NotEmptyValidator" });
+if (required.Contains("establishedOn") && request.EstablishedOn is null)
                 context.AddFailure(nameof(request.EstablishedOn), "'Established On' must not be empty.");
         });
     }
@@ -256,7 +261,7 @@ public static class SupplierEndpoints
             if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
 
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(new UpdateProfileCommand(request.Description, request.Website, request.SupplierGroup, request.CurrencyCode, request.PrimaryContactPhone), ct);
 
@@ -273,7 +278,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(new UpdateLegalInfoCommand(request.LegalNameAr, request.LegalNameEn, request.RegistrationNumber, request.TaxId, request.SupplierType, request.EstablishedOn), ct);
 
@@ -333,7 +338,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddRepresentativeCommand(request.FullName, request.Email, request.Phone, request.Position), ct);
             return MapMutation(result);
@@ -349,7 +354,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.UpdateAsync(new UpdateRepresentativeCommand(representativeId, request.FullName, request.Email, request.Phone, request.Position), ct);
             return MapMutation(result);
@@ -375,7 +380,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddAddressCommand(request.Kind, request.Line1, request.Line2, request.City, request.RegionCode, request.Country, request.PostalCode, request.Latitude, request.Longitude), ct);
             return MapMutation(result);
@@ -391,7 +396,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.UpdateAsync(new UpdateAddressCommand(addressId, request.Kind, request.Line1, request.Line2, request.City, request.RegionCode, request.Country, request.PostalCode, request.Latitude, request.Longitude), ct);
             return MapMutation(result);
@@ -412,7 +417,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddContactCommand(request.FullName, request.Email, request.Phone, request.Role), ct);
             return MapMutation(result);
@@ -428,7 +433,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.UpdateAsync(new UpdateContactCommand(contactId, request.FullName, request.Email, request.Phone, request.Role), ct);
             return MapMutation(result);
@@ -449,7 +454,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddBranchCommand(request.NameAr, request.NameEn, request.AddressId), ct);
             return MapMutation(result);
@@ -465,7 +470,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.UpdateAsync(new UpdateBranchCommand(branchId, request.NameAr, request.NameEn, request.AddressId, request.IsActive), ct);
             return MapMutation(result);
@@ -486,7 +491,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddBankAccountCommand(request.AccountHolderName, request.BankName, request.BranchName, request.AccountNumber, request.SwiftBic, request.CurrencyCode), ct);
             return MapMutation(result);
@@ -502,7 +507,7 @@ public static class SupplierEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.UpdateAsync(new UpdateBankAccountCommand(bankAccountId, request.AccountHolderName, request.BankName, request.BranchName, request.AccountNumber, request.SwiftBic, request.CurrencyCode), ct);
             return MapMutation(result);

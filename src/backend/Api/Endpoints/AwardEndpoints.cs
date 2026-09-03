@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Awards;
@@ -55,7 +56,7 @@ public static class AwardEndpoints
             IRecommendAwardHandler handler, CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new RecommendAwardCommand(referenceCode, request.WinningProposalId, request.JustificationAr, request.JustificationEn), ct));
         })
@@ -77,7 +78,7 @@ public static class AwardEndpoints
             IRejectAwardHandler handler, CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new RejectAwardCommand(referenceCode, request.Reason), ct));
         })

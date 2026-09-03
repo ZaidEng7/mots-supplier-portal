@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Api.Authorization;
@@ -157,7 +158,7 @@ public static class ReviewEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(referenceCode, request.Reason, ct);
             return result switch
@@ -192,7 +193,7 @@ public static class ReviewEndpoints
                 CancellationToken ct) =>
             {
                 var validation = await validator.ValidateAsync(request, ct);
-                if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+                if (!validation.IsValid) return ValidationProblems.From(validation);
 
                 var result = await handlerInvoke(handler, new SupplierLifecycleCommand(referenceCode, request.Reason), ct);
                 return result switch
@@ -215,7 +216,7 @@ public static class ReviewEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(
                 new RequestInfoCommand(referenceCode, request.Reason, request.FlaggedProfileFields, request.FlaggedDocumentTypeCodes), ct);

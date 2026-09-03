@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
@@ -70,7 +71,7 @@ public static class AuthEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
-                return Results.ValidationProblem(validation.ToDictionary());
+                return ValidationProblems.From(validation);
             }
 
             // Per-IP is the "auth-strict" policy below; per-account here (SECURITY-ARCHITECTURE
@@ -165,7 +166,7 @@ public static class AuthEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
-                return Results.ValidationProblem(validation.ToDictionary());
+                return ValidationProblems.From(validation);
             }
 
             // Per-target on top of the per-IP "auth-strict" policy (SECURITY-ARCHITECTURE §5.1) -
@@ -193,7 +194,7 @@ public static class AuthEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {
-                return Results.ValidationProblem(validation.ToDictionary());
+                return ValidationProblems.From(validation);
             }
 
             var result = await handler.HandleAsync(

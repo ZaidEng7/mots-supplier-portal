@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
@@ -40,7 +41,7 @@ public static class StaffEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(new InviteStaffCommand(request.Email, request.FullName, request.Role), ct);
             return result switch
@@ -62,7 +63,7 @@ public static class StaffEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(new AcceptStaffInviteCommand(request.Token, request.Password), ct);
             return result switch

@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
@@ -186,7 +187,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapSupplierResult(await handler.HandleAsync(new PostClarificationQuestionCommand(referenceCode, request.Question), ct));
         })
@@ -210,7 +211,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(new CreateRfqCommand(
                 request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn, request.CurrencyCode,
@@ -229,7 +230,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.HandleAsync(new UpdateRfqBasicsCommand(
                 referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn,
@@ -248,7 +249,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddRfqItemCommand(
                 referenceCode, request.TitleAr, request.TitleEn, request.SpecificationAr, request.SpecificationEn,
@@ -272,7 +273,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             var result = await handler.AddAsync(new AddRequirementCommand(
                 referenceCode, request.TextAr, request.TextEn, request.IsMandatory, request.DocumentTypeCode), ct);
@@ -345,7 +346,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new ReturnRfqForEditsCommand(referenceCode, request.Comments), ct));
         })
@@ -378,7 +379,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new CancelRfqCommand(referenceCode, request.Reason), ct));
         })
@@ -406,7 +407,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer, request.Publish), ct));
         })
@@ -427,7 +428,7 @@ public static class RfqEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(new IssueAddendumCommand(referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn), ct));
         })

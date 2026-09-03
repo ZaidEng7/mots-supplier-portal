@@ -230,7 +230,8 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
 
         var emptyReason = await otherManager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/reject", new { reason = "" });
-        emptyReason.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // §7.2: field-level validation failures are 422.
+        emptyReason.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
 
         var reject = await otherManager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/reject", new { reason = "price too high, re-evaluate" });
         reject.StatusCode.Should().Be(HttpStatusCode.OK);

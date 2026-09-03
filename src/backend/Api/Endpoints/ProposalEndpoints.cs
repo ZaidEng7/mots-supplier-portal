@@ -1,3 +1,4 @@
+using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
@@ -106,7 +107,7 @@ public static class ProposalEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapResult(await handler.HandleAsync(new SetCommercialTermsCommand(
                 referenceCode, request.CurrencyCode, request.PaymentTerms, request.IncotermCode,
@@ -130,7 +131,7 @@ public static class ProposalEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapResult(await handler.SetAsync(new SetItemPricingCommand(
                 referenceCode, rfqItemId, request.Quantity, request.UnitPrice, request.Discount, request.LeadTimeDays, request.NotesAr, request.NotesEn), ct));
@@ -153,7 +154,7 @@ public static class ProposalEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapResult(await handler.HandleAsync(new AnswerRequirementCommand(referenceCode, requirementId, request.AnswerAr, request.AnswerEn), ct));
         })
@@ -208,7 +209,7 @@ public static class ProposalEndpoints
             CancellationToken ct) =>
         {
             var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapResult(await handler.HandleAsync(new WithdrawProposalCommand(referenceCode, request.Reason), ct));
         })
