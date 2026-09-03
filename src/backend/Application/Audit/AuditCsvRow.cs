@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using MotsSupplierPortal.Application.Reporting;
 
 namespace MotsSupplierPortal.Application.Audit;
 
@@ -13,35 +14,6 @@ namespace MotsSupplierPortal.Application.Audit;
 /// </summary>
 public static class AuditCsvRow
 {
-    /// <summary>
-    /// The provenance block an exported audit file carries above its header row.
-    ///
-    /// <para><b>Why the file has to say this itself.</b> Audit rows are the record of a tender, and a
-    /// CSV with a silently truncated range is indistinguishable from a complete one once it is
-    /// detached from the request that produced it - which is exactly what happens when it is attached
-    /// to a dispute. Stating the filters inside the artefact makes "this is everything between these
-    /// dates" a claim the file makes and a reader can check, rather than an assumption.</para>
-    ///
-    /// <para>Comment lines are prefixed with <c>#</c>. RFC 4180 has no comment syntax, so this is a
-    /// CONVENTION, not a standard: spreadsheet applications import these as single-column rows above
-    /// the table. The alternative - a separate manifest file - loses the connection the moment
-    /// someone forwards one attachment and not the other.</para>
-    /// </summary>
-    public static IEnumerable<string> ProvenanceHeader(
-        DateTimeOffset generatedAt,
-        string? aggregateType, string? action,
-        DateTimeOffset? from, DateTimeOffset? to,
-        string scopeDescription)
-    {
-        yield return $"# MOTS Supplier Portal - audit export";
-        yield return $"# generated: {generatedAt.ToString("O", CultureInfo.InvariantCulture)}";
-        yield return $"# scope: {Escape(scopeDescription)}";
-        yield return $"# filter.aggregateType: {aggregateType ?? "(all)"}";
-        yield return $"# filter.action: {action ?? "(all)"}";
-        yield return $"# filter.from: {from?.ToString("O", CultureInfo.InvariantCulture) ?? "(unbounded)"}";
-        yield return $"# filter.to: {to?.ToString("O", CultureInfo.InvariantCulture) ?? "(unbounded)"}";
-    }
-
     /// <summary>
     /// UTF-8 BOM.
     ///

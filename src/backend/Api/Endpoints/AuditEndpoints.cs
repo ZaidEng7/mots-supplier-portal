@@ -1,6 +1,7 @@
 using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Audit;
+using MotsSupplierPortal.Application.Reporting;
 using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
@@ -169,9 +170,22 @@ public static class AuditEndpoints
 
             await using var writer = new StreamWriter(response.Body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-            foreach (var line in AuditCsvRow.ProvenanceHeader(
-                DateTimeOffset.UtcNow, aggregateType, action, fromBound, toBound,
-                scopeDescription: "all organizations (audit.read)"))
+            // The provenance block is FEAT-19.4's, not this endpoint's - every artefact the export
+            // engine produces carries one, in whichever format it is being rendered to.
+            var provenance = new ExportProvenance(
+                DateTimeOffset.UtcNow,
+                Scope: "all organizations (audit.read)",
+                Filters:
+                [
+                    ExportFilterValue.Optional("aggregateType", aggregateType),
+                    ExportFilterValue.Optional("action", action),
+                    ExportFilterValue.OptionalId("aggregateId", aggregateIdValue),
+                    ExportFilterValue.OptionalId("actorUserId", actorUserIdValue),
+                    ExportFilterValue.Bound("from", fromBound),
+                    ExportFilterValue.Bound("to", toBound),
+                ]);
+
+            foreach (var line in provenance.ToCsvComments("audit export"))
             {
                 await writer.WriteLineAsync(line);
             }
