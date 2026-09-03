@@ -99,7 +99,7 @@ public static class ComparisonEndpoints
             ComparisonExport.Title(comparison, locale),
             ComparisonExport.ArtefactName(locale),
             provenance,
-            [new PdfSection(
+            [new ReportSection(
                 ComparisonExport.Title(comparison, locale),
                 ComparisonExport.Columns(locale),
                 ComparisonExport.Rows(comparison, locale))]));

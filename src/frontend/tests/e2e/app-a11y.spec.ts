@@ -109,7 +109,9 @@ test('the route denominator is what the router actually declares, not what this 
   // per SCREEN-INVENTORY's route column and IA §4.3's shell.
   // 39 (EPIC-17 part 2): /back-office/procurement, /back-office/procurement/approvals and
   // /back-office/review-dashboard - SCR-400, SCR-401 and SCR-300.
-  expect(routes.length).toBe(39)
+  // 40 (EPIC-19): /back-office/reports - FEAT-19.1/19.2. This guard fired on that route being
+  // added, which is what it is for: the count moves only when someone looking at it moves it.
+  expect(routes.length).toBe(40)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

@@ -181,6 +181,23 @@ public static class Permissions
     /// feature area.</summary>
     public const string ComparisonView = "comparison.view";
 
+    /// <summary>
+    /// FEAT-19.1/19.2: read the procurement and compliance reports at <c>/bo/reports</c>.
+    ///
+    /// <para><b>An invention.</b> The IA names the route and says it is gated on
+    /// <c>report.read</c>, and no document defines the permission itself - it is absent from this
+    /// catalog and from every role's list. The name is transcribed from the IA rather than coined,
+    /// and it follows the <c>resource.action</c> convention this catalog uses throughout.</para>
+    ///
+    /// <para><b>It is granted to no role by default, deliberately.</b> Reports aggregate across
+    /// every RFQ, supplier and document in an organization, and guessing which personas should see
+    /// that is a policy decision no document has made. Adding it to a role list would make that
+    /// guess silently, and a permission wrongly granted is far harder to notice than one wrongly
+    /// withheld. It therefore needs a MANUAL grant in any deployed environment - the same footing
+    /// as rfq.read and rfq.clarify.</para>
+    /// </summary>
+    public const string ReportRead = "report.read";
+
     public static readonly IReadOnlyList<string> All =
     [
         SupplierEdit, SupplierSubmit, SupplierApprove, SupplierReview, SupplierReject, SupplierRequestInfo, DocumentReview,
@@ -190,7 +207,7 @@ public static class Permissions
         RfqRead, RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
-        ComparisonView, AwardReject, AwardRecommend, IntegrationRetry
+        ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead
     ];
 }
 

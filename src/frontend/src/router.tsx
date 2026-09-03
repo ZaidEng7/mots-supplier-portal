@@ -1,3 +1,4 @@
+import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -269,6 +270,18 @@ const procurementDashboardRoute = createRoute({
   component: ProcurementDashboardPage,
 })
 
+// FEAT-19.1/19.2. The IA routes reports at "/bo/reports"; like SCR-400 and SCR-500 before it, that
+// path and this app's URL space disagree, so it hangs off the back-office layout and its real path
+// carries the /back-office prefix. Reported rather than resolved by renaming a shell.
+//
+// No SCR id: the screen has no specification at all, and an invented id would corrupt an inventory
+// that the specifications, backlog and tests all cross-reference.
+const reportsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/reports',
+  component: ReportsPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -438,7 +451,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

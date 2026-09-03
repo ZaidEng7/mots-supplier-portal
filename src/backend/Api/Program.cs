@@ -28,6 +28,7 @@ using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Evaluations;
 using MotsSupplierPortal.Application.Comparison;
+using MotsSupplierPortal.Application.Reports;
 using MotsSupplierPortal.Application.Awards;
 using MotsSupplierPortal.Application.Workspace;
 using MotsSupplierPortal.Domain.Identity;
@@ -43,6 +44,7 @@ using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Proposals;
 using MotsSupplierPortal.Infrastructure.Evaluations;
 using MotsSupplierPortal.Infrastructure.Comparison;
+using MotsSupplierPortal.Infrastructure.Reports;
 using MotsSupplierPortal.Infrastructure.Awards;
 using MotsSupplierPortal.Infrastructure.Workspace;
 using MotsSupplierPortal.Infrastructure.Storage;
@@ -326,6 +328,10 @@ builder.Services.AddScoped<IGetComparisonHandler, GetComparisonHandler>();
 // faces are read-only after construction and HarfBuzz shaping does not mutate them, so sharing one
 // instance across requests is safe.
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Reporting.ReportFonts>();
+
+// FEAT-19.1/19.2 report reads.
+builder.Services.AddScoped<IProcurementReportHandler, ProcurementReportHandler>();
+builder.Services.AddScoped<IComplianceReportHandler, ComplianceReportHandler>();
 
 // EPIC-14: Award (recommendation -> approval -> issue -> ERP PO).
 builder.Services.AddScoped<IGetAwardHandler, GetAwardHandler>();
@@ -790,6 +796,7 @@ app.MapRfqEndpoints();
 app.MapProposalEndpoints();
 app.MapEvaluationEndpoints();
 app.MapComparisonEndpoints();
+app.MapReportEndpoints();
 app.MapAwardEndpoints();
 app.MapWorkspaceEndpoints();
 
