@@ -19,10 +19,7 @@ public sealed record PdfReportSpec(
     string Title,
     string ArtefactName,
     ExportProvenance Provenance,
-    IReadOnlyList<PdfSection> Sections);
-
-/// <summary>A heading plus its rows. A row is a list of cells, laid out as a simple table.</summary>
-public sealed record PdfSection(string Heading, IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string>> Rows);
+    IReadOnlyList<ReportSection> Sections);
 
 /// <summary>
 /// FEAT-19.4: renders a report to PDF/A-shaped output with both faces embedded.

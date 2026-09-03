@@ -146,7 +146,7 @@ public sealed class ArabicPdfRenderingTests
             "RFQ report",
             new ExportProvenance(DateTimeOffset.UnixEpoch, "منظمة واحدة",
                 [ExportFilterValue.Bound("from", null)]),
-            [new PdfSection("الطلبات", ["المرجع", "الحالة", "القيمة"],
+            [new ReportSection("الطلبات", ["المرجع", "الحالة", "القيمة"],
                 [["RFQ-2026-000001", "منشور", "٢٥٠٠٠"]])]));
 
         var bytes = stream.ToArray();
