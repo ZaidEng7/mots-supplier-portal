@@ -4,12 +4,36 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
+import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
 
 /** FEAT-14.1..14.6/FR-AWD-001..007. Every action here hides only, never gates - the server
  * re-enforces its own guard (state, segregation of duties, supplier-active) regardless of what
  * this page shows, same rule as every other page in this codebase. */
+/**
+ * UX-WRITING.md §7.6's three ERP sync labels, keyed by enum member.
+ *
+ * <p><b>`NotRequested` is absent deliberately, and absence is how it renders.</b> §7.6 has no row for
+ * it because it is not a sync state - nothing has been asked of the ERP yet - so there is nothing to
+ * transcribe, and the two wrong answers are both available by accident: printing the raw enum name
+ * (what this page did before, showing a procurement officer the string "NotRequested") or reusing
+ * the pending label, which claims a request is in flight when none was made. The function returns
+ * null and the caller renders no chip.</p>
+ *
+ * <p>Typed as Record over the enum MINUS that one member, so adding a fifth ErpSyncStatus fails the
+ * type-check here rather than falling through to a missing translation key at runtime.</p>
+ */
+const ERP_SYNC_LABEL_KEYS: Record<Exclude<ErpSyncStatus, 'NotRequested'>, string> = {
+  Requested: 'status.erpSync.Requested',
+  Synced: 'status.erpSync.Synced',
+  Failed: 'status.erpSync.Failed',
+}
+
+function erpSyncLabelKey(status: ErpSyncStatus): string | null {
+  return status === 'NotRequested' ? null : ERP_SYNC_LABEL_KEYS[status]
+}
+
 export function AwardPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode/award' })
   const { t } = useTranslation()
@@ -137,9 +161,11 @@ export function AwardPage() {
 
             {award.state === 'Awarded' ? (
               <div className="flex flex-col gap-2">
-                <Badge tone={award.erpSyncStatus === 'Synced' ? 'success' : award.erpSyncStatus === 'Failed' ? 'danger' : 'info'}>
-                  {t('award.erpStatus')}: {award.erpSyncStatus}
-                </Badge>
+                {erpSyncLabelKey(award.erpSyncStatus) ? (
+                  <Badge tone={award.erpSyncStatus === 'Synced' ? 'success' : award.erpSyncStatus === 'Failed' ? 'danger' : 'info'}>
+                    {t('award.erpStatus')}: {t(erpSyncLabelKey(award.erpSyncStatus)!)}
+                  </Badge>
+                ) : null}
                 {award.externalPurchaseOrderRef ? <p>{t('award.externalPoRef')}: {award.externalPurchaseOrderRef}</p> : null}
                 {award.erpSyncStatus === 'Failed' ? (
                   <Button size="sm" variant="ghost" isLoading={retryMutation.isPending} onClick={() => retryMutation.mutate()}>

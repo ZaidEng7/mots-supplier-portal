@@ -100,7 +100,8 @@ describe('AwardPage', () => {
 
     renderPage(<AwardPage />)
 
-    expect(await screen.findByText('ERP sync status: Failed')).toBeInTheDocument()
+    // UX-WRITING.md §7.6's label, not the raw enum member the page used to print.
+    expect(await screen.findByText('ERP sync status: Sync failed')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Retry sync' }))
 
     expect(await screen.findByText('Sync retry queued')).toBeInTheDocument()
@@ -115,6 +116,25 @@ describe('AwardPage', () => {
     renderPage(<AwardPage />)
 
     expect(await screen.findByText('Purchase order reference: PO-000123')).toBeInTheDocument()
+    expect(await screen.findByText('ERP sync status: Synced')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry sync' })).not.toBeInTheDocument()
+  })
+
+  it('Awarded but nothing asked of the ERP yet: renders no sync chip at all', async () => {
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/award': awardFixture({ state: 'Awarded', awardedAt: '2026-08-05T00:00:00Z', erpSyncStatus: 'NotRequested' }),
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluationFixture(),
+    })
+
+    renderPage(<AwardPage />)
+
+    // Waits for the awarded view before asserting an absence, so this cannot pass on an empty page.
+    expect(await screen.findByText(/Awarded/)).toBeInTheDocument()
+
+    // UX-WRITING.md §7.6 has no row for NotRequested. The two wrong answers are both one line away:
+    // the raw enum member, and the pending label claiming a request is in flight.
+    expect(screen.queryByText(/ERP sync status/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/NotRequested/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sync pending/)).not.toBeInTheDocument()
   })
 })
