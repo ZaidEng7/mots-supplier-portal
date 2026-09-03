@@ -1,3 +1,4 @@
+using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Audit;
 using MotsSupplierPortal.Domain.Identity;
@@ -113,10 +114,22 @@ public static class AuditEndpoints
 
             var filter = new AuditLogFilter(aggregateType, aggregateId, actorUserId, action, fromBound, toBound);
 
-            response.ContentType = "text/csv";
+            response.ContentType = "text/csv; charset=utf-8";
             response.Headers.ContentDisposition = "attachment; filename=audit-log-export.csv";
 
-            await using var writer = new StreamWriter(response.Body);
+            // BOM first, before anything else reaches the body - see AuditCsvRow.Utf8Bom for why an
+            // Arabic export without it is silently unreadable in the tool most people open it with.
+            await response.Body.WriteAsync(AuditCsvRow.Utf8Bom, ct);
+
+            await using var writer = new StreamWriter(response.Body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            foreach (var line in AuditCsvRow.ProvenanceHeader(
+                DateTimeOffset.UtcNow, aggregateType, action, fromBound, toBound,
+                scopeDescription: "all organizations (audit.read)"))
+            {
+                await writer.WriteLineAsync(line);
+            }
+
             await writer.WriteLineAsync("Id,OccurredAt,AggregateType,AggregateId,Action,FromState,ToState,ActorLabel");
 
             await foreach (var entry in handler.StreamForExportAsync(filter, ct))

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -109,10 +110,17 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
     {
         var response = await client.GetAsync($"/api/v1/audit/export?{query}");
         response.EnsureSuccessStatusCode();
-        response.Content.Headers.ContentType!.MediaType.Should().Be("text/csv");
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/csv");  // charset is now stated too
 
         var csv = await response.Content.ReadAsStringAsync();
-        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // EPIC-19 put a provenance block above the header - the range and filters the file was
+        // produced with, stated inside the artefact. Comment lines are dropped here the way a CSV
+        // consumer drops them, so these assertions stay about the DATA.
+        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !line.StartsWith('#') && !line.StartsWith('\uFEFF'))
+            .Select(line => line.TrimStart('\uFEFF'))
+            .ToArray();
         lines[0].Should().Be("Id,OccurredAt,AggregateType,AggregateId,Action,FromState,ToState,ActorLabel");
         return lines.Skip(1).ToList();
     }
@@ -371,5 +379,65 @@ public sealed class AuditSearchAndExportTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         response.Content.Headers.ContentType!.MediaType.Should().NotBe("text/csv",
             "a refused export must not also emit a CSV body");
+    }
+
+    // ---- EPIC-19 Phase 3: the export says what it contains -------------------------------------
+
+    [Fact]
+    public async Task The_export_carries_a_BOM_and_states_its_own_filters()
+    {
+        // An audit CSV is the record of a tender. Detached from the request that produced it, a file
+        // with a truncated range is indistinguishable from a complete one - so the range has to be a
+        // claim the artefact itself makes.
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var response = await staff.GetAsync(
+            $"/api/v1/audit/export?aggregateType={probes.ProbeType}&from={Uri.EscapeDataString(Day2.ToString("O"))}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+
+        // The BOM, asserted on the BYTES: a string comparison would silently pass without it, and
+        // the whole point is what a spreadsheet application sees.
+        bytes.Take(3).Should().Equal([(byte)0xEF, (byte)0xBB, (byte)0xBF],
+            "Excel reads a BOM-less UTF-8 CSV as the system code page and turns Arabic into mojibake");
+
+        var text = Encoding.UTF8.GetString(bytes);
+        text.Should().Contain($"# filter.aggregateType: {probes.ProbeType}");
+        text.Should().Contain($"# filter.from: {Day2.ToString("O")}");
+        text.Should().Contain("# filter.to: (unbounded)",
+            "an absent bound is stated as unbounded rather than omitted - a missing line reads as a missing filter");
+        text.Should().Contain("Id,OccurredAt,AggregateType");
+    }
+
+    [Fact]
+    public async Task The_exports_rows_are_the_same_rows_the_list_returns()
+    {
+        // The leak this guards: an export that ignores the scope or the filter its list applies. Same
+        // filter, same caller - so the two must agree row for row.
+        var probes = await SeedAsync();
+        var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var listed = await staff.GetFromJsonAsync<AuditPage>(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}&from={Uri.EscapeDataString(Day2.ToString("O"))}&pageSize=100");
+        listed!.Data.Should().NotBeEmpty("control: the filter matches something");
+
+        var csv = await (await staff.GetAsync(
+            $"/api/v1/audit/export?aggregateType={probes.ProbeType}&from={Uri.EscapeDataString(Day2.ToString("O"))}"))
+            .Content.ReadAsStringAsync();
+
+        foreach (var entry in listed.Data)
+        {
+            csv.Should().Contain(entry.Id.ToString(), "every row the list shows must be in the export");
+        }
+
+        // And the other direction: nothing outside the filter leaked into the file.
+        var excluded = await staff.GetFromJsonAsync<AuditPage>(
+            $"/api/v1/audit?aggregateType={probes.ProbeType}&to={Uri.EscapeDataString(Day1.ToString("O"))}&pageSize=100");
+        foreach (var entry in excluded!.Data.Where(e => e.OccurredAt < Day2))
+        {
+            csv.Should().NotContain(entry.Id.ToString(), "a row outside the range must not be in the file");
+        }
     }
 }
