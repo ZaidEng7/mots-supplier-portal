@@ -2,6 +2,7 @@ using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
+using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Identity;
@@ -335,7 +336,9 @@ public static class RfqEndpoints
             if (file is null || file.Length == 0) return Results.BadRequest(new { error = "file_required" });
 
             var caption = form["caption"].ToString();
-            var storageKey = $"rfq-attachments/{referenceCode}/{Guid.CreateVersion7()}-{file.FileName}";
+            // Server-side key, and the quarantine gap both these paths share, are explained once in
+            // AttachmentStorageKey rather than twice here.
+            var storageKey = AttachmentStorageKey.For(AttachmentStorageKey.RfqAttachmentPrefix);
 
             await using (var stream = file.OpenReadStream())
             {
