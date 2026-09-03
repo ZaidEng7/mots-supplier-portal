@@ -451,7 +451,7 @@
     "ar": "يجب ألا يكون السعر بالسالب.",
     "en": "Price must not be negative.",
     "usedIn": "CreateOfferingRequest",
-    "flag": "§7.2's PRICE_NON_POSITIVE exemplar («أكبر من صفر») states a stricter rule than the code enforces - this rule admits zero. Transcribing it would misdescribe the validator, so the sentence is drafted to match the rule. See the report."
+    "flag": "Deliberately NOT the proposal rule. §7.2's PRICE_NON_POSITIVE covers the proposal unit price, which is now GreaterThan(0); an offering is a supplier's catalogue listing and no document rules on it, so zero stays accepted here and the sentence says only what the validator enforces. Open question - see the report."
   },
 
   // ========================================================================================
@@ -677,13 +677,12 @@
     "usedIn": "AnswerRequirementRequest"
   },
   {
-    "key": "UnitPrice.GreaterThanOrEqualTo",
-    "code": "UNIT_PRICE_NEGATIVE",
-    "source": "drafted",
-    "ar": "يجب ألا يكون سعر الوحدة بالسالب.",
-    "en": "Unit price must not be negative.",
-    "usedIn": "SetItemPricingRequest",
-    "flag": "§7.2's exemplar «يجب أن يكون سعر الوحدة أكبر من صفر.» describes GreaterThan(0); this validator is GreaterThanOrEqualTo(0) and admits a zero price. Drafted to match the code. See the report - one of the two needs to change."
+    "key": "UnitPrice.GreaterThan",
+    "code": "PRICE_NON_POSITIVE",
+    "source": "§7.2",
+    "ar": "يجب أن يكون سعر الوحدة أكبر من صفر.",
+    "en": "Unit price must be greater than zero.",
+    "usedIn": "SetItemPricingRequest"
   },
 
   // ========================================================================================

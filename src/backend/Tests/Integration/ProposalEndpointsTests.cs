@@ -122,6 +122,38 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         });
     }
 
+    /// <summary>
+    /// §7.2 documents this rule twice over - in the error code it names (PRICE_NON_POSITIVE) and in
+    /// the message it prints («يجب أن يكون سعر الوحدة أكبر من صفر») - but the validator was
+    /// GreaterThanOrEqualTo(0), so a zero-price bid line was accepted while the contract said it
+    /// could not be. Ruled in favour of the contract.
+    /// </summary>
+    [Fact]
+    public async Task A_zero_unit_price_is_rejected_with_the_documented_code_and_message()
+    {
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"ZeroPrice {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"ZeroPriceOther {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, requiredItemId, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Zero price RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+
+        var zero = await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
+        { quantity = 10m, unitPrice = 0m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
+
+        zero.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await zero.Content.ReadFromJsonAsync<JsonElement>();
+        var error = problem.GetProperty("errors").EnumerateArray()
+            .Single(e => e.GetProperty("field").GetString() == "unitPrice");
+
+        error.GetProperty("code").GetString().Should().Be("PRICE_NON_POSITIVE", "§7.2 names this code");
+        error.GetProperty("messages").GetProperty("ar").GetString()
+            .Should().Be("يجب أن يكون سعر الوحدة أكبر من صفر.", "transcribed verbatim from §7.2");
+
+        // The neighbouring value still works, so this proves the boundary rather than a broken endpoint.
+        var positive = await supplierA.PutAsJsonAsync($"/api/v1/proposals/{proposalCode}/items/{requiredItemId}", new
+        { quantity = 10m, unitPrice = 0.01m, discount = (decimal?)null, leadTimeDays = 3, notesAr = (string?)null, notesEn = (string?)null });
+        positive.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     [Fact]
     public async Task Starting_a_proposal_twice_returns_the_same_draft_uniqueness_enforced()
     {

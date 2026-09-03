@@ -14,7 +14,10 @@ public sealed class SetItemPricingRequestValidator : AbstractValidator<SetItemPr
     public SetItemPricingRequestValidator()
     {
         RuleFor(x => x.Quantity).GreaterThan(0);
-        RuleFor(x => x.UnitPrice).GreaterThanOrEqualTo(0);
+        // §7.2 documents this rule by name and by message: PRICE_NON_POSITIVE, «يجب أن يكون سعر
+        // الوحدة أكبر من صفر». It was GreaterThanOrEqualTo(0), so a zero-price bid line was accepted
+        // while the contract said it could not be - ruled in favour of the contract.
+        RuleFor(x => x.UnitPrice).GreaterThan(0);
     }
 }
 
