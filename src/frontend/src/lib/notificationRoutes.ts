@@ -28,8 +28,6 @@ export function notificationRoute(notification: Notification): string | undefine
   // A proposal notification still lands on the RFQ: a supplier's proposal is reached THROUGH the
   // RFQ in this app's URL space, and there is no standalone proposal route to point at.
   return isSupplier ? `/rfqs/${rfqCode}` : `/back-office/rfqs/${rfqCode}`
-
-  return undefined
 }
 
 function parseData(json: string): Record<string, unknown> {
