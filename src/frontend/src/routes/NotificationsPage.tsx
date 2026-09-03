@@ -89,7 +89,13 @@ export function NotificationsPage() {
         <section key={day} className="mb-4">
           <h3 className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>{day}</h3>
           <ul className="flex flex-col gap-2">
-            {rows.map((notification) => (
+            {rows.map((notification) => {
+              // Resolved once. Calling it in the condition and again in the JSX ran the same
+              // resolution twice per row and needed a non-null assertion to compile - two ways for
+              // the two calls to disagree, on a list that can be long.
+              const route = notificationRoute(notification)
+
+              return (
               <li key={notification.id}
                 className="flex flex-col gap-1 rounded-[var(--radius-md)] p-3"
                 style={{
@@ -111,8 +117,8 @@ export function NotificationsPage() {
                   {isArabic ? notification.bodyAr : notification.bodyEn}
                 </p>
                 <div className="flex items-center gap-3">
-                  {notificationRoute(notification) ? (
-                    <Link to={notificationRoute(notification)!} className="text-[length:var(--text-body-sm)]">
+                  {route ? (
+                    <Link to={route} className="text-[length:var(--text-body-sm)]">
                       {t('notifications.open')}
                     </Link>
                   ) : null}
@@ -124,7 +130,8 @@ export function NotificationsPage() {
                   )}
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         </section>
       ))}
