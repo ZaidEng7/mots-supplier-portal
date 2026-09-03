@@ -258,3 +258,27 @@ export function formatCurrency(
     return plain()
   }
 }
+
+/**
+ * A plain number in the locale's numerals. «٨٧٫٥٠» / "87.50".
+ *
+ * <p>For non-monetary figures - evaluation scores, weighted totals, percentages. R-1's ruling covers
+ * counts, quantities and percentages, so a score sitting beside Eastern-digit currency and dates
+ * should not be the one Western-digit figure on the screen; `toFixed(2)` produced exactly that.
+ * Separate from {@link formatCurrency} because a score has no currency, and rendering one as money
+ * would attach a unit that does not exist.</p>
+ */
+export function formatNumber(
+  value: number | null | undefined,
+  locale?: string,
+  fractionDigits = 2,
+): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return ''
+  const resolved = resolveLocale(locale)
+
+  return new Intl.NumberFormat(resolved, {
+    numberingSystem: numberingSystemFor(resolved),
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value)
+}

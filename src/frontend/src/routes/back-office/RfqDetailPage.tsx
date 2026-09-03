@@ -17,7 +17,7 @@ import {
   EvaluationApiError,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
-import { formatDate, formatDateTime } from '../../lib/datetime'
+import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -26,6 +26,7 @@ export function RfqDetailPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode' })
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
+  const locale = isArabic ? 'ar' : 'en-GB'
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
@@ -697,9 +698,9 @@ export function RfqDetailPage() {
                               {r.technicallyQualified ? t('evaluation.qualifiedYes') : t('evaluation.qualifiedNo')}
                             </Badge>
                           </TableCell>
-                          <TableCell>{r.technicalWeightedScore.toFixed(2)}</TableCell>
-                          <TableCell>{r.financialWeightedScore !== null ? r.financialWeightedScore.toFixed(2) : '—'}</TableCell>
-                          <TableCell>{r.weightedTotal.toFixed(2)}</TableCell>
+                          <TableCell>{formatNumber(r.technicalWeightedScore, locale)}</TableCell>
+                          <TableCell>{r.financialWeightedScore !== null ? formatNumber(r.financialWeightedScore, locale) : '—'}</TableCell>
+                          <TableCell>{formatNumber(r.weightedTotal, locale)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
