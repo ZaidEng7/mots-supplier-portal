@@ -44,10 +44,18 @@ internal static class ProposalLoader
         if (loaded is null) return null;
         var (rfq, _) = loaded.Value;
 
+        // A supplier may now have more than one proposal on an RFQ: BUSINESS-PROCESSES.md §4.1
+        // permits re-entry after a withdrawal, and names its mechanism as a NEW DRAFT. So the LIVE
+        // proposal wins over a withdrawn one, and a withdrawn one is still returned when it is all
+        // there is - a supplier who withdrew and has not restarted should still see that they
+        // withdrew, rather than a screen that behaves as though they were never here.
         var proposal = await db.Proposals
             .Include(p => p.Items).Include(p => p.Documents).Include(p => p.RequirementAnswers)
             .AsSplitQuery()
-            .FirstOrDefaultAsync(p => p.RfqId == rfq.Id && p.SupplierId == scope.SupplierId!.Value, ct);
+            .Where(p => p.RfqId == rfq.Id && p.SupplierId == scope.SupplierId!.Value)
+            .OrderBy(p => p.State == ProposalState.Withdrawn ? 1 : 0)
+            .ThenByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync(ct);
         return (rfq, proposal);
     }
 
@@ -111,7 +119,21 @@ public sealed class StartProposalHandler(AppDbContext db, IScopeContext scope, I
         var loaded = await ProposalLoader.LoadAsync(db, scope, rfqReferenceCode, ct);
         if (loaded is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, existing) = loaded.Value;
-        if (existing is not null) return new ProposalResult.Success(ProposalDtoMapper.ToDto(existing, rfq.ReferenceCode));
+
+        // Start stays idempotent for a LIVE proposal - a second click returns the same draft rather
+        // than making another. A WITHDRAWN one is different: BUSINESS-PROCESSES.md §4.1 permits
+        // "re-submission allowed while window open (new draft)", so a withdrawal is not a bar to
+        // starting again, it is the absence of a current proposal.
+        //
+        // Before this, a withdrawn proposal was returned here as though it were the supplier's
+        // current one - and every edit path then refused it, because it is not a Draft. A supplier
+        // who withdrew to correct a price could never bid on that RFQ again, silently and
+        // permanently. The withdrawal window guard is unchanged: this only applies while the RFQ is
+        // SubmissionOpen, because SupplierRfqLoader.LoadInvitedAsync is what got us here.
+        if (existing is not null && existing.State != ProposalState.Withdrawn)
+        {
+            return new ProposalResult.Success(ProposalDtoMapper.ToDto(existing, rfq.ReferenceCode));
+        }
 
         var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == scope.SupplierId!.Value, ct);
         if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Active)

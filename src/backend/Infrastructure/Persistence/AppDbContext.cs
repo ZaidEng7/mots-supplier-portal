@@ -732,7 +732,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(p => p.NarrativeEn).HasMaxLength(4000);
             entity.Property(p => p.WithdrawReason).HasMaxLength(2000);
             entity.Property(p => p.RowVersion).IsRowVersion();
-            entity.HasIndex(p => new { p.RfqId, p.SupplierId }).IsUnique();
+            // Unique per (rfq, supplier) among proposals that are NOT withdrawn.
+            //
+            // The unfiltered version made BUSINESS-PROCESSES.md §4.1's re-entry impossible at the
+            // database level: "re-submission allowed while window open (new draft)" needs a second
+            // row, and the index refused one. Narrowed rather than dropped - the rule being enforced
+            // is "one LIVE proposal per supplier per RFQ", which is what uniqueness was always for;
+            // a withdrawn proposal is a historical record, not a current bid, and any number of them
+            // can accumulate if a supplier withdraws repeatedly within the window.
+            entity.HasIndex(p => new { p.RfqId, p.SupplierId })
+                .IsUnique()
+                // The column name is QUOTED. This project maps to PascalCase columns, and an
+                // unquoted `state` folds to lowercase in Postgres and does not exist - the first
+                // version of this filter failed every migration with 42703.
+                .HasFilter("\"State\" <> 'Withdrawn'");
             entity.HasIndex(p => new { p.SupplierId, p.State });
             entity.HasIndex(p => new { p.RfqId, p.State });
             entity.HasMany(p => p.Items).WithOne().HasForeignKey(i => i.ProposalId).OnDelete(DeleteBehavior.Cascade);
