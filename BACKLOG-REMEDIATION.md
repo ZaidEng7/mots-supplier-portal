@@ -108,9 +108,9 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-025 | BRULE-019, OQ-014 | RFQ and proposal attachments bypass the quarantine-and-scan flow that supplier documents get. PR #103 gave them a download path, so unscanned bytes are now reachable | `RfqEndpoints.cs:338`, `ProposalEndpoints.cs:264` — direct `IFileStorage.SaveAsync` | Reproduced | L |
-| T-026 | — | Storage keys interpolate the client filename, so `../` shapes the object key | `RfqEndpoints.cs:338`, `ProposalEndpoints.cs:264` | Reproduced | S |
-| T-027 | §4.1 | `Content-Disposition` interpolates the filename unescaped — `"` or CRLF is header injection | `MinioFileStorage.cs:110` | Reproduced | S |
+| T-025 | BRULE-019, OQ-014 | RFQ and proposal attachments bypass quarantine-and-scan. **Blocked on OQ-014**, not on the scanner: `ClamAvScanner` is real and wired, but quarantine-first is a state machine and neither aggregate has any state. The asymmetry is now recorded at both upload sites rather than silent | `RfqEndpoints.cs`, `ProposalEndpoints.cs` — direct `IFileStorage.SaveAsync` | Reproduced | L |
+| ~~T-026~~ | — | **Closed** — storage keys now derive from server-side values only; the file name is kept as row metadata. Also closed a second vector on the same line: the route's reference code was interpolated before validation | PR for batch 2 | Reproduced | S |
+| ~~T-027~~ | §4.1 | **Closed** — RFC 6266 `filename` + `filename*`, so Arabic names survive. An ASCII-only escape would have been a regression | PR for batch 2 | Reproduced | S |
 | T-028 | — | Proposal attachments have no download path at all | No route exists | Reproduced | M |
 
 ### Concurrency and audit
@@ -164,11 +164,9 @@ By what hurts in a live tender, not by size or by document section.
 
 1. **T-025 — unscanned attachments are now downloadable.** PR #103 turned a theoretical gap into a
    live one. Malware reaching a buyer's machine through a tender portal is the worst outcome on this
-   list.
-2. **T-027 — header injection in the download filename.** Small, on a path every download uses, and
-   it covers supplier documents too.
-3. **T-026 — filenames shaping storage keys.** Same code path as T-027, cheaper now than after more
-   objects accumulate under interpolated keys.
+   list. **Blocked on OQ-014** — it needs an answer more than it needs an engineer.
+2. ~~T-027 — header injection in the download filename.~~ **Closed in batch 2.**
+3. ~~T-026 — filenames shaping storage keys.~~ **Closed in batch 2.**
 4. **T-028 — proposal attachments cannot be downloaded.** A buyer cannot open a bid document. Blocked
    on a decision, not on work.
 5. **T-001 — `profileCompleteness`.** Documented, visible in the contract, computed by nothing.

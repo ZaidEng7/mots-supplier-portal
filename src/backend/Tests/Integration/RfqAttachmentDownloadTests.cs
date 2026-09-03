@@ -211,4 +211,79 @@ public sealed class RfqAttachmentDownloadTests(PostgresApiFixture fixture)
 
         audited.Should().BeTrue("asserted against the stored row, not the handler's code path");
     }
+
+    /// <summary>
+    /// T-026: the object key is built from server-side values only.
+    ///
+    /// <para>It used to interpolate BOTH the route's reference code and the client's own file name -
+    /// <c>$"rfq-attachments/{referenceCode}/{guid}-{file.FileName}"</c> - and both are caller input.
+    /// A name containing "../" shapes the key, and so does a reference code, which is not validated
+    /// until the handler runs several lines later.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("../../../etc/passwd", "traversal")]
+    [InlineData("..\\..\\windows\\system32\\config", "windows separators")]
+    [InlineData("a/b/c.pdf", "a plain separator")]
+    public async Task A_hostile_file_name_cannot_shape_the_storage_key(string fileName, string why)
+    {
+        // A DRAFT RFQ: attachments can only be added while an RFQ is editable, and the publishing
+        // helper above leaves it SubmissionOpen. Nothing here needs a published RFQ - the assertions
+        // are on the stored key, not on who can read it.
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+
+        var create = await officer.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب", titleEn = $"Key RFQ {why}", descriptionAr = (string?)null, descriptionEn = (string?)null,
+            currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
+            submissionOpensAt = DateTimeOffset.UtcNow.AddDays(1),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddDays(2),
+            clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+        create.StatusCode.Should().Be(HttpStatusCode.OK, await create.Content.ReadAsStringAsync());
+        var referenceCode = (await create.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("referenceCode").GetString()!;
+
+        using var content = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.UTF8.GetBytes("bytes"));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(file, "file", fileName);
+
+        var upload = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/attachments", content);
+        upload.StatusCode.Should().Be(HttpStatusCode.OK, await upload.Content.ReadAsStringAsync());
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var rfqId = await db.Rfqs.Where(r => r.ReferenceCode == referenceCode).Select(r => r.Id).FirstAsync();
+        var keys = await db.Set<RfqAttachment>().Where(a => a.RfqId == rfqId)
+            .Select(a => a.StorageKey).ToListAsync();
+
+        // Asserted against the STORED key, not against the handler's code path.
+        keys.Should().OnlyContain(k => k.StartsWith("rfq-attachments/"), "the prefix is fixed");
+        keys.Should().OnlyContain(k => !k.Contains(".."), "no traversal segment survives");
+        keys.Should().OnlyContain(k => k.Split('/').Length == 2, "exactly one segment after the prefix");
+
+        // And the name is not lost - it is metadata on the row, which is what the download's
+        // Content-Disposition reads.
+        var stored = await db.Set<RfqAttachment>().Where(a => a.RfqId == rfqId)
+            .Select(a => a.OriginalFileName).ToListAsync();
+        stored.Should().Contain(fileName, "the file name is kept as metadata, just never as an address");
+    }
+
+    [Fact]
+    public async Task An_ordinary_file_name_still_round_trips()
+    {
+        // The control. A key scheme that rejected everything would pass every assertion above.
+        var (supplier, supplierId) = await ActiveSupplierAsync($"KeyOk {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, attachmentId, _, _) = await PublishedRfqWithAttachmentAsync(supplierId, "Key OK RFQ");
+
+        var response = await supplier.GetAsync(Url(referenceCode, attachmentId));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("fileName").GetString().Should().Be("specification.pdf",
+            "an ordinary upload still stores and returns its own name");
+        body.GetProperty("url").GetString().Should().NotBeNullOrWhiteSpace();
+    }
 }

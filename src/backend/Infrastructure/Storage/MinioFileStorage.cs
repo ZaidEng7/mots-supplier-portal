@@ -107,7 +107,11 @@ public sealed class MinioFileStorage : IFileStorage
             Protocol = _useSsl ? Protocol.HTTPS : Protocol.HTTP,
             ResponseHeaderOverrides = new ResponseHeaderOverrides
             {
-                ContentDisposition = $"attachment; filename=\"{downloadFileName}\"",
+                // RFC 6266, not interpolation. The file name is whatever the uploader typed, and a
+                // raw quote or CRLF in it is header injection - see ContentDisposition for the
+                // defect and for why an ASCII-only escape would have been a regression against every
+                // Arabic file name in this product.
+                ContentDisposition = ContentDisposition.Attachment(downloadFileName),
             },
         });
         return Task.FromResult(url);
