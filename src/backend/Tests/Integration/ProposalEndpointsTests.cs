@@ -350,7 +350,15 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var lateWithdraw = await supplierC.PostAsJsonAsync($"/api/v1/proposals/{closedProposalCode}/withdraw", new { reason = "Too late" });
 
-        lateWithdraw.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // T-065: §3's 409 for a transition refusal, where this used to be a 400. The RFQ endpoints
+        // have answered 409 since T3-36; the proposal endpoints now agree with them and with §3.
+        lateWithdraw.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var lateProblem = await lateWithdraw.Content.ReadFromJsonAsync<JsonElement>();
+        lateProblem.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION");
+        // Draft, not Submitted: this proposal was never submitted - the refusal is the CLOSED
+        // WINDOW, not the source state. The state is reported accurately either way, which is what
+        // makes allowedNext usable.
+        lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Draft));
     }
 
     [Fact]

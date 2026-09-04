@@ -74,7 +74,16 @@ public abstract record ProposalResult
     /// <summary>Covers "RFQ not found", "not invited", and "not Active" behind one outcome - same
     /// no-oracle reasoning as SupplierRfqResult.NotFoundOrNotInvited (EPIC-08).</summary>
     public sealed record NotFoundOrNotInvited : ProposalResult;
-    public sealed record InvalidState(string Message) : ProposalResult;
+    /// <summary>
+    /// T-065: carries the CURRENT STATE so the endpoint can answer §3's 409 with currentState and
+    /// allowedNext, rather than the 400 every proposal endpoint used to return.
+    ///
+    /// <para>Nullable, because not every refusal is a transition refusal - some are shaped like
+    /// validation ("a withdrawal reason is required") and have no meaningful allowed-next set. Those
+    /// keep the 400 they always had; only a state-machine refusal becomes a 409, which is exactly
+    /// what §3 governs.</para>
+    /// </summary>
+    public sealed record InvalidState(string Message, ProposalState? CurrentState = null) : ProposalResult;
 }
 
 /// <summary>§12.5: created at <c>POST /rfqs/{rfqCode}/proposals</c>, so this stays keyed on the

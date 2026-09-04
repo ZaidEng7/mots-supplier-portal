@@ -116,7 +116,7 @@ public static class RfqEndpoints
         RfqMutationResult.NotFoundOrOutOfScope => Results.NotFound(),
         // §3: "Illegal transitions return 409 Conflict … listing the current state and the allowed
         // next states." Every RFQ transition answered 400 before T3-36.
-        RfqMutationResult.IllegalTransition illegal => new IllegalTransitionResult(illegal.CurrentState, illegal.Message),
+        RfqMutationResult.IllegalTransition illegal => IllegalTransitionResult.For(illegal.CurrentState, illegal.Message),
         RfqMutationResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
         RfqMutationResult.InvalidCategory => Results.BadRequest(new { error = "invalid_category" }),
         RfqMutationResult.InvalidUnitOfMeasure => Results.BadRequest(new { error = "invalid_unit_of_measure" }),

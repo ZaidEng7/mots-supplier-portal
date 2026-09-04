@@ -69,6 +69,16 @@ public static class ProposalEndpoints
     {
         ProposalResult.Success s => Results.Ok(s.Proposal),
         ProposalResult.NotFoundOrNotInvited => Results.NotFound(),
+        // T-065, §3: "Illegal transitions return 409 Conflict (type: …/errors/invalid-state-transition)
+        // listing the current state and the allowed next states." RFQ endpoints have answered that
+        // since T3-36; proposals answered 400, so one product carried two conventions for "this
+        // resource has moved on" - and batch 7 made the proposal machine something callers hit.
+        //
+        // A refusal with no state attached keeps its 400: those are shaped like validation ("a
+        // withdrawal reason is required") and have no allowed-next set to offer. §3 governs
+        // transitions, not every rejection.
+        ProposalResult.InvalidState { CurrentState: { } state } invalid =>
+            IllegalTransitionResult.For(state, invalid.Message),
         ProposalResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
         _ => Results.Problem(),
     };

@@ -123,13 +123,26 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         var (officer, supplier, proposalCode) = await UnderReviewProposalAsync($"NoAsk{Guid.NewGuid():N}"[..12]);
 
         var early = await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/revise", null);
-        // 400, not §3's 409. Every proposal endpoint maps InvalidState to BadRequest - a convention
-        // that predates this change and that §3 contradicts ("Illegal transitions return 409
-        // Conflict ... listing the current state and the allowed next states"). Asserted as the code
-        // actually behaves, and the divergence is recorded as T-065 rather than changed here, where
-        // it would move every proposal endpoint at once.
-        early.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+        // T-065 closed: §3's 409, with the current state and the states a caller may actually
+        // attempt next - which is the whole point of the clause, since a caller that cannot read the
+        // allowed set has no way to learn it.
+        early.StatusCode.Should().Be(HttpStatusCode.Conflict,
             "§4.1 only allows Revised from ClarificationRequested");
+
+        var problem = await early.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION");
+        problem.GetProperty("type").GetString().Should().EndWith("/errors/invalid-state-transition");
+        problem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.UnderReview));
+
+        var allowed = problem.GetProperty("allowedNext").EnumerateArray()
+            .Select(x => x.GetString()).ToList();
+
+        // Correct for the state Phase 1 made reachable, in both directions: what UnderReview CAN
+        // reach, and what it cannot. Listing everything would be as useless as listing nothing.
+        allowed.Should().Contain(nameof(ProposalState.ClarificationRequested))
+            .And.Contain(nameof(ProposalState.Shortlisted));
+        allowed.Should().NotContain(nameof(ProposalState.Draft), "a proposal never goes back to Draft");
+        allowed.Should().NotContain(nameof(ProposalState.Revised), "Revised follows ClarificationRequested, not UnderReview");
 
         // Control: once a clarification IS requested, the same call succeeds.
         await officer.PostAsJsonAsync(
