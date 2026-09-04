@@ -122,6 +122,9 @@ public class ProposalTests
     }
 
     [Fact]
+    // T-066: completeness refusals throw their own exception type now, so the API can answer
+    // §12.5's 422 with a code naming what is missing rather than the 400 they shared with the
+    // window and wrong-state refusals - which still throw DomainException.
     public void Submit_requires_all_required_items_priced()
     {
         var proposal = CreateDraft();
@@ -130,7 +133,7 @@ public class ProposalTests
 
         var act = () => proposal.Submit(true, DateTimeOffset.UtcNow.AddHours(1), RequiredItems, MandatoryRequirements);
 
-        act.Should().Throw<DomainException>().WithMessage("*required RFQ items must be priced*");
+        act.Should().Throw<ProposalIncompleteException>().WithMessage("*required RFQ items must be priced*");
     }
 
     [Fact]
@@ -142,7 +145,7 @@ public class ProposalTests
 
         var act = () => proposal.Submit(true, DateTimeOffset.UtcNow.AddHours(1), RequiredItems, MandatoryRequirements);
 
-        act.Should().Throw<DomainException>().WithMessage("*mandatory requirements must be answered*");
+        act.Should().Throw<ProposalIncompleteException>().WithMessage("*mandatory requirements must be answered*");
     }
 
     [Fact]
@@ -154,7 +157,7 @@ public class ProposalTests
 
         var act = () => proposal.Submit(true, DateTimeOffset.UtcNow.AddHours(1), RequiredItems, MandatoryRequirements);
 
-        act.Should().Throw<DomainException>().WithMessage("*validity end date is required*");
+        act.Should().Throw<ProposalIncompleteException>().WithMessage("*validity end date is required*");
     }
 
     [Fact]

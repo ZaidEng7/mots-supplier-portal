@@ -250,6 +250,34 @@
     "bodyEn": "Proposal {proposalCode} on RFQ {rfqCode} was revised in response to a clarification request."
   },
 
+  // ==========================================================================================
+  // T-064: the award-offer chain. §4.1 defines Shortlisted -> AwardOffered -> Awarded | Declined
+  // and names both notifications; neither could fire before, because nothing assigned AwardOffered.
+  // Copy is DRAFTED - §7 has no award-offer strings - and goes to the Arabic review pile.
+  //
+  // GLOSSARY: «ترسية» for award, per §8, matching the award.* entries above.
+  // ==========================================================================================
+  {
+    "type": "proposal.award_offered",
+    "source": "drafted",
+    "recipients": "Email + in-app to supplier (offer)",
+    "titleAr": "عرض ترسية على عرضكم",
+    "titleEn": "Your proposal has been selected for award",
+    "bodyAr": "اختير العرض {proposalCode} المقدَّم على الطلب {rfqCode} للترسية. يُرجى مراجعة العرض وتأكيد قبولكم أو الاعتذار عنه.",
+    "bodyEn": "Proposal {proposalCode} on RFQ {rfqCode} has been selected for award. Review it and confirm or decline.",
+    "flag": "No acceptance DEADLINE is stated in the body, because none is enforced - §4.1 tags the acceptance window as [ASSUMPTION] with no duration, and D-21 declines to invent one. Naming a deadline the system does not keep would be worse than naming none."
+  },
+  {
+    "type": "proposal.declined",
+    "source": "drafted",
+    "recipients": "In-app to procurement",
+    "titleAr": "اعتذر المورد عن الترسية",
+    "titleEn": "A supplier declined the award",
+    "bodyAr": "اعتذر المورد عن ترسية العرض {proposalCode} على الطلب {rfqCode}. عاد الطلب إلى مرحلة التوصية لاختيار بديل.",
+    "bodyEn": "The supplier declined the award for proposal {proposalCode} on RFQ {rfqCode}. The RFQ has returned to Recommendation so an alternate can be chosen.",
+    "flag": "The supplier's REASON is deliberately absent - BRULE-091 keeps their free text out of the payload, and the officer reads it on the screen the link opens. Same treatment as award.rejected. «اعتذر» matches the invitation-decline register (D-17-adjacent: declining is اعتذار, not رفض)."
+  },
+
   // ========================================================================================
   // T3-36: the three states BUSINESS-PROCESSES.md §3.1 defines but no code could reach until now.
   // ========================================================================================

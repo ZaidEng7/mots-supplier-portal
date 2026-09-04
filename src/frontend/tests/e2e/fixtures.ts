@@ -128,7 +128,7 @@ export const SUPPLIER_RFQ_LIST_ITEM_FIXTURE = {
 
 export const PROPOSAL_FIXTURE = {
   proposalCode: 'PRP-2026-000001', rfqCode: RFQ_REFERENCE_CODE, state: 'Draft',
-  createdAt: '2026-08-01T00:00:00Z', totals: { currency: null, grandTotal: 0 },
+  createdAt: '2026-08-01T00:00:00Z', totals: { currency: null, grandTotal: 0 }, validityDays: null,
   currency: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
   warranty: null, validityStart: null, validityEnd: null, narrativeAr: null, narrativeEn: null,
   submittedAt: null, withdrawnAt: null, withdrawReason: null,

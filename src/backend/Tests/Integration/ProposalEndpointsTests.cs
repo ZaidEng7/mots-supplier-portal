@@ -253,8 +253,11 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // T-066: §12.5 answers an incomplete submission with 422 and a code naming what is missing -
+        // not the 409 a wrong source state gets, because this supplier has something to go and fix.
+        submit.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("code").GetString().Should().Be("PROPOSAL_ITEMS_REQUIRED");
         body.GetProperty("detail").GetString().Should().Contain("required RFQ items must be priced");
     }
 
@@ -274,8 +277,11 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // T-066. The code here is an INVENTION - §12.5 names a slug only for missing items - but the
+        // supplier still needs to know which completeness rule they hit.
+        submit.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("code").GetString().Should().Be("PROPOSAL_REQUIREMENTS_REQUIRED");
         body.GetProperty("detail").GetString().Should().Contain("mandatory requirements must be answered");
     }
 

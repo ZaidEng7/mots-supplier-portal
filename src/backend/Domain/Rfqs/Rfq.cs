@@ -728,6 +728,28 @@ public sealed class Rfq : IVersionedAggregate
         State = RfqState.AwardApproval;
     }
 
+    /// <summary>
+    /// T-064/§4.1: <c>AwardOffered -&gt; Declined ... "Free the award for alternate; RFQ returns to
+    /// <c>Recommendation</c>"</c>. The RFQ's own half of a declined offer.
+    ///
+    /// <para><b>This transition was already listed and already unimplemented.</b>
+    /// <see cref="AllowedNextFrom"/> has carried <c>AwardApproval -&gt; Recommendation</c> since the
+    /// award reject path was built, and nothing performed it - so the API promised a transition it
+    /// could not make. T-064 needed exactly this move, so it is built here. The award REJECT path
+    /// still does not use it; that is recorded rather than changed, because reject is a different
+    /// flow with its own notifications.</para>
+    /// </summary>
+    public void ReturnToRecommendation()
+    {
+        if (State != RfqState.AwardApproval)
+        {
+            throw new DomainException(
+                $"Cannot return to recommendation from state '{State}'; only 'AwardApproval' is valid.");
+        }
+
+        State = RfqState.Recommendation;
+    }
+
     /// <summary>EPIC-14/FEAT-14.4/FEAT-14.6/FR-AWD-004/006: AwardApproval -&gt; Awarded, the RFQ's
     /// own side of Award.ExecuteAward() - both happen in the same handler/SaveChanges call.</summary>
     public void MarkAwarded()

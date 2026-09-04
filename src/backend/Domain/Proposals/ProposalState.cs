@@ -54,4 +54,25 @@ public static class ProposalStates
         ProposalState.Revised,
         ProposalState.Shortlisted,
     };
+
+    /// <summary>
+    /// T-064: every proposal a COMPARISON should carry - the evaluation set plus the one that has
+    /// been offered the award.
+    ///
+    /// <para><b>Why this is its own set rather than a widening of InEvaluation.</b>
+    /// ExecuteAwardHandler snapshots the comparison into the permanent award record, and the
+    /// comparison filtered on InEvaluation. Once approve moves the winner to AwardOffered, the winner
+    /// falls out of that set - so the award's own snapshot would have omitted the winning bid.
+    /// Widening InEvaluation would have fixed that and simultaneously put an offered award back into
+    /// the evaluator's workspace, which is a different question with a different answer.</para>
+    /// </summary>
+    public static readonly ProposalState[] UnderComparison =
+    {
+        ProposalState.Submitted,
+        ProposalState.UnderReview,
+        ProposalState.ClarificationRequested,
+        ProposalState.Revised,
+        ProposalState.Shortlisted,
+        ProposalState.AwardOffered,
+    };
 }

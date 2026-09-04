@@ -1,5 +1,6 @@
 import { hasCode, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
+import type { RfqItem, Requirement } from './rfqs'
 
 export type EvaluationState = 'NotStarted' | 'Assigned' | 'InProgress' | 'EvaluatorSubmitted' | 'Consolidated' | 'Finalized'
 export type CriterionDimension = 'Technical' | 'Commercial' | 'Compliance' | 'Delivery'
@@ -47,7 +48,8 @@ export interface Evaluation {
 }
 
 export interface MyScore {
-  proposalId: string
+  /** T-068: the proposal's public code, not its GUID. */
+  proposalCode: string
   criterionId: string
   rawScore: number
   commentAr: string | null
@@ -55,18 +57,69 @@ export interface MyScore {
   scoredAt: string
 }
 
+export interface EvaluatorProposalDocument {
+  id: string
+  originalFileName: string
+  contentType: string
+  caption: string | null
+  uploadedAt: string
+}
+
+export interface RequirementAnswer {
+  id: string
+  requirementId: string
+  answerAr: string
+  answerEn: string
+}
+
+/** T-067: one bid as an assigned evaluator sees it during scoring - the TECHNICAL envelope only.
+ * There is no pricing on this type and none on the wire; a commercial figure reaches a human through
+ * the comparison matrix after consolidation and nowhere else. */
+export interface EvaluatorProposal {
+  proposalCode: string
+  supplierReferenceCode: string
+  supplierDisplayNameAr: string
+  supplierDisplayNameEn: string
+  narrativeAr: string | null
+  narrativeEn: string | null
+  requirementAnswers: RequirementAnswer[]
+  documents: EvaluatorProposalDocument[]
+  technicallyQualified: boolean
+}
+
 /** Evaluator-facing view - only ever this evaluator's own scores, see MyEvaluationDto's own doc
  * comment on the backend for why. */
 export interface MyEvaluation {
-  id: string
-  rfqId: string
   rfqReferenceCode: string
   state: EvaluationState
+  /** T-067: the specification the bids answer. An evaluator holds neither rfq.read nor
+   * comparison.view, so this read is their only window onto it. */
+  rfqTitleAr: string
+  rfqTitleEn: string
+  rfqDescriptionAr: string | null
+  rfqDescriptionEn: string | null
+  rfqItems: RfqItem[]
+  rfqRequirements: Requirement[]
   submittedAt: string | null
   criteria: EvaluationCriterion[]
-  proposalIds: string[]
-  technicallyQualifiedByProposal: Record<string, boolean>
+  proposals: EvaluatorProposal[]
   myScores: MyScore[]
+}
+
+/** T-067: the signed URL for one technical document on a bid under evaluation. Gated on the caller's
+ * ACTIVE assignment and on the Technical envelope; a commercial document is the same 404 as one that
+ * does not exist. */
+export async function evaluatorProposalDocumentUrl(
+  rfqReferenceCode: string,
+  proposalCode: string,
+  documentId: string,
+): Promise<string> {
+  const response = await apiFetch(
+    `/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/proposals/${proposalCode}/documents/${documentId}/download-url`,
+  )
+  if (!response.ok) throw new Error('document_unavailable')
+  const body = (await response.json()) as { url: string }
+  return body.url
 }
 
 export class EvaluationApiError extends Error {
@@ -138,7 +191,7 @@ export async function getMyEvaluation(rfqReferenceCode: string): Promise<MyEvalu
 
 export async function scoreCriterion(
   rfqReferenceCode: string,
-  payload: { proposalId: string; criterionId: string; rawScore: number; commentAr: string | null; commentEn: string | null },
+  payload: { proposalCode: string; criterionId: string; rawScore: number; commentAr: string | null; commentEn: string | null },
 ): Promise<MyEvaluation> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/scores`, {
     method: 'POST',

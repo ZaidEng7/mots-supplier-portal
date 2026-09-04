@@ -160,7 +160,7 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
         var scoreResponse = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId, criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalId), criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         scoreResponse.EnsureSuccessStatusCode();
         var submitEval = await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
         submitEval.EnsureSuccessStatusCode();

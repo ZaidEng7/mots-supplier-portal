@@ -79,6 +79,16 @@ public sealed class Proposal : IVersionedAggregate
     public DateTimeOffset? WithdrawnAt { get; private set; }
     public string? WithdrawReason { get; private set; }
 
+    /// <summary>T-064: when the award was offered. There is no enforced acceptance window (D-21), so
+    /// this is what makes a long-outstanding offer visible to an officer rather than invisible.</summary>
+    public DateTimeOffset? AwardOfferedAt { get; private set; }
+
+    public DateTimeOffset? DeclinedAt { get; private set; }
+
+    /// <summary>Required by DeclineAward - a declined award that nobody can explain is the one an
+    /// audit asks about first.</summary>
+    public string? DeclineReason { get; private set; }
+
     /// <summary>§4.1's "Reason; specific questions" on ClarificationRequested.</summary>
     public string? ClarificationReason { get; private set; }
 
@@ -284,20 +294,28 @@ public sealed class Proposal : IVersionedAggregate
         var pricedItemIds = _items.Select(i => i.RfqItemId).ToHashSet();
         if (!requiredRfqItemIds.IsSubsetOf(pricedItemIds))
         {
-            throw new DomainException("Cannot submit: all required RFQ items must be priced.");
+            // §12.5 names this one: "Missing line items -> 422 (PROPOSAL_ITEMS_REQUIRED)".
+            throw new ProposalIncompleteException(
+                "proposal_items_required", "Cannot submit: all required RFQ items must be priced.");
         }
         var answeredRequirementIds = _requirementAnswers.Select(a => a.RequirementId).ToHashSet();
         if (!mandatoryRequirementIds.IsSubsetOf(answeredRequirementIds))
         {
-            throw new DomainException("Cannot submit: all mandatory requirements must be answered.");
+            // INVENTED code - §12.5 names no slug for an unanswered mandatory requirement, but it is
+            // the same class of refusal and a supplier needs to know which one they hit.
+            throw new ProposalIncompleteException(
+                "proposal_requirements_required", "Cannot submit: all mandatory requirements must be answered.");
         }
         if (ValidityEnd is null)
         {
-            throw new DomainException("Cannot submit: a validity end date is required.");
+            // INVENTED code, same reasoning.
+            throw new ProposalIncompleteException(
+                "proposal_validity_required", "Cannot submit: a validity end date is required.");
         }
         if (ValidityEnd < DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date))
         {
-            throw new DomainException("Cannot submit: the validity end date must not be in the past.");
+            throw new ProposalIncompleteException(
+                "proposal_validity_required", "Cannot submit: the validity end date must not be in the past.");
         }
 
         State = ProposalState.Submitted;
@@ -449,15 +467,65 @@ public sealed class Proposal : IVersionedAggregate
     }
 
     /// <summary>
+    /// T-064/§4.1: <c>Shortlisted -&gt; AwardOffered</c>, "Selected for award ... Mark as award
+    /// candidate", on the approver's decision.
+    ///
+    /// <para><b>Set on APPROVE, not on recommend.</b> §4.1 names the effect as an offer that reaches
+    /// the supplier by email, and a recommendation is not yet a decision - telling a bidder they have
+    /// won before the approver has signed discloses an outcome that may still be reversed, and it
+    /// cannot be un-told. Approve is the first point at which the offer is true.</para>
+    ///
+    /// <para><b>No acceptance window is enforced.</b> §4.1 tags one as <c>[ASSUMPTION]</c> with no
+    /// duration, and an expiring offer produces an OUTCOME - the award frees for an alternate,
+    /// because a clock ran out. That is the tie-break class of decision, so the system does not make
+    /// it: the offer stays open until the supplier declines or the award is executed, and how long it
+    /// has been outstanding is visible to the officer. See DECISIONS-TAKEN.md D-21.</para>
+    /// </summary>
+    public void OfferAward()
+    {
+        if (State != ProposalState.Shortlisted)
+        {
+            throw new DomainException($"Cannot offer an award from state '{State}'; only 'Shortlisted' is valid.");
+        }
+
+        State = ProposalState.AwardOffered;
+        AwardOfferedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// T-064/§4.1: <c>AwardOffered -&gt; Declined</c>, "Supplier declines ... Free the award for
+    /// alternate; RFQ returns to Recommendation".
+    ///
+    /// <para>A reason is required. §4.1 does not demand one, but every other supplier-initiated
+    /// terminal act in this codebase does (withdraw, decline an invitation) and a declined award
+    /// that nobody can explain is the one an audit asks about first.</para>
+    /// </summary>
+    public void DeclineAward(string reason)
+    {
+        if (State != ProposalState.AwardOffered)
+        {
+            throw new DomainException($"Cannot decline from state '{State}'; only 'AwardOffered' is valid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A reason is required to decline an award offer.");
+        }
+
+        State = ProposalState.Declined;
+        DeclinedAt = DateTimeOffset.UtcNow;
+        DeclineReason = reason;
+    }
+
+    /// <summary>
     /// §3's "allowed next states" for a proposal, from BUSINESS-PROCESSES.md §4.1's own table.
     ///
     /// <para>This is a PROMISE TO A CALLER about what it may attempt next, so it describes what the
-    /// code actually accepts rather than only what §4.1 draws. Two places are wider than the
-    /// diagram, both deliberately and both pre-existing: Submitted and UnderReview list Awarded and
-    /// NotSelected, because this codebase awards directly out of the evaluation set - §4.1's
-    /// canonical route is Shortlisted -&gt; AwardOffered -&gt; Awarded, and AwardOffered is not built
-    /// (T-064). Listing only the canonical route would tell a caller a transition is unavailable
-    /// when the API will in fact perform it.</para>
+    /// code actually accepts rather than only what §4.1 draws. Submitted and UnderReview still list
+    /// Awarded and NotSelected because this codebase can award directly out of the evaluation set
+    /// for an RFQ that never went through shortlisting; §4.1's canonical route
+    /// (Shortlisted -&gt; AwardOffered -&gt; Awarded) is now built as well (T-064), so both are true
+    /// and both are listed.</para>
     /// </summary>
     public static IReadOnlyList<ProposalState> AllowedNextFrom(ProposalState state) => state switch
     {
@@ -473,8 +541,8 @@ public sealed class Proposal : IVersionedAggregate
         ProposalState.ClarificationRequested => [ProposalState.Revised],
         ProposalState.Revised => [ProposalState.UnderReview],
 
-        // AwardOffered is listed because §4.1 defines it, even though T-064 has not built the
-        // transition yet - and Awarded directly, which is what the code does today.
+        // AwardOffered is the canonical route and is now reachable (T-064). Awarded stays listed
+        // because the direct path is still available to an RFQ that never shortlisted.
         ProposalState.Shortlisted =>
             [ProposalState.AwardOffered, ProposalState.NotSelected, ProposalState.Awarded],
 
@@ -498,10 +566,14 @@ public sealed class Proposal : IVersionedAggregate
         // built (see the class note), so the winner is whatever state intake left it in. Omitting it
         // produced an uncaught DomainException and a 500 on award/execute, because the winner is
         // UnderReview from the moment T-051 made intake work.
-        if (State is not (ProposalState.Submitted or ProposalState.UnderReview or ProposalState.Shortlisted))
+        // T-064: AwardOffered joins the set, and is now the canonical source state - §3.1's
+        // AwardApproval -> Awanded row says the RFQ's own award "Set[s] winning proposal
+        // AwardOffered -> Awarded". The three older states stay for the direct path.
+        if (State is not (ProposalState.Submitted or ProposalState.UnderReview
+            or ProposalState.Shortlisted or ProposalState.AwardOffered))
         {
             throw new DomainException(
-                $"Cannot award from state '{State}'; only 'Submitted', 'UnderReview' or 'Shortlisted' is valid.");
+                $"Cannot award from state '{State}'; only 'Submitted', 'UnderReview', 'Shortlisted' or 'AwardOffered' is valid.");
         }
         State = ProposalState.Awarded;
     }

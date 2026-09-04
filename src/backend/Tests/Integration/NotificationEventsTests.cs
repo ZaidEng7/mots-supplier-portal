@@ -302,7 +302,7 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         foreach (var criterionId in criterionIds)
         {
             var scored = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/my-evaluation/scores",
-                new { proposalId, criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+                new { proposalCode = await fixture.ProposalCodeAsync(proposalId), criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
             scored.StatusCode.Should().Be(System.Net.HttpStatusCode.OK, await scored.Content.ReadAsStringAsync());
         }
 

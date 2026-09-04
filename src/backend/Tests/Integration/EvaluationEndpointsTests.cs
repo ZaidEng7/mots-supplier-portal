@@ -151,7 +151,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         myResp.StatusCode.Should().Be(HttpStatusCode.OK, myBody);
 
         var attempt = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await attempt.Content.ReadFromJsonAsync<JsonElement>();
@@ -172,21 +172,37 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
 
         // Score technical BELOW the threshold (60) - this proposal fails qualification.
         var techScore = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 30m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 30m, commentAr = (string?)null, commentEn = (string?)null });
         techScore.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Endpoint 1: direct financial score attempt - refused.
         var financialAttempt = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         financialAttempt.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         // Endpoint 2: the evaluator's own view never reports qualification true for this proposal,
         // and never carries a financial-criterion score for it - the only two places pricing could
         // otherwise leak into this evaluator's own JSON.
+        var proposalACode = await fixture.ProposalCodeAsync(proposalAId);
         var myEvaluation = await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
-        myEvaluation.GetProperty("technicallyQualifiedByProposal").GetProperty(proposalAId.ToString()).GetBoolean().Should().BeFalse();
+
+        // T-067 moved the qualification flag onto the bid it describes, and T-068 keyed the bid by
+        // its public code. Same two facts, read off the shape that now carries them.
+        myEvaluation.GetProperty("proposals").EnumerateArray()
+            .Single(p => p.GetProperty("proposalCode").GetString() == proposalACode)
+            .GetProperty("technicallyQualified").GetBoolean().Should().BeFalse();
         myEvaluation.GetProperty("myScores").EnumerateArray()
-            .Should().NotContain(s => s.GetProperty("proposalId").GetGuid() == proposalAId && s.GetProperty("criterionId").GetGuid() == financialCriterionId);
+            .Should().NotContain(s => s.GetProperty("proposalCode").GetString() == proposalACode && s.GetProperty("criterionId").GetGuid() == financialCriterionId);
+
+        // T-067 widened this response to carry bid content. The seal is asserted against the RAW
+        // JSON: no pricing field of any name may appear on an evaluator's workspace, however the
+        // shape is refactored later.
+        var rawWorkspace = myEvaluation.ToString();
+        foreach (var commercial in new[] { "unitPrice", "lineTotal", "grandTotal", "paymentTerms", "incotermCode" })
+        {
+            rawWorkspace.Should().NotContain(commercial,
+                $"the evaluator's workspace carries the TECHNICAL envelope only - '{commercial}' is commercial");
+        }
 
         // Endpoint 3: submit is still possible without ever scoring the financial criterion for
         // this proposal - proving the gate does not merely block writes but genuinely never
@@ -209,15 +225,16 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
 
         // Evaluator B scores first, distinctly, so any leak into A's response is unmistakable.
         await evaluatorB.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 77m, commentAr = (string?)null, commentEn = "Evaluator B's private note" });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 77m, commentAr = (string?)null, commentEn = "Evaluator B's private note" });
 
         // Evaluator A scores differently, then reads back their own view - must contain ONLY A's rows.
         await evaluatorA.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 42m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 42m, commentAr = (string?)null, commentEn = (string?)null });
         var aView = await evaluatorA.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
         var aScores = aView.GetProperty("myScores").EnumerateArray().ToList();
 
-        aScores.Should().ContainSingle(s => s.GetProperty("proposalId").GetGuid() == proposalAId && s.GetProperty("criterionId").GetGuid() == technicalCriterionId)
+        var blindProposalCode = await fixture.ProposalCodeAsync(proposalAId);
+        aScores.Should().ContainSingle(s => s.GetProperty("proposalCode").GetString() == blindProposalCode && s.GetProperty("criterionId").GetGuid() == technicalCriterionId)
             .Which.GetProperty("rawScore").GetDecimal().Should().Be(42m);
         aScores.Should().NotContain(s => s.GetProperty("rawScore").GetDecimal() == 77m, "Evaluator A's response must never contain Evaluator B's score row");
         aView.ToString().Should().NotContain("Evaluator B's private note", "not even Evaluator B's comment text may leak into A's JSON");
@@ -240,11 +257,11 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
 
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalBId, criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalBId), criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
 
         var submit = await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -274,7 +291,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -305,7 +322,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
 
         var uncommented = await seeded.Evaluator.PostAsJsonAsync(
             $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
-            new { proposalId = seeded.ProposalId, criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+            new { proposalCode = await fixture.ProposalCodeAsync(seeded.ProposalId), criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
 
         uncommented.StatusCode.Should().Be(HttpStatusCode.BadRequest,
             "BRULE-061 refuses the score, and it is a validation refusal rather than a transition one");
@@ -321,7 +338,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         // and this comment is internal procurement evidence rather than supplier-facing product copy.
         var arabicOnly = await seeded.Evaluator.PostAsJsonAsync(
             $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
-            new { proposalId = seeded.ProposalId, criterionId, rawScore = 80m, commentAr = "مطابق للمواصفات", commentEn = (string?)null });
+            new { proposalCode = await fixture.ProposalCodeAsync(seeded.ProposalId), criterionId, rawScore = 80m, commentAr = "مطابق للمواصفات", commentEn = (string?)null });
 
         arabicOnly.StatusCode.Should().Be(HttpStatusCode.OK, await arabicOnly.Content.ReadAsStringAsync());
 
@@ -351,7 +368,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
             $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
             new
             {
-                proposalId = seeded.ProposalId, criterionId = criterion.GetProperty("id").GetGuid(),
+                proposalCode = await fixture.ProposalCodeAsync(seeded.ProposalId), criterionId = criterion.GetProperty("id").GetGuid(),
                 rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null,
             });
 

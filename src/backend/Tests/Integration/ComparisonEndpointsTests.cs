@@ -178,9 +178,9 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
 
         var response = await manager.GetAsync($"/api/v1/rfqs/{referenceCode}/comparison");
 
@@ -205,11 +205,11 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
 
         // Proposal A qualifies (90 >= 60 threshold); Proposal B does not (20 < 60).
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalBId, criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalBId), criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
         var submit = await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
         var consolidate = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null);
@@ -338,11 +338,11 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
 
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalBId, criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalBId), criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null);
 
@@ -387,11 +387,11 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId = financialCriterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = financialCriterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalBId, criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalBId), criterionId = technicalCriterionId, rawScore = 20m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null);
 

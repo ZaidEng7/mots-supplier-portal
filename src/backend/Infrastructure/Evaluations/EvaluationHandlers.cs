@@ -5,6 +5,9 @@ using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluations;
+using MotsSupplierPortal.Application.Proposals;
+using MotsSupplierPortal.Application.Rfqs;
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
@@ -28,16 +31,39 @@ internal static class EvaluationDtoMapper
         new(c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType, c.IsFinancial,
             c.RequiresJustification);
 
-    public static MyEvaluationDto ToMyDto(EvaluationAggregate evaluation, Rfq rfq, Guid evaluatorUserId, IReadOnlyList<Guid> proposalIds)
+    /// <summary>
+    /// T-067: the evaluator's workspace, with the bids and the specification on it.
+    ///
+    /// <para><paramref name="bids"/> arrives already loaded and already filtered to the technical
+    /// envelope - this method does no querying, so there is no path by which a pricing row could be
+    /// pulled in here by a later edit.</para>
+    /// </summary>
+    public static MyEvaluationDto ToMyDto(
+        EvaluationAggregate evaluation, Rfq rfq, Guid evaluatorUserId, IReadOnlyList<EvaluatorBid> bids)
     {
         var assignment = evaluation.Assignments.First(a => a.EvaluatorUserId == evaluatorUserId && a.IsActive);
-        var qualification = proposalIds.ToDictionary(p => p, p => evaluation.IsTechnicallyQualifiedByEvaluator(evaluatorUserId, p));
+        var codeById = bids.ToDictionary(b => b.ProposalId, b => b.ProposalCode);
+
         var myScores = evaluation.Scores.Where(s => s.EvaluatorUserId == evaluatorUserId)
-            .Select(s => new MyScoreDto(s.ProposalId, s.CriterionId, s.RawScore, s.CommentAr, s.CommentEn, s.ScoredAt))
+            // A score whose proposal is no longer in evaluation (withdrawn mid-scoring) has no code
+            // to name it by, and showing a bid that left is worse than omitting it.
+            .Where(s => codeById.ContainsKey(s.ProposalId))
+            .Select(s => new MyScoreDto(codeById[s.ProposalId], s.CriterionId, s.RawScore, s.CommentAr, s.CommentEn, s.ScoredAt))
             .ToList();
+
+        var proposals = bids.Select(b => new EvaluatorProposalDto(
+            b.ProposalCode, b.SupplierReferenceCode, b.SupplierDisplayNameAr, b.SupplierDisplayNameEn,
+            b.NarrativeAr, b.NarrativeEn, b.RequirementAnswers, b.Documents,
+            evaluation.IsTechnicallyQualifiedByEvaluator(evaluatorUserId, b.ProposalId))).ToList();
+
         return new MyEvaluationDto(
-            evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
-            assignment.SubmittedAt, [.. evaluation.Criteria.Select(ToCriterionDto)], proposalIds, qualification, myScores);
+            rfq.ReferenceCode, evaluation.State,
+            rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn,
+            [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
+                i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn,
+                i.CategoryCode, i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
+            [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+            assignment.SubmittedAt, [.. evaluation.Criteria.Select(ToCriterionDto)], proposals, myScores);
     }
 }
 
@@ -73,7 +99,57 @@ file static class EvaluationLoader
 
     public static Task<List<Guid>> SubmittedProposalIdsAsync(AppDbContext db, Guid rfqId, CancellationToken ct) =>
         db.Proposals.Where(p => p.RfqId == rfqId && ProposalStates.InEvaluation.Contains(p.State)).Select(p => p.Id).ToListAsync(ct);
+
+    /// <summary>
+    /// T-067: every bid under evaluation on this RFQ, projected to its TECHNICAL envelope.
+    ///
+    /// <para><b>The seal is the projection, not a filter applied afterwards.</b> This is a
+    /// <c>Select</c> in SQL that never names <c>ProposalItem</c>, <c>CurrencyCode</c>,
+    /// <c>PaymentTerms</c> or any other commercial column - so no pricing row is loaded into memory
+    /// for an evaluator to leak by accident, and adding one would mean editing this projection
+    /// rather than forgetting a filter. Same reasoning as ProposalDtoMapper's note on why the
+    /// two-envelope seal was "not a filter applied to a shared read".</para>
+    ///
+    /// <para>Documents are Technical-envelope only (D-7). They are NOT filtered on scan state, and
+    /// that is a correction to this method's first version: proposal documents are scanned on first
+    /// ACCESS (D-10), so nothing scans them until a download happens - filtering the list to Clean
+    /// made it permanently empty, in production as well as in the test that caught it. PendingScan
+    /// means "not yet examined", not "suspect"; listing a file is not serving it, and the download
+    /// route still scans and still refuses. See DECISIONS-TAKEN.md D-20.</para>
+    /// </summary>
+    public static Task<List<EvaluatorBid>> EvaluatorBidsAsync(AppDbContext db, Guid rfqId, CancellationToken ct) =>
+        db.Proposals
+            .Where(p => p.RfqId == rfqId && ProposalStates.InEvaluation.Contains(p.State))
+            .OrderBy(p => p.ReferenceCode)
+            .Select(p => new EvaluatorBid(
+                p.Id,
+                p.ReferenceCode,
+                db.Suppliers.Where(s => s.Id == p.SupplierId).Select(s => s.ReferenceCode).First(),
+                db.Suppliers.Where(s => s.Id == p.SupplierId).Select(s => s.DisplayNameAr).First(),
+                db.Suppliers.Where(s => s.Id == p.SupplierId).Select(s => s.DisplayNameEn).First(),
+                p.NarrativeAr,
+                p.NarrativeEn,
+                p.RequirementAnswers
+                    .Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))
+                    .ToList(),
+                p.Documents
+                    .Where(d => d.Envelope == ProposalDocumentEnvelope.Technical
+                                && d.ScanState != AttachmentScanState.ScanRejected)
+                    .OrderBy(d => d.UploadedAt)
+                    .Select(d => new EvaluatorProposalDocumentDto(
+                        d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt))
+                    .ToList()))
+            .ToListAsync(ct);
 }
+
+/// <summary>The loaded technical envelope of one bid. Internal to Infrastructure - the GUID stays on
+/// this side of the boundary and never reaches EvaluatorProposalDto.</summary>
+internal sealed record EvaluatorBid(
+    Guid ProposalId, string ProposalCode,
+    string SupplierReferenceCode, string SupplierDisplayNameAr, string SupplierDisplayNameEn,
+    string? NarrativeAr, string? NarrativeEn,
+    IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
+    IReadOnlyList<EvaluatorProposalDocumentDto> Documents);
 
 /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1: "SubmissionClosed -&gt;
 /// UnderEvaluation ... system (on RFQ UnderEvaluation) ... Instantiate criteria from
@@ -451,8 +527,13 @@ public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope,
         }
         await db.SaveChangesAsync(ct);
 
-        var proposalIds = await EvaluationLoader.SubmittedProposalIdsAsync(db, rfq.Id, ct);
-        return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, proposalIds));
+        // T-067: the RFQ's own items and requirements, so an evaluator can read the specification
+        // the bids answer. Loaded explicitly because LoadScopedByAssignmentAsync fetches the Rfq bare.
+        await db.Entry(rfq).Collection(r => r.Items).LoadAsync(ct);
+        await db.Entry(rfq).Collection(r => r.Requirements).LoadAsync(ct);
+
+        var bids = await EvaluationLoader.EvaluatorBidsAsync(db, rfq.Id, ct);
+        return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
     }
 }
 
@@ -466,11 +547,23 @@ public sealed class ScoreCriterionHandler(AppDbContext db, IScopeContext scope, 
         if (loaded is null) return new MyEvaluationResult.NotFoundOrNotAssigned();
         var (rfq, evaluation) = loaded.Value;
 
-        var proposalIds = await EvaluationLoader.SubmittedProposalIdsAsync(db, rfq.Id, ct);
+        // T-067: the same projection the read uses, so a bid this evaluator cannot SEE is a bid they
+        // cannot SCORE - one source of truth for which proposals are in play.
+        await db.Entry(rfq).Collection(r => r.Items).LoadAsync(ct);
+        await db.Entry(rfq).Collection(r => r.Requirements).LoadAsync(ct);
+        var bids = await EvaluationLoader.EvaluatorBidsAsync(db, rfq.Id, ct);
+
+        // T-068: the public code resolves to a GUID here, at the boundary. An unknown code and a code
+        // belonging to a different RFQ are the same miss, and the domain's own validProposalIds guard
+        // still runs behind this - two independent refusals rather than one.
+        var target = bids.FirstOrDefault(b => b.ProposalCode == command.ProposalCode);
+        if (target is null) return new MyEvaluationResult.NotFoundOrNotAssigned();
+
+        var proposalIds = bids.Select(b => b.ProposalId).ToList();
         var existingScoreIds = evaluation.Scores.Select(s => s.Id).ToHashSet();
         try
         {
-            evaluation.ScoreCriterion(scope.UserId!.Value, command.ProposalId, command.CriterionId, command.RawScore, command.CommentAr, command.CommentEn, proposalIds.ToHashSet());
+            evaluation.ScoreCriterion(scope.UserId!.Value, target.ProposalId, command.CriterionId, command.RawScore, command.CommentAr, command.CommentEn, proposalIds.ToHashSet());
         }
         catch (DomainException ex)
         {
@@ -484,9 +577,9 @@ public sealed class ScoreCriterionHandler(AppDbContext db, IScopeContext scope, 
         }
 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation.score", scope.UserId, referenceCode: rfq.ReferenceCode,
-            toState: $"{command.ProposalId}/{command.CriterionId}={command.RawScore}", ct: ct);
+            toState: $"{command.ProposalCode}/{command.CriterionId}={command.RawScore}", ct: ct);
         await db.SaveChangesAsync(ct);
-        return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, proposalIds));
+        return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
     }
 }
 
@@ -498,7 +591,10 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
         if (loaded is null) return new MyEvaluationResult.NotFoundOrNotAssigned();
         var (rfq, evaluation) = loaded.Value;
 
-        var proposalIds = await EvaluationLoader.SubmittedProposalIdsAsync(db, rfq.Id, ct);
+        await db.Entry(rfq).Collection(r => r.Items).LoadAsync(ct);
+        await db.Entry(rfq).Collection(r => r.Requirements).LoadAsync(ct);
+        var bids = await EvaluationLoader.EvaluatorBidsAsync(db, rfq.Id, ct);
+        var proposalIds = bids.Select(b => b.ProposalId).ToList();
         try
         {
             evaluation.SubmitEvaluator(scope.UserId!.Value, proposalIds.ToHashSet());
@@ -522,6 +618,6 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_evaluator_submitted", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.EvaluatorSubmitted), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, proposalIds));
+        return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
     }
 }

@@ -46,6 +46,17 @@ public sealed record ProposalDto(
     // the column all along - this was a projection omission, not a missing fact.
     DateTimeOffset CreatedAt,
     ProposalTotalsDto Totals,
+    /// <summary>
+    /// §12.5's <c>validityDays</c>, DERIVED from the two dates rather than stored, and read-only.
+    ///
+    /// <para>The document models validity as one duration; this schema stores a start and an end,
+    /// which carries strictly more information. Emitting the difference conforms the RESPONSE half
+    /// without deciding anything. The request half is deliberately NOT accepted: turning a duration
+    /// into an end date needs an anchor, and nothing in any document says whether the clock starts at
+    /// creation, at submission, or at award - see DECISIONS-TAKEN.md D-22. Null when either date is
+    /// absent, because a duration measured from nothing is not zero.</para>
+    /// </summary>
+    int? ValidityDays,
     // §8.1: the version this read saw, so the endpoint can emit it as an ETag and the caller can
     // send it back as If-Match. Carried on the DTO rather than fetched separately because the read
     // has already loaded the aggregate that knows it.
@@ -91,6 +102,9 @@ public sealed record SubmitProposalCommand(string ProposalReferenceCode);
 
 public sealed record WithdrawProposalCommand(string ProposalReferenceCode, string Reason);
 
+// T-064: the supplier's own decline of an award offer.
+public sealed record DeclineAwardOfferCommand(string ProposalReferenceCode, string Reason);
+
 public abstract record ProposalResult
 {
     public sealed record Success(ProposalDto Proposal) : ProposalResult;
@@ -107,6 +121,10 @@ public abstract record ProposalResult
     /// what §3 governs.</para>
     /// </summary>
     public sealed record InvalidState(string Message, ProposalState? CurrentState = null) : ProposalResult;
+
+    /// <summary>T-066: refused because the proposal is incomplete, not because of its state. §12.5
+    /// answers this with 422 and a code naming what is missing.</summary>
+    public sealed record Incomplete(string Error, string Message) : ProposalResult;
 }
 
 /// <summary>§12.5: created at <c>POST /rfqs/{rfqCode}/proposals</c>, so this stays keyed on the
@@ -176,4 +194,9 @@ public interface ISubmitProposalHandler
 public interface IWithdrawProposalHandler
 {
     Task<ProposalResult> HandleAsync(WithdrawProposalCommand command, CancellationToken ct);
+}
+
+public interface IDeclineAwardOfferHandler
+{
+    Task<ProposalResult> HandleAsync(DeclineAwardOfferCommand command, CancellationToken ct);
 }

@@ -247,6 +247,32 @@ public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IA
         try
         {
             award.Approve(scope.UserId!.Value);
+
+            // T-064/§4.1: "Shortlisted -> AwardOffered | Selected for award ... Mark as award
+            // candidate | Email + in-app to supplier (offer)". Approve is the first point at which the
+            // offer is TRUE - see Proposal.OfferAward on why it is not made at recommend time.
+            //
+            // Only from Shortlisted. An RFQ that never shortlisted awards directly at execute, the
+            // path that already existed; forcing every award through the offer would break those, and
+            // §4.1 does not require it.
+            // proposal is non-null here: the SupplierNotActive guard above returns early when it is,
+            // so reaching this line means both the proposal and its supplier were found.
+            if (proposal!.State == ProposalState.Shortlisted)
+            {
+                proposal.OfferAward();
+                await auditLogger.LogAsync("Proposal", proposal.Id, "proposal.award_offered", scope.UserId,
+                    referenceCode: proposal.ReferenceCode,
+                    fromState: nameof(ProposalState.Shortlisted), toState: nameof(ProposalState.AwardOffered), ct: ct);
+
+                NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalAwardOffered,
+                    await NotificationRecipients.SupplierUsersAsync(db, proposal.SupplierId, ct),
+                    $"{NotificationTypes.ProposalAwardOffered}:{proposal.Id}",
+                    new Dictionary<string, string?>
+                    {
+                        ["rfqCode"] = rfq.ReferenceCode,
+                        ["proposalCode"] = proposal.ReferenceCode,
+                    });
+            }
         }
         catch (DomainException ex)
         {
@@ -336,11 +362,16 @@ public sealed class ExecuteAwardHandler(
         // reason: after evaluation intake these sit in UnderReview or Shortlisted, and a filter on
         // Submitted alone would silently leave them in an evaluation state forever while the RFQ
         // completed around them.
+        // T-064: AwardOffered joins the predicate, and it is not optional - approve now moves the
+        // winner there, so without it the WINNER falls out of this query and is never awarded while
+        // the RFQ completes around it. Third batch running in which a widened state machine had a
+        // query filtering on the states either side of it.
         var proposals = await db.Proposals
             .Where(p => p.RfqId == rfq.Id
                 && (p.State == ProposalState.Submitted
                     || p.State == ProposalState.UnderReview
-                    || p.State == ProposalState.Shortlisted))
+                    || p.State == ProposalState.Shortlisted
+                    || p.State == ProposalState.AwardOffered))
             .ToListAsync(ct);
         foreach (var proposal in proposals)
         {

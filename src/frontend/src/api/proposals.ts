@@ -67,6 +67,9 @@ export interface Proposal {
   withdrawReason: string | null
   createdAt: string
   totals: ProposalTotals
+  /** §12.5's validityDays, derived from the two dates on the server and read-only - see the DTO's
+   * own note on why the request half is not accepted. */
+  validityDays: number | null
   items: ProposalItem[]
   documents: ProposalDocument[]
   requirementAnswers: RequirementAnswer[]
@@ -187,6 +190,15 @@ export async function removeProposalDocument(proposalReferenceCode: string, docu
 
 export async function submitProposal(proposalReferenceCode: string): Promise<Proposal> {
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/submit`, { method: 'POST' }))
+}
+
+/** T-064/§4.1: AwardOffered -> Declined. A reason is required - a declined award nobody can explain
+ * is the one an audit asks about first. */
+export async function declineAwardOffer(proposalReferenceCode: string, reason: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/decline`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  }))
 }
 
 export async function withdrawProposal(proposalReferenceCode: string, reason: string): Promise<Proposal> {

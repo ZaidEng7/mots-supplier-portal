@@ -49,6 +49,20 @@ public interface IGetProposalDocumentsForBuyerHandler
         string rfqReferenceCode, Guid proposalId, CancellationToken ct);
 }
 
+/// <summary>
+/// T-067: an assigned evaluator opening a TECHNICAL supporting file on a bid they are scoring.
+///
+/// <para>Separate from the buyer handler because the gate is different, not because the work is:
+/// the buyer's opens at Consolidated and covers both envelopes, this one opens on assignment and
+/// covers Technical only. Both mint through the same ProposalDocumentDownload.MintAsync, so the
+/// scan gate and the audit row cannot diverge between them.</para>
+/// </summary>
+public interface IGetProposalDocumentDownloadUrlForEvaluatorHandler
+{
+    Task<ProposalDocumentDownloadResult> HandleAsync(
+        string rfqReferenceCode, string proposalCode, Guid documentId, CancellationToken ct);
+}
+
 public interface IGetProposalDocumentDownloadUrlForBuyerHandler
 {
     Task<ProposalDocumentDownloadResult> HandleAsync(

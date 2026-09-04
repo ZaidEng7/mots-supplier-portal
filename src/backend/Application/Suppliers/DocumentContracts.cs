@@ -54,6 +54,23 @@ public interface IListSupplierDocumentsHandler
 /// with their own states and upload times, which is a different question from "which required types
 /// does this supplier still owe".</para>
 /// </summary>
+/// <summary>
+/// T-012: the single-document read the upload's <c>Location</c> header points at.
+///
+/// <para>§12.3 documents <c>Location: /api/v1/suppliers/{supplierCode}/documents/{documentCode}</c>
+/// and defines no GET for it, so the header named a resource that did not exist. Batch 8 left the
+/// header non-conforming rather than emit a path resolving to nothing; this closes it the other way,
+/// by making the documented path real - a 202 whose Location 404s is a worse contract than either.</para>
+///
+/// <para>Serves the supplier who owns it and a reviewer holding <c>supplier.document.review</c>, the
+/// same two callers and the same row-scope rule as the download - null for a miss, an out-of-scope
+/// document and an unknown code alike (§9.2).</para>
+/// </summary>
+public interface IGetSupplierDocumentHandler
+{
+    Task<SupplierDocumentDto?> HandleAsync(string supplierCode, string documentCode, CancellationToken ct);
+}
+
 public interface IListSupplierDocumentsPagedHandler
 {
     /// <summary>Null when no supplier carries <paramref name="supplierCode"/>.</summary>

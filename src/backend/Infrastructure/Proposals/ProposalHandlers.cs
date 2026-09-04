@@ -32,6 +32,9 @@ internal static class ProposalDtoMapper
         [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))],
         proposal.CreatedAt,
         new ProposalTotalsDto(proposal.CurrencyCode, proposal.Items.Sum(i => i.LineTotal)),
+        proposal.ValidityStart is { } from && proposal.ValidityEnd is { } to
+            ? to.DayNumber - from.DayNumber
+            : null,
         proposal.RowVersion);
 }
 
@@ -362,10 +365,16 @@ public sealed class SubmitProposalHandler(AppDbContext db, IScopeContext scope, 
         {
             proposal.Submit(rfq.State == RfqState.SubmissionOpen, rfq.SubmissionClosesAt.Value, requiredItemIds, mandatoryRequirementIds);
         }
+        catch (ProposalIncompleteException ex)
+        {
+            // T-066: §12.5's 422 with a code naming what is missing. Caught FIRST and separately -
+            // the window and wrong-state refusals below are still DomainException and still answer
+            // 409/400, because those tell a supplier something different.
+            return new ProposalResult.Incomplete(ex.Error, ex.Message);
+        }
         catch (DomainException ex)
         {
-            // Completeness and window refusals keep the 400 they had. §12.5's 422 for missing items
-            // is a real, separate divergence and is recorded as T-066 rather than guessed at here.
+            // Window refusals keep their 400; a wrong source state answers 409 with currentState.
             return submittableState
                 ? new ProposalResult.InvalidState(ex.Message)
                 : new ProposalResult.InvalidState(ex.Message, proposal.State);
@@ -417,6 +426,71 @@ public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_withdrawn", scope.UserId, referenceCode: proposal.ReferenceCode,
             fromState: fromState.ToString(), toState: nameof(ProposalState.Withdrawn), reason: command.Reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}
+
+/// <summary>
+/// T-064, §4.1: <c>AwardOffered -&gt; Declined</c>, "Supplier declines ... Free the award for
+/// alternate; RFQ returns to <c>Recommendation</c>".
+///
+/// <para>Supplier-side, so the proposal is loaded through the supplier's own scope - a decline on
+/// someone else's award offer is the same 404 as a code that does not exist.</para>
+///
+/// <para><b>The RFQ moves in the same SaveChanges as the proposal.</b> A declined offer that left the
+/// RFQ in AwardApproval would be an award nobody could act on: the offer is dead and the officer has
+/// no route back to choosing an alternate. Two aggregates in one unit of work, for the same reason
+/// AwardHandlers already does it - a window in which one has moved and the other has not is worse
+/// than the coupling.</para>
+/// </summary>
+public sealed class DeclineAwardOfferHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IDeclineAwardOfferHandler
+{
+    public async Task<ProposalResult> HandleAsync(DeclineAwardOfferCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
+        if (loaded is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        var fromState = proposal.State;
+        try
+        {
+            proposal.DeclineAward(command.Reason);
+
+            // Only when the RFQ is actually awaiting the award decision. An RFQ that reached Awarded
+            // by the direct path has no offer outstanding, so there is nothing to return.
+            if (rfq.State == RfqState.AwardApproval)
+            {
+                rfq.ReturnToRecommendation();
+                await auditLogger.LogAsync("Rfq", rfq.Id, "rfq.returned_to_recommendation", scope.UserId,
+                    referenceCode: rfq.ReferenceCode,
+                    fromState: nameof(RfqState.AwardApproval), toState: nameof(RfqState.Recommendation), ct: ct);
+            }
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message, fromState);
+        }
+
+        // §4.1: "In-app to procurement". The supplier's own users are NOT notified - they are the
+        // ones who just declined, and BRULE-091's spirit is that a notification tells someone
+        // something they do not already know.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalDeclined,
+            await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
+            $"{NotificationTypes.ProposalDeclined}:{proposal.Id}",
+            new Dictionary<string, string?>
+            {
+                ["rfqCode"] = rfq.ReferenceCode,
+                ["proposalCode"] = proposal.ReferenceCode,
+            });
+
+        // The reason is audited and deliberately NOT in the notification payload - BRULE-091 keeps a
+        // supplier's free text out of it, and the officer reads it on the screen the link opens.
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal.declined", scope.UserId,
+            referenceCode: proposal.ReferenceCode,
+            fromState: nameof(ProposalState.AwardOffered), toState: nameof(ProposalState.Declined),
+            reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
         return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
     }

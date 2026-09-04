@@ -185,3 +185,18 @@ public static class EvaluationSeed
             .GetProperty("id").GetGuid();
     }
 }
+
+/// <summary>
+/// T-068: the evaluator scoring route names a bid by its PUBLIC code, so a test holding a proposal
+/// GUID needs the code that addresses it. Resolved from storage rather than threaded through ten
+/// setup helpers, which would have meant reshaping every one of their return tuples.
+/// </summary>
+public static class ProposalCodeLookup
+{
+    public static async Task<string> ProposalCodeAsync(this PostgresApiFixture fixture, Guid proposalId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Proposals.Where(p => p.Id == proposalId).Select(p => p.ReferenceCode).FirstAsync();
+    }
+}

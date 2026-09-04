@@ -29,11 +29,17 @@ public sealed class ReopenEvaluationRequestValidator : AbstractValidator<ReopenE
     public ReopenEvaluationRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
-public sealed record ScoreCriterionRequest(Guid ProposalId, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn);
+// T-068: the bid is named by its public code. CriterionId stays a GUID - criteria are snapshot rows
+// on the evaluation with no public code of their own, and minting one is T-055's kind of work.
+public sealed record ScoreCriterionRequest(string ProposalCode, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn);
 
 public sealed class ScoreCriterionRequestValidator : AbstractValidator<ScoreCriterionRequest>
 {
-    public ScoreCriterionRequestValidator() => RuleFor(x => x.RawScore).GreaterThanOrEqualTo(0);
+    public ScoreCriterionRequestValidator()
+    {
+        RuleFor(x => x.RawScore).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.ProposalCode).NotEmpty();
+    }
 }
 
 /// <summary>FEAT-11.2..11.8/FR-EVL-001..011. Buyer/manager-side routes live under
@@ -197,10 +203,24 @@ public static class EvaluationEndpoints
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMy(await handler.HandleAsync(new ScoreCriterionCommand(
-                referenceCode, request.ProposalId, request.CriterionId, request.RawScore, request.CommentAr, request.CommentEn), ct));
+                referenceCode, request.ProposalCode, request.CriterionId, request.RawScore, request.CommentAr, request.CommentEn), ct));
         })
         .RequirePermission(Permissions.EvaluationScore)
         .WithName("ScoreCriterion");
+
+        // T-067: opening a technical supporting file on a bid under evaluation. Under the
+        // my-evaluation group because the ASSIGNMENT is the scope, and keyed by the proposal's public
+        // code - the same code the workspace read emits, so nothing has to translate an id.
+        myGroup.MapGet("/proposals/{proposalCode}/documents/{documentId:guid}/download-url", async (
+            string referenceCode, string proposalCode, Guid documentId,
+            IGetProposalDocumentDownloadUrlForEvaluatorHandler handler, CancellationToken ct) =>
+            await handler.HandleAsync(referenceCode, proposalCode, documentId, ct) switch
+            {
+                ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                _ => Results.NotFound(),
+            })
+        .RequirePermission(Permissions.EvaluationScore)
+        .WithName("GetProposalDocumentDownloadUrlForEvaluator");
 
         myGroup.MapPost("/submit", async (string referenceCode, ISubmitEvaluatorHandler handler, CancellationToken ct) =>
             MapMy(await handler.HandleAsync(new SubmitEvaluatorCommand(referenceCode), ct)))

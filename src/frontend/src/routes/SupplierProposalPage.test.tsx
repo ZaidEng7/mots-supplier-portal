@@ -21,7 +21,7 @@ const RFQ_FIXTURE = {
 function proposalFixture(state: string, overrides: Record<string, unknown> = {}) {
   return {
     proposalCode: 'PRP-2026-000001', rfqCode: 'RFQ-2026-000001', state,
-    createdAt: '2026-08-30T09:00:00Z', totals: { currency: null, grandTotal: 0 },
+    createdAt: '2026-08-30T09:00:00Z', totals: { currency: null, grandTotal: 0 }, validityDays: null,
     currency: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
     warranty: null, validityStart: null, validityEnd: null, narrativeAr: null, narrativeEn: null,
     submittedAt: null, withdrawnAt: null, withdrawReason: null,
@@ -185,5 +185,40 @@ describe('SupplierProposalPage', () => {
 
     await screen.findByText('Withdrawn')
     expect(screen.queryByRole('button', { name: 'Withdraw proposal' })).not.toBeInTheDocument()
+  })
+
+  it('offers a decline control on an AwardOffered proposal, and none on a Draft one', async () => {
+    // T-064: an AwardOffered proposal the supplier cannot act on is the T-067 defect shape again -
+    // a state the product can reach and the persona it concerns has no control for.
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('AwardOffered'),
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('AwardOffered'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+    })
+
+    renderPage(<SupplierProposalPage />)
+
+    expect(await screen.findByText('Award offer')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Decline the award' })).toBeInTheDocument()
+    // Disabled until a reason is given - the server requires one, so the UI must not invite a
+    // request it will refuse.
+    expect(screen.getByRole('button', { name: 'Decline the award' })).toBeDisabled()
+  })
+
+  it('shows no decline control on a Draft proposal', async () => {
+    // The control for the test above: the block is state-gated, not always rendered.
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+    })
+
+    renderPage(<SupplierProposalPage />)
+
+    // Awaited on a control the Draft state definitely renders, so the absence assertion below runs
+    // against a loaded page rather than a skeleton - which is how the first version of this passed
+    // for the wrong reason.
+    expect(await screen.findByRole('button', { name: 'Save price' })).toBeInTheDocument()
+    expect(screen.queryByText('Award offer')).not.toBeInTheDocument()
   })
 })

@@ -306,6 +306,7 @@ builder.Services.AddScoped<IPatchProposalHandler, PatchProposalHandler>();
 builder.Services.AddScoped<IManageProposalDocumentHandler, ManageProposalDocumentHandler>();
 builder.Services.AddScoped<ISubmitProposalHandler, SubmitProposalHandler>();
 builder.Services.AddScoped<IWithdrawProposalHandler, WithdrawProposalHandler>();
+builder.Services.AddScoped<IDeclineAwardOfferHandler, DeclineAwardOfferHandler>();
 builder.Services.AddScoped<IRequestProposalClarificationHandler, RequestProposalClarificationHandler>();
 builder.Services.AddScoped<IReviseProposalHandler, ReviseProposalHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
@@ -319,6 +320,7 @@ builder.Services.AddScoped<IConsolidateEvaluationHandler, ConsolidateEvaluationH
 // T-028: proposal document reads - supplier's own, and the buyer's Consolidated+ gated pair.
 builder.Services.AddScoped<IGetOwnProposalDocumentDownloadUrlHandler, GetOwnProposalDocumentDownloadUrlHandler>();
 builder.Services.AddScoped<IGetProposalDocumentsForBuyerHandler, GetProposalDocumentsForBuyerHandler>();
+builder.Services.AddScoped<IGetProposalDocumentDownloadUrlForEvaluatorHandler, GetProposalDocumentDownloadUrlForEvaluatorHandler>();
 builder.Services.AddScoped<IGetProposalDocumentDownloadUrlForBuyerHandler, GetProposalDocumentDownloadUrlForBuyerHandler>();
 builder.Services.AddScoped<IFinalizeEvaluationHandler, FinalizeEvaluationHandler>();
 builder.Services.AddScoped<IReopenEvaluationHandler, ReopenEvaluationHandler>();
@@ -360,6 +362,7 @@ builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
+builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
 builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
 builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();
