@@ -52,6 +52,18 @@ public static class OfferingEndpoints
         .RequirePermission(Permissions.SupplierEdit)
         .WithName("ListOfferings");
 
+        // The read that makes the guarded writes below usable. §8.1's contract needs a response
+        // carrying the ETag a caller then sends back as If-Match; this aggregate had only a list,
+        // so requiring the header on deactivate made it unobtainable and refused every caller.
+        group.MapGet("/{offeringId:guid}", async (Guid offeringId, IGetOfferingHandler handler, CancellationToken ct) =>
+        {
+            var offering = await handler.HandleAsync(offeringId, ct);
+            return offering is null ? Results.NotFound() : Results.Ok(offering);
+        })
+        .RequirePermission(Permissions.SupplierEdit)
+        .WithETag()
+        .WithName("GetOffering");
+
         group.MapPost("/", async (
             CreateOfferingRequest request,
             IValidator<CreateOfferingRequest> validator,

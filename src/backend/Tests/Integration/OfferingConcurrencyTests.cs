@@ -129,4 +129,47 @@ public sealed class OfferingConcurrencyTests(PostgresApiFixture fixture)
         (await UpdateAsync(client, offeringId, etag, "With Precondition")).StatusCode
             .Should().Be(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task The_single_offering_read_issues_the_ETag_its_writes_demand()
+    {
+        // §8.1's contract is only usable if a caller can OBTAIN the precondition. This aggregate had
+        // a list and no single read, so requiring If-Match on deactivate refused every caller -
+        // including the suite's own ETag-attaching client, which is how it was caught.
+        var authenticated = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"OfferGet {Guid.NewGuid():N}"[..30]);
+        var client = await SupplierTestClient.CloneWithoutETagsAsync(fixture, authenticated);
+
+        var created = await client.PostAsJsonAsync("/api/v1/suppliers/me/offerings", ValidPayload());
+        var offeringId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var read = await client.GetAsync($"/api/v1/suppliers/me/offerings/{offeringId}");
+        read.StatusCode.Should().Be(HttpStatusCode.OK);
+        read.Headers.ETag.Should().NotBeNull("the read has to issue the version its writes demand");
+
+        // And the ETag it issued is accepted by the write, which is the whole point of the pair.
+        var update = await UpdateAsync(client, offeringId, read.Headers.ETag!.ToString(), "Read Then Written");
+        update.StatusCode.Should().Be(HttpStatusCode.OK, await update.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Another_suppliers_offering_is_not_readable_by_id()
+    {
+        // The read added above is a direct object read, so it gets the same scoping every other one
+        // in this codebase has: 404, never 403, and resolved by a query predicate rather than a
+        // check afterwards.
+        var mineAuth = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"OfferMine {Guid.NewGuid():N}"[..30]);
+        var mine = await SupplierTestClient.CloneWithoutETagsAsync(fixture, mineAuth);
+        var created = await mine.PostAsJsonAsync("/api/v1/suppliers/me/offerings", ValidPayload());
+        var offeringId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        // Owner control: the supplier who created it can read it.
+        (await mine.GetAsync($"/api/v1/suppliers/me/offerings/{offeringId}")).StatusCode
+            .Should().Be(HttpStatusCode.OK);
+
+        var otherAuth = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"OfferOther {Guid.NewGuid():N}"[..30]);
+        var other = await SupplierTestClient.CloneWithoutETagsAsync(fixture, otherAuth);
+
+        (await other.GetAsync($"/api/v1/suppliers/me/offerings/{offeringId}")).StatusCode
+            .Should().Be(HttpStatusCode.NotFound, "§9.2: 404, not 403");
+    }
 }

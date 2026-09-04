@@ -321,6 +321,7 @@ builder.Services.AddScoped<IScoreCriterionHandler, ScoreCriterionHandler>();
 builder.Services.AddScoped<ISubmitEvaluatorHandler, SubmitEvaluatorHandler>();
 
 // EPIC-12: Comparison (derived read-side view over Proposal + Evaluation).
+builder.Services.AddScoped<IGetOfferingHandler, GetOfferingHandler>();
 builder.Services.AddScoped<IGetComparisonHandler, GetComparisonHandler>();
 
 // T3-01: the RFQ attachment read path.

@@ -43,6 +43,23 @@ public sealed class ListOfferingsHandler(AppDbContext db, IScopeContext scope) :
     }
 }
 
+/// <summary>
+/// One offering, scoped to the caller's own supplier IN THE QUERY - a miss is indistinguishable from
+/// an id that never existed (§9.2), same as every other supplier-scoped read here.
+/// </summary>
+public sealed class GetOfferingHandler(AppDbContext db, IScopeContext scope) : IGetOfferingHandler
+{
+    public async Task<OfferingDto?> HandleAsync(Guid offeringId, CancellationToken ct)
+    {
+        if (scope.SupplierId is null) return null;
+
+        var offering = await db.Offerings.AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == offeringId && o.SupplierId == scope.SupplierId, ct);
+
+        return offering is null ? null : OfferingDtoMapper.ToDto(offering);
+    }
+}
+
 public sealed class CreateOfferingHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICreateOfferingHandler
 {
     public async Task<OfferingMutationResult> HandleAsync(CreateOfferingCommand command, CancellationToken ct)
