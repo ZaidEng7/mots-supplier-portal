@@ -12,7 +12,8 @@ internal static class OfferingDtoMapper
 {
     public static OfferingDto ToDto(Offering o) => new(
         o.Id, o.NameAr, o.NameEn, o.Description, o.CategoryCode, o.UnitOfMeasureCode, o.PriceAmount, o.CurrencyCode, o.IsActive,
-        DeserializeAttributes(o.AttributesJson));
+        DeserializeAttributes(o.AttributesJson),
+        o.RowVersion);
 
     /// <summary>FEAT-06.2: the jsonb column is a plain serialized dictionary (see Offering.AttributesJson's
     /// doc comment) - null/empty round-trips to null, never an empty object, so a caller can tell

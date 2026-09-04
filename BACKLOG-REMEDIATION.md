@@ -117,8 +117,8 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-029 | §8.1 | `SupplierDocument`, `Clarification`, `Addendum` and two others carry no version column | Not `IVersionedAggregate` | Reproduced | M |
-| T-030 | §8.1 | A child write does not bump the root aggregate's version, so a concurrent edit to a sibling is not detected | Inferred | M |
+| T-029 | §8.1 | Eight mutable aggregates carry no version column. **`Offering` closed in batch 3** — it was the one that bit, since every `supplier_user` edits the catalogue. Remaining: `Organization`, `OrgUnit`, `SupplierOrgLink`, `SupplierFieldConfig`, `SupplierDocument`, `Clarification`, `Addendum`. **No migration needed** — `xmin` is a Postgres system column, so each is a mapping change | Not `IVersionedAggregate` | Reproduced | M |
+| T-030 | §8.1 | A child write does not bump the root's version. **Now reproduced**, and it does NOT let the excluded sub-resource routes back under `If-Match`: `ApplyExpectedVersion` only stamps an entry that is `Modified` **and** an `IVersionedAggregate`, and a child insert marks the CHILD `Added` — so the guard is skipped even when a correct `If-Match` was sent, and Postgres never advances the parent's `xmin` because the parent row is not written. Forcing a parent touch is not viable: `xmin` is database-generated and cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext.cs:192` already documents. A real fix needs an application-managed version column — **a second concurrency mechanism, so a decision** | `AppDbContext.cs:86-92` | Reproduced | M |
 | T-031 | — | No `state_changed_at`; time-in-current-state is not derivable from the aggregate. Cycle time is derivable from the audit log instead (EPIC-19) | `Rfq.cs:42-66` | Reproduced | M |
 | T-032 | §7 | `Correlation-Id` appears in problem bodies but is not echoed as a response header | `ProblemResponse.cs` | Reproduced | S |
 

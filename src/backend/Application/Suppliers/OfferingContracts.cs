@@ -3,7 +3,10 @@ namespace MotsSupplierPortal.Application.Suppliers;
 public sealed record OfferingDto(
     Guid Id, string NameAr, string NameEn, string? Description,
     string CategoryCode, string UnitOfMeasureCode, decimal? PriceAmount, string? CurrencyCode, bool IsActive,
-    IReadOnlyDictionary<string, string>? Attributes);
+    IReadOnlyDictionary<string, string>? Attributes,
+    /// <summary>§8.1's version, carried so WithETag can emit an ETag from this DTO - the filter
+    /// looks for this property by name and does nothing without it.</summary>
+    long RowVersion = 0);
 
 public sealed record CreateOfferingCommand(
     string NameAr, string NameEn, string? Description,
