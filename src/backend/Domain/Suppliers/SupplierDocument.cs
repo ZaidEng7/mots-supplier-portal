@@ -138,6 +138,28 @@ public sealed class SupplierDocument
         State = DocumentState.ScanRejected;
     }
 
+    /// <summary>
+    /// T-052: the step the pipeline was missing. `UnderReview` was read by three guards and
+    /// assigned by nothing, so BRULE-024's "returns to `Uploaded -> UnderReview`" stopped halfway
+    /// and API-ARCHITECTURE.md §12.3's own reviewer query - `?state=UnderReview,Rejected` - matched
+    /// nothing that had ever existed.
+    ///
+    /// <para>Kept as a separate transition rather than folded into <see cref="MarkScanClean"/>,
+    /// even though DocumentScanJob calls them back to back. Uploaded is what the row holds if the
+    /// job dies between the two, and Approve/Reject accept it, so that crash leaves a reviewable
+    /// document rather than a dead end. Collapsing the two states would have traded this gap for
+    /// the mirror-image one: an Uploaded nothing can reach.</para>
+    /// </summary>
+    public void EnterReview()
+    {
+        if (State != DocumentState.Uploaded)
+        {
+            throw new DomainException($"Cannot enter review from state '{State}'; only 'Uploaded' is valid.");
+        }
+
+        State = DocumentState.UnderReview;
+    }
+
     public void Approve(Guid reviewerUserId)
     {
         if (State is not (DocumentState.Uploaded or DocumentState.UnderReview))

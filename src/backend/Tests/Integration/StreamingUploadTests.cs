@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using MotsSupplierPortal.Domain.Identity;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -171,6 +172,48 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         }
 
         state.Should().Be("ScanRejected", "clamd must have flagged the EICAR signature and the job must have recorded it");
+    }
+
+    /// <summary>
+    /// T-052: the counterpart to the EICAR test above, and its control. A clean upload must land in
+    /// UnderReview, not Uploaded - the state API-ARCHITECTURE.md §4.4 says this job produces and
+    /// §12.3's reviewer query filters on. Without this the EICAR test alone would still pass on a
+    /// pipeline that never transitions anything anywhere but ScanRejected.
+    /// </summary>
+    [Fact]
+    public async Task A_clean_upload_reaches_the_review_queue_the_documented_reviewer_query_reads()
+    {
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Clean Scan Co");
+        var supplierCode = await client.OwnSupplierCodeAsync();
+
+        using var content = BuildUploadContent(BuildPdfOfSize(4096), "clean.pdf");
+        var response = await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", content);
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var documentCode = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        string? state = null;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var scope = fixture.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            state = await db.SupplierDocuments.Where(d => d.ReferenceCode == documentCode)
+                .Select(d => d.State.ToString()).FirstAsync();
+            if (state != "PendingScan") break;
+            await Task.Delay(500);
+        }
+
+        state.Should().Be("UnderReview",
+            "the scan job is what §4.4 says moves a document into review, and it stopped at Uploaded");
+
+        // And the documented query actually returns it. Asserting the column alone would not have
+        // caught a filter that cannot parse the value it is being asked to match.
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+        var queued = await reviewer.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/suppliers/{supplierCode}/documents?state=UnderReview,Rejected");
+        queued.GetProperty("data").EnumerateArray()
+            .Select(d => d.GetProperty("documentId").GetString())
+            .Should().Contain(documentCode, "§12.3's reviewer queue is the reason UnderReview exists");
     }
 
     [Fact]
