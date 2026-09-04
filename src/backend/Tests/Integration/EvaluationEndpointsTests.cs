@@ -282,4 +282,79 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
 
         actions.Should().Contain(["evaluation_created", "evaluation_evaluators_assigned", "evaluation.score"]);
     }
+
+    /// <summary>
+    /// T-021/BRULE-061: "Criteria requiring justification cannot be submitted without a comment."
+    /// Both directions, and the control is a criterion NOT marked - otherwise a guard that refused
+    /// every uncommented score would pass the negative half.
+    /// </summary>
+    [Fact]
+    public async Task A_criterion_that_requires_justification_refuses_an_uncommented_score()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "Justify", requiresJustification: true);
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        var my = await seeded.Evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation");
+        var criterion = my.GetProperty("criteria").EnumerateArray().Single();
+        var criterionId = criterion.GetProperty("id").GetGuid();
+
+        // The flag reaches the evaluator's own view, so the form can mark the field before the score
+        // is refused rather than after it.
+        criterion.GetProperty("requiresJustification").GetBoolean().Should().BeTrue();
+
+        var uncommented = await seeded.Evaluator.PostAsJsonAsync(
+            $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new { proposalId = seeded.ProposalId, criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+
+        uncommented.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "BRULE-061 refuses the score, and it is a validation refusal rather than a transition one");
+
+        // Nothing was recorded - the refusal is not a message beside a stored score.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.EvaluatorScores.CountAsync(x => x.CriterionId == criterionId)).Should().Be(0);
+        }
+
+        // ONE language is enough. An evaluator writes their reasoning in the language they think in,
+        // and this comment is internal procurement evidence rather than supplier-facing product copy.
+        var arabicOnly = await seeded.Evaluator.PostAsJsonAsync(
+            $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new { proposalId = seeded.ProposalId, criterionId, rawScore = 80m, commentAr = "مطابق للمواصفات", commentEn = (string?)null });
+
+        arabicOnly.StatusCode.Should().Be(HttpStatusCode.OK, await arabicOnly.Content.ReadAsStringAsync());
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var stored = await db.EvaluatorScores.SingleAsync(x => x.CriterionId == criterionId);
+            stored.RawScore.Should().Be(80m);
+            stored.CommentAr.Should().Be("مطابق للمواصفات");
+        }
+    }
+
+    /// <summary>The control: the same uncommented score, on a criterion nobody marked.</summary>
+    [Fact]
+    public async Task A_criterion_that_does_not_require_justification_still_accepts_an_uncommented_score()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "NoJustify");
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        var my = await seeded.Evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation");
+        var criterion = my.GetProperty("criteria").EnumerateArray().Single();
+        criterion.GetProperty("requiresJustification").GetBoolean().Should().BeFalse(
+            "unmarked is the default, and the default must not have become true for everyone");
+
+        var scored = await seeded.Evaluator.PostAsJsonAsync(
+            $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new
+            {
+                proposalId = seeded.ProposalId, criterionId = criterion.GetProperty("id").GetGuid(),
+                rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null,
+            });
+
+        scored.StatusCode.Should().Be(HttpStatusCode.OK, await scored.Content.ReadAsStringAsync());
+    }
 }

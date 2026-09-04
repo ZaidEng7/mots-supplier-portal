@@ -4,7 +4,10 @@ namespace MotsSupplierPortal.Application.Evaluation;
 
 public sealed record CriterionDto(
     Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore,
-    decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn, int SortOrder);
+    decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn, int SortOrder,
+    // T-021/BRULE-061. Emitted so an evaluator's UI can mark the field required before the score is
+    // refused, rather than after.
+    bool RequiresJustification = false);
 
 public sealed record EvaluationTemplateDto(
     Guid Id, Guid FamilyId, int Version, string NameAr, string NameEn, EvaluationTemplateStatus Status,
@@ -16,11 +19,13 @@ public sealed record CreateEvaluationTemplateCommand(string NameAr, string NameE
 
 public sealed record AddCriterionCommand(
     Guid TemplateId, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore,
-    decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn);
+    decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn,
+    bool RequiresJustification = false);
 
 public sealed record UpdateCriterionCommand(
     Guid TemplateId, Guid CriterionId, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight,
-    decimal MaxScore, decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn);
+    decimal MaxScore, decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn,
+    bool RequiresJustification = false);
 
 public sealed record RemoveCriterionCommand(Guid TemplateId, Guid CriterionId);
 

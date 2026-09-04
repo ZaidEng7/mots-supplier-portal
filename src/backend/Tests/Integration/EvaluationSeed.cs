@@ -50,7 +50,8 @@ public static class EvaluationSeed
     /// it would mean two lifecycles drifting apart, and the one that drifts is the one nobody is
     /// looking at.</para>
     /// </summary>
-    public static async Task<Seeded> CreateAsync(PostgresApiFixture fixture, string label, bool withDocuments = false)
+    public static async Task<Seeded> CreateAsync(
+        PostgresApiFixture fixture, string label, bool withDocuments = false, bool requiresJustification = false)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var (officer, officerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
@@ -64,6 +65,7 @@ public static class EvaluationSeed
         {
             nameAr = "جودة", nameEn = "Quality", dimension = "Technical", weight = 100, maxScore = 100,
             threshold = 50, scoringType = "Numeric", guidanceAr = (string?)null, guidanceEn = (string?)null,
+            requiresJustification,
         });
         await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/activate", null);
 

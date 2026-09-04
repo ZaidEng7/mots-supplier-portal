@@ -21,7 +21,10 @@ public sealed class CreateEvaluationTemplateRequestValidator : AbstractValidator
 
 public sealed record CriterionRequest(
     string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore,
-    decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn);
+    decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn,
+    // T-021/BRULE-061: the template author decides, because the rule declines to say which criteria
+    // need one. Omitted means false, which is what a template written before the field asked for.
+    bool RequiresJustification = false);
 
 public sealed class CriterionRequestValidator : AbstractValidator<CriterionRequest>
 {
@@ -89,7 +92,8 @@ public static class EvaluationTemplateEndpoints
 
             var result = await handler.AddAsync(new AddCriterionCommand(
                 id, request.NameAr, request.NameEn, request.Dimension, request.Weight, request.MaxScore,
-                request.Threshold, request.ScoringType, request.GuidanceAr, request.GuidanceEn), ct);
+                request.Threshold, request.ScoringType, request.GuidanceAr, request.GuidanceEn,
+                request.RequiresJustification), ct);
             return MapMutation(result);
         })
         .WithName("AddCriterion");
@@ -107,7 +111,8 @@ public static class EvaluationTemplateEndpoints
 
             var result = await handler.UpdateAsync(new UpdateCriterionCommand(
                 id, criterionId, request.NameAr, request.NameEn, request.Dimension, request.Weight, request.MaxScore,
-                request.Threshold, request.ScoringType, request.GuidanceAr, request.GuidanceEn), ct);
+                request.Threshold, request.ScoringType, request.GuidanceAr, request.GuidanceEn,
+                request.RequiresJustification), ct);
             return MapMutation(result);
         })
         .WithName("UpdateCriterion");

@@ -25,7 +25,8 @@ internal static class EvaluationDtoMapper
         evaluation.RowVersion);
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
-        new(c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType, c.IsFinancial);
+        new(c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType, c.IsFinancial,
+            c.RequiresJustification);
 
     public static MyEvaluationDto ToMyDto(EvaluationAggregate evaluation, Rfq rfq, Guid evaluatorUserId, IReadOnlyList<Guid> proposalIds)
     {
@@ -82,7 +83,12 @@ file static class EvaluationLoader
 /// already justifies, not a new pattern.</summary>
 public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IOpenEvaluationHandler
 {
-    private sealed record CriterionSnapshotJson(Guid Id, string NameAr, string NameEn, string Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, string ScoringType);
+    private sealed record CriterionSnapshotJson(
+        Guid Id, string NameAr, string NameEn, string Dimension, decimal Weight, decimal MaxScore, decimal? Threshold,
+        string ScoringType,
+        // Defaults to false for an RFQ whose snapshot predates the field - the same reason Criterion's
+        // own flag defaults false rather than being backfilled from a rule nobody had stated yet.
+        bool RequiresJustification = false);
 
     public async Task<EvaluationMutationResult> HandleAsync(OpenEvaluationCommand command, CancellationToken ct)
     {
@@ -136,7 +142,8 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
 
         var criteriaJson = JsonSerializer.Deserialize<List<CriterionSnapshotJson>>(rfq.EvaluationTemplateSnapshotJson)!;
         var criteriaInputs = criteriaJson.Select(c => new CriterionSnapshotInput(
-            c.NameAr, c.NameEn, Enum.Parse<CriterionDimension>(c.Dimension), c.Weight, c.MaxScore, c.Threshold, Enum.Parse<ScoringType>(c.ScoringType))).ToList();
+            c.NameAr, c.NameEn, Enum.Parse<CriterionDimension>(c.Dimension), c.Weight, c.MaxScore, c.Threshold,
+            Enum.Parse<ScoringType>(c.ScoringType), c.RequiresJustification)).ToList();
 
         var evaluation = EvaluationAggregate.Create(rfq.Id, criteriaInputs);
         db.Evaluations.Add(evaluation);

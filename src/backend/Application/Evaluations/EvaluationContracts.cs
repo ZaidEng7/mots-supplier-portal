@@ -3,7 +3,10 @@ using MotsSupplierPortal.Domain.Evaluation;
 namespace MotsSupplierPortal.Application.Evaluations;
 
 public sealed record EvaluationCriterionDto(
-    Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, ScoringType ScoringType, bool IsFinancial);
+    Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, ScoringType ScoringType, bool IsFinancial,
+    // T-021/BRULE-061: on the evaluator's own view, so the form can mark the comment required
+    // before the score is refused rather than after it.
+    bool RequiresJustification = false);
 
 /// <summary>Buyer-facing roster row - never carries a raw score (blind scoring, OQ-005/BRULE-058).</summary>
 public sealed record EvaluationAssignmentDto(Guid EvaluatorUserId, DateTimeOffset AssignedAt, DateTimeOffset? SubmittedAt, DateTimeOffset? RecusedAt, string? RecusalReason);

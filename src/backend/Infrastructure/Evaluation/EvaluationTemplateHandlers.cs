@@ -13,7 +13,7 @@ internal static class EvaluationTemplateDtoMapper
         t.Id, t.FamilyId, t.Version, t.NameAr, t.NameEn, t.Status, t.IsReferenced,
         [.. t.Criteria.OrderBy(c => c.SortOrder).Select(c => new CriterionDto(
             c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType,
-            c.GuidanceAr, c.GuidanceEn, c.SortOrder))],
+            c.GuidanceAr, c.GuidanceEn, c.SortOrder, c.RequiresJustification))],
         t.RowVersion);
 }
 
@@ -80,7 +80,8 @@ public sealed class ManageCriterionHandler(AppDbContext db, IScopeContext scope,
         {
             criterion = template.AddCriterion(
                 command.NameAr, command.NameEn, command.Dimension, command.Weight, command.MaxScore,
-                command.Threshold, command.ScoringType, command.GuidanceAr, command.GuidanceEn);
+                command.Threshold, command.ScoringType, command.GuidanceAr, command.GuidanceEn,
+                command.RequiresJustification);
         }
         catch (DomainException ex)
         {
@@ -102,7 +103,8 @@ public sealed class ManageCriterionHandler(AppDbContext db, IScopeContext scope,
         {
             template.UpdateCriterion(
                 command.CriterionId, command.NameAr, command.NameEn, command.Dimension, command.Weight,
-                command.MaxScore, command.Threshold, command.ScoringType, command.GuidanceAr, command.GuidanceEn);
+                command.MaxScore, command.Threshold, command.ScoringType, command.GuidanceAr, command.GuidanceEn,
+                command.RequiresJustification);
         }
         catch (DomainException ex)
         {

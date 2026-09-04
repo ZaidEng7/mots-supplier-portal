@@ -382,6 +382,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>
         {
             entity.ToTable("supplier_field_config", "ops");
+            entity.Property(c => c.RowVersion).IsRowVersion();
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Category).HasMaxLength(50).IsRequired();
             entity.Property(c => c.FieldCode).HasMaxLength(50).IsRequired();

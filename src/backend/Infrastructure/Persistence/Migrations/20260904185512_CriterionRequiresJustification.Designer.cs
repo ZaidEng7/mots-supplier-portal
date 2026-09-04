@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904185512_CriterionRequiresJustification")]
+    partial class CriterionRequiresJustification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -380,12 +383,6 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 
-                    b.Property<uint>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Category", "FieldCode")
@@ -399,72 +396,63 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Id = new Guid("00000000-0000-0000-0000-000000000401"),
                             Category = "ComplianceRetrigger",
                             FieldCode = "legalInfo",
-                            IsEnabled = true,
-                            RowVersion = 0u
+                            IsEnabled = true
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000402"),
                             Category = "ComplianceRetrigger",
                             FieldCode = "bankAccount",
-                            IsEnabled = true,
-                            RowVersion = 0u
+                            IsEnabled = true
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000403"),
                             Category = "ComplianceRetrigger",
                             FieldCode = "categoryLink",
-                            IsEnabled = true,
-                            RowVersion = 0u
+                            IsEnabled = true
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000411"),
                             Category = "LegalInfoRequired",
                             FieldCode = "legalNameAr",
-                            IsEnabled = true,
-                            RowVersion = 0u
+                            IsEnabled = true
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000412"),
                             Category = "LegalInfoRequired",
                             FieldCode = "legalNameEn",
-                            IsEnabled = true,
-                            RowVersion = 0u
+                            IsEnabled = true
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000413"),
                             Category = "LegalInfoRequired",
                             FieldCode = "registrationNumber",
-                            IsEnabled = false,
-                            RowVersion = 0u
+                            IsEnabled = false
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000414"),
                             Category = "LegalInfoRequired",
                             FieldCode = "taxId",
-                            IsEnabled = false,
-                            RowVersion = 0u
+                            IsEnabled = false
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000415"),
                             Category = "LegalInfoRequired",
                             FieldCode = "supplierType",
-                            IsEnabled = false,
-                            RowVersion = 0u
+                            IsEnabled = false
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000416"),
                             Category = "LegalInfoRequired",
                             FieldCode = "establishedOn",
-                            IsEnabled = false,
-                            RowVersion = 0u
+                            IsEnabled = false
                         });
                 });
 

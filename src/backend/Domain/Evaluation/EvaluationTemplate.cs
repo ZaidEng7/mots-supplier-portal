@@ -99,7 +99,8 @@ public sealed class EvaluationTemplate : IVersionedAggregate
 
     public Criterion AddCriterion(
         string nameAr, string nameEn, CriterionDimension dimension, decimal weight, decimal maxScore,
-        decimal? threshold, ScoringType scoringType, string? guidanceAr, string? guidanceEn)
+        decimal? threshold, ScoringType scoringType, string? guidanceAr, string? guidanceEn,
+        bool requiresJustification = false)
     {
         EnsureEditable();
         if (string.IsNullOrWhiteSpace(nameAr)) throw new DomainException("Criterion name (Arabic) is required.");
@@ -124,6 +125,7 @@ public sealed class EvaluationTemplate : IVersionedAggregate
             ScoringType = scoringType,
             GuidanceAr = guidanceAr,
             GuidanceEn = guidanceEn,
+            RequiresJustification = requiresJustification,
             SortOrder = _criteria.Count,
         };
         _criteria.Add(criterion);
@@ -132,7 +134,8 @@ public sealed class EvaluationTemplate : IVersionedAggregate
 
     public void UpdateCriterion(
         Guid criterionId, string nameAr, string nameEn, CriterionDimension dimension, decimal weight,
-        decimal maxScore, decimal? threshold, ScoringType scoringType, string? guidanceAr, string? guidanceEn)
+        decimal maxScore, decimal? threshold, ScoringType scoringType, string? guidanceAr, string? guidanceEn,
+        bool requiresJustification = false)
     {
         EnsureEditable();
         var criterion = _criteria.FirstOrDefault(c => c.Id == criterionId)
@@ -155,6 +158,7 @@ public sealed class EvaluationTemplate : IVersionedAggregate
         criterion.ScoringType = scoringType;
         criterion.GuidanceAr = guidanceAr;
         criterion.GuidanceEn = guidanceEn;
+        criterion.RequiresJustification = requiresJustification;
     }
 
     public void RemoveCriterion(Guid criterionId)

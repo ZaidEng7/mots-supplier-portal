@@ -21,6 +21,16 @@ public sealed class GetFieldConfigHandler(AppDbContext db) : IGetFieldConfigHand
     }
 }
 
+/// <summary>T-029: the read that makes the guarded PUT usable at all.</summary>
+public sealed class GetOneFieldConfigHandler(AppDbContext db) : IGetOneFieldConfigHandler
+{
+    public async Task<FieldConfigDetailDto?> HandleAsync(string category, string fieldCode, CancellationToken ct)
+        => await db.Set<SupplierFieldConfig>()
+            .Where(c => c.Category == category && c.FieldCode == fieldCode)
+            .Select(c => new FieldConfigDetailDto(c.Category, c.FieldCode, c.IsEnabled, c.RowVersion))
+            .FirstOrDefaultAsync(ct);
+}
+
 public sealed class UpdateFieldConfigHandler(AppDbContext db) : IUpdateFieldConfigHandler
 {
     public async Task<UpdateFieldConfigResult> HandleAsync(string category, string fieldCode, bool isEnabled, CancellationToken ct)
@@ -31,6 +41,7 @@ public sealed class UpdateFieldConfigHandler(AppDbContext db) : IUpdateFieldConf
 
         config.IsEnabled = isEnabled;
         await db.SaveChangesAsync(ct);
-        return new UpdateFieldConfigResult.Success(new FieldConfigDto(config.Category, config.FieldCode, config.IsEnabled));
+        return new UpdateFieldConfigResult.Success(
+            new FieldConfigDetailDto(config.Category, config.FieldCode, config.IsEnabled, config.RowVersion));
     }
 }

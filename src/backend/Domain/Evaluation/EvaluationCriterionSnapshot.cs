@@ -22,5 +22,10 @@ public sealed class EvaluationCriterionSnapshot
     public decimal? Threshold { get; init; }
     public ScoringType ScoringType { get; init; }
 
+    /// <summary>T-021/BRULE-061, snapshotted with the rest. A criterion that required a
+    /// justification when the RFQ bound this template still requires one afterwards, even if the
+    /// template is later edited - the same reason weights are frozen here.</summary>
+    public bool RequiresJustification { get; init; }
+
     public bool IsFinancial => Dimension == CriterionDimension.Commercial;
 }
