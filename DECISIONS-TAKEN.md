@@ -1,118 +1,163 @@
 # Decisions taken
 
-Decisions made in the course of building, that were **not** settled by a document and are now
-settled here. One entry per decision, numbered, newest last.
+Decisions made in the course of building, that were **not** settled by a document and are now settled
+here. Newest last.
 
 This file exists because `docs/` is read-only and externally owned. A ruling that changes what the
-product says or does has to live somewhere a reader can find it, and a code comment is not findable
-by someone asking "why does it say that". Where a decision contradicts something in `docs/`, the
-entry says so plainly rather than quietly diverging.
+product does has to live somewhere a reader can find it, and a code comment is not findable by
+someone asking "why does it behave like that". Where a decision contradicts something in `docs/`,
+its row says so plainly rather than quietly diverging.
 
-Numbering continues the `D-` series used in the batch prompts and `BACKLOG-REMEDIATION.md` (D-6
-through D-16 and R-9 were answered before this file existed; they are recorded in the plan of
-record). D-17 onward are recorded here.
+**How to read a row.** The **Why** is the field that matters: it is written for someone deciding
+whether to overturn the decision, not for someone auditing that a decision was made. "No document
+specifies this" is never a reason.
 
----
-
-## D-17 — One word for clarification: `استيضاح`, never `إيضاح`
-
-**Date:** 2026-09-04
-**Decided by:** product owner, on the Arabic review
-**Scope:** all Arabic copy, present and future
-
-### The ruling
-
-`UX-WRITING.md` §8's glossary governs. Every Arabic string naming a clarification uses
-**`استيضاح`**. `إيضاح` is not an accepted alternative anywhere in the product.
-
-### Why this is a glossary ruling and not a style preference
-
-**The two words are not synonyms.** They are different derived forms of the same root, and Arabic
-verb morphology makes them different acts:
-
-| | Form | Meaning | The event it names |
-|---|---|---|---|
-| `استيضاح` | **X** (استفعال) | seeking clarity | the buyer **asking** |
-| `إيضاح` | **IV** (إفعال) | making clear | the supplier **explaining** in reply |
-
-Both transitions in `BUSINESS-PROCESSES.md` §4.1 are named from the *asker's* side — a buyer requests
-a clarification, and the proposal enters `ClarificationRequested`. So `استيضاح` is not merely the
-glossary's choice, it is the correct one for these events. The drift had two notifications naming
-**the answer where they meant the question**. That is a wrong word, not an inconsistent one, which
-is why it was worth a ruling rather than a preference.
-
-### What changed
-
-Three strings in `src/backend/Application/Notifications/NotificationCatalogue.jsonc`, all from #109:
-
-| Key | Before | After |
-|---|---|---|
-| `proposal.clarification_requested` (title) | طلب **إيضاح** على عرضكم | طلب **استيضاح** على عرضكم |
-| `proposal.clarification_requested` (body) | طُلب **إيضاح** بشأن العرض … | طُلب **استيضاح** بشأن العرض … |
-| `proposal.revised` (body) | … رداً على طلب **الإيضاح** | … رداً على طلب **الاستيضاح** |
-
-The RFQ clarification notifications, `status.rfq.Clarification`, and the SPA's
-`clarificationsAnswered` already used `استيضاح` and were not touched. English is unchanged —
-"clarification" carries both senses.
-
-### What was deliberately NOT changed
-
-`proposal.clarification_requested`'s body still ends `يُرجى مراجعة الطلب والرد عليه`, where `الطلب`
-means the clarification request and not the RFQ named four words earlier. That ambiguity is real and
-is recorded in `ARABIC-REVIEW.md` as its own item — but it is a rewording, and the Arabic was
-approved as drafted. Fixing it here would have been smuggling a copy change into a glossary fix.
-
-### How it is kept
-
-A note at the head of the proposal-clarification block in the catalogue states the ruling and the
-Form X / Form IV distinction, so the next person drafting a clarification string reads it before
-choosing a word. **Nothing enforces it** — there is no test that greps for `إيضاح`. That was
-considered and not built: a string-blocklist test would fail the build on a legitimate future use of
-`إيضاح` for an explanation given in reply, which is the word's correct sense.
+**The standing principle behind all of them.** A default under-serves rather than over-discloses, and
+is one line to change when the real answer arrives. Where any choice would produce an *outcome*
+rather than a *posture* — a tie-break, an approval threshold, who wins — the system decides nothing
+and surfaces the case to a person. That refusal is itself the implementable decision.
 
 ---
 
-## D-18 — Screen strings and export strings are identical, not adapted
+## What this file does not yet contain
 
-**Date:** 2026-09-04
-**Decided by:** this batch, on the Arabic review's finding
-**Scope:** the report screen and its PDF/CSV artefact
+D-6 to D-16 were made before this file existed and live in the plan of record, which is not in this
+repository. **Seven of the eleven are transcribed below** — D-6, D-7, D-8, D-9, D-10, D-12 and D-15 —
+because their text is quoted verbatim in a batch prompt or in `BACKLOG-REMEDIATION.md`, so the
+wording here is theirs and not a reconstruction.
 
-### The choice offered
+**D-11, D-13, D-14 and D-16 are missing.** Their numbers are cited in the plan of record but their
+text is not reproduced anywhere in this repository, and I will not infer them: a decision log whose
+rows are guesses is worse than one with acknowledged gaps, because a reader cannot tell which rows
+are load-bearing. Whoever holds the plan of record should transcribe those four into the table below.
 
-Either make the three divergent strings identical, or keep them divergent under a stated rule —
-*screen strings terse, export strings self-describing*, on the reasoning that an exported document is
-read without the screen around it and needs more context.
+---
 
-### The ruling: identical. The rule was rejected.
+## The log
 
-The rule is defensible in the abstract and false here. **Both surfaces render the same table with
-the same column headers**, so there is no context the export lacks. Examined one at a time, none of
-the three divergences was the adaptation it resembled — each was an error:
+### D-6 — The Ministry viewer sees governance data, and no commercial figures
 
-| | Screen (before) | Export (before) | Now, both | Why |
-|---|---|---|---|---|
-| Cycle-time heading | `زمن الدورة` | `زمن الدورة (الوسيط بالساعات)` | `زمن الدورة` | The parenthetical restated that section's own third column header — which the export carries too. Redundancy, not context. |
-| Suppliers grouping | `الموردون حسب الحالة` | `الموردون حسب حالة دورة الحياة` | `الموردون حسب حالة دورة الحياة` | The screen was **wrong**. A supplier has an `OnboardingState` as well as a `LifecycleState`; this section groups by `LifecycleState` (`SuppliersByLifecycleState` on the DTO). "By state" named neither, on a report a ministry reader may file. |
-| Unmeasured marker | `غير مقيس` | `(غير مقيس)` | `(غير مقيس)` | The same table cell on both surfaces. Parentheses distinguish a marker from a value, which matters more in a CSV opened in a spreadsheet. |
+| | |
+|---|---|
+| **What was undecided** | Whether a ministry_viewer may see contract values, bid prices and award amounts across organizations. |
+| **Where the gap is** | `OQ-001`, open. BRULE-086 grants "read-only, cross-organization access to aggregate/governance metrics only"; BRULE-087 defaults to aggregate-only where visibility is undecided. Neither says what a "metric" may contain. |
+| **What was decided** | `[MinistryViewer]` gets governance content. Every commercial figure sits behind one flag, defaulted off. |
+| **Why** | The two errors are not symmetric. Withholding a figure from a ministry viewer produces a request — they ask, someone answers, the flag flips the same day. Disclosing a competitor's bid price across organizations cannot be recalled, and in a live tender it is a procurement-integrity failure rather than a UI complaint. One flag rather than a conditional per screen is what makes MOT Legal's answer a value change instead of an epic. |
+| **What it costs if wrong** | If too narrow: a persona sees less than it is entitled to, fixed by flipping one flag. If too wide: unrecallable disclosure. |
+| **Who should confirm it** | MOT Legal, on `OQ-001`. |
 
-Two of the three moved the **screen** to match the export, and one moved the export to match the
-screen. That is the shape of the finding: there was no consistent direction of drift, which is itself
-evidence that neither file was the deliberate adaptation of the other.
+### D-7 — Proposal attachments carry an envelope, and unstated means Commercial
 
-English moved with Arabic in every case, because the same divergence existed in both languages.
+| | |
+|---|---|
+| **What was undecided** | Which proposal attachments are technical and which commercial, and who says so. |
+| **Where the gap is** | No `FEAT` or `BRULE` assigns envelopes to proposal attachments. `ProposalDocument` had no such field. |
+| **What was decided** | The uploading supplier declares it. Unstated is `Commercial`, in the endpoint's parse fallback, the domain default, and the migration's default for existing rows. The buyer gate refuses both kinds until the evaluation is Consolidated. |
+| **Why** | A file's contents are opaque to us — a supplier can put a priced bill of quantities inside something captioned "compliance matrix", and nothing in the system can tell. So the label has to come from the only party who knows. Defaulting to Commercial makes the failure the recoverable one: mislabelling a technical file hides it from an evaluator, who raises it within the hour; the other direction leaks a competitor's prices during scoring, silently. |
+| **What it costs if wrong** | Suppliers who never set the field have every attachment gated until consolidation — visible, and fixed per file. |
+| **Who should confirm it** | Procurement. |
 
-### Files
+### D-8 — A tie surfaces; the system does not break it
 
-- `src/frontend/src/i18n/config.ts` — `reports.notMeasured`,
-  `reports.compliance.suppliersByState`, both locales
-- `src/backend/Application/Reports/ReportViews.cs` — the procurement cycle-time section heading
-- `src/routes/back-office/ReportsPage.test.tsx` — the assertion on the not-measured cell
+| | |
+|---|---|
+| **What was undecided** | What happens when two proposals reach the same weighted total. |
+| **Where the gap is** | No documented tie-break order. |
+| **What was decided** | The system decides nothing. A tie is surfaced to a named person, who records the choice. |
+| **Why** | A tie-break rule produces an *outcome* — a supplier wins a contract — rather than a posture. Any rule invented here (earliest submission, highest technical score) would be a procurement policy written by an engineer, and it would be invisible in the award record afterwards. Surfacing is implementable, auditable, and does not pre-empt the policy. |
+| **What it costs if wrong** | An officer must act on a tie that could have been automatic. Cheap, and the record is better for it. |
+| **Who should confirm it** | Procurement. |
 
-### The real defect this leaves open
+### D-9 — Every award follows the full approval path; there are no authority limits
 
-The two files are **hand-maintained copies of each other** and nothing enforces that they agree. That
-is how these three arose and how the next ones will. Not fixed here, because the fix is a shared
-source of report copy across a C# artefact generator and a TypeScript SPA, which is a design change
-rather than a consistency pass. Recorded in `ARABIC-REVIEW.md` under Set 3 so it is visible next to
-the strings it governs.
+| | |
+|---|---|
+| **What was undecided** | Whether an award below some value may skip approval steps. |
+| **Where the gap is** | No documented authority thresholds. |
+| **What was decided** | No thresholds. Every award routes through the documented approval path regardless of value. |
+| **Why** | A threshold is an approval *outcome*, and inventing one grants spending authority nobody delegated. The conservative direction is unambiguous here: routing an award that could have been auto-approved costs an approver one click; auto-approving one that needed a signature is a control failure that shows up in an audit. |
+| **What it costs if wrong** | Approvers handle more low-value awards than necessary. Adding thresholds later is additive. |
+| **Who should confirm it** | Procurement, and whoever owns delegated financial authority. |
+
+### D-10 — Scan everything, fail closed, and scan on first access
+
+| | |
+|---|---|
+| **What was undecided** | Whether RFQ and proposal attachments must be virus-scanned, and by what. |
+| **Where the gap is** | `OQ-014`, tagged `[REQUIRES BUSINESS CONFIRMATION]`. BRULE-019 requires quarantine for supplier documents and is silent on the other two aggregates. |
+| **What was decided** | Both aggregates carry `ScanState`. The download gate scans on first access, deletes an infected object, and refuses with the same 404 as any other miss. Existing rows enter `PendingScan`, not `Clean`. |
+| **Why** | Scanning on access rather than on upload avoids a backfill that would have had to walk every object in storage before anything worked. Entering existing rows as `PendingScan` is the whole decision: assuming clean would leave exactly the files that predate the scanner permanently unexamined. The refusal is the ordinary 404 because a distinct "infected" reply confirms to an uploader that their malware arrived and is being stored. |
+| **What it costs if wrong** | If scanning is not required, a per-download scan is wasted work — one predicate to remove. |
+| **Who should confirm it** | Security, on `OQ-014`. |
+
+### D-12 — Deadline extension is unbounded, and audited
+
+| | |
+|---|---|
+| **What was undecided** | How far a submission deadline may be extended. |
+| **Where the gap is** | BRULE-035 permits extension and names the actors, the audit event and the notification. It states no bound, and the whole rule carries `[ASSUMPTION]`. |
+| **What was decided** | No cap. The `rfq.deadline_extended` audit row, and the notification to every invitee, are what make an abusive extension visible. |
+| **Why** | A cap is a fairness rule with a number in it, and the number would be invented. Worse, a wrong cap blocks a legitimate extension during a real procurement — a supplier's country-wide outage, a corrected specification — with no override. Visibility achieves what the rule is for without pre-empting the policy: an extension that every invited supplier is told about, on the record, is not a quiet one. |
+| **What it costs if wrong** | An officer can extend indefinitely. Every extension is audited and notified, so the abuse is detectable rather than silent. Adding a cap later is one guard. |
+| **Who should confirm it** | Procurement. |
+
+### D-15 — Child-write concurrency needs an application-managed version column
+
+| | |
+|---|---|
+| **What was undecided** | How a write to a child row bumps its aggregate root's version, given `xmin` is database-generated. |
+| **Where the gap is** | §8.1 specifies the ETag/If-Match contract and assumes a version that moves; it does not say what the version is. |
+| **What was decided** | An application-managed version column alongside `xmin`. **Not yet built** — see T-030. |
+| **Why** | `xmin` advances only when the root ROW is written, and a child insert does not write it, so a correct `If-Match` is silently skipped. Forcing a parent touch is not available: `xmin` cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext` already documents. That leaves a second, application-owned counter as the only mechanism that can be bumped deliberately. |
+| **What it costs if wrong** | It is a second concurrency mechanism across six roots; a half-applied version of it is worse than the current gap. |
+| **Who should confirm it** | The architecture owner. |
+
+### D-17 — One word for clarification: `استيضاح`, never `إيضاح`
+
+| | |
+|---|---|
+| **What was undecided** | Which of two Arabic words the product uses for a clarification, after the two proposal notifications from #109 drifted from the RFQ ones. |
+| **Where the gap is** | `UX-WRITING.md` §8's glossary uses `استيضاح`. §7 has no proposal-clarification strings at all, so the #109 copy was drafted with nothing to match against. |
+| **What was decided** | `استيضاح` everywhere. Three strings corrected. English unchanged — "clarification" carries both senses. |
+| **Why** | The two words are not synonyms: `استيضاح` is Form X, the act of ASKING; `إيضاح` is Form IV, the explanation given in reply. Both §4.1 transitions are named from the asker's side, so the drift had two notifications naming the answer where they meant the question. That makes this a wrong word rather than an inconsistent one, and settles it independently of style. |
+| **What it costs if wrong** | Three strings. A supplier sees the term on a chip, in a notification and in an email about one tender, so consistency matters more than the specific choice. |
+| **Who should confirm it** | The doc owner, on §8's glossary. |
+
+*Not enforced by a test, deliberately: a blocklist on `إيضاح` would fail the build on a legitimate
+future use of the word in its correct sense.*
+
+### D-18 — Screen strings and export strings are identical, not adapted
+
+| | |
+|---|---|
+| **What was undecided** | Whether the report screen and its PDF/CSV artefact may word the same heading differently. |
+| **Where the gap is** | No document specifies the report screen at all — no `SCR-` row, no §7 label set. The two files are hand-maintained copies. |
+| **What was decided** | Identical, in both languages. The proposed "screen terse / export self-describing" rule was rejected. |
+| **Why** | The rule is defensible in the abstract and false here: both surfaces render the same table with the same column headers, so there is no context the export lacks. Examined one at a time, all three divergences were errors — a parenthetical restating its own column header, a heading that named the wrong state machine, and a marker that read as a value. Two of the three moved the screen and one moved the export, so there was no consistent direction of drift to codify. |
+| **What it costs if wrong** | Three strings, and an export that says slightly less than a standalone reader might want. |
+| **Who should confirm it** | The doc owner. |
+
+*The real defect is unfixed: the two files are hand-maintained copies and nothing enforces that they
+agree. The fix is a shared source of report copy across a C# generator and a TypeScript SPA.*
+
+### D-19 — An evaluator sees the bidder's name
+
+| | |
+|---|---|
+| **What was undecided** | Whether an evaluator scoring a bid may see which supplier submitted it. |
+| **Where the gap is** | `ROADMAP.md` §P7 defines blindness as "each scores blind (**cannot see peers**)" — evaluator-to-evaluator. No document anywhere asks for anonymised bidders. |
+| **What was decided** | The supplier's reference code and both display names travel with each bid on the evaluator's workspace. |
+| **Why** | BRULE-067 gives an evaluator a recusal mechanism for conflict of interest, and that control is unusable if they cannot see whose bid it is — withholding the name would be a fail-closed default that disables a documented safeguard, which is the one case where fail-closed is the wrong instinct. The documented blindness is a different property and is unaffected: no evaluator sees another's scores at any point before consolidation, which is asserted separately. |
+| **What it costs if wrong** | If the ministry wants anonymised evaluation, it is one projection to strip — but the recusal flow would need a replacement first. |
+| **Who should confirm it** | Procurement. |
+
+### D-20 — An evaluator's document list is not filtered on scan state
+
+| | |
+|---|---|
+| **What was undecided** | Whether a technical document that has not yet been scanned appears in an evaluator's list. |
+| **Where the gap is** | D-10 put the scan at first ACCESS. Nothing in it says what a LIST should show. |
+| **What was decided** | The list shows every Technical-envelope document except `ScanRejected`. The download still scans and still refuses. |
+| **Why** | Filtering the list to `Clean` made it permanently empty — nothing scans a proposal document until someone downloads it, so under that filter nobody could ever download one. That is a deadlock, not a stricter posture. `PendingScan` means "not yet examined", not "suspect", and listing a filename is not serving the file; the gate that matters is still at the download, where it can actually refuse. |
+| **What it costs if wrong** | An evaluator can click a filename that then refuses. That happens only for genuinely infected files, and the refusal is the same 404 as any other miss. |
+| **Who should confirm it** | Security. |
