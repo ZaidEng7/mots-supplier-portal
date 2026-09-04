@@ -84,7 +84,18 @@ public sealed record RfqListItemDto(
 public sealed record SupplierRfqListItemDto(
     string ReferenceCode, string TitleAr, string TitleEn, RfqState State,
     InvitationStatus MyInvitationStatus, DateTimeOffset CreatedAt,
-    DateTimeOffset? PublishedAt, BuyingOrgDto? BuyingOrg, int ItemsCount, bool HasDraftProposal);
+    DateTimeOffset? PublishedAt, BuyingOrgDto? BuyingOrg, int ItemsCount, bool HasDraftProposal,
+    /// <summary>
+    /// T-054, §12.4's <c>submissionDeadline</c>. Documented on this list and absent from it - so the
+    /// one screen where a supplier decides whether to bid could not show the deadline they would be
+    /// bidding against.
+    ///
+    /// <para>Named <c>SubmissionClosesAt</c>, matching the aggregate and every other DTO that
+    /// carries it, rather than the document's <c>submissionDeadline</c>. The rename to §12.2's
+    /// vocabulary is R-9's coordinated pass, and doing one field early would leave the SPA reading
+    /// two naming conventions at once.</para>
+    /// </summary>
+    DateTimeOffset? SubmissionClosesAt = null);
 
 /// <summary>
 /// §12.4's <c>"buyingOrg": { "code": "ORG-HTL-0007", "name": "Cham Palace Hotels" }</c>.

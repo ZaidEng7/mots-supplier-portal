@@ -91,7 +91,9 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
                     r.Items.Count(),
                     db.Proposals.Any(pr => pr.RfqId == r.Id
                         && pr.SupplierId == supplierId
-                        && pr.State == ProposalState.Draft)),
+                        && pr.State == ProposalState.Draft),
+                    // T-054: a scalar on the row, so it costs nothing extra in this projection.
+                    r.SubmissionClosesAt),
             })
             .Take(size + 1)
             .ToListAsync(ct);
