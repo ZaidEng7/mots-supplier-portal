@@ -44,8 +44,10 @@ export const REFERENCE_CODE = 'SUP-2026-000001'
 export const RFQ_REFERENCE_CODE = 'RFQ-2026-000001'
 export const PROPOSAL_REFERENCE_CODE = 'PRP-2026-000001'
 
+// R-9: the supplier-facing wire names. These fixtures are untyped by design (they stand in for the
+// wire, not for the TS interfaces), so tsc cannot catch a rename here - the a11y run is what does.
 export const SUPPLIER_PROFILE = {
-  referenceCode: REFERENCE_CODE,
+  supplierCode: REFERENCE_CODE,
   displayNameAr: 'شركة الاختبار للتوريدات',
   displayNameEn: 'A11y Test Supplies Co',
   description: 'A representative supplier profile used only to render pages for accessibility scanning.',
@@ -54,7 +56,7 @@ export const SUPPLIER_PROFILE = {
   supplierGroup: null,
   onboardingState: 'UnderReview',
   lifecycleState: 'Active',
-  currencyCode: 'SYP',
+  defaultCurrency: 'SYP',
   legalInfo: {
     legalNameAr: 'شركة الاختبار', legalNameEn: 'A11y Test Co', registrationNumber: 'RC-1234',
     taxId: 'TX-5678', supplierType: 'Company', establishedOn: '2020-01-01',
@@ -101,10 +103,10 @@ export const RFQ_FIXTURE = {
 }
 
 export const SUPPLIER_RFQ_FIXTURE = {
-  referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
+  rfqCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
   descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state: 'Published',
-  submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
-  items: [], requirements: [], attachments: [], myInvitationStatus: 'Invited', clarifications: [], addenda: [],
+  submissionOpensAt: null, submissionDeadline: null, clarificationDeadlineAt: null,
+  items: [], requirements: [], attachments: [], invitationStatus: 'Invited', clarifications: [], addenda: [],
 }
 
 /**
@@ -119,13 +121,15 @@ export const RFQ_LIST_ITEM_FIXTURE = {
 }
 
 export const SUPPLIER_RFQ_LIST_ITEM_FIXTURE = {
-  referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
-  state: 'Published', myInvitationStatus: 'Invited', createdAt: '2026-08-01T00:00:00Z',
+  rfqCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ',
+  state: 'Published', invitationStatus: 'Invited', createdAt: '2026-08-01T00:00:00Z',
+  submissionDeadline: null,
 }
 
 export const PROPOSAL_FIXTURE = {
-  referenceCode: 'PRP-2026-000001', rfqReferenceCode: RFQ_REFERENCE_CODE, state: 'Draft',
-  currencyCode: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
+  proposalCode: 'PRP-2026-000001', rfqCode: RFQ_REFERENCE_CODE, state: 'Draft',
+  createdAt: '2026-08-01T00:00:00Z', totals: { currency: null, grandTotal: 0 },
+  currency: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
   warranty: null, validityStart: null, validityEnd: null, narrativeAr: null, narrativeEn: null,
   submittedAt: null, withdrawnAt: null, withdrawReason: null,
   items: [], documents: [], requirementAnswers: [],
@@ -205,8 +209,21 @@ export async function mockBackend(page: Page) {
     // FEAT-11.1/EPIC-07: same class of bug - RfqListPage's rfqs.map() and
     // EvaluationTemplatesPage's templates.map() both crash on the generic {} fallback below.
     if (p === '/api/v1/evaluation-templates') return route.fulfill({ json: [EVALUATION_TEMPLATE_FIXTURE] })
-    if (p === '/api/v1/rfqs') return route.fulfill({ json: listPage([RFQ_LIST_ITEM_FIXTURE]) })
-    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: RFQ_FIXTURE })
+    // Buyer and supplier share these two paths, and the real API returns a DIFFERENT shape on each
+    // depending on the caller's persona - which is exactly what RfqPersonaShapeTests asserts. A
+    // path-only mock cannot tell the two apart, so it serves the union of both shapes.
+    //
+    // This was invisible until R-9: both personas spelled the code `referenceCode`, so whichever
+    // fixture won covered both pages by accident. R-9 conformed the SUPPLIER shapes to §12.4
+    // (rfqCode, invitationStatus, submissionDeadline) and deliberately left the unspecified buyer
+    // shapes alone, and the a11y run is what found the collision - the fixtures are untyped by
+    // design, so tsc could not.
+    if (p === '/api/v1/rfqs') {
+      return route.fulfill({ json: listPage([{ ...RFQ_LIST_ITEM_FIXTURE, ...SUPPLIER_RFQ_LIST_ITEM_FIXTURE }]) })
+    }
+    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) {
+      return route.fulfill({ json: { ...RFQ_FIXTURE, ...SUPPLIER_RFQ_FIXTURE } })
+    }
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/invitations/candidates`) return route.fulfill({ json: [] })
     // EPIC-11: same class of bug - MyEvaluationPage reads evaluation.proposalIds.map() and would
     // crash on the generic {} fallback below; null (200) is the real "not assigned" shape.
@@ -233,10 +250,9 @@ export async function mockBackend(page: Page) {
         },
       })
     }
-    // EPIC-08: supplier-facing invitation list/detail - same class of bug as above if left
-    // unmocked (SupplierRfqListPage/SupplierRfqDetailPage would fall through to the generic {}).
-    if (p === '/api/v1/rfqs') return route.fulfill({ json: listPage([SUPPLIER_RFQ_LIST_ITEM_FIXTURE]) })
-    if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: SUPPLIER_RFQ_FIXTURE })
+    // EPIC-08's supplier-facing list/detail used to be mocked here, on the same two paths the buyer
+    // block above already matches - so these two lines never ran. Folded into that block as the
+    // union rather than left as dead branches that look like coverage.
     // EPIC-09: same class of bug - SupplierProposalPage would fall through to the generic {}
     // fallback below and crash reading proposal.items.
     // §12-A/C2: discovery hangs off the RFQ, the resource itself is code-addressed. Both are
