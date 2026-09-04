@@ -78,6 +78,16 @@ at the end.
 
 ### Response-body conformance — §12.3 documents
 
+**Separable from the §12.2 field-name decision — assessed batch 4.** The §12.2 block is one question:
+are the document's field NAMES authoritative, or is the code's bilingual shape right and the document
+stale. Five of these six do not touch that question at all: T-011 is a status code, T-013 a route and
+mechanism, T-014 an absent error response, T-015 an additive field, and T-010 is a VALUE-format
+change that §3 settles independently (internal GUIDs must not appear in URLs). Only the narrow
+`documentId` vs `id` spelling rides with §12.2, and it rides with T-010's value change anyway.
+
+So these can be conformed without pre-judging §12.2. **Not conformed this batch** — T-010 is a batch
+of its own and T-013 changes a route the SPA calls.
+
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
 | T-010 | §12.3 | Document ids are raw GUIDs; the document specifies `DOC-2026-013377` reference codes | `SupplierDocument.cs:11`; every route uses `{id:guid}` | Reproduced | L |
