@@ -19,19 +19,15 @@ and surfaces the case to a person. That refusal is itself the implementable deci
 
 ---
 
-## What this file does not yet contain
+## Completeness
 
 D-6 to D-16 were made before this file existed and live in the plan of record, which is not in this
-repository. **Seven of the eleven are transcribed below** — D-6, D-7, D-8, D-9, D-10, D-12 and D-15 —
-because their text is quoted verbatim in a batch prompt or in `BACKLOG-REMEDIATION.md`, so the
-wording here is theirs and not a reconstruction.
+repository. **All eleven are now transcribed below.** Seven came from wording quoted verbatim in a
+batch prompt or in `BACKLOG-REMEDIATION.md`; the remaining four — D-11, D-13, D-14 and D-16 — were
+supplied from the plan of record on 2026-09-05, after this file had recorded them as missing rather
+than reconstructing them.
 
-**D-11, D-13, D-14 and D-16 are missing.** Their numbers are cited in the plan of record but their
-text is not reproduced anywhere in this repository, and I will not infer them: a decision log whose
-rows are guesses is worse than one with acknowledged gaps, because a reader cannot tell which rows
-are load-bearing. Whoever holds the plan of record should transcribe those four into the table below.
-
----
+D-17 onward were made in the course of the work and are recorded here as they were taken.
 
 ## The log
 
@@ -90,6 +86,17 @@ are load-bearing. Whoever holds the plan of record should transcribe those four 
 | **What it costs if wrong** | If scanning is not required, a per-download scan is wasted work — one predicate to remove. |
 | **Who should confirm it** | Security, on `OQ-014`. |
 
+### D-11 — The review SLA has no duration
+
+| | |
+|---|---|
+| **What was undecided** | How long an onboarding review may take before it is late. |
+| **Where the gap is** | `BUSINESS-PROCESSES.md` §2 names the review timer three times and never gives a number. |
+| **What was decided** | No threshold invented. Aging displays show a **duration**, never a breach — "in review for 6 days", never "overdue". |
+| **Why** | "Elapsed" is computable from the data the system already has; "overdue" requires a number nobody has stated. Inventing one makes the product assert a commitment the ministry never made, to suppliers who may read it as one. |
+| **What it costs if wrong** | Reviewers get no urgency signal, so a stalled application looks the same as a fresh one. One config value to change. |
+| **Who should confirm it** | Procurement. |
+
 ### D-12 — Deadline extension is unbounded, and audited
 
 | | |
@@ -101,6 +108,28 @@ are load-bearing. Whoever holds the plan of record should transcribe those four 
 | **What it costs if wrong** | An officer can extend indefinitely. Every extension is audited and notified, so the abuse is detectable rather than silent. Adding a cap later is one guard. |
 | **Who should confirm it** | Procurement. |
 
+### D-13 — No re-application cooldown
+
+| | |
+|---|---|
+| **What was undecided** | Whether a rejected supplier must wait before applying again. |
+| **Where the gap is** | BRULE-012 describes the re-application policy as "configurable" and states no default. |
+| **What was decided** | No cooldown. The setting exists and its default is off. |
+| **Why** | The conservative reading is not to bar a supplier the documents never barred. Turning a supplier away is the harder error to discover — they simply do not come back, and nobody files a report about it — whereas letting one re-apply too soon shows up in a reviewer's queue. |
+| **What it costs if wrong** | A rejected supplier can re-apply immediately, and reviewers absorb the repeat. One default value. |
+| **Who should confirm it** | Procurement. |
+
+### D-14 — `report.read` is granted to no role
+
+| | |
+|---|---|
+| **What was undecided** | Who may see cross-organisation aggregate reports. |
+| **Where the gap is** | No document names a holder for `report.read`. |
+| **What was decided** | Granted to no role. The report screens are built and unreachable until someone grants it. |
+| **Why** | A permission wrongly granted is far harder to notice than one wrongly withheld — nobody reports being able to see too much, while being locked out is reported within the hour. Cross-organisation aggregates are exactly the kind of read where that asymmetry bites. |
+| **What it costs if wrong** | The reports are dead on arrival until a grant is made. It is on the first-deploy checklist. |
+| **Who should confirm it** | Whoever owns roles. |
+
 ### D-15 — Child-write concurrency needs an application-managed version column
 
 | | |
@@ -111,6 +140,17 @@ are load-bearing. Whoever holds the plan of record should transcribe those four 
 | **Why** | `xmin` advances only when the root ROW is written, and a child insert does not write it, so a correct `If-Match` is silently skipped. Forcing a parent touch is not available: `xmin` cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext` already documents. That leaves a second, application-owned counter as the only mechanism that can be bumped deliberately. |
 | **What it costs if wrong** | It is a second concurrency mechanism across six roots; a half-applied version of it is worse than the current gap. |
 | **Who should confirm it** | The architecture owner. |
+
+### D-16 — Signed URLs stand, and the consequence is recorded
+
+| | |
+|---|---|
+| **What was undecided** | Whether downloads should be signed URLs or streamed through the application. |
+| **Where the gap is** | `SECURITY-ARCHITECTURE.md` §4.2 mandates signed URLs and does not discuss what that costs. |
+| **What was decided** | Signed URLs, as mandated — with the consequence written down at every mint site rather than left implicit. |
+| **Why** | The application can audit that access was **granted**, never that a file was **retrieved**: a signed URL is a bearer capability the app never sees used, and anyone holding it can fetch that object until it expires. That is the documented design; recording it is what stops a later reader assuming the audit trail covers retrieval. |
+| **What it costs if wrong** | If retrieval itself must be auditable for a tender challenge, that needs streaming — and a different answer to §4.2 than the document currently gives. |
+| **Who should confirm it** | Security. |
 
 ### D-17 — One word for clarification: `استيضاح`, never `إيضاح`
 
