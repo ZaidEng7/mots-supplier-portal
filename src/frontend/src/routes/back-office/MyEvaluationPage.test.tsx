@@ -13,13 +13,24 @@ const { MyEvaluationPage } = await import('./MyEvaluationPage')
 
 function myEvaluationFixture(overrides: Partial<MyEvaluation> = {}): MyEvaluation {
   return {
-    id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'InProgress', submittedAt: null,
+    rfqReferenceCode: 'RFQ-2026-000001', state: 'InProgress', submittedAt: null,
+    // T-067: the specification the bids answer, which an evaluator could not reach from anywhere in
+    // the product before this.
+    rfqTitleAr: 'طلب تجريبي', rfqTitleEn: 'Catering RFQ',
+    rfqDescriptionAr: null, rfqDescriptionEn: null,
+    rfqItems: [], rfqRequirements: [],
     criteria: [
       { id: 'crit-tech', nameAr: 'جودة', nameEn: 'Quality', dimension: 'Technical', weight: 60, maxScore: 100, threshold: 60, scoringType: 'Numeric', isFinancial: false },
       { id: 'crit-fin', nameAr: 'سعر', nameEn: 'Price', dimension: 'Commercial', weight: 40, maxScore: 100, threshold: null, scoringType: 'Numeric', isFinancial: true },
     ],
-    proposalIds: ['proposal-a'],
-    technicallyQualifiedByProposal: { 'proposal-a': false },
+    proposals: [{
+      proposalCode: 'PRP-2026-000001',
+      supplierReferenceCode: 'SUP-2026-000001',
+      supplierDisplayNameAr: 'شركة الاختبار', supplierDisplayNameEn: 'Test Supplies Co',
+      narrativeAr: null, narrativeEn: 'We use 300-thread cotton.',
+      requirementAnswers: [], documents: [],
+      technicallyQualified: false,
+    }],
     myScores: [],
     ...overrides,
   }
@@ -54,8 +65,15 @@ describe('MyEvaluationPage', () => {
   it('enables the financial score input once qualified, and saving a score shows a success toast', async () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture({
-        technicallyQualifiedByProposal: { 'proposal-a': true },
-        myScores: [{ proposalId: 'proposal-a', criterionId: 'crit-tech', rawScore: 75, commentAr: null, commentEn: null, scoredAt: '2026-08-01T00:00:00Z' }],
+        proposals: [{
+          proposalCode: 'PRP-2026-000001',
+          supplierReferenceCode: 'SUP-2026-000001',
+          supplierDisplayNameAr: 'شركة الاختبار', supplierDisplayNameEn: 'Test Supplies Co',
+          narrativeAr: null, narrativeEn: 'We use 300-thread cotton.',
+          requirementAnswers: [], documents: [],
+          technicallyQualified: true,
+        }],
+        myScores: [{ proposalCode: 'PRP-2026-000001', criterionId: 'crit-tech', rawScore: 75, commentAr: null, commentEn: null, scoredAt: '2026-08-01T00:00:00Z' }],
       }),
     })
 
@@ -81,5 +99,18 @@ describe('MyEvaluationPage', () => {
 
     expect(await screen.findByText('You have already submitted your evaluation')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Submit evaluation' })).not.toBeInTheDocument()
+  })
+
+  it('renders the bid content the evaluator is scoring, which was absent entirely before T-067', async () => {
+    // The defect this page had: it printed a proposal GUID as the bid's identity and nothing else.
+    restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture() })
+
+    renderPage(<MyEvaluationPage />)
+
+    expect(await screen.findByText('We use 300-thread cotton.')).toBeInTheDocument()
+    expect(screen.getByText('Test Supplies Co')).toBeInTheDocument()
+    expect(screen.getByText(/PRP-2026-000001/)).toBeInTheDocument()
+    // The specification, on the same screen as the scoring.
+    expect(screen.getByText(/Catering RFQ/)).toBeInTheDocument()
   })
 })

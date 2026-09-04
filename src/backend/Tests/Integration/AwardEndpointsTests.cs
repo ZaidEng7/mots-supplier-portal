@@ -162,9 +162,9 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalAId, criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
-        { proposalId = proposalBId, criterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
+        { proposalCode = await fixture.ProposalCodeAsync(proposalBId), criterionId, rawScore = 70m, commentAr = (string?)null, commentEn = (string?)null });
         var submitEval = await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
         submitEval.StatusCode.Should().Be(HttpStatusCode.OK);
         var consolidate = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null);

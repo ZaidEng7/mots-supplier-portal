@@ -725,7 +725,24 @@ const resources = {
           financialLocked: 'المغلف المالي مقفل حتى يجتاز هذا العرض التأهيل الفني',
           qualified: 'مؤهَّل فنياً',
           notQualified: 'غير مؤهَّل فنياً',
-          errors: { scoreFailed: 'تعذر حفظ الدرجة', submitFailed: 'تعذر تقديم التقييم' },
+          // ── T-067 · ARABIC FOR REVIEW ──────────────────────────────────────────────────
+          // §7 has no table for an evaluator's workspace. Drafted here in §7's register:
+          // professional MSA, authored rather than translated. NOT YET APPROVED - added to
+          // ARABIC-REVIEW.md's pile alongside the four sets already waiting.
+          //   [§7-style drafted]  authored here
+          //   [reused]            already approved elsewhere in this file
+          specification: 'المواصفات المطلوبة',      // [§7-style drafted]
+          items: 'البنود',                          // [reused] §7's own column word for RfqItem
+          requirements: 'المتطلبات',                // [reused] the RFQ authoring screen's own label
+          mandatory: 'إلزامي',                      // [§7-style drafted]
+          narrative: 'الشرح الفني',                 // [§7-style drafted] "technical narrative"
+          answers: 'الردود على المتطلبات',           // [§7-style drafted]
+          documents: 'المستندات الفنية',             // [§7-style drafted] Technical envelope only (D-7)
+          errors: {
+            scoreFailed: 'تعذر حفظ الدرجة',
+            submitFailed: 'تعذر تقديم التقييم',
+            documentFailed: 'تعذر فتح الملف {{fileName}}', // [§7-style drafted]
+          },
         },
       },
       comparison: {
@@ -1702,7 +1719,18 @@ const resources = {
           financialLocked: 'The financial envelope is locked until this proposal passes technical qualification',
           qualified: 'Technically qualified',
           notQualified: 'Not technically qualified',
-          errors: { scoreFailed: 'Could not save the score', submitFailed: 'Could not submit the evaluation' },
+          specification: 'What was requested',
+          items: 'Items',
+          requirements: 'Requirements',
+          mandatory: 'mandatory',
+          narrative: 'Technical narrative',
+          answers: 'Requirement answers',
+          documents: 'Technical documents',
+          errors: {
+            scoreFailed: 'Could not save the score',
+            submitFailed: 'Could not submit the evaluation',
+            documentFailed: 'Could not open {{fileName}}',
+          },
         },
       },
       comparison: {

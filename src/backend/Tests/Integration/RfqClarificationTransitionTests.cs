@@ -206,7 +206,7 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         foreach (var criterionId in criterionIds)
         {
             await setup.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{setup.RfqCode}/my-evaluation/scores",
-                new { proposalId, criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+                new { proposalCode = await fixture.ProposalCodeAsync(proposalId), criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
         }
         await setup.Evaluator.PostAsync($"/api/v1/rfqs/{setup.RfqCode}/my-evaluation/submit", null);
 

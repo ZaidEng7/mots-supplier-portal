@@ -78,7 +78,7 @@ public sealed class ProposalDocumentDownloadTests(PostgresApiFixture fixture)
         var criterionId = await CriterionIdAsync(seeded.EvaluationId);
         await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores", new
         {
-            proposalId = seeded.ProposalId, criterionId, rawScore = 90m,
+            proposalCode = await fixture.ProposalCodeAsync(seeded.ProposalId), criterionId, rawScore = 90m,
             commentAr = (string?)null, commentEn = (string?)null,
         });
         (await seeded.Evaluator.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/submit", null))

@@ -75,6 +75,16 @@
     "flag": "Not a field the user types - it arrives in the invite/reset link. Wording assumes the message is only ever seen when a link is malformed."
   },
   {
+    // T-067/T-068: the evaluator scoring route names the bid by its public code. Arabic drafted, in
+    // the register of the entries around it - NOT YET APPROVED, added to ARABIC-REVIEW.md's pile.
+    "key": "ProposalCode.NotEmpty",
+    "code": "PROPOSAL_CODE_REQUIRED",
+    "source": "drafted",
+    "ar": "رمز العرض مطلوب.",
+    "en": "A proposal code is required.",
+    "usedIn": "ScoreCriterionRequest"
+  },
+  {
     "key": "Code.NotEmpty",
     "code": "MFA_CODE_REQUIRED",
     "source": "drafted",

@@ -280,7 +280,8 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
 
         // Scoring into another RFQ's evaluation is refused on the same boundary, not merely hidden.
         var crossScore = await evaluatorX.PostAsJsonAsync($"/api/v1/rfqs/{yCode}/my-evaluation/scores", new
-        { proposalId = Guid.CreateVersion7(), criterionId = Guid.CreateVersion7(), rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        // A code that cannot exist, so the refusal is about the ASSIGNMENT scope rather than the code.
+        { proposalCode = "PRP-2026-999999", criterionId = Guid.CreateVersion7(), rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         crossScore.StatusCode.Should().Be(HttpStatusCode.NotFound, "a write into an unassigned evaluation is refused on the same scope check");
 
         // The buyer-side evaluation read is a permission boundary rather than a scope one: an

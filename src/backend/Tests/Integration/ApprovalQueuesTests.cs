@@ -177,7 +177,7 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
         foreach (var criterionId in criterionIds)
         {
             await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
-                new { proposalId, criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
+                new { proposalCode = await fixture.ProposalCodeAsync(proposalId), criterionId, rawScore = 80m, commentAr = (string?)null, commentEn = (string?)null });
         }
 
         await seeded.Evaluator.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/submit", null);

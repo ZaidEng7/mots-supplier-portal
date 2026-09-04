@@ -1,3 +1,5 @@
+using MotsSupplierPortal.Application.Proposals;
+using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 
 namespace MotsSupplierPortal.Application.Evaluations;
@@ -22,23 +24,73 @@ public sealed record EvaluationDto(
     uint RowVersion);
 
 /// <summary>One evaluator's own score for one (Proposal, Criterion) - the row-level unit blind
-/// scoring is enforced against. Never returned for any evaluator other than the caller.</summary>
-public sealed record MyScoreDto(Guid ProposalId, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn, DateTimeOffset ScoredAt);
+/// scoring is enforced against. Never returned for any evaluator other than the caller.
+///
+/// <para>T-068: keyed by the proposal's PUBLIC code. The GUID stays inside the domain, where
+/// ScoreCriterion still takes it.</para></summary>
+public sealed record MyScoreDto(string ProposalCode, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn, DateTimeOffset ScoredAt);
+
+/// <summary>
+/// T-067: one bid, as an assigned evaluator may see it DURING scoring.
+///
+/// <para><b>This is the technical envelope and nothing else.</b> No <c>ProposalItemDto</c>, no
+/// currency, no payment or delivery terms, no totals - the same seal T-028 put on the buyer's
+/// document gate, applied to the read an evaluator actually uses. Pricing reaches a human through
+/// the comparison matrix once the evaluation is Consolidated, and through no other path.</para>
+///
+/// <para><b>The supplier's identity IS here, deliberately.</b> Blindness in this product is
+/// evaluator-to-evaluator (ROADMAP §P7: "each scores blind (cannot see peers)"), never bidder
+/// anonymity - no document asks for anonymised evaluation. And BRULE-067's recusal mechanism is
+/// unusable without it: an evaluator cannot declare a conflict of interest with a supplier whose
+/// name they have never been shown. Withholding it would have been a fail-closed default that
+/// disabled a documented control. See DECISIONS-TAKEN.md D-19.</para>
+///
+/// <para><b>Documents are the Technical envelope only</b> (D-7), and only once scanned clean
+/// (D-10) - an evaluator is not the person to hand an unscanned file to.</para>
+/// </summary>
+public sealed record EvaluatorProposalDto(
+    string ProposalCode,
+    string SupplierReferenceCode,
+    string SupplierDisplayNameAr,
+    string SupplierDisplayNameEn,
+    string? NarrativeAr,
+    string? NarrativeEn,
+    IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
+    IReadOnlyList<EvaluatorProposalDocumentDto> Documents,
+    /// <summary>This evaluator's own qualification determination for this bid - per evaluator, not
+    /// global, because scoring is independent until Consolidate() runs.</summary>
+    bool TechnicallyQualified);
+
+/// <summary>A technical supporting file on a bid, listed for an assigned evaluator. Addressed by the
+/// proposal's code plus this id, and downloadable through the evaluator's own gated route.</summary>
+public sealed record EvaluatorProposalDocumentDto(
+    Guid Id, string OriginalFileName, string ContentType, string? Caption, DateTimeOffset UploadedAt);
 
 /// <summary>Evaluator-facing view: this evaluator's own assignment status, the criteria (with
 /// IsFinancial so the UI can grey out pricing pre-qualification), the proposals this evaluator
 /// scores, this evaluator's own qualification determination per proposal, and only this
 /// evaluator's own MyScores - never another evaluator's.</summary>
 public sealed record MyEvaluationDto(
-    Guid Id, Guid RfqId, string RfqReferenceCode, EvaluationState State,
+    string RfqReferenceCode, EvaluationState State,
+    // T-067: the SPECIFICATION the bids answer. An evaluator held neither rfq.read nor
+    // comparison.view, so before this they could not see the requirement they were scoring against
+    // any more than they could see the bid. Carried on this read rather than by widening the role,
+    // so one already assignment-scoped handler stays the only door.
+    string RfqTitleAr, string RfqTitleEn, string? RfqDescriptionAr, string? RfqDescriptionEn,
+    IReadOnlyList<RfqItemDto> RfqItems, IReadOnlyList<RequirementDto> RfqRequirements,
     DateTimeOffset? SubmittedAt, IReadOnlyList<EvaluationCriterionDto> Criteria,
-    IReadOnlyList<Guid> ProposalIds, IReadOnlyDictionary<Guid, bool> TechnicallyQualifiedByProposal,
+    // T-067/T-068: the bids themselves, keyed by public code. Replaces `ProposalIds` (raw GUIDs) and
+    // `TechnicallyQualifiedByProposal` (a GUID-keyed dictionary) - the qualification flag now travels
+    // on the bid it describes instead of in a parallel map.
+    IReadOnlyList<EvaluatorProposalDto> Proposals,
     IReadOnlyList<MyScoreDto> MyScores);
 
 public sealed record OpenEvaluationCommand(string RfqReferenceCode);
 public sealed record AssignEvaluatorsCommand(string RfqReferenceCode, IReadOnlyList<Guid> EvaluatorUserIds);
 public sealed record RecuseEvaluatorCommand(string RfqReferenceCode, Guid EvaluatorUserId, string Reason);
-public sealed record ScoreCriterionCommand(string RfqReferenceCode, Guid ProposalId, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn);
+// T-068: addressed by the proposal's public code. Resolved to its GUID inside the handler, which is
+// also where an unknown code becomes the same 404 as a code belonging to another RFQ.
+public sealed record ScoreCriterionCommand(string RfqReferenceCode, string ProposalCode, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn);
 public sealed record SubmitEvaluatorCommand(string RfqReferenceCode);
 public sealed record ConsolidateEvaluationCommand(string RfqReferenceCode);
 public sealed record FinalizeEvaluationCommand(string RfqReferenceCode);

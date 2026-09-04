@@ -319,6 +319,7 @@ builder.Services.AddScoped<IConsolidateEvaluationHandler, ConsolidateEvaluationH
 // T-028: proposal document reads - supplier's own, and the buyer's Consolidated+ gated pair.
 builder.Services.AddScoped<IGetOwnProposalDocumentDownloadUrlHandler, GetOwnProposalDocumentDownloadUrlHandler>();
 builder.Services.AddScoped<IGetProposalDocumentsForBuyerHandler, GetProposalDocumentsForBuyerHandler>();
+builder.Services.AddScoped<IGetProposalDocumentDownloadUrlForEvaluatorHandler, GetProposalDocumentDownloadUrlForEvaluatorHandler>();
 builder.Services.AddScoped<IGetProposalDocumentDownloadUrlForBuyerHandler, GetProposalDocumentDownloadUrlForBuyerHandler>();
 builder.Services.AddScoped<IFinalizeEvaluationHandler, FinalizeEvaluationHandler>();
 builder.Services.AddScoped<IReopenEvaluationHandler, ReopenEvaluationHandler>();
