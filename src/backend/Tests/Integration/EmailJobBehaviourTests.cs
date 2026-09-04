@@ -224,6 +224,7 @@ public sealed class EmailJobBehaviourTests(PostgresApiFixture fixture)
             var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
 
             var document = Domain.Suppliers.SupplierDocument.CreatePendingScan(
+                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
                 supplierId, typeId, 1, "quarantine/key", fileName, "application/pdf", 1024,
                 Guid.CreateVersion7(), issueDate: null, expiryDate: today.AddDays(40),
                 expiryTracked: true, today: today);

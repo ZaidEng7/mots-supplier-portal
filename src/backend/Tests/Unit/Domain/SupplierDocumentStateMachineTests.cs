@@ -20,6 +20,7 @@ public sealed class SupplierDocumentStateMachineTests
     private static SupplierDocument InState(DocumentState state)
     {
         var document = SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
             Guid.CreateVersion7(), Guid.CreateVersion7(), 1, "quarantine/key",
             "cert.pdf", "application/pdf", 1024, Guid.CreateVersion7(),
             issueDate: null, expiryDate: null,

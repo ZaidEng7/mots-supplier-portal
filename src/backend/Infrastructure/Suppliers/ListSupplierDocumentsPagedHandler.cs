@@ -55,6 +55,7 @@ public sealed class ListSupplierDocumentsPagedHandler(AppDbContext db) : IListSu
             {
                 d.Id,
                 TypeCode = db.DocumentTypes.Where(t => t.Id == d.DocumentTypeId).Select(t => t.Code).FirstOrDefault(),
+                d.ReferenceCode,
                 d.State,
                 d.ExpiryDate,
                 d.UploadedAt,
@@ -63,7 +64,9 @@ public sealed class ListSupplierDocumentsPagedHandler(AppDbContext db) : IListSu
 
         var data = rows
             .Select(r => new SupplierDocumentListItemDto(
-                r.Id,
+                // T-010: the public code, not the Guid. §3 forbids internal ids in payloads as well
+                // as in URLs, which the note this file used to carry had read too narrowly.
+                r.ReferenceCode,
                 r.TypeCode ?? string.Empty,
                 r.State,
                 r.ExpiryDate,
@@ -71,7 +74,7 @@ public sealed class ListSupplierDocumentsPagedHandler(AppDbContext db) : IListSu
                 // §12.3 shows "downloadUrl": "/api/v1/documents/DOC-…/content" - a route that does
                 // not exist here. The real one is emitted instead of fabricating the documented
                 // path, and the divergence is reported rather than hidden behind a plausible string.
-                $"/api/v1/documents/{r.Id}/download-url",
+                $"/api/v1/documents/{r.ReferenceCode}/download-url",
                 r.UploadedAt))
             .ToList();
 

@@ -42,6 +42,7 @@ public sealed class DocumentExpiryFlagsProfileTests(PostgresApiFixture fixture)
         // Created directly in the Approved state: this class is about what happens to a document
         // that was already accepted, not about the upload path.
         var document = SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
             supplier.Id, type.Id, 1, "clean/key", "tax.pdf", "application/pdf", 1024, user.Id,
             issueDate: null, expiryDate: expiry, expiryTracked: true,
             today: expiry.AddDays(-1));

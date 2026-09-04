@@ -4,6 +4,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Storage;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -108,7 +109,13 @@ public sealed class UploadDocumentHandler(
         SupplierDocument document;
         try
         {
+            // T-010: allocated before construction, by the same atomic counter every other public
+            // code uses. A gap on rollback is the documented, correct trade (MSP-81) - nextval() does
+            // not roll back either, and gaps are harmless where reuse is not.
+            var referenceCode = await ReferenceCodeGenerator.NextCodeAsync(db, "DOC", ct);
+
             document = SupplierDocument.CreatePendingScan(
+                referenceCode,
                 supplier.Id, documentType.Id, nextVersion, quarantineKey,
                 command.OriginalFileName, expectedContentType, command.SizeBytes, scope.UserId.Value,
                 command.IssueDate, command.ExpiryDate,
@@ -135,7 +142,7 @@ public sealed class UploadDocumentHandler(
             _ = activeAnnotation;
         }
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_uploaded", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_uploaded", scope.UserId, referenceCode: document.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         backgroundJobs.Enqueue<DocumentScanJob>(job => job.ScanAsync(document.Id, CancellationToken.None));
@@ -144,6 +151,6 @@ public sealed class UploadDocumentHandler(
     }
 
     internal static SupplierDocumentDto ToDto(SupplierDocument d) => new(
-        d.Id, d.Version, d.State.ToString(), d.OriginalFileName, d.ContentType, d.SizeBytes,
+        d.ReferenceCode, d.Version, d.State.ToString(), d.OriginalFileName, d.ContentType, d.SizeBytes,
         d.IssueDate, d.ExpiryDate, d.RejectReason, d.UploadedAt, d.ReviewedAt);
 }

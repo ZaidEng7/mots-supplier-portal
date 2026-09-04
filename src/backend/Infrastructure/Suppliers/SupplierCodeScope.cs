@@ -23,8 +23,8 @@ public sealed class SupplierCodeScope(AppDbContext db, IScopeContext scope) : IS
         return id;
     }
 
-    public async Task<bool> DocumentBelongsToSupplierAsync(string supplierCode, Guid documentId, CancellationToken ct) =>
+    public async Task<bool> DocumentBelongsToSupplierAsync(string supplierCode, string documentCode, CancellationToken ct) =>
         await db.SupplierDocuments
-            .AnyAsync(d => d.Id == documentId
+            .AnyAsync(d => d.ReferenceCode == documentCode
                 && db.Suppliers.Any(s => s.Id == d.SupplierId && s.ReferenceCode == supplierCode), ct);
 }

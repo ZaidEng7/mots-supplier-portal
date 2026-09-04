@@ -154,7 +154,8 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         var created = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var documentId = created.GetProperty("id").GetGuid();
+        // T-010: the upload response's "id" is the public code now, not the Guid.
+        var documentCode = created.GetProperty("id").GetString()!;
 
         // The scan runs out-of-band via Hangfire (DocumentScanJob) - poll for it to finish rather
         // than assuming it already has, same as any other async-background-work assertion.
@@ -164,7 +165,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         {
             await using var scope = fixture.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            state = await db.SupplierDocuments.Where(d => d.Id == documentId).Select(d => d.State.ToString()).FirstAsync();
+            state = await db.SupplierDocuments.Where(d => d.ReferenceCode == documentCode).Select(d => d.State.ToString()).FirstAsync();
             if (state != "PendingScan") break;
             await Task.Delay(500);
         }

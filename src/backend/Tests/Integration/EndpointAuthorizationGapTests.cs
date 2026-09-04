@@ -68,7 +68,7 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
             "is a plausible-looking response for a caller with no idea the auth pipeline never ran");
     }
 
-    private async Task<(Guid SupplierId, Guid DocumentId)> SeedApprovedDocumentAsync()
+    private async Task<(Guid SupplierId, string DocumentCode)> SeedApprovedDocumentAsync()
     {
         var (client, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(
             fixture, $"Doc Gap {Guid.NewGuid():N}"[..20]);
@@ -87,6 +87,7 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
         var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
 
         var document = SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
             supplierId, typeId, 1, "quarantine/key", "cert.pdf", "application/pdf", 2048,
             Guid.CreateVersion7(), issueDate: null, expiryDate: today.AddDays(90),
             expiryTracked: true, today: today);
@@ -96,19 +97,19 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
         db.SupplierDocuments.Add(document);
         await db.SaveChangesAsync();
 
-        return (supplierId, document.Id);
+        return (supplierId, document.ReferenceCode);
     }
 
     [Fact]
     public async Task Staff_without_document_review_cannot_download_another_supplier_s_document()
     {
-        var (_, documentId) = await SeedApprovedDocumentAsync();
+        var (_, documentCode) = await SeedApprovedDocumentAsync();
 
         // ProcurementOfficer holds rfq.publish only (Permissions.cs DefaultPermissions) - no
         // document.review. Before the fix, being staff at all (any role) was sufficient.
         var staff = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer);
 
-        var response = await staff.GetAsync($"/api/v1/documents/{documentId}/download-url");
+        var response = await staff.GetAsync($"/api/v1/documents/{documentCode}/download-url");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "NotFoundOrForbidden is intentionally indistinguishable from 'does not exist' " +
@@ -118,13 +119,13 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Staff_with_document_review_can_download_another_supplier_s_document()
     {
-        var (_, documentId) = await SeedApprovedDocumentAsync();
+        var (_, documentCode) = await SeedApprovedDocumentAsync();
 
         // OnboardingReviewer holds document.review (Permissions.cs DefaultPermissions) - the
         // legitimate case the fix must not have broken.
         var staff = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
 
-        var response = await staff.GetAsync($"/api/v1/documents/{documentId}/download-url");
+        var response = await staff.GetAsync($"/api/v1/documents/{documentCode}/download-url");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -148,6 +149,7 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
         var typeId = await db.DocumentTypes.Select(t => t.Id).FirstAsync();
         var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
         var document = SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
             supplierId, typeId, 1, "quarantine/key", "cert.pdf", "application/pdf", 2048,
             Guid.CreateVersion7(), issueDate: null, expiryDate: today.AddDays(90),
             expiryTracked: true, today: today);
@@ -156,7 +158,7 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
         db.SupplierDocuments.Add(document);
         await db.SaveChangesAsync();
 
-        var response = await client.GetAsync($"/api/v1/documents/{document.Id}/download-url");
+        var response = await client.GetAsync($"/api/v1/documents/{document.ReferenceCode}/download-url");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

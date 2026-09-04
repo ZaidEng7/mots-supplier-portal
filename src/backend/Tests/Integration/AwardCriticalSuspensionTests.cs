@@ -123,6 +123,7 @@ public sealed class AwardCriticalSuspensionTests(PostgresApiFixture fixture)
             var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
 
             var document = SupplierDocument.CreatePendingScan(
+                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
                 supplierId, typeId, 1, "quarantine/key", $"award-{Guid.NewGuid():N}.pdf",
                 "application/pdf", 2048, Guid.CreateVersion7(),
                 issueDate: null, expiryDate: today.AddDays(1), expiryTracked: true, today: today);

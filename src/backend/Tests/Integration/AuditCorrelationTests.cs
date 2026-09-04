@@ -164,21 +164,23 @@ public sealed class AuditCorrelationTests(PostgresApiFixture fixture)
 
         var upload = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
         upload.EnsureSuccessStatusCode();
-        var documentId = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        // T-010: the upload response's "id" is now the public code, not the Guid - §3 keeps
+        // internal ids out of payloads as well as URLs.
+        var documentCode = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
 
         // A freshly uploaded document sits in PendingScan, which the handler refuses with 404.
         // Advance it, so the test exercises the audit path rather than the rejection path.
         await using (var setup = fixture.Services.CreateAsyncScope())
         {
             var sdb = setup.ServiceProvider.GetRequiredService<AppDbContext>();
-            await sdb.SupplierDocuments.Where(d => d.Id == documentId)
+            await sdb.SupplierDocuments.Where(d => d.ReferenceCode == documentCode)
                 .ExecuteUpdateAsync(p => p.SetProperty(d => d.State, DocumentState.Uploaded));
         }
 
         client.DefaultRequestHeaders.Remove("traceparent");
         client.DefaultRequestHeaders.Add("traceparent", header);
 
-        var download = await client.GetAsync($"/api/v1/documents/{documentId}/download-url");
+        var download = await client.GetAsync($"/api/v1/documents/{documentCode}/download-url");
         download.EnsureSuccessStatusCode();
 
         await using var scope = fixture.Services.CreateAsyncScope();

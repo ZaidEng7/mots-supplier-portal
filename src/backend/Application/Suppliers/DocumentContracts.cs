@@ -4,7 +4,10 @@ using MotsSupplierPortal.Domain.Suppliers;
 namespace MotsSupplierPortal.Application.Suppliers;
 
 public sealed record SupplierDocumentDto(
-    Guid Id,
+    /// <summary>T-010: the public code. §3 keeps internal GUIDs out of payloads as well as URLs, so
+    /// the aggregate's Guid is not emitted at all - a client that needs to address this document
+    /// uses this value, which is the only identifier the API accepts.</summary>
+    string Id,
     int Version,
     string State,
     string OriginalFileName,
@@ -51,10 +54,11 @@ public interface IListSupplierDocumentsPagedHandler
 /// than papered over:
 ///
 /// <list type="bullet">
-///   <item><b>documentId</b> - §12.3 shows <c>"DOC-2026-013377"</c>, a public short code.
-///   SupplierDocument has no reference code; its identity is a Guid. §3.1 forbids exposing GUIDs in
-///   PATHS, and this is a body field, so the Guid is emitted - but the documented SHAPE cannot be
-///   produced without minting document codes, which is out of scope for this batch.</item>
+///   <item><b>documentId</b> - RESOLVED (T-010). This now emits <c>DOC-2026-000001</c>, the shape
+///   §12.3 documents. The previous note here claimed §3.1 governs only PATHS and that a Guid in a
+///   body was therefore acceptable; that reading was wrong. §3 principle 3 says internal GUIDs are
+///   "never exposed in URLs, PAYLOADS, or errors", and §12's own checklist repeats it as "Public ids
+///   only in paths/bodies (no GUID/int leakage)".</item>
 ///   <item><b>expiryState</b> - §12.3 models expiry as a field orthogonal to <c>state</c>
 ///   (<c>"state": "UnderReview"</c> alongside <c>"expiryState": "Valid"</c>). This schema folds
 ///   expiry INTO the state machine: ExpiringSoon and Expired are DocumentState members. The field
@@ -63,7 +67,7 @@ public interface IListSupplierDocumentsPagedHandler
 /// </list>
 /// </summary>
 public sealed record SupplierDocumentListItemDto(
-    Guid DocumentId,
+    string DocumentId,
     string DocumentTypeCode,
     DocumentState State,
     DateOnly? ExpiresAt,
@@ -107,7 +111,7 @@ public abstract record DocumentDownloadUrlResult
 
 public interface IGetDocumentDownloadUrlHandler
 {
-    Task<DocumentDownloadUrlResult> HandleAsync(Guid documentId, CancellationToken ct);
+    Task<DocumentDownloadUrlResult> HandleAsync(string documentCode, CancellationToken ct);
 }
 
 public abstract record ReviewDocumentResult
@@ -119,10 +123,10 @@ public abstract record ReviewDocumentResult
 
 public interface IApproveDocumentHandler
 {
-    Task<ReviewDocumentResult> HandleAsync(Guid documentId, CancellationToken ct);
+    Task<ReviewDocumentResult> HandleAsync(string documentCode, CancellationToken ct);
 }
 
 public interface IRejectDocumentHandler
 {
-    Task<ReviewDocumentResult> HandleAsync(Guid documentId, string reason, CancellationToken ct);
+    Task<ReviewDocumentResult> HandleAsync(string documentCode, string reason, CancellationToken ct);
 }

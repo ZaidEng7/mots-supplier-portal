@@ -46,6 +46,7 @@ public sealed class FilterValueRejectionTests(PostgresApiFixture fixture)
             for (var i = 0; i < documents; i++)
             {
                 db.SupplierDocuments.Add(SupplierDocument.CreatePendingScan(
+                    $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
                     supplier.Id, type.Id, version: i + 1, quarantineKey: $"fv/{Guid.NewGuid():N}",
                     originalFileName: $"d{i}.pdf", contentType: "application/pdf", sizeBytes: 64,
                     uploadedByUserId: Guid.CreateVersion7(), issueDate: null, expiryDate: null,

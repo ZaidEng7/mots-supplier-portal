@@ -32,5 +32,5 @@ public interface ISupplierCodeScope
     /// path name the document's real owner". Without it, a reviewer could approve supplier B's
     /// document through supplier A's URL and the audit trail would record the wrong supplier.
     /// </summary>
-    Task<bool> DocumentBelongsToSupplierAsync(string supplierCode, Guid documentId, CancellationToken ct);
+    Task<bool> DocumentBelongsToSupplierAsync(string supplierCode, string documentCode, CancellationToken ct);
 }
