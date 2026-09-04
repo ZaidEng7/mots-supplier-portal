@@ -208,3 +208,136 @@ These belong to a person. Building any of them from a silent document would mean
 | **Ranking tie-break order (BRULE-069)** | The document gives an example, not a rule. Tie-breaks decide who wins a tender |
 | **Approver authority limits (BRULE-074)** | The limits themselves are a finance policy nobody has stated |
 | **Clarification visibility · review SLA duration · RFQ ownership and named approvers** | Already known to be open |
+
+---
+
+## Batch 6 sweep — `FR-*`, `SCR-*`, §12.4 and §12.5
+
+The file's own largest stated hole, closed in part. **This sweep adds entries; it closes none.**
+
+### Method, and the trap it is built to avoid
+
+Batch 2's distinction carried forward: **uncited is not a gap.** 172 functional requirements, **94
+cited** in source and **78 not**. Every one of the 78 got a mechanism check before any verdict, and
+**67 of them turned out to be implemented** — anything else would have recorded 67 false gaps.
+
+The reverse trap is checked too: before recording anything as undefined, the documents were searched
+for a definition. That is how `profileCompleteness` turned out to be specified twice while everyone
+treated it as an invention.
+
+**A refinement this sweep had to make.** For state machines, "does the mechanism exist" is the wrong
+question — a symbol can exist and be unreachable. `ProposalState.ClarificationRequested` and
+`Shortlisted` both passed a presence check and are never assigned anywhere. The check for a state
+machine is **reachability**, and applying it produced the largest finding here (T-051).
+
+### Findings
+
+| Id | Source | Gap | Confirmed at | Verdict | Size |
+|---|---|---|---|---|---|
+| T-051 | FR-PRP-009/010/011, §4.1 | **Six of eleven `ProposalState` members are never assigned in production code**: `UnderReview`, `ClarificationRequested`, `Revised`, `Shortlisted`, `AwardOffered`, `Declined`. A proposal goes Draft → Submitted → (NotSelected \| Awarded \| Withdrawn), skipping the entire evaluation-intake and clarification lifecycle §4.1 defines. Same class as T3-36's unreachable RFQ states, which was a batch of its own | reachability sweep over `Domain`+`Infrastructure`; `ProposalState.cs` | Reproduced | XL |
+| T-052 | BRULE-024 | `DocumentState.UnderReview` is read by three guards and never assigned. A document goes Uploaded → Approved/Rejected with no reviewer-pickup step, so BRULE-024's "returns to `Uploaded → UnderReview`" does not happen | `SupplierDocument.cs:143,155,194` | Reproduced | M |
+| T-053 | §13, §12.5 | **`Idempotency-Key` is not implemented anywhere.** §13's checklist requires it on unsafe POSTs and §12.5 makes it *required* on submit, with a documented replay response. Harm is bounded — a second submit hits the state guard and 409s rather than duplicating — so this is a contract gap, not a double-submission bug | no occurrence in `Api`/`Infrastructure` | Reproduced | L |
+| T-054 | §12.4 | `submissionDeadline` is documented on the supplier RFQ list and absent from `SupplierRfqListItemDto`. A supplier's list cannot show the deadline it is bidding against | `RfqContracts.cs:84-87` | Reproduced | S |
+| T-055 | §12.4 | `buyingOrg.code` (`ORG-HTL-0007`) is documented; `Organization` has no public short code, so `ExternalId` or null is emitted. Same class T-010 just closed for documents | `RfqContracts.cs:90-96` | Reproduced | M |
+| T-056 | §12.5 | `createdAt` documented on the create response; absent from `ProposalDto` | `ProposalContracts.cs:21-31` | Reproduced | S |
+| T-057 | §12.5 | The submit response's `totals { currency, grandTotal }` object does not exist on any proposal DTO | `ProposalContracts.cs` — no totals member | Reproduced | M |
+| T-058 | §12.5 | `ProposalDto` carries BOTH `ReferenceCode` and `ProposalReferenceCode`. One of them is redundant and no document asks for two | `ProposalContracts.cs:22` | Reproduced | S |
+| T-059 | FR-ADM-004 | No write endpoints for `Category`, `DocumentType`, `Currency`, `UnitOfMeasure`, `Incoterm`, `Region` — all seed-only. (Supersedes the older T-034, which named only two of the six) | no `MapPost`/`MapPut` on reference data | Reproduced | L |
+| T-060 | FR-ADM-006 | System settings (registration mode, default currency, numeral system, expiry windows, approval hierarchy) are not configurable. Marked `[ASSUMPTION]` in its own requirement | no settings entity | Reproduced | L |
+| T-061 | FR-ADM-007 | Notification templates are a compiled catalogue, not admin-editable AR/EN templates | `NotificationCatalogue.jsonc` | Reproduced | L |
+| T-062 | FR-DSH-006 | No admin dashboard (users/roles, reference-data health, integration status, job health) | no route, no handler | Reproduced | L |
+| T-063 | FR-INT-008 | No inbound ERP path through an ACL. Marked `[ASSUMPTION]` in its own requirement | no inbound handler | Reproduced | L |
+
+### `FR-*` — verdict spread
+
+| Verdict | Count |
+|---|---|
+| Built (mechanism reproduced) | 152 |
+| Missing / stubbed | 11 |
+| Deferred with a recorded rationale in code | 1 — FR-RFQ-013, ERP mapping fields left off `Rfq` deliberately rather than as dead scaffolding |
+| Ambiguous in the requirement's own wording | 8 |
+
+**The eight ambiguous ones are documentation findings, not code verdicts** — "built" and "partial"
+both defend, because the requirement does not say how much is enough: FR-ADM-006, FR-INT-008,
+FR-NOT-004, FR-NOT-007, FR-PROF-009, FR-REG-002, FR-SRCH-006, FR-DOC-004. Every one carries
+`[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]` in its own text, which is the documents telling us
+they are unfinished rather than us failing to read them.
+
+### `SCR-*` — route level only, and that limit is the point
+
+`SCREEN-INVENTORY.md` holds **128 screen rows with routes**. The router declares **41 paths**.
+
+That gap is real but it **overstates** what is missing, and the overstatement is why this section is
+not a per-screen verdict table. Many documented screens are sections of one page (`/onboarding/company`,
+`/onboarding/documents` — the onboarding page renders these as sections), or states rather than routes
+(`/404`, `/error`, `/maintenance`, `/account/locked`), or differ only in spelling
+(`/password/forgot` against the router's `/forgot-password`).
+
+**What moved since the original sweep's "0% fully built across Epics 7–14":** that is no longer true.
+SCR-100, 101, 105, 106, 120, 140, 151, 160, 300, 301, 400, 401, 432, 500, 600, 700 and 900 are cited
+in source and have routes — seventeen screens across the epics that sweep called empty.
+
+**Not established here:** whether each built screen matches its specification's layout and required
+states, and whether those states are *tested* rather than merely present. That is the distinction that
+found EPIC-16's per-widget error isolation gap, and it is the one thing this section does not deliver.
+See the holes below.
+
+### §12.4 / §12.5 — riding with R-9, or independent
+
+R-9 rules that §12.2's names are authoritative and the DTOs rename to match.
+
+| Divergence | Rides with R-9? |
+|---|---|
+| `rfqCode` → `referenceCode` | **Rides** |
+| `title` → `titleAr`/`titleEn` | **Rides** — same bilingual-split question as `displayName` |
+| `invitationStatus` → `myInvitationStatus` | **Rides** |
+| `proposalCode` → `referenceCode` | **Rides** |
+| `currency` → `currencyCode` | **Rides** |
+| T-054 `submissionDeadline` absent | **Independent** — a missing field |
+| T-055 `buyingOrg.code` unproducible | **Independent** — needs an `ORG-` scheme |
+| T-056 `createdAt` absent | **Independent** |
+| T-057 `totals` object absent | **Independent** |
+| T-058 duplicate reference-code fields | **Independent** |
+| `validityDays` vs `validityStart`/`End` | **Independent** — shape, not name |
+| `technicalResponse` string vs `requirementAnswers[]` | **Independent**, and already justified in `RequirementAnswer.cs` as a deliberate deviation |
+
+**Five rides with R-9, seven are independent** — the same split §12.3 showed, and the seven can be
+conformed without waiting on that decision.
+
+### What this sweep says about itself
+
+**Counts.** 63 entries total, **13 added** by this sweep. Of the 13: **13 reproduced, 0 inferred** —
+every one is backed by a file and line, or by a reachability sweep over production code. Across the
+whole file the balance is now roughly 37 reproduced to 15 inferred, with 1 unconfirmed
+(`BackgroundJob.Enqueue`) and 11 closed.
+
+**Ordering of everything outstanding, by what hurts in a live tender.**
+
+1. **T-051 — the proposal lifecycle's middle is unreachable.** A buyer cannot request clarification on
+   a proposal, and nothing is ever shortlisted. This is the largest functional hole in the product and
+   it sits in the tender's critical path.
+2. **T-025 — unscanned attachments are downloadable.** Still blocked on OQ-014; still the worst
+   outcome on the list if it lands badly.
+3. **T-028 — proposal attachments cannot be downloaded.** Blocked on the two-envelope discriminator.
+4. **T-052 — documents never enter UnderReview**, so BRULE-024's re-upload path does not behave as
+   written.
+5. **T-053 — no `Idempotency-Key`.** Bounded by state guards today, but §13 requires it and the next
+   endpoint without a state guard is where it bites.
+6. **T-054 — the deadline is missing from the supplier RFQ list.** One field, directly in a bidder's face.
+7. **T-059 — reference data is seed-only.** A ministry cannot add a document type without a deploy.
+8. **R-9's DTO rename plus the seven independent §12.4/§12.5 divergences** — one coordinated pass.
+9. **T-029's `SupplierFieldConfig`** and the §12.3 five — small, known, ready.
+10. **T-062 / T-060 / T-061 / T-063** — whole admin surfaces, large and not tender-blocking.
+
+**The remaining holes, named as plainly as batch 2 named its own.**
+
+- **`SCR-*` per-screen verification is NOT done.** This sweep established which routes exist. It did
+  not check any screen against its specification's layout, its required states, or whether those
+  states are tested. That is the largest hole in this file and it is now the *only* one of batch 2's
+  three that remains open.
+- **`BRULE-*` was not re-swept.** Batch 2 covered it; nothing since has re-verified those 100 rules
+  against five epics of subsequent change.
+- **The frontend was not swept for anything.** No component, i18n, or accessibility conformance check
+  has ever run item by item.
+- **§12.1 (Auth) response bodies** were never swept. §12.2 through §12.5 now have been. That is the
+  last unswept section of §12.
