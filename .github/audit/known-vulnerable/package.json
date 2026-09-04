@@ -1,0 +1,9 @@
+{
+  "name": "audit-gate-canary",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A dependency with a known high-severity advisory, so the audit gate can be proven to still bite. Never installed, never shipped - only its lockfile is read.",
+  "dependencies": {
+    "minimist": "0.0.8"
+  }
+}

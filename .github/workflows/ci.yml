@@ -158,6 +158,13 @@ jobs:
       #   `lhci autorun` calls the well-known lighthouserc.json config and two hardcoded local
       #   URLs; no user input, uploaded file, or externally-supplied path ever reaches this tool.
       #
+      # 2026-09-04 re-triage (T-050): the count is now THIRTEEN, not ten. The three new ones are
+      # qs / body-parser / express (moderate), reached through @lhci/cli's own local report server -
+      # not this product's Express, which it does not have. Same verdict as the rest: dev-only, never
+      # bundled, and unreachable in how this project invokes the tool. Nothing here warrants an
+      # upgrade, and `npm audit fix --force` still offers only @lhci/cli@0.1.0, a five-major-version
+      # downgrade. Recorded rather than left as a stale "10" that quietly stops matching the output.
+      #
       # Accepted risk, not a false positive: the CVEs are real, but unreachable in how this
       # project actually invokes @lhci/cli - a devDependency, never bundled, running only inside a
       # disposable CI runner with `--ignore-scripts` already blocking dependency install-time code
@@ -166,14 +173,45 @@ jobs:
       # in CI with build access - a supply-chain trust question, not something these two CVEs
       # change. So: production dependencies gate on high/critical (zero findings there - the
       # frontend bundle never includes @lhci/cli), the full tree is reported but not blocking.
-      - name: Dependency scan (npm)
-        working-directory: src/frontend
+      # T-050: this step used to be `npm audit --omit=dev --audit-level=high`, and it failed three
+      # times across two batches with registry errors on an UNCHANGED lockfile - 400 Bad Request and
+      # 503 Service Unavailable - passing on re-run each time. The advisory service is genuinely
+      # flaky right now: reproduced locally as a network timeout against the BULK endpoint, so this
+      # is not a matter of which endpoint npm picks.
+      #
+      # The problem was never the flakiness itself. It was that `npm audit` exits non-zero for BOTH
+      # "found a high-severity CVE" and "the registry did not answer", so the two were
+      # indistinguishable - and a gate whose failures are routinely not its subject is a gate people
+      # learn to re-run without reading. Same class as T-041.
+      #
+      # audit-gate.mjs separates them: exit 1 is an advisory and names the package, exit 2 is a
+      # transport failure and says it is NOT a finding. It retries before giving up.
+      #
+      # The canary fixture is what stops this from silently passing forever. It pins a package with a
+      # known critical CVE and the gate MUST fail on it - which it did not on the first attempt: npm
+      # prints its error object as JSON on stdout, that parsed cleanly, and a report with no
+      # metadata counted as zero advisories. A dependency gate that has quietly stopped checking
+      # looks exactly like a clean repository from the outside.
+      - name: Dependency scan (npm) - the gate still bites
         run: |
-          echo "--- full tree (reported, not blocking - see comment above for the 10 dev-only findings) ---"
-          npm audit || true
+          set +e
+          node .github/audit/audit-gate.mjs .github/audit/known-vulnerable
+          code=$?
+          set -e
+          if [ "$code" != "1" ]; then
+            echo "::error::The audit gate did not fail on a package with a known critical CVE (exit $code)."
+            echo "::error::Either the gate has stopped checking, or the registry is unreachable - both must block."
+            exit 1
+          fi
+          echo "Canary failed as required: the gate is live."
+
+      - name: Dependency scan (npm)
+        run: |
+          echo "--- full tree (reported, not blocking - see the triage comment above) ---"
+          npm audit --package-lock-only --prefix src/frontend || true
 
           echo "--- production dependencies (blocking on high/critical) ---"
-          npm audit --omit=dev --audit-level=high
+          node .github/audit/audit-gate.mjs src/frontend
 
       # begin / build / end MUST share one working directory. The scanner writes .sonarqube
       # relative to where `begin` ran and the injected MSBuild targets look for it there; running

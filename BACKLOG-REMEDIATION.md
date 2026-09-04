@@ -78,6 +78,16 @@ at the end.
 
 ### Response-body conformance — §12.3 documents
 
+**Separable from the §12.2 field-name decision — assessed batch 4.** The §12.2 block is one question:
+are the document's field NAMES authoritative, or is the code's bilingual shape right and the document
+stale. Five of these six do not touch that question at all: T-011 is a status code, T-013 a route and
+mechanism, T-014 an absent error response, T-015 an additive field, and T-010 is a VALUE-format
+change that §3 settles independently (internal GUIDs must not appear in URLs). Only the narrow
+`documentId` vs `id` spelling rides with §12.2, and it rides with T-010's value change anyway.
+
+So these can be conformed without pre-judging §12.2. **Not conformed this batch** — T-010 is a batch
+of its own and T-013 changes a route the SPA calls.
+
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
 | T-010 | §12.3 | Document ids are raw GUIDs; the document specifies `DOC-2026-013377` reference codes | `SupplierDocument.cs:11`; every route uses `{id:guid}` | Reproduced | L |
@@ -117,7 +127,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-029 | §8.1 | Eight mutable aggregates carry no version column. **`Offering` closed in batch 3** — it was the one that bit, since every `supplier_user` edits the catalogue. Remaining: `Organization`, `OrgUnit`, `SupplierOrgLink`, `SupplierFieldConfig`, `SupplierDocument`, `Clarification`, `Addendum`. **No migration needed** — `xmin` is a Postgres system column, so each is a mapping change | Not `IVersionedAggregate` | Reproduced | M |
+| T-029 | §8.1 | Version columns. **`Offering` closed (batch 3). The remaining seven are NOT all gaps** — surveyed in batch 4 against their actual routes: `Organization`, `OrgUnit`, `SupplierOrgLink` and `Addendum` have **no update endpoint at all** (create/delete only), so there is no lost update to prevent. `SupplierDocument` was implemented and then **reverted**: its state machine already refuses any second decision with a 409, so a version can never be the thing that refuses a caller — the guard added nothing and made the endpoint harder to use. `Clarification` (answer/publish) is a child of the already-versioned `Rfq`, so it is **T-030**, not this. That leaves **`SupplierFieldConfig`** (`PUT /{category}/{fieldCode}`) as the only genuine remaining candidate, and it needs a single-item read added first | surveyed `Api/Endpoints/*.cs`; `SupplierDocument.cs:137-152` | Reproduced | S |
 | T-030 | §8.1 | A child write does not bump the root's version. **Now reproduced**, and it does NOT let the excluded sub-resource routes back under `If-Match`: `ApplyExpectedVersion` only stamps an entry that is `Modified` **and** an `IVersionedAggregate`, and a child insert marks the CHILD `Added` — so the guard is skipped even when a correct `If-Match` was sent, and Postgres never advances the parent's `xmin` because the parent row is not written. Forcing a parent touch is not viable: `xmin` is database-generated and cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext.cs:192` already documents. A real fix needs an application-managed version column — **a second concurrency mechanism, so a decision** | `AppDbContext.cs:86-92` | Reproduced | M |
 | T-031 | — | No `state_changed_at`; time-in-current-state is not derivable from the aggregate. Cycle time is derivable from the audit log instead (EPIC-19) | `Rfq.cs:42-66` | Reproduced | M |
 | T-032 | §7 | `Correlation-Id` appears in problem bodies but is not echoed as a response header | `ProblemResponse.cs` | Reproduced | S |
@@ -140,7 +150,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 |---|---|---|---|---|---|
 | T-040 | ACCESSIBILITY.md | The back-office shell header does not wrap at 320px — 424px against a 320px viewport. Affects every back-office screen | Measured in PR #102 | Reproduced | M |
 | T-041 | — | `CrossOrganizationScopeTests` gives a full RFQ setup a 3-second window before `closesAt`; fails under CI load | Observed failing then passing on re-run, PR #101 | Reproduced | S |
-| T-050 | — | The CI dependency gate calls npm's `/security/audits/quick`, which npm is **retiring** (`npm notice This endpoint is being retired`). It has now failed twice on `main`/PR with `400 Bad Request` then `503 Service Unavailable` while `npm audit --omit=dev --audit-level=high` reports **0 vulnerabilities** locally. A gate that fails for registry reasons trains people to re-run it, which is how a gate stops being read — the same shape as T-041. Move to the bulk advisory endpoint | `.github/workflows/ci.yml`, Dependency scan (npm) | Reproduced | S |
+| ~~T-050~~ | — | **Closed.** The gate now separates its two failure modes: exit 1 is an advisory and names the package, exit 2 is a transport failure and says it is not a finding. A canary fixture pinned to a known critical CVE runs first and must fail, so the gate cannot silently stop checking — which it *had* done on the first attempt, because npm prints its error object as JSON and that parsed as a clean report. Root cause is the registry, not the endpoint: the **bulk** endpoint times out too, reproduced locally | batch 4 | Reproduced | S |
 
 ### Closed — kept rather than dropped
 
