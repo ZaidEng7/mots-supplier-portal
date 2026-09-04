@@ -76,7 +76,16 @@ public sealed record SupplierDto(
     // different answers and a client must be able to tell them apart. This DTO is returned from 32
     // call sites, nearly all profile mutations with no reason to run the query - a field silently
     // defaulting to empty there would report a clean profile on every edit.
-    IReadOnlyList<string>? IncompleteDocumentTypeCodes = null);
+    IReadOnlyList<string>? IncompleteDocumentTypeCodes = null,
+    /// <summary>
+    /// §12.2's <c>profileCompleteness</c>. Supplied on the READ path only - the same precedent
+    /// <c>IncompleteDocumentTypeCodes</c> above already sets, and the only place §12.2 shows the
+    /// field. Computing it needs a document query the mutation handlers have no reason to run.
+    ///
+    /// <para>Nullable rather than defaulted to 0: "not computed on this response" and "this supplier
+    /// has done nothing" are different facts, and a zero would assert the second on every edit.</para>
+    /// </summary>
+    double? ProfileCompleteness = null);
 
 public abstract record GetSupplierResult
 {

@@ -514,6 +514,29 @@ public sealed class Supplier : IVersionedAggregate
     /// reviewer can flag for correction (there is no ProfileFieldCodes.TermsAccepted), so there is
     /// no shared vocabulary to reference.
     /// </summary>
+    /// <summary>
+    /// The complete checklist <see cref="GetMissingProfileFields"/> evaluates - every item, present
+    /// or not.
+    ///
+    /// <para>Exposed so a completeness RATIO has a denominator that cannot drift from the numerator.
+    /// Counting the missing items is easy; counting how many there were in total is where a second
+    /// implementation would appear, and the two would disagree the first time a field was added to
+    /// the checklist and not to the count.</para>
+    ///
+    /// <para><c>termsAccepted</c> is a literal rather than a ProfileFieldCodes member because that
+    /// is how <see cref="GetMissingProfileFields"/> already emits it; giving it a constant here
+    /// while the check emits a literal would be two spellings of one code.</para>
+    /// </summary>
+    public static readonly IReadOnlyList<string> RequiredProfileFieldCodes =
+    [
+        ProfileFieldCodes.LegalInfo,
+        ProfileFieldCodes.CurrencyCode,
+        ProfileFieldCodes.Address,
+        ProfileFieldCodes.CategoryLink,
+        ProfileFieldCodes.PrimaryContactPhone,
+        "termsAccepted",
+    ];
+
     public IReadOnlyList<string> GetMissingProfileFields()
     {
         var missing = new List<string>();

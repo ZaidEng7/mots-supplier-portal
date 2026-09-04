@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Dashboards;
+using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
@@ -35,7 +36,15 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
         // §9.2: no supplier scope, no dashboard, and not-found rather than an empty one.
         if (scope.SupplierId is not { } supplierId) return null;
 
-        var supplier = await db.Suppliers.AsNoTracking().FirstOrDefaultAsync(s => s.Id == supplierId, ct);
+        // IncludeProfile(), not a bare load. GetMissingProfileFields() reads Addresses,
+        // CategoryLinks and Representatives, and on an un-included aggregate those collections are
+        // EMPTY - so it reports fields missing that the supplier has actually filled in, and the
+        // completeness meter reads lower than the truth. Caught by the test asserting this handler
+        // and the §12.2 profile response return the same number: they returned 0.12 and 0.25.
+        //
+        // This is the trap SupplierQueryExtensions' own comment already warns about, hit again the
+        // moment a second caller started asking the aggregate a question about its children.
+        var supplier = await db.Suppliers.AsNoTracking().IncludeProfile().FirstOrDefaultAsync(s => s.Id == supplierId, ct);
         if (supplier is null) return null;
 
         var now = DateTimeOffset.UtcNow;
@@ -114,9 +123,21 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             [.. proposalRows.Select(p => new DashboardProposalDto(
                 p.ReferenceCode, p.Rfq.ReferenceCode, p.Rfq.TitleAr, p.Rfq.TitleEn, p.State.ToString(), p.ValidityEnd))],
             new ProfileHealthDto(
-                // Guard the divide: a tenant with no required document types is complete rather than
-                // NaN, which would reach the meter as a blank bar with no explanation.
-                Completeness: requiredTotal == 0 ? 1 : (double)supplied / requiredTotal,
+                // T-001: the SAME number §12.2's profileCompleteness reports, from the same
+                // evaluator. It used to be documents-supplied / documents-total, which omitted the
+                // six profile fields entirely - so a supplier with every document and no legal
+                // information read as 100% complete on this meter and was refused at submit.
+                //
+                // Two definitions of one number is how they drift, and this is the drift: the meter
+                // said ready, the gate said no. One evaluator now, and it is the submit gate's own
+                // checklist.
+                //
+                // requiredTotal/supplied below stay DOCUMENT counts - they feed the "Required
+                // documents: 2 of 4" caption, which is about documents specifically and is still
+                // true of them.
+                Completeness: ProfileCompleteness.Ratio(
+                    missingItems: supplier.GetMissingProfileFields().Count + missing.Count,
+                    totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredTotal),
                 requiredTotal, supplied,
                 NextRequiredDocumentTypeCode: missing.FirstOrDefault()),
             // §1's ERP-degraded banner, from this supplier's own award only - a failure on someone
