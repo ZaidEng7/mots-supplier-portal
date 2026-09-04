@@ -61,8 +61,11 @@ public static class ProcurementReportView
                     .Select(c => (IReadOnlyList<string>)new[] { c.Key, ReportText.Count(c.Count, locale) })
                     .ToList()),
 
+            // D-18: identical to the screen's heading, not a self-describing variant of it. The
+            // parenthetical restated this section's own third column header, on both surfaces - it
+            // was redundancy, not context the export lacked.
             new ReportSection(
-                locale == "en" ? "Cycle time (median hours)" : "زمن الدورة (الوسيط بالساعات)",
+                locale == "en" ? "Cycle time" : "زمن الدورة",
                 locale == "en"
                     ? ["Interval", "RFQs measured", "Median hours"]
                     : ["الفترة", "عدد الطلبات المقيسة", "الوسيط بالساعات"],
@@ -102,6 +105,10 @@ public static class ComplianceReportView
         return
         [
             new ReportSection(
+                // D-18: the accurate wording, and now also the screen's. A supplier has an
+                // OnboardingState as well as a LifecycleState, and this section groups by
+                // LifecycleState - see SuppliersByLifecycleState on the DTO. "By state" named
+                // neither, on a report a ministry reader may file.
                 locale == "en" ? "Suppliers by lifecycle state" : "الموردون حسب حالة دورة الحياة",
                 countColumns,
                 report.SuppliersByLifecycleState
