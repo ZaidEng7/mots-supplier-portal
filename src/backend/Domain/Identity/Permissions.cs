@@ -207,6 +207,12 @@ public static class Permissions
     /// </summary>
     public const string ProposalRevise = "proposal.revise";
 
+    /// <summary>T-064/§4.1: "AwardOffered -&gt; Declined | Supplier declines | <c>supplier_admin</c> /
+    /// <c>proposal.decline</c>". Named by the table, and supplier_admin only - the same actor column
+    /// that keeps ProposalSubmit and ProposalWithdraw off supplier_user, because declining an award is
+    /// a commitment of the same weight as making one.</summary>
+    public const string ProposalDecline = "proposal.decline";
+
     public const string ReportRead = "report.read";
 
     public static readonly IReadOnlyList<string> All =
@@ -218,7 +224,7 @@ public static class Permissions
         RfqRead, RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
-        ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise
+        ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline
     ];
 }
 
@@ -245,7 +251,7 @@ public static class Roles
         // row-scope (§9.2). A supplier reading the RFQs they were invited to is a read of an RFQ;
         // the invitation-scoped handler behind it is unchanged, so this widens who may call the
         // route, not what any caller can see.
-        [SupplierAdmin] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
+        [SupplierAdmin] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.ProposalDecline, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,

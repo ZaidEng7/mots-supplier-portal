@@ -867,9 +867,20 @@ const resources = {
         withdraw: 'سحب العرض',
         withdrawReasonPlaceholder: 'سبب السحب',
         withdrawn: 'تم سحب العرض',
+        // ── T-064 · ARABIC FOR REVIEW ──────────────────────────────────────────────
+        // §7 has no award-offer strings. Drafted in §7's register - NOT YET APPROVED, in
+        // ARABIC-REVIEW.md's pile. «اعتذار» not «رفض» for declining, matching the invitation
+        // register and the proposal.declined notification.
+        awardOfferedTitle: 'عرض ترسية',                    // [§7-style drafted]
+        awardOfferedBody: 'اختير عرضكم للترسية. يمكنكم الاعتذار عن الترسية مع بيان السبب، أو انتظار تأكيد الجهة.', // [§7-style drafted]
+        decline: 'الاعتذار عن الترسية',                     // [§7-style drafted]
+        declineReason: 'سبب الاعتذار',                      // [§7-style drafted]
+        declineReasonPlaceholder: 'سبب الاعتذار عن الترسية', // [§7-style drafted]
+        declined: 'تم تسجيل اعتذاركم',                      // [§7-style drafted]
         errors: {
           startFailed: 'تعذر بدء العرض', saveFailed: 'تعذر الحفظ',
           submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض',
+          declineFailed: 'تعذر تسجيل الاعتذار',             // [§7-style drafted]
         },
       },
       team: {
@@ -1853,9 +1864,16 @@ const resources = {
         withdraw: 'Withdraw proposal',
         withdrawReasonPlaceholder: 'Reason for withdrawal',
         withdrawn: 'Proposal withdrawn',
+        awardOfferedTitle: 'Award offer',
+        awardOfferedBody: 'Your proposal has been selected for award. You may decline with a reason, or wait for the buyer to confirm.',
+        decline: 'Decline the award',
+        declineReason: 'Reason for declining',
+        declineReasonPlaceholder: 'Why you are declining the award',
+        declined: 'Your decline has been recorded',
         errors: {
           startFailed: 'Could not start the proposal', saveFailed: 'Could not save',
           submitFailed: 'Could not submit the proposal', withdrawFailed: 'Could not withdraw the proposal',
+          declineFailed: 'Could not record the decline',
         },
       },
       team: {

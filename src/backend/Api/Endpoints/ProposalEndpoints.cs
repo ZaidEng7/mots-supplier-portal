@@ -54,6 +54,15 @@ public sealed class WithdrawProposalRequestValidator : AbstractValidator<Withdra
     public WithdrawProposalRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
+// T-064: same shape and same bound as a withdrawal - both are a supplier ending their own
+// participation and both owe an explanation to the record.
+public sealed record DeclineAwardOfferRequest(string Reason);
+
+public sealed class DeclineAwardOfferRequestValidator : AbstractValidator<DeclineAwardOfferRequest>
+{
+    public DeclineAwardOfferRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
+}
+
 /// <summary>FEAT-09.1..09.6/FR-PRP-001..008: the supplier's own proposal against one RFQ - nested
 /// under the same "/api/v1/suppliers/me/rfqs/{referenceCode}" base SupplierRfqEndpoints already
 /// uses, since a Proposal only ever makes sense in the context of the RFQ it answers, even though
@@ -317,6 +326,25 @@ public static class ProposalEndpoints
             MapResult(await handler.RemoveAsync(new RemoveProposalDocumentCommand(referenceCode, documentId), ct)))
         .RequirePermission(Permissions.ProposalEdit)
         .WithName("RemoveProposalDocument");
+
+        // T-064/§4.1: "AwardOffered -> Declined | Supplier declines | supplier_admin /
+        // proposal.decline | Within acceptance window ([ASSUMPTION])". No window is enforced - see
+        // Proposal.OfferAward and DECISIONS-TAKEN.md D-21.
+        group.MapPost("/decline", async (
+            string referenceCode, DeclineAwardOfferRequest request,
+            IValidator<DeclineAwardOfferRequest> validator,
+            IDeclineAwardOfferHandler handler, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapResult(await handler.HandleAsync(
+                new DeclineAwardOfferCommand(referenceCode, request.Reason), ct));
+        })
+        .RequirePermission(Permissions.ProposalDecline)
+        .RequireIfMatch()
+        .WithETag()
+        .WithName("DeclineAwardOffer");
 
         group.MapPost("/submit", async (string referenceCode, ISubmitProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(new SubmitProposalCommand(referenceCode), ct)))

@@ -9,7 +9,7 @@ import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import {
   startProposal, getProposal, patchProposal,
-  addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, ProposalApiError,
+  addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, declineAwardOffer, ProposalApiError,
 } from '../api/proposals'
 
 /** FEAT-09.1..09.6/FR-PRP-001..008: the supplier's own proposal workspace against one invited RFQ.
@@ -33,6 +33,7 @@ export function SupplierProposalPage() {
   const [incotermCode, setIncotermCode] = useState('')
   const [validityEnd, setValidityEnd] = useState('')
   const [withdrawReason, setWithdrawReason] = useState('')
+  const [declineReason, setDeclineReason] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['supplier-rfq', referenceCode], queryFn: () => getInvitedRfq(referenceCode) })
   const proposalQuery = useQuery({
@@ -133,6 +134,12 @@ export function SupplierProposalPage() {
     mutationFn: () => withdrawProposal(proposalCode, withdrawReason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.withdrawn') }); setWithdrawReason('') },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.withdrawFailed')) }),
+  })
+
+  const declineMutation = useMutation({
+    mutationFn: () => declineAwardOffer(proposalCode, declineReason),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.declined') }); setDeclineReason('') },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.declineFailed')) }),
   })
 
   if (rfqQuery.isLoading || proposalQuery.isLoading) {
@@ -300,6 +307,27 @@ export function SupplierProposalPage() {
             onChange={(e) => { const file = e.target.files?.[0]; if (file) documentMutation.mutate(file) }} />
         ) : null}
       </Card>
+
+      {/*
+        T-064: the offer, and the only action that answers it. An AwardOffered proposal with no
+        decline control on the screen is the same defect shape as T-067 - a state the product can
+        reach and the persona it concerns cannot act on. Accepting is not a supplier action: §4.1
+        gives AwardOffered -> Awarded to the manager (award/execute), and "or supplier accept" is
+        tagged [ASSUMPTION] - see DECISIONS-TAKEN.md D-21.
+      */}
+      {proposal.state === 'AwardOffered' ? (
+        <Card title={t('proposal.awardOfferedTitle')}>
+          <p className="mb-3">{t('proposal.awardOfferedBody')}</p>
+          <div className="flex gap-2">
+            <Input aria-label={t('proposal.declineReason')} placeholder={t('proposal.declineReasonPlaceholder')}
+              value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} />
+            <Button variant="ghost" isLoading={declineMutation.isPending} disabled={!declineReason}
+              onClick={() => declineMutation.mutate()}>
+              {t('proposal.decline')}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {canWithdraw ? (
         <Card title={t('proposal.withdrawTitle')}>

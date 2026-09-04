@@ -42,7 +42,9 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
 
         var proposals = await db.Proposals
             .Include(p => p.RequirementAnswers)
-            .Where(p => p.RfqId == rfq.Id && ProposalStates.InEvaluation.Contains(p.State))
+            // T-064: UnderComparison, not InEvaluation - see that field's own note on why the award
+            // snapshot would otherwise lose the winning bid the moment the offer is made.
+            .Where(p => p.RfqId == rfq.Id && ProposalStates.UnderComparison.Contains(p.State))
             .ToListAsync(ct);
 
         var supplierNames = await db.Suppliers

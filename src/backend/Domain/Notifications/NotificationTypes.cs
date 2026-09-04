@@ -45,6 +45,12 @@ public static class NotificationTypes
     // ---- Proposal (BUSINESS-PROCESSES §3.2) ----
     public const string ProposalWithdrawn = "proposal.withdrawn";
 
+    /// <summary>T-064/§4.1: "Shortlisted -&gt; AwardOffered ... Email + in-app to supplier (offer)".</summary>
+    public const string ProposalAwardOffered = "proposal.award_offered";
+
+    /// <summary>T-064/§4.1: "AwardOffered -&gt; Declined ... In-app to procurement".</summary>
+    public const string ProposalDeclined = "proposal.declined";
+
     /// <summary>§4.1: "UnderReview -&gt; ClarificationRequested ... Email + in-app to supplier".</summary>
     public const string ProposalClarificationRequested = "proposal.clarification_requested";
 
@@ -61,6 +67,8 @@ public static class NotificationTypes
         AwardRecommended, AwardRoutedForApproval, AwardApproved, AwardRejected, AwardReRecommended,
         AwardErpSynced, AwardErpFailed,
         ProposalWithdrawn,
+        ProposalAwardOffered,
+        ProposalDeclined,
         ProposalClarificationRequested,
         ProposalRevised,
     };

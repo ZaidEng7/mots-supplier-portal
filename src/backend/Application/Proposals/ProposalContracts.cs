@@ -91,6 +91,9 @@ public sealed record SubmitProposalCommand(string ProposalReferenceCode);
 
 public sealed record WithdrawProposalCommand(string ProposalReferenceCode, string Reason);
 
+// T-064: the supplier's own decline of an award offer.
+public sealed record DeclineAwardOfferCommand(string ProposalReferenceCode, string Reason);
+
 public abstract record ProposalResult
 {
     public sealed record Success(ProposalDto Proposal) : ProposalResult;
@@ -176,4 +179,9 @@ public interface ISubmitProposalHandler
 public interface IWithdrawProposalHandler
 {
     Task<ProposalResult> HandleAsync(WithdrawProposalCommand command, CancellationToken ct);
+}
+
+public interface IDeclineAwardOfferHandler
+{
+    Task<ProposalResult> HandleAsync(DeclineAwardOfferCommand command, CancellationToken ct);
 }

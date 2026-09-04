@@ -189,6 +189,15 @@ export async function submitProposal(proposalReferenceCode: string): Promise<Pro
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/submit`, { method: 'POST' }))
 }
 
+/** T-064/§4.1: AwardOffered -> Declined. A reason is required - a declined award nobody can explain
+ * is the one an audit asks about first. */
+export async function declineAwardOffer(proposalReferenceCode: string, reason: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/decline`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  }))
+}
+
 export async function withdrawProposal(proposalReferenceCode: string, reason: string): Promise<Proposal> {
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/withdraw`, {
     method: 'POST',

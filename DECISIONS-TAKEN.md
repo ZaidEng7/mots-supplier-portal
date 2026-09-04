@@ -161,3 +161,15 @@ agree. The fix is a shared source of report copy across a C# generator and a Typ
 | **Why** | Filtering the list to `Clean` made it permanently empty — nothing scans a proposal document until someone downloads it, so under that filter nobody could ever download one. That is a deadlock, not a stricter posture. `PendingScan` means "not yet examined", not "suspect", and listing a filename is not serving the file; the gate that matters is still at the download, where it can actually refuse. |
 | **What it costs if wrong** | An evaluator can click a filename that then refuses. That happens only for genuinely infected files, and the refusal is the same 404 as any other miss. |
 | **Who should confirm it** | Security. |
+
+### D-21 — The award offer has no acceptance window, and the supplier cannot accept
+
+| | |
+|---|---|
+| **What was undecided** | How long a supplier has to respond to an award offer, and whether accepting is a supplier action. |
+| **Where the gap is** | §4.1 tags the acceptance window as `[ASSUMPTION]` with no duration, and gives `AwardOffered -> Awarded` to `procurement_manager / award.approve` "(or supplier accept, `[ASSUMPTION]`)". |
+| **What was decided** | No window is enforced: the offer stays open until the supplier declines or the buyer executes the award. `AwardOfferedAt` is stored so a long-outstanding offer is visible. Accepting is not built — the manager confirms by executing. |
+| **Why** | An expiring offer produces an *outcome*: a clock runs out and the award frees for an alternate, changing who wins a public contract. That is the tie-break class of decision (D-8), so the system does not make it. Building supplier acceptance would also be an invention on top of an `[ASSUMPTION]` — a second path to `Awarded` that the buyer does not control, in a flow where the buyer holds the approval authority. The offer notification deliberately states no deadline, because naming one the system does not keep is worse than naming none. |
+| **What it costs if wrong** | If procurement wants a window, it is a background job plus a transition — additive, and the timestamp it needs is already stored. Until then an ignored offer blocks the award indefinitely, which is visible to the officer rather than silent. |
+| **Who should confirm it** | Procurement. |
+

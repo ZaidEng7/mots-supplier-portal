@@ -739,6 +739,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(p => p.NarrativeAr).HasMaxLength(4000);
             entity.Property(p => p.NarrativeEn).HasMaxLength(4000);
             entity.Property(p => p.WithdrawReason).HasMaxLength(2000);
+            // T-064: same bound, same kind of value - a supplier's free text explaining a transition.
+            entity.Property(p => p.DeclineReason).HasMaxLength(2000);
             // Same bound as WithdrawReason - both are a person's free text explaining a transition.
             entity.Property(p => p.ClarificationReason).HasMaxLength(2000);
             entity.Property(p => p.RowVersion).IsRowVersion();
