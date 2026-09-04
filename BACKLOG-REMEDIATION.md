@@ -140,6 +140,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 |---|---|---|---|---|---|
 | T-040 | ACCESSIBILITY.md | The back-office shell header does not wrap at 320px — 424px against a 320px viewport. Affects every back-office screen | Measured in PR #102 | Reproduced | M |
 | T-041 | — | `CrossOrganizationScopeTests` gives a full RFQ setup a 3-second window before `closesAt`; fails under CI load | Observed failing then passing on re-run, PR #101 | Reproduced | S |
+| T-050 | — | The CI dependency gate calls npm's `/security/audits/quick`, which npm is **retiring** (`npm notice This endpoint is being retired`). It has now failed twice on `main`/PR with `400 Bad Request` then `503 Service Unavailable` while `npm audit --omit=dev --audit-level=high` reports **0 vulnerabilities** locally. A gate that fails for registry reasons trains people to re-run it, which is how a gate stops being read — the same shape as T-041. Move to the bulk advisory endpoint | `.github/workflows/ci.yml`, Dependency scan (npm) | Reproduced | S |
 
 ### Closed — kept rather than dropped
 
