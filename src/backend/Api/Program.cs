@@ -306,6 +306,8 @@ builder.Services.AddScoped<IPatchProposalHandler, PatchProposalHandler>();
 builder.Services.AddScoped<IManageProposalDocumentHandler, ManageProposalDocumentHandler>();
 builder.Services.AddScoped<ISubmitProposalHandler, SubmitProposalHandler>();
 builder.Services.AddScoped<IWithdrawProposalHandler, WithdrawProposalHandler>();
+builder.Services.AddScoped<IRequestProposalClarificationHandler, RequestProposalClarificationHandler>();
+builder.Services.AddScoped<IReviseProposalHandler, ReviseProposalHandler>();
 builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Security.FieldEncryptionService>();
 
 // EPIC-11: Evaluation (two-envelope technical-qualification gate).

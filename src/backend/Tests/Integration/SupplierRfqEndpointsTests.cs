@@ -147,4 +147,30 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var auditRow = await db.AuditLogs.SingleAsync(a => a.ReferenceCode == referenceCode && a.Action == "rfq_invitation_declined");
         auditRow.Reason.Should().Be("Capacity constraints");
     }
+
+    [Fact]
+    public async Task The_supplier_rfq_list_carries_the_submission_deadline()
+    {
+        // T-054: §12.4 documents submissionDeadline on this list and it was absent - so the one
+        // screen where a supplier decides whether to bid could not show the deadline they would be
+        // bidding against.
+        var (client, supplierId) = await ActiveSupplierAsync($"Deadline {Guid.NewGuid():N}"[..30]);
+        var referenceCode = await CreatePublishedRfqWithInviteAsync(supplierId, "Deadline RFQ");
+
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=50");
+        var row = body.GetProperty("data").EnumerateArray()
+            .Single(r => r.GetProperty("referenceCode").GetString() == referenceCode);
+
+        row.GetProperty("submissionClosesAt").ValueKind.Should().NotBe(JsonValueKind.Null,
+            "a published RFQ has a close date and the list must show it");
+
+        // Asserted against STORAGE, so this is the RFQ's own deadline rather than any date.
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stored = await db.Rfqs.AsNoTracking()
+            .Where(r => r.ReferenceCode == referenceCode).Select(r => r.SubmissionClosesAt).FirstAsync();
+
+        row.GetProperty("submissionClosesAt").GetDateTimeOffset()
+            .Should().BeCloseTo(stored!.Value, TimeSpan.FromSeconds(1));
+    }
 }

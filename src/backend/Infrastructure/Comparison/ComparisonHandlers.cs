@@ -42,7 +42,7 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
 
         var proposals = await db.Proposals
             .Include(p => p.RequirementAnswers)
-            .Where(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted)
+            .Where(p => p.RfqId == rfq.Id && ProposalStates.InEvaluation.Contains(p.State))
             .ToListAsync(ct);
 
         var supplierNames = await db.Suppliers

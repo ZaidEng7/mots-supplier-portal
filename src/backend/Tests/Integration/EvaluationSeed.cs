@@ -15,7 +15,11 @@ namespace MotsSupplierPortal.Tests.Integration;
 public sealed record Seeded(
     HttpClient Officer, Guid OfficerId, HttpClient Manager, Guid ManagerId,
     HttpClient Evaluator, Guid EvaluatorId, string RfqCode, Guid SupplierUserId, Guid OrgId,
-    Guid EvaluationId, int CriterionCount, int SubmittedProposalCount);
+    Guid EvaluationId, int CriterionCount, int SubmittedProposalCount,
+    // T-051 additions: the clarification loop needs the SUPPLIER side of this same RFQ, and the
+    // proposal's own code. Added here rather than re-seeding forty lines in a third suite - the
+    // reason this helper exists at all.
+    HttpClient Supplier, string ProposalCode);
 
 public static class EvaluationSeed
 {
@@ -130,7 +134,8 @@ public static class EvaluationSeed
         }
 
         return new Seeded(officer, officerId, manager, managerId, evaluator, evaluatorId,
-            rfqCode, supplierUserId, org.Id, evaluationId, criterionCount, SubmittedProposalCount: 1);
+            rfqCode, supplierUserId, org.Id, evaluationId, criterionCount, SubmittedProposalCount: 1,
+            supplier, proposalCode);
     }
 
 }

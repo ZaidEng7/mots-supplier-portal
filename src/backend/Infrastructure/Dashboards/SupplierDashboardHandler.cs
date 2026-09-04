@@ -59,7 +59,7 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             OpenInvitations: await invitations.CountAsync(
                 i => i.Status != InvitationStatus.Declined && i.Status != InvitationStatus.Submitted, ct),
             DraftProposals: await proposals.CountAsync(p => p.State == ProposalState.Draft, ct),
-            SubmittedProposals: await proposals.CountAsync(p => p.State == ProposalState.Submitted, ct),
+            SubmittedProposals: await proposals.CountAsync(p => ProposalStates.InEvaluation.Contains(p.State), ct),
             DocumentsNeedingAttention: await documents.CountAsync(
                 d => d.State == DocumentState.Rejected
                      || d.State == DocumentState.ExpiringSoon

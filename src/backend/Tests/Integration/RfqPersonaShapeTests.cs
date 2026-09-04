@@ -54,6 +54,10 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         // documents only the supplier shape and hasDraftProposal/myInvitationStatus are
         // caller-relative.
         "publishedAt", "buyingOrg", "itemsCount", "hasDraftProposal",
+        // T-054: §12.4 documents this on the supplier list. Added to the allow-list deliberately -
+        // this gate exists so a field cannot reach a supplier's response without someone deciding
+        // it should, and it did its job by failing when the field appeared.
+        "submissionClosesAt",
     ];
 
     /// <summary>

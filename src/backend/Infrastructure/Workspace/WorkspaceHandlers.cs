@@ -47,7 +47,7 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
             .FirstOrDefaultAsync(r => r.ReferenceCode == rfqReferenceCode && r.OrganizationId == scope.OrganizationId, ct);
         if (rfq is null) return null;
 
-        var submittedProposalCount = await db.Proposals.CountAsync(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted, ct);
+        var submittedProposalCount = await db.Proposals.CountAsync(p => p.RfqId == rfq.Id && ProposalStates.InEvaluation.Contains(p.State), ct);
         var evaluation = await db.Evaluations.Include(e => e.Assignments)
             .FirstOrDefaultAsync(e => e.RfqId == rfq.Id, ct);
         var award = await db.Awards.FirstOrDefaultAsync(a => a.RfqId == rfq.Id, ct);

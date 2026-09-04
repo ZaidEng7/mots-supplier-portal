@@ -71,7 +71,7 @@ file static class EvaluationLoader
     }
 
     public static Task<List<Guid>> SubmittedProposalIdsAsync(AppDbContext db, Guid rfqId, CancellationToken ct) =>
-        db.Proposals.Where(p => p.RfqId == rfqId && p.State == ProposalState.Submitted).Select(p => p.Id).ToListAsync(ct);
+        db.Proposals.Where(p => p.RfqId == rfqId && ProposalStates.InEvaluation.Contains(p.State)).Select(p => p.Id).ToListAsync(ct);
 }
 
 /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1: "SubmissionClosed -&gt;
@@ -111,6 +111,27 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         catch (DomainException ex)
         {
             return new EvaluationMutationResult.InvalidState(ex.Message);
+        }
+
+        // T-051, FR-PRP-009, §4.1: "Submitted -> UnderReview | Evaluation opened | system (on RFQ
+        // UnderEvaluation) | Make visible to assigned evaluators (scoped)".
+        //
+        // This is the gateway the whole middle of the proposal lifecycle hung on. Nothing assigned
+        // UnderReview, so ClarificationRequested, Revised and Shortlisted were unreachable too - a
+        // proposal went Draft -> Submitted -> outcome and skipped evaluation intake entirely.
+        //
+        // In the SAME SaveChanges as the RFQ's own transition, because a window where the RFQ is
+        // UnderEvaluation and its proposals are still Submitted is a state no document describes.
+        var intake = await db.Proposals
+            .Where(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted)
+            .ToListAsync(ct);
+
+        foreach (var proposal in intake)
+        {
+            proposal.OpenForReview();
+            await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_under_review", scope.UserId,
+                referenceCode: proposal.ReferenceCode,
+                fromState: nameof(ProposalState.Submitted), toState: nameof(ProposalState.UnderReview), ct: ct);
         }
 
         var criteriaJson = JsonSerializer.Deserialize<List<CriterionSnapshotJson>>(rfq.EvaluationTemplateSnapshotJson)!;
@@ -269,6 +290,34 @@ public sealed class ConsolidateEvaluationHandler(AppDbContext db, IScopeContext 
             await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_shortlisting_started", scope.UserId,
                 referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.UnderEvaluation),
                 toState: nameof(RfqState.Shortlisting), ct: ct);
+        }
+
+        // T-051, §4.1: "UnderReview -> Shortlisted | Passes thresholds |
+        // procurement_officer,procurement_manager / evaluation.consolidate | Consolidated score >=
+        // thresholds (§5)". Same trigger and same permission as the RFQ-level transition above, so
+        // shortlisting a proposal is part of consolidating rather than a second action.
+        //
+        // TechnicallyQualified IS the threshold comparison §4.1 points at - it is what consolidation
+        // computes from the criteria's own thresholds, so this reads the result rather than
+        // re-deriving a rule.
+        //
+        // Proposals that do NOT pass are left in UnderReview, not moved to NotSelected. §4.1 puts
+        // NotSelected under award.recommend ("Award decided for another / fails threshold"), which is
+        // a later decision by a person; marking them here would pre-empt it.
+        var qualified = evaluation.Results.Where(r => r.TechnicallyQualified).Select(r => r.ProposalId).ToHashSet();
+        if (qualified.Count > 0)
+        {
+            var toShortlist = await db.Proposals
+                .Where(p => p.RfqId == rfq.Id && p.State == ProposalState.UnderReview)
+                .ToListAsync(ct);
+
+            foreach (var proposal in toShortlist.Where(p => qualified.Contains(p.Id)))
+            {
+                proposal.Shortlist();
+                await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_shortlisted", scope.UserId,
+                    referenceCode: proposal.ReferenceCode,
+                    fromState: nameof(ProposalState.UnderReview), toState: nameof(ProposalState.Shortlisted), ct: ct);
+            }
         }
 
         // §3.3 "EvaluatorSubmitted -> Consolidated | In-app to committee".
