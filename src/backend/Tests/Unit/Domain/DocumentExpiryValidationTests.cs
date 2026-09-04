@@ -19,6 +19,7 @@ public sealed class DocumentExpiryValidationTests
 
     private static SupplierDocument Create(DateOnly? expiry, bool expiryTracked) =>
         SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
             Guid.CreateVersion7(), Guid.CreateVersion7(), 1, "quarantine/key",
             "cert.pdf", "application/pdf", 1024, Guid.CreateVersion7(),
             issueDate: null, expiryDate: expiry, expiryTracked: expiryTracked, today: Today);

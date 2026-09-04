@@ -22,9 +22,9 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// </summary>
 public sealed class GetDocumentDownloadUrlHandler(AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger) : IGetDocumentDownloadUrlHandler
 {
-    public async Task<DocumentDownloadUrlResult> HandleAsync(Guid documentId, CancellationToken ct)
+    public async Task<DocumentDownloadUrlResult> HandleAsync(string documentCode, CancellationToken ct)
     {
-        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.ReferenceCode == documentCode, ct);
         if (document is null)
         {
             return new DocumentDownloadUrlResult.NotFoundOrForbidden();
@@ -44,7 +44,7 @@ public sealed class GetDocumentDownloadUrlHandler(AppDbContext db, IScopeContext
 
         var url = await fileStorage.GetSignedDownloadUrlAsync(document.StorageKey, TimeSpan.FromMinutes(5), document.OriginalFileName, ct);
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_access_granted", scope.UserId, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_access_granted", scope.UserId, referenceCode: document.ReferenceCode, ct: ct);
         // MSP-64: AuditLogger no longer saves, and this handler is otherwise read-only, so
         // without this the access-granted row would never be written. A download that leaves no
         // audit trace is exactly the record a review would later go looking for.

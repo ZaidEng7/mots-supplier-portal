@@ -488,6 +488,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<SupplierDocument>(entity =>
         {
             entity.ToTable("supplier_document", "supplier");
+            // T-010: the public identifier. Unique in the DATABASE, not merely in the generator - the
+            // generator is atomic (MSP-81) but a unique index is what makes a collision impossible rather
+            // than unlikely, and it is what every other reference code in this schema already has.
+            entity.Property(d => d.ReferenceCode).HasMaxLength(30).IsRequired();
+            entity.HasIndex(d => d.ReferenceCode).IsUnique();
             entity.HasKey(d => d.Id);
             entity.Property(d => d.State).HasConversion<string>().HasMaxLength(20);
             entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();

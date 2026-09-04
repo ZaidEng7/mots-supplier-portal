@@ -87,7 +87,7 @@ public sealed class DocumentExpiryJob(
         foreach (var doc in expiringSoon)
         {
             doc.MarkExpiringSoon();
-            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expiring_soon", ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expiring_soon", referenceCode: doc.ReferenceCode, ct: ct);
         }
 
         var expired = await db.SupplierDocuments
@@ -97,7 +97,7 @@ public sealed class DocumentExpiryJob(
         foreach (var doc in expired)
         {
             doc.MarkExpired();
-            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expired", ct: ct);
+            await auditLogger.LogAsync("SupplierDocument", doc.Id, "document_expired", referenceCode: doc.ReferenceCode, ct: ct);
         }
 
         await AutoSuspendForAwardCriticalExpiryAsync(expired, ct);

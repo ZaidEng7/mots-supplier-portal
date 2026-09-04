@@ -9,6 +9,22 @@ namespace MotsSupplierPortal.Domain.Suppliers;
 public sealed class SupplierDocument
 {
     public Guid Id { get; private init; }
+
+    /// <summary>
+    /// T-010: the opaque public identifier, <c>DOC-2026-000001</c>.
+    ///
+    /// <para>API-ARCHITECTURE.md §3 principle 3: <i>"internal GUIDv7 / integer PKs are never exposed
+    /// in URLs, payloads, or errors. Public references are human-readable short codes"</i> - note
+    /// PAYLOADS, not only URLs. A comment in DocumentContracts previously justified emitting the Guid
+    /// in the body on the grounds that §3.1 only governs paths; that reading was wrong, and this
+    /// closes both halves.</para>
+    ///
+    /// <para>§3.1's grammar is <c>^[A-Z]{2,4}-\d{4}-\d{6}$</c> and §12.3's own example is
+    /// <c>DOC-2026-013377</c>, so neither the prefix nor the shape is invented - both are
+    /// transcribed. Allocated by the same atomic counter every other code uses (MSP-81), keyed by
+    /// prefix, so a new prefix needs no schema change.</para>
+    /// </summary>
+    public string ReferenceCode { get; private set; } = null!;
     public Guid SupplierId { get; private init; }
     public Guid DocumentTypeId { get; private init; }
     public int Version { get; private init; }
@@ -42,6 +58,7 @@ public sealed class SupplierDocument
     /// one would be correctness by coincidence.
     /// </summary>
     public static SupplierDocument CreatePendingScan(
+        string referenceCode,
         Guid supplierId, Guid documentTypeId, int version, string quarantineKey,
         string originalFileName, string contentType, long sizeBytes, Guid uploadedByUserId,
         DateOnly? issueDate, DateOnly? expiryDate, bool expiryTracked, DateOnly today)
@@ -77,6 +94,7 @@ public sealed class SupplierDocument
         return new SupplierDocument
         {
             Id = Guid.CreateVersion7(),
+            ReferenceCode = referenceCode,
             SupplierId = supplierId,
             DocumentTypeId = documentTypeId,
             Version = version,

@@ -144,12 +144,12 @@ public static class DocumentEndpoints
             MultipartBodyLengthLimit = FileTypeSniffer.MaxSizeBytes + 1024 * 1024,
         });
 
-        app.MapGet("/api/v1/documents/{id:guid}/download-url", async (
-            Guid id,
+        app.MapGet("/api/v1/documents/{documentCode}/download-url", async (
+            string documentCode,
             IGetDocumentDownloadUrlHandler handler,
             CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(id, ct);
+            var result = await handler.HandleAsync(documentCode, ct);
             return result switch
             {
                 DocumentDownloadUrlResult.Success s => Results.Ok(new { url = s.Url }),
@@ -166,16 +166,16 @@ public static class DocumentEndpoints
         // but "does the path name the document's real owner" - otherwise a reviewer could act on
         // supplier B's document through supplier A's URL and the audit row would name the wrong
         // supplier.
-        app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{id:guid}/approve", async (
+        app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{documentCode}/approve", async (
             string supplierCode,
-            Guid id,
+            string documentCode,
             ISupplierCodeScope codeScope,
             IApproveDocumentHandler handler,
             CancellationToken ct) =>
         {
-            if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, id, ct)) return Results.NotFound();
+            if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, documentCode, ct)) return Results.NotFound();
 
-            var result = await handler.HandleAsync(id, ct);
+            var result = await handler.HandleAsync(documentCode, ct);
             return result switch
             {
                 ReviewDocumentResult.Success s => Results.Ok(s.Document),
@@ -193,17 +193,17 @@ public static class DocumentEndpoints
         // but "does the path name the document's real owner" - otherwise a reviewer could act on
         // supplier B's document through supplier A's URL and the audit row would name the wrong
         // supplier.
-        app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{id:guid}/reject", async (
+        app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{documentCode}/reject", async (
             string supplierCode,
-            Guid id,
+            string documentCode,
             ISupplierCodeScope codeScope,
             RejectDocumentRequest request,
             IRejectDocumentHandler handler,
             CancellationToken ct) =>
         {
-            if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, id, ct)) return Results.NotFound();
+            if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, documentCode, ct)) return Results.NotFound();
 
-            var result = await handler.HandleAsync(id, request.Reason, ct);
+            var result = await handler.HandleAsync(documentCode, request.Reason, ct);
             return result switch
             {
                 ReviewDocumentResult.Success s => Results.Ok(s.Document),

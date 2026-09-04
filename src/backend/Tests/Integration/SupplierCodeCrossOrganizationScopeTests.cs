@@ -204,13 +204,13 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
     {
         var (a, aCode, aId) = await SupplierAsync("RevDocA");
         var (_, bCode, _) = await SupplierAsync("RevDocB");
-        var documentId = await SeedDocumentAsync(aId);
+        var documentCode = await SeedDocumentAsync(aId);
 
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
 
         var body = new { reason = "wrong owner" };
-        var wrongOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{bCode}/documents/{documentId}/{transition}", body);
-        var unknownOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{NeverExistedSupplierCode}/documents/{documentId}/{transition}", body);
+        var wrongOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{bCode}/documents/{documentCode}/{transition}", body);
+        var unknownOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{NeverExistedSupplierCode}/documents/{documentCode}/{transition}", body);
 
         wrongOwner.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "the document exists, but not under B - and answering anything else confirms it exists");
@@ -218,25 +218,26 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
 
         // Control: the same reviewer, the same document, under its REAL owner's code, is not
         // refused by the scope check.
-        var rightOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{aCode}/documents/{documentId}/{transition}", body);
+        var rightOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{aCode}/documents/{documentCode}/{transition}", body);
         rightOwner.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
             "control: under the correct supplier code the request must reach the handler");
         _ = a;
     }
 
-    private async Task<Guid> SeedDocumentAsync(Guid supplierId)
+    private async Task<string> SeedDocumentAsync(Guid supplierId)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var type = await db.DocumentTypes.Where(t => t.IsActive && !t.ExpiryTracked).FirstAsync();
 
         var document = SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
             supplierId, type.Id, version: 1, quarantineKey: $"seed/{Guid.NewGuid():N}",
             originalFileName: "seed.pdf", contentType: "application/pdf", sizeBytes: 1024,
             uploadedByUserId: Guid.CreateVersion7(), issueDate: null, expiryDate: null,
             expiryTracked: false, today: DateOnly.FromDateTime(DateTime.UtcNow));
         db.SupplierDocuments.Add(document);
         await db.SaveChangesAsync();
-        return document.Id;
+        return document.ReferenceCode;
     }
 }

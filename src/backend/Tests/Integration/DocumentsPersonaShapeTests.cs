@@ -62,6 +62,7 @@ public sealed class DocumentsPersonaShapeTests(PostgresApiFixture fixture)
             var type = await db.DocumentTypes.Where(t => t.IsActive && !t.ExpiryTracked).FirstAsync();
 
             db.SupplierDocuments.Add(SupplierDocument.CreatePendingScan(
+                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
                 supplier.Id, type.Id, version: 1, quarantineKey: $"shape/{Guid.NewGuid():N}",
                 originalFileName: "shape.pdf", contentType: "application/pdf", sizeBytes: 512,
                 uploadedByUserId: Guid.CreateVersion7(), issueDate: null, expiryDate: null,

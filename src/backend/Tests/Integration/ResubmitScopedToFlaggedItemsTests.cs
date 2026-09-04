@@ -55,6 +55,7 @@ public sealed class ResubmitScopedToFlaggedItemsTests(PostgresApiFixture fixture
         foreach (var (typeId, index) in requiredTypeIds.Select((id, i) => (id, i)))
         {
             var document = SupplierDocument.CreatePendingScan(
+                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}",
                 supplier.Id, typeId, 1, "quarantine/key",
                 $"seed-{Guid.NewGuid():N}.pdf", "application/pdf", 1024, Guid.CreateVersion7(),
                 issueDate: null, expiryDate: null, expiryTracked: false, today: today);

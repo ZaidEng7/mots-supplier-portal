@@ -13,14 +13,14 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// review flow.</summary>
 public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IApproveDocumentHandler
 {
-    public async Task<ReviewDocumentResult> HandleAsync(Guid documentId, CancellationToken ct)
+    public async Task<ReviewDocumentResult> HandleAsync(string documentCode, CancellationToken ct)
     {
         if (scope.UserId is null)
         {
             return new ReviewDocumentResult.NotFoundOrForbidden();
         }
 
-        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.ReferenceCode == documentCode, ct);
         if (document is null)
         {
             return new ReviewDocumentResult.NotFoundOrForbidden();
@@ -35,7 +35,7 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
             return new ReviewDocumentResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_approved", scope.UserId, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_approved", scope.UserId, referenceCode: document.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
 
         return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
@@ -44,14 +44,14 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
 
 public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IRejectDocumentHandler
 {
-    public async Task<ReviewDocumentResult> HandleAsync(Guid documentId, string reason, CancellationToken ct)
+    public async Task<ReviewDocumentResult> HandleAsync(string documentCode, string reason, CancellationToken ct)
     {
         if (scope.UserId is null)
         {
             return new ReviewDocumentResult.NotFoundOrForbidden();
         }
 
-        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.ReferenceCode == documentCode, ct);
         if (document is null)
         {
             return new ReviewDocumentResult.NotFoundOrForbidden();
@@ -66,7 +66,7 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
             return new ReviewDocumentResult.InvalidState(ex.Message);
         }
 
-        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", scope.UserId, reason: reason, ct: ct);
+        await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", scope.UserId, referenceCode: document.ReferenceCode, reason: reason, ct: ct);
         await db.SaveChangesAsync(ct);
 
         var userId = await db.Users.Where(u => u.SupplierId == document.SupplierId)

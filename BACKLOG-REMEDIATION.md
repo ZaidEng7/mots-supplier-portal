@@ -90,9 +90,9 @@ of its own and T-013 changes a route the SPA calls.
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-010 | §12.3 | Document ids are raw GUIDs; the document specifies `DOC-2026-013377` reference codes | `SupplierDocument.cs:11`; every route uses `{id:guid}` | Reproduced | L |
+| ~~T-010~~ | §12.3, §3 | **Closed.** Documents carry `DOC-YYYY-NNNNNN` and are addressed by it; the internal GUID is gone from URLs *and* payloads. The entry cited §12.3's shape, but the governing rule is **§3 principle 3** — GUIDs never in "URLs, payloads, or errors" — which a comment in `DocumentContracts` had read as paths-only, so the Guid was being emitted in bodies deliberately. Backfilled in-migration with the counter seeded past it; SPA needed **no change** | batch 5 | Reproduced | L |
 | T-011 | §12.3 | Upload returns `201 Created`; the document specifies `202 Accepted` (correct for an async scan pipeline) | `DocumentEndpoints.cs:119` | Reproduced | S |
-| T-012 | §12.3 | `Location` is `/api/v1/documents/{guid}`; documented as `/suppliers/{code}/documents/{docId}` | `DocumentEndpoints.cs:119` | Reproduced | S |
+| T-012 | §12.3 | `Location` now emits `/api/v1/documents/DOC-…` — the GUID half is closed by T-010. The remaining divergence is only the PATH SHAPE: documented as `/suppliers/{code}/documents/{docId}` | `DocumentEndpoints.cs:119` | Reproduced | S |
 | T-013 | §12.3 | Download is `GET /documents/{id}/download-url` returning JSON; documented as `/documents/{id}/content` returning `302` | `DocumentEndpoints.cs:147` | Reproduced | M |
 | T-014 | §12.3 | Oversize upload has no `413`; documented explicitly | No `Status413` anywhere in `src/backend` | Reproduced | S |
 | T-015 | §12.3 | Upload response has no `scanStatus` field; scan state is folded into `state` | `DocumentContracts.cs` | Reproduced | S |
