@@ -55,14 +55,14 @@ export function SupplierRfqListPage() {
             </TableHead>
             <TableBody>
               {rfqs.map((rfq) => (
-                <TableRow key={rfq.referenceCode}>
+                <TableRow key={rfq.rfqCode}>
                   <TableCell>
-                    <Link to="/rfqs/$referenceCode" params={{ referenceCode: rfq.referenceCode }} style={{ color: 'var(--color-text-brand)' }}>
-                      {rfq.referenceCode}
+                    <Link to="/rfqs/$referenceCode" params={{ referenceCode: rfq.rfqCode }} style={{ color: 'var(--color-text-brand)' }}>
+                      {rfq.rfqCode}
                     </Link>
                   </TableCell>
                   <TableCell>{isArabic ? rfq.titleAr : rfq.titleEn}</TableCell>
-                  <TableCell><StatusChip machine="invitation" value={rfq.myInvitationStatus} /></TableCell>
+                  <TableCell><StatusChip machine="invitation" value={rfq.invitationStatus} /></TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -380,6 +380,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Category", "FieldCode")
@@ -393,63 +399,72 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Id = new Guid("00000000-0000-0000-0000-000000000401"),
                             Category = "ComplianceRetrigger",
                             FieldCode = "legalInfo",
-                            IsEnabled = true
+                            IsEnabled = true,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000402"),
                             Category = "ComplianceRetrigger",
                             FieldCode = "bankAccount",
-                            IsEnabled = true
+                            IsEnabled = true,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000403"),
                             Category = "ComplianceRetrigger",
                             FieldCode = "categoryLink",
-                            IsEnabled = true
+                            IsEnabled = true,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000411"),
                             Category = "LegalInfoRequired",
                             FieldCode = "legalNameAr",
-                            IsEnabled = true
+                            IsEnabled = true,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000412"),
                             Category = "LegalInfoRequired",
                             FieldCode = "legalNameEn",
-                            IsEnabled = true
+                            IsEnabled = true,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000413"),
                             Category = "LegalInfoRequired",
                             FieldCode = "registrationNumber",
-                            IsEnabled = false
+                            IsEnabled = false,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000414"),
                             Category = "LegalInfoRequired",
                             FieldCode = "taxId",
-                            IsEnabled = false
+                            IsEnabled = false,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000415"),
                             Category = "LegalInfoRequired",
                             FieldCode = "supplierType",
-                            IsEnabled = false
+                            IsEnabled = false,
+                            RowVersion = 0u
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000416"),
                             Category = "LegalInfoRequired",
                             FieldCode = "establishedOn",
-                            IsEnabled = false
+                            IsEnabled = false,
+                            RowVersion = 0u
                         });
                 });
 
@@ -526,6 +541,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("RequiresJustification")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ScoringType")
                         .IsRequired()
@@ -641,6 +659,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("RequiresJustification")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ScoringType")
                         .IsRequired()
@@ -1225,6 +1246,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("Envelope")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1232,6 +1258,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ProposalId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ScanState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("StorageKey")
                         .IsRequired()
@@ -1991,6 +2022,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("RfqId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ScanState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("StorageKey")
                         .IsRequired()

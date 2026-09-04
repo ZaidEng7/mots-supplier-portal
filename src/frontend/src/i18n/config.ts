@@ -68,6 +68,12 @@ const resources = {
       // screen at all, so every string here is an invention and none of it is a §7 label set. The
       // Arabic is written to match the register of the screens around it and needs a native review
       // before it ships - flagged rather than presented as settled.
+      //
+      // D-18: three strings here diverged from their counterparts in ReportViews.cs, which produces
+      // the PDF/CSV. The rule chosen is IDENTICAL, not "screen terse / export self-describing" -
+      // both surfaces render the same table with the same column headers, so there is no context the
+      // export lacks, and all three divergences turned out to be errors rather than adaptations.
+      // See DECISIONS-TAKEN.md.
       reports: {
         title: 'التقارير',
         from: 'من',
@@ -77,7 +83,7 @@ const resources = {
         interval: 'الفترة',
         sampleSize: 'عدد الطلبات المقيسة',
         medianHours: 'الوسيط بالساعات',
-        notMeasured: 'غير مقيس',
+        notMeasured: '(غير مقيس)',              // D-18: parenthesised, matching the export
         noRows: 'لا توجد بيانات',
         exportPdf: 'تصدير PDF',
         exportCsv: 'تصدير CSV',
@@ -102,7 +108,7 @@ const resources = {
         },
         compliance: {
           title: 'تقرير الامتثال',
-          suppliersByState: 'الموردون حسب الحالة',
+          suppliersByState: 'الموردون حسب حالة دورة الحياة', // D-18: matches the export; this groups by LifecycleState
           documentsByState: 'المستندات حسب الحالة (أحدث الإصدارات)',
           registryScope: 'تشمل هذه الأعداد جميع الموردين المسجَّلين، وليست مقصورة على جهتك.',
         },
@@ -1094,7 +1100,7 @@ const resources = {
         interval: 'Interval',
         sampleSize: 'RFQs measured',
         medianHours: 'Median hours',
-        notMeasured: 'Not measured',
+        notMeasured: '(not measured)',
         noRows: 'No data',
         exportPdf: 'Export PDF',
         exportCsv: 'Export CSV',
@@ -1119,7 +1125,7 @@ const resources = {
         },
         compliance: {
           title: 'Compliance report',
-          suppliersByState: 'Suppliers by state',
+          suppliersByState: 'Suppliers by lifecycle state',
           documentsByState: 'Documents by state (latest versions)',
           registryScope: 'These counts cover every registered supplier, not only your organization.',
         },

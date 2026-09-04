@@ -166,7 +166,7 @@ public sealed class AuditCorrelationTests(PostgresApiFixture fixture)
         upload.EnsureSuccessStatusCode();
         // T-010: the upload response's "id" is now the public code, not the Guid - §3 keeps
         // internal ids out of payloads as well as URLs.
-        var documentCode = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var documentCode = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("documentId").GetString()!;
 
         // A freshly uploaded document sits in PendingScan, which the handler refuses with 404.
         // Advance it, so the test exercises the audit path rather than the rejection path.

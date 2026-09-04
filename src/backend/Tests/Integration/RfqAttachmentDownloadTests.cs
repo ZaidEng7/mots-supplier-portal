@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -285,5 +286,109 @@ public sealed class RfqAttachmentDownloadTests(PostgresApiFixture fixture)
         body.GetProperty("fileName").GetString().Should().Be("specification.pdf",
             "an ordinary upload still stores and returns its own name");
         body.GetProperty("url").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// T-025 / D-10: quarantine-first for RFQ attachments. Both directions, because a gate that
+    /// refuses everything passes the negative and a gate that refuses nothing passes the positive.
+    /// </summary>
+    [Fact]
+    public async Task An_infected_attachment_is_refused_and_a_clean_one_is_not()
+    {
+        var (supplier, supplierId) = await ActiveSupplierAsync($"Scan {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, cleanAttachmentId, officer, _) =
+            await PublishedRfqWithAttachmentAsync(supplierId, "Scan RFQ");
+
+        // The control FIRST: the ordinary attachment seeded above downloads, so the refusal below is
+        // about the scanner rather than about the gate refusing everyone.
+        (await supplier.GetAsync(Url(referenceCode, cleanAttachmentId))).StatusCode
+            .Should().Be(HttpStatusCode.OK, "a clean attachment is served once scanned");
+
+        // And it is Clean in STORAGE - the scan actually ran rather than the gate being skipped.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Set<RfqAttachment>().AsNoTracking().FirstAsync(a => a.Id == cleanAttachmentId))
+                .ScanState.Should().Be(AttachmentScanState.Clean);
+        }
+
+        // Standard EICAR string inside a real PDF content stream - the same construction
+        // StreamingUploadTests uses, and for the reason recorded there: ClamAV's PDF parser scans
+        // stream objects, not bytes trailing a %PDF header.
+        const string eicar = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+        var infected = "%PDF-1.4\n" +
+            "1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n" +
+            "2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n" +
+            "3 0 obj\n<</Type/Page/Parent 2 0 R/Contents 4 0 R>>\nendobj\n" +
+            $"4 0 obj\n<</Length {eicar.Length}>>\nstream\n{eicar}\nendstream\nendobj\n" +
+            "trailer\n<</Root 1 0 R>>\n%%EOF";
+
+        // A second RFQ, in Draft, because attachments can only be added while an RFQ is editable.
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var draftOfficer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+        var create = await draftOfficer.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب", titleEn = "Scan Draft RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
+            currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
+            submissionOpensAt = DateTimeOffset.UtcNow.AddDays(1),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddDays(2),
+            clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+        var draftCode = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
+
+        using var content = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.UTF8.GetBytes(infected));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(file, "file", "infected.pdf");
+        (await draftOfficer.PostAsync($"/api/v1/rfqs/{draftCode}/attachments", content))
+            .StatusCode.Should().Be(HttpStatusCode.OK, "upload does not scan - the download does");
+
+        Guid infectedId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rfqId = await db.Rfqs.Where(r => r.ReferenceCode == draftCode).Select(r => r.Id).FirstAsync();
+            infectedId = await db.Set<RfqAttachment>().Where(a => a.RfqId == rfqId).Select(a => a.Id).FirstAsync();
+        }
+
+        var refused = await draftOfficer.GetAsync(Url(draftCode, infectedId));
+
+        refused.StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "the same answer as any other miss - a distinct 'infected' reply would tell an uploader their malware arrived");
+
+        // Asserted in storage: the row records the rejection rather than staying PendingScan and
+        // being re-scanned on every request.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Set<RfqAttachment>().AsNoTracking().FirstAsync(a => a.Id == infectedId))
+                .ScanState.Should().Be(AttachmentScanState.ScanRejected);
+        }
+    }
+
+    [Fact]
+    public async Task An_attachment_uploaded_before_the_scan_existed_is_not_assumed_clean()
+    {
+        // D-10's existing-rows path. A row that predates the gate carries PendingScan, and the
+        // download is what scans it - not a backfill that would have to walk every object in storage
+        // before anything worked.
+        var (supplier, supplierId) = await ActiveSupplierAsync($"Legacy {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, attachmentId, _, _) = await PublishedRfqWithAttachmentAsync(supplierId, "Legacy RFQ");
+
+        // Force it back to the state an existing row would be in.
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Set<RfqAttachment>().Where(a => a.Id == attachmentId)
+                .ExecuteUpdateAsync(p => p.SetProperty(a => a.ScanState, AttachmentScanState.PendingScan));
+        }
+
+        (await supplier.GetAsync(Url(referenceCode, attachmentId))).StatusCode
+            .Should().Be(HttpStatusCode.OK, "it is scanned on access, then served");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db2 = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db2.Set<RfqAttachment>().AsNoTracking().FirstAsync(a => a.Id == attachmentId))
+            .ScanState.Should().Be(AttachmentScanState.Clean, "the scan ran and its result was recorded");
     }
 }

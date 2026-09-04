@@ -49,7 +49,7 @@ export function SupplierRfqDetailPage() {
   }
 
   const rfq = rfqQuery.data
-  const canDecline = rfq.myInvitationStatus !== 'Declined' && rfq.myInvitationStatus !== 'Submitted'
+  const canDecline = rfq.invitationStatus !== 'Declined' && rfq.invitationStatus !== 'Submitted'
   const canAsk = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
 
   return (
@@ -57,11 +57,11 @@ export function SupplierRfqDetailPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {rfq.referenceCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
+            {rfq.rfqCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
           </h1>
-          <StatusChip machine="invitation" value={rfq.myInvitationStatus} />
+          <StatusChip machine="invitation" value={rfq.invitationStatus} />
         </div>
-        {rfq.myInvitationStatus !== 'Declined' ? (
+        {rfq.invitationStatus !== 'Declined' ? (
           <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode }}
             className="rounded-md px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)]"
             style={{ backgroundColor: 'var(--color-brand-solid)', color: 'var(--color-text-inverse)' }}>

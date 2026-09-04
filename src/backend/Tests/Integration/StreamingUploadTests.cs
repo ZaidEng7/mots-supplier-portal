@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Suppliers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -105,7 +107,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         using var content = BuildUploadContent(bytes);
         var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -152,10 +154,10 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
 
         using var content = BuildUploadContent(bytes, "eicar.pdf");
         var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
-        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
         var created = await response.Content.ReadFromJsonAsync<JsonElement>();
-        // T-010: the upload response's "id" is the public code now, not the Guid.
-        var documentCode = created.GetProperty("id").GetString()!;
+        // T-010 gave this a public code; R-9 gave it §12.3's spelling.
+        var documentCode = created.GetProperty("documentId").GetString()!;
 
         // The scan runs out-of-band via Hangfire (DocumentScanJob) - poll for it to finish rather
         // than assuming it already has, same as any other async-background-work assertion.
@@ -171,6 +173,104 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         }
 
         state.Should().Be("ScanRejected", "clamd must have flagged the EICAR signature and the job must have recorded it");
+    }
+
+    /// <summary>
+    /// T-052: the counterpart to the EICAR test above, and its control. A clean upload must land in
+    /// UnderReview, not Uploaded - the state API-ARCHITECTURE.md §4.4 says this job produces and
+    /// §12.3's reviewer query filters on. Without this the EICAR test alone would still pass on a
+    /// pipeline that never transitions anything anywhere but ScanRejected.
+    /// </summary>
+    [Fact]
+    public async Task A_clean_upload_reaches_the_review_queue_the_documented_reviewer_query_reads()
+    {
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Clean Scan Co");
+        var supplierCode = await client.OwnSupplierCodeAsync();
+
+        using var content = BuildUploadContent(BuildPdfOfSize(4096), "clean.pdf");
+        var response = await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", content);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
+        var documentCode = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("documentId").GetString()!;
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        string? state = null;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var scope = fixture.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            state = await db.SupplierDocuments.Where(d => d.ReferenceCode == documentCode)
+                .Select(d => d.State.ToString()).FirstAsync();
+            if (state != "PendingScan") break;
+            await Task.Delay(500);
+        }
+
+        state.Should().Be("UnderReview",
+            "the scan job is what §4.4 says moves a document into review, and it stopped at Uploaded");
+
+        // And the documented query actually returns it. Asserting the column alone would not have
+        // caught a filter that cannot parse the value it is being asked to match.
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+        var queued = await reviewer.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/suppliers/{supplierCode}/documents?state=UnderReview,Rejected");
+        queued.GetProperty("data").EnumerateArray()
+            .Select(d => d.GetProperty("documentId").GetString())
+            .Should().Contain(documentCode, "§12.3's reviewer queue is the reason UnderReview exists");
+    }
+
+    /// <summary>§12.3's separable four, asserted where they are observable: the status code, the two
+    /// upload rejections, the derived scanStatus, and the documented /content redirect.</summary>
+    [Fact]
+    public async Task The_documented_upload_and_download_contract_holds_end_to_end()
+    {
+        var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Contract Doc Co");
+        var supplierCode = await client.OwnSupplierCodeAsync();
+
+        using var content = BuildUploadContent(BuildPdfOfSize(4096), "contract.pdf");
+        var upload = await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", content);
+
+        // T-011: the scan has not run yet, so the creation is not complete.
+        upload.StatusCode.Should().Be(HttpStatusCode.Accepted, await upload.Content.ReadAsStringAsync());
+        var created = await upload.Content.ReadFromJsonAsync<JsonElement>();
+        var documentCode = created.GetProperty("documentId").GetString()!;
+
+        // T-015: derived, and derived from the state the row is actually in - which at this instant
+        // is PendingScan, so the control for the Clean case is the assertion further down.
+        created.GetProperty("scanStatus").GetString().Should().BeOneOf("Pending", "Clean");
+
+        // T-014: oversize is 413 and the wrong MIME is 415, not one 400 for both.
+        using var oversized = BuildUploadContent(BuildPdfOfSize(21 * 1024 * 1024), "big.pdf");
+        (await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", oversized))
+            .StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+
+        using var wrongType = BuildUploadContent(System.Text.Encoding.UTF8.GetBytes("not a pdf"), "notes.txt");
+        (await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", wrongType))
+            .StatusCode.Should().Be(HttpStatusCode.UnsupportedMediaType);
+
+        // Wait out the scan so /content has something servable, and so scanStatus has moved.
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var scope = fixture.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var state = await db.SupplierDocuments.Where(d => d.ReferenceCode == documentCode)
+                .Select(d => d.State).FirstAsync();
+            if (state != DocumentState.PendingScan) break;
+            await Task.Delay(500);
+        }
+
+        // T-013: /content answers 302 to the signed URL. Followed manually, because a redirect to a
+        // foreign origin is the whole point of the route and an auto-following client hides it.
+        using var noRedirect = fixture.CreateClientWithoutRedirects();
+        noRedirect.DefaultRequestHeaders.Authorization = client.DefaultRequestHeaders.Authorization;
+        var redirect = await noRedirect.GetAsync($"/api/v1/documents/{documentCode}/content");
+
+        redirect.StatusCode.Should().Be(HttpStatusCode.Found, "§12.3 specifies a 302");
+        redirect.Headers.Location.Should().NotBeNull("the redirect must name the pre-signed URL");
+
+        // The control on the guard: a different supplier, same code, no redirect and no URL.
+        var stranger = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Stranger Doc Co");
+        (await stranger.GetAsync($"/api/v1/documents/{documentCode}/content"))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -223,7 +323,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             request.Headers.Add("X-Test-Probe-Id", probeId);
 
             var response = await client.SendAsync(request);
-            response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+            response.StatusCode.Should().Be(HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
 
             UploadAllocationProbe.Results.TryGetValue(probeId, out var allocated);
             return allocated;

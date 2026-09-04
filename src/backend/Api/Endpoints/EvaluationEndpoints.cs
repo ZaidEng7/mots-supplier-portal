@@ -3,6 +3,7 @@ using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Evaluations;
+using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
@@ -70,6 +71,37 @@ public static class EvaluationEndpoints
         .RequirePermission(Permissions.EvaluationOpen)
         .WithETag()
         .WithName("GetEvaluation");
+
+        // T-028, buyer half. Under the evaluation group because the EVALUATION's state is what
+        // gates it (D-7) - putting it under /rfqs/{code}/proposals would have implied a proposal
+        // read that does not exist and a gate keyed on the wrong aggregate.
+        //
+        // Keyed by proposal GUID because that is the identifier a buyer actually holds:
+        // ConsolidatedResultDto.ProposalId and MyEvaluationDto.ProposalIds both already emit it.
+        // That pre-existing GUID exposure diverges from §3 ("internal identifiers are never exposed
+        // in URLs, payloads, or errors") and is recorded rather than widened here - inventing a
+        // second addressing scheme for one route would have made the divergence harder to fix, not
+        // easier.
+        group.MapGet("/proposals/{proposalId:guid}/documents", async (
+            string referenceCode, Guid proposalId,
+            IGetProposalDocumentsForBuyerHandler handler, CancellationToken ct) =>
+        {
+            var documents = await handler.HandleAsync(referenceCode, proposalId, ct);
+            return documents is null ? Results.NotFound() : Results.Ok(documents);
+        })
+        .RequirePermission(Permissions.ComparisonView)
+        .WithName("GetProposalDocumentsForBuyer");
+
+        group.MapGet("/proposals/{proposalId:guid}/documents/{documentId:guid}/download-url", async (
+            string referenceCode, Guid proposalId, Guid documentId,
+            IGetProposalDocumentDownloadUrlForBuyerHandler handler, CancellationToken ct) =>
+            await handler.HandleAsync(referenceCode, proposalId, documentId, ct) switch
+            {
+                ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                _ => Results.NotFound(),
+            })
+        .RequirePermission(Permissions.ComparisonView)
+        .WithName("GetProposalDocumentDownloadUrlForBuyer");
 
         group.MapPost("/open", async (string referenceCode, IOpenEvaluationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new OpenEvaluationCommand(referenceCode), ct)))

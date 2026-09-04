@@ -225,14 +225,19 @@
   // and names their notifications; neither could fire before, because nothing assigned
   // ClarificationRequested. Copy is DRAFTED in the §7 register, not transcribed - §7 has no
   // proposal clarification strings - and goes to the same Arabic review pile as the rest.
+  //
+  // GLOSSARY: «استيضاح», never «إيضاح». These are not synonyms - Form X (استيضاح) is the ASKING,
+  // Form IV (إيضاح) is the explanation given in reply - and §8's glossary settles which word the
+  // product uses for the event. These two entries were drafted later than the RFQ ones and used
+  // «إيضاح»; corrected under DECISIONS-TAKEN.md D-17. See ARABIC-REVIEW.md.
   // ==========================================================================================
   {
     "type": "proposal.clarification_requested",
     "source": "drafted",
     "recipients": "Email + in-app to supplier",
-    "titleAr": "طلب إيضاح على عرضكم",
+    "titleAr": "طلب استيضاح على عرضكم",
     "titleEn": "Clarification requested on your proposal",
-    "bodyAr": "طُلب إيضاح بشأن العرض {proposalCode} المقدَّم على الطلب {rfqCode}. يُرجى مراجعة الطلب والرد عليه.",
+    "bodyAr": "طُلب استيضاح بشأن العرض {proposalCode} المقدَّم على الطلب {rfqCode}. يُرجى مراجعة الطلب والرد عليه.",
     "bodyEn": "A clarification has been requested on proposal {proposalCode} for RFQ {rfqCode}. Please review and respond."
   },
   {
@@ -241,7 +246,7 @@
     "recipients": "In-app to committee",
     "titleAr": "تم تعديل العرض",
     "titleEn": "A proposal was revised",
-    "bodyAr": "عُدِّل العرض {proposalCode} المقدَّم على الطلب {rfqCode} رداً على طلب الإيضاح.",
+    "bodyAr": "عُدِّل العرض {proposalCode} المقدَّم على الطلب {rfqCode} رداً على طلب الاستيضاح.",
     "bodyEn": "Proposal {proposalCode} on RFQ {rfqCode} was revised in response to a clarification request."
   },
 

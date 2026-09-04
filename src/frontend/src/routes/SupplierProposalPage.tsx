@@ -44,8 +44,9 @@ export function SupplierProposalPage() {
   // §12-A/C2: every mutation below addresses the proposal by its OWN public code, not by the RFQ's.
   // `referenceCode` from the route is the RFQ; the proposal's code comes back on the fetch above.
   // Both are strings, so passing the wrong one type-checks - hence the named local rather than
-  // threading `referenceCode` into functions that no longer mean it.
-  const proposalCode = proposalQuery.data?.referenceCode ?? ''
+  // threading `referenceCode` into functions that no longer mean it. R-9 renamed the response
+  // field to `proposalCode`, which says the same thing the local was invented to say.
+  const proposalCode = proposalQuery.data?.proposalCode ?? ''
 
   // SCR-151: "*Concurrency conflict:* `Dialog` 'This proposal changed in another tab/user' →
   // reload/merge." §8.1 delivers it as a 412 ETAG_MISMATCH. Reload is offered; MERGE is not, because
@@ -148,7 +149,7 @@ export function SupplierProposalPage() {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('proposal.title')} — {rfq.referenceCode}
+          {t('proposal.title')} — {rfq.rfqCode}
         </h1>
         <Button isLoading={startMutation.isPending} onClick={() => startMutation.mutate()} className="self-start">
           {t('proposal.start')}
@@ -170,7 +171,7 @@ export function SupplierProposalPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('proposal.title')} — {rfq.referenceCode}
+            {t('proposal.title')} — {rfq.rfqCode}
           </h1>
           <StatusChip machine="proposal" value={proposal.state} />
         </div>
@@ -196,8 +197,8 @@ export function SupplierProposalPage() {
                 <TableRow key={item.id}>
                   <TableCell>{isArabic ? item.titleAr : item.titleEn}{item.isOptional ? null : <span aria-hidden="true"> *</span>}</TableCell>
                   <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
-                  <TableCell>{priced ? formatCurrency(priced.unitPrice, proposal.currencyCode, locale) : '—'}</TableCell>
-                  <TableCell>{priced ? formatCurrency(priced.lineTotal, proposal.currencyCode, locale) : '—'}</TableCell>
+                  <TableCell>{priced ? formatCurrency(priced.unitPrice, proposal.currency, locale) : '—'}</TableCell>
+                  <TableCell>{priced ? formatCurrency(priced.lineTotal, proposal.currency, locale) : '—'}</TableCell>
                   {isDraft ? (
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -273,7 +274,7 @@ export function SupplierProposalPage() {
           </div>
         ) : (
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[length:var(--text-body-sm)]">
-            <dt style={{ color: 'var(--color-text-secondary)' }}>{t('proposal.currency')}</dt><dd>{proposal.currencyCode ?? '—'}</dd>
+            <dt style={{ color: 'var(--color-text-secondary)' }}>{t('proposal.currency')}</dt><dd>{proposal.currency ?? '—'}</dd>
             <dt style={{ color: 'var(--color-text-secondary)' }}>{t('proposal.validityEnd')}</dt><dd>{proposal.validityEnd ?? '—'}</dd>
           </dl>
         )}

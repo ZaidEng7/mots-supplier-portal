@@ -6,8 +6,12 @@ namespace MotsSupplierPortal.Application.Suppliers;
 public sealed record SupplierDocumentDto(
     /// <summary>T-010: the public code. §3 keeps internal GUIDs out of payloads as well as URLs, so
     /// the aggregate's Guid is not emitted at all - a client that needs to address this document
-    /// uses this value, which is the only identifier the API accepts.</summary>
-    string Id,
+    /// uses this value, which is the only identifier the API accepts.
+    ///
+    /// <para>Spelled <c>documentId</c> under R-9, matching §12.3 and matching
+    /// SupplierDocumentListItemDto, which already used that name. The two document DTOs had been
+    /// naming the same value two different ways.</para></summary>
+    string DocumentId,
     int Version,
     string State,
     string OriginalFileName,
@@ -17,7 +21,15 @@ public sealed record SupplierDocumentDto(
     DateOnly? ExpiryDate,
     string? RejectReason,
     DateTimeOffset UploadedAt,
-    DateTimeOffset? ReviewedAt);
+    DateTimeOffset? ReviewedAt,
+    /// <summary>
+    /// T-015: §12.3 shows <c>scanStatus</c> beside <c>state</c> - <c>{ "state": "Uploaded",
+    /// "scanStatus": "Pending" }</c>. This schema folds the scan into the state machine, exactly as
+    /// it folds expiry in (see SupplierDocumentListItemDto's note on <c>expiryState</c>), so the
+    /// field is DERIVED from the state rather than stored. A second stored copy of a fact the state
+    /// already carries is a second thing to keep in step.
+    /// </summary>
+    string ScanStatus = "Clean");
 
 public sealed record DocumentTypeStatusDto(
     Guid DocumentTypeId,

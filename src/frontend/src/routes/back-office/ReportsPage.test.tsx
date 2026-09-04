@@ -70,7 +70,8 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
 
     renderPage(<ReportsPage />)
 
-    expect(await screen.findByText('Not measured')).toBeInTheDocument()
+    // D-18: parenthesised, matching the exported artefact's own marker for the same cell.
+    expect(await screen.findByText('(not measured)')).toBeInTheDocument()
 
     const row = screen.getByRole('row', { name: /Evaluation to award/ })
     expect(within(row).queryByText('0.0')).not.toBeInTheDocument()

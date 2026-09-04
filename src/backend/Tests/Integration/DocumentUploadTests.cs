@@ -37,7 +37,7 @@ public sealed class DocumentUploadTests(PostgresApiFixture fixture)
 
         var response = await client.PostAsync($"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}/documents", content);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("expiryDate").GetString().Should().Be("2027-03-15");
     }

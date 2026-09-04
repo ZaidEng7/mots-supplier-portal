@@ -11,17 +11,18 @@ vi.mock('@tanstack/react-router', async () => {
 const { SupplierProposalPage } = await import('./SupplierProposalPage')
 
 const RFQ_FIXTURE = {
-  referenceCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
-  currencyCode: 'SYP', state: 'SubmissionOpen', submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
+  rfqCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
+  currencyCode: 'SYP', state: 'SubmissionOpen', submissionOpensAt: null, submissionDeadline: null, clarificationDeadlineAt: null,
   items: [{ id: 'item-1', lineNo: 1, titleAr: 'أ', titleEn: 'Widget', specificationAr: null, specificationEn: null, categoryCode: 'catering', quantity: 5, unitOfMeasureCode: 'unit', isUnitPrice: true, isOptional: false }],
   requirements: [{ id: 'req-1', textAr: 'شرط', textEn: 'Must comply', isMandatory: true, documentTypeCode: null }],
-  attachments: [], myInvitationStatus: 'Invited', clarifications: [], addenda: [],
+  attachments: [], invitationStatus: 'Invited', clarifications: [], addenda: [],
 }
 
 function proposalFixture(state: string, overrides: Record<string, unknown> = {}) {
   return {
-    referenceCode: 'PRP-2026-000001', rfqReferenceCode: 'RFQ-2026-000001', state,
-    currencyCode: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
+    proposalCode: 'PRP-2026-000001', rfqCode: 'RFQ-2026-000001', state,
+    createdAt: '2026-08-30T09:00:00Z', totals: { currency: null, grandTotal: 0 },
+    currency: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
     warranty: null, validityStart: null, validityEnd: null, narrativeAr: null, narrativeEn: null,
     submittedAt: null, withdrawnAt: null, withdrawReason: null,
     items: [], documents: [], requirementAnswers: [],

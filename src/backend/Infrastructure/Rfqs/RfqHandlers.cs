@@ -408,6 +408,9 @@ public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext
             c.MaxScore,
             c.Threshold,
             ScoringType = c.ScoringType.ToString(),
+            // T-021: carried into the snapshot so the rule is the one the RFQ bound, not the one the
+            // template happens to hold now.
+            c.RequiresJustification,
         }));
 
         try

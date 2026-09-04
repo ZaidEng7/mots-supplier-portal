@@ -79,7 +79,7 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
             "a field absent from a PATCH body must be left untouched");
         after.GetProperty("supplierGroup").GetString().Should().Be("ORIGINAL-GROUP",
             "a field absent from a PATCH body must be left untouched");
-        after.GetProperty("currencyCode").GetString().Should().Be("SYP",
+        after.GetProperty("defaultCurrency").GetString().Should().Be("SYP",
             "a field absent from a PATCH body must be left untouched");
     }
 

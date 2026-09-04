@@ -168,7 +168,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         second.StatusCode.Should().Be(HttpStatusCode.OK);
         var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
         var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>();
-        firstBody.GetProperty("referenceCode").GetString().Should().Be(secondBody.GetProperty("referenceCode").GetString(),
+        firstBody.GetProperty("proposalCode").GetString().Should().Be(secondBody.GetProperty("proposalCode").GetString(),
             "a second start must return the existing Draft, never create a duplicate");
 
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -350,7 +350,15 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var lateWithdraw = await supplierC.PostAsJsonAsync($"/api/v1/proposals/{closedProposalCode}/withdraw", new { reason = "Too late" });
 
-        lateWithdraw.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // T-065: §3's 409 for a transition refusal, where this used to be a 400. The RFQ endpoints
+        // have answered 409 since T3-36; the proposal endpoints now agree with them and with §3.
+        lateWithdraw.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var lateProblem = await lateWithdraw.Content.ReadFromJsonAsync<JsonElement>();
+        lateProblem.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION");
+        // Draft, not Submitted: this proposal was never submitted - the refusal is the CLOSED
+        // WINDOW, not the source state. The state is reported accurately either way, which is what
+        // makes allowedNext usable.
+        lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Draft));
     }
 
     [Fact]
@@ -361,7 +369,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Audit RFQ");
         var start = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         var startBody = await start.Content.ReadFromJsonAsync<JsonElement>();
-        var proposalReferenceCode = startBody.GetProperty("referenceCode").GetString();
+        var proposalReferenceCode = startBody.GetProperty("proposalCode").GetString();
         await PriceAndAnswerAsync(supplierA, proposalReferenceCode!, requiredItemId, mandatoryRequirementId);
         await supplierA.PostAsync($"/api/v1/proposals/{proposalReferenceCode}/submit", null);
 
@@ -573,7 +581,7 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         start.StatusCode.Should().Be(HttpStatusCode.OK, await start.Content.ReadAsStringAsync());
 
         var body = await start.Content.ReadFromJsonAsync<JsonElement>();
-        var secondCode = body.GetProperty("referenceCode").GetString()!;
+        var secondCode = body.GetProperty("proposalCode").GetString()!;
 
         secondCode.Should().NotBe(firstCode, "the table says a NEW draft, not an un-withdrawal");
         body.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Draft));

@@ -3,6 +3,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Storage;
 
 namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
@@ -26,7 +27,8 @@ namespace MotsSupplierPortal.Infrastructure.Rfqs;
 /// documented design, and it is why the AUTHORIZATION is audited here rather than the download.</para>
 /// </summary>
 public sealed class GetRfqAttachmentDownloadUrlHandler(
-    AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger)
+    AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger,
+    AttachmentScanner attachmentScanner)
     : IGetRfqAttachmentDownloadUrlHandler
 {
     private static readonly TimeSpan UrlLifetime = TimeSpan.FromMinutes(5);
@@ -38,6 +40,25 @@ public sealed class GetRfqAttachmentDownloadUrlHandler(
 
         var attachment = rfq.Attachments.FirstOrDefault(a => a.Id == attachmentId);
         if (attachment is null) return new RfqAttachmentDownloadResult.NotFoundOrForbidden();
+
+        // T-025 / D-10: quarantine-first. An attachment nothing has scanned is not served - it is
+        // scanned now, and refused if the scanner objects. Existing rows carry PendingScan, so this
+        // is also the path that makes them readable again once they pass.
+        //
+        // The refusal is the SAME NotFoundOrForbidden every other miss returns, deliberately: a
+        // distinct "this file is infected" answer would tell an uploader their malware arrived,
+        // which is the one thing worth not confirming.
+        var safe = await attachmentScanner.EnsureScannedAsync(
+            attachment.ScanState, attachment.StorageKey,
+            attachment.MarkScanClean, attachment.MarkScanRejected, ct);
+
+        if (!safe)
+        {
+            await auditLogger.LogAsync("RfqAttachment", attachment.Id, "rfq_attachment_scan_rejected",
+                scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+            await db.SaveChangesAsync(ct);
+            return new RfqAttachmentDownloadResult.NotFoundOrForbidden();
+        }
 
         var url = await fileStorage.GetSignedDownloadUrlAsync(
             attachment.StorageKey, UrlLifetime, attachment.OriginalFileName, ct);

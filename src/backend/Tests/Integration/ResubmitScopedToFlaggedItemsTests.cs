@@ -35,7 +35,7 @@ public sealed class ResubmitScopedToFlaggedItemsTests(PostgresApiFixture fixture
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Deadlock Repro Co");
         var me = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
-        var referenceCode = me.GetProperty("referenceCode").GetString()!;
+        var referenceCode = me.GetProperty("supplierCode").GetString()!;
 
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

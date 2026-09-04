@@ -41,7 +41,10 @@ public sealed record BankAccountDto(
 /// LastSyncedAt) are deliberately NOT here - they're read-only to STAFF, not visible to the
 /// supplier at all; see ErpSyncDto/ReviewerSupplierViewDto for the staff-facing view.</summary>
 public sealed record SupplierDto(
-    string ReferenceCode,
+    // R-9: §12.2's names are authoritative. supplierCode, defaultCurrency and categories are pure
+    // renames and are taken as written. The two §12.2 names that are NOT renames are left alone and
+    // recorded instead - see the note under CategoryCodes.
+    string SupplierCode,
     string DisplayNameAr,
     string DisplayNameEn,
     string? Description,
@@ -52,7 +55,7 @@ public sealed record SupplierDto(
     // MSP-63: exposed so the staff UI knows which lifecycle action to offer. Additive - the SPA
     // ignores unknown fields, and no existing consumer reads it.
     string LifecycleState,
-    string? CurrencyCode,
+    string? DefaultCurrency,
     LegalInfoDto? LegalInfo,
     string? PrimaryContactPhone,
     IReadOnlyList<RepresentativeDto> Representatives,
@@ -60,7 +63,18 @@ public sealed record SupplierDto(
     IReadOnlyList<ContactDto> Contacts,
     IReadOnlyList<BranchDto> Branches,
     IReadOnlyList<BankAccountDto> BankAccounts,
-    IReadOnlyList<string> CategoryCodes,
+    /// <summary>
+    /// R-9 stops here. §12.2 also shows <c>legalName</c> and <c>displayName</c> as SINGLE values -
+    /// and its own example puts Arabic in one ("شركة نور للمنسوجات") and English in the other
+    /// ("Nour Linens"). This code carries <c>displayNameAr</c>/<c>displayNameEn</c> and
+    /// <c>legalInfo.legalNameAr</c>/<c>legalNameEn</c>. Conforming to the document there is not a
+    /// rename: it would collapse two stored values into one and delete a language from the API of
+    /// an Arabic-first product. R-9 rules that the document's NAMES win; it does not rule a
+    /// bilingual pair into a single value, and the backlog's own decision table already carries
+    /// "bilingual fields vs the documented single-value shape" as a separate open question. Left as
+    /// it is, deliberately, and reported rather than quietly conformed.
+    /// </summary>
+    IReadOnlyList<string> Categories,
     IReadOnlyList<string> MissingProfileFields,
     string? TermsAcceptedVersion,
     DateTimeOffset? TermsAcceptedAt,

@@ -89,7 +89,7 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         }
 
         var start = await supplier.PostAsync($"/api/v1/rfqs/{rfqCode}/proposals", null);
-        var proposalCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
+        var proposalCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("proposalCode").GetString()!;
         await ProposalPatch.PriceItemAsync(supplier, proposalCode, itemId, 10m, 5m);
         await ProposalPatch.SetTermsAsync(supplier, proposalCode, new
         {

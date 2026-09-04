@@ -43,7 +43,7 @@ public sealed class DocumentReferenceCodeTests(PostgresApiFixture fixture)
         var upload = await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", content);
         upload.EnsureSuccessStatusCode();
 
-        var code = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        var code = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("documentId").GetString()!;
         return (client, supplierCode, code);
     }
 

@@ -168,7 +168,7 @@ public sealed class SupplierDocumentsPageModeTests(PostgresApiFixture fixture)
         row.GetProperty("documentId").GetString().Should().NotBeNullOrEmpty();
         row.GetProperty("documentTypeCode").GetString().Should().NotBeNullOrEmpty();
         row.GetProperty("state").GetString().Should().Be(nameof(DocumentState.PendingScan));
-        row.GetProperty("downloadUrl").GetString().Should().Contain("/download-url");
+        row.GetProperty("downloadUrl").GetString().Should().Contain("/content", "§12.3 shows this field pointing at the 302 route (T-013)");
         row.GetProperty("uploadedAt").GetDateTimeOffset().Should().BeAfter(DateTimeOffset.UtcNow.AddMinutes(-5));
         row.GetProperty("expiryState").ValueKind.Should().Be(JsonValueKind.Null,
             "this type does not track expiry, so it is not in the expiry machine at all - " +

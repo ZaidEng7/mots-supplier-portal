@@ -232,14 +232,14 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         // returns the documented §5.2 envelope `{ data, pagination, meta }` instead of a bare array,
         // so the root is an object. No assertion, control, or scoping expectation moved.
         var aList = await supplierA.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
-        var aCodes = aList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("referenceCode").GetString()).ToList();
+        var aCodes = aList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("rfqCode").GetString()).ToList();
 
         aCodes.Should().Contain(aCode, "A is invited to its own RFQ");
         aCodes.Should().NotContain(bCode, "B's RFQ exists and would appear here if the list were not invitation-scoped");
 
         // The negative is only meaningful if B's RFQ is genuinely visible to SOMEONE.
         var bList = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
-        bList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("referenceCode").GetString())
+        bList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("rfqCode").GetString())
             .Should().Contain(bCode, "control: the seeded RFQ is real and reachable by its own invitee");
     }
 
@@ -357,7 +357,7 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
             var body = await supplierA.GetFromJsonAsync<JsonElement>(url);
 
             seen.AddRange(body.GetProperty("data").EnumerateArray()
-                .Select(r => r.GetProperty("referenceCode").GetString()!));
+                .Select(r => r.GetProperty("rfqCode").GetString()!));
 
             var pagination = body.GetProperty("pagination");
             cursor = pagination.GetProperty("hasMore").GetBoolean()
@@ -376,6 +376,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         // Control: B's rows are real and reachable by B, so the negative above is about scoping.
         var bFirstPage = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
         bFirstPage.GetProperty("data").EnumerateArray()
-            .Select(r => r.GetProperty("referenceCode").GetString()).Should().BeEquivalentTo(bCodes);
+            .Select(r => r.GetProperty("rfqCode").GetString()).Should().BeEquivalentTo(bCodes);
     }
 }

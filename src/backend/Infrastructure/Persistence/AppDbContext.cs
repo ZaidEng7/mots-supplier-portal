@@ -382,6 +382,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>
         {
             entity.ToTable("supplier_field_config", "ops");
+            entity.Property(c => c.RowVersion).IsRowVersion();
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Category).HasMaxLength(50).IsRequired();
             entity.Property(c => c.FieldCode).HasMaxLength(50).IsRequired();
@@ -657,6 +658,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<RfqAttachment>(entity =>
         {
             entity.ToTable("rfq_attachment", "rfq");
+            entity.Property(a => a.ScanState).HasConversion<string>().HasMaxLength(20);
             entity.HasKey(a => a.Id);
             entity.Property(a => a.StorageKey).HasMaxLength(500).IsRequired();
             entity.Property(a => a.OriginalFileName).HasMaxLength(300).IsRequired();
@@ -780,6 +782,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<ProposalDocument>(entity =>
         {
             entity.ToTable("proposal_document", "proposal");
+            entity.Property(a => a.ScanState).HasConversion<string>().HasMaxLength(20);
+            entity.Property(d => d.Envelope).HasConversion<string>().HasMaxLength(20);
             entity.HasKey(d => d.Id);
             entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();
             entity.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();

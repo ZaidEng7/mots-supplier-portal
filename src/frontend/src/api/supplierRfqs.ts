@@ -20,17 +20,21 @@ export interface SupplierClarification {
  * (no Approvals, no OrganizationId) since a non-invited supplier must never even learn the RFQ
  * exists, let alone see internal reviewer state. */
 /** The supplier list row - projected, with the caller's own invitation status resolved in SQL. */
+/** R-9: §12.4's names are authoritative, so the list row reads rfqCode/invitationStatus/
+ * submissionDeadline. titleAr/titleEn stay split - the document's single `title` is a bilingual
+ * collapse, not a rename. */
 export interface SupplierRfqListItem {
-  referenceCode: string
+  rfqCode: string
   titleAr: string
   titleEn: string
   state: string
-  myInvitationStatus: InvitationStatus
+  invitationStatus: InvitationStatus
   createdAt: string
+  submissionDeadline: string | null
 }
 
 export interface SupplierRfq {
-  referenceCode: string
+  rfqCode: string
   titleAr: string
   titleEn: string
   descriptionAr: string | null
@@ -38,12 +42,12 @@ export interface SupplierRfq {
   currencyCode: string
   state: RfqState
   submissionOpensAt: string | null
-  submissionClosesAt: string | null
+  submissionDeadline: string | null
   clarificationDeadlineAt: string | null
   items: RfqItem[]
   requirements: Requirement[]
   attachments: RfqAttachment[]
-  myInvitationStatus: InvitationStatus
+  invitationStatus: InvitationStatus
   clarifications: SupplierClarification[]
   addenda: Addendum[]
 }

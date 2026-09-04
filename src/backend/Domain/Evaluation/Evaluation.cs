@@ -4,7 +4,8 @@ using MotsSupplierPortal.Domain.Suppliers;
 namespace MotsSupplierPortal.Domain.Evaluation;
 
 public sealed record CriterionSnapshotInput(
-    string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, ScoringType ScoringType);
+    string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold,
+    ScoringType ScoringType, bool RequiresJustification = false);
 
 /// <summary>The scoring instance for one RFQ's Submitted proposals (docs/architecture/
 /// DOMAIN-MODEL.md §5.7), using the RFQ's already-snapshotted EvaluationTemplate. Its own
@@ -80,6 +81,7 @@ public sealed class Evaluation : IVersionedAggregate
                 MaxScore = c.MaxScore,
                 Threshold = c.Threshold,
                 ScoringType = c.ScoringType,
+                RequiresJustification = c.RequiresJustification,
             });
         }
         return evaluation;
@@ -175,6 +177,20 @@ public sealed class Evaluation : IVersionedAggregate
         if (criterion.IsFinancial && !IsTechnicallyQualifiedByEvaluator(evaluatorUserId, proposalId))
         {
             throw new DomainException("Cannot score a financial criterion: this proposal has not yet passed technical qualification for this evaluator.");
+        }
+
+        // T-021/BRULE-061: "Criteria requiring justification cannot be submitted without a comment."
+        //
+        // EITHER language satisfies it, not both. An evaluator writes their reasoning in the
+        // language they think in, and demanding a translation from the person making the judgment
+        // would either produce a machine-translated second copy or stop the score being recorded at
+        // all. That is different from a SUPPLIER-facing field, where both languages are the product
+        // (see the answer validation on RequirementAnswer): this comment is internal evidence for a
+        // procurement file, read by the committee that wrote it and by an auditor after the fact.
+        if (criterion.RequiresJustification
+            && string.IsNullOrWhiteSpace(commentAr) && string.IsNullOrWhiteSpace(commentEn))
+        {
+            throw new DomainException("This criterion requires a justification comment.");
         }
 
         var existing = _scores.FirstOrDefault(s => s.EvaluatorUserId == evaluatorUserId && s.ProposalId == proposalId && s.CriterionId == criterionId);

@@ -116,11 +116,25 @@ public static class DocumentEndpoints
 
             return result switch
             {
-                UploadDocumentResult.Success s => Results.Created($"/api/v1/documents/{s.Document.Id}", s.Document),
+                // T-011: 202, not 201. §12.3 specifies Accepted and it is the honest code - the row
+                // exists but the pipeline is not finished with it, and DocumentScanJob is what
+                // finishes it (see T-052). 201 promised a completed creation.
+                //
+                // T-012 is NOT closed by this. §12.3's Location is
+                // /suppliers/{supplierCode}/documents/{documentCode}, and neither that path nor this
+                // one has a GET - there is no single-document read anywhere in the API. Conforming
+                // the string alone would emit a Location that resolves to nothing, which is worse
+                // than a Location under a different shape that also resolves to nothing. Closing it
+                // needs a read §12.3 does not define, so it stays recorded.
+                UploadDocumentResult.Success s => Results.Accepted(
+                    $"/api/v1/documents/{s.Document.DocumentId}", s.Document),
                 UploadDocumentResult.NotFoundOrOutOfScope => Results.NotFound(),
                 UploadDocumentResult.InvalidDocumentType => Results.BadRequest(new { error = "invalid_document_type" }),
-                UploadDocumentResult.TooLarge => Results.BadRequest(new { error = "file_too_large" }),
-                UploadDocumentResult.UnsupportedType => Results.BadRequest(new { error = "unsupported_file_type" }),
+                // T-014: §12.3 names both of these explicitly - "Disallowed MIME -> 415; oversize
+                // -> 413". They had been 400s, which tells a client the request was malformed rather
+                // than that the file was too big or of the wrong kind.
+                UploadDocumentResult.TooLarge => Results.StatusCode(StatusCodes.Status413PayloadTooLarge),
+                UploadDocumentResult.UnsupportedType => Results.StatusCode(StatusCodes.Status415UnsupportedMediaType),
                 // BRULE-020: the domain's message names what is wrong with the date rather than
                 // leaving the uploader to guess which of null/past/format was rejected.
                 UploadDocumentResult.InvalidExpiry e => Results.BadRequest(new { error = "invalid_expiry", message = e.Message }),
@@ -143,6 +157,35 @@ public static class DocumentEndpoints
         {
             MultipartBodyLengthLimit = FileTypeSniffer.MaxSizeBytes + 1024 * 1024,
         });
+
+        // T-013: §12.3 documents the download as GET /documents/{documentId}/content answering 302
+        // to a short-lived pre-signed URL. Added ALONGSIDE the download-url route rather than
+        // replacing it: the SPA calls download-url and reads JSON, and a 302 to a foreign origin is
+        // not something fetch() can hand back to application code. Same handler, so the two cannot
+        // authorize differently.
+        app.MapGet("/api/v1/documents/{documentCode}/content", async (
+            string documentCode,
+            IGetDocumentDownloadUrlHandler handler,
+            CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(documentCode, ct);
+            return result switch
+            {
+                // preserveMethod:false, permanent:false - a 302, per the document. The URL it points
+                // at expires in minutes, so nothing about this redirect may be cached.
+                DocumentDownloadUrlResult.Success s => Results.Redirect(s.Url),
+                DocumentDownloadUrlResult.NotFoundOrForbidden => Results.NotFound(),
+                _ => Results.Problem(),
+            };
+        })
+        // Bare RequireAuthorization, matching download-url exactly. Not an oversight: this handler
+        // serves BOTH a supplier reading their own document and a reviewer reading someone else's,
+        // and it does the row scoping itself (see GetDocumentDownloadUrlHandler's own note). A
+        // permission filter here would have to name one of the two personas and would lock out the
+        // other - and two routes onto one handler must not authorize differently.
+        .RequireAuthorization()
+        .WithTags("Documents")
+        .WithName("GetDocumentContent");
 
         app.MapGet("/api/v1/documents/{documentCode}/download-url", async (
             string documentCode,

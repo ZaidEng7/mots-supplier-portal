@@ -28,8 +28,10 @@ internal static class ProposalDtoMapper
         proposal.NarrativeAr, proposal.NarrativeEn,
         proposal.SubmittedAt, proposal.WithdrawnAt, proposal.WithdrawReason,
         [.. proposal.Items.Select(i => new ProposalItemDto(i.Id, i.RfqItemId, i.Quantity, i.UnitPrice, i.Discount, i.LineTotal, i.LeadTimeDays, i.NotesAr, i.NotesEn))],
-        [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt))],
+        [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt, d.Envelope))],
         [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))],
+        proposal.CreatedAt,
+        new ProposalTotalsDto(proposal.CurrencyCode, proposal.Items.Sum(i => i.LineTotal)),
         proposal.RowVersion);
 }
 
@@ -179,7 +181,7 @@ public sealed class ManageProposalItemHandler(AppDbContext db, IScopeContext sco
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         db.ProposalItems.Add(proposal.Items.First(i => i.RfqItemId == command.RfqItemId));
@@ -200,7 +202,7 @@ public sealed class ManageProposalItemHandler(AppDbContext db, IScopeContext sco
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_item_removed", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
@@ -224,7 +226,7 @@ public sealed class SetCommercialTermsHandler(AppDbContext db, IScopeContext sco
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_terms_updated", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
@@ -247,7 +249,7 @@ public sealed class SetNarrativeHandler(AppDbContext db, IScopeContext scope, IA
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_narrative_updated", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
@@ -270,7 +272,7 @@ public sealed class AnswerRequirementHandler(AppDbContext db, IScopeContext scop
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         db.RequirementAnswers.Add(proposal.RequirementAnswers.First(a => a.RequirementId == command.RequirementId));
@@ -295,11 +297,12 @@ public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext
         ProposalDocument document;
         try
         {
-            document = proposal!.AddDocument(command.StorageKey, command.OriginalFileName, command.ContentType, command.Caption);
+            document = proposal!.AddDocument(
+                command.StorageKey, command.OriginalFileName, command.ContentType, command.Caption, command.Envelope);
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         db.ProposalDocuments.Add(document);
@@ -320,7 +323,7 @@ public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
         }
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_document_removed", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
@@ -348,13 +351,24 @@ public sealed class SubmitProposalHandler(AppDbContext db, IScopeContext scope, 
         var requiredItemIds = rfq.Items.Where(i => !i.IsOptional).Select(i => i.Id).ToHashSet();
         var mandatoryRequirementIds = rfq.Requirements.Where(r => r.IsMandatory).Select(r => r.Id).ToHashSet();
 
+        // T-065: captured BEFORE the call, and attached below only when the refusal is genuinely
+        // about state. Submit throws for two different reasons - a wrong source state, and an
+        // incomplete proposal - and §12.5 gives those different answers: 409 for the first, 422
+        // (PROPOSAL_ITEMS_REQUIRED) for the second. Mapping both to 409 would tell a supplier with
+        // an unpriced item that their proposal had moved on.
+        var submittableState = proposal!.State == ProposalState.Draft;
+
         try
         {
-            proposal!.Submit(rfq.State == RfqState.SubmissionOpen, rfq.SubmissionClosesAt.Value, requiredItemIds, mandatoryRequirementIds);
+            proposal.Submit(rfq.State == RfqState.SubmissionOpen, rfq.SubmissionClosesAt.Value, requiredItemIds, mandatoryRequirementIds);
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            // Completeness and window refusals keep the 400 they had. §12.5's 422 for missing items
+            // is a real, separate divergence and is recorded as T-066 rather than guessed at here.
+            return submittableState
+                ? new ProposalResult.InvalidState(ex.Message)
+                : new ProposalResult.InvalidState(ex.Message, proposal.State);
         }
 
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_submitted", scope.UserId, referenceCode: proposal.ReferenceCode,
@@ -385,7 +399,7 @@ public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
         // §3.2 "Draft / Submitted -> Withdrawn | In-app to supplier + procurement". Two groups: the
@@ -434,7 +448,7 @@ public sealed class RequestProposalClarificationHandler(AppDbContext db, IScopeC
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
         // §4.1: "Email + in-app to supplier".
@@ -477,7 +491,7 @@ public sealed class ReviseProposalHandler(AppDbContext db, IScopeContext scope, 
         }
         catch (DomainException ex)
         {
-            return new ProposalResult.InvalidState(ex.Message);
+            return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
         // §4.1: "In-app to committee".

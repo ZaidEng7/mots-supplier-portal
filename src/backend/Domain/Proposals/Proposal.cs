@@ -223,11 +223,14 @@ public sealed class Proposal : IVersionedAggregate
         });
     }
 
-    public ProposalDocument AddDocument(string storageKey, string originalFileName, string contentType, string? caption)
+    public ProposalDocument AddDocument(
+        string storageKey, string originalFileName, string contentType, string? caption,
+        ProposalDocumentEnvelope envelope = ProposalDocumentEnvelope.Commercial)
     {
         EnsureDraftEditable();
         var document = new ProposalDocument
         {
+            Envelope = envelope,
             Id = Guid.CreateVersion7(),
             ProposalId = Id,
             StorageKey = storageKey,
@@ -444,6 +447,45 @@ public sealed class Proposal : IVersionedAggregate
 
         State = ProposalState.Shortlisted;
     }
+
+    /// <summary>
+    /// §3's "allowed next states" for a proposal, from BUSINESS-PROCESSES.md §4.1's own table.
+    ///
+    /// <para>This is a PROMISE TO A CALLER about what it may attempt next, so it describes what the
+    /// code actually accepts rather than only what §4.1 draws. Two places are wider than the
+    /// diagram, both deliberately and both pre-existing: Submitted and UnderReview list Awarded and
+    /// NotSelected, because this codebase awards directly out of the evaluation set - §4.1's
+    /// canonical route is Shortlisted -&gt; AwardOffered -&gt; Awarded, and AwardOffered is not built
+    /// (T-064). Listing only the canonical route would tell a caller a transition is unavailable
+    /// when the API will in fact perform it.</para>
+    /// </summary>
+    public static IReadOnlyList<ProposalState> AllowedNextFrom(ProposalState state) => state switch
+    {
+        ProposalState.Draft => [ProposalState.Submitted, ProposalState.Withdrawn],
+
+        // Withdrawn is reachable from Submitted while the RFQ window is open (§4.1, BRULE-047).
+        ProposalState.Submitted =>
+            [ProposalState.UnderReview, ProposalState.Withdrawn, ProposalState.Awarded, ProposalState.NotSelected],
+
+        ProposalState.UnderReview =>
+            [ProposalState.ClarificationRequested, ProposalState.Shortlisted, ProposalState.NotSelected, ProposalState.Awarded],
+
+        ProposalState.ClarificationRequested => [ProposalState.Revised],
+        ProposalState.Revised => [ProposalState.UnderReview],
+
+        // AwardOffered is listed because §4.1 defines it, even though T-064 has not built the
+        // transition yet - and Awarded directly, which is what the code does today.
+        ProposalState.Shortlisted =>
+            [ProposalState.AwardOffered, ProposalState.NotSelected, ProposalState.Awarded],
+
+        ProposalState.AwardOffered => [ProposalState.Awarded, ProposalState.Declined],
+
+        // Terminal.
+        ProposalState.Awarded or ProposalState.NotSelected
+            or ProposalState.Declined or ProposalState.Withdrawn => [],
+
+        _ => [],
+    };
 
     public void Award()
     {

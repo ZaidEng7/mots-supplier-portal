@@ -152,5 +152,15 @@ public sealed class UploadDocumentHandler(
 
     internal static SupplierDocumentDto ToDto(SupplierDocument d) => new(
         d.ReferenceCode, d.Version, d.State.ToString(), d.OriginalFileName, d.ContentType, d.SizeBytes,
-        d.IssueDate, d.ExpiryDate, d.RejectReason, d.UploadedAt, d.ReviewedAt);
+        d.IssueDate, d.ExpiryDate, d.RejectReason, d.UploadedAt, d.ReviewedAt, ScanStatusOf(d.State));
+
+    /// <summary>T-015: §12.3's <c>scanStatus</c>, read off the state machine that already knows.
+    /// Pending while the row is still in quarantine, Rejected once the scanner has objected, Clean
+    /// for every state a document can only reach by passing the scan.</summary>
+    private static string ScanStatusOf(DocumentState state) => state switch
+    {
+        DocumentState.PendingScan => "Pending",
+        DocumentState.ScanRejected => "Rejected",
+        _ => "Clean",
+    };
 }

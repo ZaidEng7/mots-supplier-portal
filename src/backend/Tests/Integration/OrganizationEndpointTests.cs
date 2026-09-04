@@ -175,6 +175,6 @@ public sealed class OrganizationEndpointTests(PostgresApiFixture fixture)
     {
         var supplierClient = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, displayNameEn);
         var me = await supplierClient.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
-        return me.GetProperty("referenceCode").GetString()!;
+        return me.GetProperty("supplierCode").GetString()!;
     }
 }

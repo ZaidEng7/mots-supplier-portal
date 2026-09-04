@@ -74,7 +74,8 @@ public sealed class ListSupplierDocumentsPagedHandler(AppDbContext db) : IListSu
                 // §12.3 shows "downloadUrl": "/api/v1/documents/DOC-…/content" - a route that does
                 // not exist here. The real one is emitted instead of fabricating the documented
                 // path, and the divergence is reported rather than hidden behind a plausible string.
-                $"/api/v1/documents/{r.ReferenceCode}/download-url",
+                // T-013: §12.3 shows this field pointing at /content, the 302 route.
+                $"/api/v1/documents/{r.ReferenceCode}/content",
                 r.UploadedAt))
             .ToList();
 

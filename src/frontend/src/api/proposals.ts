@@ -20,12 +20,17 @@ export interface ProposalItem {
   notesEn: string | null
 }
 
+/** T-028/D-7. Commercial is what the server stores when the field is not sent, so an older client
+ * that never learned about envelopes uploads to the gated side rather than the open one. */
+export type ProposalDocumentEnvelope = 'Commercial' | 'Technical'
+
 export interface ProposalDocument {
   id: string
   originalFileName: string
   contentType: string
   caption: string | null
   uploadedAt: string
+  envelope: ProposalDocumentEnvelope
 }
 
 export interface RequirementAnswer {
@@ -35,11 +40,19 @@ export interface RequirementAnswer {
   answerEn: string
 }
 
+/** R-9: §12.5's names. `rfqCode` replaces `rfqReferenceCode`, which the server had been emitting
+ * under the name `proposalReferenceCode` - a field whose name said proposal and whose value was the
+ * RFQ's code (T-058). */
+export interface ProposalTotals {
+  currency: string | null
+  grandTotal: number
+}
+
 export interface Proposal {
-  referenceCode: string
-  rfqReferenceCode: string
+  proposalCode: string
+  rfqCode: string
   state: ProposalState
-  currencyCode: string | null
+  currency: string | null
   paymentTerms: string | null
   incotermCode: string | null
   deliveryTermsAr: string | null
@@ -52,6 +65,8 @@ export interface Proposal {
   submittedAt: string | null
   withdrawnAt: string | null
   withdrawReason: string | null
+  createdAt: string
+  totals: ProposalTotals
   items: ProposalItem[]
   documents: ProposalDocument[]
   requirementAnswers: RequirementAnswer[]
@@ -153,10 +168,16 @@ export interface ItemPatch {
   notesEn?: string | null
 }
 
-export async function addProposalDocument(proposalReferenceCode: string, file: File, caption?: string): Promise<Proposal> {
+export async function addProposalDocument(
+  proposalReferenceCode: string,
+  file: File,
+  caption?: string,
+  envelope?: ProposalDocumentEnvelope,
+): Promise<Proposal> {
   const form = new FormData()
   form.append('file', file)
   if (caption) form.append('caption', caption)
+  if (envelope) form.append('envelope', envelope)
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/documents`, { method: 'POST', body: form }))
 }
 
