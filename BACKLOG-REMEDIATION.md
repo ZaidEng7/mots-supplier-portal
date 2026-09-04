@@ -96,10 +96,10 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 |---|---|---|---|---|
 | T-016 | BRULE-003 | Invite-only registration mode is not switchable; self-registration is hard-coded open | Inferred | M |
 | T-017 | BRULE-012 | Re-application policy after rejection (allowed / cooldown) is not configurable | Inferred | M |
-| T-018 | BRULE-035 | Deadline extension/shortening is not implemented; no endpoint, no notification | Inferred | L |
+| T-018 | BRULE-035 | Deadline extension/shortening not implemented. **Now reproduced, and the documents settle more than assumed**: extension is `procurement_officer` while Published/SubmissionOpen, shortening is `procurement_manager`, the audit event is named (`rfq.deadline_extended`), and "notify all invitees" IS specified — so the notification consequence is not an open question. What is open: **no bound on how far a deadline may be extended**, and the NotificationCatalogue has no deadline-change type, so building it needs new bilingual copy — the same reviewer dependency as the three Arabic sets already waiting. Whole rule is `[ASSUMPTION]` | `BUSINESS-PROCESSES.md:242-244` | Reproduced | L |
 | T-019 | BRULE-050 | Whether commercial (price) revisions are permitted during clarification is not configurable | Inferred | M |
 | T-020 | BRULE-054 | Default proposal currency is not configurable | Inferred | S |
-| T-021 | BRULE-061 | Criteria requiring justification can be submitted without a comment | Inferred | S |
+| T-021 | BRULE-061 | Criteria requiring justification can be submitted without a comment. **Reproduced**: `Criterion` has no `RequiresJustification` field at all, so there is nothing to enforce against. The rule's own document tags **which** criteria require one as `[ASSUMPTION]` — buildable without inventing policy by putting the flag on the criterion and letting the template author set it, which is where the document points | `Criterion.cs:9-20` | Reproduced | S |
 | T-022 | BRULE-069 | Ranking tie-breaks have no defined order | Inferred | M |
 | T-023 | BRULE-074 | Approver authority limits and escalation are not implemented | Inferred | L |
 | T-024 | BRULE-080 | Split/multi-line award policy is not implemented | Inferred | L |
