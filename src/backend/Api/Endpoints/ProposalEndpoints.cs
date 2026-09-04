@@ -324,7 +324,17 @@ public static class ProposalEndpoints
                 new RequestProposalClarificationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqClarify)
-        .RequireIfMatch()
+        // No RequireIfMatch, deliberately, and this is the Offering lesson from batch 3 applied
+        // BEFORE shipping rather than after: a guarded write needs a read that ISSUES its
+        // precondition, and a buyer has none for a proposal. GET /proposals/{code} is supplier-scoped
+        // - an officer calling it gets a 404 - so an officer literally cannot obtain the ETag this
+        // would demand, and every request-clarification would 412 with a message saying the resource
+        // changed when nothing had.
+        //
+        // The write is still safe: RequestClarification refuses any state but UnderReview, so a
+        // concurrent second request is a 409 rather than a silent overwrite. Recorded as the reason
+        // rather than left as an omission - if a buyer-facing proposal read is ever added, this
+        // should take the header with it.
         .WithName("RequestProposalClarification");
 
         // §4.1: ClarificationRequested -> Revised, supplier_admin / proposal.revise.
