@@ -120,14 +120,12 @@ public static class DocumentEndpoints
                 // exists but the pipeline is not finished with it, and DocumentScanJob is what
                 // finishes it (see T-052). 201 promised a completed creation.
                 //
-                // T-012 is NOT closed by this. §12.3's Location is
-                // /suppliers/{supplierCode}/documents/{documentCode}, and neither that path nor this
-                // one has a GET - there is no single-document read anywhere in the API. Conforming
-                // the string alone would emit a Location that resolves to nothing, which is worse
-                // than a Location under a different shape that also resolves to nothing. Closing it
-                // needs a read §12.3 does not define, so it stays recorded.
+                // T-012: and the Location is now §12.3's own path, because the GET behind it exists
+                // as of this change. Batch 8 left the header non-conforming on the ground that
+                // conforming the string alone would emit a path resolving to nothing; the answer was
+                // to make the documented path real rather than to keep the divergence.
                 UploadDocumentResult.Success s => Results.Accepted(
-                    $"/api/v1/documents/{s.Document.DocumentId}", s.Document),
+                    $"/api/v1/suppliers/{supplierCode}/documents/{s.Document.DocumentId}", s.Document),
                 UploadDocumentResult.NotFoundOrOutOfScope => Results.NotFound(),
                 UploadDocumentResult.InvalidDocumentType => Results.BadRequest(new { error = "invalid_document_type" }),
                 // T-014: §12.3 names both of these explicitly - "Disallowed MIME -> 415; oversize
@@ -163,6 +161,19 @@ public static class DocumentEndpoints
         // replacing it: the SPA calls download-url and reads JSON, and a 302 to a foreign origin is
         // not something fetch() can hand back to application code. Same handler, so the two cannot
         // authorize differently.
+        // T-012: the read §12.3's Location header names. Same two callers and same row-scope rule as
+        // the download - see IGetSupplierDocumentHandler.
+        app.MapGet("/api/v1/suppliers/{supplierCode}/documents/{documentCode}", async (
+            string supplierCode, string documentCode,
+            IGetSupplierDocumentHandler handler, CancellationToken ct) =>
+        {
+            var document = await handler.HandleAsync(supplierCode, documentCode, ct);
+            return document is null ? Results.NotFound() : Results.Ok(document);
+        })
+        .RequireAuthorization()
+        .WithTags("Documents")
+        .WithName("GetSupplierDocument");
+
         app.MapGet("/api/v1/documents/{documentCode}/content", async (
             string documentCode,
             IGetDocumentDownloadUrlHandler handler,

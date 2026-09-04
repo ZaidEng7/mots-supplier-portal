@@ -67,6 +67,9 @@ export interface Proposal {
   withdrawReason: string | null
   createdAt: string
   totals: ProposalTotals
+  /** §12.5's validityDays, derived from the two dates on the server and read-only - see the DTO's
+   * own note on why the request half is not accepted. */
+  validityDays: number | null
   items: ProposalItem[]
   documents: ProposalDocument[]
   requirementAnswers: RequirementAnswer[]

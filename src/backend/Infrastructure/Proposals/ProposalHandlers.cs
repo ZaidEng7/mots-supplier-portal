@@ -32,6 +32,9 @@ internal static class ProposalDtoMapper
         [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))],
         proposal.CreatedAt,
         new ProposalTotalsDto(proposal.CurrencyCode, proposal.Items.Sum(i => i.LineTotal)),
+        proposal.ValidityStart is { } from && proposal.ValidityEnd is { } to
+            ? to.DayNumber - from.DayNumber
+            : null,
         proposal.RowVersion);
 }
 
@@ -362,10 +365,16 @@ public sealed class SubmitProposalHandler(AppDbContext db, IScopeContext scope, 
         {
             proposal.Submit(rfq.State == RfqState.SubmissionOpen, rfq.SubmissionClosesAt.Value, requiredItemIds, mandatoryRequirementIds);
         }
+        catch (ProposalIncompleteException ex)
+        {
+            // T-066: §12.5's 422 with a code naming what is missing. Caught FIRST and separately -
+            // the window and wrong-state refusals below are still DomainException and still answer
+            // 409/400, because those tell a supplier something different.
+            return new ProposalResult.Incomplete(ex.Error, ex.Message);
+        }
         catch (DomainException ex)
         {
-            // Completeness and window refusals keep the 400 they had. §12.5's 422 for missing items
-            // is a real, separate divergence and is recorded as T-066 rather than guessed at here.
+            // Window refusals keep their 400; a wrong source state answers 409 with currentState.
             return submittableState
                 ? new ProposalResult.InvalidState(ex.Message)
                 : new ProposalResult.InvalidState(ex.Message, proposal.State);

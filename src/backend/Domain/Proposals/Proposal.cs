@@ -294,20 +294,28 @@ public sealed class Proposal : IVersionedAggregate
         var pricedItemIds = _items.Select(i => i.RfqItemId).ToHashSet();
         if (!requiredRfqItemIds.IsSubsetOf(pricedItemIds))
         {
-            throw new DomainException("Cannot submit: all required RFQ items must be priced.");
+            // §12.5 names this one: "Missing line items -> 422 (PROPOSAL_ITEMS_REQUIRED)".
+            throw new ProposalIncompleteException(
+                "proposal_items_required", "Cannot submit: all required RFQ items must be priced.");
         }
         var answeredRequirementIds = _requirementAnswers.Select(a => a.RequirementId).ToHashSet();
         if (!mandatoryRequirementIds.IsSubsetOf(answeredRequirementIds))
         {
-            throw new DomainException("Cannot submit: all mandatory requirements must be answered.");
+            // INVENTED code - §12.5 names no slug for an unanswered mandatory requirement, but it is
+            // the same class of refusal and a supplier needs to know which one they hit.
+            throw new ProposalIncompleteException(
+                "proposal_requirements_required", "Cannot submit: all mandatory requirements must be answered.");
         }
         if (ValidityEnd is null)
         {
-            throw new DomainException("Cannot submit: a validity end date is required.");
+            // INVENTED code, same reasoning.
+            throw new ProposalIncompleteException(
+                "proposal_validity_required", "Cannot submit: a validity end date is required.");
         }
         if (ValidityEnd < DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date))
         {
-            throw new DomainException("Cannot submit: the validity end date must not be in the past.");
+            throw new ProposalIncompleteException(
+                "proposal_validity_required", "Cannot submit: the validity end date must not be in the past.");
         }
 
         State = ProposalState.Submitted;

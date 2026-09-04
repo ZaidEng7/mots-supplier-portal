@@ -173,3 +173,14 @@ agree. The fix is a shared source of report copy across a C# generator and a Typ
 | **What it costs if wrong** | If procurement wants a window, it is a background job plus a transition — additive, and the timestamp it needs is already stored. Until then an ignored offer blocks the award indefinitely, which is visible to the officer rather than silent. |
 | **Who should confirm it** | Procurement. |
 
+### D-22 — `validityDays` is derived on read and refused on write
+
+| | |
+|---|---|
+| **What was undecided** | Which event a proposal's validity duration counts from. |
+| **Where the gap is** | §12.5's create request is `{ "currency": "SYP", "validityDays": 30 }`. This schema stores `validityStart` and `validityEnd`. No document says whether the clock starts at creation, at submission, or at award. |
+| **What was decided** | `validityDays` is emitted on `ProposalDto`, derived as end − start. It is **not** accepted on any request; the two dates remain the only way to set validity. |
+| **Why** | Two dates carry strictly more information than one duration, so deriving the duration loses nothing and conforms the response half without deciding anything. Accepting the duration is the half that needs an anchor, and picking one silently fixes a supplier's bid validity to the wrong event — a bid that expires days before anyone thought it would is discovered at award, which is the worst moment. Null rather than zero when either date is missing: a duration measured from nothing is not a duration of nothing. |
+| **What it costs if wrong** | If procurement names an anchor, accepting `validityDays` becomes additive — the derived read already matches. |
+| **Who should confirm it** | Procurement. |
+

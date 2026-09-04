@@ -237,6 +237,22 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
         // is PendingScan, so the control for the Clean case is the assertion further down.
         created.GetProperty("scanStatus").GetString().Should().BeOneOf("Pending", "Clean");
 
+        // T-012: the Location header names a resource that now exists, and resolves for the owner.
+        // A 202 whose Location 404s is a worse contract than a non-conforming path, which is why
+        // this assertion follows the header rather than merely reading it.
+        var location = upload.Headers.Location!.ToString();
+        location.Should().Be($"/api/v1/suppliers/{supplierCode}/documents/{documentCode}");
+        var followed = await client.GetAsync(location);
+        followed.StatusCode.Should().Be(HttpStatusCode.OK, await followed.Content.ReadAsStringAsync());
+        (await followed.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("documentId").GetString().Should().Be(documentCode);
+
+        // The control on that read's scope: another supplier following the same Location gets a miss,
+        // not someone else's document.
+        var stranger2 = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Location Stranger Co");
+        (await stranger2.GetAsync(location)).StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "§9.2: out of scope is indistinguishable from does not exist");
+
         // T-014: oversize is 413 and the wrong MIME is 415, not one 400 for both.
         using var oversized = BuildUploadContent(BuildPdfOfSize(21 * 1024 * 1024), "big.pdf");
         (await client.PostAsync($"/api/v1/suppliers/{supplierCode}/documents", oversized))

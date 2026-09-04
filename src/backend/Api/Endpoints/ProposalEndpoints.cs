@@ -87,6 +87,12 @@ public static class ProposalEndpoints
         // A refusal with no state attached keeps its 400: those are shaped like validation ("a
         // withdrawal reason is required") and have no allowed-next set to offer. §3 governs
         // transitions, not every rejection.
+        // T-066: §12.5 answers an incomplete submission with 422 and a code. The middleware turns
+        // `error` into §7's SCREAMING_SNAKE code, so PROPOSAL_ITEMS_REQUIRED comes out of the
+        // identifier the domain threw - no second mapping table.
+        ProposalResult.Incomplete incomplete =>
+            Results.UnprocessableEntity(new { error = incomplete.Error, message = incomplete.Message }),
+
         ProposalResult.InvalidState { CurrentState: { } state } invalid =>
             IllegalTransitionResult.For(state, invalid.Message),
         ProposalResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),

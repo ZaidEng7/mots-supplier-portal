@@ -362,6 +362,7 @@ builder.Services.AddScoped<IUpdateLegalInfoHandler, UpdateLegalInfoHandler>();
 builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
+builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
 builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
 builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();

@@ -21,7 +21,7 @@ const RFQ_FIXTURE = {
 function proposalFixture(state: string, overrides: Record<string, unknown> = {}) {
   return {
     proposalCode: 'PRP-2026-000001', rfqCode: 'RFQ-2026-000001', state,
-    createdAt: '2026-08-30T09:00:00Z', totals: { currency: null, grandTotal: 0 },
+    createdAt: '2026-08-30T09:00:00Z', totals: { currency: null, grandTotal: 0 }, validityDays: null,
     currency: null, paymentTerms: null, incotermCode: null, deliveryTermsAr: null, deliveryTermsEn: null,
     warranty: null, validityStart: null, validityEnd: null, narrativeAr: null, narrativeEn: null,
     submittedAt: null, withdrawnAt: null, withdrawReason: null,
