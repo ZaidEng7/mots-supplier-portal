@@ -34,7 +34,15 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         var incomplete = await DocumentCompletenessEvaluator
             .GetProfileIncompleteDocumentTypeCodesAsync(db, supplier.Id, ct);
 
-        return new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier, incomplete));
+        // §12.2's profileCompleteness. The same two lists the SUBMIT GATE refuses on, expressed as
+        // a fraction - so a supplier reading 100% can submit, and one below it is looking at exactly
+        // what is stopping them.
+        var missingDocumentTypes = await DocumentCompletenessEvaluator
+            .GetMissingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct);
+        var requiredDocumentTypeCount = await db.DocumentTypes.CountAsync(t => t.IsRequired && t.IsActive, ct);
+
+        return new GetSupplierResult.Found(
+            SupplierDtoMapper.ToDto(supplier, incomplete, missingDocumentTypes, requiredDocumentTypeCount));
     }
 
     public async Task<GetSupplierResult> HandleOwnAsync(CancellationToken ct)
@@ -59,6 +67,14 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         var incomplete = await DocumentCompletenessEvaluator
             .GetProfileIncompleteDocumentTypeCodesAsync(db, supplier.Id, ct);
 
-        return new GetSupplierResult.Found(SupplierDtoMapper.ToDto(supplier, incomplete));
+        // §12.2's profileCompleteness. The same two lists the SUBMIT GATE refuses on, expressed as
+        // a fraction - so a supplier reading 100% can submit, and one below it is looking at exactly
+        // what is stopping them.
+        var missingDocumentTypes = await DocumentCompletenessEvaluator
+            .GetMissingRequiredDocumentTypeCodesAsync(db, supplier.Id, ct);
+        var requiredDocumentTypeCount = await db.DocumentTypes.CountAsync(t => t.IsRequired && t.IsActive, ct);
+
+        return new GetSupplierResult.Found(
+            SupplierDtoMapper.ToDto(supplier, incomplete, missingDocumentTypes, requiredDocumentTypeCount));
     }
 }

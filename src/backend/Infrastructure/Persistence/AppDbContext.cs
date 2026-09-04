@@ -366,6 +366,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Offering>(entity =>
         {
             entity.ToTable("offering", "supplier");
+            entity.Property(o => o.RowVersion).IsRowVersion();
             entity.HasKey(o => o.Id);
             entity.Property(o => o.NameAr).HasMaxLength(200).IsRequired();
             entity.Property(o => o.NameEn).HasMaxLength(200).IsRequired();

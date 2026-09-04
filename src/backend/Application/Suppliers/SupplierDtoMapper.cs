@@ -4,7 +4,11 @@ namespace MotsSupplierPortal.Application.Suppliers;
 
 public static class SupplierDtoMapper
 {
-    public static SupplierDto ToDto(Supplier supplier, IReadOnlyList<string>? incompleteDocumentTypeCodes = null)
+    public static SupplierDto ToDto(
+        Supplier supplier,
+        IReadOnlyList<string>? incompleteDocumentTypeCodes = null,
+        IReadOnlyList<string>? missingRequiredDocumentTypeCodes = null,
+        int requiredDocumentTypeCount = 0)
     {
         var primaryPhone = supplier.Representatives.FirstOrDefault(r => r.IsPrimary)?.Phone;
 
@@ -39,6 +43,14 @@ public static class SupplierDtoMapper
             supplier.TermsAcceptedVersion,
             supplier.TermsAcceptedAt,
             supplier.RowVersion,
-            incompleteDocumentTypeCodes);
+            incompleteDocumentTypeCodes,
+            // The submit gate's own checklist, expressed as a fraction - see ProfileCompleteness for
+            // why it is that set and not a narrower one. Null when the caller did not run the
+            // document query, rather than a zero that would read as "nothing done".
+            missingRequiredDocumentTypeCodes is null
+                ? null
+                : ProfileCompleteness.Ratio(
+                    missingItems: supplier.GetMissingProfileFields().Count + missingRequiredDocumentTypeCodes.Count,
+                    totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredDocumentTypeCount));
     }
 }

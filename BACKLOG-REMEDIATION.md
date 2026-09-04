@@ -61,7 +61,7 @@ The documented body and the emitted body differ in nine places. All **reproduced
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-001 | §12.2 | `profileCompleteness` is documented and nothing computes it | `GetSupplierContracts.cs:43`; absent | Reproduced | M |
+| ~~T-001~~ | §12.2 | **Closed.** The entry was partly WRONG and is corrected here: something did compute a completeness — the supplier dashboard, as documents-supplied ÷ documents-total — and the SPA read it rather than computing its own. What was missing was the field on the §12.2 profile response, and a definition matching `T-03.1.1b` ("required sections + mandatory doc types"). Both endpoints now use one evaluator, which is the submit gate's own checklist | batch 3 | Reproduced | M |
 | T-002 | §12.2 | `documentsSummary { required, approved, pending, rejected }` documented; absent | `GetSupplierContracts.cs:43`; absent | Reproduced | S |
 | T-003 | §12.2 | `updatedAt` documented; absent from the DTO | `GetSupplierContracts.cs:43`; absent | Reproduced | S |
 | T-004 | §12.2 | `externalId` and `syncStatus` documented on the profile; absent | `GetSupplierContracts.cs:43`; absent | Reproduced | S |
@@ -96,10 +96,10 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 |---|---|---|---|---|
 | T-016 | BRULE-003 | Invite-only registration mode is not switchable; self-registration is hard-coded open | Inferred | M |
 | T-017 | BRULE-012 | Re-application policy after rejection (allowed / cooldown) is not configurable | Inferred | M |
-| T-018 | BRULE-035 | Deadline extension/shortening is not implemented; no endpoint, no notification | Inferred | L |
+| T-018 | BRULE-035 | Deadline extension/shortening not implemented. **Now reproduced, and the documents settle more than assumed**: extension is `procurement_officer` while Published/SubmissionOpen, shortening is `procurement_manager`, the audit event is named (`rfq.deadline_extended`), and "notify all invitees" IS specified — so the notification consequence is not an open question. What is open: **no bound on how far a deadline may be extended**, and the NotificationCatalogue has no deadline-change type, so building it needs new bilingual copy — the same reviewer dependency as the three Arabic sets already waiting. Whole rule is `[ASSUMPTION]` | `BUSINESS-PROCESSES.md:242-244` | Reproduced | L |
 | T-019 | BRULE-050 | Whether commercial (price) revisions are permitted during clarification is not configurable | Inferred | M |
 | T-020 | BRULE-054 | Default proposal currency is not configurable | Inferred | S |
-| T-021 | BRULE-061 | Criteria requiring justification can be submitted without a comment | Inferred | S |
+| T-021 | BRULE-061 | Criteria requiring justification can be submitted without a comment. **Reproduced**: `Criterion` has no `RequiresJustification` field at all, so there is nothing to enforce against. The rule's own document tags **which** criteria require one as `[ASSUMPTION]` — buildable without inventing policy by putting the flag on the criterion and letting the template author set it, which is where the document points | `Criterion.cs:9-20` | Reproduced | S |
 | T-022 | BRULE-069 | Ranking tie-breaks have no defined order | Inferred | M |
 | T-023 | BRULE-074 | Approver authority limits and escalation are not implemented | Inferred | L |
 | T-024 | BRULE-080 | Split/multi-line award policy is not implemented | Inferred | L |
@@ -117,8 +117,8 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-029 | §8.1 | `SupplierDocument`, `Clarification`, `Addendum` and two others carry no version column | Not `IVersionedAggregate` | Reproduced | M |
-| T-030 | §8.1 | A child write does not bump the root aggregate's version, so a concurrent edit to a sibling is not detected | Inferred | M |
+| T-029 | §8.1 | Eight mutable aggregates carry no version column. **`Offering` closed in batch 3** — it was the one that bit, since every `supplier_user` edits the catalogue. Remaining: `Organization`, `OrgUnit`, `SupplierOrgLink`, `SupplierFieldConfig`, `SupplierDocument`, `Clarification`, `Addendum`. **No migration needed** — `xmin` is a Postgres system column, so each is a mapping change | Not `IVersionedAggregate` | Reproduced | M |
+| T-030 | §8.1 | A child write does not bump the root's version. **Now reproduced**, and it does NOT let the excluded sub-resource routes back under `If-Match`: `ApplyExpectedVersion` only stamps an entry that is `Modified` **and** an `IVersionedAggregate`, and a child insert marks the CHILD `Added` — so the guard is skipped even when a correct `If-Match` was sent, and Postgres never advances the parent's `xmin` because the parent row is not written. Forcing a parent touch is not viable: `xmin` is database-generated and cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext.cs:192` already documents. A real fix needs an application-managed version column — **a second concurrency mechanism, so a decision** | `AppDbContext.cs:86-92` | Reproduced | M |
 | T-031 | — | No `state_changed_at`; time-in-current-state is not derivable from the aggregate. Cycle time is derivable from the audit log instead (EPIC-19) | `Rfq.cs:42-66` | Reproduced | M |
 | T-032 | §7 | `Correlation-Id` appears in problem bodies but is not echoed as a response header | `ProblemResponse.cs` | Reproduced | S |
 
@@ -140,6 +140,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 |---|---|---|---|---|---|
 | T-040 | ACCESSIBILITY.md | The back-office shell header does not wrap at 320px — 424px against a 320px viewport. Affects every back-office screen | Measured in PR #102 | Reproduced | M |
 | T-041 | — | `CrossOrganizationScopeTests` gives a full RFQ setup a 3-second window before `closesAt`; fails under CI load | Observed failing then passing on re-run, PR #101 | Reproduced | S |
+| T-050 | — | The CI dependency gate calls npm's `/security/audits/quick`, which npm is **retiring** (`npm notice This endpoint is being retired`). It has now failed twice on `main`/PR with `400 Bad Request` then `503 Service Unavailable` while `npm audit --omit=dev --audit-level=high` reports **0 vulnerabilities** locally. A gate that fails for registry reasons trains people to re-run it, which is how a gate stops being read — the same shape as T-041. Move to the bulk advisory endpoint | `.github/workflows/ci.yml`, Dependency scan (npm) | Reproduced | S |
 
 ### Closed — kept rather than dropped
 

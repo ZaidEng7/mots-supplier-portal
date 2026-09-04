@@ -3,7 +3,21 @@ namespace MotsSupplierPortal.Application.Suppliers;
 public sealed record OfferingDto(
     Guid Id, string NameAr, string NameEn, string? Description,
     string CategoryCode, string UnitOfMeasureCode, decimal? PriceAmount, string? CurrencyCode, bool IsActive,
-    IReadOnlyDictionary<string, string>? Attributes);
+    IReadOnlyDictionary<string, string>? Attributes,
+    /// <summary>§8.1's version, carried so WithETag can emit an ETag from this DTO - the filter
+    /// looks for this property by name and does nothing without it.</summary>
+    long RowVersion = 0);
+
+/// <summary>
+/// A single offering, row-scoped. Exists so §8.1's contract is COMPLETE for this aggregate: every
+/// guarded write needs a read that issues the precondition it demands, and until now there was only
+/// a list. Adding If-Match to deactivate without this made the header unobtainable - the guard
+/// refused every caller, which is how the batch's own test suite caught it.
+/// </summary>
+public interface IGetOfferingHandler
+{
+    Task<OfferingDto?> HandleAsync(Guid offeringId, CancellationToken ct);
+}
 
 public sealed record CreateOfferingCommand(
     string NameAr, string NameEn, string? Description,

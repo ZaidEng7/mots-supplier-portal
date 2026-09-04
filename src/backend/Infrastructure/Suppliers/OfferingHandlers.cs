@@ -12,7 +12,8 @@ internal static class OfferingDtoMapper
 {
     public static OfferingDto ToDto(Offering o) => new(
         o.Id, o.NameAr, o.NameEn, o.Description, o.CategoryCode, o.UnitOfMeasureCode, o.PriceAmount, o.CurrencyCode, o.IsActive,
-        DeserializeAttributes(o.AttributesJson));
+        DeserializeAttributes(o.AttributesJson),
+        o.RowVersion);
 
     /// <summary>FEAT-06.2: the jsonb column is a plain serialized dictionary (see Offering.AttributesJson's
     /// doc comment) - null/empty round-trips to null, never an empty object, so a caller can tell
@@ -39,6 +40,23 @@ public sealed class ListOfferingsHandler(AppDbContext db, IScopeContext scope) :
             .ToListAsync(ct);
 
         return offerings.Select(OfferingDtoMapper.ToDto).ToList();
+    }
+}
+
+/// <summary>
+/// One offering, scoped to the caller's own supplier IN THE QUERY - a miss is indistinguishable from
+/// an id that never existed (§9.2), same as every other supplier-scoped read here.
+/// </summary>
+public sealed class GetOfferingHandler(AppDbContext db, IScopeContext scope) : IGetOfferingHandler
+{
+    public async Task<OfferingDto?> HandleAsync(Guid offeringId, CancellationToken ct)
+    {
+        if (scope.SupplierId is null) return null;
+
+        var offering = await db.Offerings.AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == offeringId && o.SupplierId == scope.SupplierId, ct);
+
+        return offering is null ? null : OfferingDtoMapper.ToDto(offering);
     }
 }
 
