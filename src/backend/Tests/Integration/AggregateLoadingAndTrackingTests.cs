@@ -37,7 +37,7 @@ public sealed class AggregateLoadingAndTrackingTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Aggregate Co {Guid.NewGuid():N}"[..24]);
         var me = await client.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/suppliers/me");
-        var referenceCode = me.GetProperty("referenceCode").GetString();
+        var referenceCode = me.GetProperty("supplierCode").GetString();
 
         // Registration already seeds exactly one Representative (the registrant). The other five
         // collections start empty - seed one of each through the real handlers, the same path

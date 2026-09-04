@@ -245,7 +245,7 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         }
 
         var start = await supplierA.PostAsync($"/api/v1/rfqs/{rfqCode}/proposals", null);
-        var proposalCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
+        var proposalCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("proposalCode").GetString()!;
         await ProposalPatch.PriceItemAsync(supplierA, proposalCode, itemId, 10m, 5m);
         await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
         {

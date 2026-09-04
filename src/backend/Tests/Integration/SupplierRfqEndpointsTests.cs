@@ -119,14 +119,14 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var referenceCode = await CreatePublishedRfqWithInviteAsync(supplierId, "List And View RFQ");
 
         // The list returns the §5.2 envelope now, and projects a list item rather than the whole
-        // aggregate - myInvitationStatus is still on it, resolved server-side per caller.
+        // aggregate - invitationStatus is still on it, resolved server-side per caller.
         var list = (await client.GetFromJsonAsync<JsonElement>("/api/v1/rfqs")).GetProperty("data");
-        list.EnumerateArray().Should().Contain(r => r.GetProperty("referenceCode").GetString() == referenceCode);
-        var listedState = list.EnumerateArray().Single(r => r.GetProperty("referenceCode").GetString() == referenceCode);
-        listedState.GetProperty("myInvitationStatus").GetString().Should().Be(nameof(InvitationStatus.Invited));
+        list.EnumerateArray().Should().Contain(r => r.GetProperty("rfqCode").GetString() == referenceCode);
+        var listedState = list.EnumerateArray().Single(r => r.GetProperty("rfqCode").GetString() == referenceCode);
+        listedState.GetProperty("invitationStatus").GetString().Should().Be(nameof(InvitationStatus.Invited));
 
         var detail = await client.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
-        detail.GetProperty("myInvitationStatus").GetString().Should().Be(nameof(InvitationStatus.Viewed));
+        detail.GetProperty("invitationStatus").GetString().Should().Be(nameof(InvitationStatus.Viewed));
         detail.TryGetProperty("approvals", out _).Should().BeFalse("the supplier-facing shape excludes internal reviewer approvals");
     }
 
@@ -140,7 +140,7 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
 
         decline.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await decline.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("myInvitationStatus").GetString().Should().Be(nameof(InvitationStatus.Declined));
+        body.GetProperty("invitationStatus").GetString().Should().Be(nameof(InvitationStatus.Declined));
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -159,9 +159,9 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
 
         var body = await client.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=50");
         var row = body.GetProperty("data").EnumerateArray()
-            .Single(r => r.GetProperty("referenceCode").GetString() == referenceCode);
+            .Single(r => r.GetProperty("rfqCode").GetString() == referenceCode);
 
-        row.GetProperty("submissionClosesAt").ValueKind.Should().NotBe(JsonValueKind.Null,
+        row.GetProperty("submissionDeadline").ValueKind.Should().NotBe(JsonValueKind.Null,
             "a published RFQ has a close date and the list must show it");
 
         // Asserted against STORAGE, so this is the RFQ's own deadline rather than any date.
@@ -170,7 +170,7 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var stored = await db.Rfqs.AsNoTracking()
             .Where(r => r.ReferenceCode == referenceCode).Select(r => r.SubmissionClosesAt).FirstAsync();
 
-        row.GetProperty("submissionClosesAt").GetDateTimeOffset()
+        row.GetProperty("submissionDeadline").GetDateTimeOffset()
             .Should().BeCloseTo(stored!.Value, TimeSpan.FromSeconds(1));
     }
 }

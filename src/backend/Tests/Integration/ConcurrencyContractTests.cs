@@ -29,7 +29,7 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, name);
         var read = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
-        return (client, read.GetProperty("referenceCode").GetString()!);
+        return (client, read.GetProperty("supplierCode").GetString()!);
     }
 
     // ---- the read half -------------------------------------------------------------------------

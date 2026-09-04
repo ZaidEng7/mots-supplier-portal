@@ -50,8 +50,8 @@ describe('SupplierRfqListPage', () => {
     restore = mockFetch({
       '/api/v1/rfqs': listPage([
         {
-          referenceCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ',
-          state: 'Published', myInvitationStatus: 'Invited', createdAt: '2026-08-30T09:00:00Z',
+          rfqCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ',
+          state: 'Published', invitationStatus: 'Invited', createdAt: '2026-08-30T09:00:00Z', submissionDeadline: null,
         },
       ]),
     })
@@ -74,8 +74,8 @@ describe('SupplierRfqListPage', () => {
    */
   it('appends the next page when Load more is used, keeping the rows already shown', async () => {
     const item = (code: string) => ({
-      referenceCode: code, titleAr: 'طلب', titleEn: `RFQ ${code}`,
-      state: 'Published', myInvitationStatus: 'Invited', createdAt: '2026-08-30T09:00:00Z',
+      rfqCode: code, titleAr: 'طلب', titleEn: `RFQ ${code}`,
+      state: 'Published', invitationStatus: 'Invited', createdAt: '2026-08-30T09:00:00Z', submissionDeadline: null,
     })
     const original = globalThis.fetch
     globalThis.fetch = ((input: RequestInfo | URL) => {

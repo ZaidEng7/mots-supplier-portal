@@ -59,11 +59,13 @@ public sealed record RfqDto(
 /// internal-only fields; a non-invited supplier never sees this shape at all (404, see
 /// SupplierRfqEndpoints).</summary>
 public sealed record SupplierRfqDto(
-    string ReferenceCode, string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn,
-    string CurrencyCode, RfqState State, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionClosesAt,
+    // R-9 rename pass: §12.4 names this rfqCode and the invitation field invitationStatus.
+    // titleAr/titleEn stay split - see SupplierDto's note on why a bilingual pair is not a rename.
+    string RfqCode, string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn,
+    string CurrencyCode, RfqState State, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionDeadline,
     DateTimeOffset? ClarificationDeadlineAt,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements, IReadOnlyList<RfqAttachmentDto> Attachments,
-    InvitationStatus MyInvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
+    InvitationStatus InvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
 
 /// <summary>
 /// The buyer RFQ list row (T2 Item 2). Deliberately NOT <see cref="RfqDto"/>: the detail DTO is the
@@ -82,20 +84,19 @@ public sealed record RfqListItemDto(
 /// <param name="HasDraftProposal">§12.4's <c>hasDraftProposal</c>, relative to the calling supplier.</param>
 /// <param name="PublishedAt">§12.4's <c>publishedAt</c>, now that the column exists (§12-A/C).</param>
 public sealed record SupplierRfqListItemDto(
-    string ReferenceCode, string TitleAr, string TitleEn, RfqState State,
-    InvitationStatus MyInvitationStatus, DateTimeOffset CreatedAt,
+    string RfqCode, string TitleAr, string TitleEn, RfqState State,
+    InvitationStatus InvitationStatus, DateTimeOffset CreatedAt,
     DateTimeOffset? PublishedAt, BuyingOrgDto? BuyingOrg, int ItemsCount, bool HasDraftProposal,
     /// <summary>
     /// T-054, §12.4's <c>submissionDeadline</c>. Documented on this list and absent from it - so the
     /// one screen where a supplier decides whether to bid could not show the deadline they would be
     /// bidding against.
     ///
-    /// <para>Named <c>SubmissionClosesAt</c>, matching the aggregate and every other DTO that
-    /// carries it, rather than the document's <c>submissionDeadline</c>. The rename to §12.2's
-    /// vocabulary is R-9's coordinated pass, and doing one field early would leave the SPA reading
-    /// two naming conventions at once.</para>
+    /// <para>Batch 7 shipped this as <c>SubmissionClosesAt</c>, matching the aggregate, on the
+    /// stated ground that the rename belonged in R-9's coordinated pass rather than one field
+    /// early. This is that pass, and it converges here.</para>
     /// </summary>
-    DateTimeOffset? SubmissionClosesAt = null);
+    DateTimeOffset? SubmissionDeadline = null);
 
 /// <summary>
 /// §12.4's <c>"buyingOrg": { "code": "ORG-HTL-0007", "name": "Cham Palace Hotels" }</c>.

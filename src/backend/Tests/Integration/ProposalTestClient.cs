@@ -21,7 +21,7 @@ internal static class ProposalTestClient
         var response = await client.PostAsync($"/api/v1/rfqs/{rfqReferenceCode}/proposals", null);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return body.GetProperty("referenceCode").GetString()!;
+        return body.GetProperty("proposalCode").GetString()!;
     }
 }
 

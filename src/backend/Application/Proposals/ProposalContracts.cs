@@ -21,13 +21,31 @@ public sealed record RequirementAnswerDto(Guid Id, Guid RequirementId, string An
 /// this file ever carries ProposalItemDto - that absence is the two-envelope seal for every party
 /// but the owner, for this epic (EPIC-11 will add a technical-qualification-gated view for
 /// evaluators; none exists yet, so no such view is defined here).</summary>
+/// <summary>T-057: §12.5's submit response carries <c>totals { currency, grandTotal }</c> and its
+/// PATCH response promises "recomputed totals". Derived from the line items on every read rather
+/// than stored - a stored total is a second source of truth for a number the items already
+/// determine, and the two drift the first time a line is edited outside the one path that
+/// maintains it. Currency repeats the proposal's own so the object is self-describing, which is how
+/// the document shows it.</summary>
+public sealed record ProposalTotalsDto(string? Currency, decimal GrandTotal);
+
 public sealed record ProposalDto(
-    string ReferenceCode, string ProposalReferenceCode, ProposalState State,
-    string? CurrencyCode, string? PaymentTerms, string? IncotermCode, string? DeliveryTermsAr, string? DeliveryTermsEn,
+    // R-9 rename pass. §12.5 names these proposalCode, rfqCode and currency.
+    //
+    // T-058 recorded "ProposalDto carries BOTH ReferenceCode and ProposalReferenceCode; one is
+    // redundant". It was worse than redundant: the second field held the RFQ's code under a name
+    // that said proposal, and every consumer reading it by name was reading a lie. The pair is now
+    // proposalCode + rfqCode, which is both the fix and §12.5's own shape.
+    string ProposalCode, string RfqCode, ProposalState State,
+    string? Currency, string? PaymentTerms, string? IncotermCode, string? DeliveryTermsAr, string? DeliveryTermsEn,
     string? Warranty, DateOnly? ValidityStart, DateOnly? ValidityEnd,
     string? NarrativeAr, string? NarrativeEn,
     DateTimeOffset? SubmittedAt, DateTimeOffset? WithdrawnAt, string? WithdrawReason,
     IReadOnlyList<ProposalItemDto> Items, IReadOnlyList<ProposalDocumentDto> Documents, IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
+    // T-056: §12.5's create response shows createdAt and no DTO carried it. The aggregate has had
+    // the column all along - this was a projection omission, not a missing fact.
+    DateTimeOffset CreatedAt,
+    ProposalTotalsDto Totals,
     // §8.1: the version this read saw, so the endpoint can emit it as an ETag and the caller can
     // send it back as If-Match. Carried on the DTO rather than fetched separately because the read
     // has already loaded the aggregate that knows it.

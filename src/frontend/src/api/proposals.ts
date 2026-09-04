@@ -40,11 +40,19 @@ export interface RequirementAnswer {
   answerEn: string
 }
 
+/** R-9: §12.5's names. `rfqCode` replaces `rfqReferenceCode`, which the server had been emitting
+ * under the name `proposalReferenceCode` - a field whose name said proposal and whose value was the
+ * RFQ's code (T-058). */
+export interface ProposalTotals {
+  currency: string | null
+  grandTotal: number
+}
+
 export interface Proposal {
-  referenceCode: string
-  rfqReferenceCode: string
+  proposalCode: string
+  rfqCode: string
   state: ProposalState
-  currencyCode: string | null
+  currency: string | null
   paymentTerms: string | null
   incotermCode: string | null
   deliveryTermsAr: string | null
@@ -57,6 +65,8 @@ export interface Proposal {
   submittedAt: string | null
   withdrawnAt: string | null
   withdrawReason: string | null
+  createdAt: string
+  totals: ProposalTotals
   items: ProposalItem[]
   documents: ProposalDocument[]
   requirementAnswers: RequirementAnswer[]

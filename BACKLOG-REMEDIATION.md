@@ -65,11 +65,11 @@ The documented body and the emitted body differ in nine places. All **reproduced
 | T-002 | §12.2 | `documentsSummary { required, approved, pending, rejected }` documented; absent | `GetSupplierContracts.cs:43`; absent | Reproduced | S |
 | T-003 | §12.2 | `updatedAt` documented; absent from the DTO | `GetSupplierContracts.cs:43`; absent | Reproduced | S |
 | T-004 | §12.2 | `externalId` and `syncStatus` documented on the profile; absent | `GetSupplierContracts.cs:43`; absent | Reproduced | S |
-| T-005 | §12.2 | `supplierCode` documented; emitted as `referenceCode` | `GetSupplierContracts.cs:44` | Reproduced | S |
-| T-006 | §12.2 | `defaultCurrency` documented; emitted as `currencyCode` | `GetSupplierContracts.cs:55` | Reproduced | S |
-| T-007 | §12.2 | `categories` documented; emitted as `categoryCodes` | `GetSupplierContracts.cs:63` | Reproduced | S |
-| T-008 | §12.2 | `legalName` documented; no such field (only `displayNameAr`/`En`) | `GetSupplierContracts.cs:45` | Reproduced | S |
-| T-009 | §12.2 | `displayName` is one field in the document, two in the code | `GetSupplierContracts.cs:45-46` | Reproduced | S |
+| ~~T-005~~ | §12.2 | **Closed (R-9, batch 8).** Emits `supplierCode` | batch 8 | Reproduced | S |
+| ~~T-006~~ | §12.2 | **Closed (R-9, batch 8).** The RESPONSE emits `defaultCurrency`. The PATCH request key and `ProfileFieldCodes.CurrencyCode` are deliberately unchanged: that string is a persisted field-code the reviewer flagged-field guard (BRULE-050) matches against, so renaming it is a data migration, not a contract rename | batch 8 | Reproduced | S |
+| ~~T-007~~ | §12.2 | **Closed (R-9, batch 8).** Emits `categories` | batch 8 | Reproduced | S |
+| T-008 | §12.2 | **R-9 does not reach this one, and batch 8 says so rather than conforming it.** `legalName` exists — as `legalInfo.legalNameAr`/`legalNameEn`. §12.2 shows it as a single top-level value, and its own example puts Arabic in `legalName` and English in `displayName`. Conforming is not a rename: it collapses two stored values into one and drops a language from an Arabic-first product. R-9 rules that the document's NAMES are authoritative; it does not rule a bilingual pair into a single value | `GetSupplierContracts.cs` LegalInfoDto | Reproduced | S |
+| T-009 | §12.2 | Same as T-008 and the same refusal: `displayNameAr`/`displayNameEn` stay split. Still the open decision the table at the end of this file records as "bilingual fields vs the documented single-value shape" — which R-9 did not answer | `GetSupplierContracts.cs` | Reproduced | S |
 
 **T-005 through T-009 are a single decision, not five tasks.** Either the document's names are
 authoritative and the DTO is renamed — a breaking change to a live SPA — or the code's bilingual
@@ -91,11 +91,11 @@ of its own and T-013 changes a route the SPA calls.
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
 | ~~T-010~~ | §12.3, §3 | **Closed.** Documents carry `DOC-YYYY-NNNNNN` and are addressed by it; the internal GUID is gone from URLs *and* payloads. The entry cited §12.3's shape, but the governing rule is **§3 principle 3** — GUIDs never in "URLs, payloads, or errors" — which a comment in `DocumentContracts` had read as paths-only, so the Guid was being emitted in bodies deliberately. Backfilled in-migration with the counter seeded past it; SPA needed **no change** | batch 5 | Reproduced | L |
-| T-011 | §12.3 | Upload returns `201 Created`; the document specifies `202 Accepted` (correct for an async scan pipeline) | `DocumentEndpoints.cs:119` | Reproduced | S |
-| T-012 | §12.3 | `Location` now emits `/api/v1/documents/DOC-…` — the GUID half is closed by T-010. The remaining divergence is only the PATH SHAPE: documented as `/suppliers/{code}/documents/{docId}` | `DocumentEndpoints.cs:119` | Reproduced | S |
-| T-013 | §12.3 | Download is `GET /documents/{id}/download-url` returning JSON; documented as `/documents/{id}/content` returning `302` | `DocumentEndpoints.cs:147` | Reproduced | M |
-| T-014 | §12.3 | Oversize upload has no `413`; documented explicitly | No `Status413` anywhere in `src/backend` | Reproduced | S |
-| T-015 | §12.3 | Upload response has no `scanStatus` field; scan state is folded into `state` | `DocumentContracts.cs` | Reproduced | S |
+| ~~T-011~~ | §12.3 | **Closed (batch 8).** Upload answers `202 Accepted`. It is the honest code as well as the documented one: the row exists, `DocumentScanJob` has not finished with it | batch 8 | Reproduced | S |
+| T-012 | §12.3 | **Open, deliberately.** `Location` emits `/api/v1/documents/DOC-…`; documented as `/suppliers/{supplierCode}/documents/{documentId}`. Neither path has a GET — there is no single-document read anywhere in the API — so conforming the string alone would emit a `Location` that resolves to nothing. Closing it needs a read §12.3 does not define | `DocumentEndpoints.cs` | Reproduced | S |
+| ~~T-013~~ | §12.3 | **Closed (batch 8).** `GET /documents/{code}/content` answers `302` to the pre-signed URL and the list's `downloadUrl` points at it. Added ALONGSIDE `download-url`, not instead of it: the SPA reads JSON, and `fetch()` cannot hand a cross-origin redirect back to application code. One handler, so the two routes cannot authorize differently | batch 8 | Reproduced | M |
+| ~~T-014~~ | §12.3 | **Closed (batch 8).** Oversize answers `413` and a disallowed MIME `415`, both as §12.3 names them. They had shared one 400, which says the request was malformed rather than that the file was wrong | batch 8 | Reproduced | S |
+| ~~T-015~~ | §12.3 | **Closed (batch 8).** `scanStatus` is emitted, derived from `DocumentState` rather than stored — the same treatment `expiryState` already had, and for the same reason: a second stored copy of a fact the state carries is a second thing to keep in step | batch 8 | Reproduced | S |
 
 ### Business rules with no implementing mechanism
 
@@ -205,8 +205,8 @@ These belong to a person. Building any of them from a silent document would mean
 | **AV scanning scope (OQ-014)** | Still tagged `[REQUIRES BUSINESS CONFIRMATION]`. Whether attachments must be scanned, and by what, is not ours. No longer *blocks* T-025 — batch 8 shipped fail-closed as a marked default. An answer of "scan nothing" or "scan on upload only" would change the default and delete the on-access path |
 | **Signed URL vs streamed download** | §4.2 mandates signed URLs; the consequence is that the application sees neither the fetch nor the fetcher, and cannot revoke one. Acceptable or not is a policy call |
 | **Which roles hold `report.read`** | Reports are built and reachable by nobody |
-| **§12.2 field names** | T-005..T-009. Rename the DTO (breaking a live SPA) or accept that the document is stale. Someone owns that contract |
-| **Bilingual fields vs the documented single-value shape** | The document shows `displayName`, `legalName`; the product is Arabic-first bilingual and the code split them. The code is probably right and the document probably predates the decision — but "probably" is not a contract |
+| **§12.2 field names** | Answered as R-9 and applied in batch 8 for the three that are renames (T-005/006/007). T-008 and T-009 are NOT renames — see their rows — and remain open under the bilingual question below |
+| **Bilingual fields vs the documented single-value shape** | Still open, and R-9 did not settle it: R-9 rules on names, and this is a shape. `displayName`, `legalName`, RFQ `title`, and §12.5's `technicalResponse` string all show one value where the code carries an Ar/En pair. Batch 8 conformed every name and left every pair, which is the only direction that loses nothing. Someone still owns the question |
 | **Re-application policy after rejection (BRULE-012)** | "configurable" without a default is not implementable |
 | **Ranking tie-break order (BRULE-069)** | The document gives an example, not a rule. Tie-breaks decide who wins a tender |
 | **Approver authority limits (BRULE-074)** | The limits themselves are a finance policy nobody has stated |
@@ -246,10 +246,10 @@ machine is **reachability**, and applying it produced the largest finding here (
 | ~~T-052~~ | BRULE-024 | **Closed in batch 8.** `DocumentState.UnderReview` was read by three guards and assigned by nothing, so §12.3's own reviewer query — `?state=UnderReview,Rejected` — matched nothing that had ever existed. §4.4 already named the culprit: *"an async Hangfire job runs virus scan + validation, transitioning to `UnderReview`"* — `DocumentScanJob` stopped at `Uploaded`. Added `EnterReview()` and the job's second call. Kept as a separate transition rather than folded into `MarkScanClean`, so a crash between them leaves a reviewable `Uploaded` row instead of trading this gap for its mirror image. BRULE-024's re-upload path needed no change once the pipeline did: a new version is created `PendingScan` and traverses the same route. Every consumer that filters on `DocumentState` was enumerated first — none filter on `Uploaded`, so nothing emptied. SPA already rendered the state in both locales | `SupplierDocument.cs`, `DocumentScanJob.cs` | Closed (batch 8) | M |
 | T-053 | §13, §12.5 | **`Idempotency-Key` is not implemented anywhere.** §13's checklist requires it on unsafe POSTs and §12.5 makes it *required* on submit, with a documented replay response. Harm is bounded — a second submit hits the state guard and 409s rather than duplicating — so this is a contract gap, not a double-submission bug | no occurrence in `Api`/`Infrastructure` | Reproduced | L |
 | ~~T-054~~ | §12.4 | **Closed.** `submissionClosesAt` is on the supplier RFQ list. Named for the aggregate rather than §12.4's `submissionDeadline` — the rename to §12.2's vocabulary is R-9's coordinated pass, and doing one field early would make the SPA read two conventions at once | batch 7 | Reproduced | S |
-| T-055 | §12.4 | `buyingOrg.code` (`ORG-HTL-0007`) is documented; `Organization` has no public short code, so `ExternalId` or null is emitted. Same class T-010 just closed for documents | `RfqContracts.cs:90-96` | Reproduced | M |
-| T-056 | §12.5 | `createdAt` documented on the create response; absent from `ProposalDto` | `ProposalContracts.cs:21-31` | Reproduced | S |
-| T-057 | §12.5 | The submit response's `totals { currency, grandTotal }` object does not exist on any proposal DTO | `ProposalContracts.cs` — no totals member | Reproduced | M |
-| T-058 | §12.5 | `ProposalDto` carries BOTH `ReferenceCode` and `ProposalReferenceCode`. One of them is redundant and no document asks for two | `ProposalContracts.cs:22` | Reproduced | S |
+| T-055 | §12.4 | **Its own item, not batch 8's.** `buyingOrg.code` needs an `ORG-` reference-code scheme on `Organization`: a counter, a format, a backfill migration and an addressing decision. That is batch 5 (T-010) again, at the same size, and folding it into a rename pass would have made the pass unreviewable | `RfqContracts.cs` BuyingOrgDto | Reproduced | M |
+| ~~T-056~~ | §12.5 | **Closed (batch 8).** `createdAt` is on `ProposalDto`. The column existed all along — this was a projection omission, not a missing fact | batch 8 | Reproduced | S |
+| ~~T-057~~ | §12.5 | **Closed (batch 8).** `totals { currency, grandTotal }` is on `ProposalDto`, derived from the line items on every read. Not stored: a stored total is a second source of truth for a number the items already determine | batch 8 | Reproduced | M |
+| ~~T-058~~ | §12.5 | **Closed (batch 8), and it was worse than "redundant".** The second field held the RFQ's code under the name `proposalReferenceCode` — every consumer reading it by name read a lie. Now `proposalCode` + `rfqCode`, which is §12.5's own shape | batch 8 | Reproduced | S |
 | T-059 | FR-ADM-004 | No write endpoints for `Category`, `DocumentType`, `Currency`, `UnitOfMeasure`, `Incoterm`, `Region` — all seed-only. (Supersedes the older T-034, which named only two of the six) | no `MapPost`/`MapPut` on reference data | Reproduced | L |
 | T-060 | FR-ADM-006 | System settings (registration mode, default currency, numeral system, expiry windows, approval hierarchy) are not configurable. Marked `[ASSUMPTION]` in its own requirement | no settings entity | Reproduced | L |
 | T-061 | FR-ADM-007 | Notification templates are a compiled catalogue, not admin-editable AR/EN templates | `NotificationCatalogue.jsonc` | Reproduced | L |
@@ -306,8 +306,8 @@ R-9 rules that §12.2's names are authoritative and the DTOs rename to match.
 | T-056 `createdAt` absent | **Independent** |
 | T-057 `totals` object absent | **Independent** |
 | T-058 duplicate reference-code fields | **Independent** |
-| `validityDays` vs `validityStart`/`End` | **Independent** — shape, not name |
-| `technicalResponse` string vs `requirementAnswers[]` | **Independent**, and already justified in `RequirementAnswer.cs` as a deliberate deviation |
+| `validityDays` vs `validityStart`/`End` | **Independent — assessed in batch 8, nothing built.** The code carries strictly more information than the document: two dates versus one duration. Converting loses the anchor, and nothing says which date `validityDays` counts from — creation, submission, or award. That is a business question, not a rename, and inventing an anchor would have silently fixed a validity window to the wrong event |
+| `technicalResponse` string vs `requirementAnswers[]` | **Independent — justification re-checked in batch 8 and it holds.** Two reasons, both still true: FEAT-09.5's submit gate must verify every mandatory Requirement has an answer, which needs queryable rows rather than opaque text; and the answers are bilingual, so the document's single string is the same collapse as `displayName`. Unchanged |
 
 **Five rides with R-9, seven are independent** — the same split §12.3 showed, and the seven can be
 conformed without waiting on that decision.

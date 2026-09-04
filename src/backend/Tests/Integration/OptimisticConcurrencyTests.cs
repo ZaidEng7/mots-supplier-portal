@@ -57,7 +57,7 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
         var readResponse = await client.GetAsync("/api/v1/suppliers/me");
         var read = await readResponse.Content.ReadFromJsonAsync<JsonElement>();
         // §12-A/C3: the profile PATCH is addressed by supplier code now (§12.2).
-        var supplierCode = read.GetProperty("referenceCode").GetString()!;
+        var supplierCode = read.GetProperty("supplierCode").GetString()!;
         // Taken from the ETag header, which is the channel §8.1 defines - reading it from the body
         // would leave the header itself unproven.
         var sharedVersion = VersionFrom(readResponse);
@@ -92,7 +92,7 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
         var readResponse = await client.GetAsync("/api/v1/suppliers/me");
         var read = await readResponse.Content.ReadFromJsonAsync<JsonElement>();
         // §12-A/C3: the profile PATCH is addressed by supplier code now (§12.2).
-        var supplierCode = read.GetProperty("referenceCode").GetString()!;
+        var supplierCode = read.GetProperty("supplierCode").GetString()!;
         var version = VersionFrom(readResponse);
 
         var response = await client.SendAsync(PatchProfile(supplierCode, "fresh version", version));

@@ -40,24 +40,26 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
     /// </summary>
     private static readonly string[] SupplierDetailKeys =
     [
-        "referenceCode", "titleAr", "titleEn", "descriptionAr", "descriptionEn", "currencyCode",
-        "state", "submissionOpensAt", "submissionClosesAt", "clarificationDeadlineAt",
-        "items", "requirements", "attachments", "myInvitationStatus", "clarifications", "addenda",
+        // R-9: the supplier-facing shapes now speak §12.4's vocabulary - rfqCode, invitationStatus,
+        // submissionDeadline. The allow-list moves with them, which is the point of having one.
+        "rfqCode", "titleAr", "titleEn", "descriptionAr", "descriptionEn", "currencyCode",
+        "state", "submissionOpensAt", "submissionDeadline", "clarificationDeadlineAt",
+        "items", "requirements", "attachments", "invitationStatus", "clarifications", "addenda",
     ];
 
     /// <summary>Every top-level key a supplier may receive from a row of <c>GET /rfqs</c>.</summary>
     private static readonly string[] SupplierListItemKeys =
     [
-        "referenceCode", "titleAr", "titleEn", "state", "myInvitationStatus", "createdAt",
+        "rfqCode", "titleAr", "titleEn", "state", "invitationStatus", "createdAt",
         // §12-A/D: §12.4's documented list fields. Each is here because a supplier is documented to
         // receive it - and each is asserted absent from the buyer row below, because §12.4
-        // documents only the supplier shape and hasDraftProposal/myInvitationStatus are
+        // documents only the supplier shape and hasDraftProposal/invitationStatus are
         // caller-relative.
         "publishedAt", "buyingOrg", "itemsCount", "hasDraftProposal",
         // T-054: §12.4 documents this on the supplier list. Added to the allow-list deliberately -
         // this gate exists so a field cannot reach a supplier's response without someone deciding
         // it should, and it did its job by failing when the field appeared.
-        "submissionClosesAt",
+        "submissionDeadline",
     ];
 
     /// <summary>
@@ -179,7 +181,7 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
 
         var body = await supplier.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
         var row = body.GetProperty("data").EnumerateArray()
-            .Single(r => r.GetProperty("referenceCode").GetString() == code);
+            .Single(r => r.GetProperty("rfqCode").GetString() == code);
 
         KeysOf(row).Should().BeEquivalentTo(SupplierListItemKeys);
     }
@@ -196,10 +198,14 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         var (_, officer, code) = await PublishedRfqAsync();
 
         var body = await officer.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
+        // referenceCode, not rfqCode: R-9 conformed the SUPPLIER-facing shapes, which is what §12.4
+        // specifies. The buyer list row is not field-specified anywhere, so renaming it would have
+        // been inventing conformance rather than applying it. This test is where that seam is
+        // visible, and it is deliberate.
         var row = body.GetProperty("data").EnumerateArray()
             .Single(r => r.GetProperty("referenceCode").GetString() == code);
 
-        foreach (var callerRelative in new[] { "myInvitationStatus", "hasDraftProposal" })
+        foreach (var callerRelative in new[] { "invitationStatus", "hasDraftProposal" })
         {
             row.TryGetProperty(callerRelative, out _).Should().BeFalse(
                 $"'{callerRelative}' is relative to the CALLING SUPPLIER (§12.4 says so of " +

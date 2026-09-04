@@ -102,7 +102,7 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         {
             var start = await supplier.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
             var startBody = await start.Content.ReadFromJsonAsync<JsonElement>();
-            var proposalReferenceCode = startBody.GetProperty("referenceCode").GetString()!;
+            var proposalReferenceCode = startBody.GetProperty("proposalCode").GetString()!;
             await ProposalPatch.PriceItemAsync(supplier, proposalReferenceCode, requiredItemId, 10m, 5m, (decimal?)null, 3, (string?)null, (string?)null );
             await ProposalPatch.SetTermsAsync(supplier, proposalReferenceCode, new
             {

@@ -19,6 +19,6 @@ internal static class SupplierCodeTestClient
         var response = await client.GetAsync("/api/v1/suppliers/me");
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return body.GetProperty("referenceCode").GetString()!;
+        return body.GetProperty("supplierCode").GetString()!;
     }
 }

@@ -10,12 +10,12 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { SupplierRfqDetailPage } = await import('./SupplierRfqDetailPage')
 
-function fixture(myInvitationStatus: string) {
+function fixture(invitationStatus: string) {
   return {
-    referenceCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
-    currencyCode: 'SYP', state: 'Published', submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
+    rfqCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
+    currencyCode: 'SYP', state: 'Published', submissionOpensAt: null, submissionDeadline: null, clarificationDeadlineAt: null,
     items: [{ id: 'item-1', lineNo: 1, titleAr: 'أ', titleEn: 'Widget', specificationAr: null, specificationEn: null, categoryCode: 'catering', quantity: 5, unitOfMeasureCode: 'unit', isUnitPrice: true, isOptional: false }],
-    requirements: [], attachments: [], myInvitationStatus, clarifications: [], addenda: [],
+    requirements: [], attachments: [], invitationStatus, clarifications: [], addenda: [],
   }
 }
 

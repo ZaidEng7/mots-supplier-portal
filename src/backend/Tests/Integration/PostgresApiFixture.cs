@@ -77,6 +77,12 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
     /// <summary>A client WITHOUT the ETag handler, for tests that need to control the header.</summary>
     public HttpClient CreateRawClient() => ((WebApplicationFactory<Program>)this).CreateClient();
 
+    /// <summary>A client that does NOT follow redirects, so a 302 can be asserted as a 302. The
+    /// default client follows them, which would turn §12.3's documented redirect into whatever the
+    /// pre-signed URL answers.</summary>
+    public HttpClient CreateClientWithoutRedirects() =>
+        CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
