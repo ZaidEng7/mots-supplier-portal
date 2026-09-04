@@ -77,7 +77,12 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
             return new AwardMutationResult.InvalidState("Cannot recommend this proposal: it did not pass technical qualification in the finalized evaluation.");
         }
         var proposal = await db.Proposals.FirstOrDefaultAsync(p => p.Id == command.WinningProposalId && p.RfqId == rfq.Id, ct);
-        if (proposal is null || proposal.State != ProposalState.Submitted)
+        // T-051: proposals now reach UnderReview and Shortlisted, so eligibility can no longer mean
+        // "still Submitted" - that predicate was written when the middle of the lifecycle was
+        // unreachable and every proposal sat in Submitted until it was awarded. §4.1's award path is
+        // Shortlisted -> AwardOffered -> Awarded; Submitted stays valid for an RFQ that never went
+        // through evaluation intake.
+        if (proposal is null || proposal.State is not (ProposalState.Submitted or ProposalState.UnderReview or ProposalState.Shortlisted))
         {
             return new AwardMutationResult.InvalidState("The recommended proposal is not eligible for award.");
         }
@@ -327,7 +332,16 @@ public sealed class ExecuteAwardHandler(
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        var proposals = await db.Proposals.Where(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted).ToListAsync(ct);
+        // The losers. Same widening as the winner's eligibility check above, and for the same
+        // reason: after evaluation intake these sit in UnderReview or Shortlisted, and a filter on
+        // Submitted alone would silently leave them in an evaluation state forever while the RFQ
+        // completed around them.
+        var proposals = await db.Proposals
+            .Where(p => p.RfqId == rfq.Id
+                && (p.State == ProposalState.Submitted
+                    || p.State == ProposalState.UnderReview
+                    || p.State == ProposalState.Shortlisted))
+            .ToListAsync(ct);
         foreach (var proposal in proposals)
         {
             // EPIC-13/FEAT-13.3 audit finding: this loop mutates every Proposal's own State but

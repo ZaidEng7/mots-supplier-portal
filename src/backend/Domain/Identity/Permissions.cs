@@ -196,6 +196,17 @@ public static class Permissions
     /// withheld. It therefore needs a MANUAL grant in any deployed environment - the same footing
     /// as rfq.read and rfq.clarify.</para>
     /// </summary>
+    /// <summary>
+    /// BUSINESS-PROCESSES.md §4.1 names it directly: <c>ClarificationRequested -&gt; Revised |
+    /// Supplier responds | `supplier_admin` / `proposal.revise`</c>. Transcribed, not coined.
+    ///
+    /// <para>Granted to no role by default, like report.read - §4.1 names the ACTOR
+    /// (<c>supplier_admin</c>) but the role-to-permission map is seeded from Roles.DefaultPermissions,
+    /// and adding it there is a policy edit rather than a transcription. Needs a manual grant, and it
+    /// is on the first-deploy checklist for that reason.</para>
+    /// </summary>
+    public const string ProposalRevise = "proposal.revise";
+
     public const string ReportRead = "report.read";
 
     public static readonly IReadOnlyList<string> All =
@@ -207,7 +218,7 @@ public static class Permissions
         RfqRead, RfqCreate, RfqEdit, RfqSubmitReview, RfqReview, RfqApprove, RfqClose, RfqCancel, RfqInvite,
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
-        ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead
+        ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise
     ];
 }
 

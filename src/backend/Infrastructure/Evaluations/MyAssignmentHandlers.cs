@@ -63,7 +63,7 @@ public sealed class ListMyAssignmentsHandler(AppDbContext db, IScopeContext scop
             .ToDictionaryAsync(g => g.EvaluationId, g => g.Count, ct);
 
         var proposalCounts = await db.Proposals
-            .Where(p => rfqIds.Contains(p.RfqId) && p.State == ProposalState.Submitted)
+            .Where(p => rfqIds.Contains(p.RfqId) && ProposalStates.InEvaluation.Contains(p.State))
             .GroupBy(p => p.RfqId)
             .Select(g => new { RfqId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.RfqId, g => g.Count, ct);

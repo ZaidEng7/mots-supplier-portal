@@ -78,6 +78,14 @@ public sealed class Proposal : IVersionedAggregate
     public DateTimeOffset? SubmittedAt { get; private set; }
     public DateTimeOffset? WithdrawnAt { get; private set; }
     public string? WithdrawReason { get; private set; }
+
+    /// <summary>§4.1's "Reason; specific questions" on ClarificationRequested.</summary>
+    public string? ClarificationReason { get; private set; }
+
+    public DateTimeOffset? ClarificationRequestedAt { get; private set; }
+
+    /// <summary>§4.1's "New revision n+1". Starts at 1 for the original submission.</summary>
+    public int RevisionNumber { get; private set; } = 1;
     public DateTimeOffset CreatedAt { get; private init; }
     public uint RowVersion { get; private set; }
 
@@ -328,11 +336,130 @@ public sealed class Proposal : IVersionedAggregate
     /// step (BRULE-057/081's active-acceptance flow). Flagged as a real, interim scope decision:
     /// nothing in this build lets a supplier decline an award, so "the winner accepted" is assumed
     /// the instant the award is issued, not observed.</para></summary>
-    public void Award()
+
+    /// <summary>
+    /// T-051, BUSINESS-PROCESSES.md §4.1: <c>Submitted -&gt; UnderReview</c>, <i>"Evaluation opened |
+    /// `system` (on RFQ `UnderEvaluation`) | RFQ moved to evaluation | Make visible to assigned
+    /// `evaluator`s (scoped)"</i>.
+    ///
+    /// <para>This is the gateway the whole middle of the lifecycle hung on. Nothing assigned
+    /// UnderReview, so nothing could reach ClarificationRequested or Shortlisted either - six of
+    /// eleven states were unreachable and a proposal went Draft -&gt; Submitted -&gt; outcome,
+    /// skipping evaluation intake entirely.</para>
+    ///
+    /// <para>System-driven, so there is no permission here: the actor is the RFQ's own transition to
+    /// UnderEvaluation, and the caller is the handler that performs it.</para>
+    /// </summary>
+    public void OpenForReview()
     {
         if (State != ProposalState.Submitted)
         {
-            throw new DomainException($"Cannot award from state '{State}'; only 'Submitted' is valid.");
+            throw new DomainException($"Cannot open for review from state '{State}'; only 'Submitted' is valid.");
+        }
+
+        State = ProposalState.UnderReview;
+    }
+
+    /// <summary>
+    /// §4.1: <c>UnderReview -&gt; ClarificationRequested</c>, <i>"Request clarification |
+    /// `procurement_officer`,`evaluator` / `rfq.clarify` | Reason; specific questions"</i>.
+    /// </summary>
+    /// <param name="reason">Mandatory per the table's own guard - "Reason; specific questions".</param>
+    public void RequestClarification(string reason)
+    {
+        if (State != ProposalState.UnderReview)
+        {
+            throw new DomainException($"Cannot request clarification from state '{State}'; only 'UnderReview' is valid.");
+        }
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A clarification reason is required.");
+        }
+
+        State = ProposalState.ClarificationRequested;
+        ClarificationReason = reason;
+        ClarificationRequestedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// §4.1: <c>ClarificationRequested -&gt; Revised</c>, <i>"Supplier responds | `supplier_admin` /
+    /// `proposal.revise` | Within clarification window; only permitted fields changed | New revision
+    /// n+1"</i>.
+    ///
+    /// <para><b>The revision counter is incremented; the snapshot is not taken.</b> §4.1 asks for
+    /// "New revision n+1; snapshot" and BRULE-051 for immutable prior revisions. Revision numbering
+    /// is implemented here because it is unambiguous; snapshotting a proposal's full prior content
+    /// is a storage design nothing in this codebase has, and inventing one inside a transition would
+    /// be the larger half of the requirement decided in passing. Recorded rather than half-built.</para>
+    ///
+    /// <para><b>Scope is NOT enforced here.</b> The table says "only permitted fields changed", and
+    /// which fields are permitted is BRULE-050 - a configurable policy whose default is undecided.
+    /// A guard would have to invent that policy, so the transition is what exists and the field-level
+    /// restriction is not claimed.</para>
+    /// </summary>
+    public void RecordRevision()
+    {
+        if (State != ProposalState.ClarificationRequested)
+        {
+            throw new DomainException($"Cannot revise from state '{State}'; only 'ClarificationRequested' is valid.");
+        }
+
+        State = ProposalState.Revised;
+        RevisionNumber += 1;
+    }
+
+    /// <summary>
+    /// §4.1: <c>Revised -&gt; UnderReview</c>, <i>"Re-review | `system`/`procurement_officer` | -- |
+    /// Return to scoring"</i>. The loop the table marks as repeatable.
+    /// </summary>
+    public void ReturnToReview()
+    {
+        if (State != ProposalState.Revised)
+        {
+            throw new DomainException($"Cannot return to review from state '{State}'; only 'Revised' is valid.");
+        }
+
+        State = ProposalState.UnderReview;
+    }
+
+    /// <summary>
+    /// §4.1: <c>UnderReview -&gt; Shortlisted</c>, <i>"Passes thresholds |
+    /// `procurement_officer`,`procurement_manager` / `evaluation.consolidate` | Consolidated score
+    /// &gt;= thresholds (§5)"</i>.
+    ///
+    /// <para><b>Two documents name different triggers and this follows §4.1.</b> §3.1's RFQ table
+    /// says <c>Shortlisting -&gt; Recommendation</c> has the side effect "set proposal(s)
+    /// `Shortlisted`" - i.e. at recommendation time, under `award.recommend`. §4.1's proposal table
+    /// says at consolidation, under `evaluation.consolidate`. The proposal's own transition table is
+    /// the more specific authority for a proposal transition, and consolidation is where the
+    /// threshold comparison actually happens. Reported as a documentation conflict rather than
+    /// resolved silently.</para>
+    /// </summary>
+    public void Shortlist()
+    {
+        if (State != ProposalState.UnderReview)
+        {
+            throw new DomainException($"Cannot shortlist from state '{State}'; only 'UnderReview' is valid.");
+        }
+
+        State = ProposalState.Shortlisted;
+    }
+
+    public void Award()
+    {
+        // Submitted stays valid, and Shortlisted joins it (§4.1: Shortlisted -> AwardOffered ->
+        // Awarded). Widened rather than replaced: making the middle of the lifecycle reachable must
+        // not break the award path for an RFQ that never went through evaluation intake, and both
+        // routes exist in the documents.
+        // UnderReview is here because this codebase awards directly out of the evaluation set:
+        // §4.1's canonical path is Shortlisted -> AwardOffered -> Awarded, but AwardOffered is not
+        // built (see the class note), so the winner is whatever state intake left it in. Omitting it
+        // produced an uncaught DomainException and a 500 on award/execute, because the winner is
+        // UnderReview from the moment T-051 made intake work.
+        if (State is not (ProposalState.Submitted or ProposalState.UnderReview or ProposalState.Shortlisted))
+        {
+            throw new DomainException(
+                $"Cannot award from state '{State}'; only 'Submitted', 'UnderReview' or 'Shortlisted' is valid.");
         }
         State = ProposalState.Awarded;
     }
@@ -343,9 +470,12 @@ public sealed class Proposal : IVersionedAggregate
     /// aren't.</summary>
     public void MarkNotSelected()
     {
-        if (State != ProposalState.Submitted)
+        // §4.1: "UnderReview / Shortlisted -> NotSelected". Submitted is kept for the pre-evaluation
+        // award path that already existed.
+        if (State is not (ProposalState.Submitted or ProposalState.UnderReview or ProposalState.Shortlisted))
         {
-            throw new DomainException($"Cannot mark not-selected from state '{State}'; only 'Submitted' is valid.");
+            throw new DomainException(
+                $"Cannot mark not-selected from state '{State}'; only 'Submitted', 'UnderReview' or 'Shortlisted' is valid.");
         }
         State = ProposalState.NotSelected;
     }

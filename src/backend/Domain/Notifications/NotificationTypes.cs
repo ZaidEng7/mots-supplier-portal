@@ -45,6 +45,12 @@ public static class NotificationTypes
     // ---- Proposal (BUSINESS-PROCESSES §3.2) ----
     public const string ProposalWithdrawn = "proposal.withdrawn";
 
+    /// <summary>§4.1: "UnderReview -&gt; ClarificationRequested ... Email + in-app to supplier".</summary>
+    public const string ProposalClarificationRequested = "proposal.clarification_requested";
+
+    /// <summary>§4.1: "ClarificationRequested -&gt; Revised ... In-app to committee".</summary>
+    public const string ProposalRevised = "proposal.revised";
+
     /// <summary>Both directions of the catalogue gate compare against this set.</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -55,5 +61,7 @@ public static class NotificationTypes
         AwardRecommended, AwardRoutedForApproval, AwardApproved, AwardRejected, AwardReRecommended,
         AwardErpSynced, AwardErpFailed,
         ProposalWithdrawn,
+        ProposalClarificationRequested,
+        ProposalRevised,
     };
 }

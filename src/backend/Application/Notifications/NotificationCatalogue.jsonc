@@ -220,6 +220,31 @@
     "bodyEn": "Proposal {proposalCode} on RFQ {rfqCode} was withdrawn."
   },
 
+  // ==========================================================================================
+  // T-051: the proposal clarification loop. BUSINESS-PROCESSES.md §4.1 defines both transitions
+  // and names their notifications; neither could fire before, because nothing assigned
+  // ClarificationRequested. Copy is DRAFTED in the §7 register, not transcribed - §7 has no
+  // proposal clarification strings - and goes to the same Arabic review pile as the rest.
+  // ==========================================================================================
+  {
+    "type": "proposal.clarification_requested",
+    "source": "drafted",
+    "recipients": "Email + in-app to supplier",
+    "titleAr": "طلب إيضاح على عرضكم",
+    "titleEn": "Clarification requested on your proposal",
+    "bodyAr": "طُلب إيضاح بشأن العرض {proposalCode} المقدَّم على الطلب {rfqCode}. يُرجى مراجعة الطلب والرد عليه.",
+    "bodyEn": "A clarification has been requested on proposal {proposalCode} for RFQ {rfqCode}. Please review and respond."
+  },
+  {
+    "type": "proposal.revised",
+    "source": "drafted",
+    "recipients": "In-app to committee",
+    "titleAr": "تم تعديل العرض",
+    "titleEn": "A proposal was revised",
+    "bodyAr": "عُدِّل العرض {proposalCode} المقدَّم على الطلب {rfqCode} رداً على طلب الإيضاح.",
+    "bodyEn": "Proposal {proposalCode} on RFQ {rfqCode} was revised in response to a clarification request."
+  },
+
   // ========================================================================================
   // T3-36: the three states BUSINESS-PROCESSES.md §3.1 defines but no code could reach until now.
   // ========================================================================================

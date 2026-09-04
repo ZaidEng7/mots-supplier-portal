@@ -304,5 +304,37 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalWithdraw)
         .RequireIfMatch()
         .WithName("WithdrawProposal");
+
+        // T-051, §4.1: UnderReview -> ClarificationRequested. Buyer-side, so rfq.clarify - the same
+        // permission the RFQ-level clarification already uses, not a new one.
+        group.MapPost("/request-clarification", async (
+            string referenceCode,
+            WithdrawProposalRequest request,
+            IValidator<WithdrawProposalRequest> validator,
+            IRequestProposalClarificationHandler handler,
+            CancellationToken ct) =>
+        {
+            // Reuses WithdrawProposalRequest: both carry exactly one mandatory Reason, and its
+            // validator already enforces that. A second identical request type would be a second
+            // thing to keep in step.
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapResult(await handler.HandleAsync(
+                new RequestProposalClarificationCommand(referenceCode, request.Reason), ct));
+        })
+        .RequirePermission(Permissions.RfqClarify)
+        .RequireIfMatch()
+        .WithName("RequestProposalClarification");
+
+        // §4.1: ClarificationRequested -> Revised, supplier_admin / proposal.revise.
+        group.MapPost("/revise", async (
+            string referenceCode,
+            IReviseProposalHandler handler,
+            CancellationToken ct) =>
+            MapResult(await handler.HandleAsync(new ReviseProposalCommand(referenceCode), ct)))
+        .RequirePermission(Permissions.ProposalRevise)
+        .RequireIfMatch()
+        .WithName("ReviseProposal");
     }
 }

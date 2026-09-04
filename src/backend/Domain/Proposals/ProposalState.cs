@@ -24,3 +24,34 @@ public enum ProposalState
     Awarded,
     Declined,
 }
+
+/// <summary>
+/// The states a proposal occupies while it is IN the evaluation set - submitted and not yet resolved
+/// to an outcome.
+///
+/// <para>T-051 made this necessary. Before it, the middle of the lifecycle was unreachable and every
+/// live proposal sat in <c>Submitted</c>, so six separate queries filtered on that one member and
+/// were correct by accident. Once intake moves proposals to <c>UnderReview</c>, each of those
+/// queries silently returns nothing - the evaluator's workspace empties, the comparison matrix
+/// empties, and no error is raised anywhere.</para>
+///
+/// <para>One definition, so widening the lifecycle again cannot leave five of six call sites behind.
+/// The set is §4.1's own: everything between submission and a terminal outcome.</para>
+/// </summary>
+public static class ProposalStates
+{
+    /// <summary>
+    /// An ARRAY, not a HashSet. EF Core translates <c>Contains</c> over an array or list into SQL
+    /// <c>IN (...)</c>; over an <c>IReadOnlySet</c> it cannot, and the query failed at runtime with a
+    /// 500 rather than at compile time. The set semantics were never the point here - the membership
+    /// test is.
+    /// </summary>
+    public static readonly ProposalState[] InEvaluation =
+    {
+        ProposalState.Submitted,
+        ProposalState.UnderReview,
+        ProposalState.ClarificationRequested,
+        ProposalState.Revised,
+        ProposalState.Shortlisted,
+    };
+}

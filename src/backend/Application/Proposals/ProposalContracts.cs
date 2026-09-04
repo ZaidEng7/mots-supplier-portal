@@ -30,6 +30,23 @@ public sealed record ProposalDto(
     // has already loaded the aggregate that knows it.
     uint RowVersion);
 
+/// <summary>§4.1: UnderReview -&gt; ClarificationRequested. Reason is mandatory per the table's own
+/// guard, "Reason; specific questions".</summary>
+public sealed record RequestProposalClarificationCommand(string ProposalReferenceCode, string Reason);
+
+/// <summary>§4.1: ClarificationRequested -&gt; Revised, the supplier's response.</summary>
+public sealed record ReviseProposalCommand(string ProposalReferenceCode);
+
+public interface IRequestProposalClarificationHandler
+{
+    Task<ProposalResult> HandleAsync(RequestProposalClarificationCommand command, CancellationToken ct);
+}
+
+public interface IReviseProposalHandler
+{
+    Task<ProposalResult> HandleAsync(ReviseProposalCommand command, CancellationToken ct);
+}
+
 public sealed record SetItemPricingCommand(
     string ProposalReferenceCode, Guid RfqItemId, decimal Quantity, decimal UnitPrice, decimal? Discount, int? LeadTimeDays, string? NotesAr, string? NotesEn);
 
