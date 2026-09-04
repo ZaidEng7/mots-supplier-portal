@@ -118,7 +118,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-025 | BRULE-019, OQ-014 | RFQ and proposal attachments bypass quarantine-and-scan. **Blocked on OQ-014**, not on the scanner: `ClamAvScanner` is real and wired, but quarantine-first is a state machine and neither aggregate has any state. The asymmetry is now recorded at both upload sites rather than silent | `RfqEndpoints.cs`, `ProposalEndpoints.cs` — direct `IFileStorage.SaveAsync` | Reproduced | L |
+| T-025 | BRULE-019, OQ-014 | RFQ and proposal attachments bypass quarantine-and-scan. **Closed in batch 8 under D-10 as a default, not an answer** — OQ-014 is still `[REQUIRES BUSINESS CONFIRMATION]`, so the decision lives in one enum comment and one default value rather than in the design. Both aggregates carry `ScanState`; the download gate scans on first access, deletes an infected object, and refuses with the same 404 as any other miss. Existing rows enter as `PendingScan`, not as clean | `AttachmentScanState.cs`, `AttachmentScanner.cs`, `GetRfqAttachmentDownloadUrlHandler.cs`, migration `20260904163101_AttachmentScanState` | Closed (batch 8) | L |
 | ~~T-026~~ | — | **Closed** — storage keys now derive from server-side values only; the file name is kept as row metadata. Also closed a second vector on the same line: the route's reference code was interpolated before validation | PR for batch 2 | Reproduced | S |
 | ~~T-027~~ | §4.1 | **Closed** — RFC 6266 `filename` + `filename*`, so Arabic names survive. An ASCII-only escape would have been a regression | PR for batch 2 | Reproduced | S |
 | T-028 | — | Proposal attachments have no download path at all | No route exists | Reproduced | M |
@@ -173,9 +173,11 @@ A list that quietly loses entries is how the previous backlog became unusable.
 
 By what hurts in a live tender, not by size or by document section.
 
-1. **T-025 — unscanned attachments are now downloadable.** PR #103 turned a theoretical gap into a
-   live one. Malware reaching a buyer's machine through a tender portal is the worst outcome on this
-   list. **Blocked on OQ-014** — it needs an answer more than it needs an engineer.
+1. ~~T-025 — unscanned attachments are now downloadable.~~ **Closed in batch 8.** It was ranked first
+   because malware reaching a buyer's machine through a tender portal is the worst outcome on this
+   list; it was held on OQ-014 because nobody here can say what the scanning policy is. Batch 8 broke
+   that deadlock by separating the two: the policy stays open, and the default is fail-closed. A
+   business answer now changes a value, not a design.
 2. ~~T-027 — header injection in the download filename.~~ **Closed in batch 2.**
 3. ~~T-026 — filenames shaping storage keys.~~ **Closed in batch 2.**
 4. **T-028 — proposal attachments cannot be downloaded.** A buyer cannot open a bid document. Blocked
@@ -199,7 +201,7 @@ These belong to a person. Building any of them from a silent document would mean
 | Question | Why it cannot be decided here |
 |---|---|
 | **Two-envelope discriminator on proposal attachments** | `ProposalDocument` has no technical/commercial field. Gating everything blinds evaluators; opening everything leaks commercial content. Only procurement can say which attachments are which. Blocks T-028 |
-| **AV scanning scope (OQ-014)** | Tagged `[REQUIRES BUSINESS CONFIRMATION]`. Whether attachments must be scanned, and by what, is not ours. Blocks T-025 |
+| **AV scanning scope (OQ-014)** | Still tagged `[REQUIRES BUSINESS CONFIRMATION]`. Whether attachments must be scanned, and by what, is not ours. No longer *blocks* T-025 — batch 8 shipped fail-closed as a marked default. An answer of "scan nothing" or "scan on upload only" would change the default and delete the on-access path |
 | **Signed URL vs streamed download** | §4.2 mandates signed URLs; the consequence is that the application sees neither the fetch nor the fetcher, and cannot revoke one. Acceptable or not is a policy call |
 | **Which roles hold `report.read`** | Reports are built and reachable by nobody |
 | **§12.2 field names** | T-005..T-009. Rename the DTO (breaking a live SPA) or accept that the document is stale. Someone owns that contract |
@@ -319,8 +321,7 @@ whole file the balance is now roughly 37 reproduced to 15 inferred, with 1 uncon
 1. **T-051 — the proposal lifecycle's middle is unreachable.** A buyer cannot request clarification on
    a proposal, and nothing is ever shortlisted. This is the largest functional hole in the product and
    it sits in the tender's critical path.
-2. **T-025 — unscanned attachments are downloadable.** Still blocked on OQ-014; still the worst
-   outcome on the list if it lands badly.
+2. ~~T-025 — unscanned attachments are downloadable.~~ **Closed in batch 8** under a marked default.
 3. **T-028 — proposal attachments cannot be downloaded.** Blocked on the two-envelope discriminator.
 4. **T-052 — documents never enter UnderReview**, so BRULE-024's re-upload path does not behave as
    written.

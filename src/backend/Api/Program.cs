@@ -447,6 +447,7 @@ builder.Services.AddSingleton<MinioFileStorage>();
 builder.Services.AddScoped<IFileStorage>(sp => sp.GetRequiredService<MinioFileStorage>());
 builder.Services.Configure<ClamAvOptions>(builder.Configuration.GetSection(ClamAvOptions.SectionName));
 builder.Services.AddScoped<IVirusScanner, ClamAvScanner>();
+builder.Services.AddScoped<AttachmentScanner>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Audit.IGetAuditLogHandler, MotsSupplierPortal.Infrastructure.Audit.GetAuditLogHandler>();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
