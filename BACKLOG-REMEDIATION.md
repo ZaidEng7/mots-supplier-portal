@@ -121,7 +121,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 | T-025 | BRULE-019, OQ-014 | RFQ and proposal attachments bypass quarantine-and-scan. **Closed in batch 8 under D-10 as a default, not an answer** — OQ-014 is still `[REQUIRES BUSINESS CONFIRMATION]`, so the decision lives in one enum comment and one default value rather than in the design. Both aggregates carry `ScanState`; the download gate scans on first access, deletes an infected object, and refuses with the same 404 as any other miss. Existing rows enter as `PendingScan`, not as clean | `AttachmentScanState.cs`, `AttachmentScanner.cs`, `GetRfqAttachmentDownloadUrlHandler.cs`, migration `20260904163101_AttachmentScanState` | Closed (batch 8) | L |
 | ~~T-026~~ | — | **Closed** — storage keys now derive from server-side values only; the file name is kept as row metadata. Also closed a second vector on the same line: the route's reference code was interpolated before validation | PR for batch 2 | Reproduced | S |
 | ~~T-027~~ | §4.1 | **Closed** — RFC 6266 `filename` + `filename*`, so Arabic names survive. An ASCII-only escape would have been a regression | PR for batch 2 | Reproduced | S |
-| T-028 | — | Proposal attachments have no download path at all | No route exists | Reproduced | M |
+| ~~T-028~~ | — | **Closed in batch 8 under D-7.** A supplier reads files on their own proposal ungated; a buyer reads another's only once that RFQ's evaluation reaches `Consolidated`/`Finalized` — the evaluation's state, not the proposal's, and the same predicate `ComparisonHandlers` already uses. The refusal is a 404 on the LIST as well as the download, because an attachment count is itself a signal about a live competitor bid. `ProposalDocument.Envelope` is stored now and applied by nothing yet; it exists so relaxing the gate for technical files later is a predicate change rather than a backfill nobody could perform after the fact | `ProposalDocumentDownloadHandlers.cs`, `ProposalDocumentEnvelope.cs`, migration `…_ProposalDocumentEnvelope` | Closed (batch 8) | M |
 
 ### Concurrency and audit
 
@@ -180,8 +180,9 @@ By what hurts in a live tender, not by size or by document section.
    business answer now changes a value, not a design.
 2. ~~T-027 — header injection in the download filename.~~ **Closed in batch 2.**
 3. ~~T-026 — filenames shaping storage keys.~~ **Closed in batch 2.**
-4. **T-028 — proposal attachments cannot be downloaded.** A buyer cannot open a bid document. Blocked
-   on a decision, not on work.
+4. ~~T-028 — proposal attachments cannot be downloaded.~~ **Closed in batch 8.** The framing was
+   narrower than the fact: it was not that a download route was missing, it was that *no buyer-side
+   read of a proposal existed at all* — see T-067, which is what remains once T-028 is closed.
 5. **T-001 — `profileCompleteness`.** Documented, visible in the contract, computed by nothing.
    Documented-but-absent is worse than absent, because integrators build against it.
 6. **T-010 — document reference codes.** Every other aggregate has one; documents leak GUIDs into
@@ -200,7 +201,7 @@ These belong to a person. Building any of them from a silent document would mean
 
 | Question | Why it cannot be decided here |
 |---|---|
-| **Two-envelope discriminator on proposal attachments** | `ProposalDocument` has no technical/commercial field. Gating everything blinds evaluators; opening everything leaks commercial content. Only procurement can say which attachments are which. Blocks T-028 |
+| **Two-envelope discriminator on proposal attachments** | Answered as D-7 and shipped in batch 8: the uploading supplier declares it, unstated means Commercial, and the buyer gate refuses both kinds until consolidation. What is still procurement's call is whether technical files should open EARLY, during scoring — that is T-067, and it is the half that actually blinds evaluators |
 | **AV scanning scope (OQ-014)** | Still tagged `[REQUIRES BUSINESS CONFIRMATION]`. Whether attachments must be scanned, and by what, is not ours. No longer *blocks* T-025 — batch 8 shipped fail-closed as a marked default. An answer of "scan nothing" or "scan on upload only" would change the default and delete the on-access path |
 | **Signed URL vs streamed download** | §4.2 mandates signed URLs; the consequence is that the application sees neither the fetch nor the fetcher, and cannot revoke one. Acceptable or not is a policy call |
 | **Which roles hold `report.read`** | Reports are built and reachable by nobody |
@@ -240,6 +241,8 @@ machine is **reachability**, and applying it produced the largest finding here (
 | T-064 | §4.1 | `ProposalState.AwardOffered` and `Declined` are still unreachable. §4.1 defines both fully (`Shortlisted → AwardOffered` on `award.approve`, `AwardOffered → Declined` on `proposal.decline` within an acceptance window). Today `Award()` goes straight to `Awarded`, so building the offer step changes EPIC-14's award flow — scoped out of batch 7 deliberately, not overlooked. The acceptance window's length is undecided | `Proposal.cs` Award(); no assignment of either state | Reproduced | L |
 | ~~T-065~~ | §3 | **Closed.** Proposal transition refusals answer 409 with `invalid-state-transition`, `currentState` and `allowedNext`, via the same result type RFQ uses — generalised, not duplicated. Refusals that are shaped like validation keep their 400: §3 governs transitions, not every rejection | batch 8 | Reproduced | M |
 | T-066 | §12.5 | Submit's completeness refusals (unpriced required item, unanswered mandatory requirement) answer **400**, where §12.5 names **422 `PROPOSAL_ITEMS_REQUIRED`**. Found while separating state refusals from completeness refusals for T-065; deliberately left as 400 there rather than swept into 409, which would have told a supplier with an unpriced item that their proposal had moved on | `SubmitProposalHandler`; `Proposal.Submit` | Reproduced | S |
+| T-067 | FEAT-11.3, OQ-009 | **An evaluator scores bids they cannot read.** `MyEvaluationDto` hands an evaluator a list of proposal GUIDs, the criteria, and their own scores — and no bid content of any kind: no narrative, no requirement answers, no documents. Found while closing T-028, and larger than it: T-028's buyer gate opens at consolidation, which is *after* scoring, so nothing in batch 8 gives an evaluator anything to score against. The fix needs a decision, not just work — which technical content opens during scoring, and whether it opens per-evaluator or per-evaluation | `EvaluationContracts.cs` MyEvaluationDto; no handler produces proposal content for an evaluator | Reproduced | L |
+| T-068 | §3 | Proposal **GUIDs** are exposed in evaluation payloads — `ConsolidatedResultDto.ProposalId`, `MyEvaluationDto.ProposalIds`, and the scoring command's `proposalId`. §3 principle 3 says internal identifiers never appear in "URLs, payloads, or errors", and proposals have carried a public `referenceCode` since before this. Batch 8's buyer document routes are keyed by the same GUID deliberately — inventing a second addressing scheme for two routes would have made this harder to fix, not easier. Same shape as T-010, which is now closed and is the template | `EvaluationContracts.cs`, `EvaluationEndpoints.cs`, `ComparisonContracts.cs` | Reproduced | M |
 | T-052 | BRULE-024 | `DocumentState.UnderReview` is read by three guards and never assigned. A document goes Uploaded → Approved/Rejected with no reviewer-pickup step, so BRULE-024's "returns to `Uploaded → UnderReview`" does not happen | `SupplierDocument.cs:143,155,194` | Reproduced | M |
 | T-053 | §13, §12.5 | **`Idempotency-Key` is not implemented anywhere.** §13's checklist requires it on unsafe POSTs and §12.5 makes it *required* on submit, with a documented replay response. Harm is bounded — a second submit hits the state guard and 409s rather than duplicating — so this is a contract gap, not a double-submission bug | no occurrence in `Api`/`Infrastructure` | Reproduced | L |
 | ~~T-054~~ | §12.4 | **Closed.** `submissionClosesAt` is on the supplier RFQ list. Named for the aggregate rather than §12.4's `submissionDeadline` — the rename to §12.2's vocabulary is R-9's coordinated pass, and doing one field early would make the SPA read two conventions at once | batch 7 | Reproduced | S |
@@ -322,7 +325,7 @@ whole file the balance is now roughly 37 reproduced to 15 inferred, with 1 uncon
    a proposal, and nothing is ever shortlisted. This is the largest functional hole in the product and
    it sits in the tender's critical path.
 2. ~~T-025 — unscanned attachments are downloadable.~~ **Closed in batch 8** under a marked default.
-3. **T-028 — proposal attachments cannot be downloaded.** Blocked on the two-envelope discriminator.
+3. ~~T-028 — proposal attachments cannot be downloaded.~~ **Closed in batch 8.**
 4. **T-052 — documents never enter UnderReview**, so BRULE-024's re-upload path does not behave as
    written.
 5. **T-053 — no `Idempotency-Key`.** Bounded by state guards today, but §13 requires it and the next

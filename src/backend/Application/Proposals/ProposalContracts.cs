@@ -9,7 +9,10 @@ public sealed record ProposalItemDto(
     Guid Id, Guid RfqItemId, decimal Quantity, decimal UnitPrice, decimal? Discount,
     decimal LineTotal, int? LeadTimeDays, string? NotesAr, string? NotesEn);
 
-public sealed record ProposalDocumentDto(Guid Id, string OriginalFileName, string ContentType, string? Caption, DateTimeOffset UploadedAt);
+public sealed record ProposalDocumentDto(
+    Guid Id, string OriginalFileName, string ContentType, string? Caption, DateTimeOffset UploadedAt,
+    // T-028/D-7: the envelope this file declares itself to be in. Commercial when unstated.
+    ProposalDocumentEnvelope Envelope);
 
 public sealed record RequirementAnswerDto(Guid Id, Guid RequirementId, string AnswerAr, string AnswerEn);
 
@@ -60,7 +63,9 @@ public sealed record SetNarrativeCommand(string ProposalReferenceCode, string? N
 
 public sealed record AnswerRequirementCommand(string ProposalReferenceCode, Guid RequirementId, string AnswerAr, string AnswerEn);
 
-public sealed record AddProposalDocumentCommand(string ProposalReferenceCode, string StorageKey, string OriginalFileName, string ContentType, string? Caption);
+public sealed record AddProposalDocumentCommand(
+    string ProposalReferenceCode, string StorageKey, string OriginalFileName, string ContentType, string? Caption,
+    ProposalDocumentEnvelope Envelope = ProposalDocumentEnvelope.Commercial);
 
 public sealed record RemoveProposalDocumentCommand(string ProposalReferenceCode, Guid DocumentId);
 

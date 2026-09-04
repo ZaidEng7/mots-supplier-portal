@@ -6,6 +6,7 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
@@ -272,6 +273,13 @@ public static class ProposalEndpoints
             if (file is null || file.Length == 0) return Results.BadRequest(new { error = "file_required" });
 
             var caption = form["caption"].ToString();
+
+            // T-028/D-7: the supplier declares the envelope. Anything unparseable, absent, or
+            // simply not sent stays Commercial - the parse FAILING must not be the thing that opens
+            // a file up, so the fallback is the gated side rather than the last value tried.
+            var envelope = Enum.TryParse<ProposalDocumentEnvelope>(form["envelope"].ToString(), ignoreCase: true, out var parsed)
+                ? parsed
+                : ProposalDocumentEnvelope.Commercial;
             // Server-side key, and the quarantine gap both these paths share, are explained once in
             // AttachmentStorageKey rather than twice here.
             var storageKey = AttachmentStorageKey.For(AttachmentStorageKey.ProposalDocumentPrefix);
@@ -282,10 +290,27 @@ public static class ProposalEndpoints
             }
 
             return MapResult(await handler.AddAsync(new AddProposalDocumentCommand(
-                referenceCode, storageKey, file.FileName, file.ContentType, string.IsNullOrWhiteSpace(caption) ? null : caption), ct));
+                referenceCode, storageKey, file.FileName, file.ContentType,
+                string.IsNullOrWhiteSpace(caption) ? null : caption, envelope), ct));
         })
         .RequirePermission(Permissions.ProposalEdit)
         .WithName("AddProposalDocument");
+
+        // T-028: the supplier's own read of their own file. No envelope gate - see
+        // GetOwnProposalDocumentDownloadUrlHandler on why the two-envelope rule does not apply to a
+        // bidder reading their own bid.
+        group.MapGet("/documents/{documentId:guid}/download-url", async (
+            string referenceCode, Guid documentId,
+            IGetOwnProposalDocumentDownloadUrlHandler handler, CancellationToken ct) =>
+            await handler.HandleAsync(referenceCode, documentId, ct) switch
+            {
+                ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                _ => Results.NotFound(),
+            })
+        // ProposalEdit rather than ProposalCreate: both supplier roles hold it, and reading a file
+        // back is strictly narrower than the upload that put it there.
+        .RequirePermission(Permissions.ProposalEdit)
+        .WithName("GetOwnProposalDocumentDownloadUrl");
 
         group.MapDelete("/documents/{documentId:guid}", async (
             string referenceCode, Guid documentId, IManageProposalDocumentHandler handler, CancellationToken ct) =>

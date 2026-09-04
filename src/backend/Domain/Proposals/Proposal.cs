@@ -223,11 +223,14 @@ public sealed class Proposal : IVersionedAggregate
         });
     }
 
-    public ProposalDocument AddDocument(string storageKey, string originalFileName, string contentType, string? caption)
+    public ProposalDocument AddDocument(
+        string storageKey, string originalFileName, string contentType, string? caption,
+        ProposalDocumentEnvelope envelope = ProposalDocumentEnvelope.Commercial)
     {
         EnsureDraftEditable();
         var document = new ProposalDocument
         {
+            Envelope = envelope,
             Id = Guid.CreateVersion7(),
             ProposalId = Id,
             StorageKey = storageKey,

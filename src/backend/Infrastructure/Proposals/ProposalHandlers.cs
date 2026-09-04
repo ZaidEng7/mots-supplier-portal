@@ -28,7 +28,7 @@ internal static class ProposalDtoMapper
         proposal.NarrativeAr, proposal.NarrativeEn,
         proposal.SubmittedAt, proposal.WithdrawnAt, proposal.WithdrawReason,
         [.. proposal.Items.Select(i => new ProposalItemDto(i.Id, i.RfqItemId, i.Quantity, i.UnitPrice, i.Discount, i.LineTotal, i.LeadTimeDays, i.NotesAr, i.NotesEn))],
-        [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt))],
+        [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt, d.Envelope))],
         [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))],
         proposal.RowVersion);
 }
@@ -295,7 +295,8 @@ public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext
         ProposalDocument document;
         try
         {
-            document = proposal!.AddDocument(command.StorageKey, command.OriginalFileName, command.ContentType, command.Caption);
+            document = proposal!.AddDocument(
+                command.StorageKey, command.OriginalFileName, command.ContentType, command.Caption, command.Envelope);
         }
         catch (DomainException ex)
         {

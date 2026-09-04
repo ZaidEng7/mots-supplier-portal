@@ -782,6 +782,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             entity.ToTable("proposal_document", "proposal");
             entity.Property(a => a.ScanState).HasConversion<string>().HasMaxLength(20);
+            entity.Property(d => d.Envelope).HasConversion<string>().HasMaxLength(20);
             entity.HasKey(d => d.Id);
             entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();
             entity.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();

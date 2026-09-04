@@ -19,7 +19,11 @@ public sealed record Seeded(
     // T-051 additions: the clarification loop needs the SUPPLIER side of this same RFQ, and the
     // proposal's own code. Added here rather than re-seeding forty lines in a third suite - the
     // reason this helper exists at all.
-    HttpClient Supplier, string ProposalCode);
+    HttpClient Supplier, string ProposalCode,
+    // T-028 additions: the buyer-side document routes are keyed by proposal GUID, and the gate is
+    // only provable if a document exists on both sides of it. Both are opt-in (see CreateAsync's
+    // withDocuments) so the suites that predate T-028 seed exactly what they seeded before.
+    Guid ProposalId, Guid TechnicalDocumentId, Guid CommercialDocumentId);
 
 public static class EvaluationSeed
 {
@@ -46,7 +50,7 @@ public static class EvaluationSeed
     /// it would mean two lifecycles drifting apart, and the one that drifts is the one nobody is
     /// looking at.</para>
     /// </summary>
-    public static async Task<Seeded> CreateAsync(PostgresApiFixture fixture, string label)
+    public static async Task<Seeded> CreateAsync(PostgresApiFixture fixture, string label, bool withDocuments = false)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var (officer, officerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
@@ -104,6 +108,17 @@ public static class EvaluationSeed
             validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
             validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
+        var technicalDocumentId = Guid.Empty;
+        var commercialDocumentId = Guid.Empty;
+        if (withDocuments)
+        {
+            // One file the supplier declares Technical, one where the field is simply not sent -
+            // the second is the D-7 default, and asserting it is Commercial is the only way to know
+            // the default is the gated side rather than whatever the enum happens to declare first.
+            technicalDocumentId = await UploadDocumentAsync(supplier, proposalCode, "spec.pdf", "Technical");
+            commercialDocumentId = await UploadDocumentAsync(supplier, proposalCode, "prices.pdf", envelope: null);
+        }
+
         await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
         await Task.Delay(TimeSpan.FromSeconds(2.2));
@@ -133,9 +148,38 @@ public static class EvaluationSeed
             criterionCount = await db.EvaluationCriterionSnapshots.CountAsync(c => c.EvaluationId == evaluationId);
         }
 
+        Guid proposalId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            proposalId = await db.Proposals.Where(p => p.ReferenceCode == proposalCode).Select(p => p.Id).FirstAsync();
+        }
+
         return new Seeded(officer, officerId, manager, managerId, evaluator, evaluatorId,
             rfqCode, supplierUserId, org.Id, evaluationId, criterionCount, SubmittedProposalCount: 1,
-            supplier, proposalCode);
+            supplier, proposalCode, proposalId, technicalDocumentId, commercialDocumentId);
     }
 
+
+    /// <summary>Uploads one supporting file to a Draft proposal and returns its id. envelope null
+    /// means the multipart field is omitted entirely, not sent empty - "unstated" is the case D-7's
+    /// default exists for.</summary>
+    private static async Task<Guid> UploadDocumentAsync(
+        HttpClient supplier, string proposalCode, string fileName, string? envelope)
+    {
+        using var content = new MultipartFormDataContent();
+        var file = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(
+            "%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\ntrailer\n<</Root 1 0 R>>\n%%EOF"));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(file, "file", fileName);
+        if (envelope is not null) content.Add(new StringContent(envelope), "envelope");
+
+        var response = await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/documents", content);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return body.GetProperty("documents").EnumerateArray()
+            .Single(d => d.GetProperty("originalFileName").GetString() == fileName)
+            .GetProperty("id").GetGuid();
+    }
 }

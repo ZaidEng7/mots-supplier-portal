@@ -20,12 +20,17 @@ export interface ProposalItem {
   notesEn: string | null
 }
 
+/** T-028/D-7. Commercial is what the server stores when the field is not sent, so an older client
+ * that never learned about envelopes uploads to the gated side rather than the open one. */
+export type ProposalDocumentEnvelope = 'Commercial' | 'Technical'
+
 export interface ProposalDocument {
   id: string
   originalFileName: string
   contentType: string
   caption: string | null
   uploadedAt: string
+  envelope: ProposalDocumentEnvelope
 }
 
 export interface RequirementAnswer {
@@ -153,10 +158,16 @@ export interface ItemPatch {
   notesEn?: string | null
 }
 
-export async function addProposalDocument(proposalReferenceCode: string, file: File, caption?: string): Promise<Proposal> {
+export async function addProposalDocument(
+  proposalReferenceCode: string,
+  file: File,
+  caption?: string,
+  envelope?: ProposalDocumentEnvelope,
+): Promise<Proposal> {
   const form = new FormData()
   form.append('file', file)
   if (caption) form.append('caption', caption)
+  if (envelope) form.append('envelope', envelope)
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/documents`, { method: 'POST', body: form }))
 }
 
