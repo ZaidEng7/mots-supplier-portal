@@ -366,12 +366,26 @@ public sealed class Rfq : IVersionedAggregate
         return clarification;
     }
 
-    /// <summary>FEAT-10.2/FR-CLR-002, OQ-008 interim: <paramref name="publish"/> defaults to false
-    /// at the API layer (private-by-default) with publishing available as an explicit, separate
-    /// choice - either here or later via PublishClarification. Refused once already answered: a
-    /// buyer correcting an answer is a new clarification, not silently rewriting the audited
-    /// one.</summary>
-    public void AnswerClarification(Guid clarificationId, string answer, bool publish)
+    /// <summary>
+    /// FEAT-10.2/FR-CLR-002. <b>Answering publishes to every invitee</b> (A-4, batch 10).
+    ///
+    /// <para>This reverses the shipped default. The code was built to ASM-044 and OQ-008's recorded
+    /// interim - private to the asker, with publishing as a separate act - while BRULE-036 says the
+    /// opposite in as many words: "answers deemed material are broadcast to <b>all</b> invitees
+    /// (anonymized questioner)". A-4 resolves the two documents in favour of the business rule,
+    /// because a private answer hands one bidder an advantage created by the buyer, and equal
+    /// information to all bidders is the fundamental fairness principle in tendering.</para>
+    ///
+    /// <para>The asker is never identified in what other invitees receive - see
+    /// SupplierClarificationDto, which carries no asker at all and computes IsMine server-side. So
+    /// the reason OQ-008 wanted privacy (a bidder not revealing their thinking to competitors)
+    /// survives; only the information advantage goes.</para>
+    ///
+    /// <para>Refused once already answered: a buyer correcting an answer is a new clarification, not
+    /// a silent rewrite of the audited one. And a QUESTION stays private until it is answered -
+    /// nothing here publishes an unanswered thread.</para>
+    /// </summary>
+    public void AnswerClarification(Guid clarificationId, string answer)
     {
         var clarification = _clarifications.FirstOrDefault(c => c.Id == clarificationId)
             ?? throw new DomainException("Clarification not found.");
@@ -383,7 +397,7 @@ public sealed class Rfq : IVersionedAggregate
 
         clarification.Answer = answer;
         clarification.AnsweredAt = DateTimeOffset.UtcNow;
-        clarification.Visibility = publish ? ClarificationVisibility.PublishedToAll : ClarificationVisibility.PrivateToAsker;
+        clarification.Visibility = ClarificationVisibility.PublishedToAll;
     }
 
     /// <summary>FEAT-10.2/FR-CLR-002: promotes an already-privately-answered clarification to

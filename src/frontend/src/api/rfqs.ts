@@ -317,11 +317,13 @@ export async function suggestInvitationCandidates(referenceCode: string): Promis
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations/candidates`))
 }
 
-export async function answerClarification(referenceCode: string, clarificationId: string, answer: string, publish: boolean): Promise<Rfq> {
+/** A-4: answering publishes to every invitee with the asker anonymised, so there is no `publish`
+ * argument to pass. See `publishClarification` for the legacy-row path. */
+export async function answerClarification(referenceCode: string, clarificationId: string, answer: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/clarifications/${clarificationId}/answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answer, publish }),
+    body: JSON.stringify({ answer }),
   }))
 }
 

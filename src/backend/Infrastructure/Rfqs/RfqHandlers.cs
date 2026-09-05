@@ -905,7 +905,7 @@ public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext sc
         Clarification clarification;
         try
         {
-            rfq.AnswerClarification(command.ClarificationId, command.Answer, command.Publish);
+            rfq.AnswerClarification(command.ClarificationId, command.Answer);
             clarification = rfq.Clarifications.Single(c => c.Id == command.ClarificationId);
         }
         catch (DomainException ex)
@@ -914,14 +914,14 @@ public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext sc
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_answered", scope.UserId, referenceCode: rfq.ReferenceCode,
-            changes: $"{{\"clarificationId\":\"{command.ClarificationId}\",\"published\":{(command.Publish ? "true" : "false")}}}", ct: ct);
+            changes: $"{{\"clarificationId\":\"{command.ClarificationId}\",\"published\":true}}", ct: ct);
         await db.SaveChangesAsync(ct);
 
+        // A-4: the asker is told their own question was answered; every OTHER invitee is told an
+        // answer was published. Two different messages because they are two different facts, and the
+        // second one must not name the asker.
         await NotifyAskerAsync(db, backgroundJobs, clarification.AskedBySupplierId, rfq.Id, clarification.Id, ct);
-        if (command.Publish)
-        {
-            await NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
-        }
+        await NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
 
         return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }

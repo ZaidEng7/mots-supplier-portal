@@ -44,7 +44,7 @@ export function RfqDetailPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [returnComments, setReturnComments] = useState('')
   const [cancelReason, setCancelReason] = useState('')
-  const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string; publish: boolean }>>({})
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string }>>({})
   const [addendumTitleAr, setAddendumTitleAr] = useState('')
   const [addendumTitleEn, setAddendumTitleEn] = useState('')
   const [addendumDescAr, setAddendumDescAr] = useState('')
@@ -190,8 +190,8 @@ export function RfqDetailPage() {
   })
 
   const answerMutation = useMutation({
-    mutationFn: ({ clarificationId, answer, publish }: { clarificationId: string; answer: string; publish: boolean }) =>
-      answerClarification(referenceCode, clarificationId, answer, publish),
+    mutationFn: ({ clarificationId, answer }: { clarificationId: string; answer: string }) =>
+      answerClarification(referenceCode, clarificationId, answer),
     onSuccess: (_, { clarificationId }) => {
       invalidate()
       notify({ kind: 'success', title: t('rfq.clarifications.answered') })
@@ -280,7 +280,7 @@ export function RfqDetailPage() {
   const invitedSupplierIds = new Set(rfq.invitations.map((i) => i.supplierId))
   const uninvitedCandidates = candidates.filter((c) => !invitedSupplierIds.has(c.supplierId))
   const canIssueAddendum = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
-  const draftFor = (id: string) => answerDrafts[id] ?? { text: '', publish: false }
+  const draftFor = (id: string) => answerDrafts[id] ?? { text: '' }
 
   return (
     <div className="flex flex-col gap-6">
@@ -599,13 +599,14 @@ export function RfqDetailPage() {
                     <div className="mt-2 flex flex-wrap items-end gap-2">
                       <Input aria-label={t('rfq.clarifications.answerLabel')} placeholder={t('rfq.clarifications.answerLabel')}
                         value={draft.text} onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, text: e.target.value } }))} />
-                      <label className="flex items-center gap-1 text-[length:var(--text-body-sm)]">
-                        <input type="checkbox" checked={draft.publish}
-                          onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, publish: e.target.checked } }))} />
-                        {t('rfq.clarifications.publishNow')}
-                      </label>
+                      <p className="w-full text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                        {t('rfq.clarifications.broadcastNotice')}
+                      </p>
+                      {/* A-4: no publish checkbox. Answering broadcasts to every invitee with the
+                          asker anonymised, so the officer is told that rather than asked it - an
+                          option whose only fair setting is "yes" is not a choice. */}
                       <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
-                        onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text, publish: draft.publish })}>
+                        onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text })}>
                         {t('rfq.clarifications.answer')}
                       </Button>
                     </div>

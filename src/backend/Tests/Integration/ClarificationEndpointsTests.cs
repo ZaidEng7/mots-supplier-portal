@@ -134,7 +134,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task A_private_answer_is_visible_only_to_the_asker_and_hides_the_asker_from_everyone_else()
+    public async Task An_answer_reaches_every_invitee_and_never_names_the_asker()
     {
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"PrivateAsker {Guid.NewGuid():N}"[..30]);
         var (otherClient, otherSupplierId) = await ActiveSupplierAsync($"PrivateOther {Guid.NewGuid():N}"[..30]);
@@ -145,21 +145,33 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        // OQ-008 interim: default answer is private (no `publish` sent means false at the API layer's own default).
-        var answer = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "FOB.", publish = false });
+        // A-4: a QUESTION is private until it is answered. Proved before answering, because this is
+        // the half that survives the reversal - the asker's thinking is still not on display to
+        // competitors while the buyer is still deciding what to say.
+        var beforeAnswer = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
+        beforeAnswer.GetProperty("clarifications").EnumerateArray().Should().BeEmpty(
+            "an unanswered question belonging to someone else is absent entirely");
+
+        // A-4: answering publishes. No flag is sent because none exists any more.
+        var answer = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "FOB." });
         answer.StatusCode.Should().Be(HttpStatusCode.OK);
         var buyerView = await answer.Content.ReadFromJsonAsync<JsonElement>();
         var buyerClarification = buyerView.GetProperty("clarifications").EnumerateArray().Single();
-        buyerClarification.GetProperty("visibility").GetString().Should().Be("PrivateToAsker");
+        buyerClarification.GetProperty("visibility").GetString().Should().Be("PublishedToAll");
         buyerClarification.GetProperty("askedBySupplierId").GetGuid().Should().Be(askerSupplierId, "the buyer side always keeps the real asker for audit");
 
         var askerOwnView = await askerClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         var askerClarification = askerOwnView.GetProperty("clarifications").EnumerateArray().Single();
         askerClarification.GetProperty("answer").GetString().Should().Be("FOB.");
-        askerClarification.GetProperty("isMine").GetBoolean().Should().BeTrue();
+        askerClarification.GetProperty("isMine").GetBoolean().Should().BeTrue("the asker alone sees their own question attributed");
 
+        // The other invitee now has it, and cannot tell who asked.
         var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
-        otherView.GetProperty("clarifications").EnumerateArray().Should().BeEmpty("a PrivateToAsker clarification belonging to someone else is absent entirely, not merely anonymized");
+        var otherClarification = otherView.GetProperty("clarifications").EnumerateArray().Single();
+        otherClarification.GetProperty("answer").GetString().Should().Be("FOB.");
+        otherClarification.GetProperty("isMine").GetBoolean().Should().BeFalse();
+        otherClarification.TryGetProperty("askedBySupplierId", out _).Should().BeFalse(
+            "the supplier-facing shape has no asker-identity field at all");
     }
 
     [Fact]
@@ -172,7 +184,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        var answer = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "FOB.", publish = true });
+        var answer = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "FOB." });
         answer.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
@@ -186,24 +198,49 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task Publishing_a_privately_answered_clarification_promotes_it_for_everyone()
+    public async Task The_publish_route_still_promotes_a_clarification_answered_before_A_4()
     {
+        // A-4 made answering publish, so nothing NEW can be PrivateToAsker. The publish route stays
+        // for the rows that already are - a deployment that answered privately last week still has
+        // them, and dropping the route would leave those threads permanently unshareable.
+        //
+        // The private row is written directly to storage, deliberately: there is no longer an API
+        // path that produces one, and that IS the point of the test.
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"LatePubAsker {Guid.NewGuid():N}"[..30]);
         var (otherClient, otherSupplierId) = await ActiveSupplierAsync($"LatePubOther {Guid.NewGuid():N}"[..30]);
         var (officer, _, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Late Publish RFQ");
         var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
-        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A.", publish = false });
+
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            var row = await db.Clarifications.FirstAsync(c => c.Id == clarificationId);
+            db.Entry(row).Property(nameof(Clarification.Answer)).CurrentValue = "Answered before A-4.";
+            db.Entry(row).Property(nameof(Clarification.AnsweredAt)).CurrentValue = DateTimeOffset.UtcNow;
+            db.Entry(row).Property(nameof(Clarification.Visibility)).CurrentValue = ClarificationVisibility.PrivateToAsker;
+            await db.SaveChangesAsync();
+        }
 
         var beforePublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
-        beforePublish.GetProperty("clarifications").EnumerateArray().Should().BeEmpty();
+        beforePublish.GetProperty("clarifications").EnumerateArray().Should().BeEmpty(
+            "a legacy PrivateToAsker row is still invisible to the other invitee");
 
         var publish = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish", null);
         publish.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var afterPublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         afterPublish.GetProperty("clarifications").EnumerateArray().Should().ContainSingle();
+
+        // And the guard the other way: publishing something already published is refused rather than
+        // silently re-notifying every invitee.
+        // And the guard the other way: publishing something already published is refused rather than
+        // silently re-notifying every invitee. 400 rather than 409 because this is not an illegal
+        // STATE transition - the clarification's visibility is already what the caller is asking for,
+        // which the domain reports as a plain refusal.
+        var again = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish", null);
+        again.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -217,7 +254,7 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
         // procurement_manager does not hold clarification.answer per this session's grant (procurement_officer-only).
-        var attempt = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A.", publish = false });
+        var attempt = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A." });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -267,14 +304,25 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var post = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Q?" });
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
-        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A.", publish = false });
-        await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish", null);
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A." });
         await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/addenda", new { titleAr = "ت", titleEn = "T", descriptionAr = "و", descriptionEn = "D" });
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actions = await db.AuditLogs.Where(a => a.ReferenceCode == referenceCode).Select(a => a.Action).ToListAsync();
+        var rows = await db.AuditLogs.Where(a => a.ReferenceCode == referenceCode)
+            .Select(a => new { a.Action, a.Changes }).ToListAsync();
 
-        actions.Should().Contain(["rfq_clarification_posted", "rfq_clarification_answered", "rfq_clarification_published", "rfq_addendum_issued"]);
+        // A-4 removed the separate publish step from the normal flow, so there is no
+        // `rfq_clarification_published` row to expect any more - the answer IS the publication.
+        rows.Select(r => r.Action).Should().Contain(["rfq_clarification_posted", "rfq_clarification_answered", "rfq_addendum_issued"]);
+
+        // Which means the answered row has to carry the fact, or the audit trail no longer records
+        // that every invitee was given the answer.
+        // Parsed, not substring-matched: the column stores normalised JSON, so a spacing change would
+        // break a text assertion while the recorded fact was still correct.
+        System.Text.Json.JsonDocument
+            .Parse(rows.Single(r => r.Action == "rfq_clarification_answered").Changes!)
+            .RootElement.GetProperty("published").GetBoolean()
+            .Should().BeTrue("the answered row has to record that every invitee was given the answer");
     }
 }

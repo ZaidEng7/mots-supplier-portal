@@ -798,7 +798,9 @@ const resources = {
           publish: 'نشر للجميع',
           published: 'منشور للجميع',
           private: 'خاص بالسائل',
+          // A-4: kept for the legacy-row publish button; the answer form no longer offers a choice.
           publishNow: 'نشر مباشرة',
+          broadcastNotice: 'يُرسل الجواب إلى جميع المدعوين دون ذكر السائل.',   // [drafted]
           errors: { answerFailed: 'تعذر حفظ الإجابة' },
         },
         addenda: {
@@ -1946,6 +1948,7 @@ const resources = {
           published: 'Published to all',
           private: 'Private to asker',
           publishNow: 'Publish immediately',
+          broadcastNotice: 'The answer goes to every invited supplier. The asker is not named.',
           errors: { answerFailed: 'Could not save the answer' },
         },
         addenda: {

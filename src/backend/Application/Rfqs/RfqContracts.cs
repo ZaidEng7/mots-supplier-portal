@@ -166,7 +166,8 @@ public sealed record DeclineInvitationCommand(string ReferenceCode, string? Reas
 
 public sealed record PostClarificationQuestionCommand(string ReferenceCode, string Question);
 
-public sealed record AnswerClarificationCommand(string ReferenceCode, Guid ClarificationId, string Answer, bool Publish);
+/// <summary>A-4: no publish flag. Answering IS publishing - see Rfq.AnswerClarification.</summary>
+public sealed record AnswerClarificationCommand(string ReferenceCode, Guid ClarificationId, string Answer);
 
 public sealed record PublishClarificationCommand(string ReferenceCode, Guid ClarificationId);
 

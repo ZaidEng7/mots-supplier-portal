@@ -400,4 +400,51 @@ describe('RfqDetailPage', () => {
     // Download stays available: reading it is not editing it.
     expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument()
   })
+
+  it('tells the officer the answer broadcasts instead of asking whether it should', async () => {
+    // A-4. The answer form used to carry a "publish immediately" checkbox defaulting to off, so the
+    // fair outcome depended on the officer ticking a box. Equal information to all bidders is not an
+    // option, so the box is gone and the form says what will happen.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', {
+        clarifications: [{
+          id: 'c-1', askedBySupplierId: 's-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Supplier One',
+          question: 'Which incoterm?', answer: null, visibility: 'PrivateToAsker',
+          askedAt: '2026-09-01T10:00:00Z', answeredAt: null,
+        }],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    // The question renders alongside the asker's name in one paragraph, hence the partial match.
+    expect(await screen.findByText(/Which incoterm\?/)).toBeInTheDocument()
+    expect(screen.getByText(/goes to every invited supplier/)).toBeInTheDocument()
+    expect(screen.queryByText('Publish immediately')).not.toBeInTheDocument()
+  })
+
+  it('sends no publish flag when the officer answers', async () => {
+    const calls: { url: string; method: string; body: string }[] = []
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', {
+        clarifications: [{
+          id: 'c-1', askedBySupplierId: 's-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Supplier One',
+          question: 'Which incoterm?', answer: null, visibility: 'PrivateToAsker',
+          askedAt: '2026-09-01T10:00:00Z', answeredAt: null,
+        }],
+      }),
+      '/api/v1/rfqs/RFQ-2026-000001/clarifications/c-1/answer': rfqFixture('SubmissionOpen'),
+    }, calls)
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.type(await screen.findByLabelText('Answer'), 'FOB.')  // the Field label, not the button
+    await userEvent.click(screen.getByRole('button', { name: 'Answer' }))
+
+    await vi.waitFor(() => expect(calls.some((c) => c.url.includes('/answer') && c.method === 'POST')).toBe(true))
+    const sent = JSON.parse(calls.find((c) => c.url.includes('/answer'))!.body)
+    expect(sent).toEqual({ answer: 'FOB.' })
+  })
 })

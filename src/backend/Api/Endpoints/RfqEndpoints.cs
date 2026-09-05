@@ -95,7 +95,9 @@ public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqReque
 
 public sealed record InviteSupplierRequest(Guid SupplierId);
 
-public sealed record AnswerClarificationRequest(string Answer, bool Publish);
+/// <summary>A-4: the `publish` field is gone. Answering publishes to every invitee, so a flag whose
+/// only remaining legal value is true would be a lie the caller could tell.</summary>
+public sealed record AnswerClarificationRequest(string Answer);
 
 public sealed class AnswerClarificationRequestValidator : AbstractValidator<AnswerClarificationRequest>
 {
@@ -543,7 +545,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer, request.Publish), ct));
+            return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer), ct));
         })
         .RequirePermission(Permissions.ClarificationAnswer)
         .WithName("AnswerClarification");
