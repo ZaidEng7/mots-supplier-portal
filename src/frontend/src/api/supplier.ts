@@ -114,6 +114,11 @@ export class SupplierApiError extends Error {
   isConcurrencyConflict: boolean
   /** MSP-77: refused because the field is not in the reviewer's flagged set while InfoRequested. */
   isFieldNotFlagged: boolean
+  /** §7's machine-stable code, carried so a caller can branch on it rather than on the human message -
+   * which is what §7 tells clients to do, and what `hasCode` exists for. Added in batch 10: T-077's two
+   * refusals (own account, last administrator) are things an administrator has to understand, and a
+   * caller matching on `detail` would break the day the wording changed. */
+  code?: string
 
   constructor(status: number, body: unknown) {
     const b = body as ProblemDetails | null
@@ -123,6 +128,7 @@ export class SupplierApiError extends Error {
     this.fieldErrors = b?.errors as Record<string, string[]> | undefined
     this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
     this.isFieldNotFlagged = status === 403 && hasCode(b, 'FIELD_NOT_FLAGGED')
+    this.code = b?.code
   }
 }
 

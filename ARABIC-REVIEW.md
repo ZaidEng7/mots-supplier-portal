@@ -416,3 +416,22 @@ an Arabic reader expects for enumeration. Worth a specific check by the reviewer
 | `proposal.envelopeTechnical` | Technical envelope | المغلف الفني | Picker option | [reused] §7's own term |
 | `proposal.envelopeExpected.Technical` | This document is expected in the technical envelope. | يُتوقع أن يكون هذا المستند في المغلف الفني. | Under a requirement | [drafted] |
 | `proposal.envelopeExpected.Commercial` | This document is expected in the commercial envelope. | يُتوقع أن يكون هذا المستند في المغلف المالي. | Under a requirement | [drafted] |
+
+### T-077 — the staff accounts table (SCR-701 / SCR-702)
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `staff.accountsTitle` | Staff accounts | حسابات الموظفين | [drafted] |
+| `staff.noAccounts` | No accounts | لا توجد حسابات | [reused] |
+| `staff.inactive` | Deactivated | معطّل | [drafted] |
+| `staff.mfaOn` | Two-factor enrolled | التحقق بخطوتين مُفعّل | [drafted] |
+| `staff.sessions` | Active sessions: {{count}} | جلسات نشطة: {{count}} | [drafted] |
+| `staff.deactivate` | Deactivate | تعطيل | [drafted] |
+| `staff.reactivate` | Reactivate | إعادة التفعيل | [drafted] |
+| `staff.resetMfa` | Reset two-factor | إعادة ضبط التحقق بخطوتين | [drafted] |
+| `staff.roleChanged` | The role was changed | تم تغيير الدور | [drafted] |
+| `staff.mfaReset` | Two-factor was reset | تمت إعادة ضبط التحقق بخطوتين | [drafted] |
+| `staff.errors.loadFailed` | Could not load the staff accounts | تعذّر تحميل حسابات الموظفين | [drafted] |
+| `staff.errors.updateFailed` | Could not complete that action | تعذّر تنفيذ الإجراء | [drafted] |
+| `staff.errors.cannotActOnSelf` | You cannot do that to your own account. | لا يمكنك تنفيذ هذا الإجراء على حسابك. | [drafted] |
+| `staff.errors.wouldLockOutAdministration` | The last active system administrator cannot be deactivated. | لا يمكن تعطيل آخر مسؤول نظام مفعّل. | [drafted] |

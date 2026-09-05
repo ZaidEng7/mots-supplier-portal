@@ -5,8 +5,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Tests.Integration;
 
@@ -149,7 +151,12 @@ public static class StaffTestClient
     /// would perform, and the login round trip itself still goes through real HTTP, preserving the
     /// "evidence, not inference" reasoning above.</para>
     /// </summary>
-    public static async Task<HttpClient> CreateWithMfaAsync(PostgresApiFixture fixture, string role)
+    public static async Task<HttpClient> CreateWithMfaAsync(PostgresApiFixture fixture, string role) =>
+        (await CreateWithMfaAndIdAsync(fixture, role)).Client;
+
+    /// <summary>Same client, plus the account's own id - T-077's lockout guards are ABOUT the caller's own
+    /// account, so a test of them has to know which one that is.</summary>
+    public static async Task<(HttpClient Client, Guid UserId)> CreateWithMfaAndIdAsync(PostgresApiFixture fixture, string role)
     {
         var client = fixture.CreateClient();
         var email = $"staff-mfa-{Guid.NewGuid():N}@ministry.example";
@@ -201,7 +208,14 @@ public static class StaffTestClient
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", body.GetProperty("accessToken").GetString());
 
-        return client;
+        Guid userId;
+        await using (var idScope = fixture.Services.CreateAsyncScope())
+        {
+            var db = idScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).FirstAsync();
+        }
+
+        return (client, userId);
     }
 
     private static string ComputeTotp(string base32Secret)

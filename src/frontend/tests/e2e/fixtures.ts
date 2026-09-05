@@ -201,6 +201,9 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
       { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
     ] })
+    if (p === '/api/v1/staff') return route.fulfill({ json: listPage([
+      { userId: 'u-1', email: 'reviewer@ministry.example', fullName: 'A Reviewer', role: 'onboarding_reviewer', isActive: true, mfaEnabled: false, lockoutEnd: null, activeSessionCount: 0 },
+    ]) })
     if (p === '/api/v1/reference/settings') return route.fulfill({ json: {
       'registration.mode': 'open',
       'proposals.defaultCurrencyCode': 'SYP',

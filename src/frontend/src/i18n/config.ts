@@ -1166,8 +1166,27 @@ const resources = {
           fullNameRequired: 'الاسم الكامل مطلوب',
           emailInvalid: 'البريد الإلكتروني غير صحيح',
           inviteFailed: 'تعذر إرسال الدعوة',
+          loadFailed: 'تعذّر تحميل حسابات الموظفين',              // [drafted]
+          updateFailed: 'تعذّر تنفيذ الإجراء',                    // [drafted]
+          cannotActOnSelf: 'لا يمكنك تنفيذ هذا الإجراء على حسابك.', // [drafted]
+          wouldLockOutAdministration: 'لا يمكن تعطيل آخر مسؤول نظام مفعّل.', // [drafted]
           passwordTooShort: 'كلمة المرور قصيرة جداً',
         },
+        // T-077/SCR-701/702. Drafted in §7's register, marked, in ARABIC-REVIEW.md.
+        accountsTitle: 'حسابات الموظفين',                     // [drafted]
+        noAccounts: 'لا توجد حسابات',                          // [reused] §4's empty-state pattern
+        status: 'الحالة',                                      // [reused] §7's own term
+        actions: 'إجراءات',                                    // [reused]
+        active: 'مفعّل',                                        // [reused]
+        inactive: 'معطّل',                                      // [drafted]
+        mfaOn: 'التحقق بخطوتين مُفعّل',                          // [drafted]
+        sessions: 'جلسات نشطة: {{count}}',                      // [drafted]
+        deactivate: 'تعطيل',                                    // [drafted]
+        reactivate: 'إعادة التفعيل',                            // [drafted]
+        resetMfa: 'إعادة ضبط التحقق بخطوتين',                   // [drafted]
+        roleChanged: 'تم تغيير الدور',                          // [drafted]
+        mfaReset: 'تمت إعادة ضبط التحقق بخطوتين',                // [drafted]
+        retry: 'إعادة المحاولة',                                // [reused]
         acceptInviteTitle: 'قبول دعوة الموظف',
         acceptInviteHint: 'عيّن كلمة مرور لإكمال إعداد حسابك.',
         acceptInviteSuccess: 'تم إعداد حسابك. يمكنك الآن تسجيل الدخول.',
@@ -2333,8 +2352,26 @@ const resources = {
           fullNameRequired: 'Full name is required',
           emailInvalid: 'Email is invalid',
           inviteFailed: 'Could not send invite',
+          loadFailed: 'Could not load the staff accounts',
+          updateFailed: 'Could not complete that action',
+          cannotActOnSelf: 'You cannot do that to your own account.',
+          wouldLockOutAdministration: 'The last active system administrator cannot be deactivated.',
           passwordTooShort: 'Password is too short',
         },
+        accountsTitle: 'Staff accounts',
+        noAccounts: 'No accounts',
+        status: 'Status',
+        actions: 'Actions',
+        active: 'Active',
+        inactive: 'Deactivated',
+        mfaOn: 'Two-factor enrolled',
+        sessions: 'Active sessions: {{count}}',
+        deactivate: 'Deactivate',
+        reactivate: 'Reactivate',
+        resetMfa: 'Reset two-factor',
+        roleChanged: 'The role was changed',
+        mfaReset: 'Two-factor was reset',
+        retry: 'Try again',
         acceptInviteTitle: 'Accept staff invite',
         acceptInviteHint: 'Set a password to complete your account setup.',
         acceptInviteSuccess: 'Your account is set up. You can now sign in.',

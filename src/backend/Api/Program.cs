@@ -393,6 +393,10 @@ builder.Services.AddScoped<ISecurityTokenService, SecurityTokenService>();
 // Task #28/FR-ADM-001: staff (non-supplier) account invites - mirrors the supplier-user invite
 // pair above, gated by Permissions.AdminUsersManage instead of SupplierUserManage.
 builder.Services.AddScoped<IInviteStaffHandler, InviteStaffHandler>();
+builder.Services.AddScoped<IListStaffHandler, ListStaffHandler>();
+builder.Services.AddScoped<ISetStaffActiveHandler, SetStaffActiveHandler>();
+builder.Services.AddScoped<IChangeStaffRoleHandler, ChangeStaffRoleHandler>();
+builder.Services.AddScoped<IResetStaffMfaHandler, ResetStaffMfaHandler>();
 builder.Services.AddScoped<IAcceptStaffInviteHandler, AcceptStaffInviteHandler>();
 // FR-ADM-002: role/permission admin editing.
 builder.Services.AddScoped<IListRolesHandler, ListRolesHandler>();
