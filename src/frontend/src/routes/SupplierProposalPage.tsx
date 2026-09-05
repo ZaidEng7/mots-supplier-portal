@@ -10,7 +10,7 @@ import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import {
   startProposal, getProposal, patchProposal,
-  addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, declineAwardOffer, ProposalApiError,
+  addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, declineAwardOffer, reviseProposal, ProposalApiError,
 } from '../api/proposals'
 
 /** FEAT-09.1..09.6/FR-PRP-001..008: the supplier's own proposal workspace against one invited RFQ.
@@ -140,6 +140,14 @@ export function SupplierProposalPage() {
     mutationFn: () => submitProposal(proposalCode),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.submitted') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.submitFailed')) }),
+  })
+
+  // SCR-155/§4.1: ClarificationRequested -> Revised. No confirmation prompt and no reason field:
+  // the transition carries neither, and inventing an input for it would invent BRULE-050.
+  const reviseMutation = useMutation({
+    mutationFn: () => reviseProposal(proposalCode),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.revised') }) },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.reviseFailed')) }),
   })
 
   const withdrawMutation = useMutation({
@@ -357,6 +365,48 @@ export function SupplierProposalPage() {
         gives AwardOffered -> Awarded to the manager (award/execute), and "or supplier accept" is
         tagged [ASSUMPTION] - see DECISIONS-TAKEN.md D-21.
       */}
+      {/*
+        SCR-155. The buyer's question was already stored and never shown - a supplier could see the
+        state ClarificationRequested and not what was asked, which is not a state anyone can respond
+        to. The question is now projected (ProposalDto.clarificationReason) and shown above the
+        control that responds to it.
+
+        Responding does NOT open an edit form, and the copy says so. §4.1's "only permitted fields
+        changed" is BRULE-050, undecided, and Proposal.Patch refuses every state but Draft: an edit
+        form here would 409 on its first save. What the supplier gets is the honest half - the
+        response is recorded, the revision number advances, and the officer returns it to review.
+      */}
+      {proposal.state === 'ClarificationRequested' ? (
+        <Card title={t('proposal.clarificationTitle')}>
+          {proposal.clarificationReason ? (
+            <blockquote className="mb-3 border-s-2 ps-3 text-[length:var(--text-body)]"
+              style={{ borderColor: 'var(--color-border-strong)', color: 'var(--color-text-primary)' }}>
+              {proposal.clarificationReason}
+            </blockquote>
+          ) : (
+            /* Not an empty state to paper over: a clarification with no question recorded is a
+               defect in whoever asked, and saying so is more use than a blank panel. */
+            <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('proposal.clarificationNoReason')}</p>
+          )}
+          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('proposal.clarificationHint')}
+          </p>
+          <Button isLoading={reviseMutation.isPending} onClick={() => reviseMutation.mutate()}>
+            {t('proposal.revise')}
+          </Button>
+        </Card>
+      ) : null}
+
+      {/* Revised: the supplier has responded and the officer has not yet re-reviewed. Shown so the
+          screen is not silent between two other people's actions. */}
+      {proposal.state === 'Revised' ? (
+        <Card title={t('proposal.revisedTitle')}>
+          <p style={{ color: 'var(--color-text-secondary)' }}>
+            {t('proposal.revisedBody', { revision: proposal.revisionNumber })}
+          </p>
+        </Card>
+      ) : null}
+
       {proposal.state === 'AwardOffered' ? (
         <Card title={t('proposal.awardOfferedTitle')}>
           <p className="mb-3">{t('proposal.awardOfferedBody')}</p>

@@ -16,17 +16,6 @@ namespace MotsSupplierPortal.Tests.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
 {
-    private static async Task GrantAsync(PostgresApiFixture fixture, string role, string permission)
-    {
-        await using var scope = fixture.Services.CreateAsyncScope();
-        var roleManager = scope.ServiceProvider
-            .GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole<Guid>>>();
-        var appRole = await roleManager.FindByNameAsync(role);
-        var claims = await roleManager.GetClaimsAsync(appRole!);
-        if (claims.Any(c => c.Type == "perms" && c.Value == permission)) return;
-        await roleManager.AddClaimAsync(appRole!, new System.Security.Claims.Claim("perms", permission));
-    }
-
     /// <summary>Drives an RFQ to UnderEvaluation, which is what moves proposals into UnderReview.</summary>
     private async Task<(HttpClient Officer, HttpClient Supplier, string ProposalCode)> UnderReviewProposalAsync(string tag)
     {
@@ -52,7 +41,11 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_clarification_loop_runs_over_HTTP_and_is_audited()
     {
-        await GrantAsync(fixture, Roles.SupplierAdmin, Permissions.ProposalRevise);
+        // No test-time grant. D-43: `proposal.revise` was in the catalogue under `system_admin`
+        // alone, so this suite had to grant it to supplier_admin itself to reach the endpoint its own
+        // comment names. The catalogue was corrected in batch 11, and dropping the grant here turns
+        // this test into the control for that: it passes only if the SHIPPED catalogue gives
+        // supplier_admin the permission.
         var (officer, supplier, proposalCode) = await UnderReviewProposalAsync($"Loop{Guid.NewGuid():N}"[..12]);
 
         var request = await officer.PostAsJsonAsync(
@@ -79,6 +72,39 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         var proposal = await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == proposalCode);
         proposal.RevisionNumber.Should().Be(2, "the original submission is revision 1");
         proposal.ClarificationReason.Should().Be("Confirm the delivery window.");
+    }
+
+    /// <summary>
+    /// SCR-155: the supplier has to be able to READ the question. §4.1's "Reason; specific questions"
+    /// was stored from the start and no projection carried it, so the screen could show the state
+    /// ClarificationRequested and not a word of what was asked - a state nobody can respond to.
+    /// </summary>
+    [Fact]
+    public async Task The_clarification_question_reaches_the_supplier_who_has_to_answer_it()
+    {
+        var seed = await EvaluationSeed.CreateAsync(fixture, $"Read{Guid.NewGuid():N}"[..12]);
+
+        // Control FIRST, before anything is asked: the fields are absent rather than empty strings,
+        // so a screen can tell "no clarification" from "a clarification with a blank question".
+        var before = await seed.Supplier.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seed.RfqCode}/proposals");
+        before.GetProperty("clarificationReason").ValueKind.Should().Be(JsonValueKind.Null);
+        before.GetProperty("clarificationRequestedAt").ValueKind.Should().Be(JsonValueKind.Null);
+        before.GetProperty("revisionNumber").GetInt32().Should().Be(1, "the original submission is revision 1");
+
+        await seed.Officer.PostAsJsonAsync($"/api/v1/proposals/{seed.ProposalCode}/request-clarification",
+            new { reason = "State the warranty period in months." });
+
+        var after = await seed.Supplier.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seed.RfqCode}/proposals");
+        after.GetProperty("clarificationReason").GetString().Should().Be("State the warranty period in months.");
+        after.GetProperty("clarificationRequestedAt").ValueKind.Should().NotBe(JsonValueKind.Null);
+
+        // And the counter advances on the response, which is the only thing that distinguishes a
+        // third round of questions from a first.
+        (await seed.Supplier.PostAsync($"/api/v1/proposals/{seed.ProposalCode}/revise", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        var revised = await seed.Supplier.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seed.RfqCode}/proposals");
+        revised.GetProperty("revisionNumber").GetInt32().Should().Be(2);
+        revised.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Revised));
     }
 
     [Fact]
@@ -119,7 +145,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_supplier_cannot_revise_a_proposal_that_was_never_asked_to()
     {
-        await GrantAsync(fixture, Roles.SupplierAdmin, Permissions.ProposalRevise);
         var (officer, supplier, proposalCode) = await UnderReviewProposalAsync($"NoAsk{Guid.NewGuid():N}"[..12]);
 
         var early = await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/revise", null);

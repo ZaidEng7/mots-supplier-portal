@@ -541,6 +541,21 @@ builder.Services.AddCors(options =>
             ?? ["http://localhost:5173"])
         .AllowAnyHeader()
         .AllowAnyMethod()
+        // §8.1's client half depended on a header the browser was hiding from it. AllowAnyHeader
+        // governs the REQUEST; a cross-origin response exposes only the CORS-safelisted headers to
+        // script unless it names the others here, and ETag is not safelisted. So every SPA read
+        // returned `res.headers.get('ETag') === null`, api/etags.ts stored nothing, and every guarded
+        // write went out with no If-Match and came back 428 - app-wide, not just on proposals.
+        //
+        // Reproduced in the browser rather than reasoned about: clicking Save terms on a seeded draft
+        // logged `[concurrency] PATCH /api/v1/proposals/PRP-DEMO-0001 was refused for a missing
+        // If-Match`, and the preflight for that path carried no Access-Control-Expose-Headers at all.
+        //
+        // It escaped notice because it is a CROSS-ORIGIN-only failure: served same-origin behind one
+        // host, as production is, ETag is readable and the concurrency layer works. Dev on two ports
+        // is the configuration that exposes it, and the integration suite calls the API directly with
+        // no browser in the way, so nothing under test could ever have seen it.
+        .WithExposedHeaders("ETag")
         .AllowCredentials()); // required so the refresh-token HttpOnly cookie is sent cross-port
 });
 

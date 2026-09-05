@@ -35,6 +35,49 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
 
     // ---- the read half -------------------------------------------------------------------------
 
+    /// <summary>
+    /// §8.1's BROWSER half: the version a read returns has to be readable by the script that will
+    /// send it back.
+    ///
+    /// <para>Every other test in this file reads <c>response.Headers.ETag</c> from an
+    /// <see cref="HttpClient"/>, which sees every header on the wire. A browser does not: on a
+    /// cross-origin response, script gets the CORS-safelisted headers and nothing else, and ETag is
+    /// not safelisted. So the whole concurrency layer could pass this suite while being invisible to
+    /// the SPA - which is exactly what it was doing until this test existed. Reproduced in the browser
+    /// first: clicking Save on a seeded draft proposal logged
+    /// <c>[concurrency] PATCH ... was refused for a missing If-Match</c> and the API answered 428.</para>
+    ///
+    /// <para>The test is about the CORS response header, not about any endpoint, so it uses the
+    /// cheapest authenticated read that returns an ETag.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_cross_origin_read_exposes_its_ETag_to_script()
+    {
+        var (client, supplierCode) = await VerifiedSupplierAsync($"Expose{Guid.NewGuid():N}"[..12]);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me");
+        request.Headers.Add("Origin", "http://localhost:5173");
+        var response = await client.SendAsync(request);
+
+        response.Headers.ETag.Should().NotBeNull("the header is on the wire either way");
+        response.Headers.TryGetValues("Access-Control-Expose-Headers", out var exposed).Should().BeTrue(
+            "without this header a browser hides ETag from script and every guarded write goes out with no If-Match");
+        string.Join(",", exposed!).Should().Contain("ETag");
+
+        // Control, so the assertion is about the CORS policy rather than a header the app adds to
+        // everything: a same-origin request - no Origin at all - carries no exposure header, because
+        // nothing is being hidden from script in the first place.
+        var sameOrigin = await client.GetAsync("/api/v1/suppliers/me");
+        sameOrigin.Headers.TryGetValues("Access-Control-Expose-Headers", out _).Should().BeFalse();
+
+        // And the origin has to be an ALLOWED one. An unknown origin gets no CORS headers at all,
+        // which is the policy refusing rather than the exposure being unconditional.
+        var foreign = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/suppliers/{supplierCode}");
+        foreign.Headers.Add("Origin", "https://not-the-spa.example");
+        (await client.SendAsync(foreign)).Headers
+            .TryGetValues("Access-Control-Allow-Origin", out _).Should().BeFalse();
+    }
+
     [Fact]
     public async Task A_read_of_a_mutable_aggregate_returns_its_version_as_a_strong_ETag()
     {

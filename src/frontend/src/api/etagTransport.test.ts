@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFetch } from './auth'
 import { clearETags } from './etags'
+import { getProposal, patchProposal } from './proposals'
 
 /**
  * T-030 split (2). The store's prefix walk is unit-tested in `etags.test.ts`; what is asserted here is
@@ -80,5 +81,56 @@ describe('If-Match across consecutive child writes', () => {
 
     expect(calls[1].ifMatch).toBe('"AAAAAQ"')
     expect(calls[2].ifMatch).toBeNull()
+  })
+})
+
+/**
+ * The supplier's proposal workspace reads at one path and writes at another, so the store's prefix
+ * walk — which climbs a path and never sideways — could not reach the version from a write. Every
+ * guarded write in that workspace answered 428 on its first attempt; reproduced in the browser before
+ * this test was written, and the fix is `getProposal` filing the read's ETag under the proposal path
+ * as well as its own.
+ */
+describe('the proposal read files its version where the writes will look for it', () => {
+  let calls: { url: string; ifMatch: string | null }[]
+
+  beforeEach(() => {
+    clearETags()
+    calls = []
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stubProposalServer() {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      calls.push({ url: String(url), ifMatch: headers.get('If-Match') })
+      return new Response(JSON.stringify({ proposalCode: 'PRP-2026-000001', state: 'Draft' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"AAAAAQ"' },
+      })
+    }))
+  }
+
+  it('sends If-Match on a write whose path shares no prefix with the read', async () => {
+    stubProposalServer()
+
+    await getProposal('RFQ-2026-000001')
+    await patchProposal('PRP-2026-000001', { commercialTerms: { warranty: '12 months' } })
+
+    expect(calls[0].url).toContain('/api/v1/rfqs/RFQ-2026-000001/proposals')
+    expect(calls[1].url).toContain('/api/v1/proposals/PRP-2026-000001')
+    // Null before the fix: the version sat under the rfq-scoped path and the walk from
+    // `/api/v1/proposals/...` had nothing to find, so the server answered 428 and nothing saved.
+    expect(calls[1].ifMatch).toBe('"AAAAAQ"')
+  })
+
+  it('does not invent a version for a proposal it never read', async () => {
+    stubProposalServer()
+
+    // The control. Without this the assertion above would pass just as happily if the transport
+    // attached some version to every write regardless of what was read.
+    await patchProposal('PRP-2026-000002', { commercialTerms: { warranty: '6 months' } })
+
+    expect(calls[0].ifMatch).toBeNull()
   })
 })

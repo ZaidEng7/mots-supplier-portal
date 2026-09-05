@@ -27,6 +27,7 @@ internal static class ProposalDtoMapper
         proposal.Warranty, proposal.ValidityStart, proposal.ValidityEnd,
         proposal.NarrativeAr, proposal.NarrativeEn,
         proposal.SubmittedAt, proposal.WithdrawnAt, proposal.WithdrawReason,
+        proposal.ClarificationReason, proposal.ClarificationRequestedAt, proposal.RevisionNumber,
         [.. proposal.Items.Select(i => new ProposalItemDto(i.Id, i.RfqItemId, i.Quantity, i.UnitPrice, i.Discount, i.LineTotal, i.LeadTimeDays, i.NotesAr, i.NotesEn))],
         [.. proposal.Documents.Select(d => new ProposalDocumentDto(d.Id, d.OriginalFileName, d.ContentType, d.Caption, d.UploadedAt, d.Envelope))],
         [.. proposal.RequirementAnswers.Select(a => new RequirementAnswerDto(a.Id, a.RequirementId, a.AnswerAr, a.AnswerEn))],

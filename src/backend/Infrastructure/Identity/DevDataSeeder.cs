@@ -171,6 +171,12 @@ public static class DevDataSeeder
         var approved = NewRfq(db, "RFQ-DEMO-0003", organizationId, "أثاث مكتبي", "Office furniture", officerId, template.Id, snapshot);
         var open = NewRfq(db, "RFQ-DEMO-0004", organizationId, "تجهيزات مطابخ", "Kitchen equipment", officerId, template.Id, snapshot);
         var closed = NewRfq(db, "RFQ-DEMO-0005", organizationId, "صيانة مصاعد", "Lift maintenance", officerId, template.Id, snapshot);
+        // A SIXTH, carrying the proposal that sits in ClarificationRequested. It needs its own RFQ
+        // rather than a second proposal on RFQ-DEMO-0005: IX_proposal_RfqId_SupplierId is unique over
+        // (RfqId, SupplierId) filtered to the live states, so one supplier gets one live bid per RFQ.
+        // Found by the constraint refusing the first version of this fixture, which is the index doing
+        // its job - see AppDbContext's own note on why Withdrawn/Lapsed/Cancelled are excluded.
+        var clarifying = NewRfq(db, "RFQ-DEMO-0006", organizationId, "قرطاسية", "Stationery", officerId, template.Id, snapshot);
         await db.SaveChangesAsync();
 
         inReview.SubmitForReview();
@@ -189,38 +195,65 @@ public static class DevDataSeeder
         db.RfqApprovals.Add(closed.Approvals.Single(a => a.Decision is null));
         closed.Approve(officerId);
         closed.Publish();
+
+        clarifying.SubmitForReview();
+        db.RfqApprovals.Add(clarifying.Approvals.Single(a => a.Decision is null));
+        clarifying.Approve(officerId);
+        clarifying.Publish();
         await db.SaveChangesAsync();
 
         // Now that both are Published, move their windows into the past so OpenSubmissionWindow is
         // a legal transition rather than a lie about the clock.
-        await db.Rfqs.Where(r => r.Id == open.Id || r.Id == closed.Id)
+        await db.Rfqs.Where(r => r.Id == open.Id || r.Id == closed.Id || r.Id == clarifying.Id)
             .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionOpensAt, DateTimeOffset.UtcNow.AddHours(-1)));
         db.ChangeTracker.Clear();
 
         open = await db.Rfqs.Include(r => r.Approvals).FirstAsync(r => r.Id == open.Id);
         closed = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == closed.Id);
+        clarifying = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == clarifying.Id);
         open.OpenSubmissionWindow();
         closed.OpenSubmissionWindow();
+        clarifying.OpenSubmissionWindow();
         await db.SaveChangesAsync();
 
-        // A drafted proposal on the open RFQ and a submitted one on the RFQ about to close, so the
-        // supplier's list has both shapes and the buyer's received-proposals list has a row.
+        // A drafted proposal on the open RFQ, a submitted one on the RFQ about to close, and one
+        // waiting on a clarification, so the supplier's list has all three shapes and the buyer's
+        // received-proposals list has rows to open.
         var drafted = Proposal.Create("PRP-DEMO-0001", open.Id, demoSupplierId);
         var submitted = Proposal.Create("PRP-DEMO-0002", closed.Id, demoSupplierId);
-        db.Proposals.AddRange(drafted, submitted);
+        var underClarification = Proposal.Create("PRP-DEMO-0003", clarifying.Id, demoSupplierId);
+        db.Proposals.AddRange(drafted, submitted, underClarification);
         await db.SaveChangesAsync();
-        await db.Proposals.Where(p => p.Id == submitted.Id)
+        await db.Proposals.Where(p => p.Id == submitted.Id || p.Id == underClarification.Id)
             .ExecuteUpdateAsync(p => p.SetProperty(x => x.State, ProposalState.Submitted)
                                       .SetProperty(x => x.SubmittedAt, DateTimeOffset.UtcNow.AddHours(-2)));
+
+        // SCR-155 needs a proposal actually sitting in ClarificationRequested. Submitted was forced
+        // with ExecuteUpdateAsync because Submit() checks the submission window and this RFQ's has
+        // closed; from there the two transitions have no window dependency, so they run as the real
+        // domain methods and the seeded row is one the aggregate would accept.
+        db.ChangeTracker.Clear();
+        var toClarify = await db.Proposals.FirstAsync(p => p.Id == underClarification.Id);
+        toClarify.OpenForReview();
+        toClarify.RequestClarification(
+            "Please confirm whether the quoted lead time includes customs clearance, and restate the "
+            + "warranty period in months.");
+        await db.SaveChangesAsync();
 
         // ExecuteUpdateAsync writes behind the change tracker, so anything still tracked now holds a
         // stale RowVersion and the next SaveChanges loses to the app-managed concurrency guard - a
         // DbUpdateConcurrencyException the seeder cannot recover from. Reload rather than reuse.
         db.ChangeTracker.Clear();
         closed = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == closed.Id);
+        clarifying = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == clarifying.Id);
 
         closed.CloseSubmissionWindow(reason: null, isEarlyClose: false);
         closed.OpenEvaluation();
+
+        // Closed too, and deliberately NOT moved to evaluation. A clarification is asked of a
+        // proposal under review; leaving this RFQ's window open while one of its bids is being
+        // questioned would be a state the process does not produce.
+        clarifying.CloseSubmissionWindow(reason: null, isEarlyClose: false);
         await db.SaveChangesAsync();
 
         // Part-scored: one criterion of one bid, by one evaluator. Enough for the evaluator's

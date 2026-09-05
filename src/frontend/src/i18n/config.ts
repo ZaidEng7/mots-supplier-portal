@@ -1192,6 +1192,14 @@ const resources = {
         },
         uploadDocument: 'رفع مستند',
         documentAdded: 'تمت إضافة المستند',
+        // ── SCR-155 · ARABIC FOR REVIEW ─────────────────────────────────────────
+        clarificationTitle: 'طلب إيضاح',                         // [drafted] §4.1's «إيضاح»
+        clarificationNoReason: 'لم يُسجَّل نص الطلب.',              // [drafted]
+        clarificationHint: 'تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة.', // [drafted]
+        revise: 'تسجيل الردّ',                                   // [drafted]
+        revised: 'تم تسجيل الردّ',                                // [drafted]
+        revisedTitle: 'بانتظار إعادة المراجعة',                    // [drafted]
+        revisedBody: 'سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة.', // [drafted]
         withdrawTitle: 'سحب العرض',
         withdraw: 'سحب العرض',
         withdrawReasonPlaceholder: 'سبب السحب',
@@ -1208,7 +1216,7 @@ const resources = {
         declined: 'تم تسجيل اعتذاركم',                      // [§7-style drafted]
         errors: {
           startFailed: 'تعذر بدء العرض', saveFailed: 'تعذر الحفظ',
-          submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض',
+          submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض', reviseFailed: 'تعذّر تسجيل الردّ',  // [drafted] SCR-155
           declineFailed: 'تعذر تسجيل الاعتذار',             // [§7-style drafted]
         },
       },
@@ -2622,6 +2630,13 @@ const resources = {
         },
         uploadDocument: 'Upload document',
         documentAdded: 'Document added',
+        clarificationTitle: 'Clarification requested',
+        clarificationNoReason: 'No question was recorded with this request.',
+        clarificationHint: 'Recording your response returns the proposal for re-review. Proposal lines cannot be edited at this stage.',
+        revise: 'Record response',
+        revised: 'Response recorded',
+        revisedTitle: 'Awaiting re-review',
+        revisedBody: 'Your response was recorded (revision {{revision}}). A procurement officer will return the proposal to review.',
         withdrawTitle: 'Withdraw proposal',
         withdraw: 'Withdraw proposal',
         withdrawReasonPlaceholder: 'Reason for withdrawal',
@@ -2634,7 +2649,7 @@ const resources = {
         declined: 'Your decline has been recorded',
         errors: {
           startFailed: 'Could not start the proposal', saveFailed: 'Could not save',
-          submitFailed: 'Could not submit the proposal', withdrawFailed: 'Could not withdraw the proposal',
+          submitFailed: 'Could not submit the proposal', withdrawFailed: 'Could not withdraw the proposal', reviseFailed: 'Could not record your response',
           declineFailed: 'Could not record the decline',
         },
       },

@@ -41,6 +41,15 @@ public sealed record ProposalDto(
     string? Warranty, DateOnly? ValidityStart, DateOnly? ValidityEnd,
     string? NarrativeAr, string? NarrativeEn,
     DateTimeOffset? SubmittedAt, DateTimeOffset? WithdrawnAt, string? WithdrawReason,
+    // SCR-155. The aggregate has held §4.1's "Reason; specific questions" since T-051 and no
+    // projection carried it, so a supplier could see the STATE ClarificationRequested and never the
+    // question. That is not a screen the supplier can act on: revising in answer to an unstated
+    // question is guesswork. Not a seal concern - this is the buyer's question addressed to this
+    // bidder, and both are already parties to it.
+    string? ClarificationReason, DateTimeOffset? ClarificationRequestedAt,
+    // §4.1's "New revision n+1". Shown because a supplier on their third revision needs to know
+    // that, and because Revised alone cannot say how many times.
+    int RevisionNumber,
     IReadOnlyList<ProposalItemDto> Items, IReadOnlyList<ProposalDocumentDto> Documents, IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
     // T-056: §12.5's create response shows createdAt and no DTO carried it. The aggregate has had
     // the column all along - this was a projection omission, not a missing fact.
