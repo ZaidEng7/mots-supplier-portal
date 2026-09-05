@@ -36,8 +36,10 @@ public sealed class EvaluatorVisibilityTests(PostgresApiFixture fixture)
         // The bid.
         var bid = my.GetProperty("proposals").EnumerateArray().Single();
         bid.GetProperty("proposalCode").GetString().Should().Be(seeded.ProposalCode);
-        bid.GetProperty("supplierDisplayNameEn").GetString().Should().NotBeNullOrWhiteSpace(
-            "D-19: the bidder's identity is shown, because BRULE-067's recusal is unusable without it");
+        // A-8 supersedes D-19: the identity is NOT on this read once the evaluator has declared, and the
+        // bid is identified by a stable pseudonym instead. The declaration window is its own endpoint -
+        // see the declaration tests below - because this GET opens scoring as a side effect.
+        bid.GetProperty("bidderLabelEn").GetString().Should().Be("Bidder A");
         bid.GetProperty("technicallyQualified").ValueKind.Should().Be(JsonValueKind.False);
 
         // Documents: the TECHNICAL one only. The seed uploads one Technical and one Commercial, so
@@ -114,5 +116,77 @@ public sealed class EvaluatorVisibilityTests(PostgresApiFixture fixture)
         {
             Permissions.EvaluationScore, Permissions.EvaluationSubmit, Permissions.RfqClarify,
         });
+    }
+
+    [Fact]
+    public async Task The_declaration_window_shows_the_bidders_once_and_then_closes()
+    {
+        // A-8/BRULE-067. Recusal is an assignment-time act: the evaluator sees who the bidders are once,
+        // declares, and then scores anonymously. Nobody has to recuse themselves from a bidder they
+        // cannot see, because the declaration already happened.
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "Declare");
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        var before = await seeded.Evaluator.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/bidders");
+        before.GetProperty("declarationRequired").GetBoolean().Should().BeTrue();
+        before.GetProperty("bidders").EnumerateArray().Should().NotBeEmpty("the names ARE shown in this window");
+
+        (await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/declare",
+            new { hasConflict = false, reason = (string?)null }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Closed. Re-reading must not hand the names back, or the anonymity during scoring would be
+        // decorative - an evaluator could look up whose bid they were marking at any point.
+        var after = await seeded.Evaluator.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/bidders");
+        after.GetProperty("declarationRequired").GetBoolean().Should().BeFalse();
+        after.GetProperty("bidders").EnumerateArray().Should().BeEmpty();
+
+        // And the workspace itself is now anonymous.
+        var my = await seeded.Evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation");
+        var bid = my.GetProperty("proposals").EnumerateArray().Single();
+        bid.GetProperty("supplierDisplayNameEn").ValueKind.Should().Be(JsonValueKind.Null);
+        bid.GetProperty("supplierReferenceCode").ValueKind.Should().Be(JsonValueKind.Null);
+        bid.GetProperty("bidderLabelEn").GetString().Should().Be("Bidder A");
+
+        // Declaring twice is refused: the point of the window is that it closes.
+        (await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/declare",
+            new { hasConflict = false, reason = (string?)null }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Declaring_a_conflict_recuses_the_evaluator_and_requires_a_reason()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "Conflict");
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        // A reason is mandatory when there IS a conflict - an unexplained withdrawal from a committee is
+        // not an audit record.
+        (await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/declare",
+            new { hasConflict = true, reason = "" }))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        (await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/declare",
+            new { hasConflict = true, reason = "The bidder is a former employer." }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var assignment = await db.EvaluationAssignments.AsNoTracking()
+            .FirstAsync(a => a.EvaluationId == seeded.EvaluationId && a.EvaluatorUserId == seeded.EvaluatorId);
+        assignment.RecusedAt.Should().NotBeNull("a declared conflict IS a recusal - reusing the one the domain already audits");
+        assignment.RecusalReason.Should().Be("The bidder is a former employer.");
+
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a =>
+            a.ReferenceCode == seeded.RfqCode && a.Action == "evaluator_self_recused"))
+            .Should().BeTrue();
+
+        // And the recused evaluator can no longer reach the workspace at all.
+        (await seeded.Evaluator.GetAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation"))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

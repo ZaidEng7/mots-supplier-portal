@@ -8,6 +8,21 @@ export interface Staff {
   role: string
 }
 
+/** T-077/SCR-701: one staff account as an administrator sees it. `mfaEnabled` and
+ * `activeSessionCount` are the two facts that make the row actionable rather than decorative - a
+ * `system_admin` who lost their authenticator is a real lockout, and a deactivation that left sessions
+ * alive would only stop the NEXT sign-in. */
+export interface StaffAccount {
+  userId: string
+  email: string
+  fullName: string
+  role: string | null
+  isActive: boolean
+  mfaEnabled: boolean
+  lockoutEnd: string | null
+  activeSessionCount: number
+}
+
 export interface InviteStaffPayload {
   email: string
   fullName: string
@@ -43,4 +58,29 @@ export async function acceptStaffInvite(token: string, password: string): Promis
     const text = await res.text()
     throw new SupplierApiError(res.status, text ? JSON.parse(text) : null)
   }
+}
+
+/** T-077/SCR-701. Keyset-paged on (email, id) like every other list here. */
+export async function listStaff(cursor?: string): Promise<{ data: StaffAccount[]; pagination: { hasMore: boolean; nextCursor: string | null } }> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return parseOrThrow(await apiFetch(`/api/v1/staff${query}`))
+}
+
+export async function setStaffActive(userId: string, isActive: boolean): Promise<StaffAccount> {
+  const action = isActive ? 'reactivate' : 'deactivate'
+  return parseOrThrow(await apiFetch(`/api/v1/staff/${userId}/${action}`, { method: 'POST' }))
+}
+
+export async function changeStaffRole(userId: string, role: string): Promise<StaffAccount> {
+  return parseOrThrow(await apiFetch(`/api/v1/staff/${userId}/role`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  }))
+}
+
+/** Clears the authenticator enrolment and every live session. An administrator action on someone
+ * ELSE's account - a self-service reset would be a way past the second factor. */
+export async function resetStaffMfa(userId: string): Promise<StaffAccount> {
+  return parseOrThrow(await apiFetch(`/api/v1/staff/${userId}/reset-mfa`, { method: 'POST' }))
 }

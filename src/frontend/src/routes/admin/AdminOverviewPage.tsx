@@ -84,6 +84,14 @@ export function AdminOverviewPage() {
         {data.outbox.failed > 0 ? (
           <p className="mt-2"><Badge tone="danger">{t('adminOverview.outboxFailedWarning')}</Badge></p>
         ) : null}
+        {/* B-1/BRULE-011. A draining outbox with the logging stand-in registered has delivered nothing,
+            and an operator reading a healthy tile would conclude the opposite. */}
+        {!data.outbox.erpTransportConfigured ? (
+          <div className="mt-2 flex flex-col gap-1">
+            <Badge tone="warning">{t('adminOverview.erpNotConfigured')}</Badge>
+            <p style={{ color: 'var(--color-text-secondary)' }}>{t('adminOverview.erpNotConfiguredBody')}</p>
+          </div>
+        ) : null}
       </Card>
 
       <Card title={t('adminOverview.jobs')}>

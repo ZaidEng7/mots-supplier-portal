@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
+import { formatDateTime } from '../lib/datetime'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Badge, Button, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
@@ -122,6 +123,7 @@ export function ReviewQueuePage() {
             <TableHeaderCell>{isArabic ? 'رقم المرجع' : 'Reference'}</TableHeaderCell>
             <TableHeaderCell>{isArabic ? 'الحالة' : 'State'}</TableHeaderCell>
             <TableHeaderCell>{t('review.age')}</TableHeaderCell>
+            <TableHeaderCell>{t('review.reviewTarget')}</TableHeaderCell>
             <TableHeaderCell>{t('review.assignee')}</TableHeaderCell>
             <TableHeaderCell>{t('review.actions')}</TableHeaderCell>
           </TableHead>
@@ -146,6 +148,11 @@ export function ReviewQueuePage() {
                 </TableCell>
                 <TableCell>
                   <Badge tone={ageTone(ageHours)}>{formatAge(ageHours, isArabic)}</Badge>
+                </TableCell>
+                {/* A-5: a TARGET, rendered as a plain date. No tone, no badge, no "overdue" - the
+                    ministry has not stated a commitment, so the product must not imply one. */}
+                <TableCell>
+                  {item.reviewTargetAt ? formatDateTime(item.reviewTargetAt, isArabic ? 'ar' : 'en-GB') : '—'}
                 </TableCell>
                 <TableCell>{assigneeLabel(item)}</TableCell>
                 <TableCell>

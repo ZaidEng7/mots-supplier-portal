@@ -63,6 +63,9 @@ const TONES: Partial<Record<StatusMachine, Record<string, Tone>>> = {
   proposal: {
     Submitted: 'info', Awarded: 'brand', Withdrawn: 'danger',
     Declined: 'danger', NotSelected: 'warning',
+    // A-9. Neither is the supplier's fault in the way a rejection is, so neither is `danger`:
+    // Lapsed is a deadline they missed and Cancelled is a decision taken above them.
+    Lapsed: 'warning', Cancelled: 'neutral',
   },
   evaluation: { Finalized: 'success', Consolidated: 'info' },
   award: { Awarded: 'success', Rejected: 'danger' },

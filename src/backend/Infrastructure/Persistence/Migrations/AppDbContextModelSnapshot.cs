@@ -541,6 +541,15 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<bool>("TechnicallyQualified")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("TieResolutionReason")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("TieResolvedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("TieUnresolved")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("WeightedTotal")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)");
@@ -654,6 +663,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ConflictDeclaredAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("EvaluationId")
@@ -1378,7 +1390,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RfqId", "SupplierId")
                         .IsUnique()
-                        .HasFilter("\"State\" <> 'Withdrawn'");
+                        .HasFilter("\"State\" NOT IN ('Withdrawn', 'Lapsed', 'Cancelled')");
 
                     b.HasIndex("SupplierId", "State");
 
@@ -2003,6 +2015,10 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("ExpectedEnvelope")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<bool>("IsMandatory")
                         .HasColumnType("boolean");
 
@@ -2070,6 +2086,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("PublishAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2096,6 +2115,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SubmissionClosesAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("SubmissionDeadlineChangeReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("SubmissionDeadlineChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("SubmissionOpensAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2116,6 +2141,8 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("State");
 
+                    b.HasIndex("OrganizationId", "OwnerUserId");
+
                     b.HasIndex("OrganizationId", "State");
 
                     b.ToTable("rfq", "rfq");
@@ -2128,6 +2155,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ApproverUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedApproverUserId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Comment")

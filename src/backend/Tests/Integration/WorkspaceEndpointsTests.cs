@@ -112,7 +112,12 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         {
             titleAr = "طلب ترسية", titleEn = "Workspace Awarded RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
             publishAt = (DateTimeOffset?)null, submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            submissionClosesAt = DateTimeOffset.UtcNow.AddSeconds(3),
+            // T-087: an HOUR, not three seconds. The three-second window made everything between
+            // publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the
+            // timeline job, starting a proposal, pricing it, setting terms - and on a loaded machine the
+            // submit lost. The window is closed below by moving the deadline in storage, so the real job
+            // still performs the transition and only the waiting is gone.
+            submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
         var referenceCode = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
@@ -150,7 +155,8 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
             proposalId = (await db.Proposals.FirstAsync(p => p.ReferenceCode == proposalReferenceCode)).Id;
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        // T-087: close the window by moving the deadline, then let the real job notice it.
+        await SubmissionWindowTestHelper.CloseAsync(fixture, referenceCode);
         await RunTimelineJobAsync();
 
         var openResult = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/open", null);

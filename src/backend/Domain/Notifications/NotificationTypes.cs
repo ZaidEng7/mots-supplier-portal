@@ -15,6 +15,10 @@ public static class NotificationTypes
     public const string RfqSubmittedForReview = "rfq.submitted_for_review";
     public const string RfqReturnedForEdits = "rfq.returned_for_edits";
     public const string RfqApproved = "rfq.approved";
+
+    /// <summary>A-7: this RFQ is now yours. Not in §3.1's table - ownership did not exist to change,
+    /// so there was no transition to transcribe. Flagged as drafted in the catalogue.</summary>
+    public const string RfqReassigned = "rfq.reassigned";
     public const string RfqSubmissionOpened = "rfq.submission_opened";
     public const string RfqSubmissionClosed = "rfq.submission_closed";
 
@@ -51,6 +55,15 @@ public static class NotificationTypes
     /// <summary>T-064/§4.1: "AwardOffered -&gt; Declined ... In-app to procurement".</summary>
     public const string ProposalDeclined = "proposal.declined";
 
+    /// <summary>A-9/BRULE-052: a Draft the submission window closed on. Told to the supplier, because
+    /// nobody else needs to know and the supplier is the only party who lost something.</summary>
+    public const string ProposalLapsed = "proposal.lapsed";
+
+    /// <summary>A-9/BRULE-056: the RFQ was cancelled, so this proposal is over. A separate message from
+    /// the RFQ-cancelled one on purpose - "the tender was withdrawn" and "your bid is closed" are
+    /// different facts, and only the second one is about the supplier's own work.</summary>
+    public const string ProposalCancelled = "proposal.cancelled";
+
     /// <summary>T-018/BRULE-035: "notify all invitees" on an extension.</summary>
     public const string RfqDeadlineExtended = "rfq.deadline_extended";
 
@@ -71,7 +84,7 @@ public static class NotificationTypes
     /// <summary>Both directions of the catalogue gate compare against this set.</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        RfqSubmittedForReview, RfqReturnedForEdits, RfqApproved, RfqSubmissionOpened, RfqSubmissionClosed,
+        RfqSubmittedForReview, RfqReturnedForEdits, RfqApproved, RfqReassigned, RfqSubmissionOpened, RfqSubmissionClosed,
         RfqClarificationRequested, RfqClarificationResolved, RfqShortlistingStarted, RfqRecommendationRecorded,
         EvaluationOpened, EvaluatorSubmitted, EvaluationConsolidated, EvaluationFinalized,
         EvaluationReopened, EvaluatorRecused,
@@ -80,6 +93,8 @@ public static class NotificationTypes
         ProposalWithdrawn,
         ProposalAwardOffered,
         ProposalDeclined,
+        ProposalLapsed,
+        ProposalCancelled,
         RfqDeadlineExtended,
         RfqDeadlineShortened,
         ProposalClarificationRequested,

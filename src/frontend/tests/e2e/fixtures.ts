@@ -201,6 +201,35 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
       { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
     ] })
+    // T-079/SCR-720: the audit explorer. Declared BEFORE /suppliers/me/audit is irrelevant (different
+    // path), but it must not swallow /audit/export - the explorer only reads the search on load.
+    if (p === '/api/v1/audit') return route.fulfill({ json: {
+      data: [{ id: 'a-1', occurredAt: '2026-09-01T10:00:00Z', aggregateType: 'Rfq',
+        aggregateId: '01a00000-0000-7000-8000-000000000001', action: 'rfq_reassigned',
+        fromState: null, toState: null, actorLabel: 'A Manager' }],
+      pagination: { hasMore: false, nextCursor: null, totalCount: null },
+      meta: { filtersApplied: null },
+    } })
+    // A-7: the RFQ detail page's two assignment pickers ask for this on every buyer view. Without it
+    // the page falls through to its error state and the a11y scan covers that instead.
+    if (p.endsWith('/assignees')) return route.fulfill({ json: {
+      owners: [{ userId: '01a00000-0000-7000-8000-0000000000b1', fullName: 'An Officer' }],
+      approvers: [{ userId: '01a00000-0000-7000-8000-0000000000b2', fullName: 'A Manager' }],
+    } })
+    // T-080/SCR-710-712: the reference-data editor asks per table, so the fixture answers any of
+    // the five - otherwise the screen renders its error card and the a11y scan covers that instead.
+    if (p.startsWith('/api/v1/admin/reference/')) return route.fulfill({ json: [
+      { code: 'IT', nameAr: 'تقنية المعلومات', nameEn: 'Information technology', isActive: true, isRequired: null, expiryTracked: null },
+      { code: 'FAX', nameAr: 'فاكس', nameEn: 'Fax machines', isActive: false, isRequired: null, expiryTracked: null },
+    ] })
+    if (p === '/api/v1/suppliers/me/audit') return route.fulfill({ json: {
+      data: [{ id: 'a-1', occurredAt: '2026-09-01T10:00:00Z', aggregateType: 'Supplier', aggregateId: 's-1',
+        action: 'supplier_submitted', fromState: null, toState: 'Submitted', actorLabel: null }],
+      pagination: { hasMore: false, nextCursor: null },
+    } })
+    if (p === '/api/v1/staff') return route.fulfill({ json: listPage([
+      { userId: 'u-1', email: 'reviewer@ministry.example', fullName: 'A Reviewer', role: 'onboarding_reviewer', isActive: true, mfaEnabled: false, lockoutEnd: null, activeSessionCount: 0 },
+    ]) })
     if (p === '/api/v1/reference/settings') return route.fulfill({ json: {
       'registration.mode': 'open',
       'proposals.defaultCurrencyCode': 'SYP',

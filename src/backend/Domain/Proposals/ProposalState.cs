@@ -23,6 +23,21 @@ public enum ProposalState
     AwardOffered,
     Awarded,
     Declined,
+
+    /// <summary>
+    /// A-9/BRULE-052: a Draft the submission window closed on. Terminal.
+    ///
+    /// <para>Distinct from <see cref="Cancelled"/> deliberately. "You ran out of time" and "the tender
+    /// was withdrawn" are different events, and a supplier reading their proposal list has to be able
+    /// to tell them apart - collapsing them into one state would make the product say the wrong one
+    /// half the time.</para>
+    /// </summary>
+    Lapsed,
+
+    /// <summary>A-9/BRULE-056: a live proposal whose RFQ was cancelled beneath it. Terminal. BRULE-056
+    /// carries no assumption tag, so its previous half-enforcement - notify everyone, move nothing -
+    /// was a confirmed rule going unenforced.</summary>
+    Cancelled,
 }
 
 /// <summary>

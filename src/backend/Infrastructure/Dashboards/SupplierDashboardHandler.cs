@@ -58,6 +58,9 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             // the supplier's point of view, and neither is something to act on.
             OpenInvitations: await invitations.CountAsync(
                 i => i.Status != InvitationStatus.Declined && i.Status != InvitationStatus.Submitted, ct),
+            // A-9 self-corrects this one: a draft the window closed on is no longer Draft, so the tile
+            // stops counting a bid the supplier can never submit. That was the visible half of
+            // BRULE-052 going unenforced.
             DraftProposals: await proposals.CountAsync(p => p.State == ProposalState.Draft, ct),
             SubmittedProposals: await proposals.CountAsync(p => ProposalStates.InEvaluation.Contains(p.State), ct),
             DocumentsNeedingAttention: await documents.CountAsync(

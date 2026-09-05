@@ -7,6 +7,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
 import {
   getMyEvaluation, scoreCriterion, submitMyEvaluation, evaluatorProposalDocumentUrl, EvaluationApiError,
+  getConflictDeclaration, declareConflict,
 } from '../../api/evaluations'
 
 /** FEAT-11.3/11.5/FR-EVL-003..006: the evaluator's own scoring workspace - blind to every other
@@ -37,7 +38,34 @@ export function MyEvaluationPage() {
     }
   }
 
-  const evaluationQuery = useQuery({ queryKey: ['my-evaluation', referenceCode], queryFn: () => getMyEvaluation(referenceCode) })
+  /*
+    A-8/BRULE-067: the declaration comes FIRST, and the workspace query waits for it.
+
+    `enabled` is the whole mechanism. Reading my-evaluation opens scoring as a documented side effect,
+    so loading both at once would pass the declaration window before the evaluator had seen a single
+    name - which is precisely the window BRULE-067's recusal needs.
+  */
+  const declarationQuery = useQuery({
+    queryKey: ['conflict-declaration', referenceCode],
+    queryFn: () => getConflictDeclaration(referenceCode),
+  })
+  const declarationRequired = declarationQuery.data?.declarationRequired === true
+
+  const [conflictReason, setConflictReason] = useState('')
+  const declareMutation = useMutation({
+    mutationFn: (hasConflict: boolean) => declareConflict(referenceCode, hasConflict, hasConflict ? conflictReason : undefined),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['conflict-declaration', referenceCode] })
+      void queryClient.invalidateQueries({ queryKey: ['my-evaluation', referenceCode] })
+    },
+    onError: () => notify({ kind: 'danger', title: t('evaluation.my.declaration.failed') }),
+  })
+
+  const evaluationQuery = useQuery({
+    queryKey: ['my-evaluation', referenceCode],
+    queryFn: () => getMyEvaluation(referenceCode),
+    enabled: declarationQuery.isSuccess && !declarationRequired,
+  })
   const evaluation = evaluationQuery.data ?? null
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['my-evaluation', referenceCode] })
   const errorMessage = (err: unknown, fallback: string) =>
@@ -55,6 +83,53 @@ export function MyEvaluationPage() {
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('evaluation.my.submitted') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluation.my.errors.submitFailed')) }),
   })
+
+  if (declarationQuery.isLoading) {
+    return <SkeletonList label={t('common.loading')} />
+  }
+
+  /*
+    A-8: the recusal declaration, shown once, before any scoring.
+
+    The bidder names are HERE and nowhere else during the evaluation. An evaluator who recognises a
+    conflict says so and is recused with their reason; one who does not proceeds, and from that point on
+    the bids are pseudonymous until consolidation. Nobody has to recuse themselves from a bidder they
+    cannot see, because the declaration already happened.
+  */
+  if (declarationRequired) {
+    const bidders = declarationQuery.data?.bidders ?? []
+    return (
+      <Card title={t('evaluation.my.declaration.title')}>
+        <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.declaration.body')}</p>
+        <ul className="mb-4 flex flex-col gap-1">
+          {bidders.map((bidder) => (
+            <li key={bidder.proposalCode}>
+              {i18n.language.startsWith('ar') ? bidder.supplierDisplayNameAr : bidder.supplierDisplayNameEn}
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap items-end gap-2">
+          <Button size="sm" disabled={declareMutation.isPending} onClick={() => declareMutation.mutate(false)}>
+            {t('evaluation.my.declaration.noConflict')}
+          </Button>
+          <Input
+            aria-label={t('evaluation.my.declaration.reasonLabel')}
+            placeholder={t('evaluation.my.declaration.reasonPlaceholder')}
+            value={conflictReason}
+            onChange={(event) => setConflictReason(event.target.value)}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!conflictReason || declareMutation.isPending}
+            onClick={() => declareMutation.mutate(true)}
+          >
+            {t('evaluation.my.declaration.hasConflict')}
+          </Button>
+        </div>
+      </Card>
+    )
+  }
 
   if (evaluationQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
@@ -127,11 +202,25 @@ export function MyEvaluationPage() {
               <Badge tone={qualified ? 'success' : 'warning'}>
                 {qualified ? t('evaluation.my.qualified') : t('evaluation.my.notQualified')}
               </Badge>
-              {/* The bidder's name. Blindness here is evaluator-to-evaluator, never bidder
-                  anonymity, and BRULE-067's recusal is unusable without it - see D-19. */}
+              {/*
+                A-8: the bidder is ANONYMOUS while scoring is open, and named at the two moments where
+                the name is the point - before scoring opens, which is the recusal declaration
+                (BRULE-067), and after consolidation, when the scores are locked. Supersedes D-19,
+                which widened this view to include the name precisely so recusal was possible; A-8
+                moves recusal earlier instead.
+
+                The pseudonym is always shown, so a committee can discuss "Bidder B" either way.
+              */}
               <span style={{ color: 'var(--color-text-secondary)' }}>
-                {isArabic ? proposal.supplierDisplayNameAr : proposal.supplierDisplayNameEn}
+                {isArabic ? proposal.bidderLabelAr : proposal.bidderLabelEn}
               </span>
+              {proposal.supplierDisplayNameEn !== null ? (
+                <span style={{ color: 'var(--color-text-secondary)' }}>
+                  · {isArabic ? proposal.supplierDisplayNameAr : proposal.supplierDisplayNameEn}
+                </span>
+              ) : (
+                <Badge tone="info">{t('evaluation.my.anonymousBidder')}</Badge>
+              )}
             </div>
 
             {/* T-067: the bid's own technical content, which is what is being scored. */}

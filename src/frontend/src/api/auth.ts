@@ -1,4 +1,4 @@
-import { forgetETags, lookupETag, rememberETag } from './etags'
+import { forgetETags, lookupETag, ownerPrefixOf, rememberETag } from './etags'
 import { useAuthStore } from '../lib/authStore'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
@@ -129,6 +129,11 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
    */
   const idempotencyKey = isMutation ? crypto.randomUUID() : undefined
 
+  // T-030 split (2): where this write's precondition came from, captured BEFORE the write clears it.
+  // The response's fresh version goes back to the same place, so a sibling child collection can still
+  // find it - see ownerPrefixOf for the defect this closes.
+  const preconditionPrefix = isMutation ? ownerPrefixOf(path) : undefined
+
   const doFetch = () => {
     const token = useAuthStore.getState().accessToken
 
@@ -156,8 +161,25 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       useAuthStore.getState().clearSession()
     }
   }
-  rememberETag(path, res.headers.get('ETag'))
-  if (isMutation && res.ok) forgetETags(path)
+  // T-030 splits (3) and (2): FORGET first, then put the response's version back in BOTH places.
+  //
+  // A mutation moves the resource on, so the version cached before it is stale - keeping it would turn
+  // the caller's next save into a 412 nobody can explain. But the child-write routes now return the
+  // version the write produced (see WithFreshETag), and dropping THAT would make a supplier editing two
+  // contacts in a row hit 428 on the second until a re-read landed. So the order matters: clear the old,
+  // then keep the new when there is one.
+  //
+  // Split (2) added the second `rememberETag`. Filing the fresh version only under the WRITE path left
+  // it invisible to a sibling child collection: after adding an RFQ item the version sat at
+  // `/rfqs/RFQ-1/items`, and adding a requirement walked up to `/rfqs/RFQ-1`, found the entry deleted,
+  // and sent no If-Match at all - a 428 on the officer's second edit. Writing it back to the prefix the
+  // precondition came from keeps the aggregate's version reachable from every child of it.
+  const freshETag = res.headers.get('ETag')
+  if (isMutation && res.ok) {
+    forgetETags(path)
+    if (preconditionPrefix) rememberETag(preconditionPrefix, freshETag)
+  }
+  rememberETag(path, freshETag)
 
   // A 428 means this client failed to send a header it should always send: a bug in the transport
   // above, not a state the user can do anything about. Surfaced loudly rather than folded into the

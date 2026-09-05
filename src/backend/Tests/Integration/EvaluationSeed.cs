@@ -73,8 +73,20 @@ public static class EvaluationSeed
         {
             titleAr = "طلب", titleEn = $"{label} RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
             currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
+            // A REAL window, not a three-second one.
+            //
+            // This used to be now+1s to now+3s, and everything between publishing and submitting -
+            // approve, publish, a 1.2s wait, the timeline job, starting the proposal, pricing it,
+            // setting terms, and with withDocuments TWO file uploads - had to fit inside two seconds. On
+            // a loaded machine it did not: the submit was refused by the closed window, the seed did not
+            // check the result, and the failure surfaced three steps later as "at least one Submitted
+            // proposal is required" from a completely different endpoint.
+            //
+            // That is the unidentified flake carried in the backlog since batch 9. The window is now an
+            // hour, and the seed CLOSES it in storage when it needs it closed - the same technique
+            // CrossOrganizationScopeTests adopted after the same class of failure.
             submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            submissionClosesAt = DateTimeOffset.UtcNow.AddSeconds(3),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
         var rfqCode = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
@@ -121,9 +133,19 @@ public static class EvaluationSeed
             commercialDocumentId = await UploadDocumentAsync(supplier, proposalCode, "prices.pdf", envelope: null);
         }
 
-        await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
+        // Checked. An unchecked submit here is what made every downstream failure anonymous.
+        var submitted = await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
+        submitted.StatusCode.Should().Be(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
 
-        await Task.Delay(TimeSpan.FromSeconds(2.2));
+        // Close the window by moving the deadline into the past, then let the real job notice. No sleep:
+        // the job is still what performs the transition, so what is being exercised is unchanged - only
+        // the waiting is gone.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Rfqs.Where(r => r.ReferenceCode == rfqCode)
+                .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddSeconds(-1)));
+        }
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<RfqTimelineJob>().RunAsync(CancellationToken.None);

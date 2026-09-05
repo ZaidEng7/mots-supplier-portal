@@ -86,6 +86,32 @@ public static class ConcurrencyEndpoints
             return result;
         });
 
+    /// <summary>
+    /// T-030 split (3): puts the NEW version on a mutation's own response.
+    ///
+    /// <para>Separate from <see cref="WithETag"/> rather than reusing it, because that one also
+    /// implements §8.1's conditional-read half - <c>If-None-Match → 304</c> - and a 304 on a POST that
+    /// has already changed the row would be a lie about what happened.</para>
+    ///
+    /// <para>Why it matters here: the SPA drops its cached version the moment a mutation succeeds (a kept
+    /// version would be stale by definition and turn the next save into an unexplainable 412). Without a
+    /// fresh ETag on the response, a supplier editing two contacts in a row would hit 428 on the second
+    /// until a re-read landed. Returning the version the write produced closes that window instead of
+    /// racing a refetch.</para>
+    /// </summary>
+    public static RouteHandlerBuilder WithFreshETag(this RouteHandlerBuilder builder) =>
+        builder.AddEndpointFilter(async (context, next) =>
+        {
+            var result = await next(context);
+
+            if (result is IValueHttpResult { Value: { } value } && RowVersionOf(value) is { } rowVersion)
+            {
+                context.HttpContext.SetETag(rowVersion);
+            }
+
+            return result;
+        });
+
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> VersionProperties = new();
 
     private static uint? RowVersionOf(object value)

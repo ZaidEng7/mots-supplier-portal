@@ -393,3 +393,256 @@ response, which is a disclosure rather than a duplicate.*
 | **Why** | The defect being fixed is not the missing rungs — it is that the ranking had **no** tie-break at all: ordering by `WeightedTotal` alone left two equal proposals taking ranks 1 and 2 in whatever order the score rows iterated, and rank 1 is what the award flow offers. That is a defect under any tie-break order, including one nobody has confirmed yet. The first rung is the one the document names first and the only one this method has the data for. Reading "lowest price" off the financial weighted score would assume that score is inverse to price, which no document states — that would be inventing policy inside a bug fix. |
 | **What it costs if wrong** | If the Ministry confirms a different order, ranks among tied proposals change and T-085 implements it. Nothing stored becomes wrong: the ranking is recomputed on every consolidation, and a re-consolidation under the confirmed order produces the correct ranks. |
 | **Who should confirm it** | MOT procurement, as part of BRULE-069's own open question. |
+
+## Part A — the seventeen rulings (batch 10)
+
+Every row below is a **recommendation pending confirmation by its named owner**, supplied by the
+product owner at the start of batch 10 and built to. Where an earlier decision in this file said
+something else, that row is superseded and says so rather than being deleted.
+
+### A-1 — Tie-breaks use BRULE-069's own order, and a full tie is surfaced rather than picked `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | The tie-break order for equal weighted totals, and what happens when every rung ties. |
+| **Where the gap is** | BRULE-069 states the order parenthetically — "e.g. highest technical score, then lowest compliant price, then earliest submission" — and tags the order `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. **Checked: the document already names earliest submission as the third rung**, so the ruling's "then earliest submission as the final rung" coincides with it rather than extending it. |
+| **What was decided** | All three rungs in the document's order, then: if two proposals are still tied, the consolidation marks the tie UNRESOLVED, the award flow refuses to offer rank 1 while that marker is set, and a named person resolves it with an audited reason. |
+| **Why** | Earliest submission is objective, already recorded, and cannot be manipulated after the fact, which is why it is the standard final rung in public procurement. And D-8's principle applies to the residue: deterministic where the rules decide, refusing to decide where they do not. A silently-picked winner among genuine equals is the one outcome that cannot be defended after a challenge. |
+| **What it costs if wrong** | The rung order is data and is recomputed on every consolidation, so a different confirmed order changes nothing stored. The surfacing path stays useful under any order. |
+| **Who should confirm it** | MOT procurement. |
+| **Supersedes** | D-36, which implemented the first rung only and the proposal id as a residual. |
+
+### A-2 — The supplier tags each attachment's envelope, and the RFQ says which kind it expects `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | What decides whether a proposal attachment is technical or commercial. |
+| **Where the gap is** | OQ-009 recommends a single mixed template; the two-envelope control was built anyway as the safer reading, and `ProposalDocument.Envelope` has existed since T-028 with a Commercial default. Nothing told the supplier what to tag, and no screen offered the choice. |
+| **What was decided** | The supplier tags at upload; the default stays Commercial; and each `Requirement` now states the envelope it expects, so the supplier has something to tag against. |
+| **Why** | The knowledge sits with whoever attaches the file. A Commercial default means a mis-tag under-serves the evaluator rather than leaking a price into the technical envelope — the direction that fails closed. |
+| **What it costs if wrong** | A field and a form control. |
+| **Who should confirm it** | MOT procurement. |
+
+### A-3 — No approval threshold; every award takes the full path `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | BRULE-074's authority bands. |
+| **Where the gap is** | BRULE-074 says an approver may approve only within their authority limit and that over-limit awards escalate; the bands themselves are `[ASSUMPTION]`, and §F's own preamble says the amounts are "placeholder amounts only — not real policy". |
+| **What was decided** | No threshold at all. Every award follows the full approval path regardless of value. Unchanged from D-9 and restated here. |
+| **Why** | A threshold nobody set would let approvals through silently — the failure mode that leaves no trace. Extra approvals are visible and annoying; skipped ones are invisible. |
+| **What it costs if wrong** | Approvals that a band would have skipped still happen. Recoverable and visible. |
+| **Who should confirm it** | MOT procurement. |
+
+### A-4 — Clarification answers broadcast to every invitee, asker anonymised `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | OQ-008: whether Q&A is private to the asker or broadcast. |
+| **Where the gap is** | **The documents disagree, and this is worth quoting.** BRULE-036: "Clarification Q&A is available during the open window; answers deemed material are broadcast to **all** invitees (anonymized questioner)." ASM-044 and OQ-008's recorded interim decision say the opposite: "visible to the asking supplier only by default, with an option to broadcast". The code was built to ASM-044. |
+| **What was decided** | Answering publishes to every invitee. The asker's identity is never in the broadcast copy; the asker alone sees their own question attributed as theirs. Questions stay private until answered. Notifications fan out to all invitees. |
+| **Why** | Equal information to all bidders is the fundamental fairness principle in tendering — a private answer hands one bidder an advantage created by the buyer. Anonymising the asker preserves what OQ-008 wanted (no bidder reveals their thinking to competitors) while removing the unfairness, and it is what BRULE-036 already says. |
+| **What it costs if wrong** | A visibility flag on the answer. The `ClarificationVisibility` enum is kept, so a reversal is a default change and not a migration. |
+| **Who should confirm it** | MOT procurement. |
+| **Supersedes** | R-7 / the ASM-044 reading. **This is a reversal of shipped behaviour, not a new default.** |
+| **Not implemented** | BRULE-036's "deemed material" qualifier. Every answer broadcasts; a materiality gate would be a flag on the answer, and gating fairness on a buyer's judgement is the direction that fails open. |
+
+### A-5 — Review SLA: configurable, five working days, shown as a target `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | The onboarding review SLA's duration. |
+| **Where the gap is** | BUSINESS-PROCESSES.md §5 starts, pauses and resumes an SLA timer across `Submitted → UnderReview → InfoRequested → Resubmitted` and never names a number. |
+| **What was decided** | A system setting, default five working days, surfaced as a TARGET date on the reviewer's queue and never as a breach or a badge. |
+| **Why** | The timer exists in the process and has no number, so the honest options are "no timer" or "a stated default someone can change". Calling it a target means the product never asserts a commitment the ministry did not make. |
+| **What it costs if wrong** | One setting value, under D-32's precedence. |
+| **Who should confirm it** | MOT procurement. |
+| **Supersedes** | D-11, which recorded that no duration exists and left the timer unbuilt. |
+
+### A-6 — Deadline extensions stay unbounded and require a reason `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | Whether a deadline extension has an upper bound. |
+| **Where the gap is** | BRULE-035 permits extension while Published/SubmissionOpen and requires notification; it names no bound and is `[ASSUMPTION]`. |
+| **What was decided** | No cap. A reason is mandatory, free text, audited, and included in the notification to every invitee. |
+| **Why** | A cap invents a fairness rule. A required reason makes every extension defensible or obviously indefensible without inventing one — and a supplier being told WHY their deadline moved is simply better than being told that it did. |
+| **What it costs if wrong** | A bound is a validator. |
+| **Who should confirm it** | MOT procurement. |
+
+### A-7 — An RFQ has an owning officer, and the approver is resolved from the assignment `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | Who "the officer" and "the approver" are, as people rather than as roles. |
+| **Where the gap is** | Nothing in the documents gives an RFQ an owner. BRULE-029 scopes an RFQ to its Organization and stops there; every notification rule that says "the officer" therefore reaches a pool. SCREEN-SPECIFICATIONS' procurement dashboard lists an "Awaiting my action" tile with no mechanism behind it, which is why it was scoped to an invention when it was built. |
+| **What was decided** | `Rfq.OwnerUserId`, set to the creator at creation, reassignable with an audit row, and the approver resolved from the assignment rather than from the role claim. |
+| **Why** | "Notify the officer" reaching a pool is an accountability gap in a tender: no individual is on record as responsible. This is the underlying fix for a gap that has surfaced in three separate epics. |
+| **What it costs if wrong** | Ownership is one nullable column and a reassignment endpoint. |
+| **Who should confirm it** | MOT procurement. |
+| **Built** | Batch 10. `Rfq.OwnerUserId` set to the creator; `POST /rfqs/{code}/reassign` behind the new `rfq.reassign` permission, guarded by `If-Match` and writing an audit row whose `changes` carry both ids; all six "the officer" notification sites resolve through `NotificationRecipients.RfqOwnerAsync`; the review pass records the manager it was assigned to, separately from whoever decided it; SCR-400's "Awaiting my action" tile counts what this caller is answerable for rather than what the organization holds; the buyer RFQ list carries the owner and a `?owner=me\|unassigned\|<id>` filter reusing the review queue's own three-value shape. Four consequences the ruling did not settle are logged as [[D-38]] (unowned RFQs), [[D-39]] (a deactivated owner), [[D-40]] (who may reassign) and [[D-41]] (why approval routing stays unnamed). |
+
+### A-8 — Bidders are anonymous during scoring and revealed after consolidation `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | Whether an evaluator sees which supplier submitted the proposal they are scoring. |
+| **Where the gap is** | BRULE-067 requires a conflicted evaluator to be "recused (unassigned) before submitting" and is `[ASSUMPTION]`. Nothing says whether scoring is blind. D-19 widened the evaluator's view to include the bidder name precisely so recusal was possible. |
+| **What was decided** | Anonymous during scoring, revealed after consolidation. Recusal moves to assignment time: the evaluator is shown the bidder list once, when the assignment is offered, declares any conflict, and is then recused or proceeds — after which scoring is anonymous. |
+| **Why** | This is what makes anonymised evaluation compatible with BRULE-067 rather than in conflict with it. Nobody has to recuse themselves from a bidder they cannot see, because the declaration already happened. |
+| **What it costs if wrong** | A projection flag. |
+| **Who should confirm it** | MOT procurement. |
+| **Supersedes** | D-19. **This reverses a shipped widening.** |
+
+### A-9 — Two new terminal proposal states: Lapsed and Cancelled `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | What happens to a draft that ran out of time (BRULE-052) and to a live proposal whose RFQ was cancelled (BRULE-056). |
+| **Where the gap is** | BRULE-052 is `[ASSUMPTION]`; BRULE-056 carries no tag at all, so its half-enforcement was a confirmed rule going unenforced (found in batch 9 phase 12b). |
+| **What was decided** | Two states, both terminal: `Lapsed` (the window closed on a draft) and `Cancelled` (the RFQ was withdrawn beneath it). |
+| **Why** | They are different events and the supplier reading their proposal list must be able to tell them apart. "You ran out of time" and "the tender was withdrawn" are not the same message, and collapsing them into one state would make the product say the wrong one half the time. |
+| **What it costs if wrong** | Two enum members. The work is the consumer enumeration, not the members. |
+| **Who should confirm it** | MOT procurement. |
+
+### A-10 — The Ministry sees no commercial figures `[recommended — awaiting MOT Legal]`
+
+| | |
+|---|---|
+| **What was undecided** | OQ-001: whether Ministry surfaces may carry commercial values. |
+| **What was decided** | Keep the fail-closed default. Aggregate, anonymised governance data only; no commercial figures. Unchanged from D-6 and restated here as a ruling rather than an interim. |
+| **Why** | Too narrow means a viewer asks for more. Too wide means bid data reaches a party not entitled to it, in a government tender, irreversibly. |
+| **What it costs if wrong** | The flag already exists (`GovernanceVisibility.commercialValues`, seeded off), so widening is a row. |
+| **Who should confirm it** | MOT Legal. |
+
+### A-11 — AV scanning stays as built `[recommended — awaiting security]`
+
+| | |
+|---|---|
+| **What was undecided** | OQ-014's scanning scope. |
+| **What was decided** | Unchanged: everything scanned, fail-closed, pre-scanner rows `PendingScan` and scanned on first access, an infected file answering the same 404 as any miss. |
+| **Why** | Confirmed as correct by the owner; recorded so the next sweep does not re-open it. |
+| **What it costs if wrong** | Nothing is unbuilt by this ruling. |
+| **Who should confirm it** | Security. |
+
+### A-12 — Signed URLs stay, and the grant stays audited `[recommended — awaiting security]`
+
+| | |
+|---|---|
+| **What was undecided** | Whether retrieval itself must be auditable, which signed URLs cannot make it. |
+| **What was decided** | Keep signed URLs per §4.2 and keep auditing the grant with document, actor and time. Do not build streaming to close the gap. |
+| **Why** | The limitation is real — the app can never know a file was actually fetched — but it is §4.2's own consequence, and it is now written down rather than discovered later. |
+| **What it costs if wrong** | Streaming is a second retrieval path, buildable when someone states that retrieval must be auditable. |
+| **Who should confirm it** | Security. |
+| **Supersedes** | D-16, which recorded the same conclusion as an interim. |
+
+### A-13 — §12.1's register shape stays anti-enumeration `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was decided** | Keep the built behaviour: §1.6 is specific, §12.1's shape is illustrative, and the divergence has a test asserting it. |
+| **Why** | Confirmed by the owner. |
+| **Who should confirm it** | The document owner. |
+| **Supersedes** | D-25, as a ruling rather than an interim. |
+
+### A-14 — A locked account answers 423, not §12.1's 429 `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was decided** | Keep 423. |
+| **Why** | A client cannot distinguish rate-limiting from a locked account if they share a status, and telling them apart is the point. |
+| **Who should confirm it** | The document owner. |
+
+### A-15 — §4.1 wins over §3.1 on shortlisting `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was decided** | Keep §4.1. The proposal's own transition table is the more specific authority, and consolidation is where the threshold comparison actually happens. |
+| **Who should confirm it** | The document owner. |
+
+### A-16 — A generated permission catalogue `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was undecided** | Nothing ratifies the permission names; every one of them is an invention against codebase convention. |
+| **What was decided** | Generate `PERMISSIONS.md` at the repository root from the code: every permission, its `resource.action` name, what it gates, which roles hold it by default, and whether any document mentions it. Generated by a test that fails when the file drifts — never hand-maintained. |
+| **Why** | A generated catalogue makes the whole set ratifiable in one pass instead of perpetually provisional, and it is the artefact the doc owner needs in order to answer at all. A hand-written list drifts, which is the defect this project has now fixed twice. |
+| **What it costs if wrong** | The file is derived, so a renamed permission regenerates it. |
+| **Who should confirm it** | The document owner. |
+
+### A-17 — `report.read` goes to `procurement_manager` only `[recommended — awaiting the roles owner]`
+
+| | |
+|---|---|
+| **What was undecided** | Which role holds `report.read`. It was granted to none, so the reports screen was reachable by nobody. |
+| **What was decided** | `procurement_manager`, and only that role. |
+| **Why** | The reports are cross-organisation aggregates, and `procurement_manager` already holds approval authority over the work they aggregate, so this discloses nothing that role cannot already reach case by case. Not `ministry_viewer`, whose zero-permission default is deliberate under BRULE-086; not `procurement_officer`, who has no cross-organisation remit. |
+| **What it costs if wrong** | A seeder line and a role edit. |
+| **Who should confirm it** | The roles owner. |
+| **Note** | Stays on the first-deploy checklist: per D-30 a new default grant reaches an existing database only through the per-permission marker, so an environment seeded before this change picks it up on next start — but an administrator who had removed it keeps it removed. |
+| **Supersedes** | D-14, which recorded the grant as absent and unresolved. |
+
+### D-37 — Creating a child of a versioned aggregate is a mutation of that aggregate, and is guarded `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was undecided** | Whether a POST that creates a CHILD of an existing aggregate needs §8.1's `If-Match`. |
+| **Where the gap is** | §8.1 describes its guarded mutations as PUT/PATCH and transition POSTs on existing resources. It does not say which side of that line `POST /suppliers/me/contacts` falls on, and a test asserted — reasonably, on the wording — that a creation POST is not guarded. |
+| **What was decided** | A POST that creates a child of a versioned aggregate requires `If-Match`; a POST that creates a top-level resource does not. T-030 split (3) applies this to the supplier's 21 child-write routes. |
+| **Why** | The aggregate's version moves either way, so the choice is only about whether anyone is told. Without the precondition a caller can add a contact on top of a profile they never saw — one a reviewer has just put back into `InfoRequested`, whose flagged-field rules they are unaware of — and the write succeeds against a state they were not looking at. A top-level create is different in kind: there is no prior version anyone could have read, and requiring one would make authoring impossible. |
+| **What it costs if wrong** | It is a filter per route. If the doc owner reads §8.1 as excluding creation, removing it is one line each — and the version still moves, so nothing stored becomes wrong. |
+| **Who should confirm it** | The document owner, alongside A-13's other §8.1 readings. |
+
+### D-38 — An RFQ with no owner falls back to the pool everywhere, rather than to nobody `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | What A-7's ownership means for the RFQs that already exist. A-7 gives an RFQ an owning officer set at creation; every RFQ created before it has none, and nothing in the ruling says what happens to them. |
+| **Where the gap is** | Three places consult the owner: the six §3.1 notification rules that read "the officer", SCR-400's "Awaiting my action" tile, and the buyer RFQ list's new `?owner=` filter. Each of them needs an answer for `OwnerUserId == null`, and "no owner" could mean either "belongs to nobody" or "belongs to everybody who could act". |
+| **What was decided** | Unowned means unclaimed, not orphaned. A notification about an unowned RFQ goes to the whole officer pool — exactly as it did before A-7. Its next action counts on the tile of everyone holding the permission that action needs. The list surfaces it under `?owner=unassigned` and labels the row "Unassigned" in words. Backfilling an owner from the audit trail's `rfq_created` actor was considered and rejected. |
+| **Why** | The two readings fail in opposite directions and only one of them is recoverable. "Belongs to nobody" means a live tender transitions and no human being is told — the exact failure A-7 exists to prevent, made worse because it would be introduced by the fix. "Belongs to everybody" is the behaviour that shipped for nine batches; it is merely imprecise. On the backfill: the creator of an RFQ is not necessarily its owner today, and a guess written into an ownership column is indistinguishable from a fact — it would be quoted back in an audit as though somebody had decided it. A visible "Unassigned" that an officer can claim states the truth and asks for the one thing that resolves it. |
+| **What it costs if wrong** | Nothing stored is wrong either way; it is a fallback branch in one method (`NotificationRecipients.RfqOwnerAsync`) and one predicate in the dashboard count. If procurement would rather unowned RFQs reached nobody, both are a deletion. If they want the backfill, it is one `UPDATE ... FROM audit_log`, and it can be run at any time. |
+| **Who should confirm it** | MOT procurement, alongside A-7 itself. |
+
+### D-39 — The same fallback covers an owner whose account has been deactivated `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | What happens to an RFQ whose owner has left. |
+| **Where the gap is** | T-077 (batch 10) made staff deactivation reachable for the first time, and A-7 then made one named person the sole recipient of six notification rules. The two together create a state nothing had to handle before: an RFQ pointing at an account that can no longer read anything. |
+| **What was decided** | An inactive owner is treated as no owner: the notification goes to the pool, and the RFQ keeps its stored `OwnerUserId` so the audit trail still says who was responsible at the time. The ownership is not cleared. |
+| **Why** | Clearing it would rewrite history to make the present tidy — the RFQ *was* theirs, and a reader asking "who was handling this in March" deserves the answer. Leaving the notification pointed at them would mean a returned-for-edits RFQ that nobody alive is told about, which is the same silent failure as the unowned case. A manager reassigning it is the real fix, and the pool notification is what prompts one. |
+| **What it costs if wrong** | One `&& u.IsActive` clause. |
+| **Who should confirm it** | MOT procurement. |
+
+### D-40 — Reassignment is the manager's, not the owner's `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | Who may move ownership. A-7 says an RFQ is "reassignable with an audit row" and does not say by whom. |
+| **What was decided** | A new permission, `rfq.reassign`, held by `procurement_manager` and `system_admin` and deliberately **not** by `procurement_officer` — so an owner cannot hand their own RFQ away. |
+| **Why** | A-7's purpose is to put an individual on record as answerable for a tender. An owner who may reassign at will can stop being answerable without anyone deciding that they should, which returns the accountability to a pool by a different route. An officer who genuinely cannot continue asks their manager, and the audit row then records the request and its reason. |
+| **What it costs if wrong** | One entry in `Roles.DefaultPermissions`, and roles are admin-editable at runtime (FR-ADM-002) — so a ministry that disagrees can grant it on SCR-716 without a deploy. |
+| **Who should confirm it** | MOT procurement. |
+
+### D-41 — Approval routing stays unnamed; the nomination is optional `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | A-7 says "the approver resolved from the assignment rather than from the role claim". It does not say what assigns the approver. |
+| **Where the gap is** | `RfqApproval.ApproverUserId` was written at the moment of decision, so before a decision there was nobody to notify and "notify the approver" reached every `procurement_manager` in the organization. Choosing one automatically would require a routing rule, and there is none: BRULE-072/074's amount thresholds are `[ASSUMPTION]`, OQ-004's approval chain is open, and T-075 is the backlog row for it. |
+| **What was decided** | The officer submitting for review MAY name the approver, recorded on the pending step as `AssignedApproverUserId` — separate from `ApproverUserId`, which continues to record who actually decided. When a pass names nobody, the manager pool is notified exactly as before. The nominee must hold `rfq.approve` in the RFQ's own organization and be active, refused as 422 `INELIGIBLE_USER` rather than silently ignored. |
+| **Why** | This is the half of A-7 that can be built without inventing the half that is undecided. A default here would produce an outcome rather than a posture — an approval routed to a specific manager who was never chosen — so the system decides nothing and surfaces the case to a person, which is the pattern the rest of this batch follows. Keeping the nomination and the decision in separate columns matters because a nominated approver who is unavailable and the colleague who decides in their place are two different people, and a trail that keeps only the second cannot answer who was asked. |
+| **What it costs if wrong** | One nullable column and an optional request field. If T-075 later brings a real routing rule, it fills the same column and this stays the manual override. |
+| **Who should confirm it** | MOT procurement, alongside T-075. |
+
+### D-42 — A supplier's writes to a buyer's RFQ are not version-guarded `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was undecided** | T-030 split (2) guards the RFQ's child writes with §8.1's `If-Match`. Two of the routes on that group belong to the SUPPLIER — asking a clarification question, and declining an invitation — and §8.1 does not distinguish by who is writing. |
+| **Where the gap is** | The precondition is not obtainable. `SupplierRfqDto` deliberately carries no `RowVersion`: it is the buyer aggregate's version, and the supplier-facing shape is narrower on purpose (FEAT-08.6). So a guard on those two routes would answer 428 to every invited supplier, on the one screen where they decide whether to bid. Adding the version to the supplier's read would fix the obtainability and create a worse problem, described below. |
+| **What was decided** | Both routes stay unguarded, and the supplier's read keeps carrying no version. Recorded as a deliberate exclusion in the route group's own comment and asserted by a test, so a later sweep does not "finish the job". |
+| **Why** | Two reasons, and the second is the one that settles it. First, a guard nobody can satisfy refuses every caller — the same lesson T-029 recorded when `SupplierFieldConfig` gained a single-item read in the same change as its guard. Second, and more important: the concurrency it would be guarding is not a lost update. Two invited suppliers asking unrelated questions about the same tender are not overwriting each other's work; neither can see the other's question, and neither's write invalidates the other's. Refusing the second because the first moved a version they cannot observe would make one supplier's participation depend on another supplier's timing — a fairness problem in a public tender, introduced in the name of a safety property that was not at risk. §8.1 exists to stop a writer clobbering a state they were shown; these suppliers were shown nothing that changed. |
+| **What it costs if wrong** | If the document owner reads §8.1 as covering every write to a versioned aggregate regardless of actor, the change is two filters plus a version on `SupplierRfqDto` — and the fairness consequence above would need answering first. |
+| **Who should confirm it** | The document owner, alongside D-37 and A-13's other §8.1 readings. |

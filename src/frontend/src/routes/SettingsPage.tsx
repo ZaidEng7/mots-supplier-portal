@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Field, Input } from '../components/ui'
-import { useToast } from '../components/ui'
+import { listOwnAuditTrail, downloadOwnAuditTrail } from '../api/audit'
 import { formatDateTime } from '../lib/datetime'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateQuietly } from '../lib/queryClient'
+import { Badge, Button, Field, Input, SkeletonList, useToast } from '../components/ui'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -181,6 +181,75 @@ export function SettingsPage() {
         </h2>
         <SessionsSection />
       </div>
+
+      {/*
+        B-1/FR-AUD-003. `GET /suppliers/me/audit` and its CSV export have existed since EPIC-01 and
+        nothing called either - a compliance affordance that shipped unreachable. Here rather than on its
+        own route because it is the supplier's own record of their own account, which is what this screen
+        is; a separate page would be one more route for one table.
+      */}
+      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('settings.auditTitle')}
+        </h2>
+        <AuditTrailSection />
+      </div>
+    </div>
+  )
+}
+
+function AuditTrailSection() {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
+  const { notify } = useToast()
+  const trailQuery = useQuery({ queryKey: ['own-audit'], queryFn: () => listOwnAuditTrail() })
+
+  const exportMutation = useMutation({
+    mutationFn: downloadOwnAuditTrail,
+    onError: () => notify({ kind: 'danger', title: t('settings.auditExportFailed') }),
+  })
+
+  if (trailQuery.isLoading) return <SkeletonList label={t('common.loading')} />
+  if (trailQuery.isError) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p>{t('settings.auditLoadFailed')}</p>
+        <Button size="sm" variant="ghost" onClick={() => void trailQuery.refetch()}>{t('settings.retry')}</Button>
+      </div>
+    )
+  }
+
+  const entries = trailQuery.data?.data ?? []
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p style={{ color: 'var(--color-text-secondary)' }}>{t('settings.auditHint')}</p>
+
+      {entries.length === 0 ? (
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('settings.auditEmpty')}</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {entries.map((entry) => (
+            <li key={entry.id} className="flex flex-wrap items-baseline justify-between gap-2">
+              {/* The action's own token, not a translated label: §7 has no table for audit actions, and
+                  inventing one here would put a second vocabulary beside the one the trail records. */}
+              <span><code>{entry.action}</code></span>
+              <span className="num text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                {formatDateTime(entry.occurredAt, locale)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Button
+        size="sm"
+        variant="secondary"
+        isLoading={exportMutation.isPending}
+        onClick={() => exportMutation.mutate()}
+      >
+        {t('settings.auditExport')}
+      </Button>
     </div>
   )
 }

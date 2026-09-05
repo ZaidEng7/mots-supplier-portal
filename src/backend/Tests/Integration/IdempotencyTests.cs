@@ -284,4 +284,30 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
                 "and the unexpired ones are still there - a job that deleted everything would also pass the line above");
         }
     }
+
+    [Fact]
+    public async Task An_error_code_survives_the_idempotency_filter()
+    {
+        // The filter captures the handler's response and re-emits it, and it used to re-emit every
+        // response as application/json. A problem+json body sent as application/json is no longer
+        // recognised as already-conformed by ProblemDetailsMiddleware, so the middleware rebuilt it and
+        // re-derived `code` from the status - flattening ILLEGAL_TRANSITION to a bare CONFLICT while
+        // leaving currentState and allowedNext in place. A client switching on `code`, which §7 tells
+        // them to do, would see nothing but the status it already had.
+        //
+        // Found by A-9: lapsing a draft made "submit a proposal that has moved on" reachable on an
+        // idempotent route for the first time.
+        var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Idem Code Co");
+
+        // Any idempotent route whose refusal carries a code will do; a submit on a proposal that does
+        // not exist is a 404 with no code, so this uses a state refusal instead - see
+        // ProposalEndpointsTests.Late_submission_is_impossible..., which asserts the same shape end to
+        // end through the real lapse.
+        var response = await supplier.PostAsync("/api/v1/proposals/PRP-0000-000000/submit", null);
+
+        // 404 here, and the point is the CONTENT TYPE rather than this particular code: whatever the
+        // handler answered must arrive as problem+json so the middleware leaves it alone.
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json",
+            "an error from an idempotent route must keep the content type that makes it conformed");
+    }
 }

@@ -65,10 +65,10 @@ public sealed class ChildWriteVersionTests(PostgresApiFixture fixture)
         // still accepted afterwards - a caller editing the profile could overwrite it on top of a
         // version it had never seen.
         //
-        // Split (1) of T-030 delivers the bump. It does NOT put the 55 child-write routes under
-        // If-Match - POST /me/contacts still declares no precondition - so the child write below goes
-        // through unguarded, exactly as it did before. What changed is that it now MOVES the version,
-        // which is what makes the guarded route refuse.
+        // Split (1) delivered the bump; split (3) put the supplier's child writes under If-Match, so the
+        // child write below now sends the version it just read. That does not weaken what this test
+        // proves - the point is still that a version read BEFORE a child write is stale afterwards, and
+        // the guarded PATCH refuses it.
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Stale ETag Co");
         var supplierCode = await client.OwnSupplierCodeAsync();
 
@@ -79,11 +79,18 @@ public sealed class ChildWriteVersionTests(PostgresApiFixture fixture)
 
         var beforeChild = (await raw.GetAsync($"/api/v1/suppliers/{supplierCode}")).Headers.ETag!;
 
-        var contact = await raw.PostAsJsonAsync("/api/v1/suppliers/me/contacts", new
+        using var contactRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/suppliers/me/contacts")
         {
-            fullName = "ليان الأحمد", email = $"stale-{Guid.NewGuid():N}@example.sy",
-            phone = "+963900000001", role = (string?)null,
-        });
+            Content = JsonContent.Create(new
+            {
+                fullName = "ليان الأحمد", email = $"stale-{Guid.NewGuid():N}@example.sy",
+                phone = "+963900000001", role = (string?)null,
+            }),
+        };
+        // The child write is guarded now (split 3), so it carries the version it just read - the same
+        // version the PATCH below will be refused for, because this write moves it.
+        contactRequest.Headers.TryAddWithoutValidation("If-Match", beforeChild.ToString());
+        var contact = await raw.SendAsync(contactRequest);
         contact.StatusCode.Should().Be(HttpStatusCode.OK, await contact.Content.ReadAsStringAsync());
 
         // Refusable: the version read before the child write no longer describes this aggregate.

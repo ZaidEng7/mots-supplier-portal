@@ -14,4 +14,21 @@ public sealed class ConsolidatedResult
     public decimal? FinancialWeightedScore { get; internal set; }
     public decimal WeightedTotal { get; internal set; }
     public int? Rank { get; internal set; }
+
+    /// <summary>
+    /// A-1/BRULE-069: this result is tied with another one after EVERY tie-break rung, and the tie has
+    /// not been resolved by a person.
+    ///
+    /// <para>The ranks are still assigned - a list with no order is useless - but the award flow
+    /// refuses to offer rank 1 while any rank-1 result carries this, because at that point the
+    /// ordering between them came from nothing a rule decided. D-8's principle: deterministic where
+    /// the rules decide, refusing to decide where they do not.</para>
+    /// </summary>
+    public bool TieUnresolved { get; internal set; }
+
+    /// <summary>Who resolved the tie and why, once a person has. Null while unresolved and null when
+    /// there was never a tie to resolve.</summary>
+    public Guid? TieResolvedByUserId { get; internal set; }
+
+    public string? TieResolutionReason { get; internal set; }
 }

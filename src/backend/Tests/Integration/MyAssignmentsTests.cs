@@ -37,6 +37,26 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Reads the dashboard and FAILS WITH THE BODY when it is not a 200.
+    ///
+    /// <para><c>GetFromJsonAsync</c> throws on a non-success status and deserialises a problem+json
+    /// object into a <c>JsonElement</c> that then throws again on <c>GetArrayLength</c> - either way the
+    /// failure names neither the status nor the reason. This suite produced exactly that once in a full
+    /// run (638 tests, one failure, green in isolation), and the anonymity is why it could not be
+    /// diagnosed: T-087's lesson, applied where it recurred.</para>
+    /// </summary>
+    private static async Task<JsonElement> AssignmentsAsync(HttpClient client, string? tab = null)
+    {
+        var response = await client.GetAsync($"/api/v1/my-evaluations{(tab is null ? "" : $"?tab={tab}")}");
+        var body = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, body);
+
+        using var document = JsonDocument.Parse(body);
+        document.RootElement.ValueKind.Should().Be(JsonValueKind.Array, body);
+        return document.RootElement.Clone();
+    }
+
     [Fact]
     public async Task An_evaluator_sees_their_own_assignments_and_never_another_evaluators()
     {
@@ -46,8 +66,8 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
 
         await AssignAsync(seeded, evaluatorA);
 
-        var mine = await clientA.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations");
-        var theirs = await clientB.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations");
+        var mine = await AssignmentsAsync(clientA);
+        var theirs = await AssignmentsAsync(clientB);
 
         // The control: the assignment really is visible to the person who holds it.
         mine.EnumerateArray().Select(a => a.GetProperty("rfqReferenceCode").GetString())
@@ -71,7 +91,7 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
 
         await AssignAsync(seeded, evaluatorId);
 
-        var assignments = await client.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations");
+        var assignments = await AssignmentsAsync(client);
 
         assignments.GetArrayLength().Should().Be(1,
             "assignment scoping must not depend on an organization the evaluator may not have");
@@ -85,7 +105,7 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         await AssignAsync(seeded, evaluatorId);
 
         // Control first: it is on the dashboard before the recusal.
-        var before = await client.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations");
+        var before = await AssignmentsAsync(client);
         before.GetArrayLength().Should().Be(1);
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -96,7 +116,7 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
             await db.SaveChangesAsync();
         }
 
-        var after = await client.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations");
+        var after = await AssignmentsAsync(client);
 
         after.GetArrayLength().Should().Be(0, "a recused evaluator is no longer being asked for anything");
     }
@@ -109,10 +129,10 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         await AssignAsync(seeded, evaluatorId);
 
         // IA §4.3: "tabs Assigned · In Progress · Submitted". A fresh assignment is Assigned.
-        var assigned = await client.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations?tab=Assigned");
+        var assigned = await AssignmentsAsync(client, "Assigned");
         assigned.GetArrayLength().Should().Be(1);
 
-        var submitted = await client.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations?tab=Submitted");
+        var submitted = await AssignmentsAsync(client, "Submitted");
         submitted.GetArrayLength().Should().Be(0, "nothing has been submitted yet");
 
         // Both directions of the filter gate: an unknown tab is refused rather than dropped, because
@@ -128,7 +148,7 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         var (client, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator, seeded.OrgId);
         await AssignAsync(seeded, evaluatorId);
 
-        var assignments = await client.GetFromJsonAsync<JsonElement>("/api/v1/my-evaluations");
+        var assignments = await AssignmentsAsync(client);
         var row = assignments.EnumerateArray().Single();
 
         row.GetProperty("scoresRecorded").GetInt32().Should().Be(0);

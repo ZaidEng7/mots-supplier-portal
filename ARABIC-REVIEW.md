@@ -335,3 +335,229 @@ review the details without naming them. Both are deliberate and both are flagged
 but a reviewer may judge the Arabic to be evasive rather than terse, and that judgement is worth
 having before these ship. The fix would not be to reword them — it would be to revisit BRULE-091's
 scope for notification bodies.
+
+---
+
+## Set 5 — batch 10 (A-1, A-4, A-9, and the admin surfaces)
+
+Every string below is **drafted and marked**, and ships per the product owner's standing approval. The
+product owner reviews them against a demo.
+
+### A-9 — the two new proposal states (`status.proposal.*`)
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `status.proposal.Lapsed` | Window closed | انتهت المهلة | Status chip, supplier proposal list and dashboard | [drafted] |
+| `status.proposal.Cancelled` | RFQ cancelled | ملغى مع الطلب | Same | [drafted] |
+
+### A-9 — the two new notifications (`NotificationCatalogue.jsonc`)
+
+| Type | English title / body | Arabic title / body | Source |
+|---|---|---|---|
+| `proposal.lapsed` | "Your proposal was not submitted in time" / "The submission window for RFQ {rfqCode} closed before your draft was submitted, so it was not included in the evaluation." | «انتهت مهلة تقديم عرضك» / «أُغلقت مهلة التقديم لطلب عرض الأسعار {rfqCode} قبل تقديم مسودتك، ولم تُدرَج في التقييم.» | [drafted] |
+| `proposal.cancelled` | "The RFQ was cancelled" / "RFQ {rfqCode} was cancelled, so your proposal is closed and will not be evaluated." | «أُلغي طلب عرض الأسعار» / «أُلغي طلب عرض الأسعار {rfqCode}، وبذلك أُغلق عرضك ولن يُقيَّم.» | [drafted] |
+
+### A-1 — the surfaced tie (`comparison.*`)
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `comparison.tieUnresolved` | Unresolved tie | تعادل غير محلول | Badge on a tied rank cell | [drafted] |
+| `comparison.tieTitle` | A tie in the ranking needs a decision | تعادل في الترتيب يحتاج قراراً | Tie panel heading | [drafted] |
+| `comparison.tieBody` | These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do. | تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك. | Tie panel body | [drafted] |
+| `comparison.tieReason` | Reason for choosing {{code}} | سبب اختيار {{code}} | Input label | [drafted] |
+| `comparison.tieReasonPlaceholder` | Reason for the decision | سبب القرار | Input placeholder | [drafted] |
+| `comparison.tieResolve` | Confirm the order | تثبيت الترتيب | Button | [drafted] |
+| `comparison.tieResolved` | The order is confirmed | تم تثبيت الترتيب | Toast | [drafted] |
+| `comparison.tieResolveFailed` | Could not confirm the order | تعذّر تثبيت الترتيب | Toast | [drafted] |
+
+### A-4 — the broadcast notice (`rfq.clarifications.*`)
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `rfq.clarifications.broadcastNotice` | The answer goes to every invited supplier. The asker is not named. | يُرسل الجواب إلى جميع المدعوين دون ذكر السائل. | Under the answer field, replacing the removed "publish immediately" checkbox | [drafted] |
+
+### Batch 9's admin surfaces, carried forward for the same review
+
+`adminOverview.*` (SCR-700), `systemSettings.*` (SCR-724), `notificationTemplates.*` (SCR-715),
+`register.closedTitle` / `register.closedBody`, `rfq.attachments.*` and `supplierRfq.attachments.*` —
+all marked `[drafted]` at their definitions in `src/frontend/src/i18n/config.ts`.
+
+### A-5 / A-6 — the review target and the deadline reason
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `review.reviewTarget` | Target date | الموعد المستهدف | Review queue column header | [drafted] |
+| `rfq.deadline.reason` | Reason for the change | سبب التغيير | Buyer's deadline control | [drafted] |
+| `supplierRfq.deadlineChanged.title` | The submission deadline changed | تغيّر موعد إغلاق التقديم | Card on the supplier's RFQ | [drafted] |
+
+### A-8 — the declaration and the pseudonyms
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `evaluation.my.anonymousBidder` | Bidder identity withheld during scoring | هوية المورد محجوبة أثناء التقييم | Badge beside each bid | [drafted] |
+| `evaluation.my.declaration.title` | Conflict of interest declaration | إقرار تعارض المصالح | Declaration step heading | [drafted] |
+| `evaluation.my.declaration.body` | These are the suppliers taking part… | هذه أسماء الموردين المشاركين… | Declaration step body | [drafted] |
+| `evaluation.my.declaration.noConflict` | No conflict — continue | لا يوجد تعارض — متابعة | Button | [drafted] |
+| `evaluation.my.declaration.hasConflict` | I have a conflict — recuse me | لديّ تعارض — تنحّي | Button | [drafted] |
+| `evaluation.my.declaration.reasonLabel` | Reason for recusal | سبب التنحّي | Input label | [drafted] |
+| `evaluation.my.declaration.failed` | Could not record the declaration | تعذّر تسجيل الإقرار | Toast | [drafted] |
+
+**The bidder pseudonyms are generated, not catalogued**: `Bidder A` / «مورّد أ», using the Arabic
+**abjad** letter order (أ ب ج د هـ و ز ح ط ي …) rather than the alphabetical one, because abjad is what
+an Arabic reader expects for enumeration. Worth a specific check by the reviewer — see
+`BidderLabel` in `EvaluationHandlers.cs`.
+
+### A-2 — the envelope picker and the buyer's expectation
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `proposal.envelope` | Envelope | المغلف | Label on the upload picker | [drafted] |
+| `proposal.envelopeCommercial` | Commercial envelope | المغلف المالي | Picker option | [reused] §7's own term |
+| `proposal.envelopeTechnical` | Technical envelope | المغلف الفني | Picker option | [reused] §7's own term |
+| `proposal.envelopeExpected.Technical` | This document is expected in the technical envelope. | يُتوقع أن يكون هذا المستند في المغلف الفني. | Under a requirement | [drafted] |
+| `proposal.envelopeExpected.Commercial` | This document is expected in the commercial envelope. | يُتوقع أن يكون هذا المستند في المغلف المالي. | Under a requirement | [drafted] |
+
+### T-077 — the staff accounts table (SCR-701 / SCR-702)
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `staff.accountsTitle` | Staff accounts | حسابات الموظفين | [drafted] |
+| `staff.noAccounts` | No accounts | لا توجد حسابات | [reused] |
+| `staff.inactive` | Deactivated | معطّل | [drafted] |
+| `staff.mfaOn` | Two-factor enrolled | التحقق بخطوتين مُفعّل | [drafted] |
+| `staff.sessions` | Active sessions: {{count}} | جلسات نشطة: {{count}} | [drafted] |
+| `staff.deactivate` | Deactivate | تعطيل | [drafted] |
+| `staff.reactivate` | Reactivate | إعادة التفعيل | [drafted] |
+| `staff.resetMfa` | Reset two-factor | إعادة ضبط التحقق بخطوتين | [drafted] |
+| `staff.roleChanged` | The role was changed | تم تغيير الدور | [drafted] |
+| `staff.mfaReset` | Two-factor was reset | تمت إعادة ضبط التحقق بخطوتين | [drafted] |
+| `staff.errors.loadFailed` | Could not load the staff accounts | تعذّر تحميل حسابات الموظفين | [drafted] |
+| `staff.errors.updateFailed` | Could not complete that action | تعذّر تنفيذ الإجراء | [drafted] |
+| `staff.errors.cannotActOnSelf` | You cannot do that to your own account. | لا يمكنك تنفيذ هذا الإجراء على حسابك. | [drafted] |
+| `staff.errors.wouldLockOutAdministration` | The last active system administrator cannot be deactivated. | لا يمكن تعطيل آخر مسؤول نظام مفعّل. | [drafted] |
+
+### B-1 — the reachable audit trail, the clarification request, and the ERP notice
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `settings.auditTitle` | My account activity | سجل نشاط حسابي | [drafted] |
+| `settings.auditHint` | The most recent events recorded against your account, newest first. | أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم. | [drafted] |
+| `settings.auditExport` | Download the trail (CSV) | تنزيل السجل (CSV) | [drafted] |
+| `comparison.clarifyTitle` | Ask a bidder to clarify | طلب استيضاح من مورد | [drafted] |
+| `comparison.clarifyBody` | Ask a supplier to explain something about their bid… | اطلب من المورد توضيحاً حول عرضه… | [drafted] |
+| `comparison.clarifyAsk` | Request clarification | طلب استيضاح | [reused] §8's «استيضاح» per the batch-9 glossary ruling |
+| `adminOverview.erpNotConfigured` | No real ERP integration is configured | لا يوجد ربط فعلي بنظام ERP | [drafted] |
+| `adminOverview.erpNotConfiguredBody` | Messages are written to the log and sent nowhere… | تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي… | [drafted] |
+
+### T-080 — the reference-data editor (SCR-710 / SCR-711 / SCR-712)
+
+Most of the row labels are reused: the five table names already existed for SCR-700's tiles, and
+`تعطيل` / `إعادة التفعيل` are the same pair T-077's staff table uses, so an administrator who has
+deactivated an account meets the same word when deactivating a code.
+
+The two notices carry the weight. D-28 is a rule an administrator has to be told rather than
+discover, so `noDeleteNotice` says both halves of it — that deletion is impossible, and that
+deactivation does not touch what existing records say — and `inactiveNotice` explains why retired
+codes are still on the page. Both are long by the register's standards, and deliberately: a shorter
+sentence here reads as an apology for a missing button rather than a statement of policy.
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `referenceAdmin.title` | Reference data | إدارة البيانات المرجعية | [drafted] |
+| `referenceAdmin.subtitle` | Add, rename, and deactivate the codes RFQs and supplier profiles are built from. | إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين. | [drafted] |
+| `referenceAdmin.tableLabel` | Reference table | الجدول المرجعي | [drafted] |
+| `referenceAdmin.addTitle` | Add a code | إضافة رمز جديد | [drafted] |
+| `referenceAdmin.code` | Code | الرمز | [reused] §7's own term |
+| `referenceAdmin.nameAr` / `nameEn` | Name (Arabic) / Name (English) | الاسم بالعربية / الاسم بالإنجليزية | [reused] matches the onboarding form |
+| `referenceAdmin.deactivate` / `reactivate` | Deactivate / Reactivate | تعطيل / إعادة التفعيل | [reused] matches T-077's staff table |
+| `referenceAdmin.active` / `inactive` | Active / Inactive | مفعّل / معطّل | [reused] §7's own terms |
+| `referenceAdmin.required` | Required | إلزامي | [reused] §7's own term |
+| `referenceAdmin.created` | Code added | تمت إضافة الرمز | [drafted] |
+| `referenceAdmin.renamed` | Name saved | تم حفظ الاسم | [drafted] |
+| `referenceAdmin.empty` | This table has no codes | لا توجد رموز في هذا الجدول | [drafted] |
+| `referenceAdmin.noDeleteNotice` | Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say. | لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة. | [drafted] D-28 |
+| `referenceAdmin.inactiveNotice` | Deactivated codes stay listed here, so deactivation does not read as deletion. | تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها. | [drafted] D-28 |
+| `referenceAdmin.errors.duplicateCode` | That code already exists on this table. | هذا الرمز موجود بالفعل في هذا الجدول. | [drafted] |
+| `referenceAdmin.errors.createFailed` | Could not add the code | تعذّرت إضافة الرمز | [drafted] |
+| `referenceAdmin.errors.updateFailed` | Could not save the change | تعذّر حفظ التغيير | [drafted] |
+| `referenceAdmin.errors.loadFailed` | Could not load reference data | تعذّر تحميل البيانات المرجعية | [drafted] |
+
+### A-7 — ownership, the reassignment, and the approver nomination
+
+Two terms need a decision from a reviewer rather than a preference from me.
+
+**`المسؤول` for "owner".** §7 has no word for this because nothing in the documents gives an RFQ an
+owner. The alternatives considered were `المالك` (literally "owner", but it reads as ownership of
+property — wrong for a civil servant handling a file) and `المسند إليه` ("the one assigned to it",
+accurate but clumsy as a column header). `المسؤول` — "the one responsible" — says what A-7 actually
+means, which is accountability rather than possession, and it is the word the notification body
+already needs: «أصبحت مسؤولاً عن الطلب».
+
+**`المعتمِد` for "approver",** with the kasra on the mīm, from §3.1's own `اعتماد` family — so the
+person and the act they perform share a root, the way `المراجع`/`مراجعة` already do on the review
+side. Note the vowel: `المعتمَد` (fatḥa) would mean the thing that was approved.
+
+The handover reason is a separate string from the deadline reason (`سبب النقل` against
+`سبب التغيير`) rather than a shared "reason": both appear on the same screen, and in English the two
+had to be distinguished for the same reason — one accessible name cannot belong to two fields.
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `rfq.fields.owner` | Owner | المسؤول | [drafted] A-7 |
+| `rfq.unassigned` | Unassigned | غير مُسند | [drafted] |
+| `rfq.ownerFilter.label` | Filter by owner | تصفية حسب المسؤول | [drafted] |
+| `rfq.ownerFilter.me` | Mine | المُسندة إليّ | [drafted] |
+| `rfq.ownerFilter.unassigned` | Unassigned | غير مُسندة | [drafted] |
+| `rfq.ownerFilter.empty.me` | No RFQs are assigned to you | لا توجد طلبات مُسندة إليك | [drafted] |
+| `rfq.ownerFilter.empty.unassigned` | Every RFQ has an owner | كل الطلبات مُسندة إلى مسؤول | [drafted] |
+| `rfq.ownership.title` | Ownership | المسؤول عن الطلب | [drafted] |
+| `rfq.ownership.help` | One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail. | يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات. | [drafted] |
+| `rfq.ownership.ownerLabel` | Owner | المسؤول | [drafted] |
+| `rfq.ownership.approverLabel` | Approver | المعتمِد | [drafted] see the note above on the vowel |
+| `rfq.ownership.newOwner` | New owner | المسؤول الجديد | [drafted] |
+| `rfq.ownership.reason` | Reason for the handover | سبب النقل | [drafted] |
+| `rfq.ownership.reassign` | Reassign | نقل المسؤولية | [drafted] |
+| `rfq.ownership.reassigned` | Ownership reassigned | تم نقل المسؤولية | [drafted] |
+| `rfq.ownership.nominateApprover` | Choose an approver | تحديد المعتمِد | [drafted] |
+| `rfq.ownership.anyManager` | Any manager | أي مدير | [drafted] |
+| `NEW_OWNER_REQUIRED` | A new owner must be chosen. | يجب تحديد المسؤول الجديد. | [drafted] §7.2 catalogue |
+| `rfq.reassigned` (notification title) | An RFQ was assigned to you | أُسند إليك طلب | [drafted] |
+| `rfq.reassigned` (notification body) | You are now responsible for RFQ {rfqCode}. Open it to see what it is waiting for. | أصبحت مسؤولاً عن الطلب {rfqCode}. راجعه لمتابعة الخطوة التالية. | [drafted] |
+
+### SCR-720 — the audit explorer (T-079)
+
+`سجل التغييرات` is reused: it is the term already used for the supplier's own trail, and the two
+screens read the same rows through different scopes, so one name is correct rather than economical.
+
+Two strings carry a decision rather than a translation. `إجراء تلقائي من النظام` for a row with no
+actor — literally "an automatic action by the system" — rather than the bare `النظام`, because a
+single word in the actor column reads as the name of a person called "the System". And the empty
+states are two different sentences: `لا توجد سجلات` (the log is empty) against
+`لا توجد سجلات تطابق عوامل التصفية` (the filter matched nothing), because on this screen the first
+would tell an administrator the platform has recorded nothing at all.
+
+`المنفِّذ` for "actor", with the shadda on the fā, from `تنفيذ` — the one who carried the action out.
+`الفاعل` was rejected: it is the grammatical term for a subject and reads as a discussion of syntax.
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `auditExplorer.title` | Audit log | سجل التغييرات | [reused] matches the supplier's own trail |
+| `auditExplorer.subtitle` | Search and export the platform-wide audit trail. | البحث في سجل التغييرات على مستوى المنصة وتصديره. | [drafted] |
+| `auditExplorer.filtersTitle` | Filters | عوامل التصفية | [drafted] |
+| `auditExplorer.clear` | Clear filters | إلغاء التصفية | [drafted] |
+| `auditExplorer.export` | Export (CSV) | تصدير (CSV) | [reused] matches the supplier's export |
+| `auditExplorer.empty` | No audit rows | لا توجد سجلات | [drafted] |
+| `auditExplorer.emptyFiltered` | No audit rows match these filters | لا توجد سجلات تطابق عوامل التصفية | [drafted] see the note above |
+| `auditExplorer.filtersApplied` | Filters applied: {{filters}} | عوامل التصفية المطبَّقة: {{filters}} | [drafted] |
+| `auditExplorer.systemActor` | System | إجراء تلقائي من النظام | [drafted] see the note above |
+| `auditExplorer.fields.occurredAt` | When | التاريخ والوقت | [reused] |
+| `auditExplorer.fields.action` | Action | الإجراء | [reused] §7's own term |
+| `auditExplorer.fields.aggregate` | Record | السجل | [drafted] |
+| `auditExplorer.fields.aggregateType` | Record type | نوع السجل | [drafted] |
+| `auditExplorer.fields.aggregateId` | Record id | معرّف السجل | [drafted] |
+| `auditExplorer.fields.actor` | Actor | المنفِّذ | [drafted] see the note above on the vowel |
+| `auditExplorer.fields.actorUserId` | Actor id | معرّف المنفِّذ | [drafted] |
+| `auditExplorer.fields.transition` | State change | تغيّر الحالة | [drafted] |
+| `auditExplorer.fields.from` / `.to` | From date / To date | من تاريخ / إلى تاريخ | [reused] |
+| `auditExplorer.errors.loadFailed` | Could not load the audit log | تعذّر تحميل سجل التغييرات | [drafted] |
+| `auditExplorer.errors.exportFailed` | Could not export the audit log | تعذّر تصدير سجل التغييرات | [drafted] |

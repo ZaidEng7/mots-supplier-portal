@@ -4,6 +4,10 @@ import { apiFetch } from './auth'
 export type ProposalState =
   | 'Draft' | 'Submitted' | 'Withdrawn' | 'UnderReview' | 'ClarificationRequested' | 'Revised'
   | 'Shortlisted' | 'NotSelected' | 'AwardOffered' | 'Awarded' | 'Declined'
+  // A-9: both terminal. Lapsed = the window closed on a draft; Cancelled = the RFQ was withdrawn
+  // beneath it. Two states rather than one because a supplier reading their list has to be able to
+  // tell "you ran out of time" from "the tender was withdrawn".
+  | 'Lapsed' | 'Cancelled'
 
 /** FEAT-09.1/FR-PRP-002, OQ-009 two-envelope: the FINANCIAL content. Only ever present in a
  * response to the owning supplier's own request - see backend ProposalDtoMapper.ToDto's own
@@ -203,6 +207,17 @@ export async function declineAwardOffer(proposalReferenceCode: string, reason: s
 
 export async function withdrawProposal(proposalReferenceCode: string, reason: string): Promise<Proposal> {
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/withdraw`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  }))
+}
+
+/** B-1/SCR-433: the buyer asks a bidder to clarify. `POST /proposals/{code}/request-clarification` has
+ * existed since T-051, is permissioned on `rfq.clarify`, and NOTHING called it - the same defect shape as
+ * T-067: the rule permits the action and no surface reaches it. */
+export async function requestProposalClarification(proposalReferenceCode: string, reason: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/request-clarification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),

@@ -9,6 +9,12 @@ export interface RfqListItem {
   titleEn: string
   state: RfqState
   createdAt: string
+  /** A-7. Null means unassigned - a row anyone holding the permission may claim, which is where every
+   * RFQ created before ownership existed lives. */
+  ownerUserId: string | null
+  /** Null when unowned, and also null when the id points at a user row that is gone - the two are told
+   * apart by whether `ownerUserId` is set. */
+  ownerName: string | null
 }
 
 export type RfqState =
@@ -36,6 +42,10 @@ export interface Requirement {
   textEn: string
   isMandatory: boolean
   documentTypeCode: string | null
+  /** A-2: which envelope a document answering this belongs in. Advisory - it tells the supplier what the
+   * buyer expects and does NOT override the tag on the file, because what a file contains is known by
+   * whoever attached it. */
+  expectedEnvelope: 'Technical' | 'Commercial' | null
 }
 
 export interface RfqAttachment {
@@ -123,6 +133,13 @@ export interface Rfq {
   invitations: Invitation[]
   clarifications: Clarification[]
   addenda: Addendum[]
+  /** A-7: the owning officer. */
+  ownerUserId: string | null
+  ownerName: string | null
+  /** A-7: the manager the CURRENT review pass is waiting on. Null when the pass named nobody, which is
+   * the normal case while approval routing is undecided. */
+  assignedApproverUserId: string | null
+  assignedApproverName: string | null
 }
 
 export interface RfqBasicsPayload {
@@ -182,8 +199,15 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-export async function listRfqs(cursor?: string | null): Promise<ListEnvelope<RfqListItem>> {
-  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+/** A-7's `owner` filter mirrors the review queue's `assignedTo`: "me" resolves server-side, so this
+ * client never needs to know the caller's own user id. */
+export type RfqOwnerFilter = 'me' | 'unassigned'
+
+export async function listRfqs(cursor?: string | null, owner?: RfqOwnerFilter): Promise<ListEnvelope<RfqListItem>> {
+  const params = new URLSearchParams()
+  if (cursor) params.set('cursor', cursor)
+  if (owner) params.set('owner', owner)
+  const qs = params.size > 0 ? `?${params}` : ''
   return parseOrThrow(await apiFetch(`/api/v1/rfqs${qs}`))
 }
 
@@ -259,8 +283,39 @@ export async function bindEvaluationTemplate(referenceCode: string, evaluationTe
   }))
 }
 
-export async function submitRfqForReview(referenceCode: string): Promise<Rfq> {
-  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/submit-review`, { method: 'POST' }))
+/** A-7: naming the approver is optional, because there is no routing rule to fall back on - see
+ * `Rfq.SubmitForReview`. Omitting the body entirely keeps the pool notified, as before. */
+export async function submitRfqForReview(referenceCode: string, assignedApproverUserId?: string): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/submit-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assignedApproverUserId: assignedApproverUserId ?? null }),
+  }))
+}
+
+export interface RfqAssignee {
+  userId: string
+  fullName: string
+}
+
+/** A-7: who this RFQ may be handed to, in the two senses it can be - an owner and an approver. Id and
+ * name only; nothing else about a colleague is needed to choose between them. */
+export interface RfqAssignees {
+  owners: RfqAssignee[]
+  approvers: RfqAssignee[]
+}
+
+export async function listRfqAssignees(referenceCode: string): Promise<RfqAssignees> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/assignees`))
+}
+
+/** A-7: hand the RFQ to another officer. The reason is mandatory - the audit row is the point. */
+export async function reassignRfq(referenceCode: string, newOwnerUserId: string, reason: string): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/reassign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newOwnerUserId, reason }),
+  }))
 }
 
 export async function returnRfqForEdits(referenceCode: string, comments: string): Promise<Rfq> {
@@ -281,11 +336,13 @@ export async function publishRfq(referenceCode: string): Promise<Rfq> {
 
 /** T-018/BRULE-035: extension is the officer's, shortening the manager's - the server decides which
  * from the direction, so this one function serves both and a 403 means "not your direction". */
-export async function changeSubmissionDeadline(referenceCode: string, submissionDeadline: string): Promise<Rfq> {
+/** A-6: the reason is mandatory. BRULE-035 leaves an extension uncapped, so the reason is what makes it
+ * defensible - and the supplier reads it on the RFQ, where the deadline is. */
+export async function changeSubmissionDeadline(referenceCode: string, submissionDeadline: string, reason: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/deadline`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ submissionDeadline }),
+    body: JSON.stringify({ submissionDeadline, reason }),
   }))
 }
 
@@ -317,11 +374,13 @@ export async function suggestInvitationCandidates(referenceCode: string): Promis
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations/candidates`))
 }
 
-export async function answerClarification(referenceCode: string, clarificationId: string, answer: string, publish: boolean): Promise<Rfq> {
+/** A-4: answering publishes to every invitee with the asker anonymised, so there is no `publish`
+ * argument to pass. See `publishClarification` for the legacy-row path. */
+export async function answerClarification(referenceCode: string, clarificationId: string, answer: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/clarifications/${clarificationId}/answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answer, publish }),
+    body: JSON.stringify({ answer }),
   }))
 }
 

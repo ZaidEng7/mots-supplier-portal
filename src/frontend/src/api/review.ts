@@ -10,6 +10,9 @@ export interface ReviewQueueItem {
   displayNameEn: string
   onboardingState: string
   enteredQueueAt: string
+  /** A-5: the review TARGET, in working days from `enteredQueueAt` per the configured SLA. A target,
+   * never a breach - BUSINESS-PROCESSES.md §5 runs a timer and names no number. */
+  reviewTargetAt: string | null
   assignedReviewerId: string | null
   assignedReviewerName: string | null
 }

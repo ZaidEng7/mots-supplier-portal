@@ -32,7 +32,18 @@ public sealed record OutboxHealthDto(
     /// <summary>The age of the OLDEST pending message, in minutes. A backlog count alone does not say
     /// whether the dispatcher is running - ten messages queued a minute ago is normal, ten queued
     /// yesterday means it has stopped.</summary>
-    int? OldestPendingAgeMinutes);
+    int? OldestPendingAgeMinutes,
+    /// <summary>
+    /// B-1/BRULE-011: whether a REAL ERP transport is configured, or the logging stand-in is.
+    ///
+    /// <para>Without this the tile above is an artifact asserting something untrue. A draining outbox
+    /// reads as "the integration is working"; with `LoggingOutboxTransport` registered, every message is
+    /// marked Sent after being written to a log line and nothing reaches an ERP - so
+    /// <c>Supplier.MarkSynced</c> is never called, no `ExternalId` is ever assigned, and BRULE-011 passes
+    /// because nothing exercises it. A rule that cannot be violated is not the same as one that is
+    /// satisfied, and an operator reading this screen is entitled to know which they have.</para>
+    /// </summary>
+    bool ErpTransportConfigured);
 
 public sealed record JobHealthDto(
     /// <summary>False when <c>Jobs:EnableRecurring</c> is off. That setting silently disables every

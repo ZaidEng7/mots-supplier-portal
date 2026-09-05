@@ -6,6 +6,8 @@ using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.ReferenceData;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Infrastructure.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Admin;
@@ -15,6 +17,7 @@ namespace MotsSupplierPortal.Infrastructure.Admin;
 /// currently reachable only by querying Postgres by hand.
 /// </summary>
 public sealed class GetAdminOverviewHandler(
+    IOutboxTransport transport,
     AppDbContext db, JobStorage jobStorage, IConfiguration configuration)
     : IGetAdminOverviewHandler
 {
@@ -65,7 +68,10 @@ public sealed class GetAdminOverviewHandler(
                 pending, failed,
                 oldestPending is { } oldest
                     ? (int)Math.Max(0, (DateTimeOffset.UtcNow - oldest).TotalMinutes)
-                    : null),
+                    : null,
+                // B-1/BRULE-011: read from the registration rather than from configuration, so it cannot
+                // disagree with what is actually running.
+                ErpTransportConfigured: transport is not LoggingOutboxTransport),
             JobHealth(),
             auditRows);
     }

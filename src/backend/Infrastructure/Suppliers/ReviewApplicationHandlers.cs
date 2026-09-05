@@ -8,11 +8,13 @@ using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
+using MotsSupplierPortal.Domain.Configuration;
+using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
-public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope) : IListReviewQueueHandler
+public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope, ISystemSettingReader settings) : IListReviewQueueHandler
 {
     /// <summary>Audit actions that mark an application (re)entering the reviewer's active queue -
     /// see ReviewQueueItemDto.EnteredQueueAt's own doc comment for why this isn't CreatedAt.</summary>
@@ -103,12 +105,20 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope)
             .Select(u => new { u.Id, u.FullName })
             .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
 
+        // A-5: the target, computed once per page from the configured working-day SLA.
+        var slaWorkingDays = await settings.GetIntAsync(SystemSettings.ReviewSlaWorkingDays, ct);
+
         var dtos = items
-            .Select(r => new ReviewQueueItemDto(
-                r.ReferenceCode, r.DisplayNameAr, r.DisplayNameEn, r.OnboardingState,
-                enteredQueueAtBySupplier.GetValueOrDefault(r.Id, r.CreatedAt),
-                r.AssignedReviewerId,
-                r.AssignedReviewerId is { } rid ? reviewerNamesById.GetValueOrDefault(rid) : null))
+            .Select(r =>
+            {
+                var enteredAt = enteredQueueAtBySupplier.GetValueOrDefault(r.Id, r.CreatedAt);
+                return new ReviewQueueItemDto(
+                    r.ReferenceCode, r.DisplayNameAr, r.DisplayNameEn, r.OnboardingState,
+                    enteredAt,
+                    r.AssignedReviewerId,
+                    r.AssignedReviewerId is { } rid ? reviewerNamesById.GetValueOrDefault(rid) : null,
+                    ReviewSla.TargetFor(enteredAt, slaWorkingDays));
+            })
             .ToList();
 
         return ListEnvelope<ReviewQueueItemDto>.Cursor(

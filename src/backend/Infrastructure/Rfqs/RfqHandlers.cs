@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -6,6 +7,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
@@ -25,7 +27,32 @@ internal static class RfqDtoMapper
         var supplierIds = rfq.Invitations.Select(i => i.SupplierId)
             .Concat(rfq.Clarifications.Select(c => c.AskedBySupplierId)).Distinct().ToList();
         var names = await SupplierNamesAsync(db, supplierIds, ct);
-        return ToDto(rfq, names);
+        return ToDto(rfq, names, await StaffNamesAsync(db, rfq, ct));
+    }
+
+    /// <summary>
+    /// A-7: the display names for the owner and the current pass's assigned approver.
+    ///
+    /// <para>One query for both, and it returns the ids it could not resolve as absent rather than as
+    /// an empty string: a deactivated user's row still exists, so a missing name here means the id
+    /// points at nothing, which is a different fact from "this RFQ has no owner" and must not render
+    /// as the same thing.</para>
+    /// </summary>
+    public static async Task<Dictionary<Guid, string>> StaffNamesAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
+    {
+        var ids = new List<Guid>();
+        if (rfq.OwnerUserId is { } owner) ids.Add(owner);
+        if (rfq.Approvals.LastOrDefault(a => a.Decision is null)?.AssignedApproverUserId is { } approver) ids.Add(approver);
+        return await StaffNamesAsync(db, ids, ct);
+    }
+
+    public static async Task<Dictionary<Guid, string>> StaffNamesAsync(
+        AppDbContext db, IReadOnlyList<Guid> userIds, CancellationToken ct)
+    {
+        if (userIds.Count == 0) return [];
+        return await db.Users.Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName })
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
     }
 
     public static async Task<Dictionary<Guid, (string Ar, string En)>> SupplierNamesAsync(
@@ -37,7 +64,10 @@ internal static class RfqDtoMapper
             .ToDictionaryAsync(s => s.Id, s => (s.DisplayNameAr, s.DisplayNameEn), ct);
     }
 
-    public static RfqDto ToDto(Rfq rfq, IReadOnlyDictionary<Guid, (string Ar, string En)> supplierNames) => new(
+    public static RfqDto ToDto(
+        Rfq rfq,
+        IReadOnlyDictionary<Guid, (string Ar, string En)> supplierNames,
+        IReadOnlyDictionary<Guid, string> staffNames) => new(
         rfq.ReferenceCode, rfq.OrganizationId, rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn,
         rfq.CurrencyCode, rfq.State, rfq.PublishAt, rfq.SubmissionOpensAt, rfq.SubmissionClosesAt,
         rfq.ClarificationDeadlineAt, rfq.EvaluationTargetDate, rfq.EvaluationTemplateId, rfq.EvaluationTemplateVersion,
@@ -45,7 +75,7 @@ internal static class RfqDtoMapper
         [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
             i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn, i.CategoryCode,
             i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
-        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode, r.ExpectedEnvelope))],
         [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
         [.. rfq.Approvals.OrderBy(a => a.StepNo).Select(a => new RfqApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))],
         [.. rfq.Invitations.OrderBy(i => i.InvitedAt).Select(i =>
@@ -59,7 +89,16 @@ internal static class RfqDtoMapper
             return new ClarificationDto(c.Id, c.AskedBySupplierId, name.Ar, name.En, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt);
         })],
         [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))],
-        rfq.RowVersion);
+        rfq.RowVersion,
+        rfq.SubmissionDeadlineChangeReason, rfq.SubmissionDeadlineChangedAt,
+        rfq.OwnerUserId, NameOf(staffNames, rfq.OwnerUserId),
+        PendingApproverId(rfq), NameOf(staffNames, PendingApproverId(rfq)));
+
+    private static Guid? PendingApproverId(Rfq rfq) =>
+        rfq.Approvals.LastOrDefault(a => a.Decision is null)?.AssignedApproverUserId;
+
+    private static string? NameOf(IReadOnlyDictionary<Guid, string> names, Guid? id) =>
+        id is { } value && names.TryGetValue(value, out var name) ? name : null;
 
     /// <summary>FEAT-10.3/FR-CLR-003: the anonymization boundary. Only <paramref name="supplierId"/>'s
     /// own clarifications (any Visibility) plus every OTHER supplier's PublishedToAll clarifications
@@ -73,14 +112,15 @@ internal static class RfqDtoMapper
         [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
             i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn, i.CategoryCode,
             i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
-        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode, r.ExpectedEnvelope))],
         [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
         myInvitation.Status,
         [.. rfq.Clarifications
             .Where(c => c.AskedBySupplierId == supplierId || c.Visibility == ClarificationVisibility.PublishedToAll)
             .OrderBy(c => c.AskedAt)
             .Select(c => new SupplierClarificationDto(c.Id, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt, c.AskedBySupplierId == supplierId))],
-        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))]);
+        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))],
+        rfq.SubmissionDeadlineChangeReason, rfq.SubmissionDeadlineChangedAt);
 }
 
 /// <summary>Shared loader: every RFQ handler in this file row-scopes to the caller's own
@@ -122,12 +162,30 @@ file static class RfqLoader
 /// </summary>
 public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : IListRfqsHandler
 {
-    public async Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct)
+    public async Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, string? owner, CancellationToken ct)
     {
         var size = ListEnvelope<RfqListItemDto>.ClampPageSize(pageSize);
         if (scope.OrganizationId is null) return ListEnvelope<RfqListItemDto>.Empty(size);
 
         var query = db.Rfqs.Where(r => r.OrganizationId == scope.OrganizationId);
+
+        // A-7: the same three-value shape the review queue's ?assignedTo= already uses, and for the
+        // same reason - "me" resolves server-side so the SPA never needs to know its own user id,
+        // "unassigned" surfaces the pool an officer would claim from (which is where every RFQ that
+        // predates ownership lives), and anything else is a specific officer, for a manager looking
+        // at one person's load. The endpoint refuses an unrecognised value before reaching here.
+        if (owner == "me")
+        {
+            query = query.Where(r => r.OwnerUserId == scope.UserId);
+        }
+        else if (owner == "unassigned")
+        {
+            query = query.Where(r => r.OwnerUserId == null);
+        }
+        else if (owner is not null && Guid.TryParse(owner, out var ownerUserId))
+        {
+            query = query.Where(r => r.OwnerUserId == ownerUserId);
+        }
 
         // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
         // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
@@ -144,7 +202,18 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
         // pageSize + 1: the extra row answers HasMore without a COUNT over the whole filtered set.
         var rows = await query
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
-            .Select(r => new { r.Id, Dto = new RfqListItemDto(r.ReferenceCode, r.TitleAr, r.TitleEn, r.State, r.CreatedAt) })
+            // The owner's NAME comes from a correlated sub-select rather than a second round trip:
+            // this is a list path, and resolving N names afterwards is the N+1 the projection above
+            // exists to avoid. Null when unowned, and null when the id points at a user row that is
+            // gone - two different facts the screen distinguishes by the id being present or not.
+            .Select(r => new
+            {
+                r.Id,
+                Dto = new RfqListItemDto(
+                    r.ReferenceCode, r.TitleAr, r.TitleEn, r.State, r.CreatedAt,
+                    r.OwnerUserId,
+                    db.Users.Where(u => u.Id == r.OwnerUserId).Select(u => u.FullName).FirstOrDefault()),
+            })
             .Take(size + 1)
             .ToListAsync(ct);
 
@@ -157,7 +226,8 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
             hasMore ? new RfqListCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
             size,
             totalCount,
-            sort: "-createdAt");
+            sort: "-createdAt",
+            filtersApplied: owner is null ? null : [$"owner={owner}"]);
     }
 }
 
@@ -186,7 +256,9 @@ public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAudi
                 referenceCode, scope.OrganizationId.Value, command.TitleAr, command.TitleEn,
                 command.DescriptionAr, command.DescriptionEn, command.CurrencyCode,
                 command.PublishAt, command.SubmissionOpensAt, command.SubmissionClosesAt,
-                command.ClarificationDeadlineAt, command.EvaluationTargetDate);
+                command.ClarificationDeadlineAt, command.EvaluationTargetDate,
+                // A-7: the creator owns what they created.
+                scope.UserId);
         }
         // No IllegalTransition branch here: creation has no current state to report an allowed-next
         // set against, so every refusal from Rfq.Create is a 400 about the request.
@@ -231,7 +303,7 @@ public sealed class ChangeSubmissionDeadlineHandler(AppDbContext db, IScopeConte
         bool shortened;
         try
         {
-            shortened = rfq.ChangeSubmissionDeadline(command.NewCloseAt);
+            shortened = rfq.ChangeSubmissionDeadline(command.NewCloseAt, command.Reason);
         }
         catch (DomainException ex)
         {
@@ -244,10 +316,14 @@ public sealed class ChangeSubmissionDeadlineHandler(AppDbContext db, IScopeConte
         //
         // D-12: there is no cap on an extension, so THIS ROW is the control. Both dates are recorded,
         // because "extended" without the from/to says nothing about by how much.
+        // A-6: the reason joins the row. D-12 left the extension uncapped and called the audit row the
+        // control; without a reason that row records only that someone moved a date, which is not a
+        // control anyone can act on.
         await auditLogger.LogAsync("Rfq", rfq.Id,
             shortened ? "rfq.deadline_shortened" : "rfq.deadline_extended",
             scope.UserId, referenceCode: rfq.ReferenceCode,
-            fromState: previous?.ToString("O"), toState: command.NewCloseAt.ToString("O"), ct: ct);
+            fromState: previous?.ToString("O"), toState: command.NewCloseAt.ToString("O"),
+            reason: command.Reason, ct: ct);
 
         // "notify all invitees" - every invited supplier's users, not the committee. A deadline change
         // is only news to the people bidding against it.
@@ -358,7 +434,7 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
         Requirement requirement;
         try
         {
-            requirement = rfq.AddRequirement(command.TextAr, command.TextEn, command.IsMandatory, command.DocumentTypeCode);
+            requirement = rfq.AddRequirement(command.TextAr, command.TextEn, command.IsMandatory, command.DocumentTypeCode, command.ExpectedEnvelope);
         }
         catch (DomainException ex)
         {
@@ -495,6 +571,104 @@ public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext
     }
 }
 
+/// <summary>
+/// A-7: the staff this RFQ can be assigned to, for the two pickers that need them.
+///
+/// <para><b>Gated on <c>rfq.read</c>, not on a staff-administration permission.</b> The two callers
+/// are a procurement officer nominating an approver and a manager reassigning ownership, and neither
+/// holds <c>admin.users.manage</c> - gating this on that permission would put a picker on screen that
+/// only a system administrator could fill. What it discloses is the names of colleagues in the
+/// caller's OWN organization, which BRULE-029 already treats as one boundary, and nothing else: no
+/// email, no MFA state, no lockout.</para>
+///
+/// <para><b>A supplier gets a 404, without a special case.</b> Supplier scopes carry no
+/// OrganizationId, so <c>LoadScopedAsync</c> finds nothing - which is §9.2's answer anyway. Asserted
+/// in the tests rather than left to be inferred from this paragraph.</para>
+/// </summary>
+public sealed class ListRfqAssigneesHandler(AppDbContext db, IScopeContext scope) : IListRfqAssigneesHandler
+{
+    public async Task<RfqAssigneesDto?> HandleAsync(string referenceCode, CancellationToken ct)
+    {
+        if (scope.OrganizationId is null) return null;
+
+        var rfq = await db.Rfqs.AsNoTracking()
+            .FirstOrDefaultAsync(r => r.ReferenceCode == referenceCode && r.OrganizationId == scope.OrganizationId, ct);
+        if (rfq is null) return null;
+
+        var owners = await StaffEligibility.HoldersAsync(db, rfq.OrganizationId, Permissions.RfqEdit, ct);
+        var approvers = await StaffEligibility.HoldersAsync(db, rfq.OrganizationId, Permissions.RfqApprove, ct);
+
+        return new RfqAssigneesDto(
+            [.. owners.Select(u => new RfqAssigneeDto(u.Id, u.FullName))],
+            [.. approvers.Select(u => new RfqAssigneeDto(u.Id, u.FullName))]);
+    }
+}
+
+/// <summary>
+/// A-7: hand an RFQ to another officer.
+///
+/// <para><b>Not a state transition, and deliberately not gated like one.</b> Ownership can move at any
+/// point in a live tender - somebody leaves, somebody is on holiday, a workload is rebalanced - so this
+/// is permitted from every non-closed state rather than only from Draft. The domain refuses the two
+/// terminal states, where no action remains for anyone to own.</para>
+///
+/// <para><b>Behind <c>rfq.reassign</c>, which managers hold and officers do not.</b> An officer
+/// reassigning their own work away is how accountability gets quietly dropped; A-7 exists to make
+/// somebody answerable, and letting the answerable party choose to stop being answerable would undo
+/// it. An officer who cannot continue asks their manager, which is a conversation the audit row then
+/// records.</para>
+/// </summary>
+public sealed class ReassignRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IReassignRfqHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(ReassignRfqCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        // The new owner must be able to do an owner's job. `rfq.edit` rather than a role name, and
+        // rather than `rfq.read`: an owner who can see the RFQ but not change it is an owner in name.
+        if (!await StaffEligibility.HoldsPermissionAsync(db, command.NewOwnerUserId, rfq.OrganizationId, Permissions.RfqEdit, ct))
+        {
+            return new RfqMutationResult.IneligibleUser(
+                "The nominated owner is not an active user of this organization with permission to work on RFQs.");
+        }
+
+        var previousOwnerUserId = rfq.OwnerUserId;
+
+        try
+        {
+            rfq.Reassign(command.NewOwnerUserId);
+        }
+        catch (DomainException ex)
+        {
+            // Not an illegal TRANSITION - the state does not change - so a 409 quoting an allowed-next
+            // set would describe a machine this operation does not move. A 400 about the request.
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        // The audit row is the point of this operation. Both ids are in `changes` rather than in the
+        // free-text reason, so "who used to own this" is queryable rather than parseable - and the
+        // reason column carries the human explanation the caller had to supply.
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_reassigned", scope.UserId,
+            referenceCode: rfq.ReferenceCode, reason: command.Reason,
+            changes: JsonSerializer.Serialize(new
+            {
+                fromOwnerUserId = previousOwnerUserId,
+                toOwnerUserId = command.NewOwnerUserId,
+            }), ct: ct);
+
+        // The new owner is told. Without this the reassignment is a fact recorded about someone who
+        // does not know it, and every subsequent "notify the officer" would arrive without context.
+        NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqReassigned,
+            [command.NewOwnerUserId],
+            $"{NotificationTypes.RfqReassigned}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",
+            new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
+
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}
+
 /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: Draft -&gt; InternalReview.</summary>
 public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISubmitRfqForReviewHandler
 {
@@ -503,9 +677,20 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
         var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
         if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
 
+        // A-7: a nominated approver has to be able to approve. Checked here rather than in the domain
+        // because it is a question about Users, a different aggregate - the same split BRULE-032
+        // already uses for supplier eligibility. Refused rather than silently ignored: an officer who
+        // named a colleague and got the whole pool notified would have no way to tell.
+        if (command.AssignedApproverUserId is { } nominee
+            && !await StaffEligibility.HoldsPermissionAsync(db, nominee, rfq.OrganizationId, Permissions.RfqApprove, ct))
+        {
+            return new RfqMutationResult.IneligibleUser(
+                "The nominated approver is not an active user of this organization with permission to approve RFQs.");
+        }
+
         try
         {
-            rfq.SubmitForReview();
+            rfq.SubmitForReview(command.AssignedApproverUserId);
         }
         catch (DomainException ex)
         {
@@ -521,8 +706,9 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
 
         // §3.1 "Draft -> InternalReview | In-app to `procurement_manager`". Enqueued INSIDE the
         // transaction (D-5): a notification must not fire for a submission that rolled back.
+        // A-7: the approver this pass was assigned to, falling back to the pool when it named nobody.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqSubmittedForReview,
-            await NotificationRecipients.ProcurementManagersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqApproverAsync(db, rfq, ct),
             $"{NotificationTypes.RfqSubmittedForReview}:{rfq.Id}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
 
@@ -552,10 +738,10 @@ public sealed class ReturnRfqForEditsHandler(AppDbContext db, IScopeContext scop
             return RfqTransitions.Refusal(rfq, ex, RfqState.Draft);
         }
 
-        // §3.1 "InternalReview -> Draft | In-app to officer". The OFFICER POOL, not the individual:
-        // nothing records which officer owns an RFQ. Reported as an open question.
+        // §3.1 "InternalReview -> Draft | In-app to officer" - A-7: the officer who OWNS it, so the
+        // person who has to act on the comments is the person told about them.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqReturnedForEdits,
-            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.RfqReturnedForEdits}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_returned", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -584,9 +770,10 @@ public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAud
             return RfqTransitions.Refusal(rfq, ex, RfqState.Approved);
         }
 
-        // §3.1 "InternalReview -> Approved | In-app to officer".
+        // §3.1 "InternalReview -> Approved | In-app to officer" - A-7: the owner, who is the one
+        // who can now publish it.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqApproved,
-            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.RfqApproved}:{rfq.Id}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["rfqId"] = rfq.Id.ToString() });
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_approved", scope.UserId, referenceCode: rfq.ReferenceCode,
@@ -768,6 +955,33 @@ public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAudi
             return RfqTransitions.Refusal(rfq, ex, RfqState.Cancelled);
         }
 
+        // A-9/BRULE-056, enforced for the first time. The rule says cancellation "voids open
+        // invitations/proposals"; before this it notified everyone and moved nothing, so a Submitted
+        // proposal stayed Submitted forever on a cancelled tender - and BRULE-056 carries no assumption
+        // tag, which made that a confirmed rule going unenforced.
+        //
+        // Terminal proposals are left alone: a withdrawn bid was withdrawn, and an awarded one belongs
+        // to an RFQ that could not have been cancelled.
+        var liveProposals = await db.Proposals.Where(p => p.RfqId == rfq.Id).ToListAsync(ct);
+        foreach (var proposal in liveProposals.Where(p => Proposal.AllowedNextFrom(p.State).Count > 0))
+        {
+            proposal.CancelWithRfq();
+
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalCancelled,
+                await NotificationRecipients.SupplierUsersAsync(db, proposal.SupplierId, ct),
+                $"{NotificationTypes.ProposalCancelled}:{proposal.Id}",
+                new Dictionary<string, string?>
+                {
+                    ["rfqCode"] = rfq.ReferenceCode,
+                    ["proposalCode"] = proposal.ReferenceCode,
+                    ["proposalId"] = proposal.Id.ToString(),
+                });
+
+            await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_cancelled", scope.UserId,
+                referenceCode: proposal.ReferenceCode, toState: nameof(ProposalState.Cancelled),
+                reason: command.Reason, ct: ct);
+        }
+
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_cancelled", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: fromState.ToString(), toState: nameof(RfqState.Cancelled), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
@@ -905,7 +1119,7 @@ public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext sc
         Clarification clarification;
         try
         {
-            rfq.AnswerClarification(command.ClarificationId, command.Answer, command.Publish);
+            rfq.AnswerClarification(command.ClarificationId, command.Answer);
             clarification = rfq.Clarifications.Single(c => c.Id == command.ClarificationId);
         }
         catch (DomainException ex)
@@ -914,14 +1128,14 @@ public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext sc
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_clarification_answered", scope.UserId, referenceCode: rfq.ReferenceCode,
-            changes: $"{{\"clarificationId\":\"{command.ClarificationId}\",\"published\":{(command.Publish ? "true" : "false")}}}", ct: ct);
+            changes: $"{{\"clarificationId\":\"{command.ClarificationId}\",\"published\":true}}", ct: ct);
         await db.SaveChangesAsync(ct);
 
+        // A-4: the asker is told their own question was answered; every OTHER invitee is told an
+        // answer was published. Two different messages because they are two different facts, and the
+        // second one must not name the asker.
         await NotifyAskerAsync(db, backgroundJobs, clarification.AskedBySupplierId, rfq.Id, clarification.Id, ct);
-        if (command.Publish)
-        {
-            await NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
-        }
+        await NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
 
         return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }

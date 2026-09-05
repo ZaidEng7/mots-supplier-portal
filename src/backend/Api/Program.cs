@@ -268,6 +268,8 @@ builder.Services.AddScoped<IManageRequirementHandler, ManageRequirementHandler>(
 builder.Services.AddScoped<IManageRfqAttachmentHandler, ManageRfqAttachmentHandler>();
 builder.Services.AddScoped<IBindEvaluationTemplateHandler, BindEvaluationTemplateHandler>();
 builder.Services.AddScoped<ISubmitRfqForReviewHandler, SubmitRfqForReviewHandler>();
+builder.Services.AddScoped<IReassignRfqHandler, ReassignRfqHandler>();
+builder.Services.AddScoped<IListRfqAssigneesHandler, ListRfqAssigneesHandler>();
 builder.Services.AddScoped<IReturnRfqForEditsHandler, ReturnRfqForEditsHandler>();
 builder.Services.AddScoped<IApproveRfqHandler, ApproveRfqHandler>();
 builder.Services.AddScoped<IPublishRfqHandler, PublishRfqHandler>();
@@ -320,6 +322,9 @@ builder.Services.AddScoped<IGetEvaluationHandler, GetEvaluationHandler>();
 builder.Services.AddScoped<IAssignEvaluatorsHandler, AssignEvaluatorsHandler>();
 builder.Services.AddScoped<IRecuseEvaluatorHandler, RecuseEvaluatorHandler>();
 builder.Services.AddScoped<IConsolidateEvaluationHandler, ConsolidateEvaluationHandler>();
+builder.Services.AddScoped<IResolveEvaluationTieHandler, ResolveEvaluationTieHandler>();
+builder.Services.AddScoped<IGetConflictDeclarationHandler, GetConflictDeclarationHandler>();
+builder.Services.AddScoped<IDeclareConflictHandler, DeclareConflictHandler>();
 // T-028: proposal document reads - supplier's own, and the buyer's Consolidated+ gated pair.
 builder.Services.AddScoped<IGetOwnProposalDocumentDownloadUrlHandler, GetOwnProposalDocumentDownloadUrlHandler>();
 builder.Services.AddScoped<IGetProposalDocumentsForBuyerHandler, GetProposalDocumentsForBuyerHandler>();
@@ -390,6 +395,10 @@ builder.Services.AddScoped<ISecurityTokenService, SecurityTokenService>();
 // Task #28/FR-ADM-001: staff (non-supplier) account invites - mirrors the supplier-user invite
 // pair above, gated by Permissions.AdminUsersManage instead of SupplierUserManage.
 builder.Services.AddScoped<IInviteStaffHandler, InviteStaffHandler>();
+builder.Services.AddScoped<IListStaffHandler, ListStaffHandler>();
+builder.Services.AddScoped<ISetStaffActiveHandler, SetStaffActiveHandler>();
+builder.Services.AddScoped<IChangeStaffRoleHandler, ChangeStaffRoleHandler>();
+builder.Services.AddScoped<IResetStaffMfaHandler, ResetStaffMfaHandler>();
 builder.Services.AddScoped<IAcceptStaffInviteHandler, AcceptStaffInviteHandler>();
 // FR-ADM-002: role/permission admin editing.
 builder.Services.AddScoped<IListRolesHandler, ListRolesHandler>();

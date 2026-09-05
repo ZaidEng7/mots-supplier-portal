@@ -62,6 +62,10 @@ export interface ComparisonProposal {
   financialWeightedScore: number | null
   weightedTotal: number | null
   rank: number | null
+  /** A-1/BRULE-069: this rank came from a tie no rule broke. The award flow refuses rank 1 while it is
+   * set, so the officer has to be able to see it and resolve it here. */
+  tieUnresolved: boolean
+  tieResolutionReason: string | null
   criterionScores: ComparisonCriterionScore[] | null
 }
 
@@ -92,4 +96,22 @@ export async function getComparison(rfqReferenceCode: string): Promise<Compariso
   const body = text ? JSON.parse(text) : null
   if (!res.ok) throw new ComparisonApiError(res.status, body)
   return body as Comparison
+}
+
+/** A-1: a person breaks a tie the rules could not, and says why. `evaluation.consolidate` gates it -
+ * the same permission that produced the ranking. */
+export async function resolveEvaluationTie(
+  rfqReferenceCode: string,
+  proposalCode: string,
+  reason: string,
+): Promise<void> {
+  const response = await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/evaluation/resolve-tie`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proposalCode, reason }),
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as ProblemDetails | null
+    throw new Error(problemMessage(body, 'tie_resolution_failed'))
+  }
 }

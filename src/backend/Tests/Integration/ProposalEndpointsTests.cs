@@ -329,9 +329,17 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // A-9 changed WHICH refusal fires, and this is the better one. The draft used to survive the
+        // window in Draft, so submission was refused by the window check (400). BRULE-052 now lapses it
+        // as the window closes, so the STATE guard refuses first - §3's 409 with the terminal state and
+        // an empty allowedNext. Late submission is still impossible; it is now impossible for the
+        // structural reason rather than the temporal one.
+        var raw = await submit.Content.ReadAsStringAsync();
+        submit.StatusCode.Should().Be(HttpStatusCode.Conflict, raw);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("detail").GetString().Should().MatchRegex("not currently accepting submissions|submission window has closed");
+        body.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION", raw);
+        body.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Lapsed));
+        body.GetProperty("allowedNext").EnumerateArray().Should().BeEmpty();
     }
 
     [Fact]
@@ -361,10 +369,13 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         lateWithdraw.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var lateProblem = await lateWithdraw.Content.ReadFromJsonAsync<JsonElement>();
         lateProblem.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION");
-        // Draft, not Submitted: this proposal was never submitted - the refusal is the CLOSED
-        // WINDOW, not the source state. The state is reported accurately either way, which is what
-        // makes allowedNext usable.
-        lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Draft));
+        // A-9 changed what this reports, and improved it. The draft used to sit in Draft forever after
+        // the window closed, so the refusal named the closed WINDOW while the state said the bid was
+        // still live. BRULE-052 now lapses it as the window closes, so the reported state is Lapsed -
+        // terminal, with an empty allowedNext - which is a truer answer to "why can I not withdraw
+        // this": there is nothing left to withdraw.
+        lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Lapsed));
+        lateProblem.GetProperty("allowedNext").EnumerateArray().Should().BeEmpty("Lapsed is terminal");
     }
 
     [Fact]
@@ -622,5 +633,170 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var second = await supplierA.StartProposalAsync(referenceCode);
 
         second.Should().Be(first, "a second start returns the existing draft, it does not create another");
+    }
+
+    [Fact]
+    public async Task A_draft_that_survives_the_submission_window_lapses_and_the_supplier_is_told()
+    {
+        // A-9/BRULE-052, enforced for the first time. The draft used to stay Draft forever: the
+        // supplier's dashboard kept counting a bid that could never be submitted, and nothing said why.
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"Lapse {Guid.NewGuid():N}"[..24]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"LapseOther {Guid.NewGuid():N}"[..24]);
+        var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Lapse RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+
+        // Close the window by moving the deadline into the past in storage, then run the job that
+        // notices. Shifting stored time rather than waiting is the same technique the deadline tests
+        // use, and for the same reason: the alternative is a test that sleeps for the window.
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Rfqs.Where(r => r.ReferenceCode == referenceCode)
+                .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        }
+
+        await RunTimelineJobAsync();
+
+        // Asserted against storage, and against the notification the supplier actually receives.
+        await using (var check = fixture.Services.CreateAsyncScope())
+        {
+            var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+            var proposal = await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == proposalCode);
+            proposal.State.Should().Be(ProposalState.Lapsed);
+
+            (await db.AuditLogs.AsNoTracking().AnyAsync(a =>
+                a.ReferenceCode == proposalCode && a.Action == "proposal_lapsed"
+                && a.ToState == nameof(ProposalState.Lapsed)))
+                .Should().BeTrue();
+
+            // Materialised before filtering: PayloadJson is jsonb, and a LIKE over it does not
+            // translate (42883, operator does not exist: jsonb ~~ jsonb) - the same trap every other
+            // outbox assertion in this suite walks around the same way.
+            var payloads = await db.OutboxMessages.AsNoTracking().Select(m => m.PayloadJson).ToListAsync();
+            payloads.Should().Contain(p => p.Contains(proposalCode) && p.Contains("proposal.lapsed"),
+                "the supplier is the only party who lost something, so the supplier is told");
+        }
+    }
+
+    [Fact]
+    public async Task A_submitted_proposal_is_untouched_when_the_window_closes()
+    {
+        // The control for the test above. A bid that made the deadline missed nothing, and a job that
+        // runs every five minutes must not rewrite it.
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"NoLapse {Guid.NewGuid():N}"[..24]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"NoLapseOther {Guid.NewGuid():N}"[..24]);
+        var (referenceCode, requiredItemId, _, mandatoryRequirementId) =
+            await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "No lapse RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, proposalCode, requiredItemId, mandatoryRequirementId);
+        (await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Rfqs.Where(r => r.ReferenceCode == referenceCode)
+                .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        }
+
+        await RunTimelineJobAsync();
+
+        await using (var check = fixture.Services.CreateAsyncScope())
+        {
+            var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == proposalCode)).State
+                .Should().Be(ProposalState.Submitted);
+        }
+    }
+
+    [Fact]
+    public async Task A_lapsed_draft_does_not_block_a_new_proposal_if_the_window_reopens()
+    {
+        // The unique index excludes Lapsed for the same reason it excludes Withdrawn: it is a
+        // historical record, not a current bid. Leaving it in would have made a perfectly legitimate
+        // second submission fail with a 500 - which is exactly how the UNFILTERED version of this index
+        // failed the first time.
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"Relapse {Guid.NewGuid():N}"[..24]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"RelapseOther {Guid.NewGuid():N}"[..24]);
+        var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Relapse RFQ");
+        await supplierA.StartProposalAsync(referenceCode);
+
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Rfqs.Where(r => r.ReferenceCode == referenceCode)
+                .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        }
+        await RunTimelineJobAsync();
+
+        // Reopen the window and start again - the index must permit the second row.
+        await using (var reopen = fixture.Services.CreateAsyncScope())
+        {
+            var db = reopen.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Rfqs.Where(r => r.ReferenceCode == referenceCode)
+                .ExecuteUpdateAsync(p => p
+                    .SetProperty(r => r.State, RfqState.SubmissionOpen)
+                    .SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddDays(1)));
+        }
+
+        var again = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
+        again.StatusCode.Should().Be(HttpStatusCode.OK, await again.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Cancelling_an_rfq_closes_its_live_proposals_and_leaves_resolved_ones_alone()
+    {
+        // A-9/BRULE-056, enforced for the first time. Cancellation used to notify every invitee and
+        // evaluator and move NOTHING, so a Submitted proposal stayed Submitted forever on a cancelled
+        // tender - and BRULE-056 carries no assumption tag, which made that a confirmed rule going
+        // unenforced (found in batch 9 phase 12b).
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"CancA {Guid.NewGuid():N}"[..24]);
+        var (supplierB, supplierBId) = await ActiveSupplierAsync($"CancB {Guid.NewGuid():N}"[..24]);
+        var (referenceCode, requiredItemId, _, mandatoryRequirementId) =
+            await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Cancel cascade RFQ");
+
+        // A submits; B starts a draft and then withdraws it. Three different fates in one RFQ.
+        var submitted = await supplierA.StartProposalAsync(referenceCode);
+        await PriceAndAnswerAsync(supplierA, submitted, requiredItemId, mandatoryRequirementId);
+        (await supplierA.PostAsync($"/api/v1/proposals/{submitted}/submit", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var withdrawn = await supplierB.StartProposalAsync(referenceCode);
+        (await supplierB.PostAsync($"/api/v1/proposals/{withdrawn}/withdraw",
+            JsonContent.Create(new { reason = "Changed our mind." })))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var manager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, await OrgOfRfqAsync(referenceCode));
+        var cancel = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/cancel", new { reason = "Requirement withdrawn." });
+        cancel.StatusCode.Should().Be(HttpStatusCode.OK, await cancel.Content.ReadAsStringAsync());
+
+        await using var check = fixture.Services.CreateAsyncScope();
+        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        (await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == submitted)).State
+            .Should().Be(ProposalState.Cancelled, "a live bid is closed by the cancellation");
+
+        // The control, and the half that matters most: a proposal already resolved is NOT rewritten.
+        // The supplier was told it was withdrawn, and that remains true.
+        (await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == withdrawn)).State
+            .Should().Be(ProposalState.Withdrawn);
+
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a =>
+            a.ReferenceCode == submitted && a.Action == "proposal_cancelled"))
+            .Should().BeTrue();
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a =>
+            a.ReferenceCode == withdrawn && a.Action == "proposal_cancelled"))
+            .Should().BeFalse("nothing happened to the withdrawn bid, so nothing is recorded about it");
+
+        var payloads = await db.OutboxMessages.AsNoTracking().Select(m => m.PayloadJson).ToListAsync();
+        payloads.Should().Contain(p => p.Contains(submitted) && p.Contains("proposal.cancelled"),
+            "\"the tender was withdrawn\" and \"your bid is closed\" are different facts, and only the second is about the supplier's own work");
+    }
+
+    private async Task<Guid> OrgOfRfqAsync(string referenceCode)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Rfqs.Where(r => r.ReferenceCode == referenceCode).Select(r => r.OrganizationId).FirstAsync();
     }
 }
