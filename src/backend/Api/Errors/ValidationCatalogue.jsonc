@@ -478,6 +478,38 @@
   // RFQ basics, items and requirements
   // ========================================================================================
   {
+    "key": "BodyAr.NotEmpty",
+    "code": "BODY_AR_REQUIRED",
+    "source": "drafted",
+    "ar": "النص (عربي) مطلوب.",
+    "en": "Body (Arabic) is required.",
+    "usedIn": "NotificationTemplateRequest"
+  },
+  {
+    "key": "BodyAr.MaximumLength",
+    "code": "BODY_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز النص (عربي) ١٠٠٠ حرف.",
+    "en": "Body (Arabic) must not exceed 1000 characters.",
+    "usedIn": "NotificationTemplateRequest"
+  },
+  {
+    "key": "BodyEn.NotEmpty",
+    "code": "BODY_EN_REQUIRED",
+    "source": "drafted",
+    "ar": "النص (إنجليزي) مطلوب.",
+    "en": "Body (English) is required.",
+    "usedIn": "NotificationTemplateRequest"
+  },
+  {
+    "key": "BodyEn.MaximumLength",
+    "code": "BODY_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز النص (إنجليزي) ١٠٠٠ حرف.",
+    "en": "Body (English) must not exceed 1000 characters.",
+    "usedIn": "NotificationTemplateRequest"
+  },
+  {
     "key": "TitleAr.NotEmpty",
     "code": "TITLE_AR_REQUIRED",
     "source": "drafted",

@@ -42,6 +42,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
+    public DbSet<Domain.Notifications.NotificationTemplate> NotificationTemplates => Set<Domain.Notifications.NotificationTemplate>();
     public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
     public DbSet<Domain.Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Domain.Idempotency.IdempotencyRecord>();
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -165,6 +166,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         foreach (var root in TouchedVersionedRoots())
         {
+            // A DELETED root is not bumped, and must not be: forcing State = Modified on it turns the
+            // DELETE into an UPDATE, so the row survives and the caller is told it was removed. Found
+            // by T-061's revert - the override row came back after every delete. A deleted row has no
+            // next version to advance, while it still WANTS the guard ApplyExpectedVersion put on it,
+            // which is why Deleted stays in TouchedVersionedRoots and is skipped only here.
+            if (root.State is EntityState.Deleted) continue;
+
             root.State = EntityState.Modified;
             var property = root.Property(nameof(IVersionedAggregate.RowVersion));
             property.CurrentValue = unchecked((uint)property.CurrentValue! + 1);
@@ -549,6 +557,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             // The GC job scans by expiry.
             entity.HasIndex(r => r.ExpiresAt);
+        });
+
+        modelBuilder.Entity<Domain.Notifications.NotificationTemplate>(entity =>
+        {
+            entity.ToTable("notification_template", "ops");
+            entity.Property(t => t.RowVersion).IsAppManagedVersion();
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.Type).HasMaxLength(100).IsRequired();
+            entity.Property(t => t.TitleAr).HasMaxLength(300).IsRequired();
+            entity.Property(t => t.TitleEn).HasMaxLength(300).IsRequired();
+            entity.Property(t => t.BodyAr).HasMaxLength(1000).IsRequired();
+            entity.Property(t => t.BodyEn).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(t => t.Type).IsUnique();
+
+            // NOT seeded, for the same reason system_setting is not: an absent row means the shipped
+            // catalogue is in force, and no deployment's wording changes until somebody changes it.
         });
 
         modelBuilder.Entity<Domain.Configuration.SystemSetting>(entity =>

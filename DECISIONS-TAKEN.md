@@ -360,3 +360,14 @@ response, which is a disclosure rather than a duplicate.*
 | **Why** | A global numeral override would let one administrator put the wrong numerals under the wrong language for every user at once, which is a regression against R-1 dressed as configurability. And a settings row that claimed to configure an approval hierarchy nothing routes on would be an artifact asserting something untrue — the pattern this codebase keeps producing and this batch keeps removing. |
 | **What it costs if wrong** | If the Ministry genuinely wants numerals decoupled from language, that is a per-user preference or a locale variant, not this table, and the work is not started. If they want threshold routing, T-075 is sized and unstarted. Neither reading loses data. |
 | **Who should confirm it** | MOT procurement for the hierarchy; whoever owns the Arabic-first presentation rules for numerals. |
+
+### D-34 — An overridden notification may use only the tokens its shipped copy already names
+
+| | |
+|---|---|
+| **What was undecided** | Which interpolation tokens an administrator-authored notification template is allowed to use. |
+| **Where the gap is** | FR-ADM-007 asks for admin-editable AR/EN templates and says nothing about tokens. BRULE-091's allow-list governs what may be in a notification *payload*, not what a template may name. |
+| **What was decided** | The permitted set for a type is derived from that type's shipped copy: every `{token}` any of its four shipped texts uses, and nothing else. A template may use a subset — copy that says less is fine — and a token outside the set is refused with the offending tokens named. |
+| **Why** | Derived rather than declared because it is already exact: the payload a type carries is built to fill its shipped copy, so a token outside that set has no value behind it and would reach the supplier as the literal characters `{price}` in the middle of a sentence. That failure is invisible to everyone who could fix it — it looks like a broken portal to the recipient and looks like ordinary stored text in the notification row. Refusing at the write is the only place the author is still present. |
+| **What it costs if wrong** | An administrator who wants to surface a value the payload already carries but the shipped copy never mentioned is refused, and the fix is a code change to the shipped entry. That is the strict direction; the permissive one silently ships broken sentences to suppliers. |
+| **Who should confirm it** | Whoever owns the notification copy, alongside the drafted Arabic itself. |

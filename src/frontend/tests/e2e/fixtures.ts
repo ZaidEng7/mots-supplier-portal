@@ -198,6 +198,9 @@ export async function mockBackend(page: Page) {
     // SCR-600 and SCR-700. Without these two the pages fall through to the catch-all `{}`, render
     // their error card, and the a11y scan silently covers a failure state instead of the screen.
     // T-060: the public allow-list, and the admin catalogue behind SCR-724.
+    if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
+      { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
+    ] })
     if (p === '/api/v1/reference/settings') return route.fulfill({ json: {
       'registration.mode': 'open',
       'proposals.defaultCurrencyCode': 'SYP',

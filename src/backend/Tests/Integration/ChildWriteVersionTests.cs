@@ -147,4 +147,35 @@ public sealed class ChildWriteVersionTests(PostgresApiFixture fixture)
         db.UnattributedChildTypes().Should().BeEmpty(
             "a changed entity that is neither a versioned root nor a child of one would never bump anything");
     }
+
+    [Fact]
+    public async Task Deleting_a_versioned_root_deletes_it_rather_than_bumping_it()
+    {
+        // The bump forces State = Modified on every touched root. On a DELETED root that turns the
+        // DELETE into an UPDATE: the row survives, the version advances, and the caller is told the
+        // thing was removed. Found by T-061's revert, where the override row came back every time.
+        //
+        // Asserted at the DbContext, not through a route, because the only versioned root with a
+        // delete today is NotificationTemplate and the point is the SaveChanges behaviour itself -
+        // the next versioned aggregate to gain a delete must not rediscover this.
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var template = new MotsSupplierPortal.Domain.Notifications.NotificationTemplate
+        {
+            Id = Guid.CreateVersion7(),
+            Type = "probe.delete." + Guid.NewGuid().ToString("N")[..8],
+            TitleAr = "عنوان", TitleEn = "Title", BodyAr = "نص", BodyEn = "Body",
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        db.Add(template);
+        await db.SaveChangesAsync();
+
+        db.Remove(template);
+        await db.SaveChangesAsync();
+
+        (await db.Set<MotsSupplierPortal.Domain.Notifications.NotificationTemplate>()
+            .AsNoTracking().CountAsync(t => t.Id == template.Id))
+            .Should().Be(0, "a deleted versioned root must not come back as an update");
+    }
 }

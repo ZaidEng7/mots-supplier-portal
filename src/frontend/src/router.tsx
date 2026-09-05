@@ -1,5 +1,6 @@
 import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
 import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
+import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
@@ -313,6 +314,16 @@ const systemSettingsRoute = createRoute({
   component: SystemSettingsPage,
 })
 
+// SCR-715, `/back-office/notification-templates`, system_admin, P1 (FR-ADM-007). SCREEN-INVENTORY
+// writes it as `/admin/notifications/templates`; flattened here because `/back-office/notifications`
+// is already this app's notification INBOX, and nesting an admin editor under a persona's own inbox
+// route would make the two read as the same feature. Reported, not silently resolved.
+const notificationTemplatesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/notification-templates',
+  component: NotificationTemplatesPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -482,7 +493,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

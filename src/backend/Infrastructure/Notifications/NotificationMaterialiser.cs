@@ -30,7 +30,12 @@ public sealed class NotificationMaterialiser(IServiceScopeFactory scopeFactory, 
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var data = NotificationPayload.Build(request.Data);
-        var (titleAr, titleEn, bodyAr, bodyEn) = NotificationCatalogue.Render(request.Type, request.Data);
+        // T-061: the administrator's override if there is one, the shipped catalogue otherwise. The
+        // interpolation is the same either way - an override gains no capability the shipped copy
+        // lacks, and the token set it may use is the shipped copy's own.
+        var copySource = scope.ServiceProvider.GetRequiredService<INotificationCopySource>();
+        var entry = await copySource.ForAsync(request.Type, ct);
+        var (titleAr, titleEn, bodyAr, bodyEn) = NotificationCatalogue.Render(entry, request.Data);
 
         db.Notifications.Add(new Notification
         {

@@ -75,6 +75,34 @@ const resources = {
       // export lacks, and all three divergences turned out to be errors rather than adaptations.
       // See DECISIONS-TAKEN.md.
       // ── EPIC-18/SCR-600 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // §7 has no notification-template table. Drafted in §7's register - NOT YET APPROVED.
+      notificationTemplates: {
+        title: 'قوالب الإشعارات',                            // [§7-style drafted]
+        subtitle: 'صياغة الإشعارات لكل نوع بالعربية والإنجليزية. النوع غير المعدّل يستخدم الصياغة الأصلية.', // [§7-style drafted]
+        shipped: 'الصياغة الأصلية',                          // [§7-style drafted]
+        overridden: 'معدّل',                                 // [reused] matches systemSettings
+        overriddenAt: 'عُدّل في {{at}}',                      // [reused] matches systemSettings
+        edit: 'تعديل',                                       // [reused]
+        collapse: 'إخفاء',                                   // [reused]
+        titleAr: 'العنوان (عربي)',                           // [reused] §7's own term
+        titleEn: 'العنوان (إنجليزي)',                        // [reused] §7's own term
+        bodyAr: 'النص (عربي)',                               // [§7-style drafted]
+        bodyEn: 'النص (إنجليزي)',                            // [§7-style drafted]
+        tokens: 'الرموز المتاحة: {{tokens}}',                 // [§7-style drafted]
+        noTokens: 'لا رموز متاحة لهذا النوع.',                // [§7-style drafted]
+        shippedCopy: 'الصياغة الأصلية (ما سيُستعاد)',          // [§7-style drafted]
+        save: 'حفظ',                                         // [reused]
+        saved: 'تم حفظ الصياغة',                             // [§7-style drafted]
+        revert: 'استعادة الصياغة الأصلية',                    // [§7-style drafted]
+        reverted: 'تمت استعادة الصياغة الأصلية',              // [§7-style drafted]
+        loadFailed: 'تعذّر تحميل القوالب',                    // [§7-style drafted]
+        retry: 'إعادة المحاولة',                             // [reused]
+        errors: {
+          unknownTokens: 'رموز غير متاحة لهذا النوع: {{tokens}}', // [§7-style drafted]
+          saveFailed: 'تعذّر حفظ الصياغة',                    // [§7-style drafted]
+          revertFailed: 'تعذّرت الاستعادة',                   // [§7-style drafted]
+        },
+      },
       // §7 has no settings table. Drafted in §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md.
       systemSettings: {
         title: 'إعدادات النظام',                            // [§7-style drafted]
@@ -1229,6 +1257,33 @@ const resources = {
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
         loadFailed: "Couldn't load this section",
         retry: 'Try again',
+      },
+      notificationTemplates: {
+        title: 'Notification templates',
+        subtitle: 'The wording of each notification, in Arabic and English. A type nobody has changed uses the shipped wording.',
+        shipped: 'Shipped wording',
+        overridden: 'Overridden',
+        overriddenAt: 'Changed {{at}}',
+        edit: 'Edit',
+        collapse: 'Hide',
+        titleAr: 'Title (Arabic)',
+        titleEn: 'Title (English)',
+        bodyAr: 'Body (Arabic)',
+        bodyEn: 'Body (English)',
+        tokens: 'Available tokens: {{tokens}}',
+        noTokens: 'This type has no tokens.',
+        shippedCopy: 'Shipped wording (what revert restores)',
+        save: 'Save',
+        saved: 'Wording saved',
+        revert: 'Restore the shipped wording',
+        reverted: 'Shipped wording restored',
+        loadFailed: 'Could not load the templates',
+        retry: 'Try again',
+        errors: {
+          unknownTokens: 'This notification cannot fill: {{tokens}}',
+          saveFailed: 'Could not save the wording',
+          revertFailed: 'Could not restore the shipped wording',
+        },
       },
       systemSettings: {
         title: 'System settings',

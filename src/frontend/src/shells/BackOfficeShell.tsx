@@ -72,6 +72,11 @@ export function BackOfficeShell({ children }: Props) {
               </Link>
             ) : null}
             {canManageStaff ? (
+              <Link to="/back-office/notification-templates" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('notificationTemplates.title')}
+              </Link>
+            ) : null}
+            {canManageStaff ? (
               <Link to="/back-office/settings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('systemSettings.title')}
               </Link>
