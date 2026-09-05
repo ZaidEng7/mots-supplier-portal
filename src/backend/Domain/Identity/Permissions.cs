@@ -117,6 +117,18 @@ public static class Permissions
     /// <summary>FEAT-07.8/BUSINESS-PROCESSES.md §3.1: cancel from any pre-Awarded state, reason
     /// mandatory.</summary>
     public const string RfqCancel = "rfq.cancel";
+
+    /// <summary>
+    /// A-7: hand an RFQ to another officer. A NEW permission, not in any document - ownership did not
+    /// exist to be moved.
+    ///
+    /// <para><b>Deliberately not granted to <c>procurement_officer</c>.</b> A-7 exists to put an
+    /// individual on record as responsible for a tender, and an owner who may reassign their own RFQ
+    /// away can drop that responsibility without anyone deciding they should. It goes to
+    /// <c>procurement_manager</c>, so an officer who cannot continue asks - and the audit row records
+    /// what was asked and why.</para>
+    /// </summary>
+    public const string RfqReassign = "rfq.reassign";
     /// <summary>FEAT-08.1/FR-INV-001: invite a supplier (and view FEAT-08.2 candidate suggestions)
     /// - distinct from RfqEdit per this catalog's established pattern of a separate permission per
     /// named actor/action pair in BUSINESS-PROCESSES.md, even though both are procurement_officer
@@ -263,7 +275,7 @@ public static class Permissions
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
-        RfqDeadlineShorten, ReferenceDataManage, GovernanceRead
+        RfqDeadlineShorten, ReferenceDataManage, GovernanceRead, RfqReassign
     ];
 }
 
@@ -299,7 +311,7 @@ public static class Roles
         [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqRead, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqClarify, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
-        [ProcurementManager] = [Permissions.ReportRead, Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject, Permissions.RfqDeadlineShorten],
+        [ProcurementManager] = [Permissions.ReportRead, Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject, Permissions.RfqDeadlineShorten, Permissions.RfqReassign],
         // §3.1 names `evaluator` as an actor for "Request clarification" alongside the officer.
         [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit, Permissions.RfqClarify],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the

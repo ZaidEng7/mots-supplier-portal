@@ -42,16 +42,26 @@
   {
     "type": "rfq.returned_for_edits",
     "source": "drafted",
-    "recipients": "In-app to officer",
+    "recipients": "In-app to officer (A-7: the RFQ's owner, falling back to the officer pool when it has none)",
     "titleAr": "أُعيد الطلب للتعديل",
     "titleEn": "An RFQ was returned for edits",
     "bodyAr": "أُعيد الطلب {rfqCode} إليك للتعديل. راجع الملاحظات ثم أعد تقديمه.",
     "bodyEn": "RFQ {rfqCode} was returned to you for edits. Review the comments and submit it again."
   },
   {
+    "type": "rfq.reassigned",
+    "source": "drafted",
+    "recipients": "In-app to the RFQ's new owner",
+    "flag": "A-7. §3.1's table has no row for this - ownership did not exist, so there was no transition to transcribe. The reason for the reassignment is deliberately absent from the body: BRULE-091's payload allow-list is identifiers and public codes, and the new owner reads it on the RFQ's own audit trail.",
+    "titleAr": "أُسند إليك طلب",
+    "titleEn": "An RFQ was assigned to you",
+    "bodyAr": "أصبحت مسؤولاً عن الطلب {rfqCode}. راجعه لمتابعة الخطوة التالية.",
+    "bodyEn": "You are now responsible for RFQ {rfqCode}. Open it to see what it is waiting for."
+  },
+  {
     "type": "rfq.approved",
     "source": "drafted",
-    "recipients": "In-app to officer",
+    "recipients": "In-app to officer (A-7: the RFQ's owner, falling back to the officer pool when it has none)",
     "titleAr": "تم اعتماد الطلب",
     "titleEn": "Your RFQ was approved",
     "bodyAr": "اعتُمد الطلب {rfqCode}. يمكنك الآن نشره للموردين المدعوين.",
@@ -92,7 +102,7 @@
   {
     "type": "evaluation.evaluator_submitted",
     "source": "drafted",
-    "recipients": "In-app to procurement_officer when all in",
+    "recipients": "In-app to procurement_officer when all in (A-7: the RFQ's owner, who consolidates)",
     "titleAr": "اكتمل تقييم جميع المقيّمين",
     "titleEn": "All evaluators have submitted",
     "bodyAr": "أرسل جميع المقيّمين درجاتهم للطلب {rfqCode}. يمكنك توحيد النتائج.",
@@ -128,12 +138,12 @@
   {
     "type": "evaluation.evaluator_recused",
     "source": "drafted",
-    "recipients": "In-app to procurement_officer",
+    "recipients": "In-app to procurement_officer (A-7: the RFQ's owner)",
     "titleAr": "تنحّى أحد المقيّمين",
     "titleEn": "An evaluator recused themselves",
     "bodyAr": "تنحّى أحد المقيّمين عن تقييم الطلب {rfqCode}. قد تحتاج إلى إسناد بديل.",
     "bodyEn": "An evaluator stepped down from the evaluation of RFQ {rfqCode}. You may need to assign a replacement.",
-    "flag": "§3.3's table has no row for recusal - it is a within-state event, not a transition. The recipient is chosen as the officer who owns the assignment; see the report."
+    "flag": "§3.3's table has no row for recusal - it is a within-state event, not a transition. The recipient is chosen as the officer who owns the RFQ, which A-7 made a person rather than a pool; see the report."
   },
 
   // ======================================================================================
@@ -161,7 +171,7 @@
   {
     "type": "award.approved",
     "source": "drafted",
-    "recipients": "In-app to officer",
+    "recipients": "In-app to officer (A-7: the RFQ's owner, falling back to the officer pool when it has none)",
     "titleAr": "تم اعتماد الترسية",
     "titleEn": "The award was approved",
     "bodyAr": "اعتُمدت ترسية الطلب {rfqCode}. يمكنك الآن تنفيذها.",
@@ -170,7 +180,7 @@
   {
     "type": "award.rejected",
     "source": "drafted",
-    "recipients": "In-app to officer",
+    "recipients": "In-app to officer (A-7: the RFQ's owner, falling back to the officer pool when it has none)",
     "titleAr": "رُفضت الترسية",
     "titleEn": "The award was rejected",
     "bodyAr": "رُفضت ترسية الطلب {rfqCode}. راجع سبب الرفض وأعد التوصية.",

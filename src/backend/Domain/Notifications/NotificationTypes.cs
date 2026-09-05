@@ -15,6 +15,10 @@ public static class NotificationTypes
     public const string RfqSubmittedForReview = "rfq.submitted_for_review";
     public const string RfqReturnedForEdits = "rfq.returned_for_edits";
     public const string RfqApproved = "rfq.approved";
+
+    /// <summary>A-7: this RFQ is now yours. Not in §3.1's table - ownership did not exist to change,
+    /// so there was no transition to transcribe. Flagged as drafted in the catalogue.</summary>
+    public const string RfqReassigned = "rfq.reassigned";
     public const string RfqSubmissionOpened = "rfq.submission_opened";
     public const string RfqSubmissionClosed = "rfq.submission_closed";
 
@@ -80,7 +84,7 @@ public static class NotificationTypes
     /// <summary>Both directions of the catalogue gate compare against this set.</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        RfqSubmittedForReview, RfqReturnedForEdits, RfqApproved, RfqSubmissionOpened, RfqSubmissionClosed,
+        RfqSubmittedForReview, RfqReturnedForEdits, RfqApproved, RfqReassigned, RfqSubmissionOpened, RfqSubmissionClosed,
         RfqClarificationRequested, RfqClarificationResolved, RfqShortlistingStarted, RfqRecommendationRecorded,
         EvaluationOpened, EvaluatorSubmitted, EvaluationConsolidated, EvaluationFinalized,
         EvaluationReopened, EvaluatorRecused,

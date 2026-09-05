@@ -817,6 +817,33 @@ const resources = {
           text: 'النص', textAr: 'النص (عربي)', textEn: 'النص (إنجليزي)', mandatory: 'إلزامي',
           evaluationTemplate: 'قالب التقييم', approvals: 'الموافقات', step: 'الخطوة', decision: 'القرار',
           comments: 'ملاحظات', reason: 'السبب',
+          owner: 'المسؤول',                                 // [drafted] A-7
+        },
+        // ── A-7 · ARABIC FOR REVIEW ────────────────────────────────────────────────
+        // §7 has no ownership strings - nothing in the documents gives an RFQ an owner. Drafted in
+        // §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
+        unassigned: 'غير مُسند',                            // [drafted] A-7
+        ownerFilter: {
+          label: 'تصفية حسب المسؤول',                       // [drafted]
+          all: 'الكل',                                     // [reused]
+          me: 'المُسندة إليّ',                              // [drafted]
+          unassigned: 'غير مُسندة',                         // [drafted]
+          empty: {
+            me: 'لا توجد طلبات مُسندة إليك',                 // [drafted]
+            unassigned: 'كل الطلبات مُسندة إلى مسؤول',        // [drafted]
+          },
+        },
+        ownership: {
+          title: 'المسؤول عن الطلب',                        // [drafted]
+          help: 'يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات.', // [drafted]
+          ownerLabel: 'المسؤول',                            // [drafted]
+          approverLabel: 'المعتمِد',                        // [reused] §3.1's «اعتماد» family
+          newOwner: 'المسؤول الجديد',                       // [drafted]
+          reason: 'سبب النقل',                              // [drafted]
+          reassign: 'نقل المسؤولية',                        // [drafted]
+          reassigned: 'تم نقل المسؤولية',                    // [drafted]
+          nominateApprover: 'تحديد المعتمِد',                // [drafted]
+          anyManager: 'أي مدير',                            // [drafted]
         },
         errors: { saveFailed: 'تعذر حفظ الطلب', transitionFailed: 'تعذر تنفيذ الإجراء' },
         invitations: {
@@ -2066,6 +2093,30 @@ const resources = {
           text: 'Text', textAr: 'Text (Arabic)', textEn: 'Text (English)', mandatory: 'Mandatory',
           evaluationTemplate: 'Evaluation template', approvals: 'Approvals', step: 'Step', decision: 'Decision',
           comments: 'Comments', reason: 'Reason',
+          owner: 'Owner',
+        },
+        unassigned: 'Unassigned',
+        ownerFilter: {
+          label: 'Filter by owner',
+          all: 'All',
+          me: 'Mine',
+          unassigned: 'Unassigned',
+          empty: {
+            me: 'No RFQs are assigned to you',
+            unassigned: 'Every RFQ has an owner',
+          },
+        },
+        ownership: {
+          title: 'Ownership',
+          help: 'One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail.',
+          ownerLabel: 'Owner',
+          approverLabel: 'Approver',
+          newOwner: 'New owner',
+          reason: 'Reason for the handover',
+          reassign: 'Reassign',
+          reassigned: 'Ownership reassigned',
+          nominateApprover: 'Choose an approver',
+          anyManager: 'Any manager',
         },
         errors: { saveFailed: 'Could not save the RFQ', transitionFailed: 'Could not perform the action' },
         invitations: {

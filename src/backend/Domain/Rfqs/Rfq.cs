@@ -41,6 +41,26 @@ public sealed class Rfq : IVersionedAggregate
     public string? DescriptionEn { get; private set; }
     public string CurrencyCode { get; private set; } = null!;
     public RfqState State { get; private set; }
+
+    /// <summary>
+    /// A-7: the officer who owns this RFQ, as a person rather than as a role.
+    ///
+    /// <para><b>Why this exists.</b> BRULE-029 scopes an RFQ to its Organization and stops there, so
+    /// every §3.1 rule reading "notify the officer" reached the whole role-and-organization pool and
+    /// no individual was on record as responsible for a tender. That is an accountability gap rather
+    /// than a convenience one, and it surfaced independently in three epics - the notification
+    /// recipients, SCR-400's "Awaiting my action" tile, and the reassignment nobody could perform.</para>
+    ///
+    /// <para><b>Nullable, and it stays nullable.</b> Every RFQ created before A-7 has no owner and
+    /// cannot be given one retroactively without guessing; the audit trail records who created each
+    /// one but a creator is not necessarily today's owner, and writing a guess into an ownership
+    /// column is worse than an honest null. An unowned RFQ therefore falls back to the pool
+    /// everywhere the owner is consulted - see NotificationRecipients.RfqOwnerAsync and
+    /// DECISIONS-TAKEN.md D-38. A null here means "nobody has claimed this", which is a fact the
+    /// buyer's list shows so it can be claimed.</para>
+    /// </summary>
+    public Guid? OwnerUserId { get; private set; }
+
     public DateTimeOffset? PublishAt { get; private set; }
 
     /// <summary>
@@ -89,7 +109,8 @@ public sealed class Rfq : IVersionedAggregate
         string referenceCode, Guid organizationId, string titleAr, string titleEn,
         string? descriptionAr, string? descriptionEn, string currencyCode,
         DateTimeOffset? publishAt, DateTimeOffset? submissionOpensAt, DateTimeOffset? submissionClosesAt,
-        DateTimeOffset? clarificationDeadlineAt, DateTimeOffset? evaluationTargetDate)
+        DateTimeOffset? clarificationDeadlineAt, DateTimeOffset? evaluationTargetDate,
+        Guid? ownerUserId = null)
     {
         if (string.IsNullOrWhiteSpace(titleAr)) throw new DomainException("RFQ title (Arabic) is required.");
         if (string.IsNullOrWhiteSpace(titleEn)) throw new DomainException("RFQ title (English) is required.");
@@ -107,6 +128,10 @@ public sealed class Rfq : IVersionedAggregate
             DescriptionEn = descriptionEn,
             CurrencyCode = currencyCode,
             State = RfqState.Draft,
+            // A-7: the creator owns it. Not a default that has to be revisited later - whoever
+            // authored the RFQ is the one person who is unambiguously responsible for it at the
+            // moment it exists, and reassignment is the mechanism for every case after that.
+            OwnerUserId = ownerUserId,
             PublishAt = publishAt,
             SubmissionOpensAt = submissionOpensAt,
             SubmissionClosesAt = submissionClosesAt,
@@ -114,6 +139,36 @@ public sealed class Rfq : IVersionedAggregate
             EvaluationTargetDate = evaluationTargetDate,
             CreatedAt = DateTimeOffset.UtcNow,
         };
+    }
+
+    /// <summary>
+    /// A-7: hand this RFQ to another officer.
+    ///
+    /// <para>Refused on <see cref="RfqState.Completed"/> and <see cref="RfqState.Cancelled"/>: those
+    /// are terminal, no further action is owed by anyone, and an ownership change there would record
+    /// a responsibility that cannot be discharged. <see cref="RfqState.Awarded"/> is deliberately
+    /// still reassignable - post-award work exists, and somebody has to own it.</para>
+    ///
+    /// <para>Refused when the new owner is already the owner. The point of this method is the audit
+    /// row the caller writes beside it, and a row saying ownership changed from a person to the same
+    /// person is a false entry in an append-only trail.</para>
+    ///
+    /// <para><b>Eligibility is NOT checked here.</b> Whether the nominee is an officer of this
+    /// organization is a question about Users, a different aggregate - the same cross-aggregate split
+    /// InviteSupplier already uses for BRULE-032 - so the handler verifies it before calling.</para>
+    /// </summary>
+    public void Reassign(Guid newOwnerUserId)
+    {
+        if (State is RfqState.Completed or RfqState.Cancelled)
+        {
+            throw new DomainException($"Cannot reassign an RFQ in state '{State}'; it is closed and no action remains.");
+        }
+        if (OwnerUserId == newOwnerUserId)
+        {
+            throw new DomainException("This officer already owns the RFQ.");
+        }
+
+        OwnerUserId = newOwnerUserId;
     }
 
     /// <summary>BRULE-033: submissionCloseAt must be strictly after submissionOpenAt (matches the
@@ -475,7 +530,14 @@ public sealed class Rfq : IVersionedAggregate
     /// <para><b>EPIC-08 gap closed:</b> "&gt;=1 candidate supplier identified" is now enforced
     /// against real Invitation rows (previously unenforced pending EPIC-08 - see git history on
     /// this method for the flagged gap this replaces).</para></summary>
-    public void SubmitForReview()
+    /// <para><b>A-7:</b> <paramref name="assignedApproverUserId"/> names the manager this pass is
+    /// waiting on, and is recorded on the pending step so "notify the approver" resolves to a person
+    /// rather than to everyone holding <c>rfq.approve</c>. Optional, and null is not a defect: this
+    /// build has no approval-routing rule to fall back on - BRULE-072/074's amount thresholds and
+    /// OQ-004's chain are undecided (T-075) - so choosing a manager here would be inventing the
+    /// routing rather than recording a decision. An un-nominated pass notifies the manager pool
+    /// exactly as before, and whoever decides it is recorded as having decided it.</para>
+    public void SubmitForReview(Guid? assignedApproverUserId = null)
     {
         if (State != RfqState.Draft)
         {
@@ -502,7 +564,11 @@ public sealed class Rfq : IVersionedAggregate
             throw new DomainException("Cannot submit for review: at least one candidate supplier must be invited.");
         }
 
-        _approvals.Add(new RfqApproval { Id = Guid.CreateVersion7(), RfqId = Id, StepNo = _approvals.Count + 1 });
+        _approvals.Add(new RfqApproval
+        {
+            Id = Guid.CreateVersion7(), RfqId = Id, StepNo = _approvals.Count + 1,
+            AssignedApproverUserId = assignedApproverUserId,
+        });
         State = RfqState.InternalReview;
     }
 

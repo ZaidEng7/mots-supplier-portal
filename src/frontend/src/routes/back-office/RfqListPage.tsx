@@ -5,7 +5,7 @@ import { Link } from '@tanstack/react-router'
 import { Button, Card, Dialog, Field, Input, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
-import { listRfqs, createRfq, RfqApiError } from '../../api/rfqs'
+import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
 
 /** FEAT-07.1/FR-RFQ-001. */
 export function RfqListPage() {
@@ -18,12 +18,18 @@ export function RfqListPage() {
   const [currencyCode, setCurrencyCode] = useState('SYP')
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
+  // A-7: three views of the same list, resolved server-side. "me" as the default would hide an
+  // organization's work from a manager on the screen they approve from, so the default is everything
+  // and the narrowing is a deliberate click.
+  const [owner, setOwner] = useState<RfqOwnerFilter | 'all'>('all')
 
   // See SupplierRfqListPage for the reasoning: §6.1 makes RFQs cursor-default, so stopping at
   // page one would hide every RFQ past the 20th with no visible symptom.
   const rfqsQuery = useInfiniteQuery({
-    queryKey: ['rfqs'],
-    queryFn: ({ pageParam }) => listRfqs(pageParam),
+    // The filter is IN the key: without it, switching views would show the previous view's cached
+    // pages until the refetch landed, which on a list of tenders reads as the filter not working.
+    queryKey: ['rfqs', owner],
+    queryFn: ({ pageParam }) => listRfqs(pageParam, owner === 'all' ? undefined : owner),
     initialPageParam: null as string | null,
     getNextPageParam: nextPageParam,
   })
@@ -60,15 +66,35 @@ export function RfqListPage() {
         <Button onClick={() => setCreateOpen(true)}>{t('rfq.add')}</Button>
       </div>
 
-      <Card title={t('rfq.listTitle')}>
+      <Card
+        title={t('rfq.listTitle')}
+        action={
+          <div role="group" aria-label={t('rfq.ownerFilter.label')} className="flex flex-wrap gap-2">
+            {(['all', 'me', 'unassigned'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                variant={owner === value ? 'primary' : 'ghost'}
+                aria-pressed={owner === value}
+                onClick={() => setOwner(value)}
+              >
+                {t(`rfq.ownerFilter.${value}`)}
+              </Button>
+            ))}
+          </div>
+        }
+      >
         {rfqs.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.empty')}</p>
+          <p style={{ color: 'var(--color-text-secondary)' }}>
+            {owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
+          </p>
         ) : (
           <Table caption={t('rfq.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
               <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
               <TableHeaderCell>{t('rfq.fields.state')}</TableHeaderCell>
+              <TableHeaderCell>{t('rfq.fields.owner')}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {rfqs.map((rfq) => (
@@ -80,6 +106,9 @@ export function RfqListPage() {
                   </TableCell>
                   <TableCell>{rfq.titleEn}</TableCell>
                   <TableCell><StatusChip machine="rfq" value={rfq.state} /></TableCell>
+                  {/* "Unassigned" in words, not an empty cell: an unowned RFQ is a row somebody
+                      should claim, and a blank reads as missing data rather than as an invitation. */}
+                  <TableCell>{rfq.ownerName ?? t('rfq.unassigned')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

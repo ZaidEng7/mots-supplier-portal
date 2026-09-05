@@ -201,6 +201,12 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
       { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
     ] })
+    // A-7: the RFQ detail page's two assignment pickers ask for this on every buyer view. Without it
+    // the page falls through to its error state and the a11y scan covers that instead.
+    if (p.endsWith('/assignees')) return route.fulfill({ json: {
+      owners: [{ userId: '01a00000-0000-7000-8000-0000000000b1', fullName: 'An Officer' }],
+      approvers: [{ userId: '01a00000-0000-7000-8000-0000000000b2', fullName: 'A Manager' }],
+    } })
     // T-080/SCR-710-712: the reference-data editor asks per table, so the fixture answers any of
     // the five - otherwise the screen renders its error card and the a11y scan covers that instead.
     if (p.startsWith('/api/v1/admin/reference/')) return route.fulfill({ json: [

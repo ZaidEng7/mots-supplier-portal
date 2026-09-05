@@ -480,6 +480,7 @@ something else, that row is superseded and says so rather than being deleted.
 | **Why** | "Notify the officer" reaching a pool is an accountability gap in a tender: no individual is on record as responsible. This is the underlying fix for a gap that has surfaced in three separate epics. |
 | **What it costs if wrong** | Ownership is one nullable column and a reassignment endpoint. |
 | **Who should confirm it** | MOT procurement. |
+| **Built** | Batch 10. `Rfq.OwnerUserId` set to the creator; `POST /rfqs/{code}/reassign` behind the new `rfq.reassign` permission, guarded by `If-Match` and writing an audit row whose `changes` carry both ids; all six "the officer" notification sites resolve through `NotificationRecipients.RfqOwnerAsync`; the review pass records the manager it was assigned to, separately from whoever decided it; SCR-400's "Awaiting my action" tile counts what this caller is answerable for rather than what the organization holds; the buyer RFQ list carries the owner and a `?owner=me\|unassigned\|<id>` filter reusing the review queue's own three-value shape. Four consequences the ruling did not settle are logged as [[D-38]] (unowned RFQs), [[D-39]] (a deactivated owner), [[D-40]] (who may reassign) and [[D-41]] (why approval routing stays unnamed). |
 
 ### A-8 — Bidders are anonymous during scoring and revealed after consolidation `[recommended — awaiting procurement]`
 
@@ -591,3 +592,46 @@ something else, that row is superseded and says so rather than being deleted.
 | **Why** | The aggregate's version moves either way, so the choice is only about whether anyone is told. Without the precondition a caller can add a contact on top of a profile they never saw — one a reviewer has just put back into `InfoRequested`, whose flagged-field rules they are unaware of — and the write succeeds against a state they were not looking at. A top-level create is different in kind: there is no prior version anyone could have read, and requiring one would make authoring impossible. |
 | **What it costs if wrong** | It is a filter per route. If the doc owner reads §8.1 as excluding creation, removing it is one line each — and the version still moves, so nothing stored becomes wrong. |
 | **Who should confirm it** | The document owner, alongside A-13's other §8.1 readings. |
+
+### D-38 — An RFQ with no owner falls back to the pool everywhere, rather than to nobody `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | What A-7's ownership means for the RFQs that already exist. A-7 gives an RFQ an owning officer set at creation; every RFQ created before it has none, and nothing in the ruling says what happens to them. |
+| **Where the gap is** | Three places consult the owner: the six §3.1 notification rules that read "the officer", SCR-400's "Awaiting my action" tile, and the buyer RFQ list's new `?owner=` filter. Each of them needs an answer for `OwnerUserId == null`, and "no owner" could mean either "belongs to nobody" or "belongs to everybody who could act". |
+| **What was decided** | Unowned means unclaimed, not orphaned. A notification about an unowned RFQ goes to the whole officer pool — exactly as it did before A-7. Its next action counts on the tile of everyone holding the permission that action needs. The list surfaces it under `?owner=unassigned` and labels the row "Unassigned" in words. Backfilling an owner from the audit trail's `rfq_created` actor was considered and rejected. |
+| **Why** | The two readings fail in opposite directions and only one of them is recoverable. "Belongs to nobody" means a live tender transitions and no human being is told — the exact failure A-7 exists to prevent, made worse because it would be introduced by the fix. "Belongs to everybody" is the behaviour that shipped for nine batches; it is merely imprecise. On the backfill: the creator of an RFQ is not necessarily its owner today, and a guess written into an ownership column is indistinguishable from a fact — it would be quoted back in an audit as though somebody had decided it. A visible "Unassigned" that an officer can claim states the truth and asks for the one thing that resolves it. |
+| **What it costs if wrong** | Nothing stored is wrong either way; it is a fallback branch in one method (`NotificationRecipients.RfqOwnerAsync`) and one predicate in the dashboard count. If procurement would rather unowned RFQs reached nobody, both are a deletion. If they want the backfill, it is one `UPDATE ... FROM audit_log`, and it can be run at any time. |
+| **Who should confirm it** | MOT procurement, alongside A-7 itself. |
+
+### D-39 — The same fallback covers an owner whose account has been deactivated `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | What happens to an RFQ whose owner has left. |
+| **Where the gap is** | T-077 (batch 10) made staff deactivation reachable for the first time, and A-7 then made one named person the sole recipient of six notification rules. The two together create a state nothing had to handle before: an RFQ pointing at an account that can no longer read anything. |
+| **What was decided** | An inactive owner is treated as no owner: the notification goes to the pool, and the RFQ keeps its stored `OwnerUserId` so the audit trail still says who was responsible at the time. The ownership is not cleared. |
+| **Why** | Clearing it would rewrite history to make the present tidy — the RFQ *was* theirs, and a reader asking "who was handling this in March" deserves the answer. Leaving the notification pointed at them would mean a returned-for-edits RFQ that nobody alive is told about, which is the same silent failure as the unowned case. A manager reassigning it is the real fix, and the pool notification is what prompts one. |
+| **What it costs if wrong** | One `&& u.IsActive` clause. |
+| **Who should confirm it** | MOT procurement. |
+
+### D-40 — Reassignment is the manager's, not the owner's `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | Who may move ownership. A-7 says an RFQ is "reassignable with an audit row" and does not say by whom. |
+| **What was decided** | A new permission, `rfq.reassign`, held by `procurement_manager` and `system_admin` and deliberately **not** by `procurement_officer` — so an owner cannot hand their own RFQ away. |
+| **Why** | A-7's purpose is to put an individual on record as answerable for a tender. An owner who may reassign at will can stop being answerable without anyone deciding that they should, which returns the accountability to a pool by a different route. An officer who genuinely cannot continue asks their manager, and the audit row then records the request and its reason. |
+| **What it costs if wrong** | One entry in `Roles.DefaultPermissions`, and roles are admin-editable at runtime (FR-ADM-002) — so a ministry that disagrees can grant it on SCR-716 without a deploy. |
+| **Who should confirm it** | MOT procurement. |
+
+### D-41 — Approval routing stays unnamed; the nomination is optional `[recommended — awaiting procurement]`
+
+| | |
+|---|---|
+| **What was undecided** | A-7 says "the approver resolved from the assignment rather than from the role claim". It does not say what assigns the approver. |
+| **Where the gap is** | `RfqApproval.ApproverUserId` was written at the moment of decision, so before a decision there was nobody to notify and "notify the approver" reached every `procurement_manager` in the organization. Choosing one automatically would require a routing rule, and there is none: BRULE-072/074's amount thresholds are `[ASSUMPTION]`, OQ-004's approval chain is open, and T-075 is the backlog row for it. |
+| **What was decided** | The officer submitting for review MAY name the approver, recorded on the pending step as `AssignedApproverUserId` — separate from `ApproverUserId`, which continues to record who actually decided. When a pass names nobody, the manager pool is notified exactly as before. The nominee must hold `rfq.approve` in the RFQ's own organization and be active, refused as 422 `INELIGIBLE_USER` rather than silently ignored. |
+| **Why** | This is the half of A-7 that can be built without inventing the half that is undecided. A default here would produce an outcome rather than a posture — an approval routed to a specific manager who was never chosen — so the system decides nothing and surfaces the case to a person, which is the pattern the rest of this batch follows. Keeping the nomination and the decision in separate columns matters because a nominated approver who is unavailable and the colleague who decides in their place are two different people, and a trail that keeps only the second cannot answer who was asked. |
+| **What it costs if wrong** | One nullable column and an optional request field. If T-075 later brings a real routing rule, it fills the same column and this stays the manual override. |
+| **Who should confirm it** | MOT procurement, alongside T-075. |

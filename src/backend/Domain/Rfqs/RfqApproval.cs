@@ -25,6 +25,22 @@ public sealed class RfqApproval
     public Guid Id { get; init; }
     public Guid RfqId { get; init; }
     public int StepNo { get; init; }
+
+    /// <summary>
+    /// A-7: the manager this step is waiting ON, recorded when the step is created.
+    ///
+    /// <para>Separate from <see cref="ApproverUserId"/>, which records who actually DECIDED it. One
+    /// field carrying both meanings would be a field whose value means different things before and
+    /// after a decision, and the case that makes the difference matter is real: a nominated approver
+    /// who is unavailable and a colleague who decides in their place are two different people, and an
+    /// audit trail that keeps only the second cannot answer who was asked.</para>
+    ///
+    /// <para>Null when the pass named nobody - see <c>Rfq.SubmitForReview</c> on why that is a
+    /// recorded absence and not a missing default.</para>
+    /// </summary>
+    public Guid? AssignedApproverUserId { get; set; }
+
+    /// <summary>Who decided this step. Null while it is pending.</summary>
     public Guid? ApproverUserId { get; set; }
     public RfqApprovalDecision? Decision { get; set; }
     public string? Comment { get; set; }

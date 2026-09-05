@@ -645,7 +645,16 @@
     "source": "drafted",
     "ar": "السبب مطلوب.",
     "en": "A reason is required.",
-    "usedIn": "CancelRfqRequest, RecuseEvaluatorRequest, RejectApplicationRequest, RejectAwardRequest, ReopenEvaluationRequest, WithdrawProposalRequest"
+    "usedIn": "CancelRfqRequest, ReassignRfqRequest, RecuseEvaluatorRequest, RejectApplicationRequest, RejectAwardRequest, ReopenEvaluationRequest, WithdrawProposalRequest"
+  },
+  {
+    "key": "NewOwnerUserId.NotEmpty",
+    "code": "NEW_OWNER_REQUIRED",
+    "source": "drafted",
+    "ar": "يجب تحديد المسؤول الجديد.",
+    "en": "A new owner must be chosen.",
+    "usedIn": "ReassignRfqRequest",
+    "flag": "A-7. Guards the empty Guid as well as the absent field: `Guid` is not nullable, so an omitted `newOwnerUserId` binds to Guid.Empty and would otherwise reach the handler as a real-looking id that matches no user - refused there as ineligible, with a message about permissions rather than about the missing field."
   },
   {
     "key": "Reason.MaximumLength",
@@ -653,7 +662,7 @@
     "source": "drafted",
     "ar": "يجب ألا يتجاوز السبب ٢٠٠٠ حرف.",
     "en": "The reason must not exceed 2000 characters.",
-    "usedIn": "CancelRfqRequest, RecuseEvaluatorRequest, RejectApplicationRequest, RejectAwardRequest, ReopenEvaluationRequest, WithdrawProposalRequest"
+    "usedIn": "CancelRfqRequest, ReassignRfqRequest, RecuseEvaluatorRequest, RejectApplicationRequest, RejectAwardRequest, ReopenEvaluationRequest, WithdrawProposalRequest"
   },
 
   // ========================================================================================

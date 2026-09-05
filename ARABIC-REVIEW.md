@@ -481,3 +481,45 @@ sentence here reads as an apology for a missing button rather than a statement o
 | `referenceAdmin.errors.createFailed` | Could not add the code | تعذّرت إضافة الرمز | [drafted] |
 | `referenceAdmin.errors.updateFailed` | Could not save the change | تعذّر حفظ التغيير | [drafted] |
 | `referenceAdmin.errors.loadFailed` | Could not load reference data | تعذّر تحميل البيانات المرجعية | [drafted] |
+
+### A-7 — ownership, the reassignment, and the approver nomination
+
+Two terms need a decision from a reviewer rather than a preference from me.
+
+**`المسؤول` for "owner".** §7 has no word for this because nothing in the documents gives an RFQ an
+owner. The alternatives considered were `المالك` (literally "owner", but it reads as ownership of
+property — wrong for a civil servant handling a file) and `المسند إليه` ("the one assigned to it",
+accurate but clumsy as a column header). `المسؤول` — "the one responsible" — says what A-7 actually
+means, which is accountability rather than possession, and it is the word the notification body
+already needs: «أصبحت مسؤولاً عن الطلب».
+
+**`المعتمِد` for "approver",** with the kasra on the mīm, from §3.1's own `اعتماد` family — so the
+person and the act they perform share a root, the way `المراجع`/`مراجعة` already do on the review
+side. Note the vowel: `المعتمَد` (fatḥa) would mean the thing that was approved.
+
+The handover reason is a separate string from the deadline reason (`سبب النقل` against
+`سبب التغيير`) rather than a shared "reason": both appear on the same screen, and in English the two
+had to be distinguished for the same reason — one accessible name cannot belong to two fields.
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `rfq.fields.owner` | Owner | المسؤول | [drafted] A-7 |
+| `rfq.unassigned` | Unassigned | غير مُسند | [drafted] |
+| `rfq.ownerFilter.label` | Filter by owner | تصفية حسب المسؤول | [drafted] |
+| `rfq.ownerFilter.me` | Mine | المُسندة إليّ | [drafted] |
+| `rfq.ownerFilter.unassigned` | Unassigned | غير مُسندة | [drafted] |
+| `rfq.ownerFilter.empty.me` | No RFQs are assigned to you | لا توجد طلبات مُسندة إليك | [drafted] |
+| `rfq.ownerFilter.empty.unassigned` | Every RFQ has an owner | كل الطلبات مُسندة إلى مسؤول | [drafted] |
+| `rfq.ownership.title` | Ownership | المسؤول عن الطلب | [drafted] |
+| `rfq.ownership.help` | One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail. | يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات. | [drafted] |
+| `rfq.ownership.ownerLabel` | Owner | المسؤول | [drafted] |
+| `rfq.ownership.approverLabel` | Approver | المعتمِد | [drafted] see the note above on the vowel |
+| `rfq.ownership.newOwner` | New owner | المسؤول الجديد | [drafted] |
+| `rfq.ownership.reason` | Reason for the handover | سبب النقل | [drafted] |
+| `rfq.ownership.reassign` | Reassign | نقل المسؤولية | [drafted] |
+| `rfq.ownership.reassigned` | Ownership reassigned | تم نقل المسؤولية | [drafted] |
+| `rfq.ownership.nominateApprover` | Choose an approver | تحديد المعتمِد | [drafted] |
+| `rfq.ownership.anyManager` | Any manager | أي مدير | [drafted] |
+| `NEW_OWNER_REQUIRED` | A new owner must be chosen. | يجب تحديد المسؤول الجديد. | [drafted] §7.2 catalogue |
+| `rfq.reassigned` (notification title) | An RFQ was assigned to you | أُسند إليك طلب | [drafted] |
+| `rfq.reassigned` (notification body) | You are now responsible for RFQ {rfqCode}. Open it to see what it is waiting for. | أصبحت مسؤولاً عن الطلب {rfqCode}. راجعه لمتابعة الخطوة التالية. | [drafted] |

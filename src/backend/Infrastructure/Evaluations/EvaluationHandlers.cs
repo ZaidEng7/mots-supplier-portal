@@ -376,10 +376,11 @@ public sealed class RecuseEvaluatorHandler(AppDbContext db, IScopeContext scope,
         }
 
         // §3.3 has no row for recusal - it is a within-state event, not a transition. Notifying the
-        // officers who own the assignment is the defensible reading, and it is flagged as such in
-        // the catalogue rather than presented as transcribed.
+        // officer who owns the RFQ is the defensible reading, and it is flagged as such in the
+        // catalogue rather than presented as transcribed. A-7 makes "the officer" a person: a
+        // recusal leaves the evaluation short an evaluator, and somebody has to replace them.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorRecused,
-            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.EvaluatorRecused}:{evaluation.Id}:{command.EvaluatorUserId}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
 
@@ -688,7 +689,8 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
         if (evaluation.State == EvaluationState.EvaluatorSubmitted)
         {
             NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorSubmitted,
-                await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+                // A-7: the owner, who is the one who consolidates.
+                await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
                 $"{NotificationTypes.EvaluatorSubmitted}:{evaluation.Id}",
                 new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
         }

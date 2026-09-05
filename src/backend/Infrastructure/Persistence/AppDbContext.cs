@@ -855,6 +855,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(r => r.RowVersion).IsAppManagedVersion();
             entity.HasIndex(r => new { r.OrganizationId, r.State });
             entity.HasIndex(r => r.State);
+            // A-7: "Awaiting my action" and the buyer list's mine/unassigned filter both query on
+            // this beside the organization, which is already the first clause of every dashboard
+            // query - so the composite, not a bare index on the owner.
+            entity.HasIndex(r => new { r.OrganizationId, r.OwnerUserId });
             entity.HasMany(r => r.Items).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Requirements).WithOne().HasForeignKey(q => q.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Attachments).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);

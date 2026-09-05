@@ -8,7 +8,7 @@ import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
   addRfqAttachment, removeRfqAttachment, getRfqAttachmentDownloadUrl,
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
-  changeSubmissionDeadline,
+  changeSubmissionDeadline, reassignRfq, listRfqAssignees,
   inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
   RfqApiError,
 } from '../../api/rfqs'
@@ -32,6 +32,12 @@ export function RfqDetailPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
+  // A-7: the ownership controls. The approver nomination is on the submit-for-review action; the
+  // reassignment is its own card, because it applies at every point in a tender's life rather than
+  // at one transition.
+  const [approverDraft, setApproverDraft] = useState('')
+  const [newOwnerDraft, setNewOwnerDraft] = useState('')
+  const [reassignReason, setReassignReason] = useState('')
   const [deadlineDraft, setDeadlineDraft] = useState('')
   const [deadlineReason, setDeadlineReason] = useState('')
   const [itemTitleAr, setItemTitleAr] = useState('')
@@ -142,8 +148,29 @@ export function RfqDetailPage() {
   })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitRfqForReview(referenceCode),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.submitted') }) },
+    // Empty string means "named nobody", which the server reads as the manager pool - not a defect,
+    // see Rfq.SubmitForReview on why there is no routing rule to fall back on.
+    mutationFn: () => submitRfqForReview(referenceCode, approverDraft || undefined),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.submitted') }); setApproverDraft('') },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
+  })
+
+  // A-7. Fetched for every buyer viewing the RFQ rather than only when a picker opens, because both
+  // pickers need it and neither is behind a click that could prefetch it in time.
+  const assigneesQuery = useQuery({
+    queryKey: ['rfq-assignees', referenceCode],
+    queryFn: () => listRfqAssignees(referenceCode),
+  })
+
+  const reassignMutation = useMutation({
+    mutationFn: () => reassignRfq(referenceCode, newOwnerDraft, reassignReason),
+    onSuccess: () => {
+      invalidate()
+      // The list's owner column and the "mine" filter both read from a different query.
+      invalidateQuietly(queryClient, { queryKey: ['rfqs'] })
+      notify({ kind: 'success', title: t('rfq.ownership.reassigned') })
+      setNewOwnerDraft(''); setReassignReason('')
+    },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
@@ -292,10 +319,27 @@ export function RfqDetailPage() {
             {rfq.referenceCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
           </h1>
           <StatusChip machine="rfq" value={rfq.state} />
+          {/* A-7: who is answerable, on the screen rather than only in the audit trail. */}
+          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.ownership.ownerLabel')}: {rfq.ownerName ?? t('rfq.unassigned')}
+            {rfq.assignedApproverName ? ` · ${t('rfq.ownership.approverLabel')}: ${rfq.assignedApproverName}` : ''}
+          </p>
         </div>
         <div className="flex gap-2">
           {isDraft ? (
-            <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Optional by design: an empty selection submits to the manager pool, exactly as this
+                  transition behaved before A-7. The placeholder says so rather than reading as an
+                  unfilled required field. */}
+              <Select
+                aria-label={t('rfq.ownership.nominateApprover')}
+                placeholder={t('rfq.ownership.anyManager')}
+                value={approverDraft}
+                onValueChange={setApproverDraft}
+                options={(assigneesQuery.data?.approvers ?? []).map((a) => ({ value: a.userId, label: a.fullName }))}
+              />
+              <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
+            </div>
           ) : null}
           {isInternalReview ? (
             <Button isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>{t('rfq.approve')}</Button>
@@ -308,6 +352,43 @@ export function RfqDetailPage() {
           ) : null}
         </div>
       </div>
+
+      {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people
+          do, not when a tender does. Hide-never-gate as everywhere else - the endpoint re-enforces
+          rfq.reassign, which officers do not hold, so an officer sees this card and gets a 403 rather
+          than being told the control does not exist. */}
+      {canCancel ? (
+        <Card title={t('rfq.ownership.title')}>
+          <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.ownership.help')}
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Select
+              aria-label={t('rfq.ownership.newOwner')}
+              placeholder={t('rfq.ownership.newOwner')}
+              value={newOwnerDraft}
+              onValueChange={setNewOwnerDraft}
+              options={(assigneesQuery.data?.owners ?? []).map((o) => ({ value: o.userId, label: o.fullName }))}
+            />
+            {/* Mandatory. The audit row is the whole point of this operation, and a row saying only
+                that ownership moved answers nothing a month later. */}
+            <Input
+              aria-label={t('rfq.ownership.reason')}
+              placeholder={t('rfq.ownership.reason')}
+              value={reassignReason}
+              onChange={(e) => setReassignReason(e.target.value)}
+            />
+            <Button
+              variant="secondary"
+              isLoading={reassignMutation.isPending}
+              disabled={!newOwnerDraft || !reassignReason}
+              onClick={() => reassignMutation.mutate()}
+            >
+              {t('rfq.ownership.reassign')}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
           domain accepts. Same gate as the addendum control above, and for the same reason. */}

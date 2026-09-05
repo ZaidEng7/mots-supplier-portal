@@ -40,15 +40,17 @@ public interface IProcurementDashboardHandler
 /// <summary>
 /// The next action each RFQ state is waiting for, and the permission it needs.
 ///
-/// <para><b>This is what "Awaiting my action" is scoped to, and it is an invention</b> - §10 names
-/// the tile and defines nothing. It cannot be ownership: EPIC-15 established that nothing records
-/// which officer owns an RFQ, so there is no per-user "mine". Falling back to org-wide would make
-/// the tile a duplicate of Active RFQs without saying so, which is the one answer that is definitely
-/// wrong.</para>
+/// <para><b>Half of this tile's definition is an invention and half of it is now ownership.</b> §10
+/// names the tile and defines nothing. Until A-7 nothing recorded which officer owned an RFQ, so
+/// "mine" could only be approximated by permission: an RFQ is awaiting THIS user's action when the
+/// caller holds the permission its current state's next transition requires. That half stays - it is
+/// what makes an officer and a manager see different numbers for the same organization.</para>
 ///
-/// <para>So: an RFQ is awaiting THIS user's action when the caller holds the permission its current
-/// state's next transition requires. An officer and a manager looking at the same organization see
-/// different numbers, which is the property that makes the tile mean anything.</para>
+/// <para><b>A-7 adds the other half:</b> the RFQ also has to be ASSIGNED to the caller - they own it,
+/// or (in InternalReview) the pass named them as its approver. An RFQ with no owner counts for
+/// everyone holding the permission, which is the same fallback
+/// <c>NotificationRecipients.RfqOwnerAsync</c> makes and for the same reason: an unowned RFQ that
+/// appears on nobody's tile is an RFQ nobody is going to pick up. See DECISIONS-TAKEN.md D-38.</para>
 /// </summary>
 public static class AwaitingActionPermissions
 {

@@ -290,9 +290,9 @@ public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IA
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        // §3.4 "PendingApproval -> Approved | In-app to officer".
+        // §3.4 "PendingApproval -> Approved | In-app to officer" - A-7: the RFQ's owner.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardApproved,
-            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.AwardApproved}:{award.Id}:{award.RecommendationRevision}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
 
@@ -325,10 +325,11 @@ public sealed class RejectAwardHandler(AppDbContext db, IScopeContext scope, IAu
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        // §3.4 "PendingApproval -> Rejected | In-app to officer". The rejection REASON stays out of
-        // the payload and out of the words (BRULE-091); the officer reads it on the award screen.
+        // §3.4 "PendingApproval -> Rejected | In-app to officer" - A-7: the RFQ's owner. The
+        // rejection REASON stays out of the payload and out of the words (BRULE-091); the officer
+        // reads it on the award screen.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardRejected,
-            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.AwardRejected}:{award.Id}:{award.RecommendationRevision}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["awardId"] = award.Id.ToString() });
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest } from '../../test/renderPage'
 import type { Rfq, RfqState } from '../../api/rfqs'
 import type { Evaluation } from '../../api/evaluations'
 import type { Workspace } from '../../api/workspace'
@@ -20,6 +20,9 @@ function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
     publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
     evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
     items: [], requirements: [], attachments: [], approvals: [], invitations: [], clarifications: [], addenda: [],
+    // A-7: unowned by default, which is what every RFQ created before ownership existed looks like -
+    // so the tests below exercise the fallback path unless a case sets it.
+    ownerUserId: null, ownerName: null, assignedApproverUserId: null, assignedApproverName: null,
     ...overrides,
   }
 }
@@ -41,6 +44,12 @@ const REFERENCE_ROUTES = {
   // returned here instead (breaking candidates.filter() / workspace's own shape).
   '/api/v1/rfqs/RFQ-2026-000001/invitations/candidates': [],
   '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture(),
+  // A-7: the two assignment pickers ask for this on every buyer view of an RFQ, so it belongs in the
+  // shared routes rather than in the tests that happen to click one.
+  '/api/v1/rfqs/RFQ-2026-000001/assignees': {
+    owners: [{ userId: 'u-officer-2', fullName: 'Second Officer' }],
+    approvers: [{ userId: 'u-manager-1', fullName: 'A Manager' }],
+  },
   '/api/v1/reference/categories': [{ code: 'consulting', nameAr: 'استشارات', nameEn: 'Consulting' }],
   '/api/v1/reference/units-of-measure': [{ code: 'each', nameAr: 'وحدة', nameEn: 'Each' }],
   '/api/v1/evaluation-templates': [{ id: 'tpl-1', familyId: 'fam-1', version: 2, nameAr: 'قالب', nameEn: 'Standard', status: 'Active', isReferenced: false, criteria: [] }],
@@ -473,5 +482,78 @@ describe('RfqDetailPage', () => {
     await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith('/deadline'))).toBe(true))
     const sent = JSON.parse(calls.find((c) => c.url.endsWith('/deadline'))!.body)
     expect(sent.reason).toBe('The Ministry extended the tender period.')
+  })
+
+  it('names the owner on the screen, and says "Unassigned" when there is none', async () => {
+    // A-7. Who is answerable belongs where the work is, not only in the audit trail.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', { ownerUserId: 'u-1', ownerName: 'An Officer' }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText(/Owner: An Officer/)).toBeInTheDocument()
+  })
+
+  it('says "Unassigned" for an RFQ that predates ownership', async () => {
+    // The control for the test above: the same element, the fallback wording. Every RFQ created before
+    // A-7 looks exactly like this fixture's default.
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText(/Owner: Unassigned/)).toBeInTheDocument()
+  })
+
+  it('sends the new owner and the reason, and will not reassign without both', async () => {
+    const calls: RecordedRequest[] = []
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001/reassign': rfqFixture('Draft', { ownerUserId: 'u-officer-2', ownerName: 'Second Officer' }),
+    }, calls)
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('combobox', { name: 'New owner' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Second Officer' }))
+
+    // Still disabled: an owner without a stated reason is the audit row this operation exists for,
+    // written empty.
+    expect(screen.getByRole('button', { name: 'Reassign' })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText('Reason for the handover'), 'The first officer is on leave.')
+    await userEvent.click(screen.getByRole('button', { name: 'Reassign' }))
+
+    await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith('/reassign'))).toBe(true))
+    const sent = JSON.parse(calls.find((c) => c.url.endsWith('/reassign'))!.body)
+    expect(sent).toMatchObject({ newOwnerUserId: 'u-officer-2', reason: 'The first officer is on leave.' })
+  })
+
+  it('submits for review with the nominated approver, and without one when none is chosen', async () => {
+    const calls: RecordedRequest[] = []
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001/submit-review': rfqFixture('InternalReview'),
+    }, calls)
+
+    renderPage(<RfqDetailPage />)
+
+    // The control first: submitting with nothing chosen sends null, which the server reads as the
+    // manager pool - the behaviour every caller written before A-7 relied on.
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit for review' }))
+    await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith('/submit-review'))).toBe(true))
+    expect(JSON.parse(calls.find((c) => c.url.endsWith('/submit-review'))!.body).assignedApproverUserId).toBeNull()
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Choose an approver' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'A Manager' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit for review' }))
+
+    await vi.waitFor(() => {
+      const bodies = calls.filter((c) => c.url.endsWith('/submit-review')).map((c) => JSON.parse(c.body))
+      expect(bodies.some((b) => b.assignedApproverUserId === 'u-manager-1')).toBe(true)
+    })
   })
 })

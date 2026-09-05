@@ -10,7 +10,7 @@ which the whole set can be ratified or renamed, rather than each name staying pr
 forever. A permission held by NO role is reachable by nobody, and one gating NO route is
 either dead or waiting for a surface — both are called out below.
 
-51 permissions, 8 roles.
+52 permissions, 8 roles.
 
 | Permission | Held by default | Gates |
 |---|---|---|
@@ -52,7 +52,8 @@ either dead or waiting for a surface — both are called out below.
 | `rfq.edit` | `procurement_officer`, `system_admin` | `AddRequirement`, `AddRfqAttachment`, `AddRfqItem`, `BindEvaluationTemplate`, `RemoveRequirement`, `RemoveRfqAttachment`, `RemoveRfqItem`, `UpdateRfqBasics` |
 | `rfq.invite` | `procurement_officer`, `system_admin` | `InviteSupplier`, `SuggestInvitationCandidates` |
 | `rfq.publish` | `procurement_manager`, `procurement_officer`, `system_admin` | `PublishRfq` |
-| `rfq.read` | `procurement_manager`, `procurement_officer`, `supplier_admin`, `supplier_user`, `system_admin` | `GetRfq`, `GetRfqAttachmentDownloadUrl`, `GetWorkspace`, `ListRfqs`, `ProcurementDashboard` |
+| `rfq.read` | `procurement_manager`, `procurement_officer`, `supplier_admin`, `supplier_user`, `system_admin` | `GetRfq`, `GetRfqAttachmentDownloadUrl`, `GetWorkspace`, `ListRfqAssignees`, `ListRfqs`, `ProcurementDashboard` |
+| `rfq.reassign` | `procurement_manager`, `system_admin` | `ReassignRfq` |
 | `rfq.review` | `procurement_manager`, `system_admin` | `ReturnRfqForEdits` |
 | `rfq.submit_review` | `procurement_officer`, `system_admin` | `SubmitRfqForReview` |
 | `supplier.approve` | `onboarding_reviewer`, `system_admin` | `ApproveApplication` |
@@ -73,8 +74,8 @@ either dead or waiting for a surface — both are called out below.
 | `evaluator` | `evaluation.score`, `evaluation.submit`, `rfq.clarify` |
 | `ministry_viewer` | `governance.read` |
 | `onboarding_reviewer` | `supplier.approve`, `supplier.document.review`, `supplier.lifecycle.manage`, `supplier.reject`, `supplier.requestInfo`, `supplier.review` |
-| `procurement_manager` | `award.approve`, `award.recommend`, `award.reject`, `comparison.view`, `evaluation.assign`, `evaluation.consolidate`, `evaluation.finalize`, `evaluation.open`, `evaluation.reopen`, `evaluation.template.manage`, `offering.search`, `report.read`, `rfq.approve`, `rfq.cancel`, `rfq.deadline.shorten`, `rfq.publish`, `rfq.read`, `rfq.review`, `supplier.lifecycle.manage` |
+| `procurement_manager` | `award.approve`, `award.recommend`, `award.reject`, `comparison.view`, `evaluation.assign`, `evaluation.consolidate`, `evaluation.finalize`, `evaluation.open`, `evaluation.reopen`, `evaluation.template.manage`, `offering.search`, `report.read`, `rfq.approve`, `rfq.cancel`, `rfq.deadline.shorten`, `rfq.publish`, `rfq.read`, `rfq.reassign`, `rfq.review`, `supplier.lifecycle.manage` |
 | `procurement_officer` | `award.recommend`, `clarification.answer`, `comparison.view`, `evaluation.consolidate`, `evaluation.open`, `offering.search`, `rfq.addendum`, `rfq.clarify`, `rfq.close`, `rfq.create`, `rfq.edit`, `rfq.invite`, `rfq.publish`, `rfq.read`, `rfq.submit_review` |
 | `supplier_admin` | `proposal.create`, `proposal.decline`, `proposal.edit`, `proposal.submit`, `proposal.withdraw`, `rfq.read`, `supplier.bankAccount.manage`, `supplier.edit`, `supplier.submit`, `supplier.user.manage` |
 | `supplier_user` | `proposal.create`, `proposal.edit`, `rfq.read`, `supplier.edit` |
-| `system_admin` | `admin.organizations.manage`, `admin.roles.manage`, `admin.users.manage`, `audit.read`, `award.approve`, `award.recommend`, `award.reject`, `clarification.answer`, `comparison.view`, `evaluation.assign`, `evaluation.consolidate`, `evaluation.finalize`, `evaluation.open`, `evaluation.reopen`, `evaluation.score`, `evaluation.submit`, `evaluation.template.manage`, `governance.read`, `integration.retry`, `offering.search`, `proposal.create`, `proposal.decline`, `proposal.edit`, `proposal.revise`, `proposal.submit`, `proposal.withdraw`, `reference.manage`, `report.read`, `rfq.addendum`, `rfq.approve`, `rfq.cancel`, `rfq.clarify`, `rfq.close`, `rfq.create`, `rfq.deadline.shorten`, `rfq.edit`, `rfq.invite`, `rfq.publish`, `rfq.read`, `rfq.review`, `rfq.submit_review`, `supplier.approve`, `supplier.bankAccount.manage`, `supplier.document.review`, `supplier.edit`, `supplier.lifecycle.manage`, `supplier.reject`, `supplier.requestInfo`, `supplier.review`, `supplier.submit`, `supplier.user.manage` |
+| `system_admin` | `admin.organizations.manage`, `admin.roles.manage`, `admin.users.manage`, `audit.read`, `award.approve`, `award.recommend`, `award.reject`, `clarification.answer`, `comparison.view`, `evaluation.assign`, `evaluation.consolidate`, `evaluation.finalize`, `evaluation.open`, `evaluation.reopen`, `evaluation.score`, `evaluation.submit`, `evaluation.template.manage`, `governance.read`, `integration.retry`, `offering.search`, `proposal.create`, `proposal.decline`, `proposal.edit`, `proposal.revise`, `proposal.submit`, `proposal.withdraw`, `reference.manage`, `report.read`, `rfq.addendum`, `rfq.approve`, `rfq.cancel`, `rfq.clarify`, `rfq.close`, `rfq.create`, `rfq.deadline.shorten`, `rfq.edit`, `rfq.invite`, `rfq.publish`, `rfq.read`, `rfq.reassign`, `rfq.review`, `rfq.submit_review`, `supplier.approve`, `supplier.bankAccount.manage`, `supplier.document.review`, `supplier.edit`, `supplier.lifecycle.manage`, `supplier.reject`, `supplier.requestInfo`, `supplier.review`, `supplier.submit`, `supplier.user.manage` |

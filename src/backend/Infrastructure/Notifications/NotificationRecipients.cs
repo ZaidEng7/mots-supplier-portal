@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Notifications;
@@ -11,12 +12,16 @@ namespace MotsSupplierPortal.Infrastructure.Notifications;
 /// "notify the officer" are different sets, and the table says which for every transition - so each
 /// method here corresponds to a phrase in that column rather than to a convenient query.</para>
 ///
-/// <para><b>Two of them are pools rather than individuals, and that is a known gap, not a
-/// choice.</b> Nothing in the domain records WHICH officer owns an RFQ (there is no
-/// CreatedByUserId), and nothing resolves a single named approver from the AwardApprove role claim.
-/// Both notify the whole role-and-organization pool - the same answer
-/// ReviewApplicationHandlers.GetReviewerPoolUserIdsAsync already gives for onboarding review, for
-/// the same reason. Reported as an open business question rather than resolved by invention.</para>
+/// <para><b>A-7 closed the officer half of what used to be a known gap here.</b> "Notify the officer"
+/// resolved to the whole role-and-organization pool, because nothing recorded which officer owned an
+/// RFQ. <c>Rfq.OwnerUserId</c> now does, and <see cref="RfqOwnerAsync"/> resolves the phrase to that
+/// person - falling back to the pool only when the RFQ predates ownership or its owner is no longer
+/// an active user, because an RFQ nobody is told about is worse than one the pool is told about.</para>
+///
+/// <para><b>Award approval is still a pool, deliberately.</b> <see cref="AwardApproversAsync"/> is
+/// §3.4's "approver(s)" on the AWARD chain, and which manager an award routes to is BRULE-072/074's
+/// amount-threshold question - undecided (OQ-004, T-075). Naming one here would invent the routing
+/// rule rather than record a decision, so it stays the pool and stays reported.</para>
 /// </summary>
 public static class NotificationRecipients
 {
@@ -38,9 +43,50 @@ public static class NotificationRecipients
     public static Task<List<Guid>> ProcurementManagersAsync(AppDbContext db, Guid organizationId, CancellationToken ct) =>
         InRoleForOrganization(db, Roles.ProcurementManager, organizationId).Distinct().ToListAsync(ct);
 
-    /// <summary>§3.1 "In-app to officer" - the pool, see the class note.</summary>
+    /// <summary>§3.1 "In-app to officer" as a POOL. Kept for the fallback below and for callers that
+    /// genuinely mean every officer; a rule about "the officer" wants <see cref="RfqOwnerAsync"/>.</summary>
     public static Task<List<Guid>> ProcurementOfficersAsync(AppDbContext db, Guid organizationId, CancellationToken ct) =>
         InRoleForOrganization(db, Roles.ProcurementOfficer, organizationId).Distinct().ToListAsync(ct);
+
+    /// <summary>
+    /// A-7: §3.1's "the officer" as a PERSON - the officer who owns this RFQ.
+    ///
+    /// <para><b>Two fallbacks to the pool, both deliberate.</b> An RFQ created before A-7 has no
+    /// owner, and an owner whose account has since been deactivated cannot read a notification. In
+    /// either case the alternative to the pool is nobody, and a transition in a live tender that
+    /// notifies nobody is the failure this whole ruling exists to prevent - so the fallback is
+    /// wider-than-ideal on purpose rather than silent.</para>
+    /// </summary>
+    public static async Task<List<Guid>> RfqOwnerAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
+    {
+        if (rfq.OwnerUserId is { } ownerUserId)
+        {
+            var ownerIsUsable = await db.Users
+                .AnyAsync(u => u.Id == ownerUserId && u.IsActive, ct);
+            if (ownerIsUsable) return [ownerUserId];
+        }
+
+        return await ProcurementOfficersAsync(db, rfq.OrganizationId, ct);
+    }
+
+    /// <summary>
+    /// A-7: §3.1's "the approver" as a person - the manager the current review pass was assigned to.
+    ///
+    /// <para>Falls back to the manager pool when the pass named nobody, which is the normal case
+    /// while approval routing is undecided (see <c>Rfq.SubmitForReview</c>), and when the named
+    /// approver's account is no longer active.</para>
+    /// </summary>
+    public static async Task<List<Guid>> RfqApproverAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
+    {
+        var assigned = rfq.Approvals.LastOrDefault(a => a.Decision is null)?.AssignedApproverUserId;
+        if (assigned is { } approverUserId)
+        {
+            var approverIsUsable = await db.Users.AnyAsync(u => u.Id == approverUserId && u.IsActive, ct);
+            if (approverIsUsable) return [approverUserId];
+        }
+
+        return await ProcurementManagersAsync(db, rfq.OrganizationId, ct);
+    }
 
     /// <summary>
     /// §3.1 "committee" - the officers and managers of the RFQ's own organization.
