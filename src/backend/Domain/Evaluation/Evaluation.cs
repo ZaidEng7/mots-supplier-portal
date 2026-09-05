@@ -337,8 +337,25 @@ public sealed class Evaluation : IVersionedAggregate
             });
         }
 
+        // BRULE-069's tie-break, first rung. Ordering by WeightedTotal ALONE left ties resolved by
+        // whatever order the score rows happened to iterate in, so two proposals with identical totals
+        // got ranks 1 and 2 arbitrarily - and rank 1 is what the award flow offers. In a government
+        // tender that is the kind of ordering that gets challenged, and nothing in the record would
+        // explain it.
+        //
+        // BRULE-069 names three rungs: highest technical score, then lowest compliant price, then
+        // earliest submission. Only the FIRST is implementable here - this method has the scores and
+        // nothing else, no price and no submission time - so the remaining ties fall to the proposal's
+        // own identifier, which is at least stable across re-consolidations of the same data. The last
+        // two rungs need bid data passed in and are sized as T-085 rather than guessed at: reading
+        // "lowest price" off the financial weighted score assumes that score is inverse to price, and
+        // no document says it is.
         var rank = 1;
-        foreach (var result in provisional.Where(r => r.TechnicallyQualified).OrderByDescending(r => r.WeightedTotal))
+        foreach (var result in provisional
+            .Where(r => r.TechnicallyQualified)
+            .OrderByDescending(r => r.WeightedTotal)
+            .ThenByDescending(r => r.TechnicalWeightedScore)
+            .ThenBy(r => r.ProposalId))
         {
             result.Rank = rank++;
         }

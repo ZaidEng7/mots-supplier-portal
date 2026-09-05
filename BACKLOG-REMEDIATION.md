@@ -264,6 +264,8 @@ machine is **reachability**, and applying it produced the largest finding here (
 | ~~T-061~~ | FR-ADM-007 | **Closed (batch 9 send 5) for the 29 in-app notification texts; the 11 email bodies are split out as T-076.** `NotificationTemplate` + `GET/PUT/DELETE /api/v1/admin/notification-templates` + SCR-715 at `/back-office/notification-templates`. An **override**, not a replacement: the shipped `NotificationCatalogue.jsonc` stays the default and the fallback, so no deployment's wording changes until somebody changes it, and DELETE restores the shipped words — which is why a delete exists here and does not on reference data (D-28: a reference code is a foreign key in live rows, an override is a layer over something still underneath it). **Token safety is the substance**: a template may use any subset of the tokens its type's shipped copy names and no others (D-34), because a token the payload cannot fill reaches the supplier as the literal characters `{price}` mid-sentence and cannot be diagnosed from the notification row; the refusal names the offending tokens. Both locales are required — an Arabic-only title renders blank for an English user. The screen shows the shipped words beside the current ones so revert is not guesswork. **Found a live defect in T-030's version bump while building this**: `BumpTouchedVersionedRoots` forced `State = Modified` on a *deleted* root, turning every DELETE of a versioned aggregate into an UPDATE — the row survived and the caller was told it was removed. Fixed, with its own regression test | `NotificationTemplate.cs`, `NotificationTemplateEndpoints.cs`, `NotificationTemplatesPage.tsx` | Reproduced | L |
 | ~~T-062~~ | FR-DSH-006 | **Closed (batch 9 send 5).** SCR-700 at `/back-office/admin` behind `admin.users.manage`, plus `GET /api/v1/admin/overview`: users by role, reference-table health, outbox pending/failed/oldest-pending age, recurring-job health and audit rows in the last 24 hours. `system_admin` previously had no landing page at all — it could reach staff, roles and reference data only by typing URLs. Three deliberate shapes: the outbox age is **null, not zero, when nothing is pending** (an empty queue and a queue whose head arrived this second are different facts, and only one of them can be stuck); the jobs tile reads `Jobs:EnableRecurring` and the actual Hangfire registration separately, because the flag being off explains every missing id at once and today announces itself only in one startup log line; and a reference table at zero active codes is called out by name, because it blocks registration and nothing else in the product says so. Path prefix: SCREEN-INVENTORY writes SCR-700 as `/admin`; this app keeps every staff screen under `/back-office`, the same disagreement already reported for SCR-400/500 and reports | `AdminOverviewEndpoints.cs`, `GetAdminOverviewHandler.cs`, `AdminOverviewPage.tsx` | Reproduced | L |
 | T-076 | FR-ADM-007 | **The 11 transactional EMAIL bodies**, split out of T-061. `EmailTemplates.cs` is C# interpolation with typed arguments, not a data catalogue, and each body carries a REQUIRED token — a verification link, a reset link — whose omission would lock an applicant out rather than merely read badly. Making them admin-editable needs a per-template required-token contract that the in-app catalogue does not need and cannot supply. Not started | `EmailTemplates.cs` | Reproduced | M |
+| T-085 | BRULE-069 | **The last two tie-break rungs.** `Evaluation.Consolidate()` takes no arguments and has only the scores, so "lowest compliant price" and "earliest submission" need bid data passed in. Reading price off the financial weighted score assumes that score is inverse to price and no document says it is. The first rung and a deterministic residual landed in batch 9; the ORDER itself is `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]` (D-36) | `Evaluation.cs:340` | Reproduced | M |
+| T-086 | BRULE-052, BRULE-056 | **Proposals have no terminal "not considered" state, so two rules cannot be enforced.** A `Draft` proposal survives the submission window forever, and a `Submitted` proposal survives its RFQ's cancellation as `Submitted` — and BRULE-056 carries no assumption tag, so that half is a confirmed rule going unenforced. One item because both need the same `ProposalState` member. **Widening that enum means enumerating every consumer** — the status chips and their i18n, the dashboard counts, the governance `State != Draft` predicate, the comparison matrix's inclusion test, and the `(RfqId, SupplierId)` unique index's `State <> 'Withdrawn'` filter, which would need the new state too. Found by the phase 12b BRULE re-sweep | `RfqTimelineJob.cs`, `RfqHandlers.cs:775` | Reproduced | M |
 | T-077 | SCR-701, SCR-702 | **Staff user management, both rows P0, and the endpoints do not exist either.** `POST /api/v1/staff/invite` and `POST /api/v1/staff/accept-invite` are the only staff routes: there is no list, no detail, no role change, no deactivation and no MFA reset. `system_admin` can create a staff account and then never administer it. SCR-700 counts users by role, so the data is there and only the surface is not. Found by the phase 12a per-screen sweep | `StaffEndpoints.cs`, `StaffPage.tsx` | Reproduced | L |
 | T-078 | SCR-433 | **`POST /api/v1/proposals/{code}/request-clarification` is reachable by nothing.** The endpoint exists, is permissioned, and no screen or API-client function calls it — the same shape as T-067: the rule permits the action and no surface reaches it. A buyer cannot ask a bidder to clarify without using the API directly. Found by the phase 12a per-screen sweep | `ProposalEndpoints.cs:383` | Reproduced | M |
 | T-079 | SCR-720 | **Three audit endpoints, no screen.** `GET /api/v1/audit/{aggregateId}`, `GET /api/v1/suppliers/me/audit` and its CSV export are all unreferenced by the SPA. The last of the three is supplier-facing, so a compliance affordance ships unreachable. Found by the phase 12a per-screen sweep | `AuditEndpoints.cs` | Reproduced | M |
@@ -357,6 +359,42 @@ an expired token, or a used invitation. The e2e axe sweep renders all of them, s
 `ResetPasswordPage` is the extreme case: it shows zero matches for loading, error, and validation
 handling of any kind.
 
+### `BRULE-*` — re-swept (batch 9 phase 12b)
+
+**Method, and why citation counting would have been the wrong instrument.** 51 of the 100 rules are
+cited by id somewhere in `src/`. The other 49 were verified **by mechanism** — reading the domain
+guard, the row-scope predicate, the DB constraint or the job that would have to be the enforcement —
+because uncited is not a gap: `BRULE-046` (late submissions rejected) carries no citation and is
+enforced by an exact `DateTimeOffset.UtcNow >= submissionCloseAt` throw inside `Proposal.Submit`.
+
+**45 of the 49 are enforced.** Spot-checked mechanisms, to show what "verified" meant here: the
+`(RfqId, SupplierId)` unique index with its `State <> 'Withdrawn'` filter (BRULE-042/048); the
+`0 .. MaxScore` throw in `ScoreCriterion` (BRULE-060) and its assignment gate (BRULE-059); the
+supplier-facing RFQ query excluding `Draft`/`InternalReview`/`Approved` (BRULE-093); `LineTotal` as a
+computed property with no setter (BRULE-055); `TYPE-YEAR-NNNNNN` from the atomic allocator
+(BRULE-040); `bank_account_revealed` audited on every reveal (BRULE-090); every timestamp column
+`timestamp with time zone` (BRULE-100).
+
+**The four that are not, and what each costs:**
+
+| Rule | Status | Finding |
+|---|---|---|
+| **BRULE-069** ranking tie-breaks | **Was a live defect. Fixed in this batch.** | `Consolidate` ordered by `WeightedTotal` alone, so two proposals with identical totals took ranks 1 and 2 in whatever order the score rows iterated — and rank 1 is what the award flow offers. The document's own first rung (highest technical score) is now applied, with the proposal id as a stable residual; the ranking is deterministic and reproducible across re-consolidations, which it was not. The remaining two rungs need bid data this method does not receive — **T-085** — and the tie-break ORDER is itself `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`, so inventing them would be inventing policy (D-36) |
+| **BRULE-056** cancelled RFQ closes its proposals | **Half-enforced, and it carries NO assumption tag** — a confirmed rule | Cancellation refuses a post-Award state, requires a reason, and notifies every invitee and evaluator. It does **not** move the proposals: a `Submitted` proposal on a cancelled RFQ stays `Submitted` forever. **T-086** |
+| **BRULE-052** unsubmitted drafts auto-lapse | Not enforced (`[ASSUMPTION]`) | Nothing lapses a `Draft` proposal when the window closes; `RfqTimelineJob` transitions the RFQ and touches no proposal. Same missing terminal state as BRULE-056, so they are one item — **T-086** |
+| **BRULE-015** only representatives may sign | Half-enforced | `Representative` requires a name and email, so the contact half holds. There is **no signatory concept anywhere** — a proposal is submitted by a user, not signed by a representative. Recorded as an open question rather than a defect: nothing in the documents describes what signing would mean here, and no e-signature mechanism is specified |
+
+**Three more are undecided policy rather than gaps**, and their own Notes columns say so:
+BRULE-070 (recommender must not have scored — `[ASSUMPTION]`, unenforced), BRULE-074 (approval
+authority limits — bands `[ASSUMPTION]`; this is T-075, the same item T-060 declined to absorb) and
+BRULE-080 (split awards — `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`).
+
+**One is enforced vacuously and worth naming as such.** BRULE-011 says a supplier's `ExternalId` is
+assigned only after approval and a successful ERP ACK. `Supplier.MarkSynced` exists and **nothing calls
+it**, because `IOutboxTransport`'s only implementation is `LoggingOutboxTransport` — there is no real
+ERP adapter, so there is no ACK and `ExternalId` is always null. The rule cannot be violated, which is
+not the same as being satisfied.
+
 ### §12.4 / §12.5 — riding with R-9, or independent
 
 R-9 rules that §12.2's names are authoritative and the DTOs rename to match.
@@ -411,8 +449,9 @@ whole file the balance is now roughly 37 reproduced to 15 inferred, with 1 uncon
   components are above. It found two unreachable endpoint families (RFQ attachments, fixed in the
   same batch; proposal clarification and audit, sized as T-078/T-079) and two P0 screens whose
   endpoints do not exist either (T-077).
-- **`BRULE-*` was not re-swept.** Batch 2 covered it; nothing since has re-verified those 100 rules
-  against five epics of subsequent change.
+- ~~**`BRULE-*` was not re-swept.**~~ **Re-swept in batch 9 (phase 12b).** All 100 rules; the section
+  below carries the method and the four findings. It found one live defect (non-deterministic ranking
+  on a tied total, fixed in the same batch) and three half-enforced rules.
 - **The frontend was not swept for anything.** No component, i18n, or accessibility conformance check
   has ever run item by item.
 - **§12.1 (Auth) response bodies** were never swept. §12.2 through §12.5 now have been. That is the

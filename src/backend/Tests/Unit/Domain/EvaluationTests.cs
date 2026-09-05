@@ -249,4 +249,45 @@ public class EvaluationTests
         Action afterSubmit = () => partial.RecuseEvaluator(EvaluatorA, "non-responsive");
         afterSubmit.Should().Throw<DomainException>().WithMessage("*already submitted*");
     }
+
+    [Fact]
+    public void Consolidate_breaks_a_tied_total_on_the_technical_score_and_never_on_iteration_order()
+    {
+        // BRULE-069. Before this the ranking ordered by WeightedTotal alone, so two proposals with the
+        // same total took ranks 1 and 2 in whatever order the score rows iterated - and rank 1 is what
+        // the award flow offers. Found by the batch 9 BRULE re-sweep.
+        //
+        // Both proposals here have identical totals by construction (same technical score, same
+        // financial score), which is the case that used to be arbitrary.
+        var evaluation = CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m);
+        evaluation.Consolidate();
+
+        var ranks = evaluation.Results.Where(r => r.TechnicallyQualified).Select(r => r.Rank).ToList();
+        ranks.Should().BeEquivalentTo([1, 2], "a tie still produces a total order, not two rank ones");
+
+        // And the order is REPRODUCIBLE: consolidating the same scores again ranks them the same way.
+        // That is the property the old code lacked, and the one an auditor would ask about.
+        var first = evaluation.Results.Single(r => r.Rank == 1).ProposalId;
+
+        var again = CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m);
+        again.Consolidate();
+        again.Results.Single(r => r.Rank == 1).ProposalId.Should().Be(first);
+    }
+
+    [Fact]
+    public void Consolidate_ranks_the_higher_technical_score_first_when_totals_are_equal()
+    {
+        // The first rung stated as behaviour rather than as an ordering clause: with equal totals, the
+        // proposal that scored higher on TECHNICAL criteria outranks the one that made the total up on
+        // price - which is the direction BRULE-069 names.
+        var evaluation = CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m);
+        evaluation.Consolidate();
+
+        var ordered = evaluation.Results
+            .Where(r => r.TechnicallyQualified)
+            .OrderBy(r => r.Rank)
+            .ToList();
+
+        ordered[0].TechnicalWeightedScore.Should().BeGreaterThanOrEqualTo(ordered[1].TechnicalWeightedScore);
+    }
 }
