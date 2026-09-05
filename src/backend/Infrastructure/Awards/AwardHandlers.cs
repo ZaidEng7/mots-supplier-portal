@@ -76,6 +76,17 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
         {
             return new AwardMutationResult.InvalidState("Cannot recommend this proposal: it did not pass technical qualification in the finalized evaluation.");
         }
+
+        // A-1/BRULE-069: an unresolved tie at the TOP of the ranking blocks a recommendation, because
+        // the ordering between the tied bids came from nothing a rule decided. Checked on rank 1
+        // rather than on the recommended proposal: recommending the loser of an unresolved tie is the
+        // same problem wearing different clothes, and both are refused until a person has put their
+        // name to the ordering.
+        if (evaluation.Results.Any(r => r.TieUnresolved && r.Rank == 1))
+        {
+            return new AwardMutationResult.InvalidState(
+                "Cannot recommend an award: the top of the ranking is a tie that no tie-break rule resolved. Resolve it with a reason first.");
+        }
         var proposal = await db.Proposals.FirstOrDefaultAsync(p => p.Id == command.WinningProposalId && p.RfqId == rfq.Id, ct);
         // T-051: proposals now reach UnderReview and Shortlisted, so eligibility can no longer mean
         // "still Submitted" - that predicate was written when the middle of the lifecycle was

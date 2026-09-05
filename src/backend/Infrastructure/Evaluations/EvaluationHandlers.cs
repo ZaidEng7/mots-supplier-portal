@@ -24,7 +24,7 @@ internal static class EvaluationDtoMapper
         evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
         [.. evaluation.Criteria.Select(ToCriterionDto)],
         [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(a.EvaluatorUserId, a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
-        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank))],
+        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
         evaluation.RowVersion);
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
@@ -340,9 +340,27 @@ public sealed class ConsolidateEvaluationHandler(AppDbContext db, IScopeContext 
         var (rfq, evaluation) = loaded.Value;
 
         var existingResultIds = evaluation.Results.Select(r => r.Id).ToHashSet();
+
+        // A-1/BRULE-069: the two tie-break rungs the scores cannot supply. Loaded here because the
+        // aggregate has no access to proposals, and materialised before summing because a SQL SUM over
+        // a computed property does not translate (the lesson from EPIC-18's awarded-value tile).
+        //
+        // Reading the commercial total at CONSOLIDATION is not a two-envelope breach: OQ-009's seal is
+        // between the technical and commercial envelopes DURING scoring, and consolidation is where
+        // the financial dimension is deliberately brought in.
+        var bids = await db.Proposals
+            .Where(p => p.RfqId == rfq.Id)
+            .Select(p => new { p.Id, p.SubmittedAt, Items = p.Items.Select(i => new { i.Quantity, i.UnitPrice, i.Discount }).ToList() })
+            .ToListAsync(ct);
+        var bidFacts = bids.ToDictionary(
+            b => b.Id,
+            b => new Domain.Evaluation.Evaluation.BidTieBreakFacts(
+                b.Items.Count == 0 ? null : b.Items.Sum(i => (i.Quantity * i.UnitPrice) - (i.Discount ?? 0m)),
+                b.SubmittedAt));
+
         try
         {
-            evaluation.Consolidate();
+            evaluation.Consolidate(bidFacts);
         }
         catch (DomainException ex)
         {
@@ -619,5 +637,50 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.EvaluatorSubmitted), ct: ct);
         await db.SaveChangesAsync(ct);
         return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
+    }
+}
+
+/// <summary>
+/// A-1/BRULE-069: resolves a tie that survived every tie-break rung.
+///
+/// <para>`evaluation.consolidate` rather than a new permission: this is the same act as producing the
+/// ranking - the officer who consolidated is the one who can see the tie and is accountable for the
+/// order. A new permission would be a new thing to grant on every deployment for no additional
+/// separation.</para>
+/// </summary>
+public sealed class ResolveEvaluationTieHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IResolveEvaluationTieHandler
+{
+    public async Task<EvaluationMutationResult> HandleAsync(ResolveEvaluationTieCommand command, CancellationToken ct)
+    {
+        var loaded = await EvaluationLoader.LoadScopedByOrgAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded is null) return new EvaluationMutationResult.NotFoundOrOutOfScope();
+        var (rfq, evaluation) = loaded.Value;
+
+        // The public code resolves to the internal id here, inside the boundary, and only within this
+        // RFQ - so a code from another tender cannot address this evaluation's results.
+        var proposalId = await db.Proposals
+            .Where(p => p.RfqId == rfq.Id && p.ReferenceCode == command.ProposalCode)
+            .Select(p => (Guid?)p.Id)
+            .FirstOrDefaultAsync(ct);
+        if (proposalId is null) return new EvaluationMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            evaluation.ResolveTie(proposalId.Value, scope.UserId!.Value, command.Reason);
+        }
+        catch (DomainException ex)
+        {
+            return new EvaluationMutationResult.InvalidState(ex.Message);
+        }
+
+        // The reason IS the record here - a tie broken by a person with no stated basis is exactly what
+        // A-1 refuses to let the SYSTEM do, so it must not be what the person does either.
+        await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_tie_resolved", scope.UserId,
+            referenceCode: rfq.ReferenceCode, reason: command.Reason,
+            changes: $"{{\"proposalCode\":\"{command.ProposalCode}\"}}", ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
     }
 }

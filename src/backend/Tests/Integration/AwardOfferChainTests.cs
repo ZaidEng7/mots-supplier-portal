@@ -5,6 +5,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -219,5 +220,84 @@ public sealed class AwardOfferChainTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "§9.2: out of scope is indistinguishable from a code that does not exist");
         await AssertProposalStateAsync(proposalCode, ProposalState.AwardOffered);
+    }
+
+    [Fact]
+    public async Task An_unresolved_tie_at_the_top_blocks_a_recommendation_until_a_person_resolves_it()
+    {
+        // A-1/BRULE-069. The tie MARKER is set in storage rather than by constructing two bids equal on
+        // every rung through thirty HTTP calls: the ranking arithmetic is unit-tested against a real
+        // tie in EvaluationTests, and what integration adds here is the award gate and the resolve
+        // endpoint. The marker is a precondition, not the assertion.
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "TieGate");
+
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        Guid criterionId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            criterionId = await db.EvaluationCriterionSnapshots
+                .Where(c => c.EvaluationId == seeded.EvaluationId).Select(c => c.Id).FirstAsync();
+        }
+
+        await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new { proposalCode = seeded.ProposalCode, criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        await seeded.Evaluator.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/submit", null);
+        (await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/consolidate", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/finalize", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var top = await db.Set<ConsolidatedResult>()
+                .FirstAsync(r => r.EvaluationId == seeded.EvaluationId && r.Rank == 1);
+            db.Entry(top).Property(nameof(ConsolidatedResult.TieUnresolved)).CurrentValue = true;
+            await db.SaveChangesAsync();
+        }
+
+        var refused = await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
+        {
+            winningProposalId = seeded.ProposalId,
+            justificationAr = "الأفضل", justificationEn = "Best",
+        });
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest, await refused.Content.ReadAsStringAsync());
+        (await refused.Content.ReadAsStringAsync()).Should().Contain("tie");
+
+        // A reason is mandatory: a tie broken with no stated basis is exactly what A-1 refuses to let
+        // the system do, so it must not be what the person does either.
+        (await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/resolve-tie",
+            new { proposalCode = seeded.ProposalCode, reason = "" }))
+            .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var resolve = await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/resolve-tie",
+            new { proposalCode = seeded.ProposalCode, reason = "Prior delivery record on comparable work." });
+        resolve.StatusCode.Should().Be(HttpStatusCode.OK, await resolve.Content.ReadAsStringAsync());
+
+        // Asserted against storage: the marker is cleared and the reason and the resolver are recorded.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var top = await db.Set<ConsolidatedResult>().AsNoTracking()
+                .FirstAsync(r => r.EvaluationId == seeded.EvaluationId && r.Rank == 1);
+            top.TieUnresolved.Should().BeFalse();
+            top.TieResolutionReason.Should().Be("Prior delivery record on comparable work.");
+            top.TieResolvedByUserId.Should().NotBeNull();
+
+            (await db.AuditLogs.AsNoTracking().AnyAsync(a =>
+                a.Action == "evaluation_tie_resolved" && a.ReferenceCode == seeded.RfqCode))
+                .Should().BeTrue("who broke the tie and why is the whole point of surfacing it");
+        }
+
+        // The control: with the tie resolved, the same recommendation now succeeds.
+        var accepted = await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
+        {
+            winningProposalId = seeded.ProposalId,
+            justificationAr = "الأفضل", justificationEn = "Best",
+        });
+        accepted.StatusCode.Should().Be(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
     }
 }

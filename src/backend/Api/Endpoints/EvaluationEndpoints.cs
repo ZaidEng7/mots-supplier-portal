@@ -47,6 +47,19 @@ public sealed class ScoreCriterionRequestValidator : AbstractValidator<ScoreCrit
 /// scoring routes live under /api/v1/rfqs/{referenceCode}/my-evaluation and are scoped to the
 /// caller's own active EvaluationAssignment, never to Organization (see EvaluationLoader's own doc
 /// comment).</summary>
+public sealed record ResolveTieRequest(string ProposalCode, string Reason);
+
+public sealed class ResolveTieRequestValidator : AbstractValidator<ResolveTieRequest>
+{
+    public ResolveTieRequestValidator()
+    {
+        RuleFor(x => x.ProposalCode).NotEmpty();
+        // A tie broken with no stated basis is what A-1 refuses to let the SYSTEM do, so it must not be
+        // what a person does either.
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000);
+    }
+}
+
 public static class EvaluationEndpoints
 {
     private static IResult MapMutation(EvaluationMutationResult result) => result switch
@@ -143,6 +156,25 @@ public static class EvaluationEndpoints
         .RequirePermission(Permissions.EvaluationConsolidate)
         .RequireIfMatch()
         .WithName("ConsolidateEvaluation");
+
+        // A-1/BRULE-069: a person breaks a tie the rules could not. Same permission as consolidating,
+        // because it is the same act - producing the order - and a separate permission would be one
+        // more grant to make on every deployment for no additional separation of duty.
+        group.MapPost("/resolve-tie", async (
+            string referenceCode,
+            ResolveTieRequest request,
+            IValidator<ResolveTieRequest> validator,
+            IResolveEvaluationTieHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapMutation(await handler.HandleAsync(
+                new ResolveEvaluationTieCommand(referenceCode, request.ProposalCode, request.Reason), ct));
+        })
+        .RequirePermission(Permissions.EvaluationConsolidate)
+        .WithName("ResolveEvaluationTie");
 
         group.MapPost("/finalize", async (string referenceCode, IFinalizeEvaluationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new FinalizeEvaluationCommand(referenceCode), ct)))

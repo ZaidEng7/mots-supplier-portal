@@ -13,7 +13,21 @@ public sealed record EvaluationCriterionDto(
 /// <summary>Buyer-facing roster row - never carries a raw score (blind scoring, OQ-005/BRULE-058).</summary>
 public sealed record EvaluationAssignmentDto(Guid EvaluatorUserId, DateTimeOffset AssignedAt, DateTimeOffset? SubmittedAt, DateTimeOffset? RecusedAt, string? RecusalReason);
 
-public sealed record ConsolidatedResultDto(Guid ProposalId, bool TechnicallyQualified, decimal TechnicalWeightedScore, decimal? FinancialWeightedScore, decimal WeightedTotal, int? Rank);
+/// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
+/// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>
+public sealed record ConsolidatedResultDto(
+    Guid ProposalId, bool TechnicallyQualified, decimal TechnicalWeightedScore, decimal? FinancialWeightedScore,
+    decimal WeightedTotal, int? Rank, bool TieUnresolved = false, string? TieResolutionReason = null);
+
+/// <summary>A-1: a person breaks a tie the rules could not, and says why. Addressed by the proposal's
+/// PUBLIC code, not its GUID - §3 keeps internal identifiers out of payloads, and a caller that has
+/// the comparison has the code.</summary>
+public sealed record ResolveEvaluationTieCommand(string RfqReferenceCode, string ProposalCode, string Reason);
+
+public interface IResolveEvaluationTieHandler
+{
+    Task<EvaluationMutationResult> HandleAsync(ResolveEvaluationTieCommand command, CancellationToken ct);
+}
 
 /// <summary>Buyer/manager-facing overview - deliberately excludes every EvaluatorScore row (see
 /// EvaluationAssignmentDto's own doc comment); Results is empty until Consolidate() has run.</summary>

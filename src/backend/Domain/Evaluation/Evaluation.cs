@@ -290,7 +290,17 @@ public sealed class Evaluation : IVersionedAggregate
     /// multiplied by weight, summed. TechnicallyQualified is re-derived from the averaged scores
     /// here - the authoritative, final determination (per-evaluator qualification during scoring
     /// was necessarily provisional, based on one evaluator's view).</summary>
-    public void Consolidate()
+    /// <summary>
+    /// A-1/BRULE-069: the facts a tie-break needs that the scores do not carry.
+    ///
+    /// <para><c>CommercialTotal</c> is the bid's own priced total and <c>SubmittedAt</c> the moment it
+    /// was submitted. Both are passed IN rather than read here because this aggregate has no access to
+    /// proposals, and inferring "lowest price" from the financial weighted score would assume that
+    /// score is inverse to price - which no document states.</para>
+    /// </summary>
+    public sealed record BidTieBreakFacts(decimal? CommercialTotal, DateTimeOffset? SubmittedAt);
+
+    public void Consolidate(IReadOnlyDictionary<Guid, BidTieBreakFacts>? bidFacts = null)
     {
         if (State != EvaluationState.EvaluatorSubmitted)
         {
@@ -337,31 +347,118 @@ public sealed class Evaluation : IVersionedAggregate
             });
         }
 
-        // BRULE-069's tie-break, first rung. Ordering by WeightedTotal ALONE left ties resolved by
-        // whatever order the score rows happened to iterate in, so two proposals with identical totals
-        // got ranks 1 and 2 arbitrarily - and rank 1 is what the award flow offers. In a government
-        // tender that is the kind of ordering that gets challenged, and nothing in the record would
+        // BRULE-069's tie-break, in the document's own order (A-1): highest weighted total, then
+        // highest TECHNICAL score, then lowest commercial total, then earliest submission.
+        //
+        // Ordering by WeightedTotal alone - which is what this did before batch 9 - left ties resolved
+        // by whatever order the score rows happened to iterate in, so two proposals with identical
+        // totals took ranks 1 and 2 arbitrarily, and rank 1 is what the award flow offers. In a
+        // government tender that is the ordering that gets challenged, and nothing in the record would
         // explain it.
         //
-        // BRULE-069 names three rungs: highest technical score, then lowest compliant price, then
-        // earliest submission. Only the FIRST is implementable here - this method has the scores and
-        // nothing else, no price and no submission time - so the remaining ties fall to the proposal's
-        // own identifier, which is at least stable across re-consolidations of the same data. The last
-        // two rungs need bid data passed in and are sized as T-085 rather than guessed at: reading
-        // "lowest price" off the financial weighted score assumes that score is inverse to price, and
-        // no document says it is.
-        var rank = 1;
-        foreach (var result in provisional
+        // The last rung is earliest submission because it is objective, already recorded, and cannot
+        // be manipulated after the fact - which is why it is the standard final rung in public
+        // procurement. The proposal id remains only as a total order so the list is stable across
+        // re-consolidations; a tie that reaches it is NOT considered resolved (see below).
+        BidTieBreakFacts FactsFor(Guid proposalId) =>
+            bidFacts is not null && bidFacts.TryGetValue(proposalId, out var facts) ? facts : new BidTieBreakFacts(null, null);
+
+        var ranked = provisional
             .Where(r => r.TechnicallyQualified)
             .OrderByDescending(r => r.WeightedTotal)
             .ThenByDescending(r => r.TechnicalWeightedScore)
-            .ThenBy(r => r.ProposalId))
+            // Nulls last on price: a bid with no priced total cannot claim to be the cheapest.
+            .ThenBy(r => FactsFor(r.ProposalId).CommercialTotal ?? decimal.MaxValue)
+            .ThenBy(r => FactsFor(r.ProposalId).SubmittedAt ?? DateTimeOffset.MaxValue)
+            .ThenBy(r => r.ProposalId)
+            .ToList();
+
+        var rank = 1;
+        foreach (var result in ranked)
         {
             result.Rank = rank++;
         }
+
+        // A-1: a tie that survives every rung is SURFACED, not picked. Two proposals equal on total,
+        // technical score, price and submission instant are equal on everything a rule can see, and
+        // the ordering between them came from the identifier - which is not a decision anyone made.
+        // A genuine full tie is rare enough that a day of manual resolution costs less than a
+        // challenge to a silently-picked winner.
+        for (var i = 0; i < ranked.Count; i++)
+        {
+            for (var j = i + 1; j < ranked.Count; j++)
+            {
+                if (!IsFullTie(ranked[i], ranked[j], FactsFor)) continue;
+                ranked[i].TieUnresolved = true;
+                ranked[j].TieUnresolved = true;
+            }
+        }
+
         _results.AddRange(provisional);
 
         State = EvaluationState.Consolidated;
+    }
+
+    private static bool IsFullTie(
+        ConsolidatedResult left, ConsolidatedResult right, Func<Guid, BidTieBreakFacts> factsFor)
+    {
+        if (left.WeightedTotal != right.WeightedTotal) return false;
+        if (left.TechnicalWeightedScore != right.TechnicalWeightedScore) return false;
+
+        var a = factsFor(left.ProposalId);
+        var b = factsFor(right.ProposalId);
+        // Two bids with no recorded price, or no recorded submission time, are not "equal" on that
+        // rung in a way that resolves anything - so an unknown counts as a tie rather than as a
+        // difference. The direction that surfaces the case rather than inventing an order.
+        return a.CommercialTotal == b.CommercialTotal && a.SubmittedAt == b.SubmittedAt;
+    }
+
+    /// <summary>
+    /// A-1: a person breaks a tie the rules could not, with a reason that is audited.
+    ///
+    /// <para>The chosen proposal takes the best rank held by any member of its tie group, and the
+    /// others follow in their existing order. Every member's marker clears, because the tie IS
+    /// resolved once someone has put their name to it - including for the ones that lost.</para>
+    /// </summary>
+    public void ResolveTie(Guid proposalId, Guid resolvedByUserId, string reason)
+    {
+        if (State is not (EvaluationState.Consolidated or EvaluationState.Finalized))
+        {
+            throw new DomainException($"Cannot resolve a tie from state '{State}'; the evaluation must be consolidated.");
+        }
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A reason is required to resolve a tie.");
+        }
+
+        var chosen = _results.FirstOrDefault(r => r.ProposalId == proposalId)
+            ?? throw new DomainException("That proposal is not part of this evaluation's results.");
+        if (!chosen.TieUnresolved)
+        {
+            throw new DomainException("That proposal is not part of an unresolved tie.");
+        }
+
+        // The tie group is every unresolved result sharing this one's total and technical score. Price
+        // and submission are not re-compared here: they were equal by construction, which is what set
+        // the marker in the first place.
+        var group = _results
+            .Where(r => r.TieUnresolved
+                && r.WeightedTotal == chosen.WeightedTotal
+                && r.TechnicalWeightedScore == chosen.TechnicalWeightedScore)
+            .OrderBy(r => r.Rank)
+            .ToList();
+
+        var ranks = group.Select(r => r.Rank).ToList();
+        var ordered = new List<ConsolidatedResult> { chosen };
+        ordered.AddRange(group.Where(r => r.ProposalId != proposalId));
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].Rank = ranks[i];
+            ordered[i].TieUnresolved = false;
+            ordered[i].TieResolvedByUserId = resolvedByUserId;
+            ordered[i].TieResolutionReason = reason;
+        }
     }
 
     /// <summary>FEAT-11.6/FR-EVL-008, BUSINESS-PROCESSES.md §5.1: "Result reviewed; no unresolved

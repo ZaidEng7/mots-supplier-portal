@@ -892,6 +892,15 @@ const resources = {
         },
       },
       comparison: {
+        // A-1/BRULE-069's surfaced tie. Drafted, marked, in ARABIC-REVIEW.md's pile.
+        tieUnresolved: 'تعادل غير محلول',                        // [drafted]
+        tieTitle: 'تعادل في الترتيب يحتاج قراراً',                 // [drafted]
+        tieBody: 'تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك.', // [drafted]
+        tieReason: 'سبب اختيار {{code}}',                        // [drafted]
+        tieReasonPlaceholder: 'سبب القرار',                       // [drafted]
+        tieResolve: 'تثبيت الترتيب',                              // [drafted]
+        tieResolved: 'تم تثبيت الترتيب',                          // [drafted]
+        tieResolveFailed: 'تعذّر تثبيت الترتيب',                  // [drafted]
         title: 'مقارنة العروض',
         notFound: 'المقارنة غير متاحة',
         empty: 'لا توجد عروض مقدَّمة بعد',
@@ -2034,6 +2043,14 @@ const resources = {
         },
       },
       comparison: {
+        tieUnresolved: 'Unresolved tie',
+        tieTitle: 'A tie in the ranking needs a decision',
+        tieBody: 'These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do.',
+        tieReason: 'Reason for choosing {{code}}',
+        tieReasonPlaceholder: 'Reason for the decision',
+        tieResolve: 'Confirm the order',
+        tieResolved: 'The order is confirmed',
+        tieResolveFailed: 'Could not confirm the order',
         title: 'Proposal Comparison',
         notFound: 'Comparison not available',
         empty: 'No proposals submitted yet',

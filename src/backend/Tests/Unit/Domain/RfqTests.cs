@@ -447,30 +447,34 @@ public class RfqTests
     }
 
     [Fact]
-    public void AnswerClarification_defaults_to_private_per_OQ_008()
+    public void AnswerClarification_publishes_to_every_invitee_per_A_4()
     {
+        // A-4 reversed the OQ-008/ASM-044 default in favour of BRULE-036: "answers ... are broadcast
+        // to all invitees (anonymized questioner)". There is no longer a private answer to produce.
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
         var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
 
-        rfq.AnswerClarification(clarification.Id, "Answer.", publish: false);
+        rfq.AnswerClarification(clarification.Id, "Answer.");
 
         var answered = rfq.Clarifications.Single();
         answered.Answer.Should().Be("Answer.");
-        answered.Visibility.Should().Be(ClarificationVisibility.PrivateToAsker);
+        answered.Visibility.Should().Be(ClarificationVisibility.PublishedToAll);
         answered.AnsweredAt.Should().NotBeNull();
     }
 
     [Fact]
-    public void AnswerClarification_can_publish_immediately()
+    public void An_unanswered_question_stays_private()
     {
+        // The half of OQ-008's reasoning that survives A-4: a bidder's thinking is not on display to
+        // competitors while the buyer is still deciding what to say.
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
+
         var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
 
-        rfq.AnswerClarification(clarification.Id, "Answer.", publish: true);
-
-        rfq.Clarifications.Single().Visibility.Should().Be(ClarificationVisibility.PublishedToAll);
+        clarification.Visibility.Should().Be(ClarificationVisibility.PrivateToAsker);
+        clarification.Answer.Should().BeNull();
     }
 
     [Fact]
@@ -479,23 +483,27 @@ public class RfqTests
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
         var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
-        rfq.AnswerClarification(clarification.Id, "First answer.", publish: false);
+        rfq.AnswerClarification(clarification.Id, "First answer.");
 
-        var act = () => rfq.AnswerClarification(clarification.Id, "Second answer.", publish: false);
+        var act = () => rfq.AnswerClarification(clarification.Id, "Second answer.");
 
         act.Should().Throw<DomainException>().WithMessage("*already been answered*");
     }
 
     [Fact]
-    public void PublishClarification_promotes_a_privately_answered_question()
+    public void PublishClarification_refuses_a_clarification_that_is_already_published()
     {
+        // A-4 leaves nothing new in PrivateToAsker, so the only exercisable case at the domain level is
+        // the guard. The legacy-row path it exists for is covered end to end in
+        // ClarificationEndpointsTests, where a private row can be seeded in storage.
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
         var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
-        rfq.AnswerClarification(clarification.Id, "Answer.", publish: false);
+        rfq.AnswerClarification(clarification.Id, "Answer.");
 
-        rfq.PublishClarification(clarification.Id);
+        var act = () => rfq.PublishClarification(clarification.Id);
 
+        act.Should().Throw<DomainException>();
         rfq.Clarifications.Single().Visibility.Should().Be(ClarificationVisibility.PublishedToAll);
     }
 
