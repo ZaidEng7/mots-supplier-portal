@@ -268,3 +268,19 @@ agree. The fix is a shared source of report copy across a C# generator and a Typ
 | **What it costs if wrong** | A client that wants identity without decoding a JWT has to call a profile endpoint. If that is judged too awkward, the safe form is a `/auth/me` read rather than a copy inside the login body. |
 | **Who should confirm it** | The doc owner. |
 
+### D-27 — The row version becomes an application-managed counter, and every in-flight ETag expires on deploy
+
+| | |
+|---|---|
+| **What was undecided** | How to make a child write advance its aggregate root's version, given `xmin` is database-generated and cannot be assigned. |
+| **Where the gap is** | §8.1 specifies the ETag/If-Match contract and assumes a version that moves when the aggregate changes. It never says what the version is, and the `xmin` choice predates the contract. |
+| **What was decided** | All nine roots move to an application-managed `RowVersion` (`bigint`, default 1), advanced in `SaveChangesAsync` for every root the change set touches — directly or through a child. **The wire contract is unchanged**: still a `uint`, still base64url in a strong ETag. |
+| **Why** | `xmin` moves only when the root ROW is written, so a child insert left it untouched and a correct `If-Match` on any child-write route was silently ignored — two callers editing different children of one aggregate both won. Forcing a parent touch was not available: `xmin` cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext` already documents. A counter the application owns is the only thing that can be bumped deliberately. Keeping the property a `uint` was the choice that made this landable: 34 ETag and If-Match sites, and the entire SPA, did not have to move. |
+| **What it costs if wrong** | **Every ETag a client holds becomes invalid the moment this deploys** — those callers get a 412 and re-read, which is precisely the recovery §8.1 defines. There is no mapping from an `xmin` value to a counter, and seeding the counter from `xmin` would manufacture version history that never happened. The `bigint` column is reversible; the invalidation is a one-time event at cutover. |
+| **Who should confirm it** | The architecture owner, and whoever schedules the deploy — the cutover produces a burst of 412s. |
+
+*One-hop attribution. A changed entity is attributed to its root by walking foreign keys one level. Every
+aggregate here is one level deep; `AppDbContext.UnattributedChildTypes()` exposes what the walk cannot
+see, and a test asserts it is empty, so a grandchild introduced later fails loudly rather than silently
+failing to bump.*
+
