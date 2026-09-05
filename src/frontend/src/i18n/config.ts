@@ -1038,6 +1038,13 @@ const resources = {
         termsSaved: 'تم حفظ الشروط',
         documents: 'المستندات',
         noDocuments: 'لا توجد مستندات بعد',
+        envelope: 'المغلف',                                  // [drafted] A-2
+        envelopeCommercial: 'المغلف المالي',                  // [reused] §7's own term
+        envelopeTechnical: 'المغلف الفني',                    // [reused] §7's own term
+        envelopeExpected: {
+          Technical: 'يُتوقع أن يكون هذا المستند في المغلف الفني.',   // [drafted] A-2
+          Commercial: 'يُتوقع أن يكون هذا المستند في المغلف المالي.', // [drafted] A-2
+        },
         uploadDocument: 'رفع مستند',
         documentAdded: 'تمت إضافة المستند',
         withdrawTitle: 'سحب العرض',
@@ -2202,6 +2209,13 @@ const resources = {
         termsSaved: 'Terms saved',
         documents: 'Documents',
         noDocuments: 'No documents yet',
+        envelope: 'Envelope',
+        envelopeCommercial: 'Commercial envelope',
+        envelopeTechnical: 'Technical envelope',
+        envelopeExpected: {
+          Technical: 'This document is expected in the technical envelope.',
+          Commercial: 'This document is expected in the commercial envelope.',
+        },
         uploadDocument: 'Upload document',
         documentAdded: 'Document added',
         withdrawTitle: 'Withdraw proposal',

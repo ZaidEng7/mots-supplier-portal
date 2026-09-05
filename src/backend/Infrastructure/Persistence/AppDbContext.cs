@@ -868,6 +868,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(q => q.TextAr).HasMaxLength(2000).IsRequired();
             entity.Property(q => q.TextEn).HasMaxLength(2000).IsRequired();
             entity.Property(q => q.DocumentTypeCode).HasMaxLength(50);
+            // A-2: stored as a STRING, matching ProposalDocument.Envelope. The scaffolder defaulted this
+            // to an integer, which would have put the same enum in the database two different ways -
+            // readable one place and an opaque ordinal the other, and any reordering of the enum members
+            // would silently re-interpret every existing row on this side only.
+            entity.Property(q => q.ExpectedEnvelope).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(q => q.RfqId);
         });
 

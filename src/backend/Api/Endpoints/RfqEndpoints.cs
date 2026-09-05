@@ -62,7 +62,10 @@ public sealed class RfqItemRequestValidator : AbstractValidator<RfqItemRequest>
     }
 }
 
-public sealed record RequirementRequest(string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode);
+public sealed record RequirementRequest(
+    string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    // A-2: optional, and only meaningful when the requirement asks for a document.
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed class RequirementRequestValidator : AbstractValidator<RequirementRequest>
 {

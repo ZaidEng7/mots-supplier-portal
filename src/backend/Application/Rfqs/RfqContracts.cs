@@ -8,7 +8,11 @@ public sealed record RfqItemDto(
     Guid Id, int LineNo, string TitleAr, string TitleEn, string? SpecificationAr, string? SpecificationEn,
     string CategoryCode, decimal Quantity, string UnitOfMeasureCode, bool IsUnitPrice, bool IsOptional);
 
-public sealed record RequirementDto(Guid Id, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode);
+/// <summary>A-2: <paramref name="ExpectedEnvelope"/> tells the supplier which envelope a document
+/// answering this requirement belongs in. Advisory - the tag on the FILE is what the system acts on.</summary>
+public sealed record RequirementDto(
+    Guid Id, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed record RfqAttachmentDto(Guid Id, string OriginalFileName, string ContentType, string? Caption, DateTimeOffset UploadedAt);
 
@@ -139,7 +143,9 @@ public sealed record AddRfqItemCommand(
 
 public sealed record RemoveRfqItemCommand(string ReferenceCode, Guid ItemId);
 
-public sealed record AddRequirementCommand(string ReferenceCode, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode);
+public sealed record AddRequirementCommand(
+    string ReferenceCode, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed record RemoveRequirementCommand(string ReferenceCode, Guid RequirementId);
 

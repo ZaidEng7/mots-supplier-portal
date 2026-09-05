@@ -46,7 +46,7 @@ internal static class RfqDtoMapper
         [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
             i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn, i.CategoryCode,
             i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
-        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode, r.ExpectedEnvelope))],
         [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
         [.. rfq.Approvals.OrderBy(a => a.StepNo).Select(a => new RfqApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))],
         [.. rfq.Invitations.OrderBy(i => i.InvitedAt).Select(i =>
@@ -75,7 +75,7 @@ internal static class RfqDtoMapper
         [.. rfq.Items.OrderBy(i => i.LineNo).Select(i => new RfqItemDto(
             i.Id, i.LineNo, i.TitleAr, i.TitleEn, i.SpecificationAr, i.SpecificationEn, i.CategoryCode,
             i.Quantity, i.UnitOfMeasureCode, i.IsUnitPrice, i.IsOptional))],
-        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
+        [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode, r.ExpectedEnvelope))],
         [.. rfq.Attachments.Select(a => new RfqAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.Caption, a.UploadedAt))],
         myInvitation.Status,
         [.. rfq.Clarifications
@@ -365,7 +365,7 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
         Requirement requirement;
         try
         {
-            requirement = rfq.AddRequirement(command.TextAr, command.TextEn, command.IsMandatory, command.DocumentTypeCode);
+            requirement = rfq.AddRequirement(command.TextAr, command.TextEn, command.IsMandatory, command.DocumentTypeCode, command.ExpectedEnvelope);
         }
         catch (DomainException ex)
         {

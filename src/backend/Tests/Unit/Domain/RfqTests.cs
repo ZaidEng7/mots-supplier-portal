@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 
@@ -558,5 +559,34 @@ public class RfqTests
         rfq.OpenSubmissionWindow();
         if (state == RfqState.SubmissionOpen) return;
         rfq.CloseSubmissionWindow(null, isEarlyClose: false);
+    }
+
+    [Fact]
+    public void An_expected_envelope_needs_a_document_to_attach_to()
+    {
+        // A-2. An envelope expectation on a requirement that asks for no document would render as
+        // guidance about a file the supplier is never asked for.
+        var rfq = CreateDraftRfq();
+
+        var act = () => rfq.AddRequirement("شرط", "Requirement", isMandatory: true, documentTypeCode: null,
+            expectedEnvelope: ProposalDocumentEnvelope.Technical);
+
+        act.Should().Throw<DomainException>().WithMessage("*asks for a document*");
+    }
+
+    [Fact]
+    public void A_requirement_that_asks_for_a_document_can_state_its_envelope()
+    {
+        // The control, and A-2's point: the supplier had a tag to set and nothing to set it against.
+        var rfq = CreateDraftRfq();
+
+        var requirement = rfq.AddRequirement("شرط", "Provide the spec", isMandatory: true,
+            documentTypeCode: "spec", expectedEnvelope: ProposalDocumentEnvelope.Technical);
+
+        requirement.ExpectedEnvelope.Should().Be(ProposalDocumentEnvelope.Technical);
+
+        // And it stays optional - most requirements have no document and no expectation.
+        rfq.AddRequirement("شرط آخر", "Another", isMandatory: false, documentTypeCode: null)
+            .ExpectedEnvelope.Should().BeNull();
     }
 }

@@ -36,6 +36,10 @@ export interface Requirement {
   textEn: string
   isMandatory: boolean
   documentTypeCode: string | null
+  /** A-2: which envelope a document answering this belongs in. Advisory - it tells the supplier what the
+   * buyer expects and does NOT override the tag on the file, because what a file contains is known by
+   * whoever attached it. */
+  expectedEnvelope: 'Technical' | 'Commercial' | null
 }
 
 export interface RfqAttachment {

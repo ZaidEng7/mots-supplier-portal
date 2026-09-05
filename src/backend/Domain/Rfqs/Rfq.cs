@@ -1,6 +1,8 @@
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
+using MotsSupplierPortal.Domain.Proposals;
+
 namespace MotsSupplierPortal.Domain.Rfqs;
 
 /// <summary>A buyer-authored Request for Quotation (docs/architecture/DOMAIN-MODEL.md §5.4);
@@ -204,11 +206,21 @@ public sealed class Rfq : IVersionedAggregate
         for (var i = 0; i < _items.Count; i++) _items[i].LineNo = i + 1;
     }
 
-    public Requirement AddRequirement(string textAr, string textEn, bool isMandatory, string? documentTypeCode)
+    public Requirement AddRequirement(
+        string textAr, string textEn, bool isMandatory, string? documentTypeCode,
+        // A-2: which envelope a document answering this belongs in. Advisory to the supplier.
+        ProposalDocumentEnvelope? expectedEnvelope = null)
     {
         EnsureDraftEditable();
         if (string.IsNullOrWhiteSpace(textAr)) throw new DomainException("Requirement text (Arabic) is required.");
         if (string.IsNullOrWhiteSpace(textEn)) throw new DomainException("Requirement text (English) is required.");
+
+        // A-2: an envelope expectation on a requirement that asks for no document has nothing to attach
+        // to, and would render as guidance about a file the supplier is never asked for.
+        if (expectedEnvelope is not null && string.IsNullOrWhiteSpace(documentTypeCode))
+        {
+            throw new DomainException("An expected envelope only applies to a requirement that asks for a document.");
+        }
 
         var requirement = new Requirement
         {
@@ -218,6 +230,7 @@ public sealed class Rfq : IVersionedAggregate
             TextEn = textEn,
             IsMandatory = isMandatory,
             DocumentTypeCode = documentTypeCode,
+            ExpectedEnvelope = expectedEnvelope,
         };
         _requirements.Add(requirement);
         return requirement;

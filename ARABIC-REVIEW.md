@@ -406,3 +406,13 @@ all marked `[drafted]` at their definitions in `src/frontend/src/i18n/config.ts`
 **abjad** letter order (أ ب ج د هـ و ز ح ط ي …) rather than the alphabetical one, because abjad is what
 an Arabic reader expects for enumeration. Worth a specific check by the reviewer — see
 `BidderLabel` in `EvaluationHandlers.cs`.
+
+### A-2 — the envelope picker and the buyer's expectation
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `proposal.envelope` | Envelope | المغلف | Label on the upload picker | [drafted] |
+| `proposal.envelopeCommercial` | Commercial envelope | المغلف المالي | Picker option | [reused] §7's own term |
+| `proposal.envelopeTechnical` | Technical envelope | المغلف الفني | Picker option | [reused] §7's own term |
+| `proposal.envelopeExpected.Technical` | This document is expected in the technical envelope. | يُتوقع أن يكون هذا المستند في المغلف الفني. | Under a requirement | [drafted] |
+| `proposal.envelopeExpected.Commercial` | This document is expected in the commercial envelope. | يُتوقع أن يكون هذا المستند في المغلف المالي. | Under a requirement | [drafted] |

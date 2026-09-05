@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { getPublicSettings } from '../api/systemSettings'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import { Button, Card, Input, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import {
@@ -122,8 +122,10 @@ export function SupplierProposalPage() {
     onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
 
+  const [uploadEnvelope, setUploadEnvelope] = useState<'Commercial' | 'Technical'>('Commercial')
   const documentMutation = useMutation({
-    mutationFn: (file: File) => addProposalDocument(proposalCode, file),
+    mutationFn: ({ file, envelope }: { file: File; envelope: 'Commercial' | 'Technical' }) =>
+      addProposalDocument(proposalCode, file, undefined, envelope),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.documentAdded') }) },
     onError: (err) => onMutationError(err, t('proposal.errors.saveFailed')),
   })
@@ -255,6 +257,13 @@ export function SupplierProposalPage() {
               return (
                 <li key={req.id}>
                   <p className="font-[var(--fw-medium)]">{isArabic ? req.textAr : req.textEn}{req.isMandatory ? <span aria-hidden="true"> *</span> : null}</p>
+                  {/* A-2: what the buyer expects this document to be, so the supplier has something to
+                      tag against rather than guessing at the envelope picker below. */}
+                  {req.expectedEnvelope ? (
+                    <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t(`proposal.envelopeExpected.${req.expectedEnvelope}`)}
+                    </p>
+                  ) : null}
                   {isDraft ? (
                     <div className="mt-1 flex flex-wrap items-end gap-2">
                       <Input aria-label={`${t('rfq.fields.textEn')} - ${req.textEn}`} placeholder={t('rfq.fields.textEn')}
@@ -313,8 +322,31 @@ export function SupplierProposalPage() {
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('proposal.noDocuments')}</p>
         )}
         {isDraft ? (
-          <input type="file" aria-label={t('proposal.uploadDocument')} className="mt-3"
-            onChange={(e) => { const file = e.target.files?.[0]; if (file) documentMutation.mutate(file) }} />
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            {/*
+              A-2: the supplier tags the file. Commercial is the default and stays the default - a
+              mis-tag then under-serves the evaluator rather than leaking a price into the technical
+              envelope, which is the direction that fails closed.
+            */}
+            <label className="flex flex-col gap-1 text-[length:var(--text-body-sm)]">
+              {t('proposal.envelope')}
+              <Select
+                value={uploadEnvelope}
+                onValueChange={(value: string) => setUploadEnvelope(value as 'Commercial' | 'Technical')}
+                options={[
+                  { value: 'Commercial', label: t('proposal.envelopeCommercial') },
+                  { value: 'Technical', label: t('proposal.envelopeTechnical') },
+                ]}
+              />
+            </label>
+            <input type="file" aria-label={t('proposal.uploadDocument')}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) documentMutation.mutate({ file, envelope: uploadEnvelope })
+                // Cleared so re-picking the same file fires change again.
+                e.target.value = ''
+              }} />
+          </div>
         ) : null}
       </Card>
 
