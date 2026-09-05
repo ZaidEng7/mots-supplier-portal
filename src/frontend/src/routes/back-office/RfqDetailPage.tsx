@@ -772,6 +772,11 @@ export function RfqDetailPage() {
       {evaluationEligible ? (
         <Card title={t('evaluation.title')}>
           <div className="mb-4 flex gap-2">
+            {/* T-082: the bids themselves, readable from SubmissionClosed onward - before the
+                comparison matrix exists and without needing an opened evaluation. */}
+            <a href={`/back-office/rfqs/${referenceCode}/proposals`}>
+              <Button size="sm" variant="secondary">{t('receivedProposals.title')}</Button>
+            </a>
             <a href={`/back-office/rfqs/${referenceCode}/comparison`}>
               <Button size="sm" variant="secondary">{t('comparison.title')}</Button>
             </a>

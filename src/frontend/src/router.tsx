@@ -52,6 +52,7 @@ const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((
 const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
 const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
 const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
+const ReceivedProposalsPage = lazy(() => import('./routes/back-office/ReceivedProposalsPage').then((m) => ({ default: m.ReceivedProposalsPage })))
 const AwardPage = lazy(() => import('./routes/back-office/AwardPage').then((m) => ({ default: m.AwardPage })))
 const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
 const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
@@ -345,6 +346,15 @@ const auditExplorerRoute = createRoute({
   component: AuditExplorerPage,
 })
 
+// SCR-430 + SCR-431, `/back-office/rfqs/$referenceCode/proposals`, procurement_officer and
+// procurement_manager, both P0 (T-082). Two inventory rows on one route: the detail is a panel, not
+// a navigation, for the same reason the comparison matrix is a matrix.
+const receivedProposalsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs/$referenceCode/proposals',
+  component: ReceivedProposalsPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -514,7 +524,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

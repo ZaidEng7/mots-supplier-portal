@@ -1009,6 +1009,38 @@ const resources = {
           },
         },
       },
+      // ── T-082 / SCR-430, SCR-431 · ARABIC FOR REVIEW ──────────────────────────
+      // §7 has no received-proposals strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      receivedProposals: {
+        title: 'العروض المستلمة',                            // [drafted] SCR-430
+        subtitle: 'العروض المقدَّمة على الطلب {{code}}.',       // [drafted]
+        listTitle: 'العروض',                                 // [drafted]
+        detailTitle: 'تفاصيل العرض',                          // [drafted] SCR-431
+        open: 'عرض',                                         // [reused]
+        close: 'إغلاق',                                      // [reused]
+        empty: 'لم يُقدَّم أي عرض',                            // [drafted]
+        retry: 'إعادة المحاولة',                              // [reused]
+        // The sealed tier is a state with a reason, not an empty list.
+        sealedTitle: 'العروض مغلقة حتى انتهاء فترة التقديم',    // [drafted]
+        sealedBody: 'لا تُعرض هوية مقدّمي العروض قبل إغلاق باب التقديم. يظهر العدد فقط.', // [drafted]
+        sealedCount: 'عدد العروض المقدَّمة حتى الآن: {{count}}',  // [drafted]
+        commercialWithheld: 'القيم المالية غير معروضة بعد',     // [reused] matches the ministry wording
+        commercialWithheldBody: 'تظهر القيم المالية بعد توحيد نتائج التقييم.', // [drafted] D-7/OQ-009
+        afterConsolidation: 'بعد التوحيد',                     // [drafted]
+        narrative: 'الوصف الفني',                             // [reused] §12.5's technicalResponse
+        answers: 'الردود على المتطلبات',                       // [reused]
+        lineItems: 'بنود العرض',                              // [reused]
+        fields: {
+          supplier: 'المورد', proposal: 'رقم العرض', state: 'الحالة', submittedAt: 'تاريخ التقديم',
+          items: 'عدد البنود', total: 'الإجمالي', actions: 'الإجراءات', documents: 'المرفقات',
+          item: 'البند', quantity: 'الكمية', unitPrice: 'سعر الوحدة', lineTotal: 'إجمالي البند',
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل العروض المستلمة',           // [drafted]
+          detailFailed: 'تعذّر تحميل تفاصيل العرض',            // [drafted]
+        },
+      },
       comparison: {
         // A-1/BRULE-069's surfaced tie. Drafted, marked, in ARABIC-REVIEW.md's pile.
         // B-1/SCR-433: the clarification request, reachable for the first time.
@@ -2326,6 +2358,34 @@ const resources = {
             submitFailed: 'Could not submit the evaluation',
             documentFailed: 'Could not open {{fileName}}',
           },
+        },
+      },
+      receivedProposals: {
+        title: 'Received proposals',
+        subtitle: 'Bids submitted against {{code}}.',
+        listTitle: 'Proposals',
+        detailTitle: 'Proposal detail',
+        open: 'Open',
+        close: 'Close',
+        empty: 'No proposals were submitted',
+        retry: 'Try again',
+        sealedTitle: 'Bids stay sealed until the window closes',
+        sealedBody: 'Who has bid is not shown while suppliers can still submit. Only the count is.',
+        sealedCount: 'Proposals submitted so far: {{count}}',
+        commercialWithheld: 'Commercial values are not shown yet',
+        commercialWithheldBody: 'Commercial figures appear once the evaluation is consolidated.',
+        afterConsolidation: 'After consolidation',
+        narrative: 'Technical response',
+        answers: 'Requirement answers',
+        lineItems: 'Line items',
+        fields: {
+          supplier: 'Supplier', proposal: 'Proposal', state: 'State', submittedAt: 'Submitted',
+          items: 'Items', total: 'Total', actions: 'Actions', documents: 'Documents',
+          item: 'Item', quantity: 'Quantity', unitPrice: 'Unit price', lineTotal: 'Line total',
+        },
+        errors: {
+          loadFailed: 'Could not load the received proposals',
+          detailFailed: 'Could not load the proposal',
         },
       },
       comparison: {
