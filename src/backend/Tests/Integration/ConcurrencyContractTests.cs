@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Api.Concurrency;
 
 namespace MotsSupplierPortal.Tests.Integration;
@@ -141,39 +142,73 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task An_unguarded_mutation_still_works_without_If_Match()
+    public async Task Creating_a_child_of_a_versioned_aggregate_IS_guarded_now()
     {
-        // The other direction of the gate: §8.1 covers PUT/PATCH and transition POSTs on existing
-        // resources, not creation. If the filter had been applied by accident to a creation POST,
-        // onboarding would be impossible and only this test would say so.
-        var (etagClient, _) = await VerifiedSupplierAsync($"Unguarded {Guid.NewGuid():N}"[..30]);
+        // T-030 split (3) reversed what this test used to assert, and the reversal is the point.
+        //
+        // It read: "a creation POST is not one of §8.1's guarded mutations". That is true of a POST that
+        // creates a top-level resource - there is no prior version to have read - but adding a CONTACT
+        // creates a child of an existing Supplier, and the Supplier's version moves either way. Without
+        // the precondition, a caller could add a contact on top of a profile they had never seen: one a
+        // reviewer had just put back into InfoRequested, say, whose flagged-field rules they are unaware
+        // of. So the create is a mutation OF the aggregate, and it is guarded.
+        var (etagClient, _) = await VerifiedSupplierAsync($"GuardedCreate {Guid.NewGuid():N}"[..30]);
         var raw = await SupplierTestClient.CloneWithoutETagsAsync(fixture, etagClient);
 
         var response = await raw.PostAsJsonAsync("/api/v1/suppliers/me/contacts",
             new { fullName = "Unguarded Contact", email = "unguarded@example.com", phone = "+963000000", role = "Ops" });
 
+        response.StatusCode.Should().Be(HttpStatusCode.PreconditionRequired,
+            "a child of a versioned aggregate is a mutation of that aggregate");
+    }
+
+    [Fact]
+    public async Task Creating_a_top_level_resource_still_needs_no_If_Match()
+    {
+        // The other direction of the gate, on a route where "creation" really means creation: an RFQ has
+        // no prior version anyone could have read. If the filter were ever applied here by accident,
+        // authoring would be impossible and only this test would say so.
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+        var raw = fixture.CreateRawClient();
+        raw.DefaultRequestHeaders.Authorization = officer.DefaultRequestHeaders.Authorization;
+
+        var response = await raw.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب", titleEn = "Unguarded creation RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
+            currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
+            submissionOpensAt = DateTimeOffset.UtcNow.AddMinutes(5),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddDays(7),
+            clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+
         response.StatusCode.Should().NotBe(HttpStatusCode.PreconditionRequired,
-            "a creation POST is not one of §8.1's guarded mutations");
+            "there is no version of a resource that does not exist yet");
     }
 
     [Fact]
     public async Task A_stray_If_Match_on_an_unguarded_mutation_does_not_gate_it()
     {
-        // Only a route that declares the requirement participates. A header sent for some other
-        // resource must not become a precondition nobody promised - it would fail a write that
-        // nothing was contending, which is worse than no guard.
+        // Only a route that declares the requirement participates. A header sent for some other resource
+        // must not become a precondition nobody promised - it would fail a write nothing was contending,
+        // which is worse than no guard.
+        //
+        // The route moved with split (3): /me/contacts now DECLARES the requirement, so a stale version
+        // there is correctly a 412 and would prove the opposite of what this test is about. Resending
+        // verification is a mutation on purpose - a POST with a real effect, and no version to have read.
         var (etagClient, _) = await VerifiedSupplierAsync($"StrayIfMatch {Guid.NewGuid():N}"[..30]);
         var raw = await SupplierTestClient.CloneWithoutETagsAsync(fixture, etagClient);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/suppliers/me/contacts")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/resend-verification")
         {
-            Content = JsonContent.Create(new { fullName = "Stray", email = "stray@example.com", phone = "+963000001", role = "Ops" }),
+            Content = JsonContent.Create(new { email = "stray@example.com" }),
         };
         request.Headers.TryAddWithoutValidation("If-Match", ETag.Format(1u));
 
         var response = await raw.SendAsync(request);
 
         response.StatusCode.Should().NotBe(HttpStatusCode.PreconditionFailed);
+        response.StatusCode.Should().NotBe(HttpStatusCode.PreconditionRequired);
     }
 
     // ---- the guard actually bites, per aggregate ------------------------------------------------

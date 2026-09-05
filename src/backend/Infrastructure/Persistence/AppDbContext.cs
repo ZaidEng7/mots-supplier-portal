@@ -109,7 +109,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// </summary>
     private List<EntityEntry> TouchedVersionedRoots()
     {
-        var roots = new HashSet<EntityEntry>();
+        // Keyed on the tracked ENTITY, with reference equality - not on EntityEntry.
+        //
+        // EF hands out a fresh EntityEntry wrapper each time you ask, so a HashSet<EntityEntry> does not
+        // deduplicate: the same Supplier arrives once as a Modified root and again as the principal of a
+        // changed child, and the set holds both. That made roots.Count == 2, which made
+        // ApplyExpectedVersion bail on its "exactly one root" precondition and apply NO guard - so a stale
+        // If-Match was accepted and the write went through. Latent until T-030 split (3), because before
+        // it no child-write route declared If-Match, so no request reached here with both.
+        //
+        // The bump had the same problem in a quieter form: two wrappers meant the version advanced by two.
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var roots = new List<EntityEntry>();
+
+        void Add(EntityEntry entry)
+        {
+            if (seen.Add(entry.Entity)) roots.Add(entry);
+        }
+
 
         foreach (var entry in ChangeTracker.Entries().ToList())
         {
@@ -121,7 +138,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             if (entry.Entity is IVersionedAggregate)
             {
                 // An Added root has no prior version to guard or advance - it starts at the default.
-                if (entry.State != EntityState.Added) roots.Add(entry);
+                if (entry.State != EntityState.Added) Add(entry);
                 continue;
             }
 
@@ -129,7 +146,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             // aggregate saved together with its children has no prior version to guard and no row to
             // update; forcing it Modified made EF emit an UPDATE against a row that did not exist
             // yet, which is how registration started answering 500.
-            if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) roots.Add(principal);
+            if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) Add(principal);
         }
 
         return [.. roots];

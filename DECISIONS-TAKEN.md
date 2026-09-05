@@ -580,3 +580,14 @@ something else, that row is superseded and says so rather than being deleted.
 | **Who should confirm it** | The roles owner. |
 | **Note** | Stays on the first-deploy checklist: per D-30 a new default grant reaches an existing database only through the per-permission marker, so an environment seeded before this change picks it up on next start — but an administrator who had removed it keeps it removed. |
 | **Supersedes** | D-14, which recorded the grant as absent and unresolved. |
+
+### D-37 — Creating a child of a versioned aggregate is a mutation of that aggregate, and is guarded `[recommended — awaiting the doc owner]`
+
+| | |
+|---|---|
+| **What was undecided** | Whether a POST that creates a CHILD of an existing aggregate needs §8.1's `If-Match`. |
+| **Where the gap is** | §8.1 describes its guarded mutations as PUT/PATCH and transition POSTs on existing resources. It does not say which side of that line `POST /suppliers/me/contacts` falls on, and a test asserted — reasonably, on the wording — that a creation POST is not guarded. |
+| **What was decided** | A POST that creates a child of a versioned aggregate requires `If-Match`; a POST that creates a top-level resource does not. T-030 split (3) applies this to the supplier's 21 child-write routes. |
+| **Why** | The aggregate's version moves either way, so the choice is only about whether anyone is told. Without the precondition a caller can add a contact on top of a profile they never saw — one a reviewer has just put back into `InfoRequested`, whose flagged-field rules they are unaware of — and the write succeeds against a state they were not looking at. A top-level create is different in kind: there is no prior version anyone could have read, and requiring one would make authoring impossible. |
+| **What it costs if wrong** | It is a filter per route. If the doc owner reads §8.1 as excluding creation, removing it is one line each — and the version still moves, so nothing stored becomes wrong. |
+| **Who should confirm it** | The document owner, alongside A-13's other §8.1 readings. |

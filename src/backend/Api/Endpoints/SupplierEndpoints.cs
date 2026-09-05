@@ -272,6 +272,7 @@ public static class SupplierEndpoints
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UpdateSupplierProfile");
 
         // FEAT-04.2/MSP-51.
@@ -334,6 +335,20 @@ public static class SupplierEndpoints
         .RequireAuthorization()
         .WithName("GetLogoDownloadUrl");
 
+        // ─── T-030 split (3): the supplier's own child writes now carry §8.1's precondition ───────
+        //
+        // Every route from here to the category links edits a CHILD of the Supplier aggregate, and every
+        // one of them moved the root's RowVersion after split (1) while guarding nothing. Two suppliers'
+        // users editing different contacts on the same profile both won, and the second silently
+        // overwrote nothing visible - which is exactly the "decoration" MSP-65 described, one level down.
+        //
+        // Safe to require here because the precondition is OBTAINABLE: GET /suppliers/me already issues
+        // the root's version as a strong ETag (see .WithETag() above), which is the check batch 3's
+        // Offering lesson insists on - a guarded write needs a read that issues its precondition.
+        //
+        // NOT added to /me/bank-accounts/{id}/reveal: it reads, and a read has nothing to lose to a
+        // concurrent write. Nor to /me/logo or /me/accept-terms, which are split (4) along with the
+        // document routes.
         // FEAT-04.4/MSP-52: add/edit/remove representatives with primary designation.
         group.MapPost("/me/representatives", async (
             AddRepresentativeRequest request,
@@ -348,6 +363,8 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRepresentative");
 
         group.MapPut("/me/representatives/{representativeId:guid}", async (
@@ -364,16 +381,22 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UpdateRepresentative");
 
         group.MapDelete("/me/representatives/{representativeId:guid}", async (Guid representativeId, IManageRepresentativeHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRepresentativeCommand(representativeId), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRepresentative");
 
         group.MapPost("/me/representatives/{representativeId:guid}/set-primary", async (Guid representativeId, IManageRepresentativeHandler handler, CancellationToken ct) =>
             MapMutation(await handler.SetPrimaryAsync(new SetPrimaryRepresentativeCommand(representativeId), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("SetPrimaryRepresentative");
 
         // FEAT-04.3/MSP-52.
@@ -390,6 +413,8 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddAddress");
 
         group.MapPut("/me/addresses/{addressId:guid}", async (
@@ -406,11 +431,15 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UpdateAddress");
 
         group.MapDelete("/me/addresses/{addressId:guid}", async (Guid addressId, IManageAddressHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveAddressCommand(addressId), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveAddress");
 
         // FEAT-04.4/MSP-52.
@@ -427,6 +456,8 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddContact");
 
         group.MapPut("/me/contacts/{contactId:guid}", async (
@@ -443,11 +474,15 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UpdateContact");
 
         group.MapDelete("/me/contacts/{contactId:guid}", async (Guid contactId, IManageContactHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveContactCommand(contactId), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveContact");
 
         // FEAT-04.5/MSP-53.
@@ -464,6 +499,8 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddBranch");
 
         group.MapPut("/me/branches/{branchId:guid}", async (
@@ -480,11 +517,15 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UpdateBranch");
 
         group.MapDelete("/me/branches/{branchId:guid}", async (Guid branchId, IManageBranchHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveBranchCommand(branchId), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveBranch");
 
         // FEAT-04.6/MSP-53: supplier.bankAccount.manage (supplier_admin only), never supplier.edit.
@@ -501,6 +542,8 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierBankAccountManage)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddBankAccount");
 
         group.MapPut("/me/bank-accounts/{bankAccountId:guid}", async (
@@ -517,16 +560,22 @@ public static class SupplierEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierBankAccountManage)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UpdateBankAccount");
 
         group.MapDelete("/me/bank-accounts/{bankAccountId:guid}", async (Guid bankAccountId, IManageBankAccountHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveBankAccountCommand(bankAccountId), ct)))
         .RequirePermission(Permissions.SupplierBankAccountManage)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveBankAccount");
 
         group.MapPost("/me/bank-accounts/{bankAccountId:guid}/set-default", async (Guid bankAccountId, IManageBankAccountHandler handler, CancellationToken ct) =>
             MapMutation(await handler.SetDefaultAsync(new SetDefaultBankAccountCommand(bankAccountId), ct)))
         .RequirePermission(Permissions.SupplierBankAccountManage)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("SetDefaultBankAccount");
 
         group.MapPost("/me/bank-accounts/{bankAccountId:guid}/reveal", async (Guid bankAccountId, IManageBankAccountHandler handler, CancellationToken ct) =>
@@ -546,11 +595,15 @@ public static class SupplierEndpoints
         group.MapPost("/me/category-links", async (LinkCategoryRequest request, IManageCategoryLinkHandler handler, CancellationToken ct) =>
             MapMutation(await handler.LinkAsync(new LinkCategoryCommand(request.CategoryCode), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("LinkCategory");
 
         group.MapDelete("/me/category-links/{categoryCode}", async (string categoryCode, IManageCategoryLinkHandler handler, CancellationToken ct) =>
             MapMutation(await handler.UnlinkAsync(new UnlinkCategoryCommand(categoryCode), ct)))
         .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UnlinkCategory");
 
         // BRULE-009: explicit T&C acceptance, recorded with version + timestamp, gating
@@ -595,6 +648,7 @@ public static class SupplierEndpoints
         })
         .RequirePermission(Permissions.SupplierSubmit)
         .RequireIfMatch()
+        .WithFreshETag()
         .WithName("SubmitSupplierApplication");
     }
 }

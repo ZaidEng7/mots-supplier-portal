@@ -156,8 +156,15 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       useAuthStore.getState().clearSession()
     }
   }
-  rememberETag(path, res.headers.get('ETag'))
+  // T-030 split (3): FORGET first, then remember what the response carried.
+  //
+  // A mutation moves the resource on, so the version cached before it is stale - keeping it would turn
+  // the caller's next save into a 412 nobody can explain. But the child-write routes now return the
+  // version the write produced (see WithFreshETag), and dropping THAT would make a supplier editing two
+  // contacts in a row hit 428 on the second until a re-read landed. So the order matters: clear the old,
+  // then keep the new when there is one.
   if (isMutation && res.ok) forgetETags(path)
+  rememberETag(path, res.headers.get('ETag'))
 
   // A 428 means this client failed to send a header it should always send: a bug in the transport
   // above, not a state the user can do anything about. Surfaced loudly rather than folded into the
