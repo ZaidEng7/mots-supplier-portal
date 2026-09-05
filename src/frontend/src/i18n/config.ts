@@ -75,6 +75,41 @@ const resources = {
       // export lacks, and all three divergences turned out to be errors rather than adaptations.
       // See DECISIONS-TAKEN.md.
       // ── EPIC-18/SCR-600 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // §7 has no admin-dashboard table either. Drafted in §7's register - NOT YET APPROVED, in
+      // ARABIC-REVIEW.md's pile.
+      adminOverview: {
+        title: 'لوحة إدارة النظام',                        // [§7-style drafted]
+        kpis: {
+          users: 'المستخدمون',                             // [reused] §7's own term
+          roles: 'الأدوار',                                // [reused] matches roleManagement
+          outboxPending: 'رسائل قيد الإرسال',               // [§7-style drafted]
+          auditRows: 'سجلات التدقيق (24 ساعة)',            // [§7-style drafted]
+        },
+        outbox: 'قائمة الإرسال',                           // [§7-style drafted]
+        outboxPending: 'قيد الإرسال',                      // [§7-style drafted]
+        outboxFailed: 'فاشلة',                             // [reused] §4's failure wording
+        outboxOldest: 'عمر أقدم رسالة قيد الإرسال',        // [§7-style drafted]
+        outboxDrained: 'لا توجد رسائل معلّقة',              // [§7-style drafted]
+        outboxFailedWarning: 'توجد رسائل فاشلة تحتاج مراجعة', // [§7-style drafted]
+        minutes: '{{value}} دقيقة',                        // [§7-style drafted]
+        jobs: 'المهام المجدولة',                            // [§7-style drafted]
+        jobsDisabled: 'المهام المجدولة معطّلة',              // [§7-style drafted]
+        jobsDisabledBody: 'لن تُرسل التذكيرات ولن تُغلق الطلبات تلقائياً حتى تُفعّل المهام المجدولة في إعدادات النشر.', // [§7-style drafted]
+        jobsMissing: 'مهام مفقودة من التسجيل',              // [§7-style drafted]
+        jobsHealthy: '{{value}} مهام مسجّلة',               // [§7-style drafted]
+        referenceData: 'البيانات المرجعية',                 // [reused] §7's own term
+        referenceEmpty: 'جدول مرجعي بلا رموز مفعّلة - سيتعذّر التسجيل', // [§7-style drafted]
+        activeOfTotal: '{{active}} من {{total}}',           // [§7-style drafted]
+        tables: {
+          categories: 'التصنيفات',                         // [reused] §7's own term
+          'document-types': 'أنواع المستندات',              // [reused] §7's own term
+          currencies: 'العملات',                           // [reused] matches reference.currencies
+          'units-of-measure': 'وحدات القياس',               // [reused] §7's own term
+          regions: 'المناطق',                              // [reused] §7's own term
+        },
+        loadFailed: 'تعذّر تحميل لوحة إدارة النظام',        // [§7-style drafted]
+        retry: 'إعادة المحاولة',                           // [reused]
+      },
       // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
       // ARABIC-REVIEW.md's pile.
       ministry: {
@@ -1148,6 +1183,39 @@ const resources = {
         emptyTitle: 'No invitations yet',
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
         loadFailed: "Couldn't load this section",
+        retry: 'Try again',
+      },
+      adminOverview: {
+        title: 'Platform administration',
+        kpis: {
+          users: 'Users',
+          roles: 'Roles',
+          outboxPending: 'Outbox pending',
+          auditRows: 'Audit records (24h)',
+        },
+        outbox: 'Outbox',
+        outboxPending: 'Pending',
+        outboxFailed: 'Failed',
+        outboxOldest: 'Oldest pending message',
+        outboxDrained: 'Nothing pending',
+        outboxFailedWarning: 'Failed messages need attention',
+        minutes: '{{value}} min',
+        jobs: 'Recurring jobs',
+        jobsDisabled: 'Recurring jobs are disabled',
+        jobsDisabledBody: 'Reminders will not be sent and RFQs will not close automatically until recurring jobs are enabled in the deployment configuration.',
+        jobsMissing: 'Jobs missing from the schedule',
+        jobsHealthy: '{{value}} jobs registered',
+        referenceData: 'Reference data',
+        referenceEmpty: 'A reference table has no active codes - registration will fail',
+        activeOfTotal: '{{active}} of {{total}}',
+        tables: {
+          categories: 'Categories',
+          'document-types': 'Document types',
+          currencies: 'Currencies',
+          'units-of-measure': 'Units of measure',
+          regions: 'Regions',
+        },
+        loadFailed: 'Could not load platform administration',
         retry: 'Try again',
       },
       ministry: {

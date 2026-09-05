@@ -1,3 +1,4 @@
+import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
@@ -294,6 +295,15 @@ const ministryOverviewRoute = createRoute({
   component: MinistryOverviewPage,
 })
 
+// SCR-700, `/back-office/admin`, system_admin, P1 (FR-DSH-006). The specification writes SCR-700's
+// path as `/admin`; this app keeps every staff screen under `/back-office`, so the prefix disagreement
+// is the same one already reported for SCR-400/500 and reports - noted, not silently resolved.
+const adminOverviewRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/admin',
+  component: AdminOverviewPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -463,7 +473,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

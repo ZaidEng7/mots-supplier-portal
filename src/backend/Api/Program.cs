@@ -368,6 +368,7 @@ builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
 builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetGovernanceOverviewHandler, MotsSupplierPortal.Infrastructure.Governance.GetGovernanceOverviewHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
 builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
 builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
@@ -797,6 +798,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithName("GetUnitsOfMeasure")
     .WithTags("Reference");
 
+app.MapAdminOverviewEndpoints();
 app.MapGovernanceEndpoints();
 app.MapReferenceDataAdminEndpoints();
 app.MapDashboardEndpoints();
@@ -867,12 +869,11 @@ using (var storageScope = app.Services.CreateScope())
 // suppression true of Hangfire's STORAGE rather than only of this startup, and the boot log line all
 // read the same list. Three copies would drift, and the one that drifts silently is the removal
 // loop - a job whose id is missing there stays scheduled under the test suite.
-string[] RecurringJobIds =
-[
-    "document-expiry-lifecycle", "draft-registration-cleanup",
-    "outbox-dispatch", "rfq-timeline", "award-erp-sync",
-    "idempotency-cleanup",
-];
+// T-062: the canonical list now lives in Application/Admin/RecurringJobs.cs, so the registration
+// below and the admin dashboard's health tile cannot disagree about what this application schedules.
+// RecurringJobSuppressionTests deliberately keeps its OWN list - see that constant's own note on why
+// a test reading the same source cannot catch a job added or removed without anyone noticing.
+string[] RecurringJobIds = MotsSupplierPortal.Application.Admin.RecurringJobs.All;
 
 var recurringJobsEnabled = builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
 

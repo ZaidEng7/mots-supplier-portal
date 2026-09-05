@@ -114,7 +114,9 @@ test('the route denominator is what the router actually declares, not what this 
   // 41 (EPIC-18/SCR-600): /back-office/ministry - the governance dashboard. Fired again on this one,
   // and again that is the point: a persona that could previously reach nothing gained a route, and
   // the a11y scan had to be told rather than quietly continuing to cover 40 of 41 pages.
-  expect(routes.length).toBe(41)
+  // 42 (T-062/SCR-700): /back-office/admin - the platform administration dashboard. system_admin had
+  // no landing page; this is the third consecutive count move for a persona gaining somewhere to go.
+  expect(routes.length).toBe(42)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

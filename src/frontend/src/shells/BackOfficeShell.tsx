@@ -23,6 +23,9 @@ export function BackOfficeShell({ children }: Props) {
   // (Permissions.AdminUsersManage) on the actual invite endpoint regardless of this link.
   const canManageStaff = useAuthStore((s) => s.claims?.permissions.includes('admin.users.manage') ?? false)
   const canManageRoles = useAuthStore((s) => s.claims?.permissions.includes('admin.roles.manage') ?? false)
+  // governance.read is the ONLY permission ministry_viewer holds, so without this link the persona
+  // had to type the URL: every other link in this bar 403s for it.
+  const canViewGovernance = useAuthStore((s) => s.claims?.permissions.includes('governance.read') ?? false)
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
   const canSearchOfferings = useAuthStore((s) => s.claims?.permissions.includes('offering.search') ?? false)
@@ -63,6 +66,16 @@ export function BackOfficeShell({ children }: Props) {
             {t('appName')} · {t('nav.backOffice')}
           </span>
           <nav className="flex flex-wrap gap-x-4 gap-y-2">
+            {canViewGovernance ? (
+              <Link to="/back-office/ministry" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('ministry.title')}
+              </Link>
+            ) : null}
+            {canManageStaff ? (
+              <Link to="/back-office/admin" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('adminOverview.title')}
+              </Link>
+            ) : null}
             <Link to="/back-office/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.dashboard')}
             </Link>
