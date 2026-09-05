@@ -435,3 +435,16 @@ an Arabic reader expects for enumeration. Worth a specific check by the reviewer
 | `staff.errors.updateFailed` | Could not complete that action | تعذّر تنفيذ الإجراء | [drafted] |
 | `staff.errors.cannotActOnSelf` | You cannot do that to your own account. | لا يمكنك تنفيذ هذا الإجراء على حسابك. | [drafted] |
 | `staff.errors.wouldLockOutAdministration` | The last active system administrator cannot be deactivated. | لا يمكن تعطيل آخر مسؤول نظام مفعّل. | [drafted] |
+
+### B-1 — the reachable audit trail, the clarification request, and the ERP notice
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `settings.auditTitle` | My account activity | سجل نشاط حسابي | [drafted] |
+| `settings.auditHint` | The most recent events recorded against your account, newest first. | أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم. | [drafted] |
+| `settings.auditExport` | Download the trail (CSV) | تنزيل السجل (CSV) | [drafted] |
+| `comparison.clarifyTitle` | Ask a bidder to clarify | طلب استيضاح من مورد | [drafted] |
+| `comparison.clarifyBody` | Ask a supplier to explain something about their bid… | اطلب من المورد توضيحاً حول عرضه… | [drafted] |
+| `comparison.clarifyAsk` | Request clarification | طلب استيضاح | [reused] §8's «استيضاح» per the batch-9 glossary ruling |
+| `adminOverview.erpNotConfigured` | No real ERP integration is configured | لا يوجد ربط فعلي بنظام ERP | [drafted] |
+| `adminOverview.erpNotConfiguredBody` | Messages are written to the log and sent nowhere… | تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي… | [drafted] |

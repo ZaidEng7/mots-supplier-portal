@@ -162,6 +162,8 @@ const resources = {
         outboxOldest: 'عمر أقدم رسالة قيد الإرسال',        // [§7-style drafted]
         outboxDrained: 'لا توجد رسائل معلّقة',              // [§7-style drafted]
         outboxFailedWarning: 'توجد رسائل فاشلة تحتاج مراجعة', // [§7-style drafted]
+        erpNotConfigured: 'لا يوجد ربط فعلي بنظام ERP',           // [drafted] B-1/BRULE-011
+        erpNotConfiguredBody: 'تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي. لا تُعتبر الرسائل المُرسلة دليلاً على وصول البيانات.', // [drafted]
         minutes: '{{value}} دقيقة',                        // [§7-style drafted]
         jobs: 'المهام المجدولة',                            // [§7-style drafted]
         jobsDisabled: 'المهام المجدولة معطّلة',              // [§7-style drafted]
@@ -1424,6 +1426,8 @@ const resources = {
         outboxOldest: 'Oldest pending message',
         outboxDrained: 'Nothing pending',
         outboxFailedWarning: 'Failed messages need attention',
+        erpNotConfigured: 'No real ERP integration is configured',
+        erpNotConfiguredBody: 'Messages are written to the log and sent nowhere. A message marked Sent is not evidence that data reached an external system.',
         minutes: '{{value}} min',
         jobs: 'Recurring jobs',
         jobsDisabled: 'Recurring jobs are disabled',

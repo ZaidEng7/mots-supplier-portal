@@ -19,7 +19,7 @@ function overview(overrides: Record<string, unknown> = {}) {
       { table: 'categories', active: 12, inactive: 2 },
       { table: 'currencies', active: 3, inactive: 0 },
     ],
-    outbox: { pending: 0, failed: 0, oldestPendingAgeMinutes: null },
+    outbox: { pending: 0, failed: 0, oldestPendingAgeMinutes: null, erpTransportConfigured: true },
     jobs: {
       recurringJobsEnabled: true,
       expectedJobs: JOBS,
@@ -64,7 +64,7 @@ describe('AdminOverviewPage', () => {
     // The control for the test above.
     restore = mockFetch({
       '/api/v1/admin/overview': overview({
-        outbox: { pending: 6, failed: 2, oldestPendingAgeMinutes: 180 },
+        outbox: { pending: 6, failed: 2, oldestPendingAgeMinutes: 180, erpTransportConfigured: true },
       }),
     })
 
@@ -128,5 +128,31 @@ describe('AdminOverviewPage', () => {
 
     expect(await screen.findByText('Could not load platform administration')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('says when a draining outbox is reaching a log file rather than an ERP', async () => {
+    // B-1/BRULE-011. MarkSynced is never called because the only transport writes a log line, so the rule
+    // "ExternalId is assigned after an ERP ACK" passes because nothing exercises it. An operator reading a
+    // healthy outbox tile would conclude the integration works.
+    restore = mockFetch({
+      '/api/v1/admin/overview': overview({
+        outbox: { pending: 3, failed: 0, oldestPendingAgeMinutes: 2, erpTransportConfigured: false },
+      }),
+    })
+
+    renderPage(<AdminOverviewPage />)
+
+    expect(await screen.findByText('No real ERP integration is configured')).toBeInTheDocument()
+    expect(screen.getByText(/not evidence that data reached an external system/)).toBeInTheDocument()
+  })
+
+  it('says nothing about the transport when a real one is configured', async () => {
+    // The control.
+    restore = mockFetch({ '/api/v1/admin/overview': overview() })
+
+    renderPage(<AdminOverviewPage />)
+
+    expect(await screen.findByText('Outbox')).toBeInTheDocument()
+    expect(screen.queryByText('No real ERP integration is configured')).not.toBeInTheDocument()
   })
 })
