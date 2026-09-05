@@ -750,6 +750,67 @@ public sealed class Rfq : IVersionedAggregate
         State = RfqState.Recommendation;
     }
 
+    /// <summary>
+    /// T-018/BRULE-035: <i>"Deadline extension while <c>Published</c>/<c>SubmissionOpen</c>:
+    /// <c>procurement_officer</c> may extend <c>submissionCloseAt</c> (audit
+    /// <c>rfq.deadline_extended</c>, notify all invitees). Shortening the window requires
+    /// <c>procurement_manager</c> <c>[ASSUMPTION]</c>."</i>
+    ///
+    /// <para>One method for both directions, because the validity rules are identical and the
+    /// difference is who may call it - which is an access-control question the endpoint answers, not
+    /// a domain one. Returns whether this was a shortening so the caller can pick the audit event and
+    /// the notification without re-deriving it.</para>
+    ///
+    /// <para><b>No bound on an extension (D-12).</b> A cap is a fairness rule with an invented number
+    /// in it, and a wrong cap blocks a legitimate extension during a real procurement with no
+    /// override. The audit row and the notification to every invitee are what make an abusive
+    /// extension visible instead.</para>
+    ///
+    /// <para><b>But the new deadline must be in the future, and after the window opened.</b> Those are
+    /// not policy, they are coherence: a deadline in the past closes the RFQ on the timeline job's
+    /// next run, so accepting one would let a "shortening" become an immediate close by side effect
+    /// rather than through <c>Close()</c>, skipping its own rules. And a close before the open leaves
+    /// a window that never existed.</para>
+    ///
+    /// <para><b>Consequence worth stating:</b> when no separate <c>ClarificationDeadlineAt</c> was
+    /// set, the clarification window falls back to this date (see <c>CanAskClarification</c>), so
+    /// extending the submission deadline also reopens clarifications. That is the fallback behaving as
+    /// designed rather than a side effect to suppress - a supplier given more time to bid should be
+    /// able to ask about what they are bidding on - but it is recorded because nothing else says it.</para>
+    /// </summary>
+    public bool ChangeSubmissionDeadline(DateTimeOffset newCloseAt)
+    {
+        if (State is not (RfqState.Published or RfqState.SubmissionOpen))
+        {
+            throw new DomainException(
+                $"Cannot change the submission deadline from state '{State}'; only 'Published' or 'SubmissionOpen' is valid.");
+        }
+
+        if (SubmissionClosesAt is null)
+        {
+            throw new DomainException("Cannot change the submission deadline: this RFQ has none set.");
+        }
+
+        if (newCloseAt <= DateTimeOffset.UtcNow)
+        {
+            throw new DomainException("The new submission deadline must be in the future.");
+        }
+
+        if (SubmissionOpensAt is not null && newCloseAt <= SubmissionOpensAt)
+        {
+            throw new DomainException("The new submission deadline must be after the submission window opens.");
+        }
+
+        if (newCloseAt == SubmissionClosesAt)
+        {
+            throw new DomainException("The new submission deadline is the same as the current one.");
+        }
+
+        var isShortening = newCloseAt < SubmissionClosesAt;
+        SubmissionClosesAt = newCloseAt;
+        return isShortening;
+    }
+
     /// <summary>EPIC-14/FEAT-14.4/FEAT-14.6/FR-AWD-004/006: AwardApproval -&gt; Awarded, the RFQ's
     /// own side of Award.ExecuteAward() - both happen in the same handler/SaveChanges call.</summary>
     public void MarkAwarded()

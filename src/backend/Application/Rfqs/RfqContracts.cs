@@ -109,6 +109,10 @@ public sealed record SupplierRfqListItemDto(
 /// </summary>
 public sealed record BuyingOrgDto(string? Code, string Name);
 
+// T-018/BRULE-035: one command for both directions - see Rfq.ChangeSubmissionDeadline on why the
+// direction is an access-control question rather than a domain one.
+public sealed record ChangeSubmissionDeadlineCommand(string ReferenceCode, DateTimeOffset NewCloseAt);
+
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
     DateTimeOffset? PublishAt, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionClosesAt,
@@ -187,6 +191,17 @@ public abstract record RfqMutationResult
     /// a client deciding whether to fix the payload or refetch the resource.</para>
     /// </summary>
     public sealed record IllegalTransition(RfqState CurrentState, string Message) : RfqMutationResult;
+    /// <summary>
+    /// T-018: this caller may not change this deadline in this direction - an officer shortening, or a
+    /// manager extending.
+    ///
+    /// <para>A 403 rather than a 404. §9.2's hide-existence rule protects against a caller LEARNING
+    /// that a row exists; here the caller has already been told, because the row-scope check above
+    /// returned the RFQ. Answering 404 at this point would hide the reason for the refusal without
+    /// hiding anything else.</para>
+    /// </summary>
+    public sealed record DeadlineChangeNotPermitted : RfqMutationResult;
+
     public sealed record InvalidCategory : RfqMutationResult;
     public sealed record InvalidUnitOfMeasure : RfqMutationResult;
     public sealed record InvalidEvaluationTemplate(string Message) : RfqMutationResult;
@@ -226,6 +241,17 @@ public interface ICreateRfqHandler
 public interface IUpdateRfqBasicsHandler
 {
     Task<RfqMutationResult> HandleAsync(UpdateRfqBasicsCommand command, CancellationToken ct);
+}
+
+/// <summary>
+/// T-018/BRULE-035. Extension is the officer's; shortening "requires procurement_manager", so the
+/// handler refuses a shortening from a caller without <c>rfq.deadline.shorten</c>. That check cannot
+/// live on the route: whether a request is a shortening depends on the RFQ's current deadline, which
+/// only the handler has read.
+/// </summary>
+public interface IChangeSubmissionDeadlineHandler
+{
+    Task<RfqMutationResult> HandleAsync(ChangeSubmissionDeadlineCommand command, CancellationToken ct);
 }
 
 public interface IManageRfqItemHandler

@@ -329,4 +329,27 @@ describe('RfqDetailPage', () => {
 
     expect(await screen.findByText('This RFQ has been cancelled.')).toBeInTheDocument()
   })
+
+  it('offers the deadline control on a Published RFQ and not on a Draft one', async () => {
+    // T-018: an extension the officer cannot trigger is the same defect shape as T-067 - the rule
+    // permits it and no surface reaches it.
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByLabelText('New deadline')).toBeInTheDocument()
+    // Disabled until a date is picked, because the server requires one.
+    expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
+  })
+
+  it('hides the deadline control before the RFQ is published', async () => {
+    // The control for the test above: BRULE-035 permits the change while Published/SubmissionOpen
+    // only, and the screen gates on the same two states the domain does.
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText(/RFQ-2026-000001/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('New deadline')).not.toBeInTheDocument()
+  })
 })

@@ -7,6 +7,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
+  changeSubmissionDeadline,
   inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
   RfqApiError,
 } from '../../api/rfqs'
@@ -30,6 +31,7 @@ export function RfqDetailPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
+  const [deadlineDraft, setDeadlineDraft] = useState('')
   const [itemTitleAr, setItemTitleAr] = useState('')
   const [itemTitleEn, setItemTitleEn] = useState('')
   const [itemCategory, setItemCategory] = useState('')
@@ -142,6 +144,15 @@ export function RfqDetailPage() {
     mutationFn: () => closeRfqSubmission(referenceCode, t('rfq.manualCloseReason')),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.closed') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
+  })
+
+  // T-018: one control for both directions. The server decides which permission applies from the
+  // direction, so the UI does not have to know the caller's role - a 403 is surfaced as "not your
+  // direction" rather than hidden, because an officer who cannot shorten needs to know why.
+  const deadlineMutation = useMutation({
+    mutationFn: (deadline: string) => changeSubmissionDeadline(referenceCode, new Date(deadline).toISOString()),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.deadline.changed') }) },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.deadline.failed')) }),
   })
 
   const inviteMutation = useMutation({
@@ -271,6 +282,32 @@ export function RfqDetailPage() {
           ) : null}
         </div>
       </div>
+
+      {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
+          domain accepts. Same gate as the addendum control above, and for the same reason. */}
+      {canIssueAddendum ? (
+        <Card title={t('rfq.deadline.title')}>
+          <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.deadline.help')}
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Input
+              type="datetime-local"
+              aria-label={t('rfq.deadline.newDeadline')}
+              value={deadlineDraft}
+              onChange={(e) => setDeadlineDraft(e.target.value)}
+            />
+            <Button
+              variant="secondary"
+              isLoading={deadlineMutation.isPending}
+              disabled={!deadlineDraft}
+              onClick={() => deadlineMutation.mutate(deadlineDraft)}
+            >
+              {t('rfq.deadline.apply')}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {workspaceQuery.data ? (
         <Card title={t('workspace.title')}>

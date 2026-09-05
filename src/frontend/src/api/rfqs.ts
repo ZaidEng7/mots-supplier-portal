@@ -270,6 +270,16 @@ export async function publishRfq(referenceCode: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/publish`, { method: 'POST' }))
 }
 
+/** T-018/BRULE-035: extension is the officer's, shortening the manager's - the server decides which
+ * from the direction, so this one function serves both and a 403 means "not your direction". */
+export async function changeSubmissionDeadline(referenceCode: string, submissionDeadline: string): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/deadline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ submissionDeadline }),
+  }))
+}
+
 export async function closeRfqSubmission(referenceCode: string, reason: string | null): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/close`, {
     method: 'POST',
