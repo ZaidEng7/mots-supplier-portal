@@ -284,3 +284,18 @@ aggregate here is one level deep; `AppDbContext.UnattributedChildTypes()` expose
 see, and a test asserts it is empty, so a grandchild introduced later fails loudly rather than silently
 failing to bump.*
 
+### D-28 — Reference data is deactivated, never deleted, and codes are immutable
+
+| | |
+|---|---|
+| **What was undecided** | What happens to rows already pointing at a reference item an administrator wants to remove. |
+| **Where the gap is** | FR-ADM-004 requires the six reference tables to be manageable and says nothing about referential behaviour. Nothing in the schema helps: every one of them is referenced **by code** — `RfqItem.CategoryCode`, `Offering.UnitOfMeasureCode`, the document type on a `SupplierDocument` — with no foreign key, no cascade and no nullable fallback. |
+| **What was decided** | There is no delete operation. Deactivation (`IsActive = false`) is the only removal, and it is reversible. The **code cannot be changed** once created; names and DocumentType's flags can. |
+| **Why** | Deleting a Category a published RFQ item points at would leave that RFQ describing something that no longer exists, and there is no cascade to notice. Renaming a code is the same damage with a longer fuse: a historical award record would silently start reading as if it had been for a different category. Deactivation hides the code from new selections and leaves every existing row intact and readable, which is the only option that is both reversible and safe on live tender data. Inactive rows stay visible to an administrator — otherwise deactivation reads as deletion and the next administrator re-creates the code, which is the precise outcome the no-delete rule exists to prevent. |
+| **What it costs if wrong** | A ministry that genuinely wants a code gone must live with it deactivated. Adding a delete later is possible but needs a referential-integrity pass first — the point of this decision is that it must not be added *without* one. |
+| **Who should confirm it** | Procurement, and whoever owns the data model. |
+
+*A new `DocumentType` defaults to not-required and not-expiry-tracked when the caller says nothing:
+required-by-default would retroactively make every existing supplier's profile incomplete the moment the
+row was created, which is a live consequence for people who did nothing.*
+

@@ -7,7 +7,7 @@ public sealed class UnitOfMeasure
 {
     public Guid Id { get; init; }
     public required string Code { get; init; }
-    public required string NameAr { get; init; }
-    public required string NameEn { get; init; }
-    public bool IsActive { get; init; } = true;
+    public required string NameAr { get; set; }
+    public required string NameEn { get; set; }
+    public bool IsActive { get; set; } = true;
 }

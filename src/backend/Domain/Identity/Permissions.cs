@@ -225,6 +225,12 @@ public static class Permissions
     /// </summary>
     public const string RfqDeadlineShorten = "rfq.deadline.shorten";
 
+    /// <summary>FR-ADM-004: "Manage Category tree, DocumentType, Currency, UnitOfMeasure, Incoterm,
+    /// Region reference data" - <c>system_admin</c>, named by the requirement's own actor column. Its
+    /// own permission rather than AdminUsersManage: reference data decides what every supplier may
+    /// register against, which is a different authority from managing accounts.</summary>
+    public const string ReferenceDataManage = "reference.manage";
+
     public const string ReportRead = "report.read";
 
     public static readonly IReadOnlyList<string> All =
@@ -237,7 +243,7 @@ public static class Permissions
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
-        RfqDeadlineShorten
+        RfqDeadlineShorten, ReferenceDataManage
     ];
 }
 

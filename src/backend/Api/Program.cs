@@ -22,7 +22,9 @@ using MotsSupplierPortal.Application.Identity;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Application.Reference;
+using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Application.Suppliers;
+using MotsSupplierPortal.Infrastructure.ReferenceData;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Proposals;
@@ -364,6 +366,7 @@ builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
 builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
+builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
 builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
 builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();
@@ -792,6 +795,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithName("GetUnitsOfMeasure")
     .WithTags("Reference");
 
+app.MapReferenceDataAdminEndpoints();
 app.MapDashboardEndpoints();
 app.MapNotificationEndpoints();
 app.MapRegistrationEndpoints();
