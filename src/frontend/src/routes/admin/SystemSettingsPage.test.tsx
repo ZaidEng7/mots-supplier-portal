@@ -65,7 +65,7 @@ describe('SystemSettingsPage', () => {
   })
 
   it('saves an edited value and clears the draft', async () => {
-    const calls: { url: string; body: string }[] = []
+    const calls: { url: string; method: string; body: string }[] = []
     restore = mockFetch({
       '/api/v1/admin/settings': [WINDOW],
       '/api/v1/admin/settings/documents.expiringSoonWindowDays': {
