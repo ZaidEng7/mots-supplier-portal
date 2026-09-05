@@ -353,12 +353,46 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        /*
+         * T-030 split (2), applied to this and the nine routes below: every buyer-side write that adds
+         * or removes a CHILD of the RFQ requires `If-Match` and returns the version it produced.
+         *
+         * The same argument as split (3) made for the supplier's children, and D-37 states it: the
+         * aggregate's version moves either way, so the only question is whether anyone is told. Without
+         * the precondition, an officer can add an item on top of an RFQ they never saw - one a manager
+         * has just returned for edits, or whose deadline has moved beneath them - and the write
+         * succeeds against a state nobody was looking at. In a tender that is the class of lost update
+         * §8.1 exists to refuse.
+         *
+         * The precondition is obtainable: `GET /api/v1/rfqs/{referenceCode}` issues the ETag, and the
+         * SPA's store walks path prefixes up to it (api/etags.ts). `WithFreshETag` rather than
+         * `WithETag` for the same reason split (3) needed it - `WithETag` also answers 304 to a
+         * conditional read, and a 304 on a POST that changed the row would be a lie.
+         *
+         * FOUR ROUTES ON THIS GROUP ARE DELIBERATELY LEFT UNGUARDED:
+         *
+         *  - `POST /` (CreateRfq): a top-level create has no prior version anyone could have read, and
+         *    requiring one would make authoring impossible (D-37).
+         *
+         *  - `POST /{code}/clarifications` and `POST /{code}/invitations/decline`: the SUPPLIER's two
+         *    writes. `SupplierRfqDto` carries no version - deliberately, it is the buyer aggregate's -
+         *    so the precondition is unobtainable and the guard would 428 every supplier. It would also
+         *    be guarding the wrong thing: two invited suppliers asking unrelated questions is not a
+         *    lost update, and refusing the second is a fairness problem rather than a safety one.
+         *
+         *  - `POST /{code}/request-clarification` and `.../resolve-clarification`: already documented
+         *    below - §3.1 names `evaluator` as an actor and an evaluator cannot GET the RFQ.
+         */
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRfqItem");
 
         group.MapDelete("/{referenceCode}/items/{itemId:guid}", async (
             string referenceCode, Guid itemId, IManageRfqItemHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRfqItemCommand(referenceCode, itemId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRfqItem");
 
         group.MapPost("/{referenceCode}/requirements", async (
@@ -376,12 +410,16 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRequirement");
 
         group.MapDelete("/{referenceCode}/requirements/{requirementId:guid}", async (
             string referenceCode, Guid requirementId, IManageRequirementHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRequirementCommand(referenceCode, requirementId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRequirement");
 
         // FEAT-07.2/FR-RFQ-003. Stored via IFileStorage directly (no AV-scan quarantine flow -
@@ -416,6 +454,8 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRfqAttachment");
 
         // T3-01: the read path FEAT-07.2 never had. Upload and delete existed; a buyer could attach
@@ -446,6 +486,8 @@ public static class RfqEndpoints
             string referenceCode, Guid attachmentId, IManageRfqAttachmentHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRfqAttachmentCommand(referenceCode, attachmentId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRfqAttachment");
 
         group.MapPut("/{referenceCode}/evaluation-template", async (
@@ -605,6 +647,8 @@ public static class RfqEndpoints
             string referenceCode, InviteSupplierRequest request, IInviteSupplierHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new InviteSupplierCommand(referenceCode, request.SupplierId), ct)))
         .RequirePermission(Permissions.RfqInvite)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("InviteSupplier");
 
         group.MapGet("/{referenceCode}/invitations/candidates", async (
@@ -627,12 +671,16 @@ public static class RfqEndpoints
             return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer), ct));
         })
         .RequirePermission(Permissions.ClarificationAnswer)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AnswerClarification");
 
         group.MapPost("/{referenceCode}/clarifications/{clarificationId:guid}/publish", async (
             string referenceCode, Guid clarificationId, IPublishClarificationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new PublishClarificationCommand(referenceCode, clarificationId), ct)))
         .RequirePermission(Permissions.ClarificationAnswer)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("PublishClarification");
 
         group.MapPost("/{referenceCode}/addenda", async (
@@ -648,6 +696,8 @@ public static class RfqEndpoints
             return MapMutation(await handler.HandleAsync(new IssueAddendumCommand(referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn), ct));
         })
         .RequirePermission(Permissions.RfqAddendum)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("IssueAddendum");
     }
 }
