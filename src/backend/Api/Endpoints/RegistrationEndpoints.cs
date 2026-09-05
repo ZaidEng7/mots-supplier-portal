@@ -110,9 +110,12 @@ public static class RegistrationEndpoints
             // see RegisterSupplierHandler's NotifyExistingSupplierAsync.
             return result switch
             {
-                RegisterSupplierResult.Success s => Results.Ok(new { message = "registration_received", referenceCode = s.SupplierReferenceCode }),
-                RegisterSupplierResult.DuplicateEmail => Results.Ok(new { message = "registration_received", referenceCode = (string?)null }),
-                RegisterSupplierResult.DuplicateRegistrationNumber => Results.Ok(new { message = "registration_received", referenceCode = (string?)null }),
+                // §12.1 names this field `supplierCode`, and §12.2's own rename (R-9) already settled
+                // that spelling for the supplier's public code everywhere else. Renamed here for
+                // consistency; the value and the enumeration-safe shape are unchanged.
+                RegisterSupplierResult.Success s => Results.Ok(new { message = "registration_received", supplierCode = s.SupplierReferenceCode }),
+                RegisterSupplierResult.DuplicateEmail => Results.Ok(new { message = "registration_received", supplierCode = (string?)null }),
+                RegisterSupplierResult.DuplicateRegistrationNumber => Results.Ok(new { message = "registration_received", supplierCode = (string?)null }),
                 RegisterSupplierResult.WeakPassword w => Results.BadRequest(new { error = "weak_password", details = w.Errors }),
                 _ => Results.Problem(),
             };
@@ -133,7 +136,12 @@ public static class RegistrationEndpoints
             return result switch
             {
                 VerifyEmailResult.Success => Results.Ok(new { verified = true }),
-                VerifyEmailResult.InvalidOrExpiredToken => Results.BadRequest(new { error = "invalid_or_expired_token" }),
+                // §12.1: "Expired/invalid token -> 422 (VERIFICATION_TOKEN_INVALID)". It answered 400
+                // with a different slug. 422 is also the right shape: the request was well-formed and
+                // the token was simply not usable, which is a semantic refusal rather than a parse
+                // failure. The middleware turns the identifier into §7's SCREAMING_SNAKE code.
+                VerifyEmailResult.InvalidOrExpiredToken => Results.UnprocessableEntity(
+                    new { error = "verification_token_invalid" }),
                 _ => Results.Problem(),
             };
         })

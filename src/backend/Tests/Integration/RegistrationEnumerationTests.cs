@@ -54,8 +54,8 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
 
         // A 202 SUCCESS body, which §7's error model does not touch - the field is still `message`.
         firstBody.GetProperty("message").GetString().Should().Be(secondBody.GetProperty("message").GetString());
-        firstBody.GetProperty("referenceCode").GetString().Should().NotBeNull("the genuine registration must have produced a real code");
-        secondBody.GetProperty("referenceCode").ValueKind.Should().Be(JsonValueKind.Null,
+        firstBody.GetProperty("supplierCode").GetString().Should().NotBeNull("the genuine registration must have produced a real code");
+        secondBody.GetProperty("supplierCode").ValueKind.Should().Be(JsonValueKind.Null,
             "no second Supplier was created for the duplicate, so there is nothing real to return - but the FIELD is still present (see PropertyNames assertion above)");
     }
 
@@ -78,7 +78,7 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
 
         PropertyNames(firstBody).Should().BeEquivalentTo(PropertyNames(secondBody),
             "email-duplicate and registration-number-duplicate must be exactly as indistinguishable from success as each other - one non-enumerating fix, not two differently-shaped ones");
-        secondBody.GetProperty("referenceCode").ValueKind.Should().Be(JsonValueKind.Null);
+        secondBody.GetProperty("supplierCode").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     /// <summary>

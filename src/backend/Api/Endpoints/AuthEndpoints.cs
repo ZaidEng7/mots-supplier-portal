@@ -296,9 +296,22 @@ public static class AuthEndpoints
             Expires = DateTimeOffset.UtcNow.AddDays(30),
         });
 
+        // §12.1's documented login body, conformed where conforming is safe.
+        //
+        // tokenType and expiresIn are ADDED: §12.1 names both, they cost nothing, and expiresIn is
+        // what an OAuth-shaped client reaches for. accessTokenExpiresAt STAYS alongside rather than
+        // being replaced - a relative lifetime forces every client to trust its own clock against the
+        // server's, and this one already ships an absolute value the SPA uses.
+        //
+        // §12.1's `user` object is deliberately NOT here. See DECISIONS-TAKEN.md D-26: the SPA reads
+        // roles and permissions out of the access token's own claims (authStore decodes it), so a
+        // second copy in the body would be a second source of truth for authorization data - and the
+        // two disagree the moment a role changes mid-session.
         return Results.Ok(new
         {
             accessToken = tokens.AccessToken,
+            tokenType = "Bearer",
+            expiresIn = (int)Math.Max(0, (tokens.AccessTokenExpiresAt - DateTimeOffset.UtcNow).TotalSeconds),
             accessTokenExpiresAt = tokens.AccessTokenExpiresAt,
         });
     }

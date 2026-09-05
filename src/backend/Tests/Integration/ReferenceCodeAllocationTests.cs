@@ -39,7 +39,8 @@ public sealed class ReferenceCodeAllocationTests(PostgresApiFixture fixture)
         }
 
         var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string?>>();
-        return body!["referenceCode"];
+        // §12.1/R-9: the register response spells this supplierCode now, matching §12.2 everywhere.
+        return body!["supplierCode"];
     }
 
     /// <summary>
