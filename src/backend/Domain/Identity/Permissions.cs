@@ -231,6 +231,16 @@ public static class Permissions
     /// register against, which is a different authority from managing accounts.</summary>
     public const string ReferenceDataManage = "reference.manage";
 
+    /// <summary>
+    /// FR-DSH-005/BRULE-086: the Ministry's "read-only, cross-organization access to
+    /// aggregate/governance metrics only".
+    ///
+    /// <para>Its own permission, and the ONLY one ministry_viewer holds. Not RfqRead or ReportRead:
+    /// both of those are row-scoped to an organization, and a cross-organization read that borrowed
+    /// one would either see nothing or quietly bypass the scoping that makes them safe.</para>
+    /// </summary>
+    public const string GovernanceRead = "governance.read";
+
     public const string ReportRead = "report.read";
 
     public static readonly IReadOnlyList<string> All =
@@ -243,7 +253,7 @@ public static class Permissions
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
-        RfqDeadlineShorten, ReferenceDataManage
+        RfqDeadlineShorten, ReferenceDataManage, GovernanceRead
     ];
 }
 
@@ -290,7 +300,9 @@ public static class Roles
         // exposure. The Ministry's legitimate governance view belongs to EPIC-18/EPIC-19, which
         // are unbuilt; granting raw audit access as an interim stand-in grants strictly more than
         // BRULE-086 allows. Re-add only if OQ-001 resolves in favour of line-level Ministry access.
-        [MinistryViewer] = [],
+        // D-6/BRULE-086: the Ministry sees governance data. This was an empty set - the persona could
+        // log in and reach nothing at all, which is the EPIC-11 defect at persona scale.
+        [MinistryViewer] = [Permissions.GovernanceRead],
         [SystemAdmin] = [.. Permissions.All],
     };
 }

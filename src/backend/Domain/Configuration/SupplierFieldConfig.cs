@@ -14,6 +14,18 @@ public static class FieldConfigCategory
     /// matches LegalInfo's own property names: legalNameAr, legalNameEn, registrationNumber,
     /// taxId, supplierType, establishedOn.</summary>
     public const string LegalInfoRequired = "LegalInfoRequired";
+
+    /// <summary>
+    /// D-6/BRULE-087: the Ministry's commercial-visibility policy, as ONE flag.
+    ///
+    /// <para>BRULE-087 makes this a policy decision and defaults it to aggregate-only. Putting it here
+    /// rather than in a new settings mechanism is deliberate - this table is already
+    /// admin-editable and already the answer to "a thing procurement decides that code must not", so
+    /// MOT Legal's answer flips a row instead of commissioning an epic.</para>
+    ///
+    /// <para>FieldCode <c>commercialValues</c>, default OFF.</para>
+    /// </summary>
+    public const string GovernanceVisibility = "GovernanceVisibility";
 }
 
 /// <summary>Admin-editable configuration, one row per (Category, FieldCode) pair - replaces what

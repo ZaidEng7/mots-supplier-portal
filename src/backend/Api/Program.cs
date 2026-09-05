@@ -367,6 +367,7 @@ builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
 builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetGovernanceOverviewHandler, MotsSupplierPortal.Infrastructure.Governance.GetGovernanceOverviewHandler>();
 builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
 builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
@@ -796,6 +797,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithName("GetUnitsOfMeasure")
     .WithTags("Reference");
 
+app.MapGovernanceEndpoints();
 app.MapReferenceDataAdminEndpoints();
 app.MapDashboardEndpoints();
 app.MapNotificationEndpoints();

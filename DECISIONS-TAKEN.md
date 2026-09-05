@@ -316,3 +316,14 @@ normalises, reordering keys and re-spacing, so a replay came back byte-different
 the key is client-generated, so a shared key space would let one caller replay another caller's
 response, which is a disclosure rather than a duplicate.*
 
+### D-30 — Role defaults are seeded per permission, not once per role
+
+| | |
+|---|---|
+| **What was undecided** | Whether a permission newly added to a role's defaults in code should reach an environment whose roles already exist. |
+| **Where the gap is** | Nothing specifies it. `RoleSeeder` wrote one `perms:seeded` claim per role and skipped that role on every later start — a reasonable-looking guard whose purpose was to stop the seeder undoing an administrator's edits. |
+| **What was decided** | The marker is per permission (`perms:offered:<permission>`). A permission with no marker has never been offered, so it is added; one whose marker exists is left alone, so an administrator's removal survives. A deployment carrying the old per-role marker has everything it currently holds back-filled as already-offered, so nothing an admin removed is resurrected. |
+| **Why** | The per-role marker made the defaults a one-time snapshot. Adding a permission to a role in code had **no effect** on any environment whose roles already existed — so EPIC-18 would have shipped as "the Ministry dashboard 403s in production and works locally". Found exactly that way: the governance tests passed against a fresh database and failed against a reused one. Per-permission marking is the smallest change that distinguishes "new in code" from "removed by a person", which is the distinction the original guard was reaching for and could not express. |
+| **What it costs if wrong** | A permission an administrator removed before this change, and which is still in `DefaultPermissions`, is treated as already-offered by the back-fill and stays removed. That is the intended reading; if a deployment wants the defaults re-applied wholesale, that is a deliberate admin action, not a startup side effect. |
+| **Who should confirm it** | Whoever owns roles. |
+

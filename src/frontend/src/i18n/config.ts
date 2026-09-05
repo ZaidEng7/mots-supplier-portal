@@ -74,6 +74,26 @@ const resources = {
       // both surfaces render the same table with the same column headers, so there is no context the
       // export lacks, and all three divergences turned out to be errors rather than adaptations.
       // See DECISIONS-TAKEN.md.
+      // ── EPIC-18/SCR-600 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
+      // ARABIC-REVIEW.md's pile.
+      ministry: {
+        title: 'لوحة الحوكمة',                          // [§7-style drafted]
+        kpis: {
+          suppliers: 'الموردون المسجلون',                // [§7-style drafted]
+          rfqs: 'طلبات عروض الأسعار',                    // [reused] §7's own term
+          awards: 'الترسيات',                            // [reused] §8's «ترسية»
+          participation: 'متوسط العروض لكل طلب',          // [§7-style drafted]
+        },
+        awardedValue: 'إجمالي قيمة الترسيات',            // [§7-style drafted]
+        commercialWithheld: 'القيم المالية غير معروضة',   // [§7-style drafted]
+        commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.', // [§7-style drafted]
+        suppliersByState: 'الموردون حسب حالة دورة الحياة', // [reused] matches the compliance report (D-18)
+        rfqsByState: 'طلبات عروض الأسعار حسب الحالة',     // [reused] matches the procurement report
+        empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
+        loadFailed: 'تعذّر تحميل لوحة الحوكمة',           // [§7-style drafted]
+        retry: 'إعادة المحاولة',                         // [reused]
+      },
       reports: {
         title: 'التقارير',
         from: 'من',
@@ -1128,6 +1148,23 @@ const resources = {
         emptyTitle: 'No invitations yet',
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
         loadFailed: "Couldn't load this section",
+        retry: 'Try again',
+      },
+      ministry: {
+        title: 'Governance dashboard',
+        kpis: {
+          suppliers: 'Registered suppliers',
+          rfqs: 'RFQs',
+          awards: 'Awards',
+          participation: 'Average proposals per RFQ',
+        },
+        awardedValue: 'Total awarded value',
+        commercialWithheld: 'Commercial values are not shown',
+        commercialWithheldBody: 'Under the current visibility policy, aggregate metrics are shown without commercial values.',
+        suppliersByState: 'Suppliers by lifecycle state',
+        rfqsByState: 'RFQs by state',
+        empty: 'No data yet',
+        loadFailed: 'Could not load the governance dashboard',
         retry: 'Try again',
       },
       reports: {

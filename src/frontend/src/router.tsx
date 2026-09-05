@@ -1,3 +1,4 @@
+import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
@@ -282,6 +283,17 @@ const reportsRoute = createRoute({
   component: ReportsPage,
 })
 
+// SCR-600, `/ministry`, ministry_viewer, P1. The specification's own path, and it matches this app's
+// URL space - unlike SCR-400/500/reports, no prefix disagreement to report here.
+//
+// Under the BACK-OFFICE layout: ministry_viewer is staff, not a supplier, and that layout is what
+// already refuses a supplier-scoped session with a 403.
+const ministryOverviewRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry',
+  component: MinistryOverviewPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -451,7 +463,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

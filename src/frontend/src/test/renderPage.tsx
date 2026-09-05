@@ -91,6 +91,19 @@ export function mockFetch(routes: Record<string, unknown>): () => void {
     }
 
     const body = routes[match]
+
+    // A fixture of the shape { __status: 4xx|5xx } declares a FAILING response for that route.
+    // Added because every screen's error state needs one and the alternative - leaving the route
+    // undeclared so the harness throws - reads as a missing mock to the next person, which is the
+    // opposite of what the test means.
+    if (body !== null && typeof body === 'object' && '__status' in body) {
+      const status = (body as { __status: number }).__status
+      return new Response(JSON.stringify({ status }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     return new Response(JSON.stringify(body), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
