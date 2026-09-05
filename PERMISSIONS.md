@@ -34,7 +34,7 @@ either dead or waiting for a surface — both are called out below.
 | `governance.read` | `ministry_viewer`, `system_admin` | `GetGovernanceOverview` |
 | `integration.retry` | `system_admin` | `RetryAwardErpSync`, checked in SystemStatusHandler, not on a route |
 | `offering.search` | `procurement_manager`, `procurement_officer`, `system_admin` | `SearchBuyerOfferings` |
-| `proposal.create` | `supplier_admin`, `supplier_user`, `system_admin` | `GetProposal`, `GetProposalByCode`, `StartProposal`, `SupplierDeclineInvitation`, `SupplierPostClarification` |
+| `proposal.create` | `supplier_admin`, `supplier_user`, `system_admin` | `GetProposal`, `GetProposalByCode`, `ListMyProposals`, `StartProposal`, `SupplierDeclineInvitation`, `SupplierPostClarification` |
 | `proposal.decline` | `supplier_admin`, `system_admin` | `DeclineAwardOffer` |
 | `proposal.edit` | `supplier_admin`, `supplier_user`, `system_admin` | `AddProposalDocument`, `GetOwnProposalDocumentDownloadUrl`, `PatchProposal`, `RemoveProposalDocument` |
 | `proposal.revise` | `supplier_admin`, `system_admin` | `ReviseProposal` |

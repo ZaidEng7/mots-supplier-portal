@@ -271,6 +271,7 @@ builder.Services.AddScoped<ISubmitRfqForReviewHandler, SubmitRfqForReviewHandler
 builder.Services.AddScoped<IReassignRfqHandler, ReassignRfqHandler>();
 builder.Services.AddScoped<IListBuyerProposalsHandler, ListBuyerProposalsHandler>();
 builder.Services.AddScoped<IGetBuyerProposalHandler, GetBuyerProposalHandler>();
+builder.Services.AddScoped<IListMyProposalsHandler, ListMyProposalsHandler>();
 builder.Services.AddScoped<IListRfqAssigneesHandler, ListRfqAssigneesHandler>();
 builder.Services.AddScoped<IReturnRfqForEditsHandler, ReturnRfqForEditsHandler>();
 builder.Services.AddScoped<IApproveRfqHandler, ApproveRfqHandler>();

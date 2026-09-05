@@ -223,3 +223,29 @@ export async function requestProposalClarification(proposalReferenceCode: string
     body: JSON.stringify({ reason }),
   }))
 }
+
+/**
+ * SCR-150: the calling supplier's own proposals across every RFQ.
+ *
+ * <p>Scoped server-side by the caller's own supplier — there is no id to pass, which is the point.
+ * Drafts are included here and excluded from the buyer's view of the same rows (T-082): the two
+ * lists answer different questions about the same table.</p>
+ */
+export interface MyProposalListItem {
+  proposalCode: string
+  rfqCode: string
+  rfqTitleAr: string
+  rfqTitleEn: string
+  state: string
+  submittedAt: string | null
+  submissionDeadline: string | null
+  currencyCode: string | null
+  totalValue: number | null
+  itemCount: number
+}
+
+export async function listMyProposals(): Promise<MyProposalListItem[]> {
+  const res = await apiFetch('/api/v1/proposals')
+  if (!res.ok) throw new ProposalApiError(res.status, null)
+  return (await res.json()) as MyProposalListItem[]
+}

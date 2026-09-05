@@ -55,6 +55,10 @@ export function SupplierShell({ children }: Props) {
             <Link to="/documents" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.documents')}
             </Link>
+            {/* SCR-150: "what have I bid on" had no answer short of opening every invitation. */}
+            <Link to="/proposals" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.proposals')}
+            </Link>
             <Link to="/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.offerings')}
             </Link>

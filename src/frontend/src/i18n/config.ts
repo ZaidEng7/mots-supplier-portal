@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
@@ -1475,6 +1475,24 @@ const resources = {
           historyFailed: 'تعذّر تحميل سجل الإصدارات',             // [drafted]
         },
       },
+      // ── SCR-150 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // §7 has no proposals-list strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      myProposals: {
+        title: 'عروضي',                                       // [drafted] SCR-150
+        subtitle: 'العروض التي قدّمتها أو بدأت إعدادها.',        // [drafted]
+        listTitle: 'قائمة العروض',                             // [drafted]
+        empty: 'لم تقدّم أي عرض بعد',                          // [drafted]
+        open: 'فتح',                                          // [reused]
+        continue: 'متابعة الإعداد',                            // [drafted]
+        awardOffered: 'عُرضت عليك الترسية',                     // [reused] §8's «ترسية»
+        retry: 'إعادة المحاولة',                               // [reused]
+        fields: {
+          rfq: 'الطلب', proposal: 'رقم العرض', state: 'الحالة',
+          deadline: 'موعد الإغلاق', total: 'الإجمالي', actions: 'الإجراءات',
+        },
+        errors: { loadFailed: 'تعذّر تحميل العروض' },           // [drafted]
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -1527,7 +1545,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', proposals: 'My proposals', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       supplierDashboard: {
         title: 'Supplier dashboard',
         greeting: 'Welcome, {{name}}',
@@ -2875,6 +2893,21 @@ const resources = {
           downloadFailed: 'Could not download the document',
           historyFailed: 'Could not load the version history',
         },
+      },
+      myProposals: {
+        title: 'My proposals',
+        subtitle: 'Bids you have submitted or started preparing.',
+        listTitle: 'Proposals',
+        empty: 'You have not started a proposal yet',
+        open: 'Open',
+        continue: 'Continue',
+        awardOffered: 'Award offered',
+        retry: 'Try again',
+        fields: {
+          rfq: 'RFQ', proposal: 'Proposal', state: 'State',
+          deadline: 'Deadline', total: 'Total', actions: 'Actions',
+        },
+        errors: { loadFailed: 'Could not load your proposals' },
       },
       settings: {
         title: 'Account Settings',

@@ -205,6 +205,18 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("StartProposal");
 
+        // SCR-150: the supplier's own proposals across every RFQ. Scoped by the caller's SupplierId,
+        // never by a parameter - a supplier id in the request would be an authorization decision made
+        // by the client.
+        app.MapGet("/api/v1/proposals", async (IListMyProposalsHandler handler, CancellationToken ct) =>
+        {
+            var proposals = await handler.HandleAsync(ct);
+            return proposals is null ? Results.NotFound() : Results.Ok(proposals);
+        })
+        .RequirePermission(Permissions.ProposalCreate)
+        .WithTags("Proposals")
+        .WithName("ListMyProposals");
+
         rfqScoped.MapGet("/", async (string referenceCode, IGetProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)

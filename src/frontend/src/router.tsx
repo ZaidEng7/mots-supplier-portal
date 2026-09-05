@@ -3,6 +3,7 @@ import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
 import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
 import { ProfilePage } from './routes/ProfilePage'
 import { DocumentsPage } from './routes/DocumentsPage'
+import { MyProposalsPage } from './routes/MyProposalsPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
@@ -246,6 +247,15 @@ const documentsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/documents',
   component: DocumentsPage,
+})
+
+// SCR-150, `/proposals`, supplier_admin + supplier_user, P0. The missing index: SCR-154's read,
+// SCR-155's revise, SCR-156's withdraw and SCR-157's award response all already live in the proposal
+// workspace on the RFQ, and each row links back into it rather than duplicating any of them.
+const myProposalsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/proposals',
+  component: MyProposalsPage,
 })
 
 const teamRoute = createRoute({
@@ -530,7 +540,7 @@ const routeTree = rootRoute.addChildren([
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
   evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
-  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, 
+  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, myProposalsRoute, 
     supplierDashboardRoute,
     onboardingRoute,
     onboardingContactsRoute,
