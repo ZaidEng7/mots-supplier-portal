@@ -181,7 +181,15 @@ public static class IdempotencyEndpoints
 
         buffer.Position = 0;
         using var reader = new StreamReader(buffer, Encoding.UTF8);
-        var body = await reader.ReadToEndAsync();
+
+        // CancellationToken.None, deliberately, and NOT http.RequestAborted.
+        //
+        // By this point the handler has already committed its work. Abandoning the capture because the
+        // client disconnected would leave the record in-flight with no stored response - so the very
+        // retry that follows a dropped connection, which is the case §8.2 exists for, would get a
+        // conflict instead of the replay it should get. This read is from a MemoryStream that is
+        // already fully populated, so there is nothing to wait on and nothing to cancel.
+        var body = await reader.ReadToEndAsync(CancellationToken.None);
         return (http.Response.StatusCode, string.IsNullOrEmpty(body) ? null : body);
     }
 
@@ -192,7 +200,11 @@ public static class IdempotencyEndpoints
         http.Request.EnableBuffering();
         http.Request.Body.Position = 0;
         using var reader = new StreamReader(http.Request.Body, Encoding.UTF8, leaveOpen: true);
-        var body = await reader.ReadToEndAsync();
+
+        // http.RequestAborted here, unlike the capture above: this reads the REQUEST body off the
+        // wire, so a client that has gone away is a read that should stop rather than one that must
+        // finish. Nothing has been committed yet at this point, so abandoning costs nothing.
+        var body = await reader.ReadToEndAsync(http.RequestAborted);
         http.Request.Body.Position = 0;
 
         var material = $"{http.Request.Method}\n{http.Request.Path}\n{body}";
