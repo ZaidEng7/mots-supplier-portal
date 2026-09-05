@@ -251,6 +251,37 @@
   },
 
   // ==========================================================================================
+  // T-018/BRULE-035: the deadline change. The rule names a notification for EXTENSION only; the
+  // shortening one is an addition, because a window closing EARLIER is what a bidder must hear about
+  // most urgently. Copy is DRAFTED - §7 has no deadline-change strings - and goes to the Arabic
+  // review pile.
+  //
+  // NEITHER BODY NAMES THE NEW DATE. A `submissionDeadline` payload key was tried and the
+  // BRULE-091 allow-list gate refused it, correctly: a date is content, and that list's rule is that
+  // content lives in the authored copy or behind the link. Same treatment award.rejected gives a
+  // rejection reason. The reader opens the RFQ, where §12.4's submissionDeadline is on the row.
+  // ==========================================================================================
+  {
+    "type": "rfq.deadline_extended",
+    "source": "drafted",
+    "recipients": "In-app to all invitees",
+    "titleAr": "تم تمديد موعد التقديم",
+    "titleEn": "The submission deadline was extended",
+    "bodyAr": "مُدّد موعد التقديم للطلب {rfqCode}. راجعوا الطلب للموعد الجديد؛ لديكم وقت إضافي لتقديم عرضكم.",
+    "bodyEn": "The submission deadline for RFQ {rfqCode} was extended. Open the RFQ for the new date; you have more time to submit."
+  },
+  {
+    "type": "rfq.deadline_shortened",
+    "source": "drafted",
+    "recipients": "In-app to all invitees",
+    "titleAr": "تم تقديم موعد إغلاق التقديم",
+    "titleEn": "The submission deadline was brought forward",
+    "bodyAr": "قُدّم موعد إغلاق التقديم للطلب {rfqCode}. راجعوا الطلب للموعد الجديد وقدّموا عرضكم قبله.",
+    "bodyEn": "The submission deadline for RFQ {rfqCode} was brought forward. Open the RFQ for the new date and submit before it.",
+    "flag": "«قُدّم» (brought forward) reads close to «قُدّم» (submitted) in unvowelled text, which is a real ambiguity in a sentence about submission - flagged for the Arabic review rather than worked around, since the alternative («تم تقصير مدة التقديم», shortening the period) changes what the sentence is about."
+  },
+
+  // ==========================================================================================
   // T-064: the award-offer chain. §4.1 defines Shortlisted -> AwardOffered -> Awarded | Declined
   // and names both notifications; neither could fire before, because nothing assigned AwardOffered.
   // Copy is DRAFTED - §7 has no award-offer strings - and goes to the Arabic review pile.

@@ -75,6 +75,16 @@
     "flag": "Not a field the user types - it arrives in the invite/reset link. Wording assumes the message is only ever seen when a link is malformed."
   },
   {
+    // T-018: the deadline-change route. Arabic drafted in the register of the entries around it -
+    // NOT YET APPROVED, added to ARABIC-REVIEW.md's pile.
+    "key": "SubmissionDeadline.NotEmpty",
+    "code": "SUBMISSION_DEADLINE_REQUIRED",
+    "source": "drafted",
+    "ar": "موعد إغلاق التقديم مطلوب.",
+    "en": "A submission deadline is required.",
+    "usedIn": "ChangeSubmissionDeadlineRequest"
+  },
+  {
     // T-067/T-068: the evaluator scoring route names the bid by its public code. Arabic drafted, in
     // the register of the entries around it - NOT YET APPROVED, added to ARABIC-REVIEW.md's pile.
     "key": "ProposalCode.NotEmpty",

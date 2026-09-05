@@ -224,3 +224,25 @@ agree. The fix is a shared source of report copy across a C# generator and a Typ
 | **What it costs if wrong** | If procurement names an anchor, accepting `validityDays` becomes additive — the derived read already matches. |
 | **Who should confirm it** | Procurement. |
 
+### D-23 — Shortening a submission window needs its own permission, and both checks live in the handler
+
+| | |
+|---|---|
+| **What was undecided** | Which permission expresses "shortening requires `procurement_manager`", and where it is enforced. |
+| **Where the gap is** | BRULE-035 names the two actors — officer extends, manager shortens — and names no permission for either direction. |
+| **What was decided** | A new `rfq.deadline.shorten`, granted to `procurement_manager` only. Extension stays under the officer's existing `rfq.edit`. **Both** checks are in the handler; the route requires only authentication. |
+| **Why** | The direction decides the actor, and the direction is only knowable after reading the RFQ's current deadline — so no route filter can express the rule. This was got wrong first: a route requiring `rfq.edit` 403'd the manager, who does not hold it, which is the exact caller the rule names for shortening. A separate permission rather than reusing a manager-only one such as `rfq.approve`, because overloading that would silently hand the power to cut a live tender short to everyone granted approval authority. |
+| **What it costs if wrong** | If the ministry wants both directions with one role, it is one grant. The permission name is an invention; the policy is not. |
+| **Who should confirm it** | Procurement, and whoever owns roles. |
+
+### D-24 — A deadline change notifies both ways, and carries no date
+
+| | |
+|---|---|
+| **What was undecided** | Whether shortening notifies invitees, and whether the notification names the new date. |
+| **Where the gap is** | BRULE-035 says "notify all invitees" for **extension** and says nothing about shortening. BRULE-091's payload allow-list says what a notification may carry. |
+| **What was decided** | Both directions notify, under two separate types. Neither payload carries the date; the copy points at the RFQ. |
+| **Why** | A window closing **earlier** is the change a bidder must hear about most urgently — a supplier planning to submit on the old date otherwise discovers the new one by being refused — so the extra notification is the addition, not the omission. The date was tried as a payload key and the allow-list gate refused it, correctly: that list's own rule is that content belongs in the authored copy or behind the link, which is the same treatment `award.rejected` gives a rejection reason. Widening the gate to make copy read better is precisely the accident it exists to prevent. |
+| **What it costs if wrong** | An invitee must open the RFQ to see the new date. If procurement wants it in the notification, that is a deliberate allow-list entry with its own reasoning. |
+| **Who should confirm it** | Procurement, on the second notification; security, on the allow-list. |
+

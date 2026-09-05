@@ -51,6 +51,17 @@ public static class NotificationTypes
     /// <summary>T-064/§4.1: "AwardOffered -&gt; Declined ... In-app to procurement".</summary>
     public const string ProposalDeclined = "proposal.declined";
 
+    /// <summary>T-018/BRULE-035: "notify all invitees" on an extension.</summary>
+    public const string RfqDeadlineExtended = "rfq.deadline_extended";
+
+    /// <summary>
+    /// T-018: the shortening counterpart. BRULE-035 names a notification only for EXTENSION, but a
+    /// window that closes EARLIER is the change a bidder must hear about most urgently - a supplier
+    /// planning to submit on the old date discovers the new one by being refused. Sent for both
+    /// directions; the extra notification is the addition, not the omission.
+    /// </summary>
+    public const string RfqDeadlineShortened = "rfq.deadline_shortened";
+
     /// <summary>§4.1: "UnderReview -&gt; ClarificationRequested ... Email + in-app to supplier".</summary>
     public const string ProposalClarificationRequested = "proposal.clarification_requested";
 
@@ -69,6 +80,8 @@ public static class NotificationTypes
         ProposalWithdrawn,
         ProposalAwardOffered,
         ProposalDeclined,
+        RfqDeadlineExtended,
+        RfqDeadlineShortened,
         ProposalClarificationRequested,
         ProposalRevised,
     };

@@ -260,6 +260,7 @@ builder.Services.AddScoped<IListRfqsHandler, ListRfqsHandler>();
 builder.Services.AddScoped<IGetRfqHandler, GetRfqHandler>();
 builder.Services.AddScoped<ICreateRfqHandler, CreateRfqHandler>();
 builder.Services.AddScoped<IUpdateRfqBasicsHandler, UpdateRfqBasicsHandler>();
+builder.Services.AddScoped<IChangeSubmissionDeadlineHandler, ChangeSubmissionDeadlineHandler>();
 builder.Services.AddScoped<IManageRfqItemHandler, ManageRfqItemHandler>();
 builder.Services.AddScoped<IManageRequirementHandler, ManageRequirementHandler>();
 builder.Services.AddScoped<IManageRfqAttachmentHandler, ManageRfqAttachmentHandler>();

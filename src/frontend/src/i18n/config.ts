@@ -608,6 +608,17 @@ const resources = {
         submitForReview: 'إرسال للمراجعة',
         approve: 'موافقة',
         publish: 'نشر',
+        // ── T-018 · ARABIC FOR REVIEW ──────────────────────────────────────────────
+        // §7 has no deadline-change strings. Drafted in §7's register - NOT YET APPROVED,
+        // in ARABIC-REVIEW.md's pile.
+        deadline: {
+          title: 'موعد إغلاق التقديم',                  // [reused] §12.4's own field name in Arabic
+          help: 'التمديد من صلاحية موظف المشتريات، وتقديم الموعد من صلاحية المدير. يُبلَّغ جميع المدعوين بأي تغيير.', // [§7-style drafted]
+          newDeadline: 'الموعد الجديد',                 // [§7-style drafted]
+          apply: 'تغيير الموعد',                        // [§7-style drafted]
+          changed: 'تم تغيير موعد إغلاق التقديم',        // [§7-style drafted]
+          failed: 'تعذر تغيير موعد إغلاق التقديم',       // [§7-style drafted]
+        },
         closeSubmission: 'إغلاق باب التقديم',
         manualCloseReason: 'إغلاق يدوي من قبل موظف المشتريات',
         returnForEditsTitle: 'إعادة للتعديل',
@@ -1613,6 +1624,14 @@ const resources = {
         submitForReview: 'Submit for review',
         approve: 'Approve',
         publish: 'Publish',
+        deadline: {
+          title: 'Submission deadline',
+          help: 'Extending is the officer\'s; bringing the date forward is the manager\'s. Every invited supplier is notified of either.',
+          newDeadline: 'New deadline',
+          apply: 'Change deadline',
+          changed: 'The submission deadline was changed',
+          failed: 'Could not change the submission deadline',
+        },
         closeSubmission: 'Close submission window',
         manualCloseReason: 'Manually closed by procurement officer',
         returnForEditsTitle: 'Return for edits',

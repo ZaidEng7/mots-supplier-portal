@@ -38,6 +38,13 @@ public static class NotificationPayload
         "notificationId",
 
         // Where the deep link should land. A route, never content.
+        //
+        // T-018 tried to add "submissionDeadline" here and the gate refused it - correctly. The date
+        // is CONTENT, and this list's own rule is that content belongs in the authored copy or behind
+        // the link. The deadline-change bodies say the deadline moved and point at the RFQ, which is
+        // the same treatment award.rejected gives a rejection reason and rfq.clarification_requested
+        // gives its details. Widening the list to make copy read better is exactly the accident it
+        // exists to prevent.
         "route",
     };
 

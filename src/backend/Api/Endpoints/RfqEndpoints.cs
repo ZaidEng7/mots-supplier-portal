@@ -26,6 +26,17 @@ public sealed class RfqBasicsRequestValidator : AbstractValidator<RfqBasicsReque
     }
 }
 
+// T-018: one field, and it is the new deadline rather than a duration - a duration needs an anchor
+// (D-22's problem) and this endpoint would have to pick one.
+public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline);
+
+public sealed class ChangeSubmissionDeadlineRequestValidator : AbstractValidator<ChangeSubmissionDeadlineRequest>
+{
+    // Deliberately no "must be in the future" rule here: the domain owns that, and duplicating it
+    // would give two answers to the same question the day one of them changed.
+    public ChangeSubmissionDeadlineRequestValidator() => RuleFor(x => x.SubmissionDeadline).NotEmpty();
+}
+
 public sealed record RfqItemRequest(
     string TitleAr, string TitleEn, string? SpecificationAr, string? SpecificationEn,
     string CategoryCode, decimal Quantity, string UnitOfMeasureCode, bool IsUnitPrice, bool IsOptional);
@@ -118,6 +129,12 @@ public static class RfqEndpoints
         // next states." Every RFQ transition answered 400 before T3-36.
         RfqMutationResult.IllegalTransition illegal => IllegalTransitionResult.For(illegal.CurrentState, illegal.Message),
         RfqMutationResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
+        // T-018: a 403, not a 404. The caller demonstrably CAN see this RFQ - they reached here
+        // holding rfq.edit on it - so §9.2's hide-existence rule has nothing to protect, and hiding
+        // the reason would leave an officer unable to tell "wrong direction" from "broken".
+        RfqMutationResult.DeadlineChangeNotPermitted =>
+            Results.Json(new { error = "deadline_change_not_permitted" }, statusCode: StatusCodes.Status403Forbidden),
+
         RfqMutationResult.InvalidCategory => Results.BadRequest(new { error = "invalid_category" }),
         RfqMutationResult.InvalidUnitOfMeasure => Results.BadRequest(new { error = "invalid_unit_of_measure" }),
         RfqMutationResult.InvalidEvaluationTemplate invalid => Results.BadRequest(new { error = "invalid_evaluation_template", message = invalid.Message }),
@@ -388,6 +405,29 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
         .WithName("BindEvaluationTemplate");
+
+        // T-018/BRULE-035. NO permission filter on the route, deliberately, and this was got wrong
+        // first: BRULE-035 gives extension to the officer (rfq.edit) and shortening to the manager
+        // (rfq.deadline.shorten), and procurement_manager does NOT hold rfq.edit. A route requiring
+        // rfq.edit therefore 403'd the manager before the handler ran - the very caller the rule names
+        // for shortening. There is no "any of these permissions" filter in this codebase, and adding
+        // one to express a rule that is really "it depends on the direction" would be the wrong shape.
+        // Both checks live in the handler, which is the only place the direction is known.
+        group.MapPost("/{referenceCode}/deadline", async (
+            string referenceCode, ChangeSubmissionDeadlineRequest request,
+            IValidator<ChangeSubmissionDeadlineRequest> validator,
+            IChangeSubmissionDeadlineHandler handler, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapMutation(await handler.HandleAsync(
+                new ChangeSubmissionDeadlineCommand(referenceCode, request.SubmissionDeadline), ct));
+        })
+        .RequireAuthorization()
+        .RequireIfMatch()
+        .WithETag()
+        .WithName("ChangeSubmissionDeadline");
 
         group.MapPost("/{referenceCode}/submit-review", async (
             string referenceCode, ISubmitRfqForReviewHandler handler, CancellationToken ct) =>
