@@ -1,4 +1,5 @@
 import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
+import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
@@ -304,6 +305,14 @@ const adminOverviewRoute = createRoute({
   component: AdminOverviewPage,
 })
 
+// SCR-724, `/back-office/settings`, system_admin, P1 (FR-ADM-006). Same `/admin` -> `/back-office`
+// prefix note as SCR-700 above.
+const systemSettingsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/settings',
+  component: SystemSettingsPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -473,7 +482,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

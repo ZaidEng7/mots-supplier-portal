@@ -327,3 +327,36 @@ response, which is a disclosure rather than a duplicate.*
 | **What it costs if wrong** | A permission an administrator removed before this change, and which is still in `DefaultPermissions`, is treated as already-offered by the back-fill and stays removed. That is the intended reading; if a deployment wants the defaults re-applied wholesale, that is a deliberate admin action, not a startup side effect. |
 | **Who should confirm it** | Whoever owns roles. |
 
+
+### D-31 — "Invite-only" registration is implemented as a closed front door, not as a supplier invitation mechanism
+
+| | |
+|---|---|
+| **What was undecided** | What FR-REG-002's "invite-only" mode actually does. |
+| **Where the gap is** | FR-REG-002 names two modes — "open self-registration vs. invite-only", default open — and carries `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. Nothing anywhere describes an invitation for a supplier who does not yet exist: staff invitations invite staff, and RFQ invitations invite suppliers already registered and verified. |
+| **What was decided** | The setting has two values, `open` and `closed`. `closed` refuses `POST /api/v1/auth/register` with 403 `REGISTRATION_CLOSED` and a detail telling the applicant to contact the Ministry; the SPA replaces the form with the same message. No prospective-supplier invitation entity, token or email was invented. |
+| **Why** | The half of "invite-only" that is fully specified is the refusal, and it is implementable and testable today. The other half is a feature: an invitation for someone with no account needs a token, an expiry, a single-use guard, an email, an acceptance route and a seventh state on the supplier lifecycle — every one of which is a decision the documents have not made. Building a guess at that would produce a mechanism the Ministry has to live with; refusing registration produces a portal that behaves correctly under both modes and can gain invitations later without changing what `closed` means. |
+| **What it costs if wrong** | If the Ministry meant "closed to the public but open to people we email a link to", the closed mode is currently a dead end for those applicants and staff must onboard them another way. Recoverable: adding invitations later only widens what `closed` permits, and no data written under this reading becomes wrong. |
+| **Who should confirm it** | MOT procurement, alongside FR-REG-002's own open question. |
+
+### D-32 — A stored setting beats configuration, and configuration beats the built-in default
+
+| | |
+|---|---|
+| **What was undecided** | Which source wins for the two settings that already had an appsettings key before the settings table existed. |
+| **Where the gap is** | FR-ADM-006 says `system_admin` configures these values. It does not say what happens to a deployment that had already set `Documents:ExpiringSoonWindowDays` in its own configuration. |
+| **What was decided** | Precedence is: the stored row if one EXISTS, then the deployment's configuration, then the definition's default. No rows are seeded, so the table takes over a setting only when an administrator actually changes it. |
+| **Why** | "Database always wins" would have silently reset every deployment that had configured the expiry cadence on purpose back to 30/14/3 the moment this shipped — a behaviour change nobody asked for, attributable to nothing an operator did. Seeding the defaults would have caused the same thing while also erasing the difference between "nobody has decided" and "an administrator chose 30", which is the fact the audit trail and the screen's own overridden/default badge exist to carry. |
+| **What it costs if wrong** | An operator who expects appsettings to be authoritative can be overridden by an administrator through the screen, and the appsettings value then does nothing. The screen states which settings are overridden and when, so the surprise is visible rather than silent. |
+| **Who should confirm it** | Whoever owns deployment configuration. |
+
+### D-33 — The numeral system and the approval hierarchy are not system settings
+
+| | |
+|---|---|
+| **What was undecided** | Whether FR-ADM-006's five named settings all belong in a settings table. |
+| **Where the gap is** | FR-ADM-006 lists "registration mode, default currency, numeral system, document-expiry windows, approval hierarchy" and carries `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. It does not say what shape any of them takes. |
+| **What was decided** | Three shipped as settings. The **numeral system** did not: R-1 makes numerals a property of the locale — Arabic renders Eastern Arabic numerals, English renders Latin — and `numberingSystemFor(locale)` already implements exactly that. The **approval hierarchy** did not either: `RfqApproval` stores an ordered step list and deliberately encodes no amount-threshold routing, so configuring a hierarchy is a feature with its own state machine, recorded as T-075 rather than approximated by a value in a table. |
+| **Why** | A global numeral override would let one administrator put the wrong numerals under the wrong language for every user at once, which is a regression against R-1 dressed as configurability. And a settings row that claimed to configure an approval hierarchy nothing routes on would be an artifact asserting something untrue — the pattern this codebase keeps producing and this batch keeps removing. |
+| **What it costs if wrong** | If the Ministry genuinely wants numerals decoupled from language, that is a per-user preference or a locale variant, not this table, and the work is not started. If they want threshold routing, T-075 is sized and unstarted. Neither reading loses data. |
+| **Who should confirm it** | MOT procurement for the hierarchy; whoever owns the Arabic-first presentation rules for numerals. |

@@ -2,6 +2,7 @@ import { formatCurrency, formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { Dialog } from '../components/ui/Dialog'
 import { useTranslation } from 'react-i18next'
+import { getPublicSettings } from '../api/systemSettings'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
@@ -28,7 +29,16 @@ export function SupplierProposalPage() {
 
   const [pricingDrafts, setPricingDrafts] = useState<Record<string, { quantity: string; unitPrice: string }>>({})
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, { ar: string; en: string }>>({})
-  const [currencyCode, setCurrencyCode] = useState('SYP')
+  // T-060: the default currency is a system setting (BR-18/FR-ADM-006), not a literal here. SYP is
+  // still the fallback - it is the setting's own default, so an unreachable settings read behaves
+  // exactly as this line did before.
+  const publicSettings = useQuery({ queryKey: ['public-settings'], queryFn: getPublicSettings })
+  const defaultCurrency = publicSettings.data?.['proposals.defaultCurrencyCode'] ?? 'SYP'
+  const [currencyOverride, setCurrencyOverride] = useState<string | null>(null)
+  // Null means "the supplier has not chosen", so the setting's value can still arrive after the first
+  // render without discarding a currency they typed.
+  const currencyCode = currencyOverride ?? defaultCurrency
+  const setCurrencyCode = setCurrencyOverride
   const [paymentTerms, setPaymentTerms] = useState('')
   const [incotermCode, setIncotermCode] = useState('')
   const [validityEnd, setValidityEnd] = useState('')

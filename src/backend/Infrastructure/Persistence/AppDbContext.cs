@@ -41,6 +41,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
+    public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
     public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
     public DbSet<Domain.Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Domain.Idempotency.IdempotencyRecord>();
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -548,6 +549,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             // The GC job scans by expiry.
             entity.HasIndex(r => r.ExpiresAt);
+        });
+
+        modelBuilder.Entity<Domain.Configuration.SystemSetting>(entity =>
+        {
+            entity.ToTable("system_setting", "ops");
+            entity.Property(s => s.RowVersion).IsAppManagedVersion();
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Key).HasMaxLength(100).IsRequired();
+            entity.Property(s => s.Value).HasMaxLength(500).IsRequired();
+            entity.HasIndex(s => s.Key).IsUnique();
+
+            // NOT seeded, deliberately. An absent row means "nobody has decided", and every consumer
+            // falls back to configuration and then to the definition's default - so an environment
+            // that never opens the settings screen behaves exactly as it did before this table
+            // existed. Seeding the defaults would erase that distinction and turn "unset" into "an
+            // administrator chose 30", which is the fact the audit trail is supposed to carry.
         });
 
         modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>

@@ -75,6 +75,49 @@ const resources = {
       // export lacks, and all three divergences turned out to be errors rather than adaptations.
       // See DECISIONS-TAKEN.md.
       // ── EPIC-18/SCR-600 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // §7 has no settings table. Drafted in §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md.
+      systemSettings: {
+        title: 'إعدادات النظام',                            // [§7-style drafted]
+        subtitle: 'قيم تسري على النظام بأكمله. الإعداد غير المعدّل يعمل بالقيمة الافتراضية.', // [§7-style drafted]
+        value: 'القيمة',                                    // [reused] §7's own term
+        save: 'حفظ',                                        // [reused]
+        saved: 'تم حفظ الإعداد',                            // [§7-style drafted]
+        overridden: 'معدّل',                                // [§7-style drafted]
+        overriddenAt: 'عُدّل في {{at}}',                     // [§7-style drafted]
+        usingDefault: 'القيمة الافتراضية ({{value}})',        // [§7-style drafted]
+        loadFailed: 'تعذّر تحميل الإعدادات',                  // [§7-style drafted]
+        retry: 'إعادة المحاولة',                             // [reused]
+        keys: {
+          'registration.mode': 'تسجيل الموردين',             // [§7-style drafted]
+          'proposals.defaultCurrencyCode': 'العملة الافتراضية', // [§7-style drafted]
+          'documents.expiringSoonWindowDays': 'مهلة التنبيه لقرب انتهاء المستند (أيام)', // [§7-style drafted]
+          'documents.renewalReminderDays': 'مواعيد تذكير التجديد (أيام)', // [§7-style drafted]
+        },
+        help: {
+          'registration.mode': 'عند الإغلاق يُرفض التسجيل الذاتي ويُطلب من المتقدّم التواصل مع الوزارة.', // [§7-style drafted]
+          'proposals.defaultCurrencyCode': 'تُستخدم كقيمة أولية في نماذج العروض. يجب أن تكون عملة مفعّلة.', // [§7-style drafted]
+          'documents.expiringSoonWindowDays': 'تحدّد متى تنتقل حالة المستند إلى «قارب على الانتهاء»، وهي مستقلة عن مواعيد التذكير.', // [§7-style drafted]
+          'documents.renewalReminderDays': 'قائمة أيام قبل الانتهاء يُرسل عندها تذكير. لا تكرار.', // [§7-style drafted]
+        },
+        choices: {
+          'registration.mode': {
+            open: 'مفتوح للتسجيل الذاتي',                    // [§7-style drafted]
+            closed: 'مغلق',                                 // [§7-style drafted]
+          },
+        },
+        hints: {
+          integerList: 'أرقام مفصولة بفواصل، مثال: 30,14,3',   // [§7-style drafted]
+          range: 'من {{min}} إلى {{max}}',                   // [§7-style drafted]
+        },
+        errors: {
+          value_required: 'القيمة مطلوبة',                    // [reused] §4's required pattern
+          value_not_allowed: 'قيمة غير مسموحة',               // [§7-style drafted]
+          value_out_of_range: 'القيمة خارج النطاق المسموح',    // [§7-style drafted]
+          value_has_duplicates: 'لا يمكن تكرار الرقم نفسه',    // [§7-style drafted]
+          reference_code_not_active: 'الرمز غير موجود أو غير مفعّل', // [§7-style drafted]
+          unknown: 'تعذّر حفظ الإعداد',                       // [§7-style drafted]
+        },
+      },
       // §7 has no admin-dashboard table either. Drafted in §7's register - NOT YET APPROVED, in
       // ARABIC-REVIEW.md's pile.
       adminOverview: {
@@ -1116,6 +1159,8 @@ const resources = {
         haveAccount: 'لديك حساب بالفعل؟ تسجيل الدخول',
         createAccount: 'إنشاء حساب جديد',
         successTitle: 'تم إنشاء الحساب',
+        closedTitle: 'التسجيل مغلق حالياً',                  // [§7-style drafted]
+        closedBody: 'التسجيل الذاتي مغلق حالياً. يرجى التواصل مع الوزارة لإتمام التسجيل.', // [§7-style drafted]
         checkEmail: 'تحقق من بريدك الإلكتروني لتفعيل الحساب. رقم المرجع الخاص بك:',
         duplicateEmail: 'يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل',
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
@@ -1184,6 +1229,48 @@ const resources = {
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
         loadFailed: "Couldn't load this section",
         retry: 'Try again',
+      },
+      systemSettings: {
+        title: 'System settings',
+        subtitle: 'Values that apply across the whole system. A setting nobody has changed runs on its default.',
+        value: 'Value',
+        save: 'Save',
+        saved: 'Setting saved',
+        overridden: 'Overridden',
+        overriddenAt: 'Changed {{at}}',
+        usingDefault: 'Using the default ({{value}})',
+        loadFailed: 'Could not load the settings',
+        retry: 'Try again',
+        keys: {
+          'registration.mode': 'Supplier registration',
+          'proposals.defaultCurrencyCode': 'Default currency',
+          'documents.expiringSoonWindowDays': 'Expiring-soon window (days)',
+          'documents.renewalReminderDays': 'Renewal reminder days',
+        },
+        help: {
+          'registration.mode': 'When closed, self-registration is refused and applicants are asked to contact the Ministry.',
+          'proposals.defaultCurrencyCode': 'Pre-selected on proposal forms. Must be an active currency.',
+          'documents.expiringSoonWindowDays': 'Decides when a document becomes Expiring soon. Independent of the reminder days.',
+          'documents.renewalReminderDays': 'Days before expiry on which a reminder is sent. No repeats.',
+        },
+        choices: {
+          'registration.mode': {
+            open: 'Open for self-registration',
+            closed: 'Closed',
+          },
+        },
+        hints: {
+          integerList: 'Comma-separated numbers, e.g. 30,14,3',
+          range: 'Between {{min}} and {{max}}',
+        },
+        errors: {
+          value_required: 'A value is required',
+          value_not_allowed: 'That value is not allowed',
+          value_out_of_range: 'That value is outside the allowed range',
+          value_has_duplicates: 'The same number cannot appear twice',
+          reference_code_not_active: 'That code does not exist or is not active',
+          unknown: 'Could not save the setting',
+        },
       },
       adminOverview: {
         title: 'Platform administration',
@@ -2167,6 +2254,8 @@ const resources = {
         haveAccount: 'Already have an account? Sign in',
         createAccount: 'Create a new account',
         successTitle: 'Account created',
+        closedTitle: 'Registration is closed',
+        closedBody: 'Self-registration is currently closed. Contact the Ministry to be onboarded.',
         checkEmail: 'Check your email to verify your account. Your reference code:',
         duplicateEmail: 'An account with that email already exists',
         weakPassword: "Password doesn't meet the strength requirements",

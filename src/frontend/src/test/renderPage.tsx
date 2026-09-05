@@ -69,16 +69,31 @@ export function renderPage(ui: ReactElement) {
  *
  * Returns a restore function; call it in afterEach.
  */
-export function mockFetch(routes: Record<string, unknown>): () => void {
+export interface RecordedRequest {
+  url: string
+  method: string
+  body: string
+}
+
+/** Pass a `recorded` array to assert what the page SENT, not only what it rendered. */
+export function mockFetch(routes: Record<string, unknown>, recorded?: RecordedRequest[]): () => void {
   const original = globalThis.fetch
 
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     // LONGEST match, not first declared. §12-A/C2 introduced nested routes where one declared
     // path is a strict prefix of another - "/api/v1/rfqs/RFQ-1" and "/api/v1/rfqs/RFQ-1/proposals"
     // - and a first-match-wins substring search answers the sub-route with the parent's fixture.
     // That is silent: the page renders the wrong shape rather than failing, which cost real time
     // to diagnose. Sorting by specificity makes declaration order irrelevant.
+    if (recorded) {
+      recorded.push({
+        url,
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : '',
+      })
+    }
+
     const match = Object.keys(routes)
       .filter((route) => url.includes(route))
       .sort((a, b) => b.length - a.length)[0]
@@ -97,8 +112,13 @@ export function mockFetch(routes: Record<string, unknown>): () => void {
     // undeclared so the harness throws - reads as a missing mock to the next person, which is the
     // opposite of what the test means.
     if (body !== null && typeof body === 'object' && '__status' in body) {
-      const status = (body as { __status: number }).__status
-      return new Response(JSON.stringify({ status }), {
+      const { __status: status, ...rest } = body as { __status: number } & Record<string, unknown>
+      // Any OTHER field declared alongside __status becomes the failure BODY. Error responses in
+      // this API carry meaning - §7's `code`, a handler's `reason` - and a screen that says which
+      // rule was broken cannot be tested against a body that was thrown away. Falls back to the
+      // original `{ status }` shape when nothing else was declared, so existing tests are unchanged.
+      const failureBody = Object.keys(rest).length > 0 ? rest : { status }
+      return new Response(JSON.stringify(failureBody), {
         status,
         headers: { 'Content-Type': 'application/json' },
       })

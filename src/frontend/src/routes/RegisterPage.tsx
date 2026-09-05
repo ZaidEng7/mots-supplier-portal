@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { Button, Field, Input, PhoneInput } from '../components/ui'
 import { ApiError, registerSupplier } from '../api/auth'
+import { useQuery } from '@tanstack/react-query'
+import { getPublicSettings } from '../api/systemSettings'
 
 const schema = z
   .object({
@@ -37,6 +39,14 @@ export function RegisterPage() {
   const [referenceCode, setReferenceCode] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
+  // FR-REG-002/T-060. A closed portal must not render a form that cannot be submitted. The server
+  // refuses it either way - this is the message, not the control.
+  //
+  // A FAILED read renders the form: the setting defaults to open, and a settings endpoint that is
+  // briefly unavailable must not look like a closed ministry.
+  const settingsQuery = useQuery({ queryKey: ['public-settings'], queryFn: getPublicSettings })
+  const registrationClosed = settingsQuery.data?.['registration.mode'] === 'closed'
+
   const {
     register,
     handleSubmit,
@@ -63,10 +73,35 @@ export function RegisterPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
         setFormError(t('register.weakPassword'))
+      } else if (err instanceof ApiError && err.status === 403) {
+        // Closed between loading this page and submitting it. Says so, rather than reporting a
+        // generic failure the applicant would retry.
+        setFormError(t('register.closedBody'))
       } else {
         setFormError(t('register.failed'))
       }
     }
+  }
+
+  if (registrationClosed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+        <div
+          className="w-full max-w-sm rounded-[0.75rem] p-8 text-center shadow-sm"
+          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+        >
+          <h1 className="mb-3 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+            {t('register.closedTitle')}
+          </h1>
+          <p className="mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('register.closedBody')}
+          </p>
+          <Link to="/login" style={{ color: 'var(--color-text-link)' }}>
+            {t('auth.submit')}
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   if (submitted) {

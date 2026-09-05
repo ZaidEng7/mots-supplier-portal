@@ -2,6 +2,8 @@ using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Registrations;
+using MotsSupplierPortal.Domain.Configuration;
+using MotsSupplierPortal.Infrastructure.Configuration;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
@@ -72,8 +74,31 @@ public static class RegistrationEndpoints
             IRegisterSupplierHandler handler,
             HttpContext httpContext,
             PerTargetRateLimiter perTargetRateLimiter,
+            ISystemSettingReader settings,
             CancellationToken ct) =>
         {
+            // FR-REG-002/T-060: registration mode. Checked BEFORE validation and before the
+            // per-target limiter, because a closed portal should not tell an applicant their password
+            // is weak, and should not spend one of their five attempts a minute to say the front door
+            // is shut.
+            //
+            // 403 rather than 404: the route exists and the refusal is a policy. A 404 would send an
+            // integrator looking for a path that had moved. The body names the reason so the SPA can
+            // say what to do next instead of showing a generic failure.
+            if (await settings.GetAsync(SystemSettings.RegistrationMode, ct) == SystemSettings.RegistrationClosed)
+            {
+                // `error` becomes §7's code (REGISTRATION_CLOSED) and `message` becomes its detail -
+                // see ProblemDetailsMiddleware. The detail is what a person reads, and it must not
+                // read as "you are not allowed", which is what a bare 403 title says.
+                return Results.Json(
+                    new
+                    {
+                        error = "registration_closed",
+                        message = "Self-registration is currently closed. Contact the Ministry to be onboarded.",
+                    },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid)
             {

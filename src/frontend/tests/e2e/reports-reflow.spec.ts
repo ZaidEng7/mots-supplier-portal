@@ -71,6 +71,7 @@ const backOfficeRoutes = [
   '/back-office/reports',
   '/back-office/ministry',
   '/back-office/admin',
+  '/back-office/settings',
 ]
 
 for (const locale of ['ar', 'en'] as const) {

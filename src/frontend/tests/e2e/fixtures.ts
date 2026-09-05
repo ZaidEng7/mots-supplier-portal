@@ -197,6 +197,17 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
     // SCR-600 and SCR-700. Without these two the pages fall through to the catch-all `{}`, render
     // their error card, and the a11y scan silently covers a failure state instead of the screen.
+    // T-060: the public allow-list, and the admin catalogue behind SCR-724.
+    if (p === '/api/v1/reference/settings') return route.fulfill({ json: {
+      'registration.mode': 'open',
+      'proposals.defaultCurrencyCode': 'SYP',
+    } })
+    if (p === '/api/v1/admin/settings') return route.fulfill({ json: [
+      { key: 'registration.mode', kind: 'Choice', value: 'open', defaultValue: 'open', isOverridden: false, updatedAt: null, allowedValues: ['open', 'closed'], minimum: null, maximum: null },
+      { key: 'proposals.defaultCurrencyCode', kind: 'ReferenceCode', value: 'SYP', defaultValue: 'SYP', isOverridden: false, updatedAt: null, allowedValues: null, minimum: null, maximum: null },
+      { key: 'documents.expiringSoonWindowDays', kind: 'Integer', value: '30', defaultValue: '30', isOverridden: false, updatedAt: null, allowedValues: null, minimum: 1, maximum: 365 },
+      { key: 'documents.renewalReminderDays', kind: 'IntegerList', value: '30,14,3', defaultValue: '30,14,3', isOverridden: false, updatedAt: null, allowedValues: null, minimum: 1, maximum: 365 },
+    ] })
     if (p === '/api/v1/ministry/overview') return route.fulfill({ json: {
       totalSuppliers: 12,
       suppliersByLifecycleState: [{ key: 'Active', count: 9 }],

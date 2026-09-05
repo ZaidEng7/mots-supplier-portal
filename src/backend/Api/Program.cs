@@ -395,6 +395,8 @@ builder.Services.AddScoped<IAcceptStaffInviteHandler, AcceptStaffInviteHandler>(
 builder.Services.AddScoped<IListRolesHandler, ListRolesHandler>();
 builder.Services.AddScoped<IUpdateRolePermissionsHandler, UpdateRolePermissionsHandler>();
 builder.Services.AddScoped<IRegisterSupplierHandler, RegisterSupplierHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Configuration.ISystemSettingReader, MotsSupplierPortal.Infrastructure.Configuration.SystemSettingReader>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Configuration.ISystemSettingAdminHandler, MotsSupplierPortal.Infrastructure.Configuration.SystemSettingAdminHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<IResendVerificationHandler, ResendVerificationHandler>();
 builder.Services.AddScoped<DraftCleanupJob>();
@@ -799,6 +801,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithTags("Reference");
 
 app.MapAdminOverviewEndpoints();
+app.MapSystemSettingEndpoints();
 app.MapGovernanceEndpoints();
 app.MapReferenceDataAdminEndpoints();
 app.MapDashboardEndpoints();

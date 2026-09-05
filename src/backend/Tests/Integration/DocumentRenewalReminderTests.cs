@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
@@ -66,8 +67,12 @@ public sealed class DocumentRenewalReminderTests(PostgresApiFixture fixture)
                     "Documents:ExpiringSoonWindowDays", windowDays.ToString())))
             .Build();
 
+        // T-060: the job reads its cadence through ISystemSettingReader now. Passing the real reader
+        // over this configuration keeps the test stating the cadence AND exercises the precedence that
+        // makes the change safe - no stored row, so configuration is what wins.
         var job = new DocumentExpiryJob(
-            db, scope.ServiceProvider.GetRequiredService<IAuditLogger>(), jobs, configuration);
+            db, scope.ServiceProvider.GetRequiredService<IAuditLogger>(), jobs,
+            new SystemSettingReader(db, configuration));
 
         return new Harness(scope, db, jobs, job);
     }
