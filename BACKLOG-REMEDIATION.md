@@ -148,7 +148,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 
 | Id | Source | Gap | Confirmed at | Verdict | Size |
 |---|---|---|---|---|---|
-| T-040 | ACCESSIBILITY.md | The back-office shell header does not wrap at 320px — 424px against a 320px viewport. Affects every back-office screen | Measured in PR #102 | Reproduced | M |
+| ~~T-040~~ | ACCESSIBILITY.md | **Closed (batch 9 send 4).** The back-office shell header measured 424px against a 320px viewport in English and 377px in Arabic — shared chrome, so every back-office route scrolled the document sideways. Cause: a non-wrapping flex row of up to eight nav links plus the bell, language switch and logout. Fixed by **wrapping, not hiding** — `flex-wrap` changes nothing at any width where the row already fits, so the desktop layout is byte-identical and only the narrow case behaves differently; a collapsed hamburger would have been a new component and a new interaction to test on every back-office screen. Horizontal padding drops to 1rem below `sm`, since 48px of chrome padding is 15% of a 320px viewport. **The reflow check is widened, which is what makes the fix verified rather than claimed**: `reports-reflow.spec.ts` now asserts the WHOLE DOCUMENT across nine back-office routes in both locales (20 checks), where it previously scoped to a page's content region precisely to avoid failing on this header. The stated limitation in that file is removed | `BackOfficeShell.tsx`, `reports-reflow.spec.ts` | Reproduced | M |
 | T-041 | — | `CrossOrganizationScopeTests` gives a full RFQ setup a 3-second window before `closesAt`; fails under CI load | Observed failing then passing on re-run, PR #101 | Reproduced | S |
 | ~~T-050~~ | — | **Closed.** The gate now separates its two failure modes: exit 1 is an advisory and names the package, exit 2 is a transport failure and says it is not a finding. A canary fixture pinned to a known critical CVE runs first and must fail, so the gate cannot silently stop checking — which it *had* done on the first attempt, because npm prints its error object as JSON and that parsed as a clean report. Root cause is the registry, not the endpoint: the **bulk** endpoint times out too, reproduced locally | batch 4 | Reproduced | S |
 
@@ -192,7 +192,7 @@ By what hurts in a live tender, not by size or by document section.
 8. **T-029/T-030 — version columns and child-write propagation.** Silent lost updates on concurrent
    edits; invisible until two people edit one RFQ.
 9. **T-018 — deadline extension.** Suppliers ask for it, the rule allows it, and there is no path.
-10. **T-040 — the 320px shell header.** Every back-office screen, but it is chrome rather than
+10. ~~T-040 — the 320px shell header.~~ **Closed in batch 9.** Was every back-office screen; chrome rather than
     correctness, and it needs a person's eye on the visual result.
 
 ## Needs a decision, not a batch
