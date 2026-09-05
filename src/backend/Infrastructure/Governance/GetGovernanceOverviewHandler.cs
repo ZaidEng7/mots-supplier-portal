@@ -44,8 +44,12 @@ public sealed class GetGovernanceOverviewHandler(AppDbContext db) : IGetGovernan
         var publishedRfqs = await db.Rfqs.AsNoTracking()
             .CountAsync(r => r.State != RfqState.Draft && r.State != RfqState.InternalReview
                              && r.State != RfqState.Approved && r.State != RfqState.Cancelled, ct);
+        // A-9 widened ProposalState, and "not Draft" stopped meaning "was submitted": a LAPSED draft was
+        // never submitted at all, so counting it here would overstate participation in the governance
+        // figure the Ministry reads. Cancelled stays counted - that bid WAS submitted, and the tender
+        // being withdrawn afterwards does not unmake the supplier's participation.
         var proposals = await db.Proposals.AsNoTracking()
-            .CountAsync(p => p.State != ProposalState.Draft, ct);
+            .CountAsync(p => p.State != ProposalState.Draft && p.State != ProposalState.Lapsed, ct);
 
         var averageProposals = publishedRfqs == 0
             ? 0m

@@ -973,7 +973,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 // The column name is QUOTED. This project maps to PascalCase columns, and an
                 // unquoted `state` folds to lowercase in Postgres and does not exist - the first
                 // version of this filter failed every migration with 42703.
-                .HasFilter("\"State\" <> 'Withdrawn'");
+                //
+                // A-9 added Lapsed and Cancelled, and both belong in this exclusion for the same
+                // reason Withdrawn does: they are historical records rather than current bids. A
+                // supplier whose draft LAPSED on RFQ-1 must be able to bid again if that RFQ reopens
+                // its window, and one whose proposal was CANCELLED with the RFQ must not be blocked
+                // from a re-tender. Leaving them in would have made the index refuse the second row
+                // and surface as a 500 on a perfectly legitimate submission - which is exactly how
+                // the unfiltered version of this index failed the first time.
+                .HasFilter("\"State\" NOT IN ('Withdrawn', 'Lapsed', 'Cancelled')");
             entity.HasIndex(p => new { p.SupplierId, p.State });
             entity.HasIndex(p => new { p.RfqId, p.State });
             entity.HasMany(p => p.Items).WithOne().HasForeignKey(i => i.ProposalId).OnDelete(DeleteBehavior.Cascade);

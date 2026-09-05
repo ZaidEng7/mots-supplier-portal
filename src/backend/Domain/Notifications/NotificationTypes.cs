@@ -51,6 +51,15 @@ public static class NotificationTypes
     /// <summary>T-064/§4.1: "AwardOffered -&gt; Declined ... In-app to procurement".</summary>
     public const string ProposalDeclined = "proposal.declined";
 
+    /// <summary>A-9/BRULE-052: a Draft the submission window closed on. Told to the supplier, because
+    /// nobody else needs to know and the supplier is the only party who lost something.</summary>
+    public const string ProposalLapsed = "proposal.lapsed";
+
+    /// <summary>A-9/BRULE-056: the RFQ was cancelled, so this proposal is over. A separate message from
+    /// the RFQ-cancelled one on purpose - "the tender was withdrawn" and "your bid is closed" are
+    /// different facts, and only the second one is about the supplier's own work.</summary>
+    public const string ProposalCancelled = "proposal.cancelled";
+
     /// <summary>T-018/BRULE-035: "notify all invitees" on an extension.</summary>
     public const string RfqDeadlineExtended = "rfq.deadline_extended";
 
@@ -80,6 +89,8 @@ public static class NotificationTypes
         ProposalWithdrawn,
         ProposalAwardOffered,
         ProposalDeclined,
+        ProposalLapsed,
+        ProposalCancelled,
         RfqDeadlineExtended,
         RfqDeadlineShortened,
         ProposalClarificationRequested,

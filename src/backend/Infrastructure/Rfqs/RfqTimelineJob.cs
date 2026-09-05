@@ -2,6 +2,7 @@ using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
@@ -51,6 +52,16 @@ public sealed class RfqTimelineJob(AppDbContext db, IAuditLogger auditLogger)
             .Where(r => r.State == RfqState.SubmissionOpen && r.SubmissionClosesAt != null && r.SubmissionClosesAt <= now)
             .ToListAsync(ct);
 
+        // A-9/BRULE-052: the drafts the window is about to close on. Loaded BEFORE the transition so
+        // the set is the one the closing applies to, and keyed by RFQ so each supplier is told about
+        // their own bid rather than about the tender.
+        var closingRfqIds = toClose.Select(r => r.Id).ToList();
+        var lapsingDrafts = closingRfqIds.Count == 0
+            ? []
+            : await db.Proposals
+                .Where(p => closingRfqIds.Contains(p.RfqId) && p.State == ProposalState.Draft)
+                .ToListAsync(ct);
+
         foreach (var rfq in toClose)
         {
             rfq.CloseSubmissionWindow(reason: null, isEarlyClose: false);
@@ -65,6 +76,28 @@ public sealed class RfqTimelineJob(AppDbContext db, IAuditLogger auditLogger)
 
             await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_submission_closed", actorLabel: "system",
                 referenceCode: rfq.ReferenceCode, fromState: nameof(RfqState.SubmissionOpen), toState: nameof(RfqState.SubmissionClosed), ct: ct);
+
+            // BRULE-052, enforced for the first time. A Draft that survived the window was previously
+            // left in Draft forever: the supplier's dashboard kept counting a bid that could never be
+            // submitted, and nothing in the record said what had happened to it.
+            foreach (var draft in lapsingDrafts.Where(p => p.RfqId == rfq.Id))
+            {
+                draft.Lapse();
+
+                NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalLapsed,
+                    await NotificationRecipients.SupplierUsersAsync(db, draft.SupplierId, ct),
+                    $"{NotificationTypes.ProposalLapsed}:{draft.Id}",
+                    new Dictionary<string, string?>
+                    {
+                        ["rfqCode"] = rfq.ReferenceCode,
+                        ["proposalCode"] = draft.ReferenceCode,
+                        ["proposalId"] = draft.Id.ToString(),
+                    });
+
+                await auditLogger.LogAsync("Proposal", draft.Id, "proposal_lapsed", actorLabel: "system",
+                    referenceCode: draft.ReferenceCode, fromState: nameof(ProposalState.Draft),
+                    toState: nameof(ProposalState.Lapsed), ct: ct);
+            }
         }
 
         if (toOpen.Count > 0 || toClose.Count > 0)

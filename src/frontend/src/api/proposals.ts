@@ -4,6 +4,10 @@ import { apiFetch } from './auth'
 export type ProposalState =
   | 'Draft' | 'Submitted' | 'Withdrawn' | 'UnderReview' | 'ClarificationRequested' | 'Revised'
   | 'Shortlisted' | 'NotSelected' | 'AwardOffered' | 'Awarded' | 'Declined'
+  // A-9: both terminal. Lapsed = the window closed on a draft; Cancelled = the RFQ was withdrawn
+  // beneath it. Two states rather than one because a supplier reading their list has to be able to
+  // tell "you ran out of time" from "the tender was withdrawn".
+  | 'Lapsed' | 'Cancelled'
 
 /** FEAT-09.1/FR-PRP-002, OQ-009 two-envelope: the FINANCIAL content. Only ever present in a
  * response to the owning supplier's own request - see backend ProposalDtoMapper.ToDto's own

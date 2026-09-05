@@ -392,6 +392,8 @@ const resources = {
           ClarificationRequested: 'مطلوب استيضاح', Revised: 'مُعدَّل', Shortlisted: 'ضمن القائمة المختصرة',
           NotSelected: 'غير مختار', AwardOffered: 'عرض ترسية', Awarded: 'تمت الترسية',
           Declined: 'مرفوض من المورد', Withdrawn: 'مسحوب',
+          Lapsed: 'انتهت المهلة',            // [drafted] A-9/BRULE-052
+          Cancelled: 'ملغى مع الطلب',        // [drafted] A-9/BRULE-056
         },
         evaluation: {
           NotStarted: 'لم يبدأ', Assigned: 'مُسند', InProgress: 'قيد التنفيذ',
@@ -1555,6 +1557,7 @@ const resources = {
           ClarificationRequested: 'Clarification requested', Revised: 'Revised', Shortlisted: 'Shortlisted',
           NotSelected: 'Not selected', AwardOffered: 'Award offered', Awarded: 'Awarded',
           Declined: 'Declined', Withdrawn: 'Withdrawn',
+          Lapsed: 'Window closed', Cancelled: 'RFQ cancelled',
         },
         evaluation: {
           NotStarted: 'Not started', Assigned: 'Assigned', InProgress: 'In progress',

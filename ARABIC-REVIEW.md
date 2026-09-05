@@ -335,3 +335,49 @@ review the details without naming them. Both are deliberate and both are flagged
 but a reviewer may judge the Arabic to be evasive rather than terse, and that judgement is worth
 having before these ship. The fix would not be to reword them — it would be to revisit BRULE-091's
 scope for notification bodies.
+
+---
+
+## Set 5 — batch 10 (A-1, A-4, A-9, and the admin surfaces)
+
+Every string below is **drafted and marked**, and ships per the product owner's standing approval. The
+product owner reviews them against a demo.
+
+### A-9 — the two new proposal states (`status.proposal.*`)
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `status.proposal.Lapsed` | Window closed | انتهت المهلة | Status chip, supplier proposal list and dashboard | [drafted] |
+| `status.proposal.Cancelled` | RFQ cancelled | ملغى مع الطلب | Same | [drafted] |
+
+### A-9 — the two new notifications (`NotificationCatalogue.jsonc`)
+
+| Type | English title / body | Arabic title / body | Source |
+|---|---|---|---|
+| `proposal.lapsed` | "Your proposal was not submitted in time" / "The submission window for RFQ {rfqCode} closed before your draft was submitted, so it was not included in the evaluation." | «انتهت مهلة تقديم عرضك» / «أُغلقت مهلة التقديم لطلب عرض الأسعار {rfqCode} قبل تقديم مسودتك، ولم تُدرَج في التقييم.» | [drafted] |
+| `proposal.cancelled` | "The RFQ was cancelled" / "RFQ {rfqCode} was cancelled, so your proposal is closed and will not be evaluated." | «أُلغي طلب عرض الأسعار» / «أُلغي طلب عرض الأسعار {rfqCode}، وبذلك أُغلق عرضك ولن يُقيَّم.» | [drafted] |
+
+### A-1 — the surfaced tie (`comparison.*`)
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `comparison.tieUnresolved` | Unresolved tie | تعادل غير محلول | Badge on a tied rank cell | [drafted] |
+| `comparison.tieTitle` | A tie in the ranking needs a decision | تعادل في الترتيب يحتاج قراراً | Tie panel heading | [drafted] |
+| `comparison.tieBody` | These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do. | تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك. | Tie panel body | [drafted] |
+| `comparison.tieReason` | Reason for choosing {{code}} | سبب اختيار {{code}} | Input label | [drafted] |
+| `comparison.tieReasonPlaceholder` | Reason for the decision | سبب القرار | Input placeholder | [drafted] |
+| `comparison.tieResolve` | Confirm the order | تثبيت الترتيب | Button | [drafted] |
+| `comparison.tieResolved` | The order is confirmed | تم تثبيت الترتيب | Toast | [drafted] |
+| `comparison.tieResolveFailed` | Could not confirm the order | تعذّر تثبيت الترتيب | Toast | [drafted] |
+
+### A-4 — the broadcast notice (`rfq.clarifications.*`)
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `rfq.clarifications.broadcastNotice` | The answer goes to every invited supplier. The asker is not named. | يُرسل الجواب إلى جميع المدعوين دون ذكر السائل. | Under the answer field, replacing the removed "publish immediately" checkbox | [drafted] |
+
+### Batch 9's admin surfaces, carried forward for the same review
+
+`adminOverview.*` (SCR-700), `systemSettings.*` (SCR-724), `notificationTemplates.*` (SCR-715),
+`register.closedTitle` / `register.closedBody`, `rfq.attachments.*` and `supplierRfq.attachments.*` —
+all marked `[drafted]` at their definitions in `src/frontend/src/i18n/config.ts`.

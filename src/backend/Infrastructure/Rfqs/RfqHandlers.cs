@@ -6,6 +6,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
@@ -766,6 +767,33 @@ public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAudi
         catch (DomainException ex)
         {
             return RfqTransitions.Refusal(rfq, ex, RfqState.Cancelled);
+        }
+
+        // A-9/BRULE-056, enforced for the first time. The rule says cancellation "voids open
+        // invitations/proposals"; before this it notified everyone and moved nothing, so a Submitted
+        // proposal stayed Submitted forever on a cancelled tender - and BRULE-056 carries no assumption
+        // tag, which made that a confirmed rule going unenforced.
+        //
+        // Terminal proposals are left alone: a withdrawn bid was withdrawn, and an awarded one belongs
+        // to an RFQ that could not have been cancelled.
+        var liveProposals = await db.Proposals.Where(p => p.RfqId == rfq.Id).ToListAsync(ct);
+        foreach (var proposal in liveProposals.Where(p => Proposal.AllowedNextFrom(p.State).Count > 0))
+        {
+            proposal.CancelWithRfq();
+
+            NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalCancelled,
+                await NotificationRecipients.SupplierUsersAsync(db, proposal.SupplierId, ct),
+                $"{NotificationTypes.ProposalCancelled}:{proposal.Id}",
+                new Dictionary<string, string?>
+                {
+                    ["rfqCode"] = rfq.ReferenceCode,
+                    ["proposalCode"] = proposal.ReferenceCode,
+                    ["proposalId"] = proposal.Id.ToString(),
+                });
+
+            await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_cancelled", scope.UserId,
+                referenceCode: proposal.ReferenceCode, toState: nameof(ProposalState.Cancelled),
+                reason: command.Reason, ct: ct);
         }
 
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_cancelled", scope.UserId, referenceCode: rfq.ReferenceCode,

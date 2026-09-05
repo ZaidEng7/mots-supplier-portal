@@ -349,5 +349,23 @@
     "bodyAr": "سُجّلت توصية ترسية للطلب {rfqCode}. راجعها قبل توجيهها للاعتماد.",
     "bodyEn": "An award recommendation was recorded for RFQ {rfqCode}. Review it before routing it for approval.",
     "flag": "Wording deliberately mirrors award.recommended: §3.1 records the RFQ's move into Recommendation while §3.4 records the Award's own creation, and they are the same moment to a reader. Two rows for one event is a de-duplication question for the doc owner."
+  },
+  {
+    // A-9/BRULE-052. Drafted in §7's register - marked, and in ARABIC-REVIEW.md's pile.
+    "type": "proposal.lapsed",
+    "source": "drafted",
+    "titleAr": "انتهت مهلة تقديم عرضك",
+    "titleEn": "Your proposal was not submitted in time",
+    "bodyAr": "أُغلقت مهلة التقديم لطلب عرض الأسعار {rfqCode} قبل تقديم مسودتك، ولم تُدرَج في التقييم.",
+    "bodyEn": "The submission window for RFQ {rfqCode} closed before your draft was submitted, so it was not included in the evaluation."
+  },
+  {
+    // A-9/BRULE-056.
+    "type": "proposal.cancelled",
+    "source": "drafted",
+    "titleAr": "أُلغي طلب عرض الأسعار",
+    "titleEn": "The RFQ was cancelled",
+    "bodyAr": "أُلغي طلب عرض الأسعار {rfqCode}، وبذلك أُغلق عرضك ولن يُقيَّم.",
+    "bodyEn": "RFQ {rfqCode} was cancelled, so your proposal is closed and will not be evaluated."
   }
 ]

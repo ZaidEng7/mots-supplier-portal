@@ -34,6 +34,9 @@ const MEMBERS: Record<(typeof LABELLED_MACHINES)[number], readonly string[]> = {
   proposal: [
     'Draft', 'Submitted', 'Withdrawn', 'UnderReview', 'ClarificationRequested', 'Revised',
     'Shortlisted', 'NotSelected', 'AwardOffered', 'Awarded', 'Declined',
+    // A-9: both terminal, and both need a label - a supplier list showing a raw enum name is the
+    // failure this coverage test exists to catch.
+    'Lapsed', 'Cancelled',
   ],
   evaluation: ['NotStarted', 'Assigned', 'InProgress', 'EvaluatorSubmitted', 'Consolidated', 'Finalized'],
   award: ['Recommended', 'PendingApproval', 'Approved', 'Rejected', 'Awarded'],
