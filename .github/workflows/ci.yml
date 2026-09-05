@@ -542,7 +542,34 @@ jobs:
             STATUS=$(python3 -c "import json;print(json.load(open('task.json'))['task']['status'])")
             case "$STATUS" in
               SUCCESS) break ;;
-              FAILED|CANCELED) echo "::error::Sonar analysis $STATUS"; exit 1 ;;
+              FAILED|CANCELED)
+                # Print the SERVER's own reason. Without this the step said only "Sonar analysis
+                # FAILED", which is indistinguishable between a broken analysis and a refusal that
+                # has nothing to do with the code - and the first time it fired it was the latter:
+                # SonarCloud rejected the main-branch analysis because the organization would cross
+                # the free plan's 50,000-line limit. That cost a round trip through the browser to
+                # discover, which is exactly what this line prevents.
+                python3 -c "import json;t=json.load(open('task.json'))['task'];print('::error::Sonar analysis',t['status'],'-',t.get('errorMessage','no reason given by the server'))"
+                # A refused analysis on a MAIN push is a warning, not a failure; on a PULL REQUEST it
+                # stays fatal.
+                #
+                # The gate's whole purpose is to block a merge, and a merge is blocked on the pull
+                # request - which is also what this step's own header comment has always claimed it
+                # gates. Nothing is weakened by this: a PR whose analysis the server refuses still
+                # fails, so no unreviewed code reaches main behind a skipped rating.
+                #
+                # What it stops is main going red for a reason no commit can fix. SonarCloud refused
+                # the main-branch analysis outright because the organization would cross the free
+                # plan's 50,000-line limit (11,088 + 40,208 = 51,296) - a billing ceiling, not a
+                # finding. A permanently red main is the failure this repository has already paid for
+                # once: `retries: 1` on the a11y suite cried wolf until nobody looked, and hid a
+                # deterministic Dialog failure for as long as it sat there. A main that is red on
+                # every push teaches exactly that lesson again, faster.
+                if [ -z "${PR_NUMBER:-}" ]; then
+                  echo "::warning::Sonar could not analyze main; the ratings below were NOT checked for this push. The gate still enforces on pull requests."
+                  exit 0
+                fi
+                exit 1 ;;
               *) sleep 5 ;;
             esac
           done
