@@ -1,5 +1,6 @@
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
+using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 
@@ -25,6 +26,21 @@ public sealed class ForgotPasswordRequestValidator : AbstractValidator<ForgotPas
     public ForgotPasswordRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
+    }
+}
+
+/// <summary>SCR-903. Both passwords in the body; the identity comes from the session, never the
+/// payload - a user id in a change-password request would be an account-takeover primitive.</summary>
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
+{
+    public ChangePasswordRequestValidator()
+    {
+        RuleFor(x => x.CurrentPassword).NotEmpty();
+        // Length only, matching the Identity policy configured in Program.cs. The real strength
+        // check is Identity's own, reported back as weak_password with its reasons.
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(12);
     }
 }
 
@@ -211,6 +227,45 @@ public static class AuthEndpoints
         .WithName("ResetPassword")
         .RequireRateLimiting("auth-strict")
         .AllowAnonymous();
+
+        // SCR-903. The gap this closes: a signed-in user had no way to change their own password -
+        // the only path was signing out and using the forgotten-password email, which is a recovery
+        // flow being used as a routine one.
+        group.MapPost("/change-password", async (
+            ChangePasswordRequest request,
+            IValidator<ChangePasswordRequest> validator,
+            IChangePasswordHandler handler,
+            IScopeContext scope,
+            HttpContext httpContext,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+
+            httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
+
+            var result = await handler.HandleAsync(
+                new ChangePasswordCommand(userId, request.CurrentPassword, request.NewPassword, currentToken), ct);
+
+            return result switch
+            {
+                ChangePasswordResult.Success => Results.Ok(new { changed = true }),
+                // 422, not 401: the caller IS authenticated. A 401 here would tell the SPA the
+                // session had expired and bounce them to the login screen mid-form.
+                ChangePasswordResult.IncorrectCurrentPassword =>
+                    Results.UnprocessableEntity(new { error = "incorrect_current_password" }),
+                ChangePasswordResult.SameAsCurrent =>
+                    Results.UnprocessableEntity(new { error = "password_unchanged" }),
+                ChangePasswordResult.WeakPassword w => Results.BadRequest(new { error = "weak_password", details = w.Errors }),
+                ChangePasswordResult.UserNotFound => Results.Unauthorized(),
+                _ => Results.Problem(),
+            };
+        })
+        .RequireAuthorization()
+        // Same limiter as the other credential paths: this one takes a password guess per call.
+        .RequireRateLimiting("auth-strict")
+        .WithName("ChangePassword");
 
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (

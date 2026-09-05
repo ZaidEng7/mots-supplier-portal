@@ -3,6 +3,7 @@ import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
 import { listOwnAuditTrail, downloadOwnAuditTrail } from '../api/audit'
 import { formatDateTime } from '../lib/datetime'
+import { changePassword, ApiError } from '../api/auth'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Field, Input, SkeletonList, useToast } from '../components/ui'
@@ -14,6 +15,87 @@ import {
   revokeAllOtherSessions,
   type EnrollMfaResponse,
 } from '../api/settings'
+
+/**
+ * SCR-903 — change password, and the reason it is the first card on this screen.
+ *
+ * <p>Until now a signed-in user had no way to change their own password: the only path was signing
+ * out and using the forgotten-password email, which is a recovery flow doing routine work. It sits
+ * above MFA because it is the more ordinary of the two.</p>
+ *
+ * <p>The server's refusals are shown against the field they are about — a wrong current password is
+ * a mistake somebody can correct by retyping, and rendering it as a page-level failure would leave
+ * them guessing which of the three boxes was wrong.</p>
+ */
+function ChangePasswordSection() {
+  const { t } = useTranslation()
+  const { notify } = useToast()
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [currentError, setCurrentError] = useState<string | null>(null)
+  const [nextError, setNextError] = useState<string | null>(null)
+
+  // Checked here, not on the server: the server never sees the confirmation field, because a
+  // mismatch is a typing mistake rather than a rule about passwords.
+  const mismatch = confirm.length > 0 && next !== confirm
+
+  const mutation = useMutation({
+    mutationFn: () => changePassword(current, next),
+    onSuccess: () => {
+      notify({ kind: 'success', title: t('settings.passwordChanged') })
+      setCurrent(''); setNext(''); setConfirm(''); setCurrentError(null); setNextError(null)
+    },
+    onError: (raised) => {
+      setCurrentError(null); setNextError(null)
+      const code = raised instanceof ApiError
+        ? ((raised.body as { code?: string } | null)?.code ?? '')
+        : ''
+      if (code === 'INCORRECT_CURRENT_PASSWORD') setCurrentError(t('settings.passwordIncorrect'))
+      else if (code === 'PASSWORD_UNCHANGED') setNextError(t('settings.passwordUnchanged'))
+      else if (code === 'WEAK_PASSWORD') setNextError(t('settings.passwordWeak'))
+      else notify({ kind: 'danger', title: t('settings.passwordChangeFailed') })
+    },
+  })
+
+  return (
+    <section className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <h2 className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+        {t('settings.passwordTitle')}
+      </h2>
+      <p className="mb-4 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+        {t('settings.passwordHint')}
+      </p>
+      <form
+        className="flex max-w-sm flex-col gap-3"
+        onSubmit={(e) => { e.preventDefault(); mutation.mutate() }}
+        noValidate
+      >
+        <Field label={t('settings.currentPassword')} error={currentError ?? undefined}>
+          {(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}
+        </Field>
+        <Field label={t('settings.newPasswordLabel')} error={nextError ?? undefined} hint={t('settings.passwordRule')}>
+          {(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}
+        </Field>
+        <Field label={t('settings.confirmPassword')} error={mismatch ? t('settings.passwordMismatch') : undefined}>
+          {(p) => <Input {...p} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />}
+        </Field>
+        <Button
+          type="submit"
+          className="self-start"
+          isLoading={mutation.isPending}
+          disabled={!current || !next || mismatch || next.length < 12}
+        >
+          {t('settings.changePassword')}
+        </Button>
+      </form>
+      {/* Said before it happens, not discovered afterwards: the change signs out every other device. */}
+      <p className="mt-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+        {t('settings.passwordRevokesOthers')}
+      </p>
+    </section>
+  )
+}
 
 function MfaSection() {
   const { t } = useTranslation()
@@ -167,6 +249,8 @@ export function SettingsPage() {
       <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
         {t('settings.title')}
       </h1>
+
+      <ChangePasswordSection />
 
       <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>

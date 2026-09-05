@@ -1369,6 +1369,24 @@ const resources = {
       },
       settings: {
         title: 'إعدادات الحساب',
+        // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
+        // §7 has no change-password strings. Drafted in §7's register - NOT YET APPROVED,
+        // in ARABIC-REVIEW.md's pile.
+        passwordTitle: 'تغيير كلمة المرور',                       // [drafted] SCR-903
+        passwordHint: 'اختر كلمة مرور جديدة لحسابك.',              // [drafted]
+        currentPassword: 'كلمة المرور الحالية',                    // [drafted]
+        newPasswordLabel: 'كلمة المرور الجديدة',                   // [reused] matches the reset form
+        confirmPassword: 'تأكيد كلمة المرور الجديدة',               // [drafted]
+        passwordRule: 'اثنا عشر حرفاً على الأقل.',                  // [drafted]
+        changePassword: 'تغيير كلمة المرور',                       // [drafted]
+        passwordChanged: 'تم تغيير كلمة المرور',                   // [drafted]
+        passwordIncorrect: 'كلمة المرور الحالية غير صحيحة.',        // [drafted]
+        passwordUnchanged: 'كلمة المرور الجديدة مطابقة للحالية.',    // [drafted]
+        passwordWeak: 'كلمة المرور الجديدة ضعيفة.',                 // [drafted]
+        passwordMismatch: 'الكلمتان غير متطابقتين.',                // [drafted]
+        passwordChangeFailed: 'تعذّر تغيير كلمة المرور',            // [drafted]
+        // Stated before the action, not discovered after it.
+        passwordRevokesOthers: 'سيؤدي التغيير إلى إنهاء جلساتك على الأجهزة الأخرى، وتبقى هذه الجلسة مفتوحة.', // [drafted]
         mfaTitle: 'المصادقة الثنائية',
         mfaEnroll: 'تفعيل المصادقة الثنائية',
         mfaScanOrEnter: 'امسح الرمز باستخدام تطبيق المصادقة أو أدخل المفتاح يدوياً',
@@ -2657,6 +2675,20 @@ const resources = {
       },
       settings: {
         title: 'Account Settings',
+        passwordTitle: 'Change password',
+        passwordHint: 'Choose a new password for your account.',
+        currentPassword: 'Current password',
+        newPasswordLabel: 'New password',
+        confirmPassword: 'Confirm new password',
+        passwordRule: 'At least twelve characters.',
+        changePassword: 'Change password',
+        passwordChanged: 'Password changed',
+        passwordIncorrect: 'That is not your current password.',
+        passwordUnchanged: 'The new password is the same as the current one.',
+        passwordWeak: 'That password is too weak.',
+        passwordMismatch: 'The two passwords do not match.',
+        passwordChangeFailed: 'Could not change the password',
+        passwordRevokesOthers: 'Changing it signs you out on your other devices. This session stays open.',
         mfaTitle: 'Two-factor authentication',
         mfaEnroll: 'Enable two-factor authentication',
         mfaScanOrEnter: 'Scan with your authenticator app or enter the key manually',

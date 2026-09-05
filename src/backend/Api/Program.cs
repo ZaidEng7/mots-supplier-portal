@@ -421,6 +421,7 @@ builder.Services.AddScoped<ILoginHandler>(sp => sp.GetRequiredService<LoginHandl
 builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
 builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
+builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
 builder.Services.AddScoped<IListSessionsHandler, ListSessionsHandler>();
@@ -607,6 +608,25 @@ foreach (var warning in MotsSupplierPortal.Api.Configuration.RequiredConfigurati
     app.Logger.LogWarning("Configuration warning: {Warning}", warning);
 }
 
+// Compression is OUTERMOST, above the error shaping - not below it.
+//
+// It used to sit near the endpoints, under ProblemDetailsMiddleware. That middleware swaps the
+// response body stream so it can rewrite a handler's `{ error: "..." }` into §7's problem+json, and
+// with compression INSIDE it the rewritten bytes were written past a layer that had already declared
+// `Content-Encoding: gzip`. The result: every error response the middleware reshapes arrived at a
+// browser with a gzip header and a body that is not gzip, which Chrome reports as
+// ERR_CONTENT_DECODING_FAILED and hands the SPA as an EMPTY body.
+//
+// Reproduced on `POST /auth/reset-password` (untouched by the change that found this) - 400 with the
+// full problem+json under `curl`, 400 with nothing at all under `curl --compressed`. Every browser
+// sends Accept-Encoding, so in practice the SPA could not read `code` on any reshaped error and fell
+// back to generic wording. That is the same class of failure as T-088, one layer lower.
+//
+// Ordering it first makes compression the last thing to touch the bytes, which is what the
+// middleware's own documented requirement ("before any middleware that writes the response") asks
+// for. Success responses were never affected, which is why this survived: they are not reshaped.
+app.UseResponseCompression();
+
 // §7: every non-2xx (except 304) is application/problem+json. Registered BEFORE the concurrency
 // handler below and before the endpoints, so it is outermost among the error-shaping middleware and
 // therefore sees - and conforms - whatever they produce, including the 409 that handler writes.
@@ -679,11 +699,6 @@ app.Use(async (context, next) =>
 
     await next();
 });
-
-// Must run before anything that writes a compressible response body, per the middleware's own
-// ordering requirement (docs: "UseResponseCompression must be called before any middleware that
-// compresses responses").
-app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {

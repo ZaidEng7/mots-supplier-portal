@@ -77,6 +77,27 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await parseJsonOrThrow(res)
 }
 
+/** SCR-903: a signed-in user changing their own password.
+ *
+ * <p>Separate from `resetPassword` above and deliberately so: a reset proves identity with a token
+ * from an email, a change proves it with the current password. Before this the only path was signing
+ * out and using the recovery flow to do routine work.</p>
+ *
+ * <p>`credentials` are included by `apiFetch`, which matters here — the refresh cookie is how the
+ * server knows which session made the change, so that this one survives while the others are
+ * revoked.</p> */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await apiFetch('/api/v1/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  }
+}
+
 export async function resendVerification(email: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/registrations/resend-verification`, {
     method: 'POST',
