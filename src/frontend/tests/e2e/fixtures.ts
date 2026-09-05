@@ -201,6 +201,11 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
       { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
     ] })
+    if (p === '/api/v1/suppliers/me/audit') return route.fulfill({ json: {
+      data: [{ id: 'a-1', occurredAt: '2026-09-01T10:00:00Z', aggregateType: 'Supplier', aggregateId: 's-1',
+        action: 'supplier_submitted', fromState: null, toState: 'Submitted', actorLabel: null }],
+      pagination: { hasMore: false, nextCursor: null },
+    } })
     if (p === '/api/v1/staff') return route.fulfill({ json: listPage([
       { userId: 'u-1', email: 'reviewer@ministry.example', fullName: 'A Reviewer', role: 'onboarding_reviewer', isActive: true, mfaEnabled: false, lockoutEnd: null, activeSessionCount: 0 },
     ]) })

@@ -906,6 +906,14 @@ const resources = {
       },
       comparison: {
         // A-1/BRULE-069's surfaced tie. Drafted, marked, in ARABIC-REVIEW.md's pile.
+        // B-1/SCR-433: the clarification request, reachable for the first time.
+        clarifyTitle: 'طلب استيضاح من مورد',                     // [drafted]
+        clarifyBody: 'اطلب من المورد توضيحاً حول عرضه. يُبلَّغ المورد ويعود العرض إلى حالة «مطلوب استيضاح».', // [drafted]
+        clarifyReason: 'سبب الاستيضاح لـ {{code}}',              // [drafted]
+        clarifyReasonPlaceholder: 'ما المطلوب توضيحه',            // [drafted]
+        clarifyAsk: 'طلب استيضاح',                               // [reused] §8's «استيضاح»
+        clarifyRequested: 'تم إرسال طلب الاستيضاح',               // [drafted]
+        clarifyFailed: 'تعذّر إرسال طلب الاستيضاح',               // [drafted]
         tieUnresolved: 'تعادل غير محلول',                        // [drafted]
         tieTitle: 'تعادل في الترتيب يحتاج قراراً',                 // [drafted]
         tieBody: 'تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك.', // [drafted]
@@ -1273,6 +1281,14 @@ const resources = {
         mfaInvalidCode: 'رمز غير صحيح',
         recoveryCodesNotice: 'احفظ رموز الاسترداد هذه في مكان آمن — لن تظهر مرة أخرى.',
         sessionsTitle: 'الجلسات النشطة',
+        // B-1/FR-AUD-003: the supplier's own trail, reachable for the first time.
+        auditTitle: 'سجل نشاط حسابي',                            // [drafted]
+        auditHint: 'أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم.', // [drafted]
+        auditEmpty: 'لا توجد أحداث مسجّلة بعد',                   // [reused] §4's empty-state pattern
+        auditExport: 'تنزيل السجل (CSV)',                        // [drafted]
+        auditExportFailed: 'تعذّر تنزيل السجل',                   // [drafted]
+        auditLoadFailed: 'تعذّر تحميل السجل',                     // [drafted]
+        retry: 'إعادة المحاولة',                                 // [reused]
         currentSession: 'الجلسة الحالية',
         unknownDevice: 'جهاز غير معروف',
         revoke: 'إنهاء الجلسة',
@@ -2098,6 +2114,13 @@ const resources = {
         },
       },
       comparison: {
+        clarifyTitle: 'Ask a bidder to clarify',
+        clarifyBody: 'Ask a supplier to explain something about their bid. They are notified and the proposal returns to Clarification requested.',
+        clarifyReason: 'What to clarify for {{code}}',
+        clarifyReasonPlaceholder: 'What needs clarifying',
+        clarifyAsk: 'Request clarification',
+        clarifyRequested: 'The clarification request was sent',
+        clarifyFailed: 'Could not send the clarification request',
         tieUnresolved: 'Unresolved tie',
         tieTitle: 'A tie in the ranking needs a decision',
         tieBody: 'These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do.',
@@ -2458,6 +2481,13 @@ const resources = {
         mfaInvalidCode: 'Invalid code',
         recoveryCodesNotice: 'Save these recovery codes somewhere safe - they will not be shown again.',
         sessionsTitle: 'Active sessions',
+        auditTitle: 'My account activity',
+        auditHint: 'The most recent events recorded against your account, newest first.',
+        auditEmpty: 'No events recorded yet',
+        auditExport: 'Download the trail (CSV)',
+        auditExportFailed: 'Could not download the trail',
+        auditLoadFailed: 'Could not load the trail',
+        retry: 'Try again',
         currentSession: 'Current session',
         unknownDevice: 'Unknown device',
         revoke: 'Sign out',

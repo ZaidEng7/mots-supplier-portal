@@ -187,4 +187,28 @@ describe('ComparisonPage', () => {
     expect(screen.queryByText('A tie in the ranking needs a decision')).not.toBeInTheDocument()
     expect(screen.queryByText('Unresolved tie')).not.toBeInTheDocument()
   })
+
+  it('lets a buyer ask a bidder to clarify, with a mandatory reason', async () => {
+    // B-1/SCR-433. POST /proposals/{code}/request-clarification has existed since T-051, is permissioned,
+    // and nothing called it - the same shape as T-067: the rule permits the action and no surface reaches
+    // it. A buyer had to use the API by hand.
+    const calls: { url: string; method: string; body: string }[] = []
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/comparison': comparisonFixture({ evaluationState: 'Consolidated' }),
+      '/api/v1/proposals/PRP-2026-000001/request-clarification': {},
+    }, calls)
+
+    renderPage(<ComparisonPage />)
+
+    const reason = await screen.findByLabelText('What to clarify for PRP-2026-000001')
+    // Disabled until there is a question - a clarification request with nothing in it is not one.
+    expect(screen.getAllByRole('button', { name: 'Request clarification' })[0]).toBeDisabled()
+
+    await userEvent.type(reason, 'The delivery schedule contradicts item 3.')
+    await userEvent.click(screen.getAllByRole('button', { name: 'Request clarification' })[0])
+
+    await vi.waitFor(() => expect(calls.some((c) => c.url.includes('request-clarification'))).toBe(true))
+    expect(JSON.parse(calls.find((c) => c.url.includes('request-clarification'))!.body))
+      .toEqual({ reason: 'The delivery schedule contradicts item 3.' })
+  })
 })

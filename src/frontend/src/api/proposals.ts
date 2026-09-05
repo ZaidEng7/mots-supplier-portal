@@ -212,3 +212,14 @@ export async function withdrawProposal(proposalReferenceCode: string, reason: st
     body: JSON.stringify({ reason }),
   }))
 }
+
+/** B-1/SCR-433: the buyer asks a bidder to clarify. `POST /proposals/{code}/request-clarification` has
+ * existed since T-051, is permissioned on `rfq.clarify`, and NOTHING called it - the same defect shape as
+ * T-067: the rule permits the action and no surface reaches it. */
+export async function requestProposalClarification(proposalReferenceCode: string, reason: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/request-clarification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  }))
+}

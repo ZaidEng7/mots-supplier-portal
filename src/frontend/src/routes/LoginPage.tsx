@@ -15,10 +15,24 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+/**
+ * §7's machine-stable code for a failed sign-in.
+ *
+ * <p><b>This read `body.error` and could never match.</b> ProblemDetailsMiddleware conforms every error
+ * response and turns the handler's `error` token into `code` in SCREAMING_SNAKE - the login challenge
+ * arrives as <code>{ status: 401, code: "MFA_REQUIRED" }</code> with no `error` key at all. So
+ * `mfa_required` was never detected and an MFA account was shown "Invalid email or password" instead of
+ * the code step: every `system_admin`, which requires MFA, was locked out of the SPA. `mfa_invalid` and
+ * `email_not_verified` failed the same way.</p>
+ *
+ * <p>Found by writing this page's first component test (B-1). Normalised to the lower-case token the
+ * rest of this file already branches on, and the raw `error` key is still read first for any endpoint
+ * that has not been through the middleware.</p>
+ */
 function errorCode(err: unknown): string | undefined {
   if (!(err instanceof ApiError)) return undefined
-  const body = err.body as { error?: string } | null
-  return body?.error
+  const body = err.body as { error?: string; code?: string } | null
+  return body?.error ?? body?.code?.toLowerCase()
 }
 
 export function LoginPage() {
@@ -62,7 +76,9 @@ export function LoginPage() {
       }
       if (err instanceof ApiError) {
         if (err.status === 423) setFormError(t('auth.lockedOut'))
-        else if (err.status === 400 && err.message === 'email_not_verified') setFormError(t('auth.emailNotVerified'))
+        // Read through errorCode for the same reason: ApiError.message falls back to "Request failed:
+        // 400" when the body carries `code` rather than `error`, so matching on the message never fired.
+        else if (err.status === 400 && errorCode(err) === 'email_not_verified') setFormError(t('auth.emailNotVerified'))
         else setFormError(t('auth.loginFailed'))
       } else {
         setFormError(t('auth.loginFailed'))

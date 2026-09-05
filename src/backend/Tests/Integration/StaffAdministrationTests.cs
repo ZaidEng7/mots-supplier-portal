@@ -44,8 +44,22 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         // team (SCR-160), and mixing the two would put a supplier's staff in the platform list.
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff List Outsider Co");
 
-        var page = await admin.GetFromJsonAsync<JsonElement>("/api/v1/staff?withCount=true");
-        var rows = page.GetProperty("data").EnumerateArray().ToList();
+        // Paged through rather than read off the first page. The list is keyset-ordered by email and the
+        // suite creates many staff accounts, so "it is on page one" is an order dependence - and it
+        // failed exactly that way in a full run. Following the cursor also exercises the paging.
+        var rows = new List<JsonElement>();
+        string? cursor = null;
+        for (var page = 0; page < 20; page++)
+        {
+            var url = cursor is null ? "/api/v1/staff?withCount=true" : $"/api/v1/staff?cursor={Uri.EscapeDataString(cursor)}";
+            var body = await admin.GetFromJsonAsync<JsonElement>(url);
+            rows.AddRange(body.GetProperty("data").EnumerateArray());
+
+            var pagination = body.GetProperty("pagination");
+            if (!pagination.GetProperty("hasMore").GetBoolean()) break;
+            cursor = pagination.GetProperty("nextCursor").GetString();
+            if (cursor is null) break;
+        }
 
         var invited = rows.Single(r => r.GetProperty("userId").GetGuid() == invitedId);
         invited.GetProperty("role").GetString().Should().Be(Roles.ProcurementOfficer);

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { Badge, Button, Input, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { getComparison, resolveEvaluationTie } from '../../api/comparison'
+import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
 
 /** Lowest wins for a price line/grand total; the domain never documents a different direction for
@@ -45,6 +46,22 @@ export function ComparisonPage() {
 
   // A-1: hooks before the early returns below, which is why this sits here rather than beside the
   // panel it drives.
+  // B-1/SCR-433: ask a bidder to clarify. The endpoint has existed since T-051 and nothing called it.
+  // Placed here because the comparison is where a buyer is looking at the bids and notices what is
+  // missing - and §4.1's transition is UnderReview -> ClarificationRequested, which is where these
+  // proposals are.
+  const [clarifyReasons, setClarifyReasons] = useState<Record<string, string>>({})
+  const clarifyMutation = useMutation({
+    mutationFn: ({ proposalCode, reason }: { proposalCode: string; reason: string }) =>
+      requestProposalClarification(proposalCode, reason),
+    onSuccess: (_, { proposalCode }) => {
+      void queryClient.invalidateQueries({ queryKey: ['comparison', referenceCode] })
+      setClarifyReasons((prev) => { const next = { ...prev }; delete next[proposalCode]; return next })
+      notify({ kind: 'success', title: t('comparison.clarifyRequested') })
+    },
+    onError: (error: Error) => notify({ kind: 'danger', title: error.message || t('comparison.clarifyFailed') }),
+  })
+
   const resolveMutation = useMutation({
     mutationFn: ({ proposalCode, reason }: { proposalCode: string; reason: string }) =>
       resolveEvaluationTie(referenceCode, proposalCode, reason),
@@ -271,6 +288,39 @@ export function ComparisonPage() {
         flow refuses to offer rank 1 until someone has resolved it. A reason is mandatory - a tie broken
         with no stated basis is exactly what the system refused to do, so a person must not do it either.
       */}
+      {/*
+        B-1/SCR-433. A reason is mandatory - the endpoint reuses WithdrawProposalRequest's validator, and a
+        clarification request with no stated question is not one.
+      */}
+      <div className="mt-6 rounded-[var(--radius-md)] p-4" style={{ border: '1px solid var(--color-border)' }}>
+        <p className="font-[var(--fw-semibold)]">{t('comparison.clarifyTitle')}</p>
+        <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.clarifyBody')}</p>
+        <div className="flex flex-col gap-2">
+          {proposals.map((p) => (
+            <div key={`clarify-${p.proposalReferenceCode}`} className="flex flex-wrap items-end gap-2">
+              <span className="num">{p.proposalReferenceCode}</span>
+              <Input
+                aria-label={t('comparison.clarifyReason', { code: p.proposalReferenceCode })}
+                placeholder={t('comparison.clarifyReasonPlaceholder')}
+                value={clarifyReasons[p.proposalReferenceCode] ?? ''}
+                onChange={(e) => setClarifyReasons((prev) => ({ ...prev, [p.proposalReferenceCode]: e.target.value }))}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!clarifyReasons[p.proposalReferenceCode] || clarifyMutation.isPending}
+                onClick={() => clarifyMutation.mutate({
+                  proposalCode: p.proposalReferenceCode,
+                  reason: clarifyReasons[p.proposalReferenceCode]!,
+                })}
+              >
+                {t('comparison.clarifyAsk')}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {tied.length > 0 ? (
         <div className="mt-6 rounded-[var(--radius-md)] p-4" style={{ border: '1px solid var(--color-border)' }}>
           <p className="font-[var(--fw-semibold)]">{t('comparison.tieTitle')}</p>

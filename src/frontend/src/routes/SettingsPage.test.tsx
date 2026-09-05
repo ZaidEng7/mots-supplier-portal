@@ -46,4 +46,51 @@ describe('SettingsPage session revoke flow', () => {
 
     expect(await screen.findByText('Signed out of all other devices')).toBeInTheDocument()
   })
+
+  it('shows the supplier their own activity trail and offers the CSV', async () => {
+    // B-1/FR-AUD-003. The list AND its export have existed since EPIC-01 and nothing called either - a
+    // compliance affordance that shipped unreachable, found by the phase 12a sweep.
+    const created = vi.fn()
+    const clicked = vi.fn()
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => { created(); return 'blob:trail' })
+    URL.revokeObjectURL = vi.fn()
+    const originalClick = HTMLAnchorElement.prototype.click
+    HTMLAnchorElement.prototype.click = clicked
+
+    restore = mockFetch({
+      '/api/v1/suppliers/me/audit/export': {},
+      '/api/v1/suppliers/me/audit': {
+        data: [{
+          id: 'a-1', occurredAt: '2026-09-01T10:00:00Z', aggregateType: 'Supplier',
+          aggregateId: 's-1', action: 'supplier_submitted', fromState: 'ProfileInProgress',
+          toState: 'Submitted', actorLabel: null,
+        }],
+        pagination: { hasMore: false, nextCursor: null },
+      },
+      '/api/v1/auth/sessions': { data: [], pagination: { hasMore: false, nextCursor: null } },
+      '/api/v1/auth/mfa/status': { enabled: false },
+    })
+
+    renderPage(<SettingsPage />)
+
+    expect(await screen.findByText('My account activity')).toBeInTheDocument()
+    // The action's own token, not a translated label: §7 has no table for audit actions, and inventing
+    // one would put a second vocabulary beside the one the trail records.
+    expect(await screen.findByText('supplier_submitted')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download the trail (CSV)' }))
+
+    // Fetched and handed to the browser rather than linked: the export needs the Authorization header, so
+    // a plain anchor would arrive unauthenticated and answer 401 - which is why an export that existed
+    // was never reachable from a screen.
+    await vi.waitFor(() => expect(created).toHaveBeenCalled())
+    expect(clicked).toHaveBeenCalled()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:trail')
+
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+    HTMLAnchorElement.prototype.click = originalClick
+  })
 })
