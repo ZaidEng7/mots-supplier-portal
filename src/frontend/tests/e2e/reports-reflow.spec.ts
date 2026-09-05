@@ -73,6 +73,7 @@ const backOfficeRoutes = [
   '/back-office/admin',
   '/back-office/settings',
   '/back-office/notification-templates',
+  '/back-office/reference',
 ]
 
 for (const locale of ['ar', 'en'] as const) {

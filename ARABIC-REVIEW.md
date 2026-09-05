@@ -448,3 +448,36 @@ an Arabic reader expects for enumeration. Worth a specific check by the reviewer
 | `comparison.clarifyAsk` | Request clarification | طلب استيضاح | [reused] §8's «استيضاح» per the batch-9 glossary ruling |
 | `adminOverview.erpNotConfigured` | No real ERP integration is configured | لا يوجد ربط فعلي بنظام ERP | [drafted] |
 | `adminOverview.erpNotConfiguredBody` | Messages are written to the log and sent nowhere… | تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي… | [drafted] |
+
+### T-080 — the reference-data editor (SCR-710 / SCR-711 / SCR-712)
+
+Most of the row labels are reused: the five table names already existed for SCR-700's tiles, and
+`تعطيل` / `إعادة التفعيل` are the same pair T-077's staff table uses, so an administrator who has
+deactivated an account meets the same word when deactivating a code.
+
+The two notices carry the weight. D-28 is a rule an administrator has to be told rather than
+discover, so `noDeleteNotice` says both halves of it — that deletion is impossible, and that
+deactivation does not touch what existing records say — and `inactiveNotice` explains why retired
+codes are still on the page. Both are long by the register's standards, and deliberately: a shorter
+sentence here reads as an apology for a missing button rather than a statement of policy.
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `referenceAdmin.title` | Reference data | إدارة البيانات المرجعية | [drafted] |
+| `referenceAdmin.subtitle` | Add, rename, and deactivate the codes RFQs and supplier profiles are built from. | إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين. | [drafted] |
+| `referenceAdmin.tableLabel` | Reference table | الجدول المرجعي | [drafted] |
+| `referenceAdmin.addTitle` | Add a code | إضافة رمز جديد | [drafted] |
+| `referenceAdmin.code` | Code | الرمز | [reused] §7's own term |
+| `referenceAdmin.nameAr` / `nameEn` | Name (Arabic) / Name (English) | الاسم بالعربية / الاسم بالإنجليزية | [reused] matches the onboarding form |
+| `referenceAdmin.deactivate` / `reactivate` | Deactivate / Reactivate | تعطيل / إعادة التفعيل | [reused] matches T-077's staff table |
+| `referenceAdmin.active` / `inactive` | Active / Inactive | مفعّل / معطّل | [reused] §7's own terms |
+| `referenceAdmin.required` | Required | إلزامي | [reused] §7's own term |
+| `referenceAdmin.created` | Code added | تمت إضافة الرمز | [drafted] |
+| `referenceAdmin.renamed` | Name saved | تم حفظ الاسم | [drafted] |
+| `referenceAdmin.empty` | This table has no codes | لا توجد رموز في هذا الجدول | [drafted] |
+| `referenceAdmin.noDeleteNotice` | Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say. | لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة. | [drafted] D-28 |
+| `referenceAdmin.inactiveNotice` | Deactivated codes stay listed here, so deactivation does not read as deletion. | تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها. | [drafted] D-28 |
+| `referenceAdmin.errors.duplicateCode` | That code already exists on this table. | هذا الرمز موجود بالفعل في هذا الجدول. | [drafted] |
+| `referenceAdmin.errors.createFailed` | Could not add the code | تعذّرت إضافة الرمز | [drafted] |
+| `referenceAdmin.errors.updateFailed` | Could not save the change | تعذّر حفظ التغيير | [drafted] |
+| `referenceAdmin.errors.loadFailed` | Could not load reference data | تعذّر تحميل البيانات المرجعية | [drafted] |

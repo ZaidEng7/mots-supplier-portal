@@ -118,7 +118,10 @@ test('the route denominator is what the router actually declares, not what this 
   // no landing page; this is the third consecutive count move for a persona gaining somewhere to go.
   // 43 (T-060/SCR-724): /back-office/settings - FR-ADM-006's system settings.
   // 44 (T-061/SCR-715): /back-office/notification-templates - FR-ADM-007's editable copy.
-  expect(routes.length).toBe(44)
+  // 45 (T-080/SCR-710-712): /back-office/reference - FR-ADM-004's reference-data editor. Three
+  // inventory rows, one route: the operations are identical across the five tables, so this count
+  // moves by one rather than by three.
+  expect(routes.length).toBe(45)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

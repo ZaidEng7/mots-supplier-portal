@@ -183,6 +183,41 @@ const resources = {
         loadFailed: 'تعذّر تحميل لوحة إدارة النظام',        // [§7-style drafted]
         retry: 'إعادة المحاولة',                           // [reused]
       },
+      // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
+      // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
+      referenceAdmin: {
+        title: 'إدارة البيانات المرجعية',                    // [§7-style drafted]
+        subtitle: 'إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين.', // [§7-style drafted]
+        tableLabel: 'الجدول المرجعي',                        // [§7-style drafted]
+        addTitle: 'إضافة رمز جديد',                          // [§7-style drafted]
+        code: 'الرمز',                                       // [reused] §7's own term
+        name: 'الاسم',                                       // [reused]
+        nameAr: 'الاسم بالعربية',                            // [reused] matches the onboarding form
+        nameEn: 'الاسم بالإنجليزية',                         // [reused] matches the onboarding form
+        status: 'الحالة',                                    // [reused] §7's own term
+        actions: 'الإجراءات',                                // [reused] §7's own term
+        add: 'إضافة',                                        // [reused]
+        save: 'حفظ',                                         // [reused]
+        deactivate: 'تعطيل',                                 // [reused] matches staff deactivation
+        reactivate: 'إعادة التفعيل',                          // [reused] matches staff reactivation
+        active: 'مفعّل',                                      // [reused] §7's own term
+        inactive: 'معطّل',                                    // [reused] §7's own term
+        required: 'إلزامي',                                   // [reused] §7's own term
+        created: 'تمت إضافة الرمز',                           // [§7-style drafted]
+        renamed: 'تم حفظ الاسم',                              // [§7-style drafted]
+        empty: 'لا توجد رموز في هذا الجدول',                   // [§7-style drafted]
+        retry: 'إعادة المحاولة',                              // [reused]
+        // D-28 stated on the screen: an administrator who cannot find a delete button deserves to
+        // know it is absent on purpose.
+        noDeleteNotice: 'لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة.', // [drafted] D-28
+        inactiveNotice: 'تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها.', // [drafted] D-28
+        errors: {
+          duplicateCode: 'هذا الرمز موجود بالفعل في هذا الجدول.', // [§7-style drafted]
+          createFailed: 'تعذّرت إضافة الرمز',                  // [§7-style drafted]
+          updateFailed: 'تعذّر حفظ التغيير',                   // [§7-style drafted]
+          loadFailed: 'تعذّر تحميل البيانات المرجعية',          // [§7-style drafted]
+        },
+      },
       // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
       // ARABIC-REVIEW.md's pile.
       ministry: {
@@ -1446,6 +1481,37 @@ const resources = {
         },
         loadFailed: 'Could not load platform administration',
         retry: 'Try again',
+      },
+      referenceAdmin: {
+        title: 'Reference data',
+        subtitle: 'Add, rename, and deactivate the codes RFQs and supplier profiles are built from.',
+        tableLabel: 'Reference table',
+        addTitle: 'Add a code',
+        code: 'Code',
+        name: 'Name',
+        nameAr: 'Name (Arabic)',
+        nameEn: 'Name (English)',
+        status: 'Status',
+        actions: 'Actions',
+        add: 'Add',
+        save: 'Save',
+        deactivate: 'Deactivate',
+        reactivate: 'Reactivate',
+        active: 'Active',
+        inactive: 'Inactive',
+        required: 'Required',
+        created: 'Code added',
+        renamed: 'Name saved',
+        empty: 'This table has no codes',
+        retry: 'Try again',
+        noDeleteNotice: 'Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say.',
+        inactiveNotice: 'Deactivated codes stay listed here, so deactivation does not read as deletion.',
+        errors: {
+          duplicateCode: 'That code already exists on this table.',
+          createFailed: 'Could not add the code',
+          updateFailed: 'Could not save the change',
+          loadFailed: 'Could not load reference data',
+        },
       },
       ministry: {
         title: 'Governance dashboard',

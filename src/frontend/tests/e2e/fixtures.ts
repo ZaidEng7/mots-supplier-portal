@@ -201,6 +201,12 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
       { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
     ] })
+    // T-080/SCR-710-712: the reference-data editor asks per table, so the fixture answers any of
+    // the five - otherwise the screen renders its error card and the a11y scan covers that instead.
+    if (p.startsWith('/api/v1/admin/reference/')) return route.fulfill({ json: [
+      { code: 'IT', nameAr: 'تقنية المعلومات', nameEn: 'Information technology', isActive: true, isRequired: null, expiryTracked: null },
+      { code: 'FAX', nameAr: 'فاكس', nameEn: 'Fax machines', isActive: false, isRequired: null, expiryTracked: null },
+    ] })
     if (p === '/api/v1/suppliers/me/audit') return route.fulfill({ json: {
       data: [{ id: 'a-1', occurredAt: '2026-09-01T10:00:00Z', aggregateType: 'Supplier', aggregateId: 's-1',
         action: 'supplier_submitted', fromState: null, toState: 'Submitted', actorLabel: null }],
