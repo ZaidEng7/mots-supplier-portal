@@ -264,6 +264,14 @@ machine is **reachability**, and applying it produced the largest finding here (
 | ~~T-061~~ | FR-ADM-007 | **Closed (batch 9 send 5) for the 29 in-app notification texts; the 11 email bodies are split out as T-076.** `NotificationTemplate` + `GET/PUT/DELETE /api/v1/admin/notification-templates` + SCR-715 at `/back-office/notification-templates`. An **override**, not a replacement: the shipped `NotificationCatalogue.jsonc` stays the default and the fallback, so no deployment's wording changes until somebody changes it, and DELETE restores the shipped words — which is why a delete exists here and does not on reference data (D-28: a reference code is a foreign key in live rows, an override is a layer over something still underneath it). **Token safety is the substance**: a template may use any subset of the tokens its type's shipped copy names and no others (D-34), because a token the payload cannot fill reaches the supplier as the literal characters `{price}` mid-sentence and cannot be diagnosed from the notification row; the refusal names the offending tokens. Both locales are required — an Arabic-only title renders blank for an English user. The screen shows the shipped words beside the current ones so revert is not guesswork. **Found a live defect in T-030's version bump while building this**: `BumpTouchedVersionedRoots` forced `State = Modified` on a *deleted* root, turning every DELETE of a versioned aggregate into an UPDATE — the row survived and the caller was told it was removed. Fixed, with its own regression test | `NotificationTemplate.cs`, `NotificationTemplateEndpoints.cs`, `NotificationTemplatesPage.tsx` | Reproduced | L |
 | ~~T-062~~ | FR-DSH-006 | **Closed (batch 9 send 5).** SCR-700 at `/back-office/admin` behind `admin.users.manage`, plus `GET /api/v1/admin/overview`: users by role, reference-table health, outbox pending/failed/oldest-pending age, recurring-job health and audit rows in the last 24 hours. `system_admin` previously had no landing page at all — it could reach staff, roles and reference data only by typing URLs. Three deliberate shapes: the outbox age is **null, not zero, when nothing is pending** (an empty queue and a queue whose head arrived this second are different facts, and only one of them can be stuck); the jobs tile reads `Jobs:EnableRecurring` and the actual Hangfire registration separately, because the flag being off explains every missing id at once and today announces itself only in one startup log line; and a reference table at zero active codes is called out by name, because it blocks registration and nothing else in the product says so. Path prefix: SCREEN-INVENTORY writes SCR-700 as `/admin`; this app keeps every staff screen under `/back-office`, the same disagreement already reported for SCR-400/500 and reports | `AdminOverviewEndpoints.cs`, `GetAdminOverviewHandler.cs`, `AdminOverviewPage.tsx` | Reproduced | L |
 | T-076 | FR-ADM-007 | **The 11 transactional EMAIL bodies**, split out of T-061. `EmailTemplates.cs` is C# interpolation with typed arguments, not a data catalogue, and each body carries a REQUIRED token — a verification link, a reset link — whose omission would lock an applicant out rather than merely read badly. Making them admin-editable needs a per-template required-token contract that the in-app catalogue does not need and cannot supply. Not started | `EmailTemplates.cs` | Reproduced | M |
+| T-077 | SCR-701, SCR-702 | **Staff user management, both rows P0, and the endpoints do not exist either.** `POST /api/v1/staff/invite` and `POST /api/v1/staff/accept-invite` are the only staff routes: there is no list, no detail, no role change, no deactivation and no MFA reset. `system_admin` can create a staff account and then never administer it. SCR-700 counts users by role, so the data is there and only the surface is not. Found by the phase 12a per-screen sweep | `StaffEndpoints.cs`, `StaffPage.tsx` | Reproduced | L |
+| T-078 | SCR-433 | **`POST /api/v1/proposals/{code}/request-clarification` is reachable by nothing.** The endpoint exists, is permissioned, and no screen or API-client function calls it — the same shape as T-067: the rule permits the action and no surface reaches it. A buyer cannot ask a bidder to clarify without using the API directly. Found by the phase 12a per-screen sweep | `ProposalEndpoints.cs:383` | Reproduced | M |
+| T-079 | SCR-720 | **Three audit endpoints, no screen.** `GET /api/v1/audit/{aggregateId}`, `GET /api/v1/suppliers/me/audit` and its CSV export are all unreferenced by the SPA. The last of the three is supplier-facing, so a compliance affordance ships unreachable. Found by the phase 12a per-screen sweep | `AuditEndpoints.cs` | Reproduced | M |
+| T-080 | SCR-710, SCR-711, SCR-712 | **Reference data is editable by API only.** T-034/T-059 landed the whole admin write surface in batch 9 and no screen consumes it, so adding a document type still requires a request by hand | `ReferenceDataAdminEndpoints.cs` | Reproduced | M |
+| T-081 | SCR-901 | Notification preferences: no screen and no endpoint. Every notification is unconditional | nothing | Reproduced | M |
+| T-082 | SCR-430, SCR-431 | No single-proposal buyer read outside the comparison matrix, and no received-proposals list of its own | `ComparisonPage.tsx` covers only SCR-432 | Reproduced | M |
+| T-083 | SCR-721, SCR-722, SCR-723 | SCR-700's tiles (batch 9) cover outbox and recurring-job HEALTH. Per-message replay, per-job control and per-entity ERP sync status do not exist | `AdminOverviewPage.tsx` | Reproduced | L |
+| T-084 | — | **Fifteen page components have no component test, and the whole unauthenticated auth surface is among them**: `LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `VerifyEmailPage`, both invitation-acceptance pages, `HomePage`, `BackOfficeDashboardPage`, `StaffPage`, the four onboarding sub-pages, and both shells. Nothing asserts what a wrong password, an expired token or a used invitation does. The e2e axe sweep proves they MOUNT in both locales, which is a different claim. `ResetPasswordPage` is the extreme case — no loading, error or validation handling of any kind. Found by the phase 12a per-screen sweep | 15 files | Reproduced | L |
 | T-063 | FR-INT-008 | **Sized, deliberately not built (D-35).** No inbound ERP path through an ACL. The requirement is priority **C**, worded "if enabled", and carries `[ASSUMPTION]` on the direction and scope *themselves* — so an implementation would be inventing an externally reachable path that MUTATES domain state, which is not a default that can be revised later the way a wrong setting can. Four questions block it: which entities ERP may write; which fields on each; how the caller authenticates; and what happens when an inbound value contradicts a portal edit (FR-INT-006 requires conflicts be queued, never silently overwritten). Nothing else depends on it — FR-INT-001..007 are the outbound direction and are all built | no inbound handler | Reproduced | L |
 
 ### `FR-*` — verdict spread
@@ -281,9 +289,13 @@ FR-NOT-004, FR-NOT-007, FR-PROF-009, FR-REG-002, FR-SRCH-006, FR-DOC-004. Every 
 `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]` in its own text, which is the documents telling us
 they are unfinished rather than us failing to read them.
 
-### `SCR-*` — route level only, and that limit is the point
+### `SCR-*` — per-screen verification, done (batch 9 phase 12a)
 
-`SCREEN-INVENTORY.md` holds **128 screen rows with routes**. The router declares **41 paths**.
+**This section was "route level only" until batch 9. It is now a per-screen verdict for all 142 rows.**
+The route-level framing below is kept because it is still the right correction to the raw count; what
+follows it is the sweep the earlier passes said they had not done.
+
+`SCREEN-INVENTORY.md` holds **142 screen rows** (128 of them with a path). The router declares **44 paths**.
 
 That gap is real but it **overstates** what is missing, and the overstatement is why this section is
 not a per-screen verdict table. Many documented screens are sections of one page (`/onboarding/company`,
@@ -295,10 +307,55 @@ not a per-screen verdict table. Many documented screens are sections of one page
 SCR-100, 101, 105, 106, 120, 140, 151, 160, 300, 301, 400, 401, 432, 500, 600, 700 and 900 are cited
 in source and have routes — seventeen screens across the epics that sweep called empty.
 
-**Not established here:** whether each built screen matches its specification's layout and required
-states, and whether those states are *tested* rather than merely present. That is the distinction that
-found EPIC-16's per-widget error isolation gap, and it is the one thing this section does not deliver.
-See the holes below.
+**What the batch 9 sweep establishes:** every one of the 142 rows now carries a verdict, and the
+verdicts are drawn from the source — the router's own path list, each page component's rendered
+sections, and whether a component test exists for it — not from the epic it belongs to.
+
+#### Verdict counts
+
+| Verdict | Count | What it means |
+|---|---|---|
+| **Built** | 34 | Its own route renders it |
+| **Section** | 41 | Rendered as a section of a built page rather than its own route. A documented divergence from the inventory's route column, not a gap |
+| **State, not a route** | 9 | `/403`, `/404`, `/error`, the shells, the ERP banner, logout, the locked message — reached as a state, which is how a SPA renders them |
+| **Spelling** | 6 | Same screen, different path (`/password/forgot` against `/forgot-password`) |
+| **Refused by policy** | 4 | Ministry row-level screens. BRULE-086/D-6 grant the Ministry aggregate-only access, so SCR-601/602/606 and the drill-down are not "missing" — building them would breach the rule the governance dashboard was built to respect |
+| **Missing** | 48 | Nothing renders it |
+
+#### The missing 48, grouped by what they cost
+
+The count alone is misleading — most of the 48 are P1/P2 conveniences. These are the ones that cost
+something, each now a backlog row:
+
+| Screens | Cost | Row |
+|---|---|---|
+| ~~SCR-142 supplier RFQ attachments, SCR-414 buyer RFQ attachments~~ | **Was tender-blocking, fixed in this batch.** The upload/download/remove endpoints and their API-client functions had existed since EPIC-07 and *no screen called any of them*: an invited supplier could read an RFQ and never reach its terms of reference | **Closed (batch 9)** |
+| SCR-701 Users management, SCR-702 User detail | **Both P0, and there is no endpoint either.** `system_admin` can invite a staff user (`POST /staff/invite`) and can then never list, edit, deactivate, or reset MFA for one. The admin dashboard counts users by role, so the data exists and only the surface does not | **T-077** |
+| SCR-433 Request proposal clarification | `POST /proposals/{code}/request-clarification` exists, is permissioned, and **nothing calls it** — the same defect shape as T-067: the rule permits the action and no surface reaches it | **T-078** |
+| SCR-720 Audit log explorer, plus the supplier's own audit view | Three audit endpoints exist (`/audit/{aggregateId}`, `/suppliers/me/audit`, and its CSV export) and no screen calls any of them. The export is supplier-facing, so this is a compliance affordance that ships unreachable | **T-079** |
+| SCR-710/711/712 Reference-data managers | T-034/T-059 landed the whole admin API in this batch; there is no screen, so reference data is editable by API only | **T-080** |
+| SCR-901 Notification preferences | No screen and no endpoint. Notifications are unconditional | **T-081** |
+| SCR-431 Proposal detail (buyer), SCR-430 Received proposals list | The comparison matrix (SCR-432) covers the *evaluation* view; there is no single-proposal buyer read outside it | **T-082** |
+| SCR-723 ERP sync monitor, SCR-721/722 jobs and outbox | SCR-700's tiles (batch 9) cover outbox and job HEALTH; per-message replay and per-entity sync status do not exist | **T-083** |
+| SCR-906 search, SCR-907 help, SCR-908 about, SCR-716 localization, SCR-725/726 storage and security settings, SCR-044 maintenance, SCR-047 unsupported browser, SCR-010 locale first-run, SCR-040 session-expired overlay | P1/P2 conveniences and interstitials. Recorded, not sized individually | — |
+
+#### The state-and-test finding, which is the sharper half
+
+Fifteen page components have **no component test of their own**:
+
+`LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `VerifyEmailPage`, `AcceptInvitePage`
+(`AcceptTeamInvitePage`), `AcceptStaffInvitePage`, `HomePage`, `BackOfficeDashboardPage`, `StaffPage`,
+the four onboarding sub-pages (`ContactsPage`, `AddressesPage`, `BankingPage`, `OfferingsPage`), and
+both shells.
+
+**The whole unauthenticated authentication surface is in that list.** Login, password reset, email
+verification and invitation acceptance are the screens every user meets first and the ones whose
+failure states matter most, and not one of them has a test asserting what happens on a wrong password,
+an expired token, or a used invitation. The e2e axe sweep renders all of them, so they are known to
+*mount* in both locales — that is a different claim from behaving correctly. Recorded as **T-084**.
+
+`ResetPasswordPage` is the extreme case: it shows zero matches for loading, error, and validation
+handling of any kind.
 
 ### §12.4 / §12.5 — riding with R-9, or independent
 
@@ -349,10 +406,11 @@ whole file the balance is now roughly 37 reproduced to 15 inferred, with 1 uncon
 
 **The remaining holes, named as plainly as batch 2 named its own.**
 
-- **`SCR-*` per-screen verification is NOT done.** This sweep established which routes exist. It did
-  not check any screen against its specification's layout, its required states, or whether those
-  states are tested. That is the largest hole in this file and it is now the *only* one of batch 2's
-  three that remains open.
+- ~~**`SCR-*` per-screen verification is NOT done.**~~ **Done in batch 9 (phase 12a).** All 142 rows
+  carry a verdict; the counts, the missing-48 grouped by cost, and the fifteen untested page
+  components are above. It found two unreachable endpoint families (RFQ attachments, fixed in the
+  same batch; proposal clarification and audit, sized as T-078/T-079) and two P0 screens whose
+  endpoints do not exist either (T-077).
 - **`BRULE-*` was not re-swept.** Batch 2 covered it; nothing since has re-verified those 100 rules
   against five epics of subsequent change.
 - **The frontend was not swept for anything.** No component, i18n, or accessibility conformance check
