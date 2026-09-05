@@ -216,10 +216,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             .Distinct()
             .Order()];
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// T-030: the bump runs here, on the overloads every other entry point funnels into.
+    ///
+    /// <para><b>Overriding <c>SaveChangesAsync(CancellationToken)</c> alone was not enough, and that
+    /// was a real hole rather than a style point.</b> EF's public surface has four ways in - sync and
+    /// async, each with and without <c>acceptAllChangesOnSuccess</c> - and the two convenience forms
+    /// delegate to these two. A caller using <c>SaveChanges()</c> synchronously, or the
+    /// <c>acceptAllChangesOnSuccess</c> overload, would have skipped the version bump entirely: the
+    /// write would land and the aggregate's version would not move, which is precisely the defect
+    /// T-030 exists to close. A concurrency scheme that applies on three paths out of four is worse
+    /// than none, because it looks like it works.</para>
+    ///
+    /// <para><c>ExecuteUpdateAsync</c> and <c>ExecuteDeleteAsync</c> still bypass this by design -
+    /// they issue SQL without a change tracker. Nothing in this codebase uses them to mutate an
+    /// aggregate that an <c>If-Match</c> guards; they are used for test setup and for the GC jobs.</para>
+    /// </summary>
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         BumpTouchedVersionedRoots();
-        return base.SaveChangesAsync(cancellationToken);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        BumpTouchedVersionedRoots();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
