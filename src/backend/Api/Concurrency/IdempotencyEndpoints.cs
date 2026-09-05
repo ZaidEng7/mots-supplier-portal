@@ -78,10 +78,10 @@ public static class IdempotencyEndpoints
                 }
 
                 // §8.2.3: replay verbatim.
-                if (existing.ResponseStatusCode is { } status)
+                if (existing.ResponseStatusCode is { } storedStatus)
                 {
                     http.Response.Headers[ReplayedHeaderName] = "true";
-                    return Results.Content(existing.ResponseBody ?? string.Empty, "application/json", Encoding.UTF8, status);
+                    return Results.Content(existing.ResponseBody ?? string.Empty, "application/json", Encoding.UTF8, storedStatus);
                 }
 
                 return Problem(http, StatusCodes.Status409Conflict,
@@ -118,8 +118,19 @@ public static class IdempotencyEndpoints
 
             var result = await next(context);
 
-            await RecordOutcomeAsync(http, record, result);
-            return result;
+            // Rendered ONCE, here, and the rendered bytes are what both the client and the store get.
+            //
+            // The first version executed the result into a buffer to capture it and then RETURNED it,
+            // so the framework executed it a second time to write the real response. That worked for
+            // an Ok(dto) - it just re-serialised - but a result with any side effect, or one that
+            // cannot be executed twice, would have broken in a way nothing here would catch. Returning
+            // the captured bytes means the handler's result is executed exactly once.
+            var (status, body) = await CaptureAsync(http, result);
+            await RecordOutcomeAsync(http, record, status, body);
+
+            return body is null
+                ? Results.StatusCode(status)
+                : Results.Content(body, "application/json", Encoding.UTF8, status);
         });
 
     /// <summary>
@@ -129,10 +140,8 @@ public static class IdempotencyEndpoints
     /// used by the handler and may hold tracked entities whose state a second SaveChanges would flush
     /// again.</para>
     /// </summary>
-    private static async Task RecordOutcomeAsync(HttpContext http, IdempotencyRecord record, object? result)
+    private static async Task RecordOutcomeAsync(HttpContext http, IdempotencyRecord record, int status, string? body)
     {
-        var (status, body) = await CaptureAsync(http, result);
-
         // Only a SUCCESS is worth replaying. A 4xx is the caller's to fix and re-send, and storing it
         // would pin a client to its own mistake for 24 hours with no way to correct the request.
         if (status is < 200 or > 299) return;
@@ -147,13 +156,19 @@ public static class IdempotencyEndpoints
                 .SetProperty(r => r.ResponseBody, body), CancellationToken.None);
     }
 
-    /// <summary>Renders the handler's result so it can be stored and later replayed byte-for-byte.</summary>
+    /// <summary>
+    /// Renders the handler's result once, into memory, so the same bytes can be written to the client
+    /// and stored for replay.
+    ///
+    /// <para>The response stream is swapped for a buffer and restored in a <c>finally</c>, so a
+    /// handler that throws cannot leave the real stream replaced.</para>
+    /// </summary>
     private static async Task<(int Status, string? Body)> CaptureAsync(HttpContext http, object? result)
     {
         if (result is not IResult typed) return (http.Response.StatusCode, null);
 
         var original = http.Response.Body;
-        using var buffer = new MemoryStream();
+        await using var buffer = new MemoryStream();
         http.Response.Body = buffer;
         try
         {
@@ -165,7 +180,8 @@ public static class IdempotencyEndpoints
         }
 
         buffer.Position = 0;
-        var body = await new StreamReader(buffer, Encoding.UTF8).ReadToEndAsync();
+        using var reader = new StreamReader(buffer, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
         return (http.Response.StatusCode, string.IsNullOrEmpty(body) ? null : body);
     }
 
