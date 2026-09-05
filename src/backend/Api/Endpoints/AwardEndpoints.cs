@@ -75,6 +75,7 @@ public static class AwardEndpoints
             MapMutation(await handler.HandleAsync(new ApproveAwardCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardApprove)
         .RequireIfMatch()
+        .RequireIdempotencyKey()
         .WithName("ApproveAward");
 
         group.MapPost("/reject", async (

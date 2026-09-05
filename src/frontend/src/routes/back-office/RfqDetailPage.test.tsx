@@ -352,4 +352,52 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText(/RFQ-2026-000001/)).toBeInTheDocument()
     expect(screen.queryByLabelText('New deadline')).not.toBeInTheDocument()
   })
+
+  it('lists the RFQ attachments, downloads one, and offers upload only on a Draft', async () => {
+    // SCR-414. addRfqAttachment / removeRfqAttachment / the download-url route have existed since
+    // EPIC-07 and no screen called any of them: the tender documents could only be attached through
+    // the API. Found by the batch 9 per-screen sweep.
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', {
+        attachments: [{
+          id: 'att-1', originalFileName: 'tender-terms.pdf', contentType: 'application/pdf',
+          caption: 'Terms of reference', uploadedAt: '2026-09-01T10:00:00Z',
+        }],
+      }),
+      '/api/v1/rfqs/RFQ-2026-000001/attachments/att-1/download-url': { url: 'https://storage.example/signed' },
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('tender-terms.pdf')).toBeInTheDocument()
+    expect(screen.getByLabelText('Add an attachment')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download' }))
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith('https://storage.example/signed', '_blank', 'noopener,noreferrer'))
+    open.mockRestore()
+  })
+
+  it('does not offer attachment upload or removal once the RFQ has left Draft', async () => {
+    // The control. An attachment a supplier has already been invited to read must not vanish, and the
+    // gate is the same isDraft every other structural edit on this page uses.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
+        attachments: [{
+          id: 'att-1', originalFileName: 'tender-terms.pdf', contentType: 'application/pdf',
+          caption: null, uploadedAt: '2026-09-01T10:00:00Z',
+        }],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('tender-terms.pdf')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Add an attachment')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    // Download stays available: reading it is not editing it.
+    expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument()
+  })
 })

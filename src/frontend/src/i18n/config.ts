@@ -74,6 +74,132 @@ const resources = {
       // both surfaces render the same table with the same column headers, so there is no context the
       // export lacks, and all three divergences turned out to be errors rather than adaptations.
       // See DECISIONS-TAKEN.md.
+      // ── EPIC-18/SCR-600 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // §7 has no notification-template table. Drafted in §7's register - NOT YET APPROVED.
+      notificationTemplates: {
+        title: 'قوالب الإشعارات',                            // [§7-style drafted]
+        subtitle: 'صياغة الإشعارات لكل نوع بالعربية والإنجليزية. النوع غير المعدّل يستخدم الصياغة الأصلية.', // [§7-style drafted]
+        shipped: 'الصياغة الأصلية',                          // [§7-style drafted]
+        overridden: 'معدّل',                                 // [reused] matches systemSettings
+        overriddenAt: 'عُدّل في {{at}}',                      // [reused] matches systemSettings
+        edit: 'تعديل',                                       // [reused]
+        collapse: 'إخفاء',                                   // [reused]
+        titleAr: 'العنوان (عربي)',                           // [reused] §7's own term
+        titleEn: 'العنوان (إنجليزي)',                        // [reused] §7's own term
+        bodyAr: 'النص (عربي)',                               // [§7-style drafted]
+        bodyEn: 'النص (إنجليزي)',                            // [§7-style drafted]
+        tokens: 'الرموز المتاحة: {{tokens}}',                 // [§7-style drafted]
+        noTokens: 'لا رموز متاحة لهذا النوع.',                // [§7-style drafted]
+        shippedCopy: 'الصياغة الأصلية (ما سيُستعاد)',          // [§7-style drafted]
+        save: 'حفظ',                                         // [reused]
+        saved: 'تم حفظ الصياغة',                             // [§7-style drafted]
+        revert: 'استعادة الصياغة الأصلية',                    // [§7-style drafted]
+        reverted: 'تمت استعادة الصياغة الأصلية',              // [§7-style drafted]
+        loadFailed: 'تعذّر تحميل القوالب',                    // [§7-style drafted]
+        retry: 'إعادة المحاولة',                             // [reused]
+        errors: {
+          unknownTokens: 'رموز غير متاحة لهذا النوع: {{tokens}}', // [§7-style drafted]
+          saveFailed: 'تعذّر حفظ الصياغة',                    // [§7-style drafted]
+          revertFailed: 'تعذّرت الاستعادة',                   // [§7-style drafted]
+        },
+      },
+      // §7 has no settings table. Drafted in §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md.
+      systemSettings: {
+        title: 'إعدادات النظام',                            // [§7-style drafted]
+        subtitle: 'قيم تسري على النظام بأكمله. الإعداد غير المعدّل يعمل بالقيمة الافتراضية.', // [§7-style drafted]
+        value: 'القيمة',                                    // [reused] §7's own term
+        save: 'حفظ',                                        // [reused]
+        saved: 'تم حفظ الإعداد',                            // [§7-style drafted]
+        overridden: 'معدّل',                                // [§7-style drafted]
+        overriddenAt: 'عُدّل في {{at}}',                     // [§7-style drafted]
+        usingDefault: 'القيمة الافتراضية ({{value}})',        // [§7-style drafted]
+        loadFailed: 'تعذّر تحميل الإعدادات',                  // [§7-style drafted]
+        retry: 'إعادة المحاولة',                             // [reused]
+        keys: {
+          'registration.mode': 'تسجيل الموردين',             // [§7-style drafted]
+          'proposals.defaultCurrencyCode': 'العملة الافتراضية', // [§7-style drafted]
+          'documents.expiringSoonWindowDays': 'مهلة التنبيه لقرب انتهاء المستند (أيام)', // [§7-style drafted]
+          'documents.renewalReminderDays': 'مواعيد تذكير التجديد (أيام)', // [§7-style drafted]
+        },
+        help: {
+          'registration.mode': 'عند الإغلاق يُرفض التسجيل الذاتي ويُطلب من المتقدّم التواصل مع الوزارة.', // [§7-style drafted]
+          'proposals.defaultCurrencyCode': 'تُستخدم كقيمة أولية في نماذج العروض. يجب أن تكون عملة مفعّلة.', // [§7-style drafted]
+          'documents.expiringSoonWindowDays': 'تحدّد متى تنتقل حالة المستند إلى «قارب على الانتهاء»، وهي مستقلة عن مواعيد التذكير.', // [§7-style drafted]
+          'documents.renewalReminderDays': 'قائمة أيام قبل الانتهاء يُرسل عندها تذكير. لا تكرار.', // [§7-style drafted]
+        },
+        choices: {
+          'registration.mode': {
+            open: 'مفتوح للتسجيل الذاتي',                    // [§7-style drafted]
+            closed: 'مغلق',                                 // [§7-style drafted]
+          },
+        },
+        hints: {
+          integerList: 'أرقام مفصولة بفواصل، مثال: 30,14,3',   // [§7-style drafted]
+          range: 'من {{min}} إلى {{max}}',                   // [§7-style drafted]
+        },
+        errors: {
+          value_required: 'القيمة مطلوبة',                    // [reused] §4's required pattern
+          value_not_allowed: 'قيمة غير مسموحة',               // [§7-style drafted]
+          value_out_of_range: 'القيمة خارج النطاق المسموح',    // [§7-style drafted]
+          value_has_duplicates: 'لا يمكن تكرار الرقم نفسه',    // [§7-style drafted]
+          reference_code_not_active: 'الرمز غير موجود أو غير مفعّل', // [§7-style drafted]
+          unknown: 'تعذّر حفظ الإعداد',                       // [§7-style drafted]
+        },
+      },
+      // §7 has no admin-dashboard table either. Drafted in §7's register - NOT YET APPROVED, in
+      // ARABIC-REVIEW.md's pile.
+      adminOverview: {
+        title: 'لوحة إدارة النظام',                        // [§7-style drafted]
+        kpis: {
+          users: 'المستخدمون',                             // [reused] §7's own term
+          roles: 'الأدوار',                                // [reused] matches roleManagement
+          outboxPending: 'رسائل قيد الإرسال',               // [§7-style drafted]
+          auditRows: 'سجلات التدقيق (24 ساعة)',            // [§7-style drafted]
+        },
+        outbox: 'قائمة الإرسال',                           // [§7-style drafted]
+        outboxPending: 'قيد الإرسال',                      // [§7-style drafted]
+        outboxFailed: 'فاشلة',                             // [reused] §4's failure wording
+        outboxOldest: 'عمر أقدم رسالة قيد الإرسال',        // [§7-style drafted]
+        outboxDrained: 'لا توجد رسائل معلّقة',              // [§7-style drafted]
+        outboxFailedWarning: 'توجد رسائل فاشلة تحتاج مراجعة', // [§7-style drafted]
+        minutes: '{{value}} دقيقة',                        // [§7-style drafted]
+        jobs: 'المهام المجدولة',                            // [§7-style drafted]
+        jobsDisabled: 'المهام المجدولة معطّلة',              // [§7-style drafted]
+        jobsDisabledBody: 'لن تُرسل التذكيرات ولن تُغلق الطلبات تلقائياً حتى تُفعّل المهام المجدولة في إعدادات النشر.', // [§7-style drafted]
+        jobsMissing: 'مهام مفقودة من التسجيل',              // [§7-style drafted]
+        jobsHealthy: '{{value}} مهام مسجّلة',               // [§7-style drafted]
+        referenceData: 'البيانات المرجعية',                 // [reused] §7's own term
+        referenceEmpty: 'جدول مرجعي بلا رموز مفعّلة - سيتعذّر التسجيل', // [§7-style drafted]
+        activeOfTotal: '{{active}} من {{total}}',           // [§7-style drafted]
+        tables: {
+          categories: 'التصنيفات',                         // [reused] §7's own term
+          'document-types': 'أنواع المستندات',              // [reused] §7's own term
+          currencies: 'العملات',                           // [reused] matches reference.currencies
+          'units-of-measure': 'وحدات القياس',               // [reused] §7's own term
+          regions: 'المناطق',                              // [reused] §7's own term
+        },
+        loadFailed: 'تعذّر تحميل لوحة إدارة النظام',        // [§7-style drafted]
+        retry: 'إعادة المحاولة',                           // [reused]
+      },
+      // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
+      // ARABIC-REVIEW.md's pile.
+      ministry: {
+        title: 'لوحة الحوكمة',                          // [§7-style drafted]
+        kpis: {
+          suppliers: 'الموردون المسجلون',                // [§7-style drafted]
+          rfqs: 'طلبات عروض الأسعار',                    // [reused] §7's own term
+          awards: 'الترسيات',                            // [reused] §8's «ترسية»
+          participation: 'متوسط العروض لكل طلب',          // [§7-style drafted]
+        },
+        awardedValue: 'إجمالي قيمة الترسيات',            // [§7-style drafted]
+        commercialWithheld: 'القيم المالية غير معروضة',   // [§7-style drafted]
+        commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.', // [§7-style drafted]
+        suppliersByState: 'الموردون حسب حالة دورة الحياة', // [reused] matches the compliance report (D-18)
+        rfqsByState: 'طلبات عروض الأسعار حسب الحالة',     // [reused] matches the procurement report
+        empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
+        loadFailed: 'تعذّر تحميل لوحة الحوكمة',           // [§7-style drafted]
+        retry: 'إعادة المحاولة',                         // [reused]
+      },
       reports: {
         title: 'التقارير',
         from: 'من',
@@ -631,6 +757,13 @@ const resources = {
         remove: 'إزالة',
         actions: 'إجراءات',
         noItems: 'لا توجد بنود بعد',
+        attachments: {
+          title: 'مرفقات الطلب',                            // [§7-style drafted]
+          none: 'لا توجد مرفقات',                           // [reused] §4's empty-state pattern
+          add: 'إضافة مرفق',                                // [§7-style drafted]
+          added: 'تمت إضافة المرفق',                        // [§7-style drafted]
+          download: 'تنزيل',                                // [reused] §7's own term
+        },
         noRequirements: 'لا توجد متطلبات بعد',
         noTemplateBound: 'لم يتم ربط أي قالب تقييم بعد',
         boundTemplate: 'القالب المرتبط: {{id}} (الإصدار {{version}})',
@@ -820,6 +953,12 @@ const resources = {
         errors: { actionFailed: 'تعذر تنفيذ الإجراء', segregationOfDuties: 'يجب أن يختلف المعتمد عن مرشّح الفائز' },
       },
       supplierRfq: {
+        attachments: {
+          title: 'مرفقات الطلب',                            // [reused] matches rfq.attachments
+          none: 'لا توجد مرفقات',                           // [reused]
+          download: 'تنزيل',                                // [reused] §7's own term
+          downloadFailed: 'تعذّر تنزيل المرفق',              // [§7-style drafted]
+        },
         title: 'طلبات عروض الأسعار',
         subtitle: 'طلبات العروض التي دُعيت للمشاركة فيها.',
         listTitle: 'قائمة الدعوات',
@@ -1061,6 +1200,8 @@ const resources = {
         haveAccount: 'لديك حساب بالفعل؟ تسجيل الدخول',
         createAccount: 'إنشاء حساب جديد',
         successTitle: 'تم إنشاء الحساب',
+        closedTitle: 'التسجيل مغلق حالياً',                  // [§7-style drafted]
+        closedBody: 'التسجيل الذاتي مغلق حالياً. يرجى التواصل مع الوزارة لإتمام التسجيل.', // [§7-style drafted]
         checkEmail: 'تحقق من بريدك الإلكتروني لتفعيل الحساب. رقم المرجع الخاص بك:',
         duplicateEmail: 'يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل',
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
@@ -1128,6 +1269,125 @@ const resources = {
         emptyTitle: 'No invitations yet',
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
         loadFailed: "Couldn't load this section",
+        retry: 'Try again',
+      },
+      notificationTemplates: {
+        title: 'Notification templates',
+        subtitle: 'The wording of each notification, in Arabic and English. A type nobody has changed uses the shipped wording.',
+        shipped: 'Shipped wording',
+        overridden: 'Overridden',
+        overriddenAt: 'Changed {{at}}',
+        edit: 'Edit',
+        collapse: 'Hide',
+        titleAr: 'Title (Arabic)',
+        titleEn: 'Title (English)',
+        bodyAr: 'Body (Arabic)',
+        bodyEn: 'Body (English)',
+        tokens: 'Available tokens: {{tokens}}',
+        noTokens: 'This type has no tokens.',
+        shippedCopy: 'Shipped wording (what revert restores)',
+        save: 'Save',
+        saved: 'Wording saved',
+        revert: 'Restore the shipped wording',
+        reverted: 'Shipped wording restored',
+        loadFailed: 'Could not load the templates',
+        retry: 'Try again',
+        errors: {
+          unknownTokens: 'This notification cannot fill: {{tokens}}',
+          saveFailed: 'Could not save the wording',
+          revertFailed: 'Could not restore the shipped wording',
+        },
+      },
+      systemSettings: {
+        title: 'System settings',
+        subtitle: 'Values that apply across the whole system. A setting nobody has changed runs on its default.',
+        value: 'Value',
+        save: 'Save',
+        saved: 'Setting saved',
+        overridden: 'Overridden',
+        overriddenAt: 'Changed {{at}}',
+        usingDefault: 'Using the default ({{value}})',
+        loadFailed: 'Could not load the settings',
+        retry: 'Try again',
+        keys: {
+          'registration.mode': 'Supplier registration',
+          'proposals.defaultCurrencyCode': 'Default currency',
+          'documents.expiringSoonWindowDays': 'Expiring-soon window (days)',
+          'documents.renewalReminderDays': 'Renewal reminder days',
+        },
+        help: {
+          'registration.mode': 'When closed, self-registration is refused and applicants are asked to contact the Ministry.',
+          'proposals.defaultCurrencyCode': 'Pre-selected on proposal forms. Must be an active currency.',
+          'documents.expiringSoonWindowDays': 'Decides when a document becomes Expiring soon. Independent of the reminder days.',
+          'documents.renewalReminderDays': 'Days before expiry on which a reminder is sent. No repeats.',
+        },
+        choices: {
+          'registration.mode': {
+            open: 'Open for self-registration',
+            closed: 'Closed',
+          },
+        },
+        hints: {
+          integerList: 'Comma-separated numbers, e.g. 30,14,3',
+          range: 'Between {{min}} and {{max}}',
+        },
+        errors: {
+          value_required: 'A value is required',
+          value_not_allowed: 'That value is not allowed',
+          value_out_of_range: 'That value is outside the allowed range',
+          value_has_duplicates: 'The same number cannot appear twice',
+          reference_code_not_active: 'That code does not exist or is not active',
+          unknown: 'Could not save the setting',
+        },
+      },
+      adminOverview: {
+        title: 'Platform administration',
+        kpis: {
+          users: 'Users',
+          roles: 'Roles',
+          outboxPending: 'Outbox pending',
+          auditRows: 'Audit records (24h)',
+        },
+        outbox: 'Outbox',
+        outboxPending: 'Pending',
+        outboxFailed: 'Failed',
+        outboxOldest: 'Oldest pending message',
+        outboxDrained: 'Nothing pending',
+        outboxFailedWarning: 'Failed messages need attention',
+        minutes: '{{value}} min',
+        jobs: 'Recurring jobs',
+        jobsDisabled: 'Recurring jobs are disabled',
+        jobsDisabledBody: 'Reminders will not be sent and RFQs will not close automatically until recurring jobs are enabled in the deployment configuration.',
+        jobsMissing: 'Jobs missing from the schedule',
+        jobsHealthy: '{{value}} jobs registered',
+        referenceData: 'Reference data',
+        referenceEmpty: 'A reference table has no active codes - registration will fail',
+        activeOfTotal: '{{active}} of {{total}}',
+        tables: {
+          categories: 'Categories',
+          'document-types': 'Document types',
+          currencies: 'Currencies',
+          'units-of-measure': 'Units of measure',
+          regions: 'Regions',
+        },
+        loadFailed: 'Could not load platform administration',
+        retry: 'Try again',
+      },
+      ministry: {
+        title: 'Governance dashboard',
+        kpis: {
+          suppliers: 'Registered suppliers',
+          rfqs: 'RFQs',
+          awards: 'Awards',
+          participation: 'Average proposals per RFQ',
+        },
+        awardedValue: 'Total awarded value',
+        commercialWithheld: 'Commercial values are not shown',
+        commercialWithheldBody: 'Under the current visibility policy, aggregate metrics are shown without commercial values.',
+        suppliersByState: 'Suppliers by lifecycle state',
+        rfqsByState: 'RFQs by state',
+        empty: 'No data yet',
+        loadFailed: 'Could not load the governance dashboard',
         retry: 'Try again',
       },
       reports: {
@@ -1644,6 +1904,13 @@ const resources = {
         remove: 'Remove',
         actions: 'Actions',
         noItems: 'No items yet',
+        attachments: {
+          title: 'RFQ attachments',
+          none: 'No attachments',
+          add: 'Add an attachment',
+          added: 'Attachment added',
+          download: 'Download',
+        },
         noRequirements: 'No requirements yet',
         noTemplateBound: 'No evaluation template bound yet',
         boundTemplate: 'Bound template: {{id}} (version {{version}})',
@@ -1827,6 +2094,12 @@ const resources = {
         errors: { actionFailed: 'Could not perform the action', segregationOfDuties: 'The approver must differ from the recommender' },
       },
       supplierRfq: {
+        attachments: {
+          title: 'RFQ attachments',
+          none: 'No attachments',
+          download: 'Download',
+          downloadFailed: 'Could not download the attachment',
+        },
         title: 'RFQs',
         subtitle: 'Requests for Quotation you have been invited to.',
         listTitle: 'Invitations',
@@ -2062,6 +2335,8 @@ const resources = {
         haveAccount: 'Already have an account? Sign in',
         createAccount: 'Create a new account',
         successTitle: 'Account created',
+        closedTitle: 'Registration is closed',
+        closedBody: 'Self-registration is currently closed. Contact the Ministry to be onboarded.',
         checkEmail: 'Check your email to verify your account. Your reference code:',
         duplicateEmail: 'An account with that email already exists',
         weakPassword: "Password doesn't meet the strength requirements",

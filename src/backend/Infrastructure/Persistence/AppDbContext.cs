@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Common;
@@ -40,7 +41,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
+    public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
+    public DbSet<Domain.Notifications.NotificationTemplate> NotificationTemplates => Set<Domain.Notifications.NotificationTemplate>();
     public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
+    public DbSet<Domain.Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Domain.Idempotency.IdempotencyRecord>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrgUnit> OrgUnits => Set<OrgUnit>();
     public DbSet<SupplierOrgLink> SupplierOrgLinks => Set<SupplierOrgLink>();
@@ -82,19 +86,173 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// </summary>
     public void ApplyExpectedVersion(uint expected)
     {
-        var roots = ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Modified && e.Entity is IVersionedAggregate)
-            .ToList();
+        // T-030: TOUCHED, not Modified. This used to look only for a Modified root, which meant a
+        // request that changed a child stamped nothing - the root was still Unchanged at this point,
+        // because the bump happens inside SaveChangesAsync. A correct If-Match on any child-write
+        // route was therefore ignored, which is the defect T-030 records.
+        var roots = TouchedVersionedRoots();
 
         if (roots.Count != 1) return;
 
+        // OriginalValue is what lands in the UPDATE's WHERE clause. CurrentValue is left alone here
+        // and advanced by the bump, so the statement reads
+        // SET RowVersion = current + 1 WHERE RowVersion = expected - and a stale caller matches no
+        // row, which surfaces as the DbUpdateConcurrencyException §8.1 turns into a 412.
         roots[0].Property(nameof(IVersionedAggregate.RowVersion)).OriginalValue = expected;
+    }
+
+    /// <summary>
+    /// Every versioned root this change set writes, whether directly or through a child. One place,
+    /// because ApplyExpectedVersion's "exactly one" precondition and the bump have to agree on what
+    /// counts as touched - if they disagree, a request either guards a root it does not advance or
+    /// advances one it does not guard.
+    /// </summary>
+    private List<EntityEntry> TouchedVersionedRoots()
+    {
+        var roots = new HashSet<EntityEntry>();
+
+        foreach (var entry in ChangeTracker.Entries().ToList())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                continue;
+            }
+
+            if (entry.Entity is IVersionedAggregate)
+            {
+                // An Added root has no prior version to guard or advance - it starts at the default.
+                if (entry.State != EntityState.Added) roots.Add(entry);
+                continue;
+            }
+
+            // Attributed to its root - unless that root is itself being INSERTED. A brand-new
+            // aggregate saved together with its children has no prior version to guard and no row to
+            // update; forcing it Modified made EF emit an UPDATE against a row that did not exist
+            // yet, which is how registration started answering 500.
+            if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) roots.Add(principal);
+        }
+
+        return [.. roots];
     }
 
     /// <summary>How many versioned roots the current change set would write. Exposed so a test can
     /// assert the "exactly one" precondition above rather than trusting it.</summary>
     public int ModifiedVersionedRootCount() =>
         ChangeTracker.Entries().Count(e => e.State == EntityState.Modified && e.Entity is IVersionedAggregate);
+
+    /// <summary>
+    /// T-030/D-15: advances every versioned root this change set touches, including the ones touched
+    /// only through a CHILD.
+    ///
+    /// <para><b>The defect this closes.</b> The version used to be Postgres <c>xmin</c>, which moves
+    /// only when the root ROW is written. A child insert marks the CHILD <c>Added</c> and leaves the
+    /// root <c>Unchanged</c>, so no UPDATE was emitted against the root, its xmin never advanced, and
+    /// <c>ApplyExpectedVersion</c> - which only looked at <c>Modified</c> roots - found nothing to
+    /// stamp. The result: on any route that only touches children, a correct <c>If-Match</c> was
+    /// silently ignored and two callers editing different children of one aggregate both won.</para>
+    ///
+    /// <para><b>One level, deliberately.</b> A changed entity is attributed to a root by walking its
+    /// foreign keys to a principal that is a versioned root and is tracked in this same context. Every
+    /// aggregate in this codebase is one level deep - Rfq/RfqItem, Supplier/Address,
+    /// Proposal/ProposalItem - and a grandchild would need the walk to recurse. Rather than write a
+    /// general graph walk for a shape that does not exist, this stops at one hop and
+    /// <c>UnattributedChildCount</c> makes the assumption checkable from a test instead of hoping.</para>
+    ///
+    /// <para>Marking an otherwise-unchanged root <c>Modified</c> is what makes the guard fire: EF then
+    /// emits <c>UPDATE … WHERE RowVersion = @original</c>, and a stale caller gets zero rows affected
+    /// and a <c>DbUpdateConcurrencyException</c>, which the pipeline already turns into §8.1's 412.</para>
+    /// </summary>
+    private void BumpTouchedVersionedRoots()
+    {
+        foreach (var root in TouchedVersionedRoots())
+        {
+            // A DELETED root is not bumped, and must not be: forcing State = Modified on it turns the
+            // DELETE into an UPDATE, so the row survives and the caller is told it was removed. Found
+            // by T-061's revert - the override row came back after every delete. A deleted row has no
+            // next version to advance, while it still WANTS the guard ApplyExpectedVersion put on it,
+            // which is why Deleted stays in TouchedVersionedRoots and is skipped only here.
+            if (root.State is EntityState.Deleted) continue;
+
+            root.State = EntityState.Modified;
+            var property = root.Property(nameof(IVersionedAggregate.RowVersion));
+            property.CurrentValue = unchecked((uint)property.CurrentValue! + 1);
+        }
+    }
+
+    /// <summary>The tracked versioned root this entity hangs off, or null when it is not a child of
+    /// one. Null is the ordinary answer for a reference-data row or an aggregate with no version.</summary>
+    private EntityEntry? PrincipalRootOf(EntityEntry entry)
+    {
+        foreach (var foreignKey in entry.Metadata.GetForeignKeys())
+        {
+            if (!typeof(IVersionedAggregate).IsAssignableFrom(foreignKey.PrincipalEntityType.ClrType))
+            {
+                continue;
+            }
+
+            var keyValues = foreignKey.Properties
+                .Select(p => entry.Property(p.Name).CurrentValue)
+                .ToArray();
+            if (keyValues.Any(v => v is null)) continue;
+
+            // Local only. A principal that is not already tracked is not being written in this unit of
+            // work, so there is nothing to bump and nothing to guard - and loading it here to bump it
+            // would turn a save into a query.
+            var principal = ChangeTracker.Entries()
+                .FirstOrDefault(candidate =>
+                    candidate.Entity is IVersionedAggregate
+                    && candidate.Metadata.ClrType == foreignKey.PrincipalEntityType.ClrType
+                    && foreignKey.PrincipalKey.Properties
+                        .Select(p => candidate.Property(p.Name).CurrentValue)
+                        .SequenceEqual(keyValues));
+
+            if (principal is not null) return principal;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Changed entities that are neither a versioned root nor attributable to one. Exposed so a test
+    /// can assert what the one-hop walk above cannot see, rather than leaving the limitation as a
+    /// comment nobody checks.
+    /// </summary>
+    public IReadOnlyList<string> UnattributedChildTypes() =>
+        [.. ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(e => e.Entity is not IVersionedAggregate && PrincipalRootOf(e) is null)
+            .Select(e => e.Metadata.ClrType.Name)
+            .Distinct()
+            .Order()];
+
+    /// <summary>
+    /// T-030: the bump runs here, on the overloads every other entry point funnels into.
+    ///
+    /// <para><b>Overriding <c>SaveChangesAsync(CancellationToken)</c> alone was not enough, and that
+    /// was a real hole rather than a style point.</b> EF's public surface has four ways in - sync and
+    /// async, each with and without <c>acceptAllChangesOnSuccess</c> - and the two convenience forms
+    /// delegate to these two. A caller using <c>SaveChanges()</c> synchronously, or the
+    /// <c>acceptAllChangesOnSuccess</c> overload, would have skipped the version bump entirely: the
+    /// write would land and the aggregate's version would not move, which is precisely the defect
+    /// T-030 exists to close. A concurrency scheme that applies on three paths out of four is worse
+    /// than none, because it looks like it works.</para>
+    ///
+    /// <para><c>ExecuteUpdateAsync</c> and <c>ExecuteDeleteAsync</c> still bypass this by design -
+    /// they issue SQL without a change tracker. Nothing in this codebase uses them to mutate an
+    /// aggregate that an <c>If-Match</c> guards; they are used for test setup and for the GC jobs.</para>
+    /// </summary>
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        BumpTouchedVersionedRoots();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        BumpTouchedVersionedRoots();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -174,7 +332,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(s => s.TermsAcceptedVersion).HasMaxLength(20);
             entity.Property(s => s.OnboardingState).HasConversion<string>().HasMaxLength(30);
             entity.Property(s => s.LifecycleState).HasConversion<string>().HasMaxLength(30);
-            entity.Property(s => s.RowVersion).IsRowVersion();
+            entity.Property(s => s.RowVersion).IsAppManagedVersion();
             entity.HasIndex(s => s.OnboardingState);
             entity.HasMany(s => s.Representatives).WithOne().HasForeignKey(r => r.SupplierId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(s => s.Addresses).WithOne().HasForeignKey(a => a.SupplierId).OnDelete(DeleteBehavior.Cascade);
@@ -366,7 +524,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Offering>(entity =>
         {
             entity.ToTable("offering", "supplier");
-            entity.Property(o => o.RowVersion).IsRowVersion();
+            entity.Property(o => o.RowVersion).IsAppManagedVersion();
             entity.HasKey(o => o.Id);
             entity.Property(o => o.NameAr).HasMaxLength(200).IsRequired();
             entity.Property(o => o.NameEn).HasMaxLength(200).IsRequired();
@@ -379,10 +537,64 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(o => o.SupplierId);
         });
 
+        modelBuilder.Entity<Domain.Idempotency.IdempotencyRecord>(entity =>
+        {
+            entity.ToTable("idempotency_record", "ops");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Key).HasMaxLength(200).IsRequired();
+            entity.Property(r => r.RequestFingerprint).HasMaxLength(64).IsRequired();
+            // TEXT, not jsonb. §8.2.3 requires the stored response to be "replayed verbatim", and
+            // jsonb normalises: it reorders keys and re-spaces the document, so a replay came back
+            // byte-different from the original even though the data was identical. A client comparing
+            // responses, or hashing one, would see two different answers to the same request.
+            entity.Property(r => r.ResponseBody).HasColumnType("text");
+
+            // The UNIQUE constraint is the reservation. Two concurrent retries of the same submission
+            // both try to insert, and Postgres lets exactly one through - the loser gets a duplicate-key
+            // violation, which is how the second click is refused without a lock or a read-then-write
+            // race. Scoped by UserId so a client-generated key cannot collide across callers.
+            entity.HasIndex(r => new { r.UserId, r.Key }).IsUnique();
+
+            // The GC job scans by expiry.
+            entity.HasIndex(r => r.ExpiresAt);
+        });
+
+        modelBuilder.Entity<Domain.Notifications.NotificationTemplate>(entity =>
+        {
+            entity.ToTable("notification_template", "ops");
+            entity.Property(t => t.RowVersion).IsAppManagedVersion();
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.Type).HasMaxLength(100).IsRequired();
+            entity.Property(t => t.TitleAr).HasMaxLength(300).IsRequired();
+            entity.Property(t => t.TitleEn).HasMaxLength(300).IsRequired();
+            entity.Property(t => t.BodyAr).HasMaxLength(1000).IsRequired();
+            entity.Property(t => t.BodyEn).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(t => t.Type).IsUnique();
+
+            // NOT seeded, for the same reason system_setting is not: an absent row means the shipped
+            // catalogue is in force, and no deployment's wording changes until somebody changes it.
+        });
+
+        modelBuilder.Entity<Domain.Configuration.SystemSetting>(entity =>
+        {
+            entity.ToTable("system_setting", "ops");
+            entity.Property(s => s.RowVersion).IsAppManagedVersion();
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Key).HasMaxLength(100).IsRequired();
+            entity.Property(s => s.Value).HasMaxLength(500).IsRequired();
+            entity.HasIndex(s => s.Key).IsUnique();
+
+            // NOT seeded, deliberately. An absent row means "nobody has decided", and every consumer
+            // falls back to configuration and then to the definition's default - so an environment
+            // that never opens the settings screen behaves exactly as it did before this table
+            // existed. Seeding the defaults would erase that distinction and turn "unset" into "an
+            // administrator chose 30", which is the fact the audit trail is supposed to carry.
+        });
+
         modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>
         {
             entity.ToTable("supplier_field_config", "ops");
-            entity.Property(c => c.RowVersion).IsRowVersion();
+            entity.Property(c => c.RowVersion).IsAppManagedVersion();
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Category).HasMaxLength(50).IsRequired();
             entity.Property(c => c.FieldCode).HasMaxLength(50).IsRequired();
@@ -399,7 +611,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000413"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "registrationNumber", IsEnabled = false },
                 new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000414"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "taxId", IsEnabled = false },
                 new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000415"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "supplierType", IsEnabled = false },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000416"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "establishedOn", IsEnabled = false }
+                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000416"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "establishedOn", IsEnabled = false },
+                // D-6/BRULE-087: the Ministry's commercial-visibility flag, seeded OFF. BRULE-087
+                // names aggregate-only as the default and tags the question itself as
+                // [REQUIRES BUSINESS CONFIRMATION], so MOT Legal's answer flips this row.
+                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000421"), Category = Domain.Configuration.FieldConfigCategory.GovernanceVisibility, FieldCode = "commercialValues", IsEnabled = false }
             );
         });
 
@@ -559,7 +775,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // xmin, as every other versioned aggregate maps it (§8.1).
-            entity.Property(n => n.RowVersion).IsRowVersion();
+            entity.Property(n => n.RowVersion).IsAppManagedVersion();
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>
@@ -581,7 +797,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(t => t.NameAr).HasMaxLength(200).IsRequired();
             entity.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
             entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
-            entity.Property(t => t.RowVersion).IsRowVersion();
+            entity.Property(t => t.RowVersion).IsAppManagedVersion();
             // One version-row per (FamilyId, Version) - see EvaluationTemplate.cs's own doc
             // comment on why each version is its own row rather than one row mutating in place.
             entity.HasIndex(t => new { t.FamilyId, t.Version }).IsUnique();
@@ -619,7 +835,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(r => r.State).HasConversion<string>().HasMaxLength(20);
             entity.Property(r => r.EvaluationTemplateSnapshotJson).HasColumnType("jsonb");
             entity.Property(r => r.CancelReason).HasMaxLength(2000);
-            entity.Property(r => r.RowVersion).IsRowVersion();
+            entity.Property(r => r.RowVersion).IsAppManagedVersion();
             entity.HasIndex(r => new { r.OrganizationId, r.State });
             entity.HasIndex(r => r.State);
             entity.HasMany(r => r.Items).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
@@ -743,7 +959,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(p => p.DeclineReason).HasMaxLength(2000);
             // Same bound as WithdrawReason - both are a person's free text explaining a transition.
             entity.Property(p => p.ClarificationReason).HasMaxLength(2000);
-            entity.Property(p => p.RowVersion).IsRowVersion();
+            entity.Property(p => p.RowVersion).IsAppManagedVersion();
             // Unique per (rfq, supplier) among proposals that are NOT withdrawn.
             //
             // The unfiltered version made BUSINESS-PROCESSES.md §4.1's re-entry impossible at the
@@ -811,7 +1027,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.ToTable("evaluation", "evaluation");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.State).HasConversion<string>().HasMaxLength(20);
-            entity.Property(e => e.RowVersion).IsRowVersion();
+            entity.Property(e => e.RowVersion).IsAppManagedVersion();
             entity.HasIndex(e => e.RfqId).IsUnique();
             entity.HasMany(e => e.Criteria).WithOne().HasForeignKey(c => c.EvaluationId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(e => e.Assignments).WithOne().HasForeignKey(a => a.EvaluationId).OnDelete(DeleteBehavior.Cascade);
@@ -880,7 +1096,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(a => a.ComparisonSnapshotJson).HasColumnType("jsonb");
             entity.Property(a => a.ErpSyncStatus).HasConversion<string>().HasMaxLength(20);
             entity.Property(a => a.ExternalPurchaseOrderRef).HasMaxLength(100);
-            entity.Property(a => a.RowVersion).IsRowVersion();
+            entity.Property(a => a.RowVersion).IsAppManagedVersion();
             entity.HasIndex(a => a.RfqId).IsUnique();
             entity.HasMany(a => a.Approvals).WithOne().HasForeignKey(p => p.AwardId).OnDelete(DeleteBehavior.Cascade);
         });

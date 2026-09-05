@@ -268,3 +268,128 @@ agree. The fix is a shared source of report copy across a C# generator and a Typ
 | **What it costs if wrong** | A client that wants identity without decoding a JWT has to call a profile endpoint. If that is judged too awkward, the safe form is a `/auth/me` read rather than a copy inside the login body. |
 | **Who should confirm it** | The doc owner. |
 
+### D-27 — The row version becomes an application-managed counter, and every in-flight ETag expires on deploy
+
+| | |
+|---|---|
+| **What was undecided** | How to make a child write advance its aggregate root's version, given `xmin` is database-generated and cannot be assigned. |
+| **Where the gap is** | §8.1 specifies the ETag/If-Match contract and assumes a version that moves when the aggregate changes. It never says what the version is, and the `xmin` choice predates the contract. |
+| **What was decided** | All nine roots move to an application-managed `RowVersion` (`bigint`, default 1), advanced in `SaveChangesAsync` for every root the change set touches — directly or through a child. **The wire contract is unchanged**: still a `uint`, still base64url in a strong ETag. |
+| **Why** | `xmin` moves only when the root ROW is written, so a child insert left it untouched and a correct `If-Match` on any child-write route was silently ignored — two callers editing different children of one aggregate both won. Forcing a parent touch was not available: `xmin` cannot be assigned, and a second UPDATE against the same row and token is the failure `AppDbContext` already documents. A counter the application owns is the only thing that can be bumped deliberately. Keeping the property a `uint` was the choice that made this landable: 34 ETag and If-Match sites, and the entire SPA, did not have to move. |
+| **What it costs if wrong** | **Every ETag a client holds becomes invalid the moment this deploys** — those callers get a 412 and re-read, which is precisely the recovery §8.1 defines. There is no mapping from an `xmin` value to a counter, and seeding the counter from `xmin` would manufacture version history that never happened. The `bigint` column is reversible; the invalidation is a one-time event at cutover. |
+| **Who should confirm it** | The architecture owner, and whoever schedules the deploy — the cutover produces a burst of 412s. |
+
+*One-hop attribution. A changed entity is attributed to its root by walking foreign keys one level. Every
+aggregate here is one level deep; `AppDbContext.UnattributedChildTypes()` exposes what the walk cannot
+see, and a test asserts it is empty, so a grandchild introduced later fails loudly rather than silently
+failing to bump.*
+
+### D-28 — Reference data is deactivated, never deleted, and codes are immutable
+
+| | |
+|---|---|
+| **What was undecided** | What happens to rows already pointing at a reference item an administrator wants to remove. |
+| **Where the gap is** | FR-ADM-004 requires the six reference tables to be manageable and says nothing about referential behaviour. Nothing in the schema helps: every one of them is referenced **by code** — `RfqItem.CategoryCode`, `Offering.UnitOfMeasureCode`, the document type on a `SupplierDocument` — with no foreign key, no cascade and no nullable fallback. |
+| **What was decided** | There is no delete operation. Deactivation (`IsActive = false`) is the only removal, and it is reversible. The **code cannot be changed** once created; names and DocumentType's flags can. |
+| **Why** | Deleting a Category a published RFQ item points at would leave that RFQ describing something that no longer exists, and there is no cascade to notice. Renaming a code is the same damage with a longer fuse: a historical award record would silently start reading as if it had been for a different category. Deactivation hides the code from new selections and leaves every existing row intact and readable, which is the only option that is both reversible and safe on live tender data. Inactive rows stay visible to an administrator — otherwise deactivation reads as deletion and the next administrator re-creates the code, which is the precise outcome the no-delete rule exists to prevent. |
+| **What it costs if wrong** | A ministry that genuinely wants a code gone must live with it deactivated. Adding a delete later is possible but needs a referential-integrity pass first — the point of this decision is that it must not be added *without* one. |
+| **Who should confirm it** | Procurement, and whoever owns the data model. |
+
+*A new `DocumentType` defaults to not-required and not-expiry-tracked when the caller says nothing:
+required-by-default would retroactively make every existing supplier's profile incomplete the moment the
+row was created, which is a live consequence for people who did nothing.*
+
+### D-29 — Idempotency reserves by unique index, and an in-flight key is a conflict
+
+| | |
+|---|---|
+| **What was undecided** | How to make the reservation and the handler's own write atomic, and what to answer when a key's first request has not finished. |
+| **Where the gap is** | §8.2 specifies the contract's five clauses and says nothing about concurrency or partial failure. |
+| **What was decided** | The filter INSERTs a reservation row before the handler runs; the unique index on `(UserId, Key)` decides the race. A key whose record exists with no stored response yet is a **409**, not a wait. Only a 2xx is stored for replay. The reservation and the handler's write are **not** in one transaction. |
+| **Why** | A unique index refuses the second click without a read-then-write race, which is the flaw a "check then insert" would have. Blocking on an in-flight key would hold a request thread on a bet about another request's progress, and replaying nothing would be a lie — a client that gets the conflict retries with a new key, which is correct. Storing 4xx responses would pin a client to its own mistake for 24 hours with no way to correct the request. The transaction is left open deliberately: if the process dies after the handler commits but before the response is recorded, the work still happened **exactly once** — the client learns it by a 409 instead of a replay. Making the two atomic requires the filter to own every handler's transaction, which is a change to every handler's contract, and half-doing it would be worse than the gap. |
+| **What it costs if wrong** | The narrow window above turns a replay into a conflict, so a client retries with a new key and meets the state guard — which refuses, rather than duplicating. No double submission is possible either way. |
+| **Who should confirm it** | The architecture owner. |
+
+*Two shapes were corrected while building. The response is stored as `text`, not `jsonb`: jsonb
+normalises, reordering keys and re-spacing, so a replay came back byte-different from the original and
+§8.2.3's "verbatim" was not met. And the record is keyed `(UserId, Key)` rather than `Key` alone —
+the key is client-generated, so a shared key space would let one caller replay another caller's
+response, which is a disclosure rather than a duplicate.*
+
+### D-30 — Role defaults are seeded per permission, not once per role
+
+| | |
+|---|---|
+| **What was undecided** | Whether a permission newly added to a role's defaults in code should reach an environment whose roles already exist. |
+| **Where the gap is** | Nothing specifies it. `RoleSeeder` wrote one `perms:seeded` claim per role and skipped that role on every later start — a reasonable-looking guard whose purpose was to stop the seeder undoing an administrator's edits. |
+| **What was decided** | The marker is per permission (`perms:offered:<permission>`). A permission with no marker has never been offered, so it is added; one whose marker exists is left alone, so an administrator's removal survives. A deployment carrying the old per-role marker has everything it currently holds back-filled as already-offered, so nothing an admin removed is resurrected. |
+| **Why** | The per-role marker made the defaults a one-time snapshot. Adding a permission to a role in code had **no effect** on any environment whose roles already existed — so EPIC-18 would have shipped as "the Ministry dashboard 403s in production and works locally". Found exactly that way: the governance tests passed against a fresh database and failed against a reused one. Per-permission marking is the smallest change that distinguishes "new in code" from "removed by a person", which is the distinction the original guard was reaching for and could not express. |
+| **What it costs if wrong** | A permission an administrator removed before this change, and which is still in `DefaultPermissions`, is treated as already-offered by the back-fill and stays removed. That is the intended reading; if a deployment wants the defaults re-applied wholesale, that is a deliberate admin action, not a startup side effect. |
+| **Who should confirm it** | Whoever owns roles. |
+
+
+### D-31 — "Invite-only" registration is implemented as a closed front door, not as a supplier invitation mechanism
+
+| | |
+|---|---|
+| **What was undecided** | What FR-REG-002's "invite-only" mode actually does. |
+| **Where the gap is** | FR-REG-002 names two modes — "open self-registration vs. invite-only", default open — and carries `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. Nothing anywhere describes an invitation for a supplier who does not yet exist: staff invitations invite staff, and RFQ invitations invite suppliers already registered and verified. |
+| **What was decided** | The setting has two values, `open` and `closed`. `closed` refuses `POST /api/v1/auth/register` with 403 `REGISTRATION_CLOSED` and a detail telling the applicant to contact the Ministry; the SPA replaces the form with the same message. No prospective-supplier invitation entity, token or email was invented. |
+| **Why** | The half of "invite-only" that is fully specified is the refusal, and it is implementable and testable today. The other half is a feature: an invitation for someone with no account needs a token, an expiry, a single-use guard, an email, an acceptance route and a seventh state on the supplier lifecycle — every one of which is a decision the documents have not made. Building a guess at that would produce a mechanism the Ministry has to live with; refusing registration produces a portal that behaves correctly under both modes and can gain invitations later without changing what `closed` means. |
+| **What it costs if wrong** | If the Ministry meant "closed to the public but open to people we email a link to", the closed mode is currently a dead end for those applicants and staff must onboard them another way. Recoverable: adding invitations later only widens what `closed` permits, and no data written under this reading becomes wrong. |
+| **Who should confirm it** | MOT procurement, alongside FR-REG-002's own open question. |
+
+### D-32 — A stored setting beats configuration, and configuration beats the built-in default
+
+| | |
+|---|---|
+| **What was undecided** | Which source wins for the two settings that already had an appsettings key before the settings table existed. |
+| **Where the gap is** | FR-ADM-006 says `system_admin` configures these values. It does not say what happens to a deployment that had already set `Documents:ExpiringSoonWindowDays` in its own configuration. |
+| **What was decided** | Precedence is: the stored row if one EXISTS, then the deployment's configuration, then the definition's default. No rows are seeded, so the table takes over a setting only when an administrator actually changes it. |
+| **Why** | "Database always wins" would have silently reset every deployment that had configured the expiry cadence on purpose back to 30/14/3 the moment this shipped — a behaviour change nobody asked for, attributable to nothing an operator did. Seeding the defaults would have caused the same thing while also erasing the difference between "nobody has decided" and "an administrator chose 30", which is the fact the audit trail and the screen's own overridden/default badge exist to carry. |
+| **What it costs if wrong** | An operator who expects appsettings to be authoritative can be overridden by an administrator through the screen, and the appsettings value then does nothing. The screen states which settings are overridden and when, so the surprise is visible rather than silent. |
+| **Who should confirm it** | Whoever owns deployment configuration. |
+
+### D-33 — The numeral system and the approval hierarchy are not system settings
+
+| | |
+|---|---|
+| **What was undecided** | Whether FR-ADM-006's five named settings all belong in a settings table. |
+| **Where the gap is** | FR-ADM-006 lists "registration mode, default currency, numeral system, document-expiry windows, approval hierarchy" and carries `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. It does not say what shape any of them takes. |
+| **What was decided** | Three shipped as settings. The **numeral system** did not: R-1 makes numerals a property of the locale — Arabic renders Eastern Arabic numerals, English renders Latin — and `numberingSystemFor(locale)` already implements exactly that. The **approval hierarchy** did not either: `RfqApproval` stores an ordered step list and deliberately encodes no amount-threshold routing, so configuring a hierarchy is a feature with its own state machine, recorded as T-075 rather than approximated by a value in a table. |
+| **Why** | A global numeral override would let one administrator put the wrong numerals under the wrong language for every user at once, which is a regression against R-1 dressed as configurability. And a settings row that claimed to configure an approval hierarchy nothing routes on would be an artifact asserting something untrue — the pattern this codebase keeps producing and this batch keeps removing. |
+| **What it costs if wrong** | If the Ministry genuinely wants numerals decoupled from language, that is a per-user preference or a locale variant, not this table, and the work is not started. If they want threshold routing, T-075 is sized and unstarted. Neither reading loses data. |
+| **Who should confirm it** | MOT procurement for the hierarchy; whoever owns the Arabic-first presentation rules for numerals. |
+
+### D-34 — An overridden notification may use only the tokens its shipped copy already names
+
+| | |
+|---|---|
+| **What was undecided** | Which interpolation tokens an administrator-authored notification template is allowed to use. |
+| **Where the gap is** | FR-ADM-007 asks for admin-editable AR/EN templates and says nothing about tokens. BRULE-091's allow-list governs what may be in a notification *payload*, not what a template may name. |
+| **What was decided** | The permitted set for a type is derived from that type's shipped copy: every `{token}` any of its four shipped texts uses, and nothing else. A template may use a subset — copy that says less is fine — and a token outside the set is refused with the offending tokens named. |
+| **Why** | Derived rather than declared because it is already exact: the payload a type carries is built to fill its shipped copy, so a token outside that set has no value behind it and would reach the supplier as the literal characters `{price}` in the middle of a sentence. That failure is invisible to everyone who could fix it — it looks like a broken portal to the recipient and looks like ordinary stored text in the notification row. Refusing at the write is the only place the author is still present. |
+| **What it costs if wrong** | An administrator who wants to surface a value the payload already carries but the shipped copy never mentioned is refused, and the fix is a code change to the shipped entry. That is the strict direction; the permissive one silently ships broken sentences to suppliers. |
+| **Who should confirm it** | Whoever owns the notification copy, alongside the drafted Arabic itself. |
+
+### D-35 — No inbound ERP write path is built, and the reason is that nothing has decided what it may write
+
+| | |
+|---|---|
+| **What was undecided** | Everything FR-INT-008 covers: the direction and scope of inbound sync. |
+| **Where the gap is** | FR-INT-008 is priority **C**, is worded "if enabled", and carries `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]` on the direction and scope themselves. No document names which entities ERP may write, which fields, how the caller authenticates, or what happens when an inbound value contradicts a portal edit — while FR-INT-006 separately requires that conflicts are "detected and queued, never silently overwritten". |
+| **What was decided** | Not built, and deliberately not scaffolded. T-063 is sized below with the four questions an implementation needs answered first. |
+| **Why** | Every implementable reading of this requirement creates an externally reachable path that MUTATES portal domain state. That is not a default anyone can revise later the way a wrong default currency can be revised: an inbound writer with the wrong scope corrupts rows whose provenance is then unrecoverable, and an inbound writer with the wrong authentication is a hole in the boundary the whole security architecture is built on. This batch's standing rule is to decide rather than stall — the decision here is that the recoverable failure is shipping nothing, and the unrecoverable one is guessing. It is also the only item in this phase where a partial build would be scaffolding rather than a scoped deliverable: an ACL envelope that validates and dead-letters, with nothing permitted to pass through it, is an artifact asserting a capability that does not exist. |
+| **What it costs if wrong** | If ERP integration is scheduled sooner than the C priority implies, this is the item that is not started. Nothing else depends on it: FR-INT-001 through FR-INT-007 (outbox, dispatcher, supplier-master sync, award→PO, `ExternalId`, sync fields, degraded operation) are all built and are the outbound direction. |
+| **Who should confirm it** | MOT IT together with whoever owns ERPNext, answering: which entities may ERP write; which fields on each; how the caller authenticates; and what happens to an inbound value that contradicts a portal edit. |
+
+### D-36 — Tied rankings are made deterministic using the document's first tie-break rung only
+
+| | |
+|---|---|
+| **What was undecided** | The tie-break order for equal weighted totals. |
+| **Where the gap is** | BRULE-069 names three rungs — highest technical score, then lowest compliant price, then earliest submission — and tags the ORDER itself `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. |
+| **What was decided** | Apply the first rung (highest technical weighted score), then fall back to the proposal's own identifier as a stable residual. The remaining two rungs are not implemented and are sized as T-085. |
+| **Why** | The defect being fixed is not the missing rungs — it is that the ranking had **no** tie-break at all: ordering by `WeightedTotal` alone left two equal proposals taking ranks 1 and 2 in whatever order the score rows iterated, and rank 1 is what the award flow offers. That is a defect under any tie-break order, including one nobody has confirmed yet. The first rung is the one the document names first and the only one this method has the data for. Reading "lowest price" off the financial weighted score would assume that score is inverse to price, which no document states — that would be inventing policy inside a bug fix. |
+| **What it costs if wrong** | If the Ministry confirms a different order, ranks among tied proposals change and T-085 implements it. Nothing stored becomes wrong: the ranking is recomputed on every consolidation, and a re-consolidation under the confirmed order produces the correct ranks. |
+| **Who should confirm it** | MOT procurement, as part of BRULE-069's own open question. |

@@ -1,3 +1,7 @@
+import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
+import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
+import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
+import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
@@ -282,6 +286,44 @@ const reportsRoute = createRoute({
   component: ReportsPage,
 })
 
+// SCR-600, `/ministry`, ministry_viewer, P1. The specification's own path, and it matches this app's
+// URL space - unlike SCR-400/500/reports, no prefix disagreement to report here.
+//
+// Under the BACK-OFFICE layout: ministry_viewer is staff, not a supplier, and that layout is what
+// already refuses a supplier-scoped session with a 403.
+const ministryOverviewRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry',
+  component: MinistryOverviewPage,
+})
+
+// SCR-700, `/back-office/admin`, system_admin, P1 (FR-DSH-006). The specification writes SCR-700's
+// path as `/admin`; this app keeps every staff screen under `/back-office`, so the prefix disagreement
+// is the same one already reported for SCR-400/500 and reports - noted, not silently resolved.
+const adminOverviewRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/admin',
+  component: AdminOverviewPage,
+})
+
+// SCR-724, `/back-office/settings`, system_admin, P1 (FR-ADM-006). Same `/admin` -> `/back-office`
+// prefix note as SCR-700 above.
+const systemSettingsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/settings',
+  component: SystemSettingsPage,
+})
+
+// SCR-715, `/back-office/notification-templates`, system_admin, P1 (FR-ADM-007). SCREEN-INVENTORY
+// writes it as `/admin/notifications/templates`; flattened here because `/back-office/notifications`
+// is already this app's notification INBOX, and nesting an admin editor under a persona's own inbox
+// route would make the two read as the same feature. Reported, not silently resolved.
+const notificationTemplatesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/notification-templates',
+  component: NotificationTemplatesPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -451,7 +493,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

@@ -195,6 +195,40 @@ export async function mockBackend(page: Page) {
       documentsExpired: 2,
     } })
     if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
+    // SCR-600 and SCR-700. Without these two the pages fall through to the catch-all `{}`, render
+    // their error card, and the a11y scan silently covers a failure state instead of the screen.
+    // T-060: the public allow-list, and the admin catalogue behind SCR-724.
+    if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
+      { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
+    ] })
+    if (p === '/api/v1/reference/settings') return route.fulfill({ json: {
+      'registration.mode': 'open',
+      'proposals.defaultCurrencyCode': 'SYP',
+    } })
+    if (p === '/api/v1/admin/settings') return route.fulfill({ json: [
+      { key: 'registration.mode', kind: 'Choice', value: 'open', defaultValue: 'open', isOverridden: false, updatedAt: null, allowedValues: ['open', 'closed'], minimum: null, maximum: null },
+      { key: 'proposals.defaultCurrencyCode', kind: 'ReferenceCode', value: 'SYP', defaultValue: 'SYP', isOverridden: false, updatedAt: null, allowedValues: null, minimum: null, maximum: null },
+      { key: 'documents.expiringSoonWindowDays', kind: 'Integer', value: '30', defaultValue: '30', isOverridden: false, updatedAt: null, allowedValues: null, minimum: 1, maximum: 365 },
+      { key: 'documents.renewalReminderDays', kind: 'IntegerList', value: '30,14,3', defaultValue: '30,14,3', isOverridden: false, updatedAt: null, allowedValues: null, minimum: 1, maximum: 365 },
+    ] })
+    if (p === '/api/v1/ministry/overview') return route.fulfill({ json: {
+      totalSuppliers: 12,
+      suppliersByLifecycleState: [{ key: 'Active', count: 9 }],
+      totalRfqs: 7,
+      rfqsByState: [{ key: 'SubmissionOpen', count: 4 }],
+      totalAwards: 3,
+      averageProposalsPerRfq: 2.5,
+      totalAwardedValue: null,
+      commercialValuesVisible: false,
+    } })
+    if (p === '/api/v1/admin/overview') return route.fulfill({ json: {
+      usersByRole: [{ role: 'system_admin', count: 1 }],
+      totalRoles: 8,
+      referenceData: [{ table: 'categories', active: 12, inactive: 2 }],
+      outbox: { pending: 2, failed: 1, oldestPendingAgeMinutes: 14 },
+      jobs: { recurringJobsEnabled: true, expectedJobs: ['rfq-auto-close'], registeredJobs: ['rfq-auto-close'], missingJobs: [] },
+      auditRowsLast24Hours: 143,
+    } })
     // Closure batch (EPIC-01/06): same class of bug - RolesPage's roles.flatMap() and
     // OfferingCatalogPage's offerings.map() both crash on {} the same way OrganizationsPage did.
     // FR-ADM-002 fix: /admin/roles now returns { roles, allPermissions } - allPermissions is the

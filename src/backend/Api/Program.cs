@@ -22,7 +22,9 @@ using MotsSupplierPortal.Application.Identity;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Application.Reference;
+using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Application.Suppliers;
+using MotsSupplierPortal.Infrastructure.ReferenceData;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Proposals;
@@ -356,6 +358,7 @@ builder.Services.AddScoped<IExecuteAwardHandler, ExecuteAwardHandler>();
 builder.Services.AddScoped<IRetryErpSyncHandler, RetryErpSyncHandler>();
 builder.Services.AddScoped<IErpPurchaseOrderAdapter, StubErpPurchaseOrderAdapter>();
 builder.Services.AddScoped<AwardErpSyncJob>();
+builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Idempotency.IdempotencyCleanupJob>();
 
 // EPIC-13: Workspace (derived read-side guided-lifecycle view over Rfq + Invitation + Proposal + Evaluation + Award).
 builder.Services.AddScoped<IGetWorkspaceHandler, GetWorkspaceHandler>();
@@ -364,6 +367,9 @@ builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
 builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetGovernanceOverviewHandler, MotsSupplierPortal.Infrastructure.Governance.GetGovernanceOverviewHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
+builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
 builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
 builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();
@@ -389,6 +395,10 @@ builder.Services.AddScoped<IAcceptStaffInviteHandler, AcceptStaffInviteHandler>(
 builder.Services.AddScoped<IListRolesHandler, ListRolesHandler>();
 builder.Services.AddScoped<IUpdateRolePermissionsHandler, UpdateRolePermissionsHandler>();
 builder.Services.AddScoped<IRegisterSupplierHandler, RegisterSupplierHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Configuration.ISystemSettingReader, MotsSupplierPortal.Infrastructure.Configuration.SystemSettingReader>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Configuration.ISystemSettingAdminHandler, MotsSupplierPortal.Infrastructure.Configuration.SystemSettingAdminHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Notifications.INotificationCopySource, MotsSupplierPortal.Infrastructure.Notifications.NotificationCopySource>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Notifications.INotificationTemplateAdminHandler, MotsSupplierPortal.Infrastructure.Notifications.NotificationTemplateAdminHandler>();
 builder.Services.AddScoped<IVerifyEmailHandler, VerifyEmailHandler>();
 builder.Services.AddScoped<IResendVerificationHandler, ResendVerificationHandler>();
 builder.Services.AddScoped<DraftCleanupJob>();
@@ -792,6 +802,11 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithName("GetUnitsOfMeasure")
     .WithTags("Reference");
 
+app.MapAdminOverviewEndpoints();
+app.MapSystemSettingEndpoints();
+app.MapNotificationTemplateEndpoints();
+app.MapGovernanceEndpoints();
+app.MapReferenceDataAdminEndpoints();
 app.MapDashboardEndpoints();
 app.MapNotificationEndpoints();
 app.MapRegistrationEndpoints();
@@ -860,11 +875,11 @@ using (var storageScope = app.Services.CreateScope())
 // suppression true of Hangfire's STORAGE rather than only of this startup, and the boot log line all
 // read the same list. Three copies would drift, and the one that drifts silently is the removal
 // loop - a job whose id is missing there stays scheduled under the test suite.
-string[] RecurringJobIds =
-[
-    "document-expiry-lifecycle", "draft-registration-cleanup",
-    "outbox-dispatch", "rfq-timeline", "award-erp-sync",
-];
+// T-062: the canonical list now lives in Application/Admin/RecurringJobs.cs, so the registration
+// below and the admin dashboard's health tile cannot disagree about what this application schedules.
+// RecurringJobSuppressionTests deliberately keeps its OWN list - see that constant's own note on why
+// a test reading the same source cannot catch a job added or removed without anyone noticing.
+string[] RecurringJobIds = MotsSupplierPortal.Application.Admin.RecurringJobs.All;
 
 var recurringJobsEnabled = builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
 
@@ -899,6 +914,11 @@ if (recurringJobsEnabled)
     // the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
     recurringJobs.AddOrUpdate<AwardErpSyncJob>(
         "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+
+    // T-053/§8.2.1: "GC'd by Hangfire". Hourly rather than daily - the window is 24 hours, so a daily
+    // sweep would let the table carry up to two days of records for no benefit.
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Idempotency.IdempotencyCleanupJob>(
+        "idempotency-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Hourly);
 }
 else
 {

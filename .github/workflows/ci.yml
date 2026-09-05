@@ -511,6 +511,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           THRESHOLD: "45"
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Needed by issues_for() below, which names the issues behind a failing rating.
+          PROJECT_KEY: ZaidEng7_mots-supplier-portal
         run: |
           set -euo pipefail
 
@@ -599,7 +601,33 @@ jobs:
                       return m["value"]
               return None
 
+          import subprocess
+
           failures = []
+
+          def issues_for(quality):
+              """Open issues on THIS pull request affecting one software quality.
+
+              Kept next to the gate rather than in a separate step so a failing rating and the reason
+              for it appear together in the log.
+              """
+              try:
+                  import urllib.parse
+                  query = urllib.parse.urlencode({
+                      "componentKeys": os.environ["PROJECT_KEY"],
+                      "pullRequest": os.environ.get("PR_NUMBER", ""),
+                      "resolved": "false",
+                      "impactSoftwareQualities": quality,
+                      "ps": "25",
+                  })
+                  raw = subprocess.run(
+                      ["curl", "-sS", "-u", f"{os.environ['SONAR_TOKEN']}:",
+                       f"https://sonarcloud.io/api/issues/search?{query}"],
+                      capture_output=True, text=True, check=True).stdout
+                  return json.loads(raw).get("issues", [])
+              except Exception as exc:  # noqa: BLE001 - a diagnostic must never fail the gate itself
+                  print(f"  (could not list issues: {exc})")
+                  return []
 
           # on_pull_request decided here - the ENFORCED loop below needs it, not only the
           # coverage section further down.
@@ -657,6 +685,26 @@ jobs:
                   # nothing escapes review. Only main's own after-the-fact analysis is exempted.
                   if on_pull_request:
                       failures.append(f"{ENFORCED[key]} = {shown}")
+                      # NAME the issues, not just the grade.
+                      #
+                      # This gate reported "Reliability rating on new code: C (ERROR)" and nothing
+                      # else, so the only way to find out WHICH rule fired was to open SonarCloud -
+                      # which needs an account. Two commits were spent guessing at the diff (both
+                      # fixed real defects, but neither was the one Sonar meant). The token is already
+                      # in this step; printing the issues costs one request and turns a letter grade
+                      # into something actionable from the log alone.
+                      if key.endswith("_rating"):
+                          quality = "RELIABILITY" if "reliability" in key else "SECURITY"
+                          issues = issues_for(quality)
+                          if issues:
+                              print(f"  {ENFORCED[key]} - offending issues:")
+                              for i in issues:
+                                  loc = i.get("component", "?").split(":")[-1]
+                                  print(f"    {i.get('severity','?')} {i.get('rule','?')} "
+                                        f"{loc}:{i.get('line','?')} - {i.get('message','?')}")
+                          else:
+                              print(f"  ({ENFORCED[key]} failed but the issues API returned none - "
+                                    f"check the dashboard)")
                   else:
                       print(f"  (not enforced on main - see MSP-70; this metric on this branch "
                             f"is currently rating the whole project, not a diff)")

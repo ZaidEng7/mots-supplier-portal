@@ -6,6 +6,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq, declineInvitation, postClarification, SupplierRfqApiError } from '../api/supplierRfqs'
+import { getRfqAttachmentDownloadUrl } from '../api/rfqs'
 
 /** FEAT-08.4/08.6/FR-INV-004/006: the supplier's own view of an invited RFQ. A non-invited
  * supplier never reaches a rendered page here - getInvitedRfq 404s server-side and the query's
@@ -29,6 +30,12 @@ export function SupplierRfqDetailPage() {
       notify({ kind: 'success', title: t('supplierRfq.declined') })
     },
     onError: (err) => notify({ kind: 'danger', title: err instanceof SupplierRfqApiError ? err.message : t('supplierRfq.errors.declineFailed') }),
+  })
+
+  const downloadMutation = useMutation({
+    mutationFn: (attachmentId: string) => getRfqAttachmentDownloadUrl(referenceCode, attachmentId),
+    onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+    onError: () => notify({ kind: 'danger', title: t('supplierRfq.attachments.downloadFailed') }),
   })
 
   const askMutation = useMutation({
@@ -111,6 +118,43 @@ export function SupplierRfqDetailPage() {
           </Table>
         ) : (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noRequirements')}</p>
+        )}
+      </Card>
+
+      {/*
+        SCR-142. The payload has carried `attachments` since EPIC-08 and nothing rendered them, so an
+        invited supplier could read the RFQ and never reach the tender documents it depends on - the
+        one thing they need before pricing anything. Found by the per-screen sweep (batch 9 phase 12a).
+
+        Download goes through the same `download-url` exchange the buyer uses: the URL is short-lived
+        and issued per request (D-16), so it is fetched on the click rather than rendered into the page.
+      */}
+      <Card title={t('supplierRfq.attachments.title')}>
+        {rfq.attachments.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {rfq.attachments.map((attachment) => (
+              <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">{attachment.originalFileName}</span>
+                  {attachment.caption ? (
+                    <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {attachment.caption}
+                    </span>
+                  ) : null}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isLoading={downloadMutation.isPending && downloadMutation.variables === attachment.id}
+                  onClick={() => downloadMutation.mutate(attachment.id)}
+                >
+                  {t('supplierRfq.attachments.download')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.attachments.none')}</p>
         )}
       </Card>
 

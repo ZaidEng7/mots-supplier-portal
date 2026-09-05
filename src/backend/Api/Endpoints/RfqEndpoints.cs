@@ -464,6 +464,7 @@ public static class RfqEndpoints
             MapMutation(await handler.HandleAsync(new PublishRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqPublish)
         .RequireIfMatch()
+        .RequireIdempotencyKey()
         .WithName("PublishRfq");
 
         group.MapPost("/{referenceCode}/close", async (

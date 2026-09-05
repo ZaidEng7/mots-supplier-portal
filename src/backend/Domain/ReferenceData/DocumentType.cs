@@ -8,10 +8,10 @@ public sealed class DocumentType
 {
     public Guid Id { get; init; }
     public required string Code { get; init; }
-    public required string NameAr { get; init; }
-    public required string NameEn { get; init; }
-    public bool IsRequired { get; init; }
-    public bool ExpiryTracked { get; init; }
+    public required string NameAr { get; set; }
+    public required string NameEn { get; set; }
+    public bool IsRequired { get; set; }
+    public bool ExpiryTracked { get; set; }
 
     /// <summary>
     /// BRULE-023: expiry of a document of this type auto-suspends the supplier.
@@ -29,5 +29,5 @@ public sealed class DocumentType
     /// docs/product/BLOCKED-DECISIONS.md.</para>
     /// </summary>
     public bool IsAwardCritical { get; init; }
-    public bool IsActive { get; init; } = true;
+    public bool IsActive { get; set; } = true;
 }

@@ -7,7 +7,7 @@ namespace MotsSupplierPortal.Tests.Integration;
 /// Gives the test client the same <c>If-Match</c> behaviour the SPA has, so §8.1's guard does not
 /// have to be spelled out in three hundred existing assertions that were written before it existed.
 ///
-/// <para>Remembers the <c>ETag</c> of every read, and attaches it to a later mutation on the same
+/// <para>Reads the current <c>ETag</c> of the owning resource and attaches it to a mutation on the same
 /// resource - walking up the path, so a <c>POST /proposals/{code}/submit</c> is covered by the ETag
 /// of <c>GET /proposals/{code}</c>. When nothing is cached it fetches the owning resource once.</para>
 ///
@@ -19,11 +19,19 @@ namespace MotsSupplierPortal.Tests.Integration;
 /// </summary>
 public sealed class ETagAttachingHandler : DelegatingHandler
 {
-    private readonly ConcurrentDictionary<string, string> _etags = new(StringComparer.OrdinalIgnoreCase);
-
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var isMutation = request.Method != HttpMethod.Get && request.Method != HttpMethod.Head;
+
+        // T-053/§8.2.5: "The SPA generates one key per user submission intent ... via
+        // crypto.randomUUID()". Every POST gets a fresh key here for the same reason: the suite has
+        // ~140 call sites on publish/submit/approve and each of them is one user intent, so a key per
+        // request is the faithful analogue. A key REUSED across two calls would be asserting replay,
+        // which the dedicated idempotency tests do deliberately with a key they control.
+        if (isMutation && !request.Headers.Contains("Idempotency-Key"))
+        {
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        }
 
         if (isMutation && request.Headers.IfMatch.Count == 0)
         {
@@ -31,39 +39,25 @@ public sealed class ETagAttachingHandler : DelegatingHandler
             if (etag is not null) request.Headers.TryAddWithoutValidation("If-Match", etag);
         }
 
-        var response = await base.SendAsync(request, cancellationToken);
-        Remember(request, response);
-
-        // A mutation moves the resource on, so the version just cached for it is now stale. Dropping
-        // it forces the next mutation to re-read rather than replay a version the row no longer has.
-        if (isMutation) Forget(request);
-
-        return response;
-    }
-
-    private void Remember(HttpRequestMessage request, HttpResponseMessage response)
-    {
-        if (response.Headers.ETag is { } tag && request.RequestUri is { } uri)
-        {
-            _etags[uri.AbsolutePath] = tag.ToString();
-        }
-    }
-
-    private void Forget(HttpRequestMessage request)
-    {
-        if (request.RequestUri is not { } uri) return;
-        foreach (var prefix in Prefixes(uri.AbsolutePath)) _etags.TryRemove(prefix, out _);
+        return await base.SendAsync(request, cancellationToken);
     }
 
     private async Task<string?> ResolveETagAsync(HttpRequestMessage request, CancellationToken ct)
     {
         if (request.RequestUri is not { } uri) return null;
 
-        foreach (var prefix in Prefixes(uri.AbsolutePath))
-        {
-            if (_etags.TryGetValue(prefix, out var cached)) return cached;
-        }
-
+        // T-030: the cache is GONE, and deliberately.
+        //
+        // While the version was Postgres xmin, a child write did not move its root, so an ETag read
+        // once stayed valid until someone wrote the root itself - and caching it per path was safe.
+        // With an application-managed version, ANY write that touches an aggregate moves it, including
+        // a write made by a DIFFERENT client: a reviewer rejecting a document now advances that
+        // supplier's version, and the supplier's own cached ETag is stale with no way for it to know.
+        // That is the behaviour T-030 exists to produce, and it is what a real client handles by
+        // re-reading on a 412.
+        //
+        // A test harness replaying a cached version would be asserting the OLD defect. Probing fresh
+        // costs one GET per mutation and removes the whole class of false failure.
         foreach (var prefix in Prefixes(uri.AbsolutePath))
         {
             // Absolute: this handler sits below the client, so BaseAddress has already been applied
@@ -72,11 +66,7 @@ public sealed class ETagAttachingHandler : DelegatingHandler
             foreach (var header in request.Headers) probe.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
             using var response = await base.SendAsync(probe, ct);
-            if (response.Headers.ETag is { } tag)
-            {
-                _etags[prefix] = tag.ToString();
-                return tag.ToString();
-            }
+            if (response.Headers.ETag is { } tag) return tag.ToString();
         }
 
         // Nothing readable at any prefix - the resource does not exist, or is out of this caller's
@@ -88,7 +78,8 @@ public sealed class ETagAttachingHandler : DelegatingHandler
         return ImpossibleVersion;
     }
 
-    /// <summary>base64url of uint 0. Well-formed, and never a real Postgres xmin.</summary>
+    /// <summary>base64url of uint 0. Well-formed, and never a real version: xmin was never 0, and the
+    /// application-managed counter that replaced it starts at 1.</summary>
     private const string ImpossibleVersion = "\"AAAAAA\"";
 
     /// <summary>The candidate owning-resource paths, longest first.</summary>

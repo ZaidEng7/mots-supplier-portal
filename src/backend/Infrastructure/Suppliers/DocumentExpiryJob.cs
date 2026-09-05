@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
+using MotsSupplierPortal.Domain.Configuration;
+using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -28,7 +30,7 @@ public sealed class DocumentExpiryJob(
     AppDbContext db,
     IAuditLogger auditLogger,
     IBackgroundJobClient backgroundJobs,
-    IConfiguration configuration)
+    ISystemSettingReader settings)
 {
     /// <summary>
     /// FR-DOC-006 calls this window configurable; it was a private static readonly const, which is
@@ -42,11 +44,14 @@ public sealed class DocumentExpiryJob(
     /// enters ExpiringSoon (BRULE-021 / FR-DOC-006); the ladder decides when the supplier is told
     /// (BRULE-025), and it is bounded by its own widest threshold. The two numbers coincide only at
     /// the shared default of 30, which is exactly why the coupling is easy to assume and worth
-    /// stating. Change this window and read <see cref="ReminderThresholdDays"/> before assuming the
+    /// stating. Change this window and read <see cref="ReminderThresholdDaysAsync"/> before assuming the
     /// reminders followed it.</para>
     /// </summary>
-    private int ExpiringSoonWindowDays =>
-        configuration.GetValue("Documents:ExpiringSoonWindowDays", 30);
+    /// <para><b>T-060:</b> now an administrator-editable setting as FR-ADM-006 requires, not only an
+    /// appsettings key. The reader keeps configuration as the fallback when no row exists, so a
+    /// deployment that set this in appsettings on purpose is not reset by the table appearing.</para>
+    private Task<int> ExpiringSoonWindowDaysAsync(CancellationToken ct) =>
+        settings.GetIntAsync(SystemSettings.ExpiringSoonWindowDays, ct);
 
     /// <summary>
     /// BRULE-025's cadence, marked `[ASSUMPTION]` in BUSINESS-RULES.md - the Ministry has not
@@ -54,7 +59,7 @@ public sealed class DocumentExpiryJob(
     /// rather than a deploy, and the reminder ledger keys on the threshold value itself so a change
     /// cannot re-interpret reminders already sent.
     ///
-    /// <para><b>Independent of ExpiringSoonWindowDays, deliberately.</b> The state boundary and the
+    /// <para><b>Independent of ExpiringSoonWindowDaysAsync, deliberately.</b> The state boundary and the
     /// communication schedule are different questions: the state is what the system believes, the
     /// ladder is what the supplier has been told. Two consequences, both intended, neither obvious:</para>
     /// <list type="bullet">
@@ -69,16 +74,14 @@ public sealed class DocumentExpiryJob(
     /// they changed.</item>
     /// </list>
     /// </summary>
-    private int[] ReminderThresholdDays =>
-        configuration.GetSection("Documents:RenewalReminderDays").Get<int[]>() is { Length: > 0 } configured
-            ? [.. configured.Distinct().OrderByDescending(d => d)]
-            : [30, 14, 3];
+    private Task<int[]> ReminderThresholdDaysAsync(CancellationToken ct) =>
+        settings.GetIntListAsync(SystemSettings.RenewalReminderDays, ct);
 
     public async Task RunAsync(CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
         var today = DateOnly.FromDateTime(now.Date);
-        var soonThreshold = today.AddDays(ExpiringSoonWindowDays);
+        var soonThreshold = today.AddDays(await ExpiringSoonWindowDaysAsync(ct));
 
         var expiringSoon = await db.SupplierDocuments
             .Where(d => d.IsLatestVersion && d.State == DocumentState.Approved && d.ExpiryDate != null && d.ExpiryDate <= soonThreshold)
@@ -202,14 +205,14 @@ public sealed class DocumentExpiryJob(
     private async Task<List<SupplierDocument>> DecideRemindersAsync(
         DateOnly today, DateTimeOffset now, CancellationToken ct)
     {
-        var thresholds = ReminderThresholdDays;
+        var thresholds = await ReminderThresholdDaysAsync(ct);
         var widest = thresholds.Max();
         var horizon = today.AddDays(widest);
 
         // Still-live documents only. An expired document is chased by BRULE-023's suspension path,
         // not by renewal reminders, and a rejected one has a different conversation attached to it.
         //
-        // Approved is included on purpose, not incidentally: see ReminderThresholdDays. A rung can
+        // Approved is included on purpose, not incidentally: see ReminderThresholdDaysAsync. A rung can
         // fall due before the document has crossed into ExpiringSoon, and it should still be sent.
         var candidates = await db.SupplierDocuments
             .Where(d => d.IsLatestVersion

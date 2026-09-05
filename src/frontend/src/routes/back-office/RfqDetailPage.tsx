@@ -6,6 +6,7 @@ import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, Table, Ta
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
+  addRfqAttachment, removeRfqAttachment, getRfqAttachmentDownloadUrl,
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
   changeSubmissionDeadline,
   inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
@@ -107,6 +108,29 @@ export function RfqDetailPage() {
   const removeRequirementMutation = useMutation({
     mutationFn: (requirementId: string) => removeRequirement(referenceCode, requirementId),
     onSuccess: () => invalidate(),
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
+  })
+
+  // SCR-414. The upload/remove/download endpoints have existed since EPIC-07 and nothing on any
+  // screen called them, so the tender documents could only be attached through the API. Found by the
+  // per-screen sweep (batch 9 phase 12a).
+  const addAttachmentMutation = useMutation({
+    mutationFn: (file: File) => addRfqAttachment(referenceCode, file),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.attachments.added') }) },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
+  })
+
+  const removeAttachmentMutation = useMutation({
+    mutationFn: (attachmentId: string) => removeRfqAttachment(referenceCode, attachmentId),
+    onSuccess: () => invalidate(),
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
+  })
+
+  const downloadAttachmentMutation = useMutation({
+    // Short-lived and issued per request (D-16), so the URL is fetched on the click rather than
+    // rendered into the page where it would outlive its own validity.
+    mutationFn: (attachmentId: string) => getRfqAttachmentDownloadUrl(referenceCode, attachmentId),
+    onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
   })
 
@@ -432,6 +456,61 @@ export function RfqDetailPage() {
               {t('rfq.fields.mandatory')}
             </label>
             <Button size="sm" isLoading={addRequirementMutation.isPending} onClick={() => addRequirementMutation.mutate()}>{t('rfq.addRequirement')}</Button>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card title={t('rfq.attachments.title')}>
+        {rfq.attachments.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {rfq.attachments.map((attachment) => (
+              <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">{attachment.originalFileName}</span>
+                  {attachment.caption ? (
+                    <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {attachment.caption}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    isLoading={downloadAttachmentMutation.isPending && downloadAttachmentMutation.variables === attachment.id}
+                    onClick={() => downloadAttachmentMutation.mutate(attachment.id)}
+                  >
+                    {t('rfq.attachments.download')}
+                  </Button>
+                  {/* Removal is Draft-only, like every other structural edit on this page: an
+                      attachment a supplier has already been invited to read must not vanish. */}
+                  {isDraft ? (
+                    <Button size="sm" variant="ghost" onClick={() => removeAttachmentMutation.mutate(attachment.id)}>
+                      {t('rfq.remove')}
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.attachments.none')}</p>
+        )}
+        {isDraft ? (
+          <div className="mt-4">
+            <label className="flex flex-col gap-1 text-[length:var(--text-body-sm)]">
+              {t('rfq.attachments.add')}
+              <input
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) addAttachmentMutation.mutate(file)
+                  // Cleared so re-picking the same file fires change again - otherwise a failed
+                  // upload cannot be retried without choosing a different file.
+                  event.target.value = ''
+                }}
+              />
+            </label>
           </div>
         ) : null}
       </Card>

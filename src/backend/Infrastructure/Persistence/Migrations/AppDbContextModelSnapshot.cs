@@ -306,11 +306,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RfqId")
                         .HasColumnType("uuid");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -380,11 +381,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.HasKey("Id");
 
@@ -400,7 +402,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "ComplianceRetrigger",
                             FieldCode = "legalInfo",
                             IsEnabled = true,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -408,7 +410,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "ComplianceRetrigger",
                             FieldCode = "bankAccount",
                             IsEnabled = true,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -416,7 +418,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "ComplianceRetrigger",
                             FieldCode = "categoryLink",
                             IsEnabled = true,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -424,7 +426,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "LegalInfoRequired",
                             FieldCode = "legalNameAr",
                             IsEnabled = true,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -432,7 +434,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "LegalInfoRequired",
                             FieldCode = "legalNameEn",
                             IsEnabled = true,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -440,7 +442,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "LegalInfoRequired",
                             FieldCode = "registrationNumber",
                             IsEnabled = false,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -448,7 +450,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "LegalInfoRequired",
                             FieldCode = "taxId",
                             IsEnabled = false,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -456,7 +458,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "LegalInfoRequired",
                             FieldCode = "supplierType",
                             IsEnabled = false,
-                            RowVersion = 0u
+                            RowVersion = 0L
                         },
                         new
                         {
@@ -464,8 +466,53 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Category = "LegalInfoRequired",
                             FieldCode = "establishedOn",
                             IsEnabled = false,
-                            RowVersion = 0u
+                            RowVersion = 0L
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000421"),
+                            Category = "GovernanceVisibility",
+                            FieldCode = "commercialValues",
+                            IsEnabled = false,
+                            RowVersion = 0L
                         });
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Configuration.SystemSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("system_setting", "ops");
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.Evaluation.ConsolidatedResult", b =>
@@ -580,11 +627,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RfqId")
                         .HasColumnType("uuid");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -708,11 +756,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -771,6 +820,47 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("evaluator_score", "evaluation");
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Idempotency.IdempotencyRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ResponseBody")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ResponseStatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("idempotency_record", "ops");
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.Identity.AppUser", b =>
@@ -992,11 +1082,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RecipientUserId")
                         .HasColumnType("uuid");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("TitleAr")
                         .IsRequired()
@@ -1021,6 +1112,58 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.HasIndex("RecipientUserId", "ReadAt");
 
                     b.ToTable("notification", "shared");
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Notifications.NotificationTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BodyAr")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("BodyEn")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Type")
+                        .IsUnique();
+
+                    b.ToTable("notification_template", "ops");
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.Organizations.OrgUnit", b =>
@@ -1191,11 +1334,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RfqId")
                         .HasColumnType("uuid");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -1937,11 +2081,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -2377,11 +2522,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
@@ -2497,11 +2643,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<uint>("RowVersion")
+                    b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
 
                     b.Property<string>("SupplierGroup")
                         .HasMaxLength(100)

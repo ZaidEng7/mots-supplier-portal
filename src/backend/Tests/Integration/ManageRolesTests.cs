@@ -201,6 +201,15 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
             .FirstOrDefaultAsync();
         auditRow.Should().NotBeNull("every role-permission change must be audited");
         auditRow!.Changes.Should().NotBeNull().And.Contain("permissions");
+
+        // Restored, and this now matters. ministry_viewer was chosen as the subject because its
+        // permission set was EMPTY, so overwriting it damaged nothing. EPIC-18 gave the persona
+        // governance.read, and this test then stripped it for every test that ran afterwards - the
+        // governance suite passed alone and failed in the full run. The endpoint under test is still
+        // exercised the same way; the difference is that the role is put back.
+        (await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.MinistryViewer}/permissions",
+            new { permissions = new[] { Permissions.GovernanceRead } }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     /// <summary>The real proof this feature works end-to-end, not just that the DB row changed:

@@ -10,13 +10,22 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { SupplierRfqDetailPage } = await import('./SupplierRfqDetailPage')
 
-function fixture(invitationStatus: string) {
+function fixture(invitationStatus: string, overrides: Record<string, unknown> = {}) {
   return {
     rfqCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
     currencyCode: 'SYP', state: 'Published', submissionOpensAt: null, submissionDeadline: null, clarificationDeadlineAt: null,
     items: [{ id: 'item-1', lineNo: 1, titleAr: 'أ', titleEn: 'Widget', specificationAr: null, specificationEn: null, categoryCode: 'catering', quantity: 5, unitOfMeasureCode: 'unit', isUnitPrice: true, isOptional: false }],
     requirements: [], attachments: [], invitationStatus, clarifications: [], addenda: [],
+    ...overrides,
   }
+}
+
+const ATTACHMENT = {
+  id: 'att-1',
+  originalFileName: 'tender-terms.pdf',
+  contentType: 'application/pdf',
+  caption: 'Terms of reference',
+  uploadedAt: '2026-09-01T10:00:00Z',
 }
 
 /** FEAT-08.4/08.6/FR-INV-004/006: the supplier's own view - proves the decline flow and that a
@@ -100,5 +109,36 @@ describe('SupplierRfqDetailPage', () => {
     expect(await screen.findByText('My own question')).toBeInTheDocument()
     expect(screen.getByText('My question')).toBeInTheDocument()
     expect(screen.getByText('Awaiting answer')).toBeInTheDocument()
+  })
+
+  it('lists the tender attachments and downloads one on demand', async () => {
+    // SCR-142. The payload carried `attachments` since EPIC-08 and nothing rendered them: an invited
+    // supplier could read the RFQ and never reach the documents it depends on. Found by the batch 9
+    // per-screen sweep.
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed', { attachments: [ATTACHMENT] }),
+      '/api/v1/rfqs/RFQ-2026-000001/attachments/att-1/download-url': { url: 'https://storage.example/signed' },
+    })
+
+    renderPage(<SupplierRfqDetailPage />)
+
+    expect(await screen.findByText('tender-terms.pdf')).toBeInTheDocument()
+    expect(screen.getByText('Terms of reference')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download' }))
+
+    // The URL is short-lived and issued per request (D-16), so it must be fetched on the click and
+    // not rendered into the page where it would outlive its own validity.
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith('https://storage.example/signed', '_blank', 'noopener,noreferrer'))
+    open.mockRestore()
+  })
+
+  it('says there are no attachments rather than rendering an empty card', async () => {
+    restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed') })
+
+    renderPage(<SupplierRfqDetailPage />)
+
+    expect(await screen.findByText('No attachments')).toBeInTheDocument()
   })
 })
