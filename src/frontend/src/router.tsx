@@ -2,6 +2,7 @@ import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
 import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
 import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
+import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
@@ -336,6 +337,14 @@ const referenceDataRoute = createRoute({
   component: ReferenceDataPage,
 })
 
+// SCR-720, `/back-office/audit`, `system_admin`, P2 (FR-AUD-004). SCREEN-INVENTORY writes the path as
+// `/admin/audit`; same `/admin` -> `/back-office` prefix note as SCR-700.
+const auditExplorerRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/audit',
+  component: AuditExplorerPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -505,7 +514,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

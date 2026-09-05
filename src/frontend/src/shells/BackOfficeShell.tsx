@@ -27,6 +27,8 @@ export function BackOfficeShell({ children }: Props) {
   // reference.manage. Its own permission rather than admin.users.manage, because the two are
   // separately grantable and a role that edits code lists need not administer accounts.
   const canManageReferenceData = useAuthStore((s) => s.claims?.permissions.includes('reference.manage') ?? false)
+  // T-079/SCR-720: same hide-never-gate rule - every /api/v1/audit route re-enforces audit.read.
+  const canReadAudit = useAuthStore((s) => s.claims?.permissions.includes('audit.read') ?? false)
   // governance.read is the ONLY permission ministry_viewer holds, so without this link the persona
   // had to type the URL: every other link in this bar 403s for it.
   const canViewGovernance = useAuthStore((s) => s.claims?.permissions.includes('governance.read') ?? false)
@@ -83,6 +85,11 @@ export function BackOfficeShell({ children }: Props) {
             {canManageReferenceData ? (
               <Link to="/back-office/reference" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('referenceAdmin.title')}
+              </Link>
+            ) : null}
+            {canReadAudit ? (
+              <Link to="/back-office/audit" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('auditExplorer.title')}
               </Link>
             ) : null}
             {canManageStaff ? (

@@ -183,6 +183,40 @@ const resources = {
         loadFailed: 'تعذّر تحميل لوحة إدارة النظام',        // [§7-style drafted]
         retry: 'إعادة المحاولة',                           // [reused]
       },
+      // SCR-720 (T-079). §7 has no audit-explorer strings. Drafted in §7's register - NOT YET
+      // APPROVED, in ARABIC-REVIEW.md's pile.
+      auditExplorer: {
+        title: 'سجل التغييرات',                              // [reused] §7's own term for the audit trail
+        subtitle: 'البحث في سجل التغييرات على مستوى المنصة وتصديره.', // [drafted]
+        filtersTitle: 'عوامل التصفية',                       // [drafted]
+        resultsTitle: 'النتائج',                             // [reused]
+        search: 'بحث',                                       // [reused]
+        clear: 'إلغاء التصفية',                              // [drafted]
+        export: 'تصدير (CSV)',                               // [reused] matches the supplier's own export
+        loadMore: 'عرض المزيد',                              // [reused]
+        retry: 'إعادة المحاولة',                             // [reused]
+        empty: 'لا توجد سجلات',                              // [drafted]
+        // Two different facts, two different sentences: a filter that matched nothing is not an empty log.
+        emptyFiltered: 'لا توجد سجلات تطابق عوامل التصفية',    // [drafted]
+        filtersApplied: 'عوامل التصفية المطبَّقة: {{filters}}', // [drafted]
+        systemActor: 'إجراء تلقائي من النظام',                // [drafted]
+        fields: {
+          occurredAt: 'التاريخ والوقت',                      // [reused]
+          action: 'الإجراء',                                 // [reused] §7's own term
+          aggregate: 'السجل',                                // [drafted]
+          aggregateType: 'نوع السجل',                        // [drafted]
+          aggregateId: 'معرّف السجل',                        // [drafted]
+          actor: 'المنفِّذ',                                 // [drafted]
+          actorUserId: 'معرّف المنفِّذ',                      // [drafted]
+          transition: 'تغيّر الحالة',                        // [drafted]
+          from: 'من تاريخ',                                  // [reused]
+          to: 'إلى تاريخ',                                   // [reused]
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل سجل التغييرات',            // [drafted]
+          exportFailed: 'تعذّر تصدير سجل التغييرات',          // [drafted]
+        },
+      },
       // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
       // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
       referenceAdmin: {
@@ -1508,6 +1542,37 @@ const resources = {
         },
         loadFailed: 'Could not load platform administration',
         retry: 'Try again',
+      },
+      auditExplorer: {
+        title: 'Audit log',
+        subtitle: 'Search and export the platform-wide audit trail.',
+        filtersTitle: 'Filters',
+        resultsTitle: 'Results',
+        search: 'Search',
+        clear: 'Clear filters',
+        export: 'Export (CSV)',
+        loadMore: 'Load more',
+        retry: 'Try again',
+        empty: 'No audit rows',
+        emptyFiltered: 'No audit rows match these filters',
+        filtersApplied: 'Filters applied: {{filters}}',
+        systemActor: 'System',
+        fields: {
+          occurredAt: 'When',
+          action: 'Action',
+          aggregate: 'Record',
+          aggregateType: 'Record type',
+          aggregateId: 'Record id',
+          actor: 'Actor',
+          actorUserId: 'Actor id',
+          transition: 'State change',
+          from: 'From date',
+          to: 'To date',
+        },
+        errors: {
+          loadFailed: 'Could not load the audit log',
+          exportFailed: 'Could not export the audit log',
+        },
       },
       referenceAdmin: {
         title: 'Reference data',

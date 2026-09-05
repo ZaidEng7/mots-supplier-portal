@@ -523,3 +523,41 @@ had to be distinguished for the same reason — one accessible name cannot belon
 | `NEW_OWNER_REQUIRED` | A new owner must be chosen. | يجب تحديد المسؤول الجديد. | [drafted] §7.2 catalogue |
 | `rfq.reassigned` (notification title) | An RFQ was assigned to you | أُسند إليك طلب | [drafted] |
 | `rfq.reassigned` (notification body) | You are now responsible for RFQ {rfqCode}. Open it to see what it is waiting for. | أصبحت مسؤولاً عن الطلب {rfqCode}. راجعه لمتابعة الخطوة التالية. | [drafted] |
+
+### SCR-720 — the audit explorer (T-079)
+
+`سجل التغييرات` is reused: it is the term already used for the supplier's own trail, and the two
+screens read the same rows through different scopes, so one name is correct rather than economical.
+
+Two strings carry a decision rather than a translation. `إجراء تلقائي من النظام` for a row with no
+actor — literally "an automatic action by the system" — rather than the bare `النظام`, because a
+single word in the actor column reads as the name of a person called "the System". And the empty
+states are two different sentences: `لا توجد سجلات` (the log is empty) against
+`لا توجد سجلات تطابق عوامل التصفية` (the filter matched nothing), because on this screen the first
+would tell an administrator the platform has recorded nothing at all.
+
+`المنفِّذ` for "actor", with the shadda on the fā, from `تنفيذ` — the one who carried the action out.
+`الفاعل` was rejected: it is the grammatical term for a subject and reads as a discussion of syntax.
+
+| Key | English | Arabic | Source |
+|---|---|---|---|
+| `auditExplorer.title` | Audit log | سجل التغييرات | [reused] matches the supplier's own trail |
+| `auditExplorer.subtitle` | Search and export the platform-wide audit trail. | البحث في سجل التغييرات على مستوى المنصة وتصديره. | [drafted] |
+| `auditExplorer.filtersTitle` | Filters | عوامل التصفية | [drafted] |
+| `auditExplorer.clear` | Clear filters | إلغاء التصفية | [drafted] |
+| `auditExplorer.export` | Export (CSV) | تصدير (CSV) | [reused] matches the supplier's export |
+| `auditExplorer.empty` | No audit rows | لا توجد سجلات | [drafted] |
+| `auditExplorer.emptyFiltered` | No audit rows match these filters | لا توجد سجلات تطابق عوامل التصفية | [drafted] see the note above |
+| `auditExplorer.filtersApplied` | Filters applied: {{filters}} | عوامل التصفية المطبَّقة: {{filters}} | [drafted] |
+| `auditExplorer.systemActor` | System | إجراء تلقائي من النظام | [drafted] see the note above |
+| `auditExplorer.fields.occurredAt` | When | التاريخ والوقت | [reused] |
+| `auditExplorer.fields.action` | Action | الإجراء | [reused] §7's own term |
+| `auditExplorer.fields.aggregate` | Record | السجل | [drafted] |
+| `auditExplorer.fields.aggregateType` | Record type | نوع السجل | [drafted] |
+| `auditExplorer.fields.aggregateId` | Record id | معرّف السجل | [drafted] |
+| `auditExplorer.fields.actor` | Actor | المنفِّذ | [drafted] see the note above on the vowel |
+| `auditExplorer.fields.actorUserId` | Actor id | معرّف المنفِّذ | [drafted] |
+| `auditExplorer.fields.transition` | State change | تغيّر الحالة | [drafted] |
+| `auditExplorer.fields.from` / `.to` | From date / To date | من تاريخ / إلى تاريخ | [reused] |
+| `auditExplorer.errors.loadFailed` | Could not load the audit log | تعذّر تحميل سجل التغييرات | [drafted] |
+| `auditExplorer.errors.exportFailed` | Could not export the audit log | تعذّر تصدير سجل التغييرات | [drafted] |

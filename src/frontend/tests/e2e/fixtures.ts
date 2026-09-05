@@ -201,6 +201,15 @@ export async function mockBackend(page: Page) {
     if (p === '/api/v1/admin/notification-templates') return route.fulfill({ json: [
       { type: 'rfq.approved', titleAr: 'تمت الموافقة', titleEn: 'RFQ approved', bodyAr: 'تمت الموافقة على {rfqCode}', bodyEn: 'RFQ {rfqCode} was approved', shippedTitleAr: 'تمت الموافقة', shippedTitleEn: 'RFQ approved', shippedBodyAr: 'تمت الموافقة على {rfqCode}', shippedBodyEn: 'RFQ {rfqCode} was approved', isOverridden: false, updatedAt: null, availableTokens: ['rfqCode'] },
     ] })
+    // T-079/SCR-720: the audit explorer. Declared BEFORE /suppliers/me/audit is irrelevant (different
+    // path), but it must not swallow /audit/export - the explorer only reads the search on load.
+    if (p === '/api/v1/audit') return route.fulfill({ json: {
+      data: [{ id: 'a-1', occurredAt: '2026-09-01T10:00:00Z', aggregateType: 'Rfq',
+        aggregateId: '01a00000-0000-7000-8000-000000000001', action: 'rfq_reassigned',
+        fromState: null, toState: null, actorLabel: 'A Manager' }],
+      pagination: { hasMore: false, nextCursor: null, totalCount: null },
+      meta: { filtersApplied: null },
+    } })
     // A-7: the RFQ detail page's two assignment pickers ask for this on every buyer view. Without it
     // the page falls through to its error state and the a11y scan covers that instead.
     if (p.endsWith('/assignees')) return route.fulfill({ json: {
