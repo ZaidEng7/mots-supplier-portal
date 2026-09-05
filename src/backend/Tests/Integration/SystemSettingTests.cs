@@ -235,10 +235,13 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
         // number - configurable, defaulted to five working days, and surfaced as a target.
         var admin = await AdminAsync();
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+        Guid seededSupplierId;
 
         // A case has to be IN the queue for the target to mean anything. Built through the real
         // transitions, same as ReviewQueueAssignmentTests does, so the row is one production could have
-        // produced.
+        // produced - and REMOVED at the end, because the review queue is shared state and a row left in
+        // it is an order dependence waiting for the row to start mattering. It did: this test's supplier
+        // displaced a row that ReviewQueuePaginationTests asserts by position.
         await using (var setup = fixture.Services.CreateAsyncScope())
         {
             var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -258,6 +261,7 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
             supplier.Submit([]);
             db.Suppliers.Add(supplier);
             await db.SaveChangesAsync();
+            seededSupplierId = supplier.Id;
         }
 
         var beforeChange = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue");
@@ -284,6 +288,10 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
         finally
         {
             await ClearAsync(SystemSettings.ReviewSlaWorkingDays);
+
+            await using var cleanup = fixture.Services.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Suppliers.Where(s => s.Id == seededSupplierId).ExecuteDeleteAsync();
         }
     }
 }
