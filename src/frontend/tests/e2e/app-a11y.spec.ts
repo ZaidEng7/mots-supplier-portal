@@ -111,7 +111,10 @@ test('the route denominator is what the router actually declares, not what this 
   // /back-office/review-dashboard - SCR-400, SCR-401 and SCR-300.
   // 40 (EPIC-19): /back-office/reports - FEAT-19.1/19.2. This guard fired on that route being
   // added, which is what it is for: the count moves only when someone looking at it moves it.
-  expect(routes.length).toBe(40)
+  // 41 (EPIC-18/SCR-600): /back-office/ministry - the governance dashboard. Fired again on this one,
+  // and again that is the point: a persona that could previously reach nothing gained a route, and
+  // the a11y scan had to be told rather than quietly continuing to cover 40 of 41 pages.
+  expect(routes.length).toBe(41)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
