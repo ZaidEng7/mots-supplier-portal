@@ -719,6 +719,12 @@ if (app.Environment.IsDevelopment())
     }
 
     await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager, builder.Configuration);
+
+    // The remaining six personas plus enough domain data that no screen renders an empty state for
+    // want of a row - see DevDataSeeder on why the lifecycle states are forced rather than walked.
+    var seedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration);
+    Console.WriteLine($"[dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / {MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.Password}");
 }
 
 app.UseCors();
