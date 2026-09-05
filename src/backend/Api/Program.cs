@@ -422,6 +422,7 @@ builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
 builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
 builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
 builder.Services.AddScoped<IListSessionsHandler, ListSessionsHandler>();

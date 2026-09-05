@@ -254,6 +254,13 @@ const resources = {
       },
       // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
       // ARABIC-REVIEW.md's pile.
+      // ── SCR-045 · ARABIC FOR REVIEW ────────────────────────────────────────────
+      // §7 has no chrome-banner strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      erpBanner: {
+        degraded: 'مزامنة نظام ERP متوقفة مؤقتاً. تستمر جميع العمليات في البوابة كالمعتاد.', // [drafted] SCR-045
+        notConfigured: 'لا يوجد ربط فعلي بنظام ERP في هذه البيئة.',                          // [drafted] T-089
+      },
       ministry: {
         title: 'لوحة الحوكمة',                          // [§7-style drafted]
         kpis: {
@@ -1622,6 +1629,10 @@ const resources = {
           updateFailed: 'Could not save the change',
           loadFailed: 'Could not load reference data',
         },
+      },
+      erpBanner: {
+        degraded: 'ERP sync is paused. Everything in the portal continues as normal.',
+        notConfigured: 'No real ERP integration is configured in this environment.',
       },
       ministry: {
         title: 'Governance dashboard',

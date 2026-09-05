@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { LanguageSwitch } from '../components/LanguageSwitch'
 import { NotificationBell } from '../components/NotificationBell'
+import { ErpStatusBanner } from '../components/ErpStatusBanner'
 import { Button } from '../components/ui'
 import { useAuthStore } from '../lib/authStore'
 import { logout as apiLogout } from '../api/auth'
@@ -66,6 +67,8 @@ export function BackOfficeShell({ children }: Props) {
         Horizontal padding drops to 1rem below `sm` for the same reason the supplier shell's does -
         at 320px, 48px of chrome padding is 15% of the viewport.
       */}
+      {/* SCR-045: above the header, so it is chrome rather than page content. */}
+      <ErpStatusBanner />
       <header className="flex flex-wrap items-center justify-between gap-y-3 border-b px-4 py-4 sm:px-6" style={{ borderColor: 'var(--n-700)', backgroundColor: 'var(--n-800)' }}>
         <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
           <span className="text-lg font-semibold" style={{ color: 'var(--accent-gold-500)' }}>

@@ -32,16 +32,16 @@ either dead or waiting for a surface — both are called out below.
 | `evaluation.submit` | `evaluator`, `system_admin` | `SubmitEvaluatorScores` |
 | `evaluation.template.manage` | `procurement_manager`, `system_admin` | `ActivateEvaluationTemplate`, `AddCriterion`, `ArchiveEvaluationTemplate`, `CreateEvaluationTemplate`, `ForkEvaluationTemplate`, `GetEvaluationTemplate`, `ListEvaluationTemplates`, `RemoveCriterion`, `UpdateCriterion` |
 | `governance.read` | `ministry_viewer`, `system_admin` | `GetGovernanceOverview` |
-| `integration.retry` | `system_admin` | `RetryAwardErpSync` |
+| `integration.retry` | `system_admin` | `RetryAwardErpSync`, checked in SystemStatusHandler, not on a route |
 | `offering.search` | `procurement_manager`, `procurement_officer`, `system_admin` | `SearchBuyerOfferings` |
 | `proposal.create` | `supplier_admin`, `supplier_user`, `system_admin` | `GetProposal`, `GetProposalByCode`, `StartProposal`, `SupplierDeclineInvitation`, `SupplierPostClarification` |
 | `proposal.decline` | `supplier_admin`, `system_admin` | `DeclineAwardOffer` |
 | `proposal.edit` | `supplier_admin`, `supplier_user`, `system_admin` | `AddProposalDocument`, `GetOwnProposalDocumentDownloadUrl`, `PatchProposal`, `RemoveProposalDocument` |
-| `proposal.revise` | `system_admin` | `ReviseProposal` |
+| `proposal.revise` | `supplier_admin`, `system_admin` | `ReviseProposal` |
 | `proposal.submit` | `supplier_admin`, `system_admin` | `SubmitProposal` |
 | `proposal.withdraw` | `supplier_admin`, `system_admin` | `WithdrawProposal` |
 | `reference.manage` | `system_admin` | `CreateReferenceItem`, `DeactivateReferenceItem`, `ListNotificationTemplates`, `ListReferenceItems`, `ListSystemSettings`, `ReactivateReferenceItem`, `RevertNotificationTemplate`, `UpdateNotificationTemplate`, `UpdateReferenceItem`, `UpdateSystemSetting` |
-| `report.read` | `procurement_manager`, `system_admin` | `ExportComplianceReport`, `ExportProcurementReport`, `GetComplianceReport`, `GetProcurementReport` |
+| `report.read` | `ministry_viewer`, `procurement_manager`, `system_admin` | `ExportComplianceReport`, `ExportProcurementReport`, `GetComplianceReport`, `GetProcurementReport` |
 | `rfq.addendum` | `procurement_officer`, `system_admin` | `IssueAddendum` |
 | `rfq.approve` | `procurement_manager`, `system_admin` | `ApprovalQueues`, `ApproveRfq`, checked in ProcurementDashboardHandler, not on a route |
 | `rfq.cancel` | `procurement_manager`, `system_admin` | `CancelRfq` |
@@ -72,10 +72,10 @@ either dead or waiting for a surface — both are called out below.
 | Role | Permissions held by default |
 |---|---|
 | `evaluator` | `evaluation.score`, `evaluation.submit`, `rfq.clarify` |
-| `ministry_viewer` | `governance.read` |
+| `ministry_viewer` | `governance.read`, `report.read` |
 | `onboarding_reviewer` | `supplier.approve`, `supplier.document.review`, `supplier.lifecycle.manage`, `supplier.reject`, `supplier.requestInfo`, `supplier.review` |
 | `procurement_manager` | `award.approve`, `award.recommend`, `award.reject`, `comparison.view`, `evaluation.assign`, `evaluation.consolidate`, `evaluation.finalize`, `evaluation.open`, `evaluation.reopen`, `evaluation.template.manage`, `offering.search`, `report.read`, `rfq.approve`, `rfq.cancel`, `rfq.deadline.shorten`, `rfq.publish`, `rfq.read`, `rfq.reassign`, `rfq.review`, `supplier.lifecycle.manage` |
 | `procurement_officer` | `award.recommend`, `clarification.answer`, `comparison.view`, `evaluation.consolidate`, `evaluation.open`, `offering.search`, `rfq.addendum`, `rfq.clarify`, `rfq.close`, `rfq.create`, `rfq.edit`, `rfq.invite`, `rfq.publish`, `rfq.read`, `rfq.submit_review` |
-| `supplier_admin` | `proposal.create`, `proposal.decline`, `proposal.edit`, `proposal.submit`, `proposal.withdraw`, `rfq.read`, `supplier.bankAccount.manage`, `supplier.edit`, `supplier.submit`, `supplier.user.manage` |
+| `supplier_admin` | `proposal.create`, `proposal.decline`, `proposal.edit`, `proposal.revise`, `proposal.submit`, `proposal.withdraw`, `rfq.read`, `supplier.bankAccount.manage`, `supplier.edit`, `supplier.submit`, `supplier.user.manage` |
 | `supplier_user` | `proposal.create`, `proposal.edit`, `rfq.read`, `supplier.edit` |
 | `system_admin` | `admin.organizations.manage`, `admin.roles.manage`, `admin.users.manage`, `audit.read`, `award.approve`, `award.recommend`, `award.reject`, `clarification.answer`, `comparison.view`, `evaluation.assign`, `evaluation.consolidate`, `evaluation.finalize`, `evaluation.open`, `evaluation.reopen`, `evaluation.score`, `evaluation.submit`, `evaluation.template.manage`, `governance.read`, `integration.retry`, `offering.search`, `proposal.create`, `proposal.decline`, `proposal.edit`, `proposal.revise`, `proposal.submit`, `proposal.withdraw`, `reference.manage`, `report.read`, `rfq.addendum`, `rfq.approve`, `rfq.cancel`, `rfq.clarify`, `rfq.close`, `rfq.create`, `rfq.deadline.shorten`, `rfq.edit`, `rfq.invite`, `rfq.publish`, `rfq.read`, `rfq.reassign`, `rfq.review`, `rfq.submit_review`, `supplier.approve`, `supplier.bankAccount.manage`, `supplier.document.review`, `supplier.edit`, `supplier.lifecycle.manage`, `supplier.reject`, `supplier.requestInfo`, `supplier.review`, `supplier.submit`, `supplier.user.manage` |
