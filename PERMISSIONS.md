@@ -45,7 +45,7 @@ either dead or waiting for a surface — both are called out below.
 | `rfq.addendum` | `procurement_officer`, `system_admin` | `IssueAddendum` |
 | `rfq.approve` | `procurement_manager`, `system_admin` | `ApprovalQueues`, `ApproveRfq`, checked in ProcurementDashboardHandler, not on a route |
 | `rfq.cancel` | `procurement_manager`, `system_admin` | `CancelRfq` |
-| `rfq.clarify` | `evaluator`, `procurement_officer`, `system_admin` | `ResolveRfqClarification` |
+| `rfq.clarify` | `evaluator`, `procurement_officer`, `system_admin` | `RequestProposalClarification`, `RequestRfqClarification`, `ResolveRfqClarification` |
 | `rfq.close` | `procurement_officer`, `system_admin` | `CloseRfqSubmission` |
 | `rfq.create` | `procurement_officer`, `system_admin` | `CreateRfq` |
 | `rfq.deadline.shorten` | `procurement_manager`, `system_admin` | checked in RfqHandlers, not on a route |

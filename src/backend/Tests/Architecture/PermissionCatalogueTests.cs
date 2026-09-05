@@ -72,6 +72,68 @@ public sealed partial class PermissionCatalogueTests
         Permissions.All.Except(declared).Should().BeEmpty("Permissions.All must not name a permission no constant declares");
     }
 
+    [Fact]
+    public void A_comment_between_a_gate_and_its_route_name_does_not_hide_the_gate()
+    {
+        // This was a real defect in the generated file, not a hypothetical. The gate/name pair bounds
+        // the characters allowed between the two calls, and three routes had a long block comment
+        // sitting there - explaining why `request-clarification` is a deliberate §8.1 exception, and
+        // why ten RFQ child writes were guarded and four were not. The pair silently stopped matching,
+        // and PERMISSIONS.md reported `rfq.clarify` as gating ONE route when it gates three, and
+        // dropped `AddRfqItem` from `rfq.edit` entirely.
+        //
+        // A generated document that under-reports which routes a permission guards is worse than no
+        // document: it is the artifact A-16 exists to let somebody ratify, and it was quietly wrong.
+        // Blanking comments before matching is the fix; this asserts the fix rather than the file, so
+        // it fails on the mechanism even if the catalogue happens to be regenerated.
+        const string withComment = """
+            group.MapPost("/{code}/items", Handler)
+            .RequirePermission(Permissions.RfqEdit)
+            /*
+             * A comment long enough to exceed the bound the pair allows between the two calls, which is
+             * exactly what a real explanation of a non-obvious guard looks like. Padding to be sure:
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             * aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+             */
+            .WithName("AddRfqItem");
+            """;
+
+        // The control, in the same test: the raw pair really is defeated by the comment, so the
+        // assertion below is the fix working rather than a regex that would have matched anyway.
+        GateAndName().Matches(withComment).Should().BeEmpty();
+
+        var matched = GateAndName().Matches(CollapseWhitespace(WithoutComments(withComment)));
+
+        matched.Should().ContainSingle();
+        matched[0].Groups["name"].Value.Should().Be("AddRfqItem");
+        matched[0].Groups["permission"].Value.Should().Be("RfqEdit");
+    }
+
+    [Fact]
+    public void Stripping_comments_does_not_cut_a_string_containing_a_double_slash()
+    {
+        // The control, and the reason the stripper tracks string literals instead of using a regex: a
+        // naive strip would cut `"https://..."` at the `//` and take the rest of the line with it -
+        // removing a real gate while looking like it removed a comment. Both this codebase's route
+        // patterns and its comments contain `//`.
+        const string withUrl = """
+            group.MapGet("https://example.test/callback", Handler) // a trailing comment
+            .RequirePermission(Permissions.RfqRead)
+            .WithName("Callback");
+            """;
+
+        var stripped = WithoutComments(withUrl);
+
+        stripped.Should().Contain("https://example.test/callback");
+        stripped.Should().NotContain("a trailing comment");
+        GateAndName().Matches(CollapseWhitespace(stripped)).Should().ContainSingle();
+    }
+
     private static string Normalise(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd() + "\n";
 
     private static string Generate(string root)
@@ -174,7 +236,27 @@ public sealed partial class PermissionCatalogueTests
         {
             if (IsBuildOutput(file)) continue;
 
-            var text = File.ReadAllText(file);
+            // Comments STRIPPED before matching, and this is not tidiness.
+            //
+            // The pair below allows a bounded run of characters between a RequirePermission and the
+            // WithName it guards. A long block comment placed between them - explaining, say, why ten
+            // routes were guarded and four were not - exceeds that bound, and the pair silently stops
+            // matching: the catalogue then reports the route as ungated, which is the exact class of
+            // artifact-asserting-something-untrue this file exists to prevent. It happened while
+            // T-030 split (2) was being written, and the only reason it was noticed is that the
+            // regenerated file was diffed by hand.
+            //
+            // Reading code with the prose removed also makes the bound mean what it looks like it
+            // means: 600 characters of CODE between a gate and its name, not 600 characters of either.
+            //
+            // TWO forms, because two passes want different things. The group-gate scan below indexes
+            // into the text and reads FORWARD from that offset, so it needs positions preserved -
+            // comments are blanked in place, not removed. The gate/name pair does not care about
+            // offsets and does care about length, so it reads a whitespace-collapsed copy: blanking a
+            // 2,000-character comment to 2,000 spaces would leave the bound just as exceeded as the
+            // comment did, which is how the first version of this fix still lost `AddRfqItem`.
+            var text = WithoutComments(File.ReadAllText(file));
+            var codeOnly = CollapseWhitespace(text);
 
             void Record(string constant, string name)
             {
@@ -184,7 +266,7 @@ public sealed partial class PermissionCatalogueTests
                 if (!names.Contains(name, StringComparer.Ordinal)) names.Add(name);
             }
 
-            foreach (var match in GateAndName().Matches(text).Cast<Match>())
+            foreach (var match in GateAndName().Matches(codeOnly).Cast<Match>())
             {
                 Record(match.Groups["permission"].Value, match.Groups["name"].Value);
             }
@@ -206,7 +288,7 @@ public sealed partial class PermissionCatalogueTests
             // maps four routes from one loop, `.WithName(name)`. Recorded against the file, because
             // the name only exists at runtime and the honest answer is "this file's routes", not
             // "nothing".
-            foreach (var variable in GateAndVariableName().Matches(text).Cast<Match>())
+            foreach (var variable in GateAndVariableName().Matches(codeOnly).Cast<Match>())
             {
                 Record(variable.Groups["permission"].Value,
                     $"{Path.GetFileNameWithoutExtension(file)} (name resolved at runtime)");
@@ -224,6 +306,69 @@ public sealed partial class PermissionCatalogueTests
         typeof(Permissions).GetField(constantName, BindingFlags.Public | BindingFlags.Static) is { IsLiteral: true } field
             ? (string?)field.GetRawConstantValue()
             : null;
+
+    /// <summary>
+    /// The same source with <c>//</c> and <c>/* */</c> comments blanked out, string literals intact.
+    ///
+    /// <para>Replaced with spaces rather than deleted, so every offset in the result still lines up
+    /// with the original - the group-gate scan below indexes into this text and then reads forward
+    /// from that position.</para>
+    ///
+    /// <para>String literals are tracked because this codebase's routes and comments both contain
+    /// <c>//</c>: a naive strip would cut <c>"https://..."</c> in half and take the rest of the line
+    /// with it, quietly removing real gates. Verbatim strings (<c>@"..."</c>) and raw string literals
+    /// are not handled, and do not need to be - no route pattern or permission constant in Api uses
+    /// one; if that changes, the pass below leaves them alone rather than mangling them, because an
+    /// unrecognised quote simply starts an ordinary string.</para>
+    /// </summary>
+    private static string WithoutComments(string source)
+    {
+        var output = source.ToCharArray();
+        var inString = false;
+        var inChar = false;
+
+        for (var i = 0; i < source.Length; i++)
+        {
+            var c = source[i];
+
+            if (inString || inChar)
+            {
+                if (c == '\\') { i++; continue; }
+                if (inString && c == '"') inString = false;
+                else if (inChar && c == '\'') inChar = false;
+                continue;
+            }
+
+            if (c == '"') { inString = true; continue; }
+            if (c == '\'') { inChar = true; continue; }
+
+            if (c != '/' || i + 1 >= source.Length) continue;
+
+            if (source[i + 1] == '/')
+            {
+                while (i < source.Length && source[i] != '\n') output[i++] = ' ';
+                i--;
+            }
+            else if (source[i + 1] == '*')
+            {
+                var end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                var stop = end < 0 ? source.Length : end + 2;
+                // Newlines are kept so line-based reasoning about the file still holds.
+                for (; i < stop; i++) if (output[i] != '\n') output[i] = ' ';
+                i--;
+            }
+        }
+
+        return new string(output);
+    }
+
+    /// <summary>Runs of whitespace to a single space. Offsets are NOT preserved - only the pass that
+    /// bounds the distance between a gate and its name uses this.</summary>
+    private static string CollapseWhitespace(string source) =>
+        Whitespace().Replace(source, " ");
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex Whitespace();
 
     /// <summary>A RequirePermission and the WithName that names the route it guards, in that order.
     /// Non-greedy across the fluent calls between them, and bounded so it cannot pair a permission
