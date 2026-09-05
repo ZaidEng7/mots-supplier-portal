@@ -115,6 +115,20 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const method = (init.method ?? 'GET').toUpperCase()
   const isMutation = method !== 'GET' && method !== 'HEAD'
 
+  /*
+   * T-053/§8.2.5: "The SPA generates one key per user submission intent (e.g. per 'Submit' click) via
+   * crypto.randomUUID()".
+   *
+   * Generated ONCE here, outside doFetch, and that placement is the whole point: doFetch is called
+   * again after a 401 refresh, and a key regenerated on the retry would be a second intent - the
+   * server would process the submission twice, which is the exact failure this header exists to
+   * prevent.
+   *
+   * Sent on every mutation rather than only on the three §8.2 requires. Harmless where the server does
+   * not read it, and it means a route that starts requiring one does not silently 428 the SPA.
+   */
+  const idempotencyKey = isMutation ? crypto.randomUUID() : undefined
+
   const doFetch = () => {
     const token = useAuthStore.getState().accessToken
 
@@ -127,6 +141,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     }
     if (ifMatch && !('If-Match' in headers)) headers['If-Match'] = ifMatch
+    if (idempotencyKey && !('Idempotency-Key' in headers)) headers['Idempotency-Key'] = idempotencyKey
 
     return fetch(`${API_BASE_URL}${path}`, { ...init, credentials: 'include', headers })
   }

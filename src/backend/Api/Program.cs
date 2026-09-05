@@ -358,6 +358,7 @@ builder.Services.AddScoped<IExecuteAwardHandler, ExecuteAwardHandler>();
 builder.Services.AddScoped<IRetryErpSyncHandler, RetryErpSyncHandler>();
 builder.Services.AddScoped<IErpPurchaseOrderAdapter, StubErpPurchaseOrderAdapter>();
 builder.Services.AddScoped<AwardErpSyncJob>();
+builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Idempotency.IdempotencyCleanupJob>();
 
 // EPIC-13: Workspace (derived read-side guided-lifecycle view over Rfq + Invitation + Proposal + Evaluation + Award).
 builder.Services.AddScoped<IGetWorkspaceHandler, GetWorkspaceHandler>();
@@ -868,6 +869,7 @@ string[] RecurringJobIds =
 [
     "document-expiry-lifecycle", "draft-registration-cleanup",
     "outbox-dispatch", "rfq-timeline", "award-erp-sync",
+    "idempotency-cleanup",
 ];
 
 var recurringJobsEnabled = builder.Configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
@@ -903,6 +905,11 @@ if (recurringJobsEnabled)
     // the Outbox -> ERP PO flow, decoupled from the award-issuing request (BRULE-077).
     recurringJobs.AddOrUpdate<AwardErpSyncJob>(
         "award-erp-sync", job => job.RunAsync(CancellationToken.None), "*/5 * * * *");
+
+    // T-053/§8.2.1: "GC'd by Hangfire". Hourly rather than daily - the window is 24 hours, so a daily
+    // sweep would let the table carry up to two days of records for no benefit.
+    recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Idempotency.IdempotencyCleanupJob>(
+        "idempotency-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Hourly);
 }
 else
 {

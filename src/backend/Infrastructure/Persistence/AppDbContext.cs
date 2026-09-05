@@ -42,6 +42,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<ReferenceCodeCounter> ReferenceCodeCounters => Set<ReferenceCodeCounter>();
+    public DbSet<Domain.Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Domain.Idempotency.IdempotencyRecord>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrgUnit> OrgUnits => Set<OrgUnit>();
     public DbSet<SupplierOrgLink> SupplierOrgLinks => Set<SupplierOrgLink>();
@@ -502,6 +503,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(o => o.CurrencyCode).HasMaxLength(10);
             entity.Property(o => o.AttributesJson).HasColumnType("jsonb");
             entity.HasIndex(o => o.SupplierId);
+        });
+
+        modelBuilder.Entity<Domain.Idempotency.IdempotencyRecord>(entity =>
+        {
+            entity.ToTable("idempotency_record", "ops");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Key).HasMaxLength(200).IsRequired();
+            entity.Property(r => r.RequestFingerprint).HasMaxLength(64).IsRequired();
+            // TEXT, not jsonb. §8.2.3 requires the stored response to be "replayed verbatim", and
+            // jsonb normalises: it reorders keys and re-spaces the document, so a replay came back
+            // byte-different from the original even though the data was identical. A client comparing
+            // responses, or hashing one, would see two different answers to the same request.
+            entity.Property(r => r.ResponseBody).HasColumnType("text");
+
+            // The UNIQUE constraint is the reservation. Two concurrent retries of the same submission
+            // both try to insert, and Postgres lets exactly one through - the loser gets a duplicate-key
+            // violation, which is how the second click is refused without a lock or a read-then-write
+            // race. Scoped by UserId so a client-generated key cannot collide across callers.
+            entity.HasIndex(r => new { r.UserId, r.Key }).IsUnique();
+
+            // The GC job scans by expiry.
+            entity.HasIndex(r => r.ExpiresAt);
         });
 
         modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>

@@ -23,6 +23,16 @@ public sealed class ETagAttachingHandler : DelegatingHandler
     {
         var isMutation = request.Method != HttpMethod.Get && request.Method != HttpMethod.Head;
 
+        // T-053/§8.2.5: "The SPA generates one key per user submission intent ... via
+        // crypto.randomUUID()". Every POST gets a fresh key here for the same reason: the suite has
+        // ~140 call sites on publish/submit/approve and each of them is one user intent, so a key per
+        // request is the faithful analogue. A key REUSED across two calls would be asserting replay,
+        // which the dedicated idempotency tests do deliberately with a key they control.
+        if (isMutation && !request.Headers.Contains("Idempotency-Key"))
+        {
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        }
+
         if (isMutation && request.Headers.IfMatch.Count == 0)
         {
             var etag = await ResolveETagAsync(request, cancellationToken);

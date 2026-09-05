@@ -299,3 +299,20 @@ failing to bump.*
 required-by-default would retroactively make every existing supplier's profile incomplete the moment the
 row was created, which is a live consequence for people who did nothing.*
 
+### D-29 — Idempotency reserves by unique index, and an in-flight key is a conflict
+
+| | |
+|---|---|
+| **What was undecided** | How to make the reservation and the handler's own write atomic, and what to answer when a key's first request has not finished. |
+| **Where the gap is** | §8.2 specifies the contract's five clauses and says nothing about concurrency or partial failure. |
+| **What was decided** | The filter INSERTs a reservation row before the handler runs; the unique index on `(UserId, Key)` decides the race. A key whose record exists with no stored response yet is a **409**, not a wait. Only a 2xx is stored for replay. The reservation and the handler's write are **not** in one transaction. |
+| **Why** | A unique index refuses the second click without a read-then-write race, which is the flaw a "check then insert" would have. Blocking on an in-flight key would hold a request thread on a bet about another request's progress, and replaying nothing would be a lie — a client that gets the conflict retries with a new key, which is correct. Storing 4xx responses would pin a client to its own mistake for 24 hours with no way to correct the request. The transaction is left open deliberately: if the process dies after the handler commits but before the response is recorded, the work still happened **exactly once** — the client learns it by a 409 instead of a replay. Making the two atomic requires the filter to own every handler's transaction, which is a change to every handler's contract, and half-doing it would be worse than the gap. |
+| **What it costs if wrong** | The narrow window above turns a replay into a conflict, so a client retries with a new key and meets the state guard — which refuses, rather than duplicating. No double submission is possible either way. |
+| **Who should confirm it** | The architecture owner. |
+
+*Two shapes were corrected while building. The response is stored as `text`, not `jsonb`: jsonb
+normalises, reordering keys and re-spacing, so a replay came back byte-different from the original and
+§8.2.3's "verbatim" was not met. And the record is keyed `(UserId, Key)` rather than `Key` alone —
+the key is client-generated, so a shared key space would let one caller replay another caller's
+response, which is a disclosure rather than a duplicate.*
+

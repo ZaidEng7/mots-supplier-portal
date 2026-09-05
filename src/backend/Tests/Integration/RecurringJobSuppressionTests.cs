@@ -31,6 +31,10 @@ public sealed class RecurringJobSuppressionTests(PostgresApiFixture fixture)
     [
         "document-expiry-lifecycle", "draft-registration-cleanup",
         "outbox-dispatch", "rfq-timeline", "award-erp-sync",
+        // T-053/§8.2.1: "GC'd by Hangfire". This gate is the reason the list is in three places and
+        // asserted rather than assumed - a new job that nobody adds here stays scheduled under the
+        // test suite.
+        "idempotency-cleanup",
     ];
 
     [Fact]

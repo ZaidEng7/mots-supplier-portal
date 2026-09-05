@@ -356,6 +356,10 @@ public static class ProposalEndpoints
             MapResult(await handler.HandleAsync(new SubmitProposalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.ProposalSubmit)
         .RequireIfMatch()
+        // §8.2: "required for financially/legally significant transitions: proposal.submit,
+        // award.approve, rfq.publish". This is the one the document names first, and the one a
+        // double-click actually threatens.
+        .RequireIdempotencyKey()
         .WithName("SubmitProposal");
 
         group.MapPost("/withdraw", async (
