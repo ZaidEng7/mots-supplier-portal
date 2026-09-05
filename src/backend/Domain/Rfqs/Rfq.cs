@@ -57,6 +57,13 @@ public sealed class Rfq : IVersionedAggregate
     public DateTimeOffset? PublishedAt { get; private set; }
     public DateTimeOffset? SubmissionOpensAt { get; private set; }
     public DateTimeOffset? SubmissionClosesAt { get; private set; }
+
+    /// <summary>A-6: why the deadline was last moved, and when. Readable on the RFQ by the buyer and by
+    /// every invited supplier - see ChangeSubmissionDeadline on why it is here and not in the
+    /// notification payload.</summary>
+    public string? SubmissionDeadlineChangeReason { get; private set; }
+
+    public DateTimeOffset? SubmissionDeadlineChangedAt { get; private set; }
     public DateTimeOffset? ClarificationDeadlineAt { get; private set; }
     public DateTimeOffset? EvaluationTargetDate { get; private set; }
     public Guid? EvaluationTemplateId { get; private set; }
@@ -792,8 +799,16 @@ public sealed class Rfq : IVersionedAggregate
     /// designed rather than a side effect to suppress - a supplier given more time to bid should be
     /// able to ask about what they are bidding on - but it is recorded because nothing else says it.</para>
     /// </summary>
-    public bool ChangeSubmissionDeadline(DateTimeOffset newCloseAt)
+    public bool ChangeSubmissionDeadline(DateTimeOffset newCloseAt, string reason)
     {
+        // A-6: mandatory, and the domain enforces it rather than only the validator - a deadline moved
+        // with no stated basis is the thing the requirement exists to prevent, and a second caller
+        // (a job, a future bulk tool) must not be able to bypass it by not going through the API.
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A reason is required to change the submission deadline.");
+        }
+
         if (State is not (RfqState.Published or RfqState.SubmissionOpen))
         {
             throw new DomainException(
@@ -822,6 +837,16 @@ public sealed class Rfq : IVersionedAggregate
 
         var isShortening = newCloseAt < SubmissionClosesAt;
         SubmissionClosesAt = newCloseAt;
+
+        // A-6: kept on the aggregate so it is readable where the deadline is - on the RFQ, for the buyer
+        // and for every invited supplier.
+        //
+        // NOT in the notification payload, and that is BRULE-091 rather than an oversight: the
+        // allow-list is identifiers and public codes only, it already refused `submissionDeadline` in
+        // T-018 on the grounds that a date is content, and a free-text reason is content by any reading.
+        // So the notification says the deadline moved and points at the RFQ; the reason is waiting there.
+        SubmissionDeadlineChangeReason = reason;
+        SubmissionDeadlineChangedAt = DateTimeOffset.UtcNow;
         return isShortening;
     }
 

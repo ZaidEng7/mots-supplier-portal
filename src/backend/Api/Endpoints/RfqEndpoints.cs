@@ -26,15 +26,24 @@ public sealed class RfqBasicsRequestValidator : AbstractValidator<RfqBasicsReque
     }
 }
 
-// T-018: one field, and it is the new deadline rather than a duration - a duration needs an anchor
-// (D-22's problem) and this endpoint would have to pick one.
-public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline);
+// T-018: the deadline rather than a duration - a duration needs an anchor (D-22's problem) and this
+// endpoint would have to pick one.
+//
+// A-6: and a REASON, mandatory. BRULE-035 puts no cap on an extension and A-6 keeps it uncapped, because
+// a cap would invent a fairness rule; a required reason makes every extension defensible or obviously
+// indefensible without inventing one, and a supplier being told WHY their deadline moved is simply
+// better than being told that it did.
+public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline, string Reason);
 
 public sealed class ChangeSubmissionDeadlineRequestValidator : AbstractValidator<ChangeSubmissionDeadlineRequest>
 {
     // Deliberately no "must be in the future" rule here: the domain owns that, and duplicating it
     // would give two answers to the same question the day one of them changed.
-    public ChangeSubmissionDeadlineRequestValidator() => RuleFor(x => x.SubmissionDeadline).NotEmpty();
+    public ChangeSubmissionDeadlineRequestValidator()
+    {
+        RuleFor(x => x.SubmissionDeadline).NotEmpty();
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000);
+    }
 }
 
 public sealed record RfqItemRequest(
@@ -424,7 +433,7 @@ public static class RfqEndpoints
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(
-                new ChangeSubmissionDeadlineCommand(referenceCode, request.SubmissionDeadline), ct));
+                new ChangeSubmissionDeadlineCommand(referenceCode, request.SubmissionDeadline, request.Reason), ct));
         })
         .RequireAuthorization()
         .RequireIfMatch()

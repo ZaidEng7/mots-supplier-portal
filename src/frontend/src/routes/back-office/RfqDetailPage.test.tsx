@@ -338,7 +338,9 @@ describe('RfqDetailPage', () => {
     renderPage(<RfqDetailPage />)
 
     expect(await screen.findByLabelText('New deadline')).toBeInTheDocument()
-    // Disabled until a date is picked, because the server requires one.
+    // A-6: and a reason, which the server now requires. Disabled until BOTH are given - the guard in
+    // the direction that refuses.
+    expect(screen.getByLabelText('Reason for the change')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
   })
 
@@ -446,5 +448,30 @@ describe('RfqDetailPage', () => {
     await vi.waitFor(() => expect(calls.some((c) => c.url.includes('/answer') && c.method === 'POST')).toBe(true))
     const sent = JSON.parse(calls.find((c) => c.url.includes('/answer'))!.body)
     expect(sent).toEqual({ answer: 'FOB.' })
+  })
+
+  it('sends the deadline reason and will not submit without one', async () => {
+    // A-6. BRULE-035 leaves an extension uncapped, so the reason is what makes it defensible; D-12
+    // called the audit row the control, and a row that records only that someone moved a date is not
+    // one.
+    const calls: { url: string; method: string; body: string }[] = []
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published'),
+      '/api/v1/rfqs/RFQ-2026-000001/deadline': rfqFixture('Published'),
+    }, calls)
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.type(await screen.findByLabelText('New deadline'), '2026-12-01T10:00')
+    // Still disabled: the date alone is not enough.
+    expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
+
+    await userEvent.type(screen.getByLabelText('Reason for the change'), 'The Ministry extended the tender period.')
+    await userEvent.click(screen.getByRole('button', { name: 'Change deadline' }))
+
+    await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith('/deadline'))).toBe(true))
+    const sent = JSON.parse(calls.find((c) => c.url.endsWith('/deadline'))!.body)
+    expect(sent.reason).toBe('The Ministry extended the tender period.')
   })
 })

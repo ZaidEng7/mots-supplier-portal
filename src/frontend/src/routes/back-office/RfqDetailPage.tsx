@@ -33,6 +33,7 @@ export function RfqDetailPage() {
   const queryClient = useQueryClient()
 
   const [deadlineDraft, setDeadlineDraft] = useState('')
+  const [deadlineReason, setDeadlineReason] = useState('')
   const [itemTitleAr, setItemTitleAr] = useState('')
   const [itemTitleEn, setItemTitleEn] = useState('')
   const [itemCategory, setItemCategory] = useState('')
@@ -174,7 +175,8 @@ export function RfqDetailPage() {
   // direction, so the UI does not have to know the caller's role - a 403 is surfaced as "not your
   // direction" rather than hidden, because an officer who cannot shorten needs to know why.
   const deadlineMutation = useMutation({
-    mutationFn: (deadline: string) => changeSubmissionDeadline(referenceCode, new Date(deadline).toISOString()),
+    mutationFn: ({ deadline, reason }: { deadline: string; reason: string }) =>
+      changeSubmissionDeadline(referenceCode, new Date(deadline).toISOString(), reason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.deadline.changed') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.deadline.failed')) }),
   })
@@ -321,11 +323,19 @@ export function RfqDetailPage() {
               value={deadlineDraft}
               onChange={(e) => setDeadlineDraft(e.target.value)}
             />
+            {/* A-6: mandatory. A deadline moved with no stated basis is what the ruling exists to
+                prevent, and the supplier reads this on their own view of the RFQ. */}
+            <Input
+              aria-label={t('rfq.deadline.reason')}
+              placeholder={t('rfq.deadline.reason')}
+              value={deadlineReason}
+              onChange={(e) => setDeadlineReason(e.target.value)}
+            />
             <Button
               variant="secondary"
               isLoading={deadlineMutation.isPending}
-              disabled={!deadlineDraft}
-              onClick={() => deadlineMutation.mutate(deadlineDraft)}
+              disabled={!deadlineDraft || !deadlineReason}
+              onClick={() => deadlineMutation.mutate({ deadline: deadlineDraft, reason: deadlineReason })}
             >
               {t('rfq.deadline.apply')}
             </Button>

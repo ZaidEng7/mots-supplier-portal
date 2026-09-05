@@ -743,6 +743,7 @@ const resources = {
           title: 'موعد إغلاق التقديم',                  // [reused] §12.4's own field name in Arabic
           help: 'التمديد من صلاحية موظف المشتريات، وتقديم الموعد من صلاحية المدير. يُبلَّغ جميع المدعوين بأي تغيير.', // [§7-style drafted]
           newDeadline: 'الموعد الجديد',                 // [§7-style drafted]
+          reason: 'سبب التغيير',                        // [drafted] A-6
           apply: 'تغيير الموعد',                        // [§7-style drafted]
           changed: 'تم تغيير موعد إغلاق التقديم',        // [§7-style drafted]
           failed: 'تعذر تغيير موعد إغلاق التقديم',       // [§7-style drafted]
@@ -976,6 +977,9 @@ const resources = {
         errors: { actionFailed: 'تعذر تنفيذ الإجراء', segregationOfDuties: 'يجب أن يختلف المعتمد عن مرشّح الفائز' },
       },
       supplierRfq: {
+        deadlineChanged: {
+          title: 'تغيّر موعد إغلاق التقديم',                  // [drafted] A-6
+        },
         attachments: {
           title: 'مرفقات الطلب',                            // [reused] matches rfq.attachments
           none: 'لا توجد مرفقات',                           // [reused]
@@ -1089,6 +1093,7 @@ const resources = {
         title: 'مراجعة طلبات الموردين',
         queue: 'قائمة المراجعة',
         age: 'المدة',
+        reviewTarget: 'الموعد المستهدف',                 // [drafted] A-5
         assignee: 'المسؤول',
         actions: 'إجراءات',
         filterState: 'الحالة',
@@ -1912,6 +1917,7 @@ const resources = {
           title: 'Submission deadline',
           help: 'Extending is the officer\'s; bringing the date forward is the manager\'s. Every invited supplier is notified of either.',
           newDeadline: 'New deadline',
+          reason: 'Reason for the change',
           apply: 'Change deadline',
           changed: 'The submission deadline was changed',
           failed: 'Could not change the submission deadline',
@@ -2137,6 +2143,9 @@ const resources = {
         errors: { actionFailed: 'Could not perform the action', segregationOfDuties: 'The approver must differ from the recommender' },
       },
       supplierRfq: {
+        deadlineChanged: {
+          title: 'The submission deadline changed',
+        },
         attachments: {
           title: 'RFQ attachments',
           none: 'No attachments',
@@ -2244,6 +2253,7 @@ const resources = {
         title: 'Supplier Application Review',
         queue: 'Review queue',
         age: 'Age',
+        reviewTarget: 'Target date',
         assignee: 'Assignee',
         actions: 'Actions',
         filterState: 'State',

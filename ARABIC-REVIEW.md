@@ -381,3 +381,28 @@ product owner reviews them against a demo.
 `adminOverview.*` (SCR-700), `systemSettings.*` (SCR-724), `notificationTemplates.*` (SCR-715),
 `register.closedTitle` / `register.closedBody`, `rfq.attachments.*` and `supplierRfq.attachments.*` —
 all marked `[drafted]` at their definitions in `src/frontend/src/i18n/config.ts`.
+
+### A-5 / A-6 — the review target and the deadline reason
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `review.reviewTarget` | Target date | الموعد المستهدف | Review queue column header | [drafted] |
+| `rfq.deadline.reason` | Reason for the change | سبب التغيير | Buyer's deadline control | [drafted] |
+| `supplierRfq.deadlineChanged.title` | The submission deadline changed | تغيّر موعد إغلاق التقديم | Card on the supplier's RFQ | [drafted] |
+
+### A-8 — the declaration and the pseudonyms
+
+| Key | English | Arabic | Renders | Source |
+|---|---|---|---|---|
+| `evaluation.my.anonymousBidder` | Bidder identity withheld during scoring | هوية المورد محجوبة أثناء التقييم | Badge beside each bid | [drafted] |
+| `evaluation.my.declaration.title` | Conflict of interest declaration | إقرار تعارض المصالح | Declaration step heading | [drafted] |
+| `evaluation.my.declaration.body` | These are the suppliers taking part… | هذه أسماء الموردين المشاركين… | Declaration step body | [drafted] |
+| `evaluation.my.declaration.noConflict` | No conflict — continue | لا يوجد تعارض — متابعة | Button | [drafted] |
+| `evaluation.my.declaration.hasConflict` | I have a conflict — recuse me | لديّ تعارض — تنحّي | Button | [drafted] |
+| `evaluation.my.declaration.reasonLabel` | Reason for recusal | سبب التنحّي | Input label | [drafted] |
+| `evaluation.my.declaration.failed` | Could not record the declaration | تعذّر تسجيل الإقرار | Toast | [drafted] |
+
+**The bidder pseudonyms are generated, not catalogued**: `Bidder A` / «مورّد أ», using the Arabic
+**abjad** letter order (أ ب ج د هـ و ز ح ط ي …) rather than the alphabetical one, because abjad is what
+an Arabic reader expects for enumeration. Worth a specific check by the reviewer — see
+`BidderLabel` in `EvaluationHandlers.cs`.

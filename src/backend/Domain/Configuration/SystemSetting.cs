@@ -108,6 +108,17 @@ public static class SystemSettings
     /// <summary>BRULE-025's ladder, same story.</summary>
     public const string RenewalReminderDays = "documents.renewalReminderDays";
 
+    /// <summary>
+    /// A-5: the onboarding review SLA, in WORKING days.
+    ///
+    /// <para>BUSINESS-PROCESSES.md §5 starts, pauses and resumes an SLA timer across
+    /// <c>Submitted → UnderReview → InfoRequested → Resubmitted</c> and never names a number. So the
+    /// honest options were "no timer" or "a stated default someone can change", and this is the second -
+    /// surfaced as a TARGET date, never as a breach, so the product does not assert a commitment the
+    /// ministry has not made.</para>
+    /// </summary>
+    public const string ReviewSlaWorkingDays = "review.slaWorkingDays";
+
     public static readonly SettingDefinition[] All =
     [
         new(RegistrationMode, SettingKind.Choice, RegistrationOpen,
@@ -117,6 +128,9 @@ public static class SystemSettings
         // expiry date as expiring, which reads as a broken portal rather than a strict one.
         new(ExpiringSoonWindowDays, SettingKind.Integer, "30", Minimum: 1, Maximum: 365),
         new(RenewalReminderDays, SettingKind.IntegerList, "30,14,3", Minimum: 1, Maximum: 365),
+        // Five working days, and bounded at 60: a "target" measured in months is not a target, and a
+        // zero-day one would put every case in the queue past its date the moment it arrived.
+        new(ReviewSlaWorkingDays, SettingKind.Integer, "5", Minimum: 1, Maximum: 60),
     ];
 
     public static SettingDefinition? Find(string key) =>

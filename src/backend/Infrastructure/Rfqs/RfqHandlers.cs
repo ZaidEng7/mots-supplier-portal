@@ -60,7 +60,8 @@ internal static class RfqDtoMapper
             return new ClarificationDto(c.Id, c.AskedBySupplierId, name.Ar, name.En, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt);
         })],
         [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))],
-        rfq.RowVersion);
+        rfq.RowVersion,
+        rfq.SubmissionDeadlineChangeReason, rfq.SubmissionDeadlineChangedAt);
 
     /// <summary>FEAT-10.3/FR-CLR-003: the anonymization boundary. Only <paramref name="supplierId"/>'s
     /// own clarifications (any Visibility) plus every OTHER supplier's PublishedToAll clarifications
@@ -81,7 +82,8 @@ internal static class RfqDtoMapper
             .Where(c => c.AskedBySupplierId == supplierId || c.Visibility == ClarificationVisibility.PublishedToAll)
             .OrderBy(c => c.AskedAt)
             .Select(c => new SupplierClarificationDto(c.Id, c.Question, c.Answer, c.Visibility, c.AskedAt, c.AnsweredAt, c.AskedBySupplierId == supplierId))],
-        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))]);
+        [.. rfq.Addenda.OrderBy(a => a.IssuedAt).Select(a => new AddendumDto(a.Id, a.TitleAr, a.TitleEn, a.DescriptionAr, a.DescriptionEn, a.IssuedAt))],
+        rfq.SubmissionDeadlineChangeReason, rfq.SubmissionDeadlineChangedAt);
 }
 
 /// <summary>Shared loader: every RFQ handler in this file row-scopes to the caller's own
@@ -232,7 +234,7 @@ public sealed class ChangeSubmissionDeadlineHandler(AppDbContext db, IScopeConte
         bool shortened;
         try
         {
-            shortened = rfq.ChangeSubmissionDeadline(command.NewCloseAt);
+            shortened = rfq.ChangeSubmissionDeadline(command.NewCloseAt, command.Reason);
         }
         catch (DomainException ex)
         {
@@ -245,10 +247,14 @@ public sealed class ChangeSubmissionDeadlineHandler(AppDbContext db, IScopeConte
         //
         // D-12: there is no cap on an extension, so THIS ROW is the control. Both dates are recorded,
         // because "extended" without the from/to says nothing about by how much.
+        // A-6: the reason joins the row. D-12 left the extension uncapped and called the audit row the
+        // control; without a reason that row records only that someone moved a date, which is not a
+        // control anyone can act on.
         await auditLogger.LogAsync("Rfq", rfq.Id,
             shortened ? "rfq.deadline_shortened" : "rfq.deadline_extended",
             scope.UserId, referenceCode: rfq.ReferenceCode,
-            fromState: previous?.ToString("O"), toState: command.NewCloseAt.ToString("O"), ct: ct);
+            fromState: previous?.ToString("O"), toState: command.NewCloseAt.ToString("O"),
+            reason: command.Reason, ct: ct);
 
         // "notify all invitees" - every invited supplier's users, not the committee. A deadline change
         // is only news to the people bidding against it.

@@ -52,7 +52,12 @@ public sealed record RfqDto(
     IReadOnlyList<RfqAttachmentDto> Attachments, IReadOnlyList<RfqApprovalDto> Approvals,
     IReadOnlyList<InvitationDto> Invitations, IReadOnlyList<ClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda,
     // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
-    uint RowVersion);
+    uint RowVersion,
+    // A-6: why the deadline was last moved. Here rather than in the notification payload - BRULE-091's
+    // allow-list is identifiers and public codes, and it already refused a DATE on the grounds that a
+    // date is content (T-018), so a free-text reason cannot go there either.
+    string? SubmissionDeadlineChangeReason = null,
+    DateTimeOffset? SubmissionDeadlineChangedAt = null);
 
 /// <summary>FEAT-08.6/FR-INV-006: the supplier-facing shape of an RFQ - deliberately narrower than
 /// RfqDto. Excludes Approvals (internal reviewer comments/decisions) and OrganizationId's sibling
@@ -65,7 +70,11 @@ public sealed record SupplierRfqDto(
     string CurrencyCode, RfqState State, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionDeadline,
     DateTimeOffset? ClarificationDeadlineAt,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements, IReadOnlyList<RfqAttachmentDto> Attachments,
-    InvitationStatus InvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
+    InvitationStatus InvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda,
+    // A-6: the supplier sees WHY their deadline moved, on the screen where the deadline itself is. The
+    // notification points them here; BRULE-091 keeps the reason out of the payload.
+    string? SubmissionDeadlineChangeReason = null,
+    DateTimeOffset? SubmissionDeadlineChangedAt = null);
 
 /// <summary>
 /// The buyer RFQ list row (T2 Item 2). Deliberately NOT <see cref="RfqDto"/>: the detail DTO is the
@@ -111,7 +120,8 @@ public sealed record BuyingOrgDto(string? Code, string Name);
 
 // T-018/BRULE-035: one command for both directions - see Rfq.ChangeSubmissionDeadline on why the
 // direction is an access-control question rather than a domain one.
-public sealed record ChangeSubmissionDeadlineCommand(string ReferenceCode, DateTimeOffset NewCloseAt);
+/// <summary>A-6: the reason is mandatory and is carried into the audit row and the notification.</summary>
+public sealed record ChangeSubmissionDeadlineCommand(string ReferenceCode, DateTimeOffset NewCloseAt, string Reason);
 
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,

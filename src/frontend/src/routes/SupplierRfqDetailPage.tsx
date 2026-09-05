@@ -1,6 +1,7 @@
 import { formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatDateTime } from '../lib/datetime'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
@@ -129,6 +130,18 @@ export function SupplierRfqDetailPage() {
         Download goes through the same `download-url` exchange the buyer uses: the URL is short-lived
         and issued per request (D-16), so it is fetched on the click rather than rendered into the page.
       */}
+      {/* A-6: the supplier is told WHY their deadline moved, on the screen where the deadline is. */}
+      {rfq.submissionDeadlineChangeReason ? (
+        <Card title={t('supplierRfq.deadlineChanged.title')}>
+          <p>{rfq.submissionDeadlineChangeReason}</p>
+          {rfq.submissionDeadlineChangedAt ? (
+            <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {formatDateTime(rfq.submissionDeadlineChangedAt, locale)}
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card title={t('supplierRfq.attachments.title')}>
         {rfq.attachments.length > 0 ? (
           <ul className="flex flex-col gap-2">

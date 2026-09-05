@@ -281,11 +281,13 @@ export async function publishRfq(referenceCode: string): Promise<Rfq> {
 
 /** T-018/BRULE-035: extension is the officer's, shortening the manager's - the server decides which
  * from the direction, so this one function serves both and a 403 means "not your direction". */
-export async function changeSubmissionDeadline(referenceCode: string, submissionDeadline: string): Promise<Rfq> {
+/** A-6: the reason is mandatory. BRULE-035 leaves an extension uncapped, so the reason is what makes it
+ * defensible - and the supplier reads it on the RFQ, where the deadline is. */
+export async function changeSubmissionDeadline(referenceCode: string, submissionDeadline: string, reason: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/deadline`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ submissionDeadline }),
+    body: JSON.stringify({ submissionDeadline, reason }),
   }))
 }
 
