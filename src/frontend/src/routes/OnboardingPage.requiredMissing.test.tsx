@@ -25,7 +25,7 @@ function documentType(code: string, isRequired: boolean): DocumentTypeStatus {
 }
 
 const supplier = {
-  referenceCode: 'SUP-2026-000001',
+  supplierCode: 'SUP-2026-000001',
   displayNameAr: 'شركة', displayNameEn: 'Required Missing Co',
   description: null, website: null, logoStorageKey: null, supplierGroup: null,
   onboardingState: 'ProfileInProgress',

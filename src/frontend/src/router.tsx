@@ -1,6 +1,7 @@
 import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
 import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
 import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
+import { ProfilePage } from './routes/ProfilePage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
@@ -225,6 +226,16 @@ const onboardingOfferingsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/onboarding/offerings',
   component: OfferingsPage,
+})
+
+// SCR-121, `/profile`, supplier_admin + supplier_user, P0. The supplier's own read of their own
+// profile - which existed as an endpoint since EPIC-01 and was rendered only by the REVIEWER's
+// screen. SCR-122..126's entry points live on it, linking to the editors that already exist rather
+// than growing second copies of them.
+const profileRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/profile',
+  component: ProfilePage,
 })
 
 const teamRoute = createRoute({
@@ -509,7 +520,7 @@ const routeTree = rootRoute.addChildren([
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
   evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
-  supplierLayoutRoute.addChildren([
+  supplierLayoutRoute.addChildren([profileRoute, 
     supplierDashboardRoute,
     onboardingRoute,
     onboardingContactsRoute,

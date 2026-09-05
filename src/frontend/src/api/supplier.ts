@@ -61,7 +61,10 @@ export interface BankAccount {
 }
 
 export interface SupplierProfile {
-  referenceCode: string
+  /** R-9 renamed this on the wire (§12.2). The client type said `referenceCode` for three batches
+   * and the field simply arrived as undefined — see `supplierCode`, `defaultCurrency` and
+   * `categories` below, all three of which were wrong here until T-110. */
+  supplierCode: string
   displayNameAr: string
   displayNameEn: string
   description: string | null
@@ -71,7 +74,8 @@ export interface SupplierProfile {
   onboardingState: string
   /** MSP-63: Active | Suspended | Deactivated | None. Drives which lifecycle actions staff see. */
   lifecycleState: string
-  currencyCode: string | null
+  /** R-9: `defaultCurrency` on the wire, not `currencyCode`. */
+  defaultCurrency: string | null
   legalInfo: LegalInfo | null
   primaryContactPhone: string | null
   representatives: Representative[]
@@ -79,7 +83,8 @@ export interface SupplierProfile {
   contacts: Contact[]
   branches: Branch[]
   bankAccounts: BankAccount[]
-  categoryCodes: string[]
+  /** R-9: `categories` on the wire, not `categoryCodes`. */
+  categories: string[]
   missingProfileFields: string[]
   termsAcceptedVersion: string | null
   termsAcceptedAt: string | null

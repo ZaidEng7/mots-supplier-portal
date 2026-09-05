@@ -30,7 +30,7 @@ export function OfferingsPage() {
     return <SkeletonList label={t('common.loading')} />
   }
 
-  const linkedCodes = new Set(profile?.categoryCodes ?? [])
+  const linkedCodes = new Set(profile?.categories ?? [])
   const categories = categoriesQuery.data ?? []
   const missingCategoryLink = (profile?.missingProfileFields ?? []).includes('categoryLink')
 

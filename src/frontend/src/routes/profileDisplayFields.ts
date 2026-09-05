@@ -18,7 +18,7 @@ export const PROFILE_DISPLAY_FIELDS = [
   'description',
   'website',
   'supplierGroup',
-  'currencyCode',
+  'defaultCurrency',
   'primaryContactPhone',
 ] as const satisfies readonly (keyof SupplierProfile)[]
 

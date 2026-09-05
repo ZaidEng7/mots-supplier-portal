@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
@@ -1406,6 +1406,39 @@ const resources = {
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
         failed: 'تعذر إنشاء الحساب',
       },
+      // ── SCR-121..126 · ARABIC FOR REVIEW ──────────────────────────────────────
+      // §7 has no supplier-profile screen strings. Drafted in §7's register - NOT YET
+      // APPROVED, in ARABIC-REVIEW.md's pile.
+      profile: {
+        title: 'ملف المورد',                                 // [reused] §7's own term
+        edit: 'تعديل',                                       // [reused]
+        manage: 'إدارة',                                     // [reused]
+        retry: 'إعادة المحاولة',                              // [reused]
+        incompleteTitle: 'الملف غير مكتمل',                    // [drafted]
+        incompleteBody: 'العناصر التالية مطلوبة قبل تقديم الطلب:', // [drafted]
+        companyTitle: 'بيانات الشركة',                        // [reused]
+        legalTitle: 'البيانات القانونية',                      // [reused] matches onboarding
+        contactsTitle: 'جهات الاتصال والممثلون',                // [reused]
+        addressesTitle: 'العناوين والفروع',                    // [reused]
+        bankingTitle: 'الحسابات البنكية',                      // [reused]
+        offeringsTitle: 'الفئات والعروض',                      // [reused]
+        noContacts: 'لا توجد جهات اتصال',                      // [drafted]
+        noAddresses: 'لا توجد عناوين',                         // [drafted]
+        noBankAccounts: 'لا توجد حسابات بنكية',                 // [drafted]
+        noCategories: 'لم تُحدَّد أي فئة',                       // [drafted]
+        fields: {
+          description: 'الوصف', website: 'الموقع الإلكتروني', supplierGroup: 'المجموعة',
+          defaultCurrency: 'العملة', primaryContactPhone: 'هاتف جهة الاتصال الرئيسية',
+          legalNameAr: 'الاسم القانوني (عربي)', legalNameEn: 'الاسم القانوني (إنجليزي)',
+          registrationNumber: 'رقم السجل التجاري', taxId: 'الرقم الضريبي',
+          supplierType: 'نوع المورد', establishedOn: 'تاريخ التأسيس',
+          fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', phone: 'الهاتف',
+          primary: 'رئيسي', default: 'افتراضي',
+          legalInfo: 'البيانات القانونية', address: 'العنوان', categoryLink: 'الفئات',
+          termsAccepted: 'الموافقة على الشروط',
+        },
+        errors: { loadFailed: 'تعذّر تحميل ملف المورد' },       // [drafted]
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -1458,7 +1491,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       supplierDashboard: {
         title: 'Supplier dashboard',
         greeting: 'Welcome, {{name}}',
@@ -2743,6 +2776,36 @@ const resources = {
         duplicateEmail: 'An account with that email already exists',
         weakPassword: "Password doesn't meet the strength requirements",
         failed: 'Could not create the account',
+      },
+      profile: {
+        title: 'Company profile',
+        edit: 'Edit',
+        manage: 'Manage',
+        retry: 'Try again',
+        incompleteTitle: 'Profile incomplete',
+        incompleteBody: 'These items are required before the application can be submitted:',
+        companyTitle: 'Company details',
+        legalTitle: 'Legal information',
+        contactsTitle: 'Contacts & representatives',
+        addressesTitle: 'Addresses & branches',
+        bankingTitle: 'Bank accounts',
+        offeringsTitle: 'Categories & offerings',
+        noContacts: 'No contacts yet',
+        noAddresses: 'No addresses yet',
+        noBankAccounts: 'No bank accounts yet',
+        noCategories: 'No categories selected',
+        fields: {
+          description: 'Description', website: 'Website', supplierGroup: 'Group',
+          defaultCurrency: 'Currency', primaryContactPhone: 'Primary contact phone',
+          legalNameAr: 'Legal name (Arabic)', legalNameEn: 'Legal name (English)',
+          registrationNumber: 'Registration number', taxId: 'Tax ID',
+          supplierType: 'Supplier type', establishedOn: 'Established',
+          fullName: 'Full name', email: 'Email', phone: 'Phone',
+          primary: 'Primary', default: 'Default',
+          legalInfo: 'Legal information', address: 'Address', categoryLink: 'Categories',
+          termsAccepted: 'Terms accepted',
+        },
+        errors: { loadFailed: 'Could not load the profile' },
       },
       settings: {
         title: 'Account Settings',
