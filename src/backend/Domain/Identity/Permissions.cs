@@ -241,6 +241,16 @@ public static class Permissions
     /// </summary>
     public const string GovernanceRead = "governance.read";
 
+    /// <summary>
+    /// A-10/A-17: cross-organization aggregate reporting (FEAT-19.1/19.2).
+    ///
+    /// <para><b>Held by procurement_manager only</b> (batch 10, A-17 — recommended, awaiting the
+    /// roles owner). It was granted to no role at all, so the reports screen was reachable by nobody.
+    /// The manager already holds approval authority over the work these reports aggregate, so the
+    /// grant discloses nothing that role cannot already reach case by case. NOT ministry_viewer,
+    /// whose single-permission default is deliberate under BRULE-086, and not procurement_officer,
+    /// who has no cross-organization remit.</para>
+    /// </summary>
     public const string ReportRead = "report.read";
 
     public static readonly IReadOnlyList<string> All =
@@ -289,7 +299,7 @@ public static class Roles
         [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.RfqRead, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqClarify, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
         // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
         // three roles permitted to move a supplier's post-approval lifecycle.
-        [ProcurementManager] = [Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject, Permissions.RfqDeadlineShorten],
+        [ProcurementManager] = [Permissions.ReportRead, Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject, Permissions.RfqDeadlineShorten],
         // §3.1 names `evaluator` as an actor for "Request clarification" alongside the officer.
         [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit, Permissions.RfqClarify],
         // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
