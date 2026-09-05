@@ -246,3 +246,25 @@ agree. The fix is a shared source of report copy across a C# generator and a Typ
 | **What it costs if wrong** | An invitee must open the RFQ to see the new date. If procurement wants it in the notification, that is a deliberate allow-list entry with its own reasoning. |
 | **Who should confirm it** | Procurement, on the second notification; security, on the allow-list. |
 
+### D-25 — The registration response stays enumeration-safe, against §12.1
+
+| | |
+|---|---|
+| **What was undecided** | Whether to conform the register response to §12.1, which documents `201 Created`, a `Location` header naming the supplier, four extra fields, and `409 DUPLICATE_RESOURCE` for a taken email. |
+| **Where the gap is** | §12.1 specifies all of that. `SECURITY-ARCHITECTURE.md` §1.6 and STORY-02.2.1 require that registration and resend "do not reveal whether an address exists". The two cannot both be followed. |
+| **What was decided** | §12.1 is not followed here. Registration answers `200 OK` with an identical body whether or not the email is taken; only `supplierCode` differs, and it is `null` on the duplicate path. No `Location`, no `onboardingState`/`emailVerified`/`createdAt`. |
+| **Why** | A `409 DUPLICATE_RESOURCE` is an account-enumeration oracle by construction — an attacker learns which addresses are registered by watching status codes, which is the exact attack §1.6 exists to prevent. So are the four extra fields and the `Location` header: each of them confirms the account exists. The security requirement is specific and the §12.1 example is illustrative, so the security requirement wins. |
+| **What it costs if wrong** | An integrator following §12.1 gets 200 where it expected 201 and no `Location`. A test asserts the indistinguishability so this cannot be quietly "conformed" back by someone reading §12.1 and not this row. |
+| **Who should confirm it** | Security, and the doc owner — §12.1 should probably be corrected rather than the code. |
+
+### D-26 — The login body carries no `user` object
+
+| | |
+|---|---|
+| **What was undecided** | Whether to add §12.1's `user` object — `userId`, `email`, `roles`, `permissions`, `supplierCode`, `locale`, `mfaEnabled` — to the login response. |
+| **Where the gap is** | §12.1 shows it in the worked example. Nothing else in the documents requires it, and §8's token design puts roles and permissions in the access token's claims. |
+| **What was decided** | Not added. `tokenType` and `expiresIn` were added, since §12.1 names both and neither duplicates anything. |
+| **Why** | The SPA already reads roles and permissions out of the access token's own claims (`authStore` decodes it). A second copy in the body would be a second source of truth for **authorization** data, and the two disagree the moment a role changes mid-session — the body is a snapshot, the token is what the API actually enforces against. Adding it would invite a client to trust the stale one. |
+| **What it costs if wrong** | A client that wants identity without decoding a JWT has to call a profile endpoint. If that is judged too awkward, the safe form is a `/auth/me` read rather than a copy inside the login body. |
+| **Who should confirm it** | The doc owner. |
+

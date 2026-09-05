@@ -184,13 +184,15 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         var (supplierB, supplierBId) = await ActiveSupplierAsync($"ScopePropB {Guid.NewGuid():N}"[..28]);
 
         var (referenceCode, itemId, officer, _, _) = await PublishRfqAsync(
-            supplierAId, "Cross-scope proposal RFQ", DateTimeOffset.UtcNow.AddSeconds(1), DateTimeOffset.UtcNow.AddDays(8));
+            // Same race as OpenEvaluationAsync's, same fix: publish with a real future window, then
+            // move the open date back in storage.
+            supplierAId, "Cross-scope proposal RFQ", DateTimeOffset.UtcNow.AddMinutes(5), DateTimeOffset.UtcNow.AddDays(8));
         // Both suppliers are invited: this is the harder case. Isolation must hold between two
         // legitimately-invited parties, not merely between an invitee and a stranger.
         (await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = supplierBId }))
             .EnsureSuccessStatusCode();
 
-        await Task.Delay(TimeSpan.FromSeconds(1.2));
+        await ShiftSubmissionWindowAsync(referenceCode, DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddDays(8));
         await RunTimelineJobAsync();
 
         await SubmitProposalAsync(supplierA, referenceCode, itemId);
@@ -294,15 +296,23 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
     /// <summary>Drives one RFQ from creation to an open evaluation with <paramref name="evaluatorUserId"/> assigned.</summary>
     private async Task<string> OpenEvaluationAsync(HttpClient supplier, Guid supplierId, string titleEn, Guid evaluatorUserId)
     {
+        // Dates far enough out that the six HTTP round-trips inside PublishRfqAsync cannot overrun
+        // them. This raced: submit-review refuses unless BOTH dates are still in the future, and the
+        // old offsets of +1s/+3s were measured from before those six calls - on a slow runner
+        // submit-review arrived after the window had already opened and answered 409. It passed here
+        // and on PR #112's own CI, then failed on main, which is what a clock race looks like.
         var (referenceCode, itemId, _, manager, _) = await PublishRfqAsync(
-            supplierId, titleEn, DateTimeOffset.UtcNow.AddSeconds(1), DateTimeOffset.UtcNow.AddSeconds(3));
+            supplierId, titleEn, DateTimeOffset.UtcNow.AddMinutes(5), DateTimeOffset.UtcNow.AddMinutes(10));
 
-        await Task.Delay(TimeSpan.FromSeconds(1.2));
+        // The window is then moved into the past IN STORAGE rather than waited out. The publish path
+        // has already validated real future dates, so nothing is being smuggled past a guard - and
+        // the test no longer depends on how fast the runner is.
+        await ShiftSubmissionWindowAsync(referenceCode, DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddMinutes(10));
         await RunTimelineJobAsync();
 
         await SubmitProposalAsync(supplier, referenceCode, itemId);
 
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        await ShiftSubmissionWindowAsync(referenceCode, DateTimeOffset.UtcNow.AddMinutes(-10), DateTimeOffset.UtcNow.AddSeconds(-1));
         await RunTimelineJobAsync();
 
         (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/open", null)).EnsureSuccessStatusCode();
@@ -310,6 +320,20 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
             new { evaluatorUserIds = new[] { evaluatorUserId } })).EnsureSuccessStatusCode();
 
         return referenceCode;
+    }
+
+    /// <summary>
+    /// Moves an RFQ's submission window directly in storage, so a test can reach SubmissionOpen or
+    /// SubmissionClosed without racing the wall clock. The transitions themselves still run through
+    /// the real RfqTimelineJob - only the dates it reads are arranged.
+    /// </summary>
+    private async Task ShiftSubmissionWindowAsync(string referenceCode, DateTimeOffset opensAt, DateTimeOffset closesAt)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Rfqs.Where(r => r.ReferenceCode == referenceCode).ExecuteUpdateAsync(p => p
+            .SetProperty(r => r.SubmissionOpensAt, opensAt)
+            .SetProperty(r => r.SubmissionClosesAt, closesAt));
     }
 
     // ---- 5. Scoping must survive pagination (T2 Item 3) ----------------------------------------

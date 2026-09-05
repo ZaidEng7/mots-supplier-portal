@@ -38,7 +38,8 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
         // identical in shape.
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await registerResponse.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("referenceCode").GetString().Should().StartWith("SUP-");
+        // §12.1/R-9: the field is supplierCode, matching §12.2 everywhere else.
+        body.GetProperty("supplierCode").GetString().Should().StartWith("SUP-");
 
         var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "IntegrationTest#2026!" });
 

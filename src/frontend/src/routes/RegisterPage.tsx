@@ -58,7 +58,7 @@ export function RegisterPage() {
         email: values.email,
         password: values.password,
       })
-      setReferenceCode(result.referenceCode)
+      setReferenceCode(result.supplierCode)
       setSubmitted(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
