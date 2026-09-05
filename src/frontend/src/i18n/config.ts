@@ -757,6 +757,13 @@ const resources = {
         remove: 'إزالة',
         actions: 'إجراءات',
         noItems: 'لا توجد بنود بعد',
+        attachments: {
+          title: 'مرفقات الطلب',                            // [§7-style drafted]
+          none: 'لا توجد مرفقات',                           // [reused] §4's empty-state pattern
+          add: 'إضافة مرفق',                                // [§7-style drafted]
+          added: 'تمت إضافة المرفق',                        // [§7-style drafted]
+          download: 'تنزيل',                                // [reused] §7's own term
+        },
         noRequirements: 'لا توجد متطلبات بعد',
         noTemplateBound: 'لم يتم ربط أي قالب تقييم بعد',
         boundTemplate: 'القالب المرتبط: {{id}} (الإصدار {{version}})',
@@ -946,6 +953,12 @@ const resources = {
         errors: { actionFailed: 'تعذر تنفيذ الإجراء', segregationOfDuties: 'يجب أن يختلف المعتمد عن مرشّح الفائز' },
       },
       supplierRfq: {
+        attachments: {
+          title: 'مرفقات الطلب',                            // [reused] matches rfq.attachments
+          none: 'لا توجد مرفقات',                           // [reused]
+          download: 'تنزيل',                                // [reused] §7's own term
+          downloadFailed: 'تعذّر تنزيل المرفق',              // [§7-style drafted]
+        },
         title: 'طلبات عروض الأسعار',
         subtitle: 'طلبات العروض التي دُعيت للمشاركة فيها.',
         listTitle: 'قائمة الدعوات',
@@ -1891,6 +1904,13 @@ const resources = {
         remove: 'Remove',
         actions: 'Actions',
         noItems: 'No items yet',
+        attachments: {
+          title: 'RFQ attachments',
+          none: 'No attachments',
+          add: 'Add an attachment',
+          added: 'Attachment added',
+          download: 'Download',
+        },
         noRequirements: 'No requirements yet',
         noTemplateBound: 'No evaluation template bound yet',
         boundTemplate: 'Bound template: {{id}} (version {{version}})',
@@ -2074,6 +2094,12 @@ const resources = {
         errors: { actionFailed: 'Could not perform the action', segregationOfDuties: 'The approver must differ from the recommender' },
       },
       supplierRfq: {
+        attachments: {
+          title: 'RFQ attachments',
+          none: 'No attachments',
+          download: 'Download',
+          downloadFailed: 'Could not download the attachment',
+        },
         title: 'RFQs',
         subtitle: 'Requests for Quotation you have been invited to.',
         listTitle: 'Invitations',

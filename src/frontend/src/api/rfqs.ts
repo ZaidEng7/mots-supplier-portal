@@ -238,6 +238,15 @@ export async function addRfqAttachment(referenceCode: string, file: File, captio
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/attachments`, { method: 'POST', body: form }))
 }
 
+/** SCR-142/SCR-414. The route is `rfq.read`, which BOTH supplier roles hold (§12-A/C1), so an
+ * invited supplier downloads the tender documents through the same path a buyer does - row-scoped by
+ * the handler, not by which client is asking. */
+export async function getRfqAttachmentDownloadUrl(referenceCode: string, attachmentId: string): Promise<string> {
+  const res = await apiFetch(`/api/v1/rfqs/${referenceCode}/attachments/${attachmentId}/download-url`)
+  const body = await parseOrThrow<{ url: string }>(res)
+  return body.url
+}
+
 export async function removeRfqAttachment(referenceCode: string, attachmentId: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/attachments/${attachmentId}`, { method: 'DELETE' }))
 }
