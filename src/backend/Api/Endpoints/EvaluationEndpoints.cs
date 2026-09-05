@@ -47,6 +47,16 @@ public sealed class ScoreCriterionRequestValidator : AbstractValidator<ScoreCrit
 /// scoring routes live under /api/v1/rfqs/{referenceCode}/my-evaluation and are scoped to the
 /// caller's own active EvaluationAssignment, never to Organization (see EvaluationLoader's own doc
 /// comment).</summary>
+public sealed record DeclareConflictRequest(bool HasConflict, string? Reason);
+
+public sealed class DeclareConflictRequestValidator : AbstractValidator<DeclareConflictRequest>
+{
+    public DeclareConflictRequestValidator() =>
+        // A-8: a reason only when there IS a conflict, and then mandatory - an unexplained withdrawal
+        // from a committee is not an audit record. A "no conflict" declaration needs no prose.
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000).When(x => x.HasConflict);
+}
+
 public sealed record ResolveTieRequest(string ProposalCode, string Reason);
 
 public sealed class ResolveTieRequestValidator : AbstractValidator<ResolveTieRequest>
@@ -226,6 +236,32 @@ public static class EvaluationEndpoints
             MapMy(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.EvaluationScore)
         .WithName("GetMyEvaluation");
+
+        // A-8/BRULE-067: the recusal declaration window. A GET that deliberately does NOT open scoring -
+        // GetMyEvaluation does, as a documented side effect, so an evaluator who loaded the workspace
+        // first would have passed this window before ever seeing a bidder's name.
+        myGroup.MapGet("/bidders", async (string referenceCode, IGetConflictDeclarationHandler handler, CancellationToken ct) =>
+        {
+            var declaration = await handler.HandleAsync(referenceCode, ct);
+            // §9.2: not assigned is a 404, never a 403 - the same shape every other evaluator-scoped
+            // read uses.
+            return declaration is null ? Results.NotFound() : Results.Ok(declaration);
+        })
+        .RequirePermission(Permissions.EvaluationScore)
+        .WithName("GetConflictDeclaration");
+
+        myGroup.MapPost("/declare", async (
+            string referenceCode, DeclareConflictRequest request, IValidator<DeclareConflictRequest> validator,
+            IDeclareConflictHandler handler, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapMutation(await handler.HandleAsync(
+                new DeclareConflictCommand(referenceCode, request.HasConflict, request.Reason), ct));
+        })
+        .RequirePermission(Permissions.EvaluationScore)
+        .WithName("DeclareConflict");
 
         myGroup.MapPost("/scores", async (
             string referenceCode, ScoreCriterionRequest request, IValidator<ScoreCriterionRequest> validator,

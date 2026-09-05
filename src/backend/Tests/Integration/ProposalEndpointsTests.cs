@@ -329,9 +329,17 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        submit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // A-9 changed WHICH refusal fires, and this is the better one. The draft used to survive the
+        // window in Draft, so submission was refused by the window check (400). BRULE-052 now lapses it
+        // as the window closes, so the STATE guard refuses first - §3's 409 with the terminal state and
+        // an empty allowedNext. Late submission is still impossible; it is now impossible for the
+        // structural reason rather than the temporal one.
+        var raw = await submit.Content.ReadAsStringAsync();
+        submit.StatusCode.Should().Be(HttpStatusCode.Conflict, raw);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("detail").GetString().Should().MatchRegex("not currently accepting submissions|submission window has closed");
+        body.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION", raw);
+        body.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Lapsed));
+        body.GetProperty("allowedNext").EnumerateArray().Should().BeEmpty();
     }
 
     [Fact]
@@ -361,10 +369,13 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         lateWithdraw.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var lateProblem = await lateWithdraw.Content.ReadFromJsonAsync<JsonElement>();
         lateProblem.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION");
-        // Draft, not Submitted: this proposal was never submitted - the refusal is the CLOSED
-        // WINDOW, not the source state. The state is reported accurately either way, which is what
-        // makes allowedNext usable.
-        lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Draft));
+        // A-9 changed what this reports, and improved it. The draft used to sit in Draft forever after
+        // the window closed, so the refusal named the closed WINDOW while the state said the bid was
+        // still live. BRULE-052 now lapses it as the window closes, so the reported state is Lapsed -
+        // terminal, with an empty allowedNext - which is a truer answer to "why can I not withdraw
+        // this": there is nothing left to withdraw.
+        lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Lapsed));
+        lateProblem.GetProperty("allowedNext").EnumerateArray().Should().BeEmpty("Lapsed is terminal");
     }
 
     [Fact]

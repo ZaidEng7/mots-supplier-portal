@@ -873,6 +873,16 @@ const resources = {
           financialLocked: 'المغلف المالي مقفل حتى يجتاز هذا العرض التأهيل الفني',
           qualified: 'مؤهَّل فنياً',
           notQualified: 'غير مؤهَّل فنياً',
+          anonymousBidder: 'هوية المورد محجوبة أثناء التقييم',   // [drafted] A-8
+          declaration: {
+            title: 'إقرار تعارض المصالح',                        // [drafted] A-8/BRULE-067
+            body: 'هذه أسماء الموردين المشاركين. إن كان لديك تعارض مصالح مع أيٍّ منهم فبيّنه الآن؛ بعد الإقرار تُحجب الأسماء ويجري التقييم دون معرفتها.', // [drafted]
+            noConflict: 'لا يوجد تعارض — متابعة',                // [drafted]
+            hasConflict: 'لديّ تعارض — تنحّي',                   // [drafted]
+            reasonLabel: 'سبب التنحّي',                          // [drafted]
+            reasonPlaceholder: 'سبب التنحّي',                    // [drafted]
+            failed: 'تعذّر تسجيل الإقرار',                       // [drafted]
+          },
           // ── T-067 · ARABIC FOR REVIEW ──────────────────────────────────────────────────
           // §7 has no table for an evaluator's workspace. Drafted here in §7's register:
           // professional MSA, authored rather than translated. NOT YET APPROVED - added to
@@ -2031,6 +2041,16 @@ const resources = {
           financialLocked: 'The financial envelope is locked until this proposal passes technical qualification',
           qualified: 'Technically qualified',
           notQualified: 'Not technically qualified',
+          anonymousBidder: 'Bidder identity withheld during scoring',
+          declaration: {
+            title: 'Conflict of interest declaration',
+            body: 'These are the suppliers taking part. If you have a conflict of interest with any of them, say so now — once you declare, the names are withheld and scoring is anonymous.',
+            noConflict: 'No conflict — continue',
+            hasConflict: 'I have a conflict — recuse me',
+            reasonLabel: 'Reason for recusal',
+            reasonPlaceholder: 'Reason for recusal',
+            failed: 'Could not record the declaration',
+          },
           specification: 'What was requested',
           items: 'Items',
           requirements: 'Requirements',

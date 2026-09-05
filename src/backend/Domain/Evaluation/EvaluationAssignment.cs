@@ -19,5 +19,20 @@ public sealed class EvaluationAssignment
     public DateTimeOffset? RecusedAt { get; internal set; }
     public string? RecusalReason { get; internal set; }
 
+    /// <summary>
+    /// A-8/BRULE-067: when this evaluator saw the bidder list and declared whether they had a conflict.
+    ///
+    /// <para>Recusal is an assignment-time act, which is what makes anonymised scoring compatible with
+    /// BRULE-067 rather than in conflict with it: the evaluator is shown the bidders ONCE, declares,
+    /// and is then either recused or proceeds - after which the names are withheld until consolidation.
+    /// Nobody has to recuse themselves from a bidder they cannot see, because the declaration already
+    /// happened.</para>
+    ///
+    /// <para>Per assignment rather than per evaluation, deliberately: the evaluation's own state machine
+    /// moves to InProgress when the FIRST evaluator opens scoring, so a shared flag would close the
+    /// second evaluator's declaration window before they ever had one.</para>
+    /// </summary>
+    public DateTimeOffset? ConflictDeclaredAt { get; internal set; }
+
     public bool IsActive => RecusedAt is null;
 }

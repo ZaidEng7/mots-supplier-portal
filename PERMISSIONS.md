@@ -28,7 +28,7 @@ either dead or waiting for a surface — both are called out below.
 | `evaluation.finalize` | `procurement_manager`, `system_admin` | `FinalizeEvaluation` |
 | `evaluation.open` | `procurement_manager`, `procurement_officer`, `system_admin` | `GetEvaluation`, `OpenEvaluation` |
 | `evaluation.reopen` | `procurement_manager`, `system_admin` | `ReopenEvaluation` |
-| `evaluation.score` | `evaluator`, `system_admin` | `GetMyEvaluation`, `GetProposalDocumentDownloadUrlForEvaluator`, `ListMyAssignments`, `ScoreCriterion` |
+| `evaluation.score` | `evaluator`, `system_admin` | `DeclareConflict`, `GetConflictDeclaration`, `GetMyEvaluation`, `GetProposalDocumentDownloadUrlForEvaluator`, `ListMyAssignments`, `ScoreCriterion` |
 | `evaluation.submit` | `evaluator`, `system_admin` | `SubmitEvaluatorScores` |
 | `evaluation.template.manage` | `procurement_manager`, `system_admin` | `ActivateEvaluationTemplate`, `AddCriterion`, `ArchiveEvaluationTemplate`, `CreateEvaluationTemplate`, `ForkEvaluationTemplate`, `GetEvaluationTemplate`, `ListEvaluationTemplates`, `RemoveCriterion`, `UpdateCriterion` |
 | `governance.read` | `ministry_viewer`, `system_admin` | `GetGovernanceOverview` |

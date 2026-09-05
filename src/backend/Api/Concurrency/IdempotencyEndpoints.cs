@@ -125,12 +125,12 @@ public static class IdempotencyEndpoints
             // an Ok(dto) - it just re-serialised - but a result with any side effect, or one that
             // cannot be executed twice, would have broken in a way nothing here would catch. Returning
             // the captured bytes means the handler's result is executed exactly once.
-            var (status, body) = await CaptureAsync(http, result);
+            var (status, body, contentType) = await CaptureAsync(http, result);
             await RecordOutcomeAsync(http, record, status, body);
 
             return body is null
                 ? Results.StatusCode(status)
-                : Results.Content(body, "application/json", Encoding.UTF8, status);
+                : Results.Content(body, contentType, Encoding.UTF8, status);
         });
 
     /// <summary>
@@ -163,9 +163,9 @@ public static class IdempotencyEndpoints
     /// <para>The response stream is swapped for a buffer and restored in a <c>finally</c>, so a
     /// handler that throws cannot leave the real stream replaced.</para>
     /// </summary>
-    private static async Task<(int Status, string? Body)> CaptureAsync(HttpContext http, object? result)
+    private static async Task<(int Status, string? Body, string ContentType)> CaptureAsync(HttpContext http, object? result)
     {
-        if (result is not IResult typed) return (http.Response.StatusCode, null);
+        if (result is not IResult typed) return (http.Response.StatusCode, null, "application/json");
 
         var original = http.Response.Body;
         await using var buffer = new MemoryStream();
@@ -190,7 +190,22 @@ public static class IdempotencyEndpoints
         // conflict instead of the replay it should get. This read is from a MemoryStream that is
         // already fully populated, so there is nothing to wait on and nothing to cancel.
         var body = await reader.ReadToEndAsync(CancellationToken.None);
-        return (http.Response.StatusCode, string.IsNullOrEmpty(body) ? null : body);
+
+        // The CONTENT TYPE the handler chose, carried out with the bytes.
+        //
+        // This was hard-coded to application/json, and it silently flattened every error code an
+        // idempotent endpoint produced. A problem+json response re-emitted as application/json is no
+        // longer recognised as already-conformed by ProblemDetailsMiddleware, so the middleware rebuilds
+        // it and re-derives `code` from the status - turning ILLEGAL_TRANSITION into a bare CONFLICT
+        // while leaving currentState and allowedNext in place, which is the worst of both: the extension
+        // fields say a transition was refused and the code a client switches on says nothing.
+        //
+        // Found by A-9: lapsing a draft made "submit a proposal that has moved on" reachable on an
+        // idempotent route for the first time.
+        var contentType = string.IsNullOrEmpty(http.Response.ContentType)
+            ? "application/json"
+            : http.Response.ContentType;
+        return (http.Response.StatusCode, string.IsNullOrEmpty(body) ? null : body, contentType);
     }
 
     /// <summary>§8.2.1's fingerprint: <c>hash of method+path+body</c>. Hashed, not stored raw - a body

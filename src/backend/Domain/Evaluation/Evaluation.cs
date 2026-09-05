@@ -262,6 +262,28 @@ public sealed class Evaluation : IVersionedAggregate
     /// exists). Refused once already submitted - a submitted evaluator's scores are locked
     /// (BRULE-062), recusing them after the fact would silently discard a real, locked
     /// input.</summary>
+    /// <summary>
+    /// A-8/BRULE-067: this evaluator has seen the bidder list and declared no conflict.
+    ///
+    /// <para>A declaration is recorded once and cannot be re-made - the point of the window is that it
+    /// closes. A conflicted evaluator does not call this; they are recused, which
+    /// <see cref="RecuseEvaluator"/> already handles and audits.</para>
+    /// </summary>
+    public void DeclareNoConflict(Guid evaluatorUserId)
+    {
+        var assignment = ActiveAssignment(evaluatorUserId);
+        if (assignment.ConflictDeclaredAt is not null)
+        {
+            throw new DomainException("This evaluator has already made a conflict declaration.");
+        }
+        if (assignment.SubmittedAt is not null)
+        {
+            throw new DomainException("Cannot declare a conflict after submitting an evaluation.");
+        }
+
+        assignment.ConflictDeclaredAt = DateTimeOffset.UtcNow;
+    }
+
     public void RecuseEvaluator(Guid evaluatorUserId, string reason)
     {
         if (State is not (EvaluationState.Assigned or EvaluationState.InProgress))
