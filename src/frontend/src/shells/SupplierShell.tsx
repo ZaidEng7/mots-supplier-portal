@@ -51,6 +51,10 @@ export function SupplierShell({ children }: Props) {
             <Link to="/profile" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.profile')}
             </Link>
+            {/* SCR-130: documents existed only inside the onboarding wizard. */}
+            <Link to="/documents" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.documents')}
+            </Link>
             <Link to="/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.offerings')}
             </Link>

@@ -2,6 +2,7 @@ import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
 import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
 import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
 import { ProfilePage } from './routes/ProfilePage'
+import { DocumentsPage } from './routes/DocumentsPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
@@ -236,6 +237,15 @@ const profileRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/profile',
   component: ProfilePage,
+})
+
+// SCR-130 (P0) + SCR-131 + SCR-132 + SCR-133, `/documents`, supplier_admin + supplier_user.
+// SCR-133 is a filter on this page rather than its own route: "needs attention" is a view of the
+// same list, and a second screen would be a second place for "expiring" to be defined.
+const documentsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/documents',
+  component: DocumentsPage,
 })
 
 const teamRoute = createRoute({
@@ -520,7 +530,7 @@ const routeTree = rootRoute.addChildren([
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
   evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
-  supplierLayoutRoute.addChildren([profileRoute, 
+  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, 
     supplierDashboardRoute,
     onboardingRoute,
     onboardingContactsRoute,

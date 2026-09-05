@@ -58,7 +58,7 @@ either dead or waiting for a surface — both are called out below.
 | `rfq.submit_review` | `procurement_officer`, `system_admin` | `SubmitRfqForReview` |
 | `supplier.approve` | `onboarding_reviewer`, `system_admin` | `ApproveApplication` |
 | `supplier.bankAccount.manage` | `supplier_admin`, `system_admin` | `AddBankAccount`, `RemoveBankAccount`, `RevealBankAccount`, `SetDefaultBankAccount`, `UpdateBankAccount` |
-| `supplier.document.review` | `onboarding_reviewer`, `system_admin` | `ApproveDocument`, `RejectDocument`, checked in GetDocumentDownloadUrlHandler, not on a route, checked in GetSupplierDocumentHandler, not on a route |
+| `supplier.document.review` | `onboarding_reviewer`, `system_admin` | `ApproveDocument`, `RejectDocument`, checked in GetDocumentDownloadUrlHandler, not on a route, checked in GetDocumentHistoryHandler, not on a route, checked in GetSupplierDocumentHandler, not on a route |
 | `supplier.edit` | `supplier_admin`, `supplier_user`, `system_admin` | `AcceptTerms`, `AddAddress`, `AddBranch`, `AddContact`, `AddRepresentative`, `CreateOffering`, `DeactivateOffering`, `GetOffering`, `LinkCategory`, `ListOfferings`, `RemoveAddress`, `RemoveBranch`, `RemoveContact`, `RemoveRepresentative`, `ResubmitApplication`, `SetPrimaryRepresentative`, `UnlinkCategory`, `UpdateAddress`, `UpdateBranch`, `UpdateContact`, `UpdateLegalInfo`, `UpdateOffering`, `UpdateRepresentative`, `UpdateSupplierProfile`, `UploadDocument`, `UploadLogo` |
 | `supplier.lifecycle.manage` | `onboarding_reviewer`, `procurement_manager`, `system_admin` | `ReviewEndpoints (name resolved at runtime)` |
 | `supplier.reject` | `onboarding_reviewer`, `system_admin` | `RejectApplication` |

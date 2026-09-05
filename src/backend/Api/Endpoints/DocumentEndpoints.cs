@@ -174,6 +174,21 @@ public static class DocumentEndpoints
         .WithTags("Documents")
         .WithName("GetSupplierDocument");
 
+        // SCR-132: the version chain. SupplierDocument has carried Version and IsLatestVersion since
+        // EPIC-05 and nothing returned the history, so a supplier could see a document's current
+        // state and never why it got there - a rejection then a re-upload looked exactly like a
+        // first upload that was approved.
+        app.MapGet("/api/v1/suppliers/{supplierCode}/documents/types/{documentTypeCode}/history", async (
+            string supplierCode, string documentTypeCode,
+            IGetDocumentHistoryHandler handler, CancellationToken ct) =>
+        {
+            var history = await handler.HandleAsync(supplierCode, documentTypeCode, ct);
+            return history is null ? Results.NotFound() : Results.Ok(history);
+        })
+        .RequireAuthorization()
+        .WithTags("Documents")
+        .WithName("GetDocumentHistory");
+
         app.MapGet("/api/v1/documents/{documentCode}/content", async (
             string documentCode,
             IGetDocumentDownloadUrlHandler handler,

@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
@@ -1439,6 +1439,42 @@ const resources = {
         },
         errors: { loadFailed: 'تعذّر تحميل ملف المورد' },       // [drafted]
       },
+      // ── SCR-130..133 · ARABIC FOR REVIEW ──────────────────────────────────────
+      // §7 has no documents-centre strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      documents: {
+        title: 'المستندات',                                   // [reused] §7's own term
+        subtitle: 'مستندات الشركة وحالاتها وتواريخ انتهائها.',   // [drafted]
+        listTitle: 'قائمة المستندات',                          // [drafted]
+        attentionTitle: 'مستندات تحتاج إلى إجراء',              // [drafted] SCR-133
+        attentionBody: 'عدد المستندات التي تحتاج إلى إجراء: {{count}}', // [drafted]
+        showAttention: 'عرض ما يحتاج إجراء فقط',                // [drafted]
+        showAll: 'عرض الكل',                                   // [reused]
+        required: 'إلزامي',                                    // [reused]
+        optional: 'اختياري',                                   // [reused]
+        notUploaded: 'لم يُرفع',                                // [drafted]
+        upload: 'رفع',                                         // [reused]
+        replace: 'استبدال',                                     // [reused]
+        download: 'تنزيل',                                      // [reused]
+        history: 'السجل',                                       // [drafted] SCR-132
+        hideHistory: 'إخفاء السجل',                             // [drafted]
+        historyTitle: 'سجل الإصدارات',                          // [drafted]
+        noHistory: 'لم يُرفع أي إصدار بعد',                      // [drafted]
+        close: 'إغلاق',                                         // [reused]
+        uploaded: 'تم رفع المستند',                              // [reused] matches onboarding
+        retry: 'إعادة المحاولة',                                // [reused]
+        fields: {
+          type: 'نوع المستند', required: 'الإلزامية', state: 'الحالة', expiry: 'تاريخ الانتهاء',
+          actions: 'الإجراءات', version: 'الإصدار', fileName: 'اسم الملف',
+          uploadedAt: 'تاريخ الرفع', reason: 'سبب الرفض',
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل المستندات',                   // [drafted]
+          uploadFailed: 'تعذّر رفع المستند',                     // [reused]
+          downloadFailed: 'تعذّر تنزيل المستند',                  // [drafted]
+          historyFailed: 'تعذّر تحميل سجل الإصدارات',             // [drafted]
+        },
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -1491,7 +1527,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       supplierDashboard: {
         title: 'Supplier dashboard',
         greeting: 'Welcome, {{name}}',
@@ -2806,6 +2842,39 @@ const resources = {
           termsAccepted: 'Terms accepted',
         },
         errors: { loadFailed: 'Could not load the profile' },
+      },
+      documents: {
+        title: 'Documents',
+        subtitle: 'Your company documents, their status and expiry dates.',
+        listTitle: 'Document list',
+        attentionTitle: 'Documents needing attention',
+        attentionBody: '{{count}} document(s) need attention.',
+        showAttention: 'Show only what needs attention',
+        showAll: 'Show all',
+        required: 'Required',
+        optional: 'Optional',
+        notUploaded: 'Not uploaded',
+        upload: 'Upload',
+        replace: 'Replace',
+        download: 'Download',
+        history: 'History',
+        hideHistory: 'Hide history',
+        historyTitle: 'Version history',
+        noHistory: 'No versions uploaded yet',
+        close: 'Close',
+        uploaded: 'Document uploaded',
+        retry: 'Try again',
+        fields: {
+          type: 'Document type', required: 'Required', state: 'State', expiry: 'Expires',
+          actions: 'Actions', version: 'Version', fileName: 'File name',
+          uploadedAt: 'Uploaded', reason: 'Rejection reason',
+        },
+        errors: {
+          loadFailed: 'Could not load your documents',
+          uploadFailed: 'Could not upload the document',
+          downloadFailed: 'Could not download the document',
+          historyFailed: 'Could not load the version history',
+        },
       },
       settings: {
         title: 'Account Settings',
