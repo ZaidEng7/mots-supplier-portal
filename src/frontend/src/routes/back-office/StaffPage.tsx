@@ -3,9 +3,15 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
-import { useMutation } from '@tanstack/react-query'
-import { Button, Card, Dialog, Field, Input, Select, useToast } from '../../components/ui'
-import { inviteStaff, type Staff } from '../../api/staff'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Badge, Button, Card, Dialog, Field, Input, Select, SkeletonTable,
+  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
+} from '../../components/ui'
+import {
+  inviteStaff, listStaff, setStaffActive, changeStaffRole, resetStaffMfa,
+  type Staff, type StaffAccount,
+} from '../../api/staff'
 import { SupplierApiError } from '../../api/supplier'
 
 // Task #28: deliberately excludes supplier_admin/supplier_user - those accounts come from
@@ -99,7 +105,138 @@ export function StaffPage() {
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('staff.hint')}</p>
       </Card>
 
+      {/*
+        T-077/SCR-701 and SCR-702, both P0 and both previously absent - along with the endpoints behind
+        them. An administrator could invite an account and then never see it again, so an account created
+        in error could not be removed at all.
+
+        One table rather than a list plus a detail page: everything SCR-702 lists as its content - role,
+        activation, MFA reset - is a single action on a single row, and a second screen to reach three
+        buttons would be a second screen to keep in step.
+      */}
+      <StaffAccounts />
+
       <InviteStaffDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
+  )
+}
+
+function StaffAccounts() {
+  const { t } = useTranslation()
+  const { notify } = useToast()
+  const queryClient = useQueryClient()
+  const staffQuery = useQuery({ queryKey: ['staff'], queryFn: () => listStaff() })
+
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: ['staff'] })
+  const onError = (error: unknown, fallback: string) => {
+    // Branched on §7's machine-stable CODE, not on the human message - which is what §7 tells clients to
+    // do, and a match on wording would break the day the wording changed.
+    //
+    // The two refusals worth naming: acting on your own account, and the last administrator. Both are
+    // things an administrator has to understand rather than retry.
+    const code = error instanceof SupplierApiError ? (error.code ?? '') : ''
+    const message =
+      code === 'CANNOT_ACT_ON_OWN_ACCOUNT' ? t('staff.errors.cannotActOnSelf')
+        : code === 'WOULD_LOCK_OUT_ADMINISTRATION' ? t('staff.errors.wouldLockOutAdministration')
+          : fallback
+    notify({ kind: 'danger', title: message })
+  }
+
+  const activeMutation = useMutation({
+    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) => setStaffActive(userId, isActive),
+    onSuccess: refresh,
+    onError: (error) => onError(error, t('staff.errors.updateFailed')),
+  })
+
+  const roleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) => changeStaffRole(userId, role),
+    onSuccess: () => { refresh(); notify({ kind: 'success', title: t('staff.roleChanged') }) },
+    onError: (error) => onError(error, t('staff.errors.updateFailed')),
+  })
+
+  const mfaMutation = useMutation({
+    mutationFn: (userId: string) => resetStaffMfa(userId),
+    onSuccess: () => { refresh(); notify({ kind: 'success', title: t('staff.mfaReset') }) },
+    onError: (error) => onError(error, t('staff.errors.updateFailed')),
+  })
+
+  if (staffQuery.isLoading) return <SkeletonTable label={t('common.loading')} />
+  if (staffQuery.isError) {
+    return (
+      <Card title={t('staff.accountsTitle')}>
+        <p>{t('staff.errors.loadFailed')}</p>
+        <Button size="sm" variant="ghost" onClick={() => void staffQuery.refetch()}>{t('staff.retry')}</Button>
+      </Card>
+    )
+  }
+
+  const accounts: StaffAccount[] = staffQuery.data?.data ?? []
+
+  return (
+    <Card title={t('staff.accountsTitle')}>
+      {accounts.length === 0 ? (
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('staff.noAccounts')}</p>
+      ) : (
+        <Table caption={t('staff.accountsTitle')}>
+          <TableHead>
+            <TableHeaderCell>{t('staff.fields.fullName')}</TableHeaderCell>
+            <TableHeaderCell>{t('staff.fields.email')}</TableHeaderCell>
+            <TableHeaderCell>{t('staff.fields.role')}</TableHeaderCell>
+            <TableHeaderCell>{t('staff.status')}</TableHeaderCell>
+            <TableHeaderCell>{t('staff.actions')}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {accounts.map((account) => (
+              <TableRow key={account.userId}>
+                <TableCell>{account.fullName}</TableCell>
+                <TableCell>{account.email}</TableCell>
+                <TableCell>
+                  <Select
+                    value={account.role ?? undefined}
+                    onValueChange={(role: string) => roleMutation.mutate({ userId: account.userId, role })}
+                    options={STAFF_ROLES.map((r) => ({ value: r, label: t(`staff.roles.${r}`) }))}
+                    placeholder={t('staff.fields.role')}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={account.isActive ? 'success' : 'neutral'}>
+                      {account.isActive ? t('staff.active') : t('staff.inactive')}
+                    </Badge>
+                    {/* Both facts that make a row actionable: whether the second factor is enrolled, and
+                        how many sessions are live - a deactivation that left sessions alive would only
+                        stop the next sign-in. */}
+                    {account.mfaEnabled ? <Badge tone="info">{t('staff.mfaOn')}</Badge> : null}
+                    {account.activeSessionCount > 0 ? (
+                      <Badge tone="neutral">{t('staff.sessions', { count: account.activeSessionCount })}</Badge>
+                    ) : null}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={activeMutation.isPending}
+                      onClick={() => activeMutation.mutate({ userId: account.userId, isActive: !account.isActive })}
+                    >
+                      {account.isActive ? t('staff.deactivate') : t('staff.reactivate')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={mfaMutation.isPending}
+                      onClick={() => mfaMutation.mutate(account.userId)}
+                    >
+                      {t('staff.resetMfa')}
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Card>
   )
 }

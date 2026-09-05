@@ -14,7 +14,7 @@ const RFQ_FIXTURE = {
   rfqCode: 'RFQ-2026-000001', titleAr: 'طلب', titleEn: 'Catering RFQ', descriptionAr: null, descriptionEn: null,
   currencyCode: 'SYP', state: 'SubmissionOpen', submissionOpensAt: null, submissionDeadline: null, clarificationDeadlineAt: null,
   items: [{ id: 'item-1', lineNo: 1, titleAr: 'أ', titleEn: 'Widget', specificationAr: null, specificationEn: null, categoryCode: 'catering', quantity: 5, unitOfMeasureCode: 'unit', isUnitPrice: true, isOptional: false }],
-  requirements: [{ id: 'req-1', textAr: 'شرط', textEn: 'Must comply', isMandatory: true, documentTypeCode: null }],
+  requirements: [{ id: 'req-1', textAr: 'شرط', textEn: 'Must comply', isMandatory: true, documentTypeCode: null, expectedEnvelope: null }],
   attachments: [], invitationStatus: 'Invited', clarifications: [], addenda: [],
 }
 
@@ -220,5 +220,43 @@ describe('SupplierProposalPage', () => {
     // for the wrong reason.
     expect(await screen.findByRole('button', { name: 'Save price' })).toBeInTheDocument()
     expect(screen.queryByText('Award offer')).not.toBeInTheDocument()
+  })
+
+  it('lets the supplier tag the envelope, defaulting to commercial', async () => {
+    // A-2. The knowledge of what a file contains sits with whoever attaches it, and Commercial is the
+    // default because a mis-tag then under-serves the evaluator rather than leaking a price into the
+    // technical envelope - the direction that fails closed.
+    const calls: { url: string; method: string; body: string }[] = []
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+    }, calls)
+
+    renderPage(<SupplierProposalPage />)
+
+    // The picker exists and Commercial is what it starts on.
+    const picker = await screen.findByLabelText('Envelope')
+    expect(picker).toBeInTheDocument()
+    expect(screen.getByText('Commercial envelope')).toBeInTheDocument()
+  })
+
+  it('tells the supplier which envelope the buyer expects for a requirement', async () => {
+    // A-2's other half: the supplier had a picker and nothing to tag against.
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001': {
+        ...RFQ_FIXTURE,
+        requirements: [{
+          id: 'req-1', textAr: 'شرط', textEn: 'Provide the technical specification',
+          isMandatory: true, documentTypeCode: 'spec', expectedEnvelope: 'Technical',
+        }],
+      },
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+    })
+
+    renderPage(<SupplierProposalPage />)
+
+    expect(await screen.findByText('This document is expected in the technical envelope.')).toBeInTheDocument()
   })
 })

@@ -8,7 +8,7 @@ import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
   addRfqAttachment, removeRfqAttachment, getRfqAttachmentDownloadUrl,
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
-  changeSubmissionDeadline,
+  changeSubmissionDeadline, reassignRfq, listRfqAssignees,
   inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
   RfqApiError,
 } from '../../api/rfqs'
@@ -32,7 +32,14 @@ export function RfqDetailPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
+  // A-7: the ownership controls. The approver nomination is on the submit-for-review action; the
+  // reassignment is its own card, because it applies at every point in a tender's life rather than
+  // at one transition.
+  const [approverDraft, setApproverDraft] = useState('')
+  const [newOwnerDraft, setNewOwnerDraft] = useState('')
+  const [reassignReason, setReassignReason] = useState('')
   const [deadlineDraft, setDeadlineDraft] = useState('')
+  const [deadlineReason, setDeadlineReason] = useState('')
   const [itemTitleAr, setItemTitleAr] = useState('')
   const [itemTitleEn, setItemTitleEn] = useState('')
   const [itemCategory, setItemCategory] = useState('')
@@ -44,7 +51,7 @@ export function RfqDetailPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [returnComments, setReturnComments] = useState('')
   const [cancelReason, setCancelReason] = useState('')
-  const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string; publish: boolean }>>({})
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string }>>({})
   const [addendumTitleAr, setAddendumTitleAr] = useState('')
   const [addendumTitleEn, setAddendumTitleEn] = useState('')
   const [addendumDescAr, setAddendumDescAr] = useState('')
@@ -141,8 +148,29 @@ export function RfqDetailPage() {
   })
 
   const submitMutation = useMutation({
-    mutationFn: () => submitRfqForReview(referenceCode),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.submitted') }) },
+    // Empty string means "named nobody", which the server reads as the manager pool - not a defect,
+    // see Rfq.SubmitForReview on why there is no routing rule to fall back on.
+    mutationFn: () => submitRfqForReview(referenceCode, approverDraft || undefined),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.submitted') }); setApproverDraft('') },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
+  })
+
+  // A-7. Fetched for every buyer viewing the RFQ rather than only when a picker opens, because both
+  // pickers need it and neither is behind a click that could prefetch it in time.
+  const assigneesQuery = useQuery({
+    queryKey: ['rfq-assignees', referenceCode],
+    queryFn: () => listRfqAssignees(referenceCode),
+  })
+
+  const reassignMutation = useMutation({
+    mutationFn: () => reassignRfq(referenceCode, newOwnerDraft, reassignReason),
+    onSuccess: () => {
+      invalidate()
+      // The list's owner column and the "mine" filter both read from a different query.
+      invalidateQuietly(queryClient, { queryKey: ['rfqs'] })
+      notify({ kind: 'success', title: t('rfq.ownership.reassigned') })
+      setNewOwnerDraft(''); setReassignReason('')
+    },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
@@ -174,7 +202,8 @@ export function RfqDetailPage() {
   // direction, so the UI does not have to know the caller's role - a 403 is surfaced as "not your
   // direction" rather than hidden, because an officer who cannot shorten needs to know why.
   const deadlineMutation = useMutation({
-    mutationFn: (deadline: string) => changeSubmissionDeadline(referenceCode, new Date(deadline).toISOString()),
+    mutationFn: ({ deadline, reason }: { deadline: string; reason: string }) =>
+      changeSubmissionDeadline(referenceCode, new Date(deadline).toISOString(), reason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.deadline.changed') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.deadline.failed')) }),
   })
@@ -190,8 +219,8 @@ export function RfqDetailPage() {
   })
 
   const answerMutation = useMutation({
-    mutationFn: ({ clarificationId, answer, publish }: { clarificationId: string; answer: string; publish: boolean }) =>
-      answerClarification(referenceCode, clarificationId, answer, publish),
+    mutationFn: ({ clarificationId, answer }: { clarificationId: string; answer: string }) =>
+      answerClarification(referenceCode, clarificationId, answer),
     onSuccess: (_, { clarificationId }) => {
       invalidate()
       notify({ kind: 'success', title: t('rfq.clarifications.answered') })
@@ -280,7 +309,7 @@ export function RfqDetailPage() {
   const invitedSupplierIds = new Set(rfq.invitations.map((i) => i.supplierId))
   const uninvitedCandidates = candidates.filter((c) => !invitedSupplierIds.has(c.supplierId))
   const canIssueAddendum = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
-  const draftFor = (id: string) => answerDrafts[id] ?? { text: '', publish: false }
+  const draftFor = (id: string) => answerDrafts[id] ?? { text: '' }
 
   return (
     <div className="flex flex-col gap-6">
@@ -290,10 +319,27 @@ export function RfqDetailPage() {
             {rfq.referenceCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
           </h1>
           <StatusChip machine="rfq" value={rfq.state} />
+          {/* A-7: who is answerable, on the screen rather than only in the audit trail. */}
+          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.ownership.ownerLabel')}: {rfq.ownerName ?? t('rfq.unassigned')}
+            {rfq.assignedApproverName ? ` · ${t('rfq.ownership.approverLabel')}: ${rfq.assignedApproverName}` : ''}
+          </p>
         </div>
         <div className="flex gap-2">
           {isDraft ? (
-            <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Optional by design: an empty selection submits to the manager pool, exactly as this
+                  transition behaved before A-7. The placeholder says so rather than reading as an
+                  unfilled required field. */}
+              <Select
+                aria-label={t('rfq.ownership.nominateApprover')}
+                placeholder={t('rfq.ownership.anyManager')}
+                value={approverDraft}
+                onValueChange={setApproverDraft}
+                options={(assigneesQuery.data?.approvers ?? []).map((a) => ({ value: a.userId, label: a.fullName }))}
+              />
+              <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
+            </div>
           ) : null}
           {isInternalReview ? (
             <Button isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>{t('rfq.approve')}</Button>
@@ -306,6 +352,43 @@ export function RfqDetailPage() {
           ) : null}
         </div>
       </div>
+
+      {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people
+          do, not when a tender does. Hide-never-gate as everywhere else - the endpoint re-enforces
+          rfq.reassign, which officers do not hold, so an officer sees this card and gets a 403 rather
+          than being told the control does not exist. */}
+      {canCancel ? (
+        <Card title={t('rfq.ownership.title')}>
+          <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.ownership.help')}
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Select
+              aria-label={t('rfq.ownership.newOwner')}
+              placeholder={t('rfq.ownership.newOwner')}
+              value={newOwnerDraft}
+              onValueChange={setNewOwnerDraft}
+              options={(assigneesQuery.data?.owners ?? []).map((o) => ({ value: o.userId, label: o.fullName }))}
+            />
+            {/* Mandatory. The audit row is the whole point of this operation, and a row saying only
+                that ownership moved answers nothing a month later. */}
+            <Input
+              aria-label={t('rfq.ownership.reason')}
+              placeholder={t('rfq.ownership.reason')}
+              value={reassignReason}
+              onChange={(e) => setReassignReason(e.target.value)}
+            />
+            <Button
+              variant="secondary"
+              isLoading={reassignMutation.isPending}
+              disabled={!newOwnerDraft || !reassignReason}
+              onClick={() => reassignMutation.mutate()}
+            >
+              {t('rfq.ownership.reassign')}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
           domain accepts. Same gate as the addendum control above, and for the same reason. */}
@@ -321,11 +404,19 @@ export function RfqDetailPage() {
               value={deadlineDraft}
               onChange={(e) => setDeadlineDraft(e.target.value)}
             />
+            {/* A-6: mandatory. A deadline moved with no stated basis is what the ruling exists to
+                prevent, and the supplier reads this on their own view of the RFQ. */}
+            <Input
+              aria-label={t('rfq.deadline.reason')}
+              placeholder={t('rfq.deadline.reason')}
+              value={deadlineReason}
+              onChange={(e) => setDeadlineReason(e.target.value)}
+            />
             <Button
               variant="secondary"
               isLoading={deadlineMutation.isPending}
-              disabled={!deadlineDraft}
-              onClick={() => deadlineMutation.mutate(deadlineDraft)}
+              disabled={!deadlineDraft || !deadlineReason}
+              onClick={() => deadlineMutation.mutate({ deadline: deadlineDraft, reason: deadlineReason })}
             >
               {t('rfq.deadline.apply')}
             </Button>
@@ -599,13 +690,14 @@ export function RfqDetailPage() {
                     <div className="mt-2 flex flex-wrap items-end gap-2">
                       <Input aria-label={t('rfq.clarifications.answerLabel')} placeholder={t('rfq.clarifications.answerLabel')}
                         value={draft.text} onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, text: e.target.value } }))} />
-                      <label className="flex items-center gap-1 text-[length:var(--text-body-sm)]">
-                        <input type="checkbox" checked={draft.publish}
-                          onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, publish: e.target.checked } }))} />
-                        {t('rfq.clarifications.publishNow')}
-                      </label>
+                      <p className="w-full text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                        {t('rfq.clarifications.broadcastNotice')}
+                      </p>
+                      {/* A-4: no publish checkbox. Answering broadcasts to every invitee with the
+                          asker anonymised, so the officer is told that rather than asked it - an
+                          option whose only fair setting is "yes" is not a choice. */}
                       <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
-                        onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text, publish: draft.publish })}>
+                        onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text })}>
                         {t('rfq.clarifications.answer')}
                       </Button>
                     </div>

@@ -37,6 +37,10 @@ public sealed record ComparisonProposalDto(
     decimal? FinancialWeightedScore,
     decimal? WeightedTotal,
     int? Rank,
+    /// <summary>A-1/BRULE-069: this rank came from a tie no rule broke. The comparison is where the
+    /// officer sees the ranking, so it is where the tie has to be visible and resolvable.</summary>
+    bool TieUnresolved,
+    string? TieResolutionReason,
     IReadOnlyList<ComparisonCriterionScoreDto>? CriterionScores);
 
 /// <summary>FEAT-12.4/FR-CMP-004: EvaluationState is always the real underlying state (including

@@ -32,9 +32,29 @@ export function rememberETag(path: string, etag: string | null): void {
 }
 
 export function lookupETag(path: string): string | undefined {
+  const prefix = ownerPrefixOf(path)
+  return prefix === undefined ? undefined : etags.get(prefix)
+}
+
+/**
+ * Which stored path a write against `path` would take its precondition from - the resource whose
+ * version this write asserts.
+ *
+ * <p><b>Why the transport needs this.</b> T-030 split (2). A child write forgets every prefix and then
+ * files the response's fresh ETag under the WRITE path, so after adding an RFQ item the version sits
+ * at `/rfqs/RFQ-1/items` and a write to `/rfqs/RFQ-1/requirements` walks up to `/rfqs/RFQ-1`, finds
+ * the entry gone, and sends no `If-Match` - a 428 on the officer's second edit. Filing the fresh
+ * version back where the old one lived fixes that without the store having to work out where a
+ * resource boundary sits inside a path, which it cannot: `/admin/field-config/{category}/{code}` and
+ * `/rfqs/{code}/items` put it at different depths and neither is deducible from a segment count.</p>
+ *
+ * <p>Undefined when nothing was read first. Nothing is invented - filing a version at the collection
+ * would offer one aggregate's version as the precondition for another, which is precisely what the
+ * prefix walk exists to prevent.</p>
+ */
+export function ownerPrefixOf(path: string): string | undefined {
   for (const prefix of prefixesOf(path)) {
-    const found = etags.get(prefix)
-    if (found) return found
+    if (etags.has(prefix)) return prefix
   }
   return undefined
 }

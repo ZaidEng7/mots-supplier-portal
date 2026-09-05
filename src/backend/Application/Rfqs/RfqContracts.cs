@@ -8,7 +8,11 @@ public sealed record RfqItemDto(
     Guid Id, int LineNo, string TitleAr, string TitleEn, string? SpecificationAr, string? SpecificationEn,
     string CategoryCode, decimal Quantity, string UnitOfMeasureCode, bool IsUnitPrice, bool IsOptional);
 
-public sealed record RequirementDto(Guid Id, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode);
+/// <summary>A-2: <paramref name="ExpectedEnvelope"/> tells the supplier which envelope a document
+/// answering this requirement belongs in. Advisory - the tag on the FILE is what the system acts on.</summary>
+public sealed record RequirementDto(
+    Guid Id, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed record RfqAttachmentDto(Guid Id, string OriginalFileName, string ContentType, string? Caption, DateTimeOffset UploadedAt);
 
@@ -52,7 +56,21 @@ public sealed record RfqDto(
     IReadOnlyList<RfqAttachmentDto> Attachments, IReadOnlyList<RfqApprovalDto> Approvals,
     IReadOnlyList<InvitationDto> Invitations, IReadOnlyList<ClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda,
     // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
-    uint RowVersion);
+    uint RowVersion,
+    // A-6: why the deadline was last moved. Here rather than in the notification payload - BRULE-091's
+    // allow-list is identifiers and public codes, and it already refused a DATE on the grounds that a
+    // date is content (T-018), so a free-text reason cannot go there either.
+    string? SubmissionDeadlineChangeReason = null,
+    DateTimeOffset? SubmissionDeadlineChangedAt = null,
+    // A-7: who owns this RFQ. The id AND the name, because the screen shows a person and the SPA has
+    // to recognise the current user in them - and a name alone cannot be compared to a token's `sub`.
+    // Null on an RFQ created before ownership existed, which the screen renders as "Unassigned"
+    // rather than as an empty cell.
+    Guid? OwnerUserId = null,
+    string? OwnerName = null,
+    // A-7: the manager the CURRENT review pass is waiting on, null when the pass named nobody.
+    Guid? AssignedApproverUserId = null,
+    string? AssignedApproverName = null);
 
 /// <summary>FEAT-08.6/FR-INV-006: the supplier-facing shape of an RFQ - deliberately narrower than
 /// RfqDto. Excludes Approvals (internal reviewer comments/decisions) and OrganizationId's sibling
@@ -65,15 +83,23 @@ public sealed record SupplierRfqDto(
     string CurrencyCode, RfqState State, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionDeadline,
     DateTimeOffset? ClarificationDeadlineAt,
     IReadOnlyList<RfqItemDto> Items, IReadOnlyList<RequirementDto> Requirements, IReadOnlyList<RfqAttachmentDto> Attachments,
-    InvitationStatus InvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda);
+    InvitationStatus InvitationStatus, IReadOnlyList<SupplierClarificationDto> Clarifications, IReadOnlyList<AddendumDto> Addenda,
+    // A-6: the supplier sees WHY their deadline moved, on the screen where the deadline itself is. The
+    // notification points them here; BRULE-091 keeps the reason out of the payload.
+    string? SubmissionDeadlineChangeReason = null,
+    DateTimeOffset? SubmissionDeadlineChangedAt = null);
 
 /// <summary>
 /// The buyer RFQ list row (T2 Item 2). Deliberately NOT <see cref="RfqDto"/>: the detail DTO is the
 /// reason <c>IncludeAll()</c> loaded seven child collections per RFQ to render three scalar
 /// columns. Projected in SQL, so nothing is materialised that the list does not show.
 /// </summary>
+/// <param name="OwnerUserId">A-7: who owns the row. On the LIST as well as the detail, because
+/// "which of these are mine" is a question about a list and answering it by opening each RFQ is not
+/// an answer. Null means unassigned - a row anyone may claim.</param>
 public sealed record RfqListItemDto(
-    string ReferenceCode, string TitleAr, string TitleEn, RfqState State, DateTimeOffset CreatedAt);
+    string ReferenceCode, string TitleAr, string TitleEn, RfqState State, DateTimeOffset CreatedAt,
+    Guid? OwnerUserId = null, string? OwnerName = null);
 
 /// <summary>
 /// The supplier RFQ list row. <paramref name="MyInvitationStatus"/> is resolved in SQL against the
@@ -111,7 +137,8 @@ public sealed record BuyingOrgDto(string? Code, string Name);
 
 // T-018/BRULE-035: one command for both directions - see Rfq.ChangeSubmissionDeadline on why the
 // direction is an access-control question rather than a domain one.
-public sealed record ChangeSubmissionDeadlineCommand(string ReferenceCode, DateTimeOffset NewCloseAt);
+/// <summary>A-6: the reason is mandatory and is carried into the audit row and the notification.</summary>
+public sealed record ChangeSubmissionDeadlineCommand(string ReferenceCode, DateTimeOffset NewCloseAt, string Reason);
 
 public sealed record CreateRfqCommand(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
@@ -129,7 +156,9 @@ public sealed record AddRfqItemCommand(
 
 public sealed record RemoveRfqItemCommand(string ReferenceCode, Guid ItemId);
 
-public sealed record AddRequirementCommand(string ReferenceCode, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode);
+public sealed record AddRequirementCommand(
+    string ReferenceCode, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed record RemoveRequirementCommand(string ReferenceCode, Guid RequirementId);
 
@@ -139,7 +168,14 @@ public sealed record RemoveRfqAttachmentCommand(string ReferenceCode, Guid Attac
 
 public sealed record BindEvaluationTemplateCommand(string ReferenceCode, Guid EvaluationTemplateId);
 
-public sealed record SubmitRfqForReviewCommand(string ReferenceCode);
+/// <param name="AssignedApproverUserId">A-7: the manager this pass is waiting on. Optional - see
+/// <c>Rfq.SubmitForReview</c> on why an un-nominated pass is a recorded absence rather than a
+/// missing default.</param>
+public sealed record SubmitRfqForReviewCommand(string ReferenceCode, Guid? AssignedApproverUserId = null);
+
+/// <summary>A-7: hand an RFQ to another officer. The reason is mandatory - the audit row is the whole
+/// point of this operation, and a row saying only that ownership moved answers nothing.</summary>
+public sealed record ReassignRfqCommand(string ReferenceCode, Guid NewOwnerUserId, string Reason);
 
 public sealed record ReturnRfqForEditsCommand(string ReferenceCode, string Comments);
 
@@ -166,7 +202,8 @@ public sealed record DeclineInvitationCommand(string ReferenceCode, string? Reas
 
 public sealed record PostClarificationQuestionCommand(string ReferenceCode, string Question);
 
-public sealed record AnswerClarificationCommand(string ReferenceCode, Guid ClarificationId, string Answer, bool Publish);
+/// <summary>A-4: no publish flag. Answering IS publishing - see Rfq.AnswerClarification.</summary>
+public sealed record AnswerClarificationCommand(string ReferenceCode, Guid ClarificationId, string Answer);
 
 public sealed record PublishClarificationCommand(string ReferenceCode, Guid ClarificationId);
 
@@ -202,6 +239,17 @@ public abstract record RfqMutationResult
     /// </summary>
     public sealed record DeadlineChangeNotPermitted : RfqMutationResult;
 
+    /// <summary>
+    /// A-7: the nominated owner or approver cannot hold the role the operation needs them to hold -
+    /// they are not a user of this organization, they are deactivated, or they lack the permission.
+    ///
+    /// <para>A 422 rather than a 400: the request is well-formed and names a real field, and what is
+    /// wrong is a fact about the world the client could not have known. Distinct from
+    /// <see cref="InvalidState"/> so a screen can say which person was refused rather than repeating
+    /// a generic message.</para>
+    /// </summary>
+    public sealed record IneligibleUser(string Message) : RfqMutationResult;
+
     public sealed record InvalidCategory : RfqMutationResult;
     public sealed record InvalidUnitOfMeasure : RfqMutationResult;
     public sealed record InvalidEvaluationTemplate(string Message) : RfqMutationResult;
@@ -223,9 +271,19 @@ public abstract record SupplierRfqResult
     public sealed record InvalidState(string Message) : SupplierRfqResult;
 }
 
+/// <summary>A-7: the buyer RFQ list's <c>?owner=</c> filter. Same three-value shape as the review
+/// queue's <c>?assignedTo=</c> - "me", "unassigned", or a specific officer's id - reusing
+/// <c>FilterValues.IsAllowedLiteralOrGuid</c> and its refusal, so an unrecognised value is a 422
+/// naming the field rather than a silently unfiltered list.</summary>
+public static class RfqListFilterValues
+{
+    public static readonly IReadOnlySet<string> OwnerLiterals =
+        new HashSet<string>(StringComparer.Ordinal) { "me", "unassigned" };
+}
+
 public interface IListRfqsHandler
 {
-    Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct);
+    Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, string? owner, CancellationToken ct);
 }
 
 public interface IGetRfqHandler
@@ -275,6 +333,37 @@ public interface IManageRfqAttachmentHandler
 public interface IBindEvaluationTemplateHandler
 {
     Task<RfqMutationResult> HandleAsync(BindEvaluationTemplateCommand command, CancellationToken ct);
+}
+
+/// <summary>
+/// A-7: one staff member this RFQ can be handed to.
+///
+/// <para>Id and name only. Nothing else about a colleague is needed to choose between them, and this
+/// read is reachable by an officer who holds no staff-administration permission at all - so it
+/// deliberately carries none of what <c>StaffAccountDto</c> carries (email, MFA state, lockout).</para>
+/// </summary>
+public sealed record RfqAssigneeDto(Guid UserId, string FullName);
+
+/// <summary>
+/// A-7: who this RFQ may be assigned to, in the two senses it can be.
+///
+/// <para>Both lists rather than one, because the two questions have different answers and different
+/// askers: an officer submitting for review picks an APPROVER, and a manager reassigning picks an
+/// OWNER. Serving them from one route keeps the eligibility rule (organization + active + permission)
+/// in one place instead of two that can drift.</para>
+/// </summary>
+public sealed record RfqAssigneesDto(
+    IReadOnlyList<RfqAssigneeDto> Owners,
+    IReadOnlyList<RfqAssigneeDto> Approvers);
+
+public interface IListRfqAssigneesHandler
+{
+    Task<RfqAssigneesDto?> HandleAsync(string referenceCode, CancellationToken ct);
+}
+
+public interface IReassignRfqHandler
+{
+    Task<RfqMutationResult> HandleAsync(ReassignRfqCommand command, CancellationToken ct);
 }
 
 public interface ISubmitRfqForReviewHandler

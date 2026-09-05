@@ -13,7 +13,21 @@ public sealed record EvaluationCriterionDto(
 /// <summary>Buyer-facing roster row - never carries a raw score (blind scoring, OQ-005/BRULE-058).</summary>
 public sealed record EvaluationAssignmentDto(Guid EvaluatorUserId, DateTimeOffset AssignedAt, DateTimeOffset? SubmittedAt, DateTimeOffset? RecusedAt, string? RecusalReason);
 
-public sealed record ConsolidatedResultDto(Guid ProposalId, bool TechnicallyQualified, decimal TechnicalWeightedScore, decimal? FinancialWeightedScore, decimal WeightedTotal, int? Rank);
+/// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
+/// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>
+public sealed record ConsolidatedResultDto(
+    Guid ProposalId, bool TechnicallyQualified, decimal TechnicalWeightedScore, decimal? FinancialWeightedScore,
+    decimal WeightedTotal, int? Rank, bool TieUnresolved = false, string? TieResolutionReason = null);
+
+/// <summary>A-1: a person breaks a tie the rules could not, and says why. Addressed by the proposal's
+/// PUBLIC code, not its GUID - §3 keeps internal identifiers out of payloads, and a caller that has
+/// the comparison has the code.</summary>
+public sealed record ResolveEvaluationTieCommand(string RfqReferenceCode, string ProposalCode, string Reason);
+
+public interface IResolveEvaluationTieHandler
+{
+    Task<EvaluationMutationResult> HandleAsync(ResolveEvaluationTieCommand command, CancellationToken ct);
+}
 
 /// <summary>Buyer/manager-facing overview - deliberately excludes every EvaluatorScore row (see
 /// EvaluationAssignmentDto's own doc comment); Results is empty until Consolidate() has run.</summary>
@@ -50,9 +64,31 @@ public sealed record MyScoreDto(string ProposalCode, Guid CriterionId, decimal R
 /// </summary>
 public sealed record EvaluatorProposalDto(
     string ProposalCode,
-    string SupplierReferenceCode,
-    string SupplierDisplayNameAr,
-    string SupplierDisplayNameEn,
+    /// <summary>
+    /// A-8: a stable per-evaluation pseudonym - "Bidder A", «مورّد أ» - so an evaluator can refer to a
+    /// bid in a comment without knowing whose it is.
+    ///
+    /// <para>Assigned by proposal code order within the evaluation, so it is the same label on every
+    /// read and for every evaluator, which is what makes a committee discussion possible at all.</para>
+    /// </summary>
+    string BidderLabelAr,
+    string BidderLabelEn,
+    /// <summary>
+    /// A-8: the supplier's identity, and it is NULL while scoring is open.
+    ///
+    /// <para>Revealed once the evaluation is Consolidated or Finalized, and also before the evaluator
+    /// has opened scoring - that earlier window is the recusal declaration (BRULE-067), where the
+    /// evaluator is shown the bidder list once, declares any conflict, and is then recused or proceeds.
+    /// Nobody has to recuse themselves from a bidder they cannot see, because the declaration already
+    /// happened.</para>
+    ///
+    /// <para>This supersedes D-19, which widened the evaluator's view to include the bidder name
+    /// precisely so recusal was possible. A-8 moves recusal earlier instead, which is what makes
+    /// anonymised scoring compatible with BRULE-067 rather than in conflict with it.</para>
+    /// </summary>
+    string? SupplierReferenceCode,
+    string? SupplierDisplayNameAr,
+    string? SupplierDisplayNameEn,
     string? NarrativeAr,
     string? NarrativeEn,
     IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
@@ -162,4 +198,30 @@ public interface IScoreCriterionHandler
 public interface ISubmitEvaluatorHandler
 {
     Task<MyEvaluationResult> HandleAsync(SubmitEvaluatorCommand command, CancellationToken ct);
+}
+
+/// <summary>
+/// A-8/BRULE-067: the recusal declaration window. The evaluator sees who the bidders are ONCE, before
+/// scoring, and says whether they have a conflict.
+///
+/// <para><c>DeclarationRequired</c> is false once they have declared or been recused, and the bidder
+/// list is then empty - the window closes, which is what makes the anonymity during scoring real rather
+/// than decorative.</para>
+/// </summary>
+public sealed record ConflictDeclarationDto(
+    bool DeclarationRequired,
+    IReadOnlyList<DeclarationBidderDto> Bidders);
+
+public sealed record DeclarationBidderDto(string ProposalCode, string SupplierDisplayNameAr, string SupplierDisplayNameEn);
+
+public sealed record DeclareConflictCommand(string RfqReferenceCode, bool HasConflict, string? Reason);
+
+public interface IGetConflictDeclarationHandler
+{
+    Task<ConflictDeclarationDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct);
+}
+
+public interface IDeclareConflictHandler
+{
+    Task<EvaluationMutationResult> HandleAsync(DeclareConflictCommand command, CancellationToken ct);
 }

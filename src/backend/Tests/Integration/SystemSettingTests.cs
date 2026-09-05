@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
 
@@ -225,5 +226,72 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Set<SystemSetting>().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_review_target_follows_the_configured_sla()
+    {
+        // A-5. The SLA timer exists in BUSINESS-PROCESSES.md §5 and has no number, so this is the
+        // number - configurable, defaulted to five working days, and surfaced as a target.
+        var admin = await AdminAsync();
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+        Guid seededSupplierId;
+
+        // A case has to be IN the queue for the target to mean anything. Built through the real
+        // transitions, same as ReviewQueueAssignmentTests does, so the row is one production could have
+        // produced - and REMOVED at the end, because the review queue is shared state and a row left in
+        // it is an order dependence waiting for the row to start mattering. It did: this test's supplier
+        // displaced a row that ReviewQueuePaginationTests asserts by position.
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplier = Supplier.Register(
+                referenceCode: $"SUP-SLA-{Guid.NewGuid():N}"[..20],
+                displayNameAr: "شركة اختبار",
+                displayNameEn: $"Sla Test {Guid.NewGuid():N}"[..40],
+                registrationNumber: null,
+                primaryRepresentativeName: "Tester",
+                primaryRepresentativeEmail: $"sla-{Guid.NewGuid():N}@example.com",
+                primaryRepresentativePhone: "+963900000000");
+            supplier.MarkEmailVerified();
+            supplier.UpdateCoreProfile(null, null, null, "SYP");
+            supplier.AddAddress(AddressKind.HeadOffice, "L1", null, "Damascus", "DM", "SY", null, null, null);
+            supplier.LinkCategory("CAT-1", isComplianceCritical: false);
+            supplier.AcceptTerms("v1");
+            supplier.Submit([]);
+            db.Suppliers.Add(supplier);
+            await db.SaveChangesAsync();
+            seededSupplierId = supplier.Id;
+        }
+
+        var beforeChange = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue");
+        var firstItem = beforeChange.GetProperty("data").EnumerateArray().First();
+        var enteredAt = firstItem.GetProperty("enteredQueueAt").GetDateTimeOffset();
+        var defaultTarget = firstItem.GetProperty("reviewTargetAt").GetDateTimeOffset();
+
+        defaultTarget.Should().BeAfter(enteredAt, "a target is in the future, or it is not a target");
+        defaultTarget.DayOfWeek.Should().NotBe(DayOfWeek.Friday, "working days, not calendar days");
+        defaultTarget.DayOfWeek.Should().NotBe(DayOfWeek.Saturday);
+
+        try
+        {
+            (await admin.PutAsJsonAsync($"/api/v1/admin/settings/{SystemSettings.ReviewSlaWorkingDays}",
+                new { value = "20" })).EnsureSuccessStatusCode();
+
+            var afterChange = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue");
+            var moved = afterChange.GetProperty("data").EnumerateArray().First()
+                .GetProperty("reviewTargetAt").GetDateTimeOffset();
+
+            // The control: the setting is what the queue reads, not a constant that happens to match.
+            moved.Should().BeAfter(defaultTarget, "a longer SLA moves the target out");
+        }
+        finally
+        {
+            await ClearAsync(SystemSettings.ReviewSlaWorkingDays);
+
+            await using var cleanup = fixture.Services.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Suppliers.Where(s => s.Id == seededSupplierId).ExecuteDeleteAsync();
+        }
     }
 }

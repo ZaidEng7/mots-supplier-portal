@@ -61,7 +61,12 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
             titleAr = "طلب", titleEn = $"{label} RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
             currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
             submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            submissionClosesAt = DateTimeOffset.UtcNow.AddSeconds(3),
+            // T-087: an HOUR, not three seconds. The three-second window made everything between
+            // publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the
+            // timeline job, starting a proposal, pricing it, setting terms - and on a loaded machine the
+            // submit lost. The window is closed below by moving the deadline in storage, so the real job
+            // still performs the transition and only the waiting is gone.
+            submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
         var rfqCode = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
@@ -97,9 +102,12 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
             validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
             validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
-        await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
+        // Checked, for the same reason T-087 gave EvaluationSeed's submit a check: an unchecked submit
+        // makes every downstream failure anonymous.
+        (await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await Task.Delay(TimeSpan.FromSeconds(2.2));
+        await SubmissionWindowTestHelper.CloseAsync(fixture, rfqCode);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<RfqTimelineJob>().RunAsync(CancellationToken.None);

@@ -50,6 +50,10 @@ export interface SupplierRfq {
   invitationStatus: InvitationStatus
   clarifications: SupplierClarification[]
   addenda: Addendum[]
+  /** A-6: why the deadline was last moved. Read here rather than in the notification - BRULE-091 keeps
+   * content out of notification payloads, so the message points at the RFQ and the reason waits here. */
+  submissionDeadlineChangeReason: string | null
+  submissionDeadlineChangedAt: string | null
 }
 
 export class SupplierRfqApiError extends Error {

@@ -29,9 +29,30 @@ public sealed class AcceptStaffInviteRequestValidator : AbstractValidator<Accept
     }
 }
 
+public sealed record ChangeStaffRoleRequest(string Role);
+
+public sealed class ChangeStaffRoleRequestValidator : AbstractValidator<ChangeStaffRoleRequest>
+{
+    public ChangeStaffRoleRequestValidator() => RuleFor(x => x.Role).NotEmpty();
+}
+
 /// <summary>Task #28/FR-ADM-001. Mirrors SupplierUserEndpoints's shape exactly.</summary>
 public static class StaffEndpoints
 {
+    private static IResult Map(StaffAccountResult result) => result switch
+    {
+        StaffAccountResult.Success s => Results.Ok(s.Staff),
+        // §9.2: a user who is not a staff account - a supplier's user, or nobody - is a 404 rather than a
+        // 403. There is no information in the difference that an administrator needs and an attacker does
+        // not.
+        StaffAccountResult.NotFound => Results.NotFound(),
+        StaffAccountResult.CannotActOnSelf =>
+            Results.UnprocessableEntity(new { error = "cannot_act_on_own_account" }),
+        StaffAccountResult.WouldLockOutAdministration =>
+            Results.UnprocessableEntity(new { error = "would_lock_out_administration" }),
+        _ => Results.Problem(),
+    };
+
     public static void MapStaffEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/staff/invite", async (
@@ -55,6 +76,58 @@ public static class StaffEndpoints
         .WithTags("Staff")
         .RequirePermission(Permissions.AdminUsersManage)
         .WithName("InviteStaff");
+
+        // ─── T-077: administering an account, not merely creating one ────────────────────────────
+        //
+        // SCR-701/SCR-702, both P0, had no screen and no endpoint. `system_admin` could invite a staff
+        // account and then never list, deactivate, re-role or MFA-reset one - so an account created in
+        // error could not be removed at all.
+        var admin = app.MapGroup("/api/v1/staff").WithTags("Staff");
+
+        admin.MapGet("/", async (string? cursor, int? pageSize, string? withCount,
+            IListStaffHandler handler, CancellationToken ct) =>
+        {
+            // The same ?withCount= handling every other list uses. A second parser here would be a
+            // second answer to the same question - see SupplierUserEndpoints, which this mirrors.
+            if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
+            {
+                return FilterValues.InvalidFilterValue("withCount", badWithCount!);
+            }
+
+            return Results.Ok(await handler.HandleAsync(cursor, pageSize, FilterValues.BoolOrFalse(withCount), ct));
+        })
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("ListStaff");
+
+        admin.MapPost("/{userId:guid}/deactivate", async (Guid userId, ISetStaffActiveHandler handler, CancellationToken ct) =>
+            Map(await handler.HandleAsync(userId, isActive: false, ct)))
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("DeactivateStaff");
+
+        admin.MapPost("/{userId:guid}/reactivate", async (Guid userId, ISetStaffActiveHandler handler, CancellationToken ct) =>
+            Map(await handler.HandleAsync(userId, isActive: true, ct)))
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("ReactivateStaff");
+
+        admin.MapPut("/{userId:guid}/role", async (
+            Guid userId, ChangeStaffRoleRequest request, IValidator<ChangeStaffRoleRequest> validator,
+            IChangeStaffRoleHandler handler, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return Map(await handler.HandleAsync(new ChangeStaffRoleCommand(userId, request.Role), ct));
+        })
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("ChangeStaffRole");
+
+        // A reset of someone ELSE's second factor. `system_admin` cannot hold a session without MFA, so
+        // a lost authenticator is otherwise a lockout with no path back; and a self-service reset would
+        // be a way past the factor itself, which is why the handler refuses one.
+        admin.MapPost("/{userId:guid}/reset-mfa", async (Guid userId, IResetStaffMfaHandler handler, CancellationToken ct) =>
+            Map(await handler.HandleAsync(userId, ct)))
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("ResetStaffMfa");
 
         app.MapPost("/api/v1/staff/accept-invite", async (
             AcceptStaffInviteRequest request,

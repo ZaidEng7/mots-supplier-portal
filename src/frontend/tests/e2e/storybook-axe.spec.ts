@@ -33,6 +33,27 @@ for (const story of stories) {
     // The first version of this fix used exactly that condition and UI/Dialog/Open timed out 6/6.
     await page.waitForSelector('body.sb-show-main', { timeout: 15_000 })
 
+    // T-074, and this is the third attempt at the same race - so it is worth saying exactly what CI
+    // showed rather than guessing again. The failure is `Error: frame.evaluate: Error: Axe is already
+    // running`, on a DIFFERENT story each run, and only under CI load.
+    //
+    // That message comes from axe-core's own re-entrancy guard: it refuses a second `axe.run()` while one
+    // is in flight in the same frame. Waiting for the story to render was necessary but not sufficient -
+    // it says nothing about whether a run from a previous injection into this frame has finished.
+    //
+    // So the precondition is stated directly, in terms of the flag the error itself is about. When axe has
+    // never been injected the check passes immediately; when a run is in flight it waits for it. No retry,
+    // because a retry here would hide exactly the overlap it papers over - which is what `retries: 1` did
+    // before batch 9 removed it, masking a deterministic Dialog failure for weeks.
+    await page.waitForFunction(
+      () => {
+        const axe = (window as unknown as { axe?: { _running?: boolean } }).axe
+        return axe === undefined || axe._running !== true
+      },
+      undefined,
+      { timeout: 15_000 },
+    )
+
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
 
     expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([])

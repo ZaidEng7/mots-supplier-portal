@@ -173,7 +173,11 @@ public class EvaluationTests
         evaluation.State.Should().Be(EvaluationState.EvaluatorSubmitted);
     }
 
-    private static EvaluationAggregate CreateFullySubmittedEvaluation(decimal proposalAScore, decimal proposalBScore, decimal threshold = 60m)
+    private static EvaluationAggregate CreateFullySubmittedEvaluation(
+        decimal proposalAScore, decimal proposalBScore, decimal threshold = 60m,
+        // A-1's tie tests need the FINANCIAL scores equal too - a tie on the weighted total is the
+        // premise, and the default 50/70 makes the totals differ by construction.
+        decimal proposalAFinancial = 50m, decimal proposalBFinancial = 70m)
     {
         var evaluation = CreateAssignedEvaluation(threshold);
         var techId = TechnicalCriterionId(evaluation);
@@ -181,13 +185,17 @@ public class EvaluationTests
         foreach (var evaluatorId in new[] { EvaluatorA, EvaluatorB })
         {
             evaluation.ScoreCriterion(evaluatorId, ProposalA, techId, proposalAScore, null, null, Proposals);
-            if (proposalAScore >= threshold) evaluation.ScoreCriterion(evaluatorId, ProposalA, finId, 50m, null, null, Proposals);
+            if (proposalAScore >= threshold) evaluation.ScoreCriterion(evaluatorId, ProposalA, finId, proposalAFinancial, null, null, Proposals);
             evaluation.ScoreCriterion(evaluatorId, ProposalB, techId, proposalBScore, null, null, Proposals);
-            if (proposalBScore >= threshold) evaluation.ScoreCriterion(evaluatorId, ProposalB, finId, 70m, null, null, Proposals);
+            if (proposalBScore >= threshold) evaluation.ScoreCriterion(evaluatorId, ProposalB, finId, proposalBFinancial, null, null, Proposals);
             evaluation.SubmitEvaluator(evaluatorId, Proposals);
         }
         return evaluation;
     }
+
+    /// <summary>Two bids equal on every score, which is A-1's premise.</summary>
+    private static EvaluationAggregate CreateTiedEvaluation() =>
+        CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m, proposalAFinancial: 60m, proposalBFinancial: 60m);
 
     [Fact]
     public void Consolidate_excludes_a_disqualified_proposal_from_ranking_regardless_of_total()
@@ -289,5 +297,111 @@ public class EvaluationTests
             .ToList();
 
         ordered[0].TechnicalWeightedScore.Should().BeGreaterThanOrEqualTo(ordered[1].TechnicalWeightedScore);
+    }
+
+    [Fact]
+    public void Consolidate_breaks_a_tie_on_the_lower_commercial_total()
+    {
+        // A-1/BRULE-069 rung three. Identical totals and identical technical scores, so the only thing
+        // separating these two bids is price - and the document says the cheaper compliant bid wins.
+        var evaluation = CreateTiedEvaluation();
+        var submittedAt = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
+
+        evaluation.Consolidate(new Dictionary<Guid, EvaluationAggregate.BidTieBreakFacts>
+        {
+            [ProposalA] = new(2_000m, submittedAt),
+            [ProposalB] = new(1_000m, submittedAt),
+        });
+
+        evaluation.Results.Single(r => r.ProposalId == ProposalB).Rank.Should().Be(1, "the cheaper bid outranks");
+        evaluation.Results.Single(r => r.ProposalId == ProposalA).Rank.Should().Be(2);
+        evaluation.Results.Should().OnlyContain(r => !r.TieUnresolved, "price resolved it, so nothing is surfaced");
+    }
+
+    [Fact]
+    public void Consolidate_breaks_a_price_tie_on_the_earlier_submission()
+    {
+        // Rung four, and the last one a rule can decide: earliest submission is objective, already
+        // recorded, and cannot be manipulated after the fact.
+        var evaluation = CreateTiedEvaluation();
+
+        evaluation.Consolidate(new Dictionary<Guid, EvaluationAggregate.BidTieBreakFacts>
+        {
+            [ProposalA] = new(1_000m, DateTimeOffset.Parse("2026-09-02T10:00:00Z")),
+            [ProposalB] = new(1_000m, DateTimeOffset.Parse("2026-09-01T10:00:00Z")),
+        });
+
+        evaluation.Results.Single(r => r.ProposalId == ProposalB).Rank.Should().Be(1, "submitted a day earlier");
+        evaluation.Results.Should().OnlyContain(r => !r.TieUnresolved);
+    }
+
+    [Fact]
+    public void Consolidate_surfaces_a_tie_that_survives_every_rung_rather_than_picking_one()
+    {
+        // A-1. Equal on total, technical score, price and submission instant is equal on everything a
+        // rule can see. The ranks are still assigned - a list with no order is useless - but they are
+        // MARKED, and the award flow refuses to act on them.
+        var at = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
+        var evaluation = CreateTiedEvaluation();
+
+        evaluation.Consolidate(new Dictionary<Guid, EvaluationAggregate.BidTieBreakFacts>
+        {
+            [ProposalA] = new(1_000m, at),
+            [ProposalB] = new(1_000m, at),
+        });
+
+        evaluation.Results.Where(r => r.TechnicallyQualified).Should().OnlyContain(r => r.TieUnresolved);
+        evaluation.Results.Select(r => r.Rank).Should().BeEquivalentTo([1, 2], "still a total order, just not a decided one");
+    }
+
+    [Fact]
+    public void An_unknown_price_counts_as_a_tie_rather_than_as_a_difference()
+    {
+        // The direction that surfaces the case: two bids with no recorded price are not "equal on
+        // price" in any way that resolves anything, so they must not be silently ordered by identifier.
+        var at = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
+        var evaluation = CreateTiedEvaluation();
+
+        evaluation.Consolidate(new Dictionary<Guid, EvaluationAggregate.BidTieBreakFacts>
+        {
+            [ProposalA] = new(null, at),
+            [ProposalB] = new(null, at),
+        });
+
+        evaluation.Results.Where(r => r.TechnicallyQualified).Should().OnlyContain(r => r.TieUnresolved);
+    }
+
+    [Fact]
+    public void Resolving_a_tie_needs_a_reason_a_real_proposal_and_an_actual_tie()
+    {
+        var at = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
+        var evaluation = CreateTiedEvaluation();
+        evaluation.Consolidate(new Dictionary<Guid, EvaluationAggregate.BidTieBreakFacts>
+        {
+            [ProposalA] = new(1_000m, at),
+            [ProposalB] = new(1_000m, at),
+        });
+        var resolver = Guid.CreateVersion7();
+
+        // Three refusals, each a different mistake.
+        ((Action)(() => evaluation.ResolveTie(ProposalA, resolver, "   ")))
+            .Should().Throw<DomainException>().WithMessage("*reason is required*");
+        ((Action)(() => evaluation.ResolveTie(Guid.CreateVersion7(), resolver, "Because.")))
+            .Should().Throw<DomainException>().WithMessage("*not part of this evaluation*");
+
+        // The control: a real resolution takes effect, keeps the ranks it was given, and clears the
+        // marker for EVERY member of the group - including the one that lost, because the tie is
+        // resolved for both once someone has put their name to it.
+        evaluation.ResolveTie(ProposalB, resolver, "Prior delivery record on comparable work.");
+
+        evaluation.Results.Single(r => r.ProposalId == ProposalB).Rank.Should().Be(1);
+        evaluation.Results.Single(r => r.ProposalId == ProposalA).Rank.Should().Be(2);
+        evaluation.Results.Where(r => r.TechnicallyQualified).Should().OnlyContain(r => !r.TieUnresolved);
+        evaluation.Results.Where(r => r.TechnicallyQualified).Should()
+            .OnlyContain(r => r.TieResolvedByUserId == resolver && r.TieResolutionReason == "Prior delivery record on comparable work.");
+
+        // And the guard the other way: resolving something already resolved is refused.
+        ((Action)(() => evaluation.ResolveTie(ProposalB, resolver, "Again.")))
+            .Should().Throw<DomainException>().WithMessage("*not part of an unresolved tie*");
     }
 }

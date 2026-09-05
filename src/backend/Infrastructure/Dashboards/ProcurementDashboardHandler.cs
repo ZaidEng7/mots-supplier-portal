@@ -67,7 +67,12 @@ public sealed class ProcurementDashboardHandler(AppDbContext db, IScopeContext s
                      && r.SubmissionClosesAt != null
                      && r.SubmissionClosesAt >= now
                      && r.SubmissionClosesAt <= now + ClosingWindow, ct),
-            AwaitingMyAction: pipeline.Where(p => awaitingStates.Contains(p.State)).Sum(p => p.Count),
+            // A-7: counted from the ROWS rather than from the pipeline group totals. The pipeline
+            // groups by state only, so summing it gave every holder of a permission the whole
+            // organization's count for that state - which is what made this tile a duplicate of
+            // Active RFQs for a single-officer organization. It now needs the per-row owner, so it is
+            // its own query.
+            AwaitingMyAction: await AwaitingMyActionAsync(rfqs, awaitingStates, ct),
             PendingApprovals: await PendingApprovalsAsync(organizationId, ct),
             AwardsInProgress: await db.Awards.AsNoTracking()
                 .CountAsync(a => db.Rfqs.Any(r => r.Id == a.RfqId && r.OrganizationId == organizationId)
@@ -82,6 +87,28 @@ public sealed class ProcurementDashboardHandler(AppDbContext db, IScopeContext s
             // §10: "Manager also gets an Approvals card". Decided from the permission rather than the
             // role name, so a tenant that moves approval to another role keeps a correct dashboard.
             ShowsApprovals: scope.HasPermission(Permissions.RfqApprove) || scope.HasPermission(Permissions.AwardApprove));
+    }
+
+    /// <summary>
+    /// A-7: the RFQs in a state whose next action needs a permission this caller holds, AND which are
+    /// this caller's to act on.
+    ///
+    /// <para>Three ways an RFQ is the caller's: they own it; the current review pass named them as its
+    /// approver (an approver does not own the RFQ, and if this only looked at ownership the manager's
+    /// tile would read zero for the one state they are the bottleneck of); or it has no owner at all,
+    /// in which case it belongs to whoever can act on it - see the class note on why the unowned case
+    /// is deliberately wide.</para>
+    /// </summary>
+    private Task<int> AwaitingMyActionAsync(IQueryable<Rfq> rfqs, List<RfqState> awaitingStates, CancellationToken ct)
+    {
+        if (awaitingStates.Count == 0) return Task.FromResult(0);
+
+        var userId = scope.UserId;
+        return rfqs
+            .Where(r => awaitingStates.Contains(r.State))
+            .CountAsync(r => r.OwnerUserId == null
+                             || r.OwnerUserId == userId
+                             || r.Approvals.Any(a => a.Decision == null && a.AssignedApproverUserId == userId), ct);
     }
 
     /// <summary>

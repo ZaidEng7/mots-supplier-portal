@@ -45,6 +45,12 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         "rfqCode", "titleAr", "titleEn", "descriptionAr", "descriptionEn", "currencyCode",
         "state", "submissionOpensAt", "submissionDeadline", "clarificationDeadlineAt",
         "items", "requirements", "attachments", "invitationStatus", "clarifications", "addenda",
+        // A-6: WHY the deadline moved, and when. Added deliberately rather than to make this gate quiet -
+        // the notification cannot carry the reason (BRULE-091's allow-list already refused a DATE as
+        // content in T-018), so the supplier reads it here, beside the deadline it explains. Both fields
+        // are the buyer's own words about the buyer's own action; neither says anything about another
+        // bidder, which is what this list exists to prevent leaking.
+        "submissionDeadlineChangeReason", "submissionDeadlineChangedAt",
     ];
 
     /// <summary>Every top-level key a supplier may receive from a row of <c>GET /rfqs</c>.</summary>

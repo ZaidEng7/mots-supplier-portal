@@ -162,6 +162,8 @@ const resources = {
         outboxOldest: 'عمر أقدم رسالة قيد الإرسال',        // [§7-style drafted]
         outboxDrained: 'لا توجد رسائل معلّقة',              // [§7-style drafted]
         outboxFailedWarning: 'توجد رسائل فاشلة تحتاج مراجعة', // [§7-style drafted]
+        erpNotConfigured: 'لا يوجد ربط فعلي بنظام ERP',           // [drafted] B-1/BRULE-011
+        erpNotConfiguredBody: 'تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي. لا تُعتبر الرسائل المُرسلة دليلاً على وصول البيانات.', // [drafted]
         minutes: '{{value}} دقيقة',                        // [§7-style drafted]
         jobs: 'المهام المجدولة',                            // [§7-style drafted]
         jobsDisabled: 'المهام المجدولة معطّلة',              // [§7-style drafted]
@@ -180,6 +182,75 @@ const resources = {
         },
         loadFailed: 'تعذّر تحميل لوحة إدارة النظام',        // [§7-style drafted]
         retry: 'إعادة المحاولة',                           // [reused]
+      },
+      // SCR-720 (T-079). §7 has no audit-explorer strings. Drafted in §7's register - NOT YET
+      // APPROVED, in ARABIC-REVIEW.md's pile.
+      auditExplorer: {
+        title: 'سجل التغييرات',                              // [reused] §7's own term for the audit trail
+        subtitle: 'البحث في سجل التغييرات على مستوى المنصة وتصديره.', // [drafted]
+        filtersTitle: 'عوامل التصفية',                       // [drafted]
+        resultsTitle: 'النتائج',                             // [reused]
+        search: 'بحث',                                       // [reused]
+        clear: 'إلغاء التصفية',                              // [drafted]
+        export: 'تصدير (CSV)',                               // [reused] matches the supplier's own export
+        loadMore: 'عرض المزيد',                              // [reused]
+        retry: 'إعادة المحاولة',                             // [reused]
+        empty: 'لا توجد سجلات',                              // [drafted]
+        // Two different facts, two different sentences: a filter that matched nothing is not an empty log.
+        emptyFiltered: 'لا توجد سجلات تطابق عوامل التصفية',    // [drafted]
+        filtersApplied: 'عوامل التصفية المطبَّقة: {{filters}}', // [drafted]
+        systemActor: 'إجراء تلقائي من النظام',                // [drafted]
+        fields: {
+          occurredAt: 'التاريخ والوقت',                      // [reused]
+          action: 'الإجراء',                                 // [reused] §7's own term
+          aggregate: 'السجل',                                // [drafted]
+          aggregateType: 'نوع السجل',                        // [drafted]
+          aggregateId: 'معرّف السجل',                        // [drafted]
+          actor: 'المنفِّذ',                                 // [drafted]
+          actorUserId: 'معرّف المنفِّذ',                      // [drafted]
+          transition: 'تغيّر الحالة',                        // [drafted]
+          from: 'من تاريخ',                                  // [reused]
+          to: 'إلى تاريخ',                                   // [reused]
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل سجل التغييرات',            // [drafted]
+          exportFailed: 'تعذّر تصدير سجل التغييرات',          // [drafted]
+        },
+      },
+      // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
+      // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
+      referenceAdmin: {
+        title: 'إدارة البيانات المرجعية',                    // [§7-style drafted]
+        subtitle: 'إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين.', // [§7-style drafted]
+        tableLabel: 'الجدول المرجعي',                        // [§7-style drafted]
+        addTitle: 'إضافة رمز جديد',                          // [§7-style drafted]
+        code: 'الرمز',                                       // [reused] §7's own term
+        name: 'الاسم',                                       // [reused]
+        nameAr: 'الاسم بالعربية',                            // [reused] matches the onboarding form
+        nameEn: 'الاسم بالإنجليزية',                         // [reused] matches the onboarding form
+        status: 'الحالة',                                    // [reused] §7's own term
+        actions: 'الإجراءات',                                // [reused] §7's own term
+        add: 'إضافة',                                        // [reused]
+        save: 'حفظ',                                         // [reused]
+        deactivate: 'تعطيل',                                 // [reused] matches staff deactivation
+        reactivate: 'إعادة التفعيل',                          // [reused] matches staff reactivation
+        active: 'مفعّل',                                      // [reused] §7's own term
+        inactive: 'معطّل',                                    // [reused] §7's own term
+        required: 'إلزامي',                                   // [reused] §7's own term
+        created: 'تمت إضافة الرمز',                           // [§7-style drafted]
+        renamed: 'تم حفظ الاسم',                              // [§7-style drafted]
+        empty: 'لا توجد رموز في هذا الجدول',                   // [§7-style drafted]
+        retry: 'إعادة المحاولة',                              // [reused]
+        // D-28 stated on the screen: an administrator who cannot find a delete button deserves to
+        // know it is absent on purpose.
+        noDeleteNotice: 'لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة.', // [drafted] D-28
+        inactiveNotice: 'تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها.', // [drafted] D-28
+        errors: {
+          duplicateCode: 'هذا الرمز موجود بالفعل في هذا الجدول.', // [§7-style drafted]
+          createFailed: 'تعذّرت إضافة الرمز',                  // [§7-style drafted]
+          updateFailed: 'تعذّر حفظ التغيير',                   // [§7-style drafted]
+          loadFailed: 'تعذّر تحميل البيانات المرجعية',          // [§7-style drafted]
+        },
       },
       // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
       // ARABIC-REVIEW.md's pile.
@@ -392,6 +463,8 @@ const resources = {
           ClarificationRequested: 'مطلوب استيضاح', Revised: 'مُعدَّل', Shortlisted: 'ضمن القائمة المختصرة',
           NotSelected: 'غير مختار', AwardOffered: 'عرض ترسية', Awarded: 'تمت الترسية',
           Declined: 'مرفوض من المورد', Withdrawn: 'مسحوب',
+          Lapsed: 'انتهت المهلة',            // [drafted] A-9/BRULE-052
+          Cancelled: 'ملغى مع الطلب',        // [drafted] A-9/BRULE-056
         },
         evaluation: {
           NotStarted: 'لم يبدأ', Assigned: 'مُسند', InProgress: 'قيد التنفيذ',
@@ -741,6 +814,7 @@ const resources = {
           title: 'موعد إغلاق التقديم',                  // [reused] §12.4's own field name in Arabic
           help: 'التمديد من صلاحية موظف المشتريات، وتقديم الموعد من صلاحية المدير. يُبلَّغ جميع المدعوين بأي تغيير.', // [§7-style drafted]
           newDeadline: 'الموعد الجديد',                 // [§7-style drafted]
+          reason: 'سبب التغيير',                        // [drafted] A-6
           apply: 'تغيير الموعد',                        // [§7-style drafted]
           changed: 'تم تغيير موعد إغلاق التقديم',        // [§7-style drafted]
           failed: 'تعذر تغيير موعد إغلاق التقديم',       // [§7-style drafted]
@@ -777,6 +851,33 @@ const resources = {
           text: 'النص', textAr: 'النص (عربي)', textEn: 'النص (إنجليزي)', mandatory: 'إلزامي',
           evaluationTemplate: 'قالب التقييم', approvals: 'الموافقات', step: 'الخطوة', decision: 'القرار',
           comments: 'ملاحظات', reason: 'السبب',
+          owner: 'المسؤول',                                 // [drafted] A-7
+        },
+        // ── A-7 · ARABIC FOR REVIEW ────────────────────────────────────────────────
+        // §7 has no ownership strings - nothing in the documents gives an RFQ an owner. Drafted in
+        // §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
+        unassigned: 'غير مُسند',                            // [drafted] A-7
+        ownerFilter: {
+          label: 'تصفية حسب المسؤول',                       // [drafted]
+          all: 'الكل',                                     // [reused]
+          me: 'المُسندة إليّ',                              // [drafted]
+          unassigned: 'غير مُسندة',                         // [drafted]
+          empty: {
+            me: 'لا توجد طلبات مُسندة إليك',                 // [drafted]
+            unassigned: 'كل الطلبات مُسندة إلى مسؤول',        // [drafted]
+          },
+        },
+        ownership: {
+          title: 'المسؤول عن الطلب',                        // [drafted]
+          help: 'يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات.', // [drafted]
+          ownerLabel: 'المسؤول',                            // [drafted]
+          approverLabel: 'المعتمِد',                        // [reused] §3.1's «اعتماد» family
+          newOwner: 'المسؤول الجديد',                       // [drafted]
+          reason: 'سبب النقل',                              // [drafted]
+          reassign: 'نقل المسؤولية',                        // [drafted]
+          reassigned: 'تم نقل المسؤولية',                    // [drafted]
+          nominateApprover: 'تحديد المعتمِد',                // [drafted]
+          anyManager: 'أي مدير',                            // [drafted]
         },
         errors: { saveFailed: 'تعذر حفظ الطلب', transitionFailed: 'تعذر تنفيذ الإجراء' },
         invitations: {
@@ -798,7 +899,9 @@ const resources = {
           publish: 'نشر للجميع',
           published: 'منشور للجميع',
           private: 'خاص بالسائل',
+          // A-4: kept for the legacy-row publish button; the answer form no longer offers a choice.
           publishNow: 'نشر مباشرة',
+          broadcastNotice: 'يُرسل الجواب إلى جميع المدعوين دون ذكر السائل.',   // [drafted]
           errors: { answerFailed: 'تعذر حفظ الإجابة' },
         },
         addenda: {
@@ -869,6 +972,16 @@ const resources = {
           financialLocked: 'المغلف المالي مقفل حتى يجتاز هذا العرض التأهيل الفني',
           qualified: 'مؤهَّل فنياً',
           notQualified: 'غير مؤهَّل فنياً',
+          anonymousBidder: 'هوية المورد محجوبة أثناء التقييم',   // [drafted] A-8
+          declaration: {
+            title: 'إقرار تعارض المصالح',                        // [drafted] A-8/BRULE-067
+            body: 'هذه أسماء الموردين المشاركين. إن كان لديك تعارض مصالح مع أيٍّ منهم فبيّنه الآن؛ بعد الإقرار تُحجب الأسماء ويجري التقييم دون معرفتها.', // [drafted]
+            noConflict: 'لا يوجد تعارض — متابعة',                // [drafted]
+            hasConflict: 'لديّ تعارض — تنحّي',                   // [drafted]
+            reasonLabel: 'سبب التنحّي',                          // [drafted]
+            reasonPlaceholder: 'سبب التنحّي',                    // [drafted]
+            failed: 'تعذّر تسجيل الإقرار',                       // [drafted]
+          },
           // ── T-067 · ARABIC FOR REVIEW ──────────────────────────────────────────────────
           // §7 has no table for an evaluator's workspace. Drafted here in §7's register:
           // professional MSA, authored rather than translated. NOT YET APPROVED - added to
@@ -890,6 +1003,23 @@ const resources = {
         },
       },
       comparison: {
+        // A-1/BRULE-069's surfaced tie. Drafted, marked, in ARABIC-REVIEW.md's pile.
+        // B-1/SCR-433: the clarification request, reachable for the first time.
+        clarifyTitle: 'طلب استيضاح من مورد',                     // [drafted]
+        clarifyBody: 'اطلب من المورد توضيحاً حول عرضه. يُبلَّغ المورد ويعود العرض إلى حالة «مطلوب استيضاح».', // [drafted]
+        clarifyReason: 'سبب الاستيضاح لـ {{code}}',              // [drafted]
+        clarifyReasonPlaceholder: 'ما المطلوب توضيحه',            // [drafted]
+        clarifyAsk: 'طلب استيضاح',                               // [reused] §8's «استيضاح»
+        clarifyRequested: 'تم إرسال طلب الاستيضاح',               // [drafted]
+        clarifyFailed: 'تعذّر إرسال طلب الاستيضاح',               // [drafted]
+        tieUnresolved: 'تعادل غير محلول',                        // [drafted]
+        tieTitle: 'تعادل في الترتيب يحتاج قراراً',                 // [drafted]
+        tieBody: 'تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك.', // [drafted]
+        tieReason: 'سبب اختيار {{code}}',                        // [drafted]
+        tieReasonPlaceholder: 'سبب القرار',                       // [drafted]
+        tieResolve: 'تثبيت الترتيب',                              // [drafted]
+        tieResolved: 'تم تثبيت الترتيب',                          // [drafted]
+        tieResolveFailed: 'تعذّر تثبيت الترتيب',                  // [drafted]
         title: 'مقارنة العروض',
         notFound: 'المقارنة غير متاحة',
         empty: 'لا توجد عروض مقدَّمة بعد',
@@ -953,6 +1083,9 @@ const resources = {
         errors: { actionFailed: 'تعذر تنفيذ الإجراء', segregationOfDuties: 'يجب أن يختلف المعتمد عن مرشّح الفائز' },
       },
       supplierRfq: {
+        deadlineChanged: {
+          title: 'تغيّر موعد إغلاق التقديم',                  // [drafted] A-6
+        },
         attachments: {
           title: 'مرفقات الطلب',                            // [reused] matches rfq.attachments
           none: 'لا توجد مرفقات',                           // [reused]
@@ -1011,6 +1144,13 @@ const resources = {
         termsSaved: 'تم حفظ الشروط',
         documents: 'المستندات',
         noDocuments: 'لا توجد مستندات بعد',
+        envelope: 'المغلف',                                  // [drafted] A-2
+        envelopeCommercial: 'المغلف المالي',                  // [reused] §7's own term
+        envelopeTechnical: 'المغلف الفني',                    // [reused] §7's own term
+        envelopeExpected: {
+          Technical: 'يُتوقع أن يكون هذا المستند في المغلف الفني.',   // [drafted] A-2
+          Commercial: 'يُتوقع أن يكون هذا المستند في المغلف المالي.', // [drafted] A-2
+        },
         uploadDocument: 'رفع مستند',
         documentAdded: 'تمت إضافة المستند',
         withdrawTitle: 'سحب العرض',
@@ -1066,6 +1206,7 @@ const resources = {
         title: 'مراجعة طلبات الموردين',
         queue: 'قائمة المراجعة',
         age: 'المدة',
+        reviewTarget: 'الموعد المستهدف',                 // [drafted] A-5
         assignee: 'المسؤول',
         actions: 'إجراءات',
         filterState: 'الحالة',
@@ -1131,8 +1272,27 @@ const resources = {
           fullNameRequired: 'الاسم الكامل مطلوب',
           emailInvalid: 'البريد الإلكتروني غير صحيح',
           inviteFailed: 'تعذر إرسال الدعوة',
+          loadFailed: 'تعذّر تحميل حسابات الموظفين',              // [drafted]
+          updateFailed: 'تعذّر تنفيذ الإجراء',                    // [drafted]
+          cannotActOnSelf: 'لا يمكنك تنفيذ هذا الإجراء على حسابك.', // [drafted]
+          wouldLockOutAdministration: 'لا يمكن تعطيل آخر مسؤول نظام مفعّل.', // [drafted]
           passwordTooShort: 'كلمة المرور قصيرة جداً',
         },
+        // T-077/SCR-701/702. Drafted in §7's register, marked, in ARABIC-REVIEW.md.
+        accountsTitle: 'حسابات الموظفين',                     // [drafted]
+        noAccounts: 'لا توجد حسابات',                          // [reused] §4's empty-state pattern
+        status: 'الحالة',                                      // [reused] §7's own term
+        actions: 'إجراءات',                                    // [reused]
+        active: 'مفعّل',                                        // [reused]
+        inactive: 'معطّل',                                      // [drafted]
+        mfaOn: 'التحقق بخطوتين مُفعّل',                          // [drafted]
+        sessions: 'جلسات نشطة: {{count}}',                      // [drafted]
+        deactivate: 'تعطيل',                                    // [drafted]
+        reactivate: 'إعادة التفعيل',                            // [drafted]
+        resetMfa: 'إعادة ضبط التحقق بخطوتين',                   // [drafted]
+        roleChanged: 'تم تغيير الدور',                          // [drafted]
+        mfaReset: 'تمت إعادة ضبط التحقق بخطوتين',                // [drafted]
+        retry: 'إعادة المحاولة',                                // [reused]
         acceptInviteTitle: 'قبول دعوة الموظف',
         acceptInviteHint: 'عيّن كلمة مرور لإكمال إعداد حسابك.',
         acceptInviteSuccess: 'تم إعداد حسابك. يمكنك الآن تسجيل الدخول.',
@@ -1219,6 +1379,14 @@ const resources = {
         mfaInvalidCode: 'رمز غير صحيح',
         recoveryCodesNotice: 'احفظ رموز الاسترداد هذه في مكان آمن — لن تظهر مرة أخرى.',
         sessionsTitle: 'الجلسات النشطة',
+        // B-1/FR-AUD-003: the supplier's own trail, reachable for the first time.
+        auditTitle: 'سجل نشاط حسابي',                            // [drafted]
+        auditHint: 'أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم.', // [drafted]
+        auditEmpty: 'لا توجد أحداث مسجّلة بعد',                   // [reused] §4's empty-state pattern
+        auditExport: 'تنزيل السجل (CSV)',                        // [drafted]
+        auditExportFailed: 'تعذّر تنزيل السجل',                   // [drafted]
+        auditLoadFailed: 'تعذّر تحميل السجل',                     // [drafted]
+        retry: 'إعادة المحاولة',                                 // [reused]
         currentSession: 'الجلسة الحالية',
         unknownDevice: 'جهاز غير معروف',
         revoke: 'إنهاء الجلسة',
@@ -1354,6 +1522,8 @@ const resources = {
         outboxOldest: 'Oldest pending message',
         outboxDrained: 'Nothing pending',
         outboxFailedWarning: 'Failed messages need attention',
+        erpNotConfigured: 'No real ERP integration is configured',
+        erpNotConfiguredBody: 'Messages are written to the log and sent nowhere. A message marked Sent is not evidence that data reached an external system.',
         minutes: '{{value}} min',
         jobs: 'Recurring jobs',
         jobsDisabled: 'Recurring jobs are disabled',
@@ -1372,6 +1542,68 @@ const resources = {
         },
         loadFailed: 'Could not load platform administration',
         retry: 'Try again',
+      },
+      auditExplorer: {
+        title: 'Audit log',
+        subtitle: 'Search and export the platform-wide audit trail.',
+        filtersTitle: 'Filters',
+        resultsTitle: 'Results',
+        search: 'Search',
+        clear: 'Clear filters',
+        export: 'Export (CSV)',
+        loadMore: 'Load more',
+        retry: 'Try again',
+        empty: 'No audit rows',
+        emptyFiltered: 'No audit rows match these filters',
+        filtersApplied: 'Filters applied: {{filters}}',
+        systemActor: 'System',
+        fields: {
+          occurredAt: 'When',
+          action: 'Action',
+          aggregate: 'Record',
+          aggregateType: 'Record type',
+          aggregateId: 'Record id',
+          actor: 'Actor',
+          actorUserId: 'Actor id',
+          transition: 'State change',
+          from: 'From date',
+          to: 'To date',
+        },
+        errors: {
+          loadFailed: 'Could not load the audit log',
+          exportFailed: 'Could not export the audit log',
+        },
+      },
+      referenceAdmin: {
+        title: 'Reference data',
+        subtitle: 'Add, rename, and deactivate the codes RFQs and supplier profiles are built from.',
+        tableLabel: 'Reference table',
+        addTitle: 'Add a code',
+        code: 'Code',
+        name: 'Name',
+        nameAr: 'Name (Arabic)',
+        nameEn: 'Name (English)',
+        status: 'Status',
+        actions: 'Actions',
+        add: 'Add',
+        save: 'Save',
+        deactivate: 'Deactivate',
+        reactivate: 'Reactivate',
+        active: 'Active',
+        inactive: 'Inactive',
+        required: 'Required',
+        created: 'Code added',
+        renamed: 'Name saved',
+        empty: 'This table has no codes',
+        retry: 'Try again',
+        noDeleteNotice: 'Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say.',
+        inactiveNotice: 'Deactivated codes stay listed here, so deactivation does not read as deletion.',
+        errors: {
+          duplicateCode: 'That code already exists on this table.',
+          createFailed: 'Could not add the code',
+          updateFailed: 'Could not save the change',
+          loadFailed: 'Could not load reference data',
+        },
       },
       ministry: {
         title: 'Governance dashboard',
@@ -1544,6 +1776,7 @@ const resources = {
           ClarificationRequested: 'Clarification requested', Revised: 'Revised', Shortlisted: 'Shortlisted',
           NotSelected: 'Not selected', AwardOffered: 'Award offered', Awarded: 'Awarded',
           Declined: 'Declined', Withdrawn: 'Withdrawn',
+          Lapsed: 'Window closed', Cancelled: 'RFQ cancelled',
         },
         evaluation: {
           NotStarted: 'Not started', Assigned: 'Assigned', InProgress: 'In progress',
@@ -1888,6 +2121,7 @@ const resources = {
           title: 'Submission deadline',
           help: 'Extending is the officer\'s; bringing the date forward is the manager\'s. Every invited supplier is notified of either.',
           newDeadline: 'New deadline',
+          reason: 'Reason for the change',
           apply: 'Change deadline',
           changed: 'The submission deadline was changed',
           failed: 'Could not change the submission deadline',
@@ -1924,6 +2158,30 @@ const resources = {
           text: 'Text', textAr: 'Text (Arabic)', textEn: 'Text (English)', mandatory: 'Mandatory',
           evaluationTemplate: 'Evaluation template', approvals: 'Approvals', step: 'Step', decision: 'Decision',
           comments: 'Comments', reason: 'Reason',
+          owner: 'Owner',
+        },
+        unassigned: 'Unassigned',
+        ownerFilter: {
+          label: 'Filter by owner',
+          all: 'All',
+          me: 'Mine',
+          unassigned: 'Unassigned',
+          empty: {
+            me: 'No RFQs are assigned to you',
+            unassigned: 'Every RFQ has an owner',
+          },
+        },
+        ownership: {
+          title: 'Ownership',
+          help: 'One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail.',
+          ownerLabel: 'Owner',
+          approverLabel: 'Approver',
+          newOwner: 'New owner',
+          reason: 'Reason for the handover',
+          reassign: 'Reassign',
+          reassigned: 'Ownership reassigned',
+          nominateApprover: 'Choose an approver',
+          anyManager: 'Any manager',
         },
         errors: { saveFailed: 'Could not save the RFQ', transitionFailed: 'Could not perform the action' },
         invitations: {
@@ -1946,6 +2204,7 @@ const resources = {
           published: 'Published to all',
           private: 'Private to asker',
           publishNow: 'Publish immediately',
+          broadcastNotice: 'The answer goes to every invited supplier. The asker is not named.',
           errors: { answerFailed: 'Could not save the answer' },
         },
         addenda: {
@@ -2016,6 +2275,16 @@ const resources = {
           financialLocked: 'The financial envelope is locked until this proposal passes technical qualification',
           qualified: 'Technically qualified',
           notQualified: 'Not technically qualified',
+          anonymousBidder: 'Bidder identity withheld during scoring',
+          declaration: {
+            title: 'Conflict of interest declaration',
+            body: 'These are the suppliers taking part. If you have a conflict of interest with any of them, say so now — once you declare, the names are withheld and scoring is anonymous.',
+            noConflict: 'No conflict — continue',
+            hasConflict: 'I have a conflict — recuse me',
+            reasonLabel: 'Reason for recusal',
+            reasonPlaceholder: 'Reason for recusal',
+            failed: 'Could not record the declaration',
+          },
           specification: 'What was requested',
           items: 'Items',
           requirements: 'Requirements',
@@ -2031,6 +2300,21 @@ const resources = {
         },
       },
       comparison: {
+        clarifyTitle: 'Ask a bidder to clarify',
+        clarifyBody: 'Ask a supplier to explain something about their bid. They are notified and the proposal returns to Clarification requested.',
+        clarifyReason: 'What to clarify for {{code}}',
+        clarifyReasonPlaceholder: 'What needs clarifying',
+        clarifyAsk: 'Request clarification',
+        clarifyRequested: 'The clarification request was sent',
+        clarifyFailed: 'Could not send the clarification request',
+        tieUnresolved: 'Unresolved tie',
+        tieTitle: 'A tie in the ranking needs a decision',
+        tieBody: 'These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do.',
+        tieReason: 'Reason for choosing {{code}}',
+        tieReasonPlaceholder: 'Reason for the decision',
+        tieResolve: 'Confirm the order',
+        tieResolved: 'The order is confirmed',
+        tieResolveFailed: 'Could not confirm the order',
         title: 'Proposal Comparison',
         notFound: 'Comparison not available',
         empty: 'No proposals submitted yet',
@@ -2094,6 +2378,9 @@ const resources = {
         errors: { actionFailed: 'Could not perform the action', segregationOfDuties: 'The approver must differ from the recommender' },
       },
       supplierRfq: {
+        deadlineChanged: {
+          title: 'The submission deadline changed',
+        },
         attachments: {
           title: 'RFQ attachments',
           none: 'No attachments',
@@ -2150,6 +2437,13 @@ const resources = {
         termsSaved: 'Terms saved',
         documents: 'Documents',
         noDocuments: 'No documents yet',
+        envelope: 'Envelope',
+        envelopeCommercial: 'Commercial envelope',
+        envelopeTechnical: 'Technical envelope',
+        envelopeExpected: {
+          Technical: 'This document is expected in the technical envelope.',
+          Commercial: 'This document is expected in the commercial envelope.',
+        },
         uploadDocument: 'Upload document',
         documentAdded: 'Document added',
         withdrawTitle: 'Withdraw proposal',
@@ -2201,6 +2495,7 @@ const resources = {
         title: 'Supplier Application Review',
         queue: 'Review queue',
         age: 'Age',
+        reviewTarget: 'Target date',
         assignee: 'Assignee',
         actions: 'Actions',
         filterState: 'State',
@@ -2266,8 +2561,26 @@ const resources = {
           fullNameRequired: 'Full name is required',
           emailInvalid: 'Email is invalid',
           inviteFailed: 'Could not send invite',
+          loadFailed: 'Could not load the staff accounts',
+          updateFailed: 'Could not complete that action',
+          cannotActOnSelf: 'You cannot do that to your own account.',
+          wouldLockOutAdministration: 'The last active system administrator cannot be deactivated.',
           passwordTooShort: 'Password is too short',
         },
+        accountsTitle: 'Staff accounts',
+        noAccounts: 'No accounts',
+        status: 'Status',
+        actions: 'Actions',
+        active: 'Active',
+        inactive: 'Deactivated',
+        mfaOn: 'Two-factor enrolled',
+        sessions: 'Active sessions: {{count}}',
+        deactivate: 'Deactivate',
+        reactivate: 'Reactivate',
+        resetMfa: 'Reset two-factor',
+        roleChanged: 'The role was changed',
+        mfaReset: 'Two-factor was reset',
+        retry: 'Try again',
         acceptInviteTitle: 'Accept staff invite',
         acceptInviteHint: 'Set a password to complete your account setup.',
         acceptInviteSuccess: 'Your account is set up. You can now sign in.',
@@ -2354,6 +2667,13 @@ const resources = {
         mfaInvalidCode: 'Invalid code',
         recoveryCodesNotice: 'Save these recovery codes somewhere safe - they will not be shown again.',
         sessionsTitle: 'Active sessions',
+        auditTitle: 'My account activity',
+        auditHint: 'The most recent events recorded against your account, newest first.',
+        auditEmpty: 'No events recorded yet',
+        auditExport: 'Download the trail (CSV)',
+        auditExportFailed: 'Could not download the trail',
+        auditLoadFailed: 'Could not load the trail',
+        retry: 'Try again',
         currentSession: 'Current session',
         unknownDevice: 'Unknown device',
         revoke: 'Sign out',

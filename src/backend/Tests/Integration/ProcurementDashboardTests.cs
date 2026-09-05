@@ -91,10 +91,13 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Awaiting_my_action_differs_between_an_officer_and_a_manager_on_the_same_data()
     {
-        // The property that makes the tile mean anything. It is an INVENTION - §10 names the tile and
-        // defines nothing, and there is no per-user ownership to derive it from - so the test that
-        // matters is that it is not silently org-wide: a Draft RFQ awaits the officer who can submit
-        // it for review, not the manager who cannot.
+        // The property that makes the tile mean anything: it is not silently org-wide. A Draft RFQ awaits
+        // the officer who can submit it for review, not the manager who cannot.
+        //
+        // §10 names the tile and defines nothing, so the permission half of this remains an invention.
+        // A-7 supplied the other half - the RFQ also has to be the caller's - and these drafts are
+        // created BY the officer, so they are theirs. The unowned and approver cases are asserted in
+        // RfqOwnershipTests, which is where the ownership rules live.
         var org = await OrgWithRfqsAsync("Awaiting", draftCount: 2);
 
         var officerView = await DashboardAsync(org.Officer);

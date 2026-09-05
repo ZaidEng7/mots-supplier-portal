@@ -89,6 +89,8 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
             bool? technicallyQualified = null;
             decimal? technicalWeighted = null, financialWeighted = null, weightedTotal = null;
             int? rank = null;
+            var tieUnresolved = false;
+            string? tieResolutionReason = null;
             List<ComparisonCriterionScoreDto>? criterionScores = null;
 
             if (consolidatedOrLater)
@@ -99,6 +101,8 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
                 financialWeighted = result?.FinancialWeightedScore;
                 weightedTotal = result?.WeightedTotal;
                 rank = result?.Rank;
+                tieUnresolved = result?.TieUnresolved ?? false;
+                tieResolutionReason = result?.TieResolutionReason;
 
                 criterionScores = evaluation.Criteria.Select(c =>
                 {
@@ -114,7 +118,7 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
                 p.CurrencyCode, p.PaymentTerms, p.IncotermCode, p.DeliveryTermsAr, p.DeliveryTermsEn,
                 p.Warranty, p.ValidityEnd, p.SubmittedAt!.Value,
                 requirementDtos, itemDtos, grandTotal,
-                technicallyQualified, technicalWeighted, financialWeighted, weightedTotal, rank, criterionScores);
+                technicallyQualified, technicalWeighted, financialWeighted, weightedTotal, rank, tieUnresolved, tieResolutionReason, criterionScores);
         }).ToList();
 
         return new ComparisonDto(

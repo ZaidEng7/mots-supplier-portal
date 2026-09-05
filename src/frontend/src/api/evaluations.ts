@@ -77,9 +77,15 @@ export interface RequirementAnswer {
  * the comparison matrix after consolidation and nowhere else. */
 export interface EvaluatorProposal {
   proposalCode: string
-  supplierReferenceCode: string
-  supplierDisplayNameAr: string
-  supplierDisplayNameEn: string
+  /** A-8: the stable pseudonym a bid is known by while scoring is open - "Bidder A", «مورّد أ». Always
+   * present, so a comment can refer to a bid whether or not its owner is revealed. */
+  bidderLabelAr: string
+  bidderLabelEn: string
+  /** A-8: NULL while this evaluator's scoring is open. Present before scoring opens (the recusal
+   * declaration, BRULE-067) and after consolidation. Supersedes D-19. */
+  supplierReferenceCode: string | null
+  supplierDisplayNameAr: string | null
+  supplierDisplayNameEn: string | null
   narrativeAr: string | null
   narrativeEn: string | null
   requirementAnswers: RequirementAnswer[]
@@ -202,4 +208,32 @@ export async function scoreCriterion(
 
 export async function submitMyEvaluation(rfqReferenceCode: string): Promise<MyEvaluation> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/submit`, { method: 'POST' }))
+}
+
+/** A-8/BRULE-067: the recusal declaration window. The names are here, once, before scoring - and this
+ * read deliberately does NOT open scoring, unlike getMyEvaluation. */
+export interface ConflictDeclaration {
+  declarationRequired: boolean
+  bidders: { proposalCode: string; supplierDisplayNameAr: string; supplierDisplayNameEn: string }[]
+}
+
+export async function getConflictDeclaration(rfqReferenceCode: string): Promise<ConflictDeclaration | null> {
+  const response = await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/bidders`)
+  // 404 is "not assigned" (§9.2), which the page treats as nothing to declare.
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error('declaration_unavailable')
+  return (await response.json()) as ConflictDeclaration
+}
+
+export async function declareConflict(
+  rfqReferenceCode: string,
+  hasConflict: boolean,
+  reason?: string,
+): Promise<void> {
+  const response = await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/declare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hasConflict, reason: reason ?? null }),
+  })
+  if (!response.ok) throw new Error('declaration_failed')
 }

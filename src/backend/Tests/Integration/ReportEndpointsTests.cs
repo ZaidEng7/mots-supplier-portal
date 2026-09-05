@@ -30,11 +30,10 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
     /// <summary>
     /// Grants report.read to a role.
     ///
-    /// <para>It is in no role's default set on purpose - reports aggregate across every RFQ,
-    /// supplier and document in an organization, and no document says which personas should see
-    /// that. So every deployment needs this grant made by hand, and these tests make it explicitly
-    /// rather than relying on a seed, which is also the most honest demonstration of what an
-    /// operator has to do.</para>
+    /// <para><b>A-17 (batch 10) changed the default:</b> <c>procurement_manager</c> now holds
+    /// report.read in <c>Roles.DefaultPermissions</c>, so the manager needs no grant here. Every
+    /// other role still does, and this helper is what the tests below use to prove the gate opens
+    /// as well as closes.</para>
     /// </summary>
     private async Task GrantReportReadAsync(string role)
     {
@@ -280,5 +279,29 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
         // Non-vacuity: if the suite happens to hold no superseded versions, this test proves the
         // rule only by coincidence. Say which case ran rather than passing silently either way.
         (all >= latest).Should().BeTrue("a sanity check on the two counts");
+    }
+
+    [Fact]
+    public async Task Procurement_manager_reaches_the_reports_by_default_and_an_officer_does_not()
+    {
+        // A-17. report.read was held by NO role, so FEAT-19.1/19.2's screen was reachable by nobody -
+        // a feature that shipped and could not be opened. The manager holds approval authority over
+        // the work these reports aggregate, so the grant discloses nothing they cannot already reach
+        // case by case.
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+
+        var manager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, org.Id);
+        (await manager.GetAsync("/api/v1/reports/procurement")).StatusCode
+            .Should().Be(HttpStatusCode.OK, "A-17 grants report.read to procurement_manager by default");
+        (await manager.GetAsync("/api/v1/reports/compliance")).StatusCode
+            .Should().Be(HttpStatusCode.OK);
+
+        // The control, and the half that proves the default is a GRANT and not an open door: a role
+        // A-17 deliberately excluded is still refused. ministry_viewer would be the sharper example
+        // but it is excluded for a different reason (BRULE-086's single-permission default), so this
+        // uses the role whose exclusion A-17 argues for on cross-organization remit.
+        var evaluator = await StaffTestClient.CreateAsync(fixture, Roles.Evaluator, org.Id);
+        (await evaluator.GetAsync("/api/v1/reports/procurement")).StatusCode
+            .Should().Be(HttpStatusCode.Forbidden, "A-17 grants it to procurement_manager only");
     }
 }

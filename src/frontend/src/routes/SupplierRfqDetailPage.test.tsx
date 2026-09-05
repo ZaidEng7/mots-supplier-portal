@@ -16,6 +16,7 @@ function fixture(invitationStatus: string, overrides: Record<string, unknown> = 
     currencyCode: 'SYP', state: 'Published', submissionOpensAt: null, submissionDeadline: null, clarificationDeadlineAt: null,
     items: [{ id: 'item-1', lineNo: 1, titleAr: 'أ', titleEn: 'Widget', specificationAr: null, specificationEn: null, categoryCode: 'catering', quantity: 5, unitOfMeasureCode: 'unit', isUnitPrice: true, isOptional: false }],
     requirements: [], attachments: [], invitationStatus, clarifications: [], addenda: [],
+    submissionDeadlineChangeReason: null, submissionDeadlineChangedAt: null,
     ...overrides,
   }
 }
@@ -140,5 +141,32 @@ describe('SupplierRfqDetailPage', () => {
     renderPage(<SupplierRfqDetailPage />)
 
     expect(await screen.findByText('No attachments')).toBeInTheDocument()
+  })
+
+  it('tells the supplier why their deadline moved', async () => {
+    // A-6. The notification cannot carry the reason - BRULE-091's allow-list is identifiers and public
+    // codes, and it already refused a DATE on the grounds that a date is content - so the message points
+    // here and the reason is waiting on the RFQ, beside the deadline it explains.
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed', {
+        submissionDeadlineChangeReason: 'The Ministry extended the tender period.',
+        submissionDeadlineChangedAt: '2026-09-05T10:00:00Z',
+      }),
+    })
+
+    renderPage(<SupplierRfqDetailPage />)
+
+    expect(await screen.findByText('The submission deadline changed')).toBeInTheDocument()
+    expect(screen.getByText('The Ministry extended the tender period.')).toBeInTheDocument()
+  })
+
+  it('shows no deadline-change card when the deadline has not moved', async () => {
+    // The control.
+    restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed') })
+
+    renderPage(<SupplierRfqDetailPage />)
+
+    expect(await screen.findByText('No attachments')).toBeInTheDocument()
+    expect(screen.queryByText('The submission deadline changed')).not.toBeInTheDocument()
   })
 })

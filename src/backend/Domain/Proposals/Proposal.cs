@@ -529,31 +529,67 @@ public sealed class Proposal : IVersionedAggregate
     /// </summary>
     public static IReadOnlyList<ProposalState> AllowedNextFrom(ProposalState state) => state switch
     {
-        ProposalState.Draft => [ProposalState.Submitted, ProposalState.Withdrawn],
+        ProposalState.Draft => [ProposalState.Submitted, ProposalState.Withdrawn, ProposalState.Lapsed, ProposalState.Cancelled],
 
         // Withdrawn is reachable from Submitted while the RFQ window is open (§4.1, BRULE-047).
         ProposalState.Submitted =>
-            [ProposalState.UnderReview, ProposalState.Withdrawn, ProposalState.Awarded, ProposalState.NotSelected],
+            [ProposalState.UnderReview, ProposalState.Withdrawn, ProposalState.Awarded, ProposalState.NotSelected, ProposalState.Cancelled],
 
         ProposalState.UnderReview =>
-            [ProposalState.ClarificationRequested, ProposalState.Shortlisted, ProposalState.NotSelected, ProposalState.Awarded],
+            [ProposalState.ClarificationRequested, ProposalState.Shortlisted, ProposalState.NotSelected, ProposalState.Awarded, ProposalState.Cancelled],
 
-        ProposalState.ClarificationRequested => [ProposalState.Revised],
-        ProposalState.Revised => [ProposalState.UnderReview],
+        ProposalState.ClarificationRequested => [ProposalState.Revised, ProposalState.Cancelled],
+        ProposalState.Revised => [ProposalState.UnderReview, ProposalState.Cancelled],
 
         // AwardOffered is the canonical route and is now reachable (T-064). Awarded stays listed
         // because the direct path is still available to an RFQ that never shortlisted.
         ProposalState.Shortlisted =>
-            [ProposalState.AwardOffered, ProposalState.NotSelected, ProposalState.Awarded],
+            [ProposalState.AwardOffered, ProposalState.NotSelected, ProposalState.Awarded, ProposalState.Cancelled],
 
         ProposalState.AwardOffered => [ProposalState.Awarded, ProposalState.Declined],
 
-        // Terminal.
+        // Terminal. Lapsed and Cancelled join the set (A-9): a proposal the window closed on, and one
+        // whose RFQ was cancelled beneath it, are both over.
         ProposalState.Awarded or ProposalState.NotSelected
-            or ProposalState.Declined or ProposalState.Withdrawn => [],
+            or ProposalState.Declined or ProposalState.Withdrawn
+            or ProposalState.Lapsed or ProposalState.Cancelled => [],
 
         _ => [],
     };
+
+    /// <summary>
+    /// A-9/BRULE-052: the submission window closed on this Draft, so it is over.
+    ///
+    /// <para>Only from Draft. A Submitted proposal that missed nothing is not lapsed, and a terminal
+    /// one is already resolved - both are refused rather than silently re-terminated, because a job
+    /// that runs every five minutes must not be able to rewrite a decided outcome.</para>
+    /// </summary>
+    public void Lapse()
+    {
+        if (State != ProposalState.Draft)
+        {
+            throw new DomainException($"Cannot lapse a proposal in state '{State}'; only 'Draft' lapses when the window closes.");
+        }
+
+        State = ProposalState.Lapsed;
+    }
+
+    /// <summary>
+    /// A-9/BRULE-056: the RFQ was cancelled beneath this proposal.
+    ///
+    /// <para>From any non-terminal state, because cancellation can arrive at any point before award -
+    /// BRULE-037 permits it "from any pre-Awarded state". A terminal proposal is left alone: a
+    /// withdrawn bid was withdrawn, and an awarded one belongs to an RFQ that could not be cancelled.</para>
+    /// </summary>
+    public void CancelWithRfq()
+    {
+        if (AllowedNextFrom(State).Count == 0)
+        {
+            throw new DomainException($"Cannot cancel a proposal in state '{State}'; it is already resolved.");
+        }
+
+        State = ProposalState.Cancelled;
+    }
 
     public void Award()
     {

@@ -109,7 +109,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// </summary>
     private List<EntityEntry> TouchedVersionedRoots()
     {
-        var roots = new HashSet<EntityEntry>();
+        // Keyed on the tracked ENTITY, with reference equality - not on EntityEntry.
+        //
+        // EF hands out a fresh EntityEntry wrapper each time you ask, so a HashSet<EntityEntry> does not
+        // deduplicate: the same Supplier arrives once as a Modified root and again as the principal of a
+        // changed child, and the set holds both. That made roots.Count == 2, which made
+        // ApplyExpectedVersion bail on its "exactly one root" precondition and apply NO guard - so a stale
+        // If-Match was accepted and the write went through. Latent until T-030 split (3), because before
+        // it no child-write route declared If-Match, so no request reached here with both.
+        //
+        // The bump had the same problem in a quieter form: two wrappers meant the version advanced by two.
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var roots = new List<EntityEntry>();
+
+        void Add(EntityEntry entry)
+        {
+            if (seen.Add(entry.Entity)) roots.Add(entry);
+        }
+
 
         foreach (var entry in ChangeTracker.Entries().ToList())
         {
@@ -121,7 +138,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             if (entry.Entity is IVersionedAggregate)
             {
                 // An Added root has no prior version to guard or advance - it starts at the default.
-                if (entry.State != EntityState.Added) roots.Add(entry);
+                if (entry.State != EntityState.Added) Add(entry);
                 continue;
             }
 
@@ -129,7 +146,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             // aggregate saved together with its children has no prior version to guard and no row to
             // update; forcing it Modified made EF emit an UPDATE against a row that did not exist
             // yet, which is how registration started answering 500.
-            if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) roots.Add(principal);
+            if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) Add(principal);
         }
 
         return [.. roots];
@@ -838,6 +855,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(r => r.RowVersion).IsAppManagedVersion();
             entity.HasIndex(r => new { r.OrganizationId, r.State });
             entity.HasIndex(r => r.State);
+            // A-7: "Awaiting my action" and the buyer list's mine/unassigned filter both query on
+            // this beside the organization, which is already the first clause of every dashboard
+            // query - so the composite, not a bare index on the owner.
+            entity.HasIndex(r => new { r.OrganizationId, r.OwnerUserId });
             entity.HasMany(r => r.Items).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Requirements).WithOne().HasForeignKey(q => q.RfqId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(r => r.Attachments).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
@@ -868,6 +889,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(q => q.TextAr).HasMaxLength(2000).IsRequired();
             entity.Property(q => q.TextEn).HasMaxLength(2000).IsRequired();
             entity.Property(q => q.DocumentTypeCode).HasMaxLength(50);
+            // A-2: stored as a STRING, matching ProposalDocument.Envelope. The scaffolder defaulted this
+            // to an integer, which would have put the same enum in the database two different ways -
+            // readable one place and an opaque ordinal the other, and any reordering of the enum members
+            // would silently re-interpret every existing row on this side only.
+            entity.Property(q => q.ExpectedEnvelope).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(q => q.RfqId);
         });
 
@@ -973,7 +999,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 // The column name is QUOTED. This project maps to PascalCase columns, and an
                 // unquoted `state` folds to lowercase in Postgres and does not exist - the first
                 // version of this filter failed every migration with 42703.
-                .HasFilter("\"State\" <> 'Withdrawn'");
+                //
+                // A-9 added Lapsed and Cancelled, and both belong in this exclusion for the same
+                // reason Withdrawn does: they are historical records rather than current bids. A
+                // supplier whose draft LAPSED on RFQ-1 must be able to bid again if that RFQ reopens
+                // its window, and one whose proposal was CANCELLED with the RFQ must not be blocked
+                // from a re-tender. Leaving them in would have made the index refuse the second row
+                // and surface as a 500 on a perfectly legitimate submission - which is exactly how
+                // the unfiltered version of this index failed the first time.
+                .HasFilter("\"State\" NOT IN ('Withdrawn', 'Lapsed', 'Cancelled')");
             entity.HasIndex(p => new { p.SupplierId, p.State });
             entity.HasIndex(p => new { p.RfqId, p.State });
             entity.HasMany(p => p.Items).WithOne().HasForeignKey(i => i.ProposalId).OnDelete(DeleteBehavior.Cascade);

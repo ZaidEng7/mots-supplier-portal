@@ -24,7 +24,7 @@ internal static class EvaluationDtoMapper
         evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
         [.. evaluation.Criteria.Select(ToCriterionDto)],
         [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(a.EvaluatorUserId, a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
-        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank))],
+        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
         evaluation.RowVersion);
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
@@ -51,8 +51,42 @@ internal static class EvaluationDtoMapper
             .Select(s => new MyScoreDto(codeById[s.ProposalId], s.CriterionId, s.RawScore, s.CommentAr, s.CommentEn, s.ScoredAt))
             .ToList();
 
+        // A-8: bidders are anonymous WHILE this evaluator is scoring, and named at the two moments
+        // where the name is the point.
+        //
+        // Before scoring opens, the evaluator is looking at the assignment they have been offered and
+        // declaring conflicts - BRULE-067's recusal, which is an assignment-time act. After
+        // consolidation the scores are in and locked, so a name can no longer influence one.
+        //
+        // Between those two, the name is withheld and a stable pseudonym stands in its place. Keyed on
+        // THIS evaluator's own submission rather than on the evaluation's state, because the two
+        // evaluators on a committee are not necessarily at the same point.
+        // Revealed in exactly two windows, and the first is keyed on THIS evaluator's declaration rather
+        // than on the evaluation's state: reading my-evaluation is itself what opens scoring (see
+        // GetMyEvaluationHandler), and the evaluation goes InProgress when the FIRST evaluator opens it -
+        // so a state-only rule would close the second evaluator's declaration window before they had
+        // one, and would reveal names to whoever happened to look first.
+        //
+        //   1. before this evaluator has declared - the recusal window (BRULE-067), served by
+        //      GET my-evaluation/bidders, which does NOT open scoring;
+        //   2. after consolidation - the scores are in and locked, so a name cannot influence one.
+        var revealed = assignment.ConflictDeclaredAt is null
+            || evaluation.State is EvaluationState.Consolidated or EvaluationState.Finalized;
+
+        // Ordered by proposal code so the label for a given bid is the same on every read and for every
+        // evaluator - a committee cannot discuss "Bidder B" if it means a different bid to each member.
+        var labels = bids
+            .OrderBy(b => b.ProposalCode, StringComparer.Ordinal)
+            .Select((b, index) => (b.ProposalId, Index: index))
+            .ToDictionary(x => x.ProposalId, x => x.Index);
+
         var proposals = bids.Select(b => new EvaluatorProposalDto(
-            b.ProposalCode, b.SupplierReferenceCode, b.SupplierDisplayNameAr, b.SupplierDisplayNameEn,
+            b.ProposalCode,
+            BidderLabel.Arabic(labels[b.ProposalId]),
+            BidderLabel.English(labels[b.ProposalId]),
+            revealed ? b.SupplierReferenceCode : null,
+            revealed ? b.SupplierDisplayNameAr : null,
+            revealed ? b.SupplierDisplayNameEn : null,
             b.NarrativeAr, b.NarrativeEn, b.RequirementAnswers, b.Documents,
             evaluation.IsTechnicallyQualifiedByEvaluator(evaluatorUserId, b.ProposalId))).ToList();
 
@@ -65,6 +99,32 @@ internal static class EvaluationDtoMapper
             [.. rfq.Requirements.Select(r => new RequirementDto(r.Id, r.TextAr, r.TextEn, r.IsMandatory, r.DocumentTypeCode))],
             assignment.SubmittedAt, [.. evaluation.Criteria.Select(ToCriterionDto)], proposals, myScores);
     }
+}
+
+/// <summary>
+/// A-8: the pseudonym an anonymised bid is known by while scoring is open.
+///
+/// <para>Letters, not numbers, and deliberately: a number reads as a rank, and the whole point is that
+/// the evaluator does not yet know which bid is better. Arabic uses the abjad letter sequence
+/// (أ ب ج د …) rather than the alphabetical one, which is what an Arabic reader expects for
+/// enumeration. Past the end of either alphabet it falls back to a two-part label rather than throwing
+/// - an evaluation with 27 bids is unlikely and would still have to render.</para>
+/// </summary>
+internal static class BidderLabel
+{
+    private const string EnglishLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static readonly string[] ArabicAbjad =
+        ["أ", "ب", "ج", "د", "هـ", "و", "ز", "ح", "ط", "ي", "ك", "ل", "م", "ن", "س", "ع", "ف", "ص", "ق", "ر", "ش", "ت", "ث", "خ", "ذ", "ض", "ظ", "غ"];
+
+    public static string English(int index) =>
+        index < EnglishLetters.Length
+            ? $"Bidder {EnglishLetters[index]}"
+            : $"Bidder {index + 1}";
+
+    public static string Arabic(int index) =>
+        index < ArabicAbjad.Length
+            ? $"مورّد {ArabicAbjad[index]}"
+            : $"مورّد {index + 1}";
 }
 
 file static class EvaluationLoader
@@ -316,10 +376,11 @@ public sealed class RecuseEvaluatorHandler(AppDbContext db, IScopeContext scope,
         }
 
         // §3.3 has no row for recusal - it is a within-state event, not a transition. Notifying the
-        // officers who own the assignment is the defensible reading, and it is flagged as such in
-        // the catalogue rather than presented as transcribed.
+        // officer who owns the RFQ is the defensible reading, and it is flagged as such in the
+        // catalogue rather than presented as transcribed. A-7 makes "the officer" a person: a
+        // recusal leaves the evaluation short an evaluator, and somebody has to replace them.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorRecused,
-            await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+            await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.EvaluatorRecused}:{evaluation.Id}:{command.EvaluatorUserId}",
             new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
 
@@ -340,9 +401,27 @@ public sealed class ConsolidateEvaluationHandler(AppDbContext db, IScopeContext 
         var (rfq, evaluation) = loaded.Value;
 
         var existingResultIds = evaluation.Results.Select(r => r.Id).ToHashSet();
+
+        // A-1/BRULE-069: the two tie-break rungs the scores cannot supply. Loaded here because the
+        // aggregate has no access to proposals, and materialised before summing because a SQL SUM over
+        // a computed property does not translate (the lesson from EPIC-18's awarded-value tile).
+        //
+        // Reading the commercial total at CONSOLIDATION is not a two-envelope breach: OQ-009's seal is
+        // between the technical and commercial envelopes DURING scoring, and consolidation is where
+        // the financial dimension is deliberately brought in.
+        var bids = await db.Proposals
+            .Where(p => p.RfqId == rfq.Id)
+            .Select(p => new { p.Id, p.SubmittedAt, Items = p.Items.Select(i => new { i.Quantity, i.UnitPrice, i.Discount }).ToList() })
+            .ToListAsync(ct);
+        var bidFacts = bids.ToDictionary(
+            b => b.Id,
+            b => new Domain.Evaluation.Evaluation.BidTieBreakFacts(
+                b.Items.Count == 0 ? null : b.Items.Sum(i => (i.Quantity * i.UnitPrice) - (i.Discount ?? 0m)),
+                b.SubmittedAt));
+
         try
         {
-            evaluation.Consolidate();
+            evaluation.Consolidate(bidFacts);
         }
         catch (DomainException ex)
         {
@@ -610,7 +689,8 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
         if (evaluation.State == EvaluationState.EvaluatorSubmitted)
         {
             NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorSubmitted,
-                await NotificationRecipients.ProcurementOfficersAsync(db, rfq.OrganizationId, ct),
+                // A-7: the owner, who is the one who consolidates.
+                await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
                 $"{NotificationTypes.EvaluatorSubmitted}:{evaluation.Id}",
                 new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });
         }
@@ -619,5 +699,135 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.EvaluatorSubmitted), ct: ct);
         await db.SaveChangesAsync(ct);
         return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
+    }
+}
+
+/// <summary>
+/// A-1/BRULE-069: resolves a tie that survived every tie-break rung.
+///
+/// <para>`evaluation.consolidate` rather than a new permission: this is the same act as producing the
+/// ranking - the officer who consolidated is the one who can see the tie and is accountable for the
+/// order. A new permission would be a new thing to grant on every deployment for no additional
+/// separation.</para>
+/// </summary>
+public sealed class ResolveEvaluationTieHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IResolveEvaluationTieHandler
+{
+    public async Task<EvaluationMutationResult> HandleAsync(ResolveEvaluationTieCommand command, CancellationToken ct)
+    {
+        var loaded = await EvaluationLoader.LoadScopedByOrgAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded is null) return new EvaluationMutationResult.NotFoundOrOutOfScope();
+        var (rfq, evaluation) = loaded.Value;
+
+        // The public code resolves to the internal id here, inside the boundary, and only within this
+        // RFQ - so a code from another tender cannot address this evaluation's results.
+        var proposalId = await db.Proposals
+            .Where(p => p.RfqId == rfq.Id && p.ReferenceCode == command.ProposalCode)
+            .Select(p => (Guid?)p.Id)
+            .FirstOrDefaultAsync(ct);
+        if (proposalId is null) return new EvaluationMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            evaluation.ResolveTie(proposalId.Value, scope.UserId!.Value, command.Reason);
+        }
+        catch (DomainException ex)
+        {
+            return new EvaluationMutationResult.InvalidState(ex.Message);
+        }
+
+        // The reason IS the record here - a tie broken by a person with no stated basis is exactly what
+        // A-1 refuses to let the SYSTEM do, so it must not be what the person does either.
+        await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_tie_resolved", scope.UserId,
+            referenceCode: rfq.ReferenceCode, reason: command.Reason,
+            changes: $"{{\"proposalCode\":\"{command.ProposalCode}\"}}", ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+    }
+}
+
+/// <summary>
+/// A-8/BRULE-067: the recusal declaration window.
+///
+/// <para><b>This read does NOT open scoring</b>, which is the whole reason it is a separate endpoint:
+/// GET my-evaluation transitions the evaluation to InProgress as a side effect, so an evaluator who
+/// loaded the workspace first would have passed the window before ever seeing a name.</para>
+/// </summary>
+public sealed class GetConflictDeclarationHandler(AppDbContext db, IScopeContext scope) : IGetConflictDeclarationHandler
+{
+    public async Task<ConflictDeclarationDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct)
+    {
+        var loaded = await EvaluationLoader.LoadScopedByAssignmentAsync(db, scope, rfqReferenceCode, ct);
+        if (loaded is null) return null;
+        var (rfq, evaluation) = loaded.Value;
+
+        var assignment = evaluation.Assignments.FirstOrDefault(a => a.EvaluatorUserId == scope.UserId && a.IsActive);
+        if (assignment is null) return null;
+
+        // The window is closed once declared. Returning the names anyway would make the anonymity during
+        // scoring decorative: an evaluator could re-read this endpoint mid-scoring and look up whose bid
+        // they were marking.
+        if (assignment.ConflictDeclaredAt is not null)
+        {
+            return new ConflictDeclarationDto(false, []);
+        }
+
+        // Joined and filtered in SQL, then projected and ordered IN MEMORY. Projecting into a record and
+        // then ordering by one of its properties is the shape that answered 500 on the reference-data
+        // list in batch 9 - it either translates or does not depending on the provider version. A
+        // committee's bid list is a handful of rows, so the round trip is the same either way.
+        var rows = await db.Proposals.AsNoTracking()
+            .Where(p => p.RfqId == rfq.Id && ProposalStates.InEvaluation.Contains(p.State))
+            .Join(db.Suppliers.AsNoTracking(), p => p.SupplierId, sup => sup.Id,
+                (p, sup) => new { p.ReferenceCode, sup.DisplayNameAr, sup.DisplayNameEn })
+            .ToListAsync(ct);
+
+        var bidders = rows
+            .OrderBy(r => r.ReferenceCode, StringComparer.Ordinal)
+            .Select(r => new DeclarationBidderDto(r.ReferenceCode, r.DisplayNameAr, r.DisplayNameEn))
+            .ToList();
+
+        return new ConflictDeclarationDto(true, bidders);
+    }
+}
+
+/// <summary>
+/// A-8/BRULE-067: the declaration itself. A conflict recuses the evaluator with their stated reason -
+/// reusing the recusal the domain and the audit trail already have - and no conflict closes the window.
+/// </summary>
+public sealed class DeclareConflictHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
+    : IDeclareConflictHandler
+{
+    public async Task<EvaluationMutationResult> HandleAsync(DeclareConflictCommand command, CancellationToken ct)
+    {
+        var loaded = await EvaluationLoader.LoadScopedByAssignmentAsync(db, scope, command.RfqReferenceCode, ct);
+        if (loaded is null) return new EvaluationMutationResult.NotFoundOrOutOfScope();
+        var (rfq, evaluation) = loaded.Value;
+
+        try
+        {
+            if (command.HasConflict)
+            {
+                // A self-recusal, and the reason is mandatory for the same purpose it is when a manager
+                // recuses someone: an unexplained withdrawal from a committee is not an audit record.
+                evaluation.RecuseEvaluator(scope.UserId!.Value, command.Reason ?? string.Empty);
+            }
+            else
+            {
+                evaluation.DeclareNoConflict(scope.UserId!.Value);
+            }
+        }
+        catch (DomainException ex)
+        {
+            return new EvaluationMutationResult.InvalidState(ex.Message);
+        }
+
+        await auditLogger.LogAsync("Evaluation", evaluation.Id,
+            command.HasConflict ? "evaluator_self_recused" : "evaluator_declared_no_conflict",
+            scope.UserId, referenceCode: rfq.ReferenceCode, reason: command.Reason, ct: ct);
+        await db.SaveChangesAsync(ct);
+
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
     }
 }

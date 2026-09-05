@@ -10,7 +10,15 @@ namespace MotsSupplierPortal.Application.Suppliers;
 /// row without one reads as "just entered" rather than crashing the queue).</summary>
 public sealed record ReviewQueueItemDto(
     string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt,
-    Guid? AssignedReviewerId, string? AssignedReviewerName);
+    Guid? AssignedReviewerId, string? AssignedReviewerName,
+    /// <summary>
+    /// A-5: the review TARGET for this case, counted in working days from when it entered the queue.
+    ///
+    /// <para>A target, deliberately not a breach and not a badge: BUSINESS-PROCESSES.md §5 runs an SLA
+    /// timer and names no number, so the product states a configurable default and does not assert a
+    /// commitment the ministry has not made. Null when the case is not waiting on a reviewer.</para>
+    /// </summary>
+    DateTimeOffset? ReviewTargetAt = null);
 
 /// <summary>
 /// The review queue's accepted <c>?state=</c> values - a NAMED SUBSET of SupplierOnboardingState,

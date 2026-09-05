@@ -26,15 +26,24 @@ public sealed class RfqBasicsRequestValidator : AbstractValidator<RfqBasicsReque
     }
 }
 
-// T-018: one field, and it is the new deadline rather than a duration - a duration needs an anchor
-// (D-22's problem) and this endpoint would have to pick one.
-public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline);
+// T-018: the deadline rather than a duration - a duration needs an anchor (D-22's problem) and this
+// endpoint would have to pick one.
+//
+// A-6: and a REASON, mandatory. BRULE-035 puts no cap on an extension and A-6 keeps it uncapped, because
+// a cap would invent a fairness rule; a required reason makes every extension defensible or obviously
+// indefensible without inventing one, and a supplier being told WHY their deadline moved is simply
+// better than being told that it did.
+public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline, string Reason);
 
 public sealed class ChangeSubmissionDeadlineRequestValidator : AbstractValidator<ChangeSubmissionDeadlineRequest>
 {
     // Deliberately no "must be in the future" rule here: the domain owns that, and duplicating it
     // would give two answers to the same question the day one of them changed.
-    public ChangeSubmissionDeadlineRequestValidator() => RuleFor(x => x.SubmissionDeadline).NotEmpty();
+    public ChangeSubmissionDeadlineRequestValidator()
+    {
+        RuleFor(x => x.SubmissionDeadline).NotEmpty();
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000);
+    }
 }
 
 public sealed record RfqItemRequest(
@@ -53,7 +62,10 @@ public sealed class RfqItemRequestValidator : AbstractValidator<RfqItemRequest>
     }
 }
 
-public sealed record RequirementRequest(string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode);
+public sealed record RequirementRequest(
+    string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    // A-2: optional, and only meaningful when the requirement asks for a document.
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed class RequirementRequestValidator : AbstractValidator<RequirementRequest>
 {
@@ -72,6 +84,22 @@ public sealed class ReturnForEditsRequestValidator : AbstractValidator<ReturnFor
 {
     public ReturnForEditsRequestValidator() => RuleFor(x => x.Comments).NotEmpty().MaximumLength(2000);
 }
+
+/// <summary>A-7: hand the RFQ to another officer. The reason is mandatory - the audit row is the
+/// operation's whole purpose.</summary>
+public sealed record ReassignRfqRequest(Guid NewOwnerUserId, string Reason);
+
+public sealed class ReassignRfqRequestValidator : AbstractValidator<ReassignRfqRequest>
+{
+    public ReassignRfqRequestValidator()
+    {
+        RuleFor(x => x.NewOwnerUserId).NotEmpty();
+        RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
+    }
+}
+
+/// <summary>A-7: optionally name the manager this review pass is waiting on.</summary>
+public sealed record SubmitForReviewRequest(Guid? AssignedApproverUserId);
 
 public sealed record CloseSubmissionRequest(string? Reason);
 
@@ -95,7 +123,9 @@ public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqReque
 
 public sealed record InviteSupplierRequest(Guid SupplierId);
 
-public sealed record AnswerClarificationRequest(string Answer, bool Publish);
+/// <summary>A-4: the `publish` field is gone. Answering publishes to every invitee, so a flag whose
+/// only remaining legal value is true would be a lie the caller could tell.</summary>
+public sealed record AnswerClarificationRequest(string Answer);
 
 public sealed class AnswerClarificationRequestValidator : AbstractValidator<AnswerClarificationRequest>
 {
@@ -135,6 +165,11 @@ public static class RfqEndpoints
         RfqMutationResult.DeadlineChangeNotPermitted =>
             Results.Json(new { error = "deadline_change_not_permitted" }, statusCode: StatusCodes.Status403Forbidden),
 
+        // A-7: a 422. The payload is well-formed and names a real user; what is wrong is a fact about
+        // that user the client could not have known.
+        RfqMutationResult.IneligibleUser ineligible =>
+            Results.UnprocessableEntity(new { error = "ineligible_user", message = ineligible.Message }),
+
         RfqMutationResult.InvalidCategory => Results.BadRequest(new { error = "invalid_category" }),
         RfqMutationResult.InvalidUnitOfMeasure => Results.BadRequest(new { error = "invalid_unit_of_measure" }),
         RfqMutationResult.InvalidEvaluationTemplate invalid => Results.BadRequest(new { error = "invalid_evaluation_template", message = invalid.Message }),
@@ -167,7 +202,7 @@ public static class RfqEndpoints
         // path that can emit a buyer-only field because its DTO has no such member. Convergence
         // was required by the contract; giving up that property was not.
         group.MapGet("/", async (
-            string? cursor, int? pageSize, string? withCount, HttpContext httpContext,
+            string? cursor, int? pageSize, string? withCount, string? owner, HttpContext httpContext,
             IScopeContext scope,
             IListRfqsHandler buyerHandler,
             ISupplierListInvitedRfqsHandler supplierHandler,
@@ -182,10 +217,24 @@ public static class RfqEndpoints
                 return FilterValues.InvalidFilterValue("withCount", badWithCount!);
             }
 
+            // A-7's ?owner=. Validated for EVERY caller, not only the buyer branch: a supplier who
+            // passes it must be told the filter is not theirs rather than served a list that quietly
+            // ignored it, which is the same silent-widening failure IsAllowedLiteralOrGuid exists for.
+            if (!FilterValues.IsAllowedLiteralOrGuid(owner, RfqListFilterValues.OwnerLiterals, out var invalidOwner))
+            {
+                return FilterValues.InvalidFilterValue("owner", invalidOwner!);
+            }
+
             var wantsCount = FilterValues.BoolOrFalse(withCount);
-            return scope.SupplierId is not null
-                ? ListResponse.Ok(httpContext, await supplierHandler.HandleAsync(cursor, pageSize, wantsCount, ct), pageSize)
-                : ListResponse.Ok(httpContext, await buyerHandler.HandleAsync(cursor, pageSize, wantsCount, ct), pageSize);
+            if (scope.SupplierId is not null)
+            {
+                // The supplier list has no owner to filter on - ownership is a buyer-internal fact,
+                // and BRULE-029 keeps it inside the buying organization. Refused rather than ignored.
+                if (owner is not null) return FilterValues.InvalidFilterValue("owner", owner);
+                return ListResponse.Ok(httpContext, await supplierHandler.HandleAsync(cursor, pageSize, wantsCount, ct), pageSize);
+            }
+
+            return ListResponse.Ok(httpContext, await buyerHandler.HandleAsync(cursor, pageSize, wantsCount, owner, ct), pageSize);
         })
         // rfq.read, not rfq.create: procurement_manager must approve RFQs (BUSINESS-PROCESSES.md
         // §3.1) and holds no authoring permission, so gating a read on create locked the approver
@@ -197,7 +246,7 @@ public static class RfqEndpoints
         // list's key: this is the BUYER's list, which is mostly Drafts, and a draft has no
         // PublishedAt - a keyset on a nullable column silently drops every row where it is null.
         // -createdAt is the documented divergence, and is total over the same set.
-        .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"]))
+        .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"], "owner"))
         .WithName("ListRfqs");
 
         // §12.4, explicitly: *"Fields visible per persona are row-scoped (a supplier never sees
@@ -304,12 +353,46 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        /*
+         * T-030 split (2), applied to this and the nine routes below: every buyer-side write that adds
+         * or removes a CHILD of the RFQ requires `If-Match` and returns the version it produced.
+         *
+         * The same argument as split (3) made for the supplier's children, and D-37 states it: the
+         * aggregate's version moves either way, so the only question is whether anyone is told. Without
+         * the precondition, an officer can add an item on top of an RFQ they never saw - one a manager
+         * has just returned for edits, or whose deadline has moved beneath them - and the write
+         * succeeds against a state nobody was looking at. In a tender that is the class of lost update
+         * §8.1 exists to refuse.
+         *
+         * The precondition is obtainable: `GET /api/v1/rfqs/{referenceCode}` issues the ETag, and the
+         * SPA's store walks path prefixes up to it (api/etags.ts). `WithFreshETag` rather than
+         * `WithETag` for the same reason split (3) needed it - `WithETag` also answers 304 to a
+         * conditional read, and a 304 on a POST that changed the row would be a lie.
+         *
+         * FOUR ROUTES ON THIS GROUP ARE DELIBERATELY LEFT UNGUARDED:
+         *
+         *  - `POST /` (CreateRfq): a top-level create has no prior version anyone could have read, and
+         *    requiring one would make authoring impossible (D-37).
+         *
+         *  - `POST /{code}/clarifications` and `POST /{code}/invitations/decline`: the SUPPLIER's two
+         *    writes. `SupplierRfqDto` carries no version - deliberately, it is the buyer aggregate's -
+         *    so the precondition is unobtainable and the guard would 428 every supplier. It would also
+         *    be guarding the wrong thing: two invited suppliers asking unrelated questions is not a
+         *    lost update, and refusing the second is a fairness problem rather than a safety one.
+         *
+         *  - `POST /{code}/request-clarification` and `.../resolve-clarification`: already documented
+         *    below - §3.1 names `evaluator` as an actor and an evaluator cannot GET the RFQ.
+         */
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRfqItem");
 
         group.MapDelete("/{referenceCode}/items/{itemId:guid}", async (
             string referenceCode, Guid itemId, IManageRfqItemHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRfqItemCommand(referenceCode, itemId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRfqItem");
 
         group.MapPost("/{referenceCode}/requirements", async (
@@ -327,12 +410,16 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRequirement");
 
         group.MapDelete("/{referenceCode}/requirements/{requirementId:guid}", async (
             string referenceCode, Guid requirementId, IManageRequirementHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRequirementCommand(referenceCode, requirementId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRequirement");
 
         // FEAT-07.2/FR-RFQ-003. Stored via IFileStorage directly (no AV-scan quarantine flow -
@@ -367,6 +454,8 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AddRfqAttachment");
 
         // T3-01: the read path FEAT-07.2 never had. Upload and delete existed; a buyer could attach
@@ -397,6 +486,8 @@ public static class RfqEndpoints
             string referenceCode, Guid attachmentId, IManageRfqAttachmentHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRfqAttachmentCommand(referenceCode, attachmentId), ct)))
         .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("RemoveRfqAttachment");
 
         group.MapPut("/{referenceCode}/evaluation-template", async (
@@ -422,19 +513,51 @@ public static class RfqEndpoints
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return MapMutation(await handler.HandleAsync(
-                new ChangeSubmissionDeadlineCommand(referenceCode, request.SubmissionDeadline), ct));
+                new ChangeSubmissionDeadlineCommand(referenceCode, request.SubmissionDeadline, request.Reason), ct));
         })
         .RequireAuthorization()
         .RequireIfMatch()
         .WithETag()
         .WithName("ChangeSubmissionDeadline");
 
+        // The body is OPTIONAL (`SubmitForReviewRequest?`), so every existing caller that posted
+        // nothing keeps working - naming an approver is an addition to this transition, not a new
+        // requirement of it, and A-7 has no routing rule that would let the server fill it in.
         group.MapPost("/{referenceCode}/submit-review", async (
-            string referenceCode, ISubmitRfqForReviewHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new SubmitRfqForReviewCommand(referenceCode), ct)))
+            string referenceCode, SubmitForReviewRequest? request, ISubmitRfqForReviewHandler handler, CancellationToken ct) =>
+            MapMutation(await handler.HandleAsync(
+                new SubmitRfqForReviewCommand(referenceCode, request?.AssignedApproverUserId), ct)))
         .RequirePermission(Permissions.RfqSubmitReview)
         .RequireIfMatch()
         .WithName("SubmitRfqForReview");
+
+        group.MapGet("/{referenceCode}/assignees", async (
+            string referenceCode, IListRfqAssigneesHandler handler, CancellationToken ct) =>
+        {
+            var assignees = await handler.HandleAsync(referenceCode, ct);
+            return assignees is null ? Results.NotFound() : Results.Ok(assignees);
+        })
+        .RequirePermission(Permissions.RfqRead)
+        .WithName("ListRfqAssignees");
+
+        group.MapPost("/{referenceCode}/reassign", async (
+            string referenceCode,
+            ReassignRfqRequest request,
+            IValidator<ReassignRfqRequest> validator,
+            IReassignRfqHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            return MapMutation(await handler.HandleAsync(
+                new ReassignRfqCommand(referenceCode, request.NewOwnerUserId, request.Reason), ct));
+        })
+        .RequirePermission(Permissions.RfqReassign)
+        // Ownership is a field on the aggregate, so moving it is a write that must not overwrite a
+        // concurrent one - §8.1, the same guard every other RFQ mutation carries.
+        .RequireIfMatch()
+        .WithName("ReassignRfq");
 
         group.MapPost("/{referenceCode}/return", async (
             string referenceCode,
@@ -524,6 +647,8 @@ public static class RfqEndpoints
             string referenceCode, InviteSupplierRequest request, IInviteSupplierHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new InviteSupplierCommand(referenceCode, request.SupplierId), ct)))
         .RequirePermission(Permissions.RfqInvite)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("InviteSupplier");
 
         group.MapGet("/{referenceCode}/invitations/candidates", async (
@@ -543,15 +668,19 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer, request.Publish), ct));
+            return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer), ct));
         })
         .RequirePermission(Permissions.ClarificationAnswer)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AnswerClarification");
 
         group.MapPost("/{referenceCode}/clarifications/{clarificationId:guid}/publish", async (
             string referenceCode, Guid clarificationId, IPublishClarificationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new PublishClarificationCommand(referenceCode, clarificationId), ct)))
         .RequirePermission(Permissions.ClarificationAnswer)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("PublishClarification");
 
         group.MapPost("/{referenceCode}/addenda", async (
@@ -567,6 +696,8 @@ public static class RfqEndpoints
             return MapMutation(await handler.HandleAsync(new IssueAddendumCommand(referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn), ct));
         })
         .RequirePermission(Permissions.RfqAddendum)
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("IssueAddendum");
     }
 }
