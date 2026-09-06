@@ -60,7 +60,20 @@ export function LoginPage() {
     // guard uses in router.tsx) - route them into the back-office shell instead of the
     // supplier dashboard, which has no staff guard of its own to catch this otherwise.
     const claims = useAuthStore.getState().claims
-    const defaultRoute = claims?.supplierId ? '/dashboard' : '/back-office/dashboard'
+
+    // An evaluator gets THEIR dashboard, not the shared placeholder.
+    //
+    // Found by signing in as evaluator@mots.local: they landed on /back-office/dashboard, which lists their
+    // permissions and says "a summary will appear here later", and nothing in the nav linked to /evaluation.
+    // The evaluation dashboard and their assignment list both existed - reachable only by typing the address.
+    // An evaluator whose whole job is on one screen must not have to be told where it is.
+    //
+    // Keyed on the permission rather than the role name, because the token carries permissions and a second
+    // source for "is this an evaluator" would disagree the day a role's grants change.
+    const isEvaluator = claims?.permissions.includes('evaluation.score') ?? false
+    const defaultRoute = claims?.supplierId
+      ? '/dashboard'
+      : isEvaluator ? '/evaluation' : '/back-office/dashboard'
     await navigate({ to: search.redirect ?? defaultRoute })
   }
 

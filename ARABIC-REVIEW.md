@@ -619,3 +619,9 @@ register and none is approved. `[reused]` marks a term §7 or an approved block 
 | `help.title` | Help | المساعدة | [reused] |
 | `help.contactPending` | A support channel has not been configured yet… | لم تُحدَّد بعد قناة الدعم… | [drafted] |
 | `help.topics.*` | six question/answer/action triples | see `i18n/config.ts` | [drafted] **the longest prose in this file.** Every answer describes real behaviour; a reviewer changing the wording must not change what it claims |
+
+### Step 3 · one label the dashboards exposed
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `status.onboarding.None` | Not applicable | لا ينطبق | [drafted] **§7.1 has no row for this.** `SupplierLifecycleState.None` reached the Ministry's governance screen as the literal word "None" — a database value in front of the reader this product is most careful with. It means the supplier has no lifecycle state yet because they are not through onboarding; «لا ينطبق» says that without inventing a status the state machine does not have. A reviewer may prefer «قبل الاعتماد» if §7.1 gains a row |

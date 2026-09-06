@@ -30,6 +30,8 @@ export function BackOfficeShell({ children }: Props) {
   const canManageReferenceData = useAuthStore((s) => s.claims?.permissions.includes('reference.manage') ?? false)
   // T-079/SCR-720: same hide-never-gate rule - every /api/v1/audit route re-enforces audit.read.
   const canReadAudit = useAuthStore((s) => s.claims?.permissions.includes('audit.read') ?? false)
+  const canReviewSuppliers = useAuthStore((s) => s.claims?.permissions.includes('supplier.review') ?? false)
+  const canScoreEvaluations = useAuthStore((s) => s.claims?.permissions.includes('evaluation.score') ?? false)
   // governance.read is the ONLY permission ministry_viewer holds, so without this link the persona
   // had to type the URL: every other link in this bar 403s for it.
   const canViewGovernance = useAuthStore((s) => s.claims?.permissions.includes('governance.read') ?? false)
@@ -140,9 +142,21 @@ export function BackOfficeShell({ children }: Props) {
             <Link to="/back-office/account" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.account')}
             </Link>
-            <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
-              {t('review.title')}
-            </Link>
+            {/* Gated on supplier.review, which it always should have been. An evaluator holds
+                evaluation.score, evaluation.submit and rfq.clarify and nothing else, and this link was offered
+                to them - a 403 they could not explain, on the only "work" link their nav had. */}
+            {canReviewSuppliers ? (
+              <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('review.title')}
+              </Link>
+            ) : null}
+            {/* And the link an evaluator actually needs. Their dashboard lives under a different layout
+                (/evaluation, not /back-office/...), which is why it was missing from this nav entirely. */}
+            {canScoreEvaluations ? (
+              <Link to="/evaluation" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('evaluationDashboard.title')}
+              </Link>
+            ) : null}
             {canManageOrganizations ? (
               <Link to="/back-office/organizations" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('organizations.title')}

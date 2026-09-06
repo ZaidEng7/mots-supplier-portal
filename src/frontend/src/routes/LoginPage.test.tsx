@@ -148,4 +148,34 @@ describe('LoginPage failure states', () => {
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' }))
     expect(useAuthStore.getState().accessToken).not.toBeNull()
   })
+
+  it('routes an evaluator to their own dashboard, not the shared placeholder', async () => {
+    // Found by signing in as the seeded evaluator: they landed on /back-office/dashboard, which lists their
+    // permissions and says a summary will appear later, and nothing in the nav linked to /evaluation. Their
+    // dashboard and their assignment list both existed - reachable only by typing the address.
+    restore = mockFetch({
+      '/api/v1/auth/login': {
+        accessToken: `header.${btoa(JSON.stringify({ sub: 'u-2', perms: ['evaluation.score', 'evaluation.submit'] }))}.sig`,
+      },
+    })
+
+    renderPage(<LoginPage />)
+    await signIn()
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/evaluation' }))
+  })
+
+  it('still routes other staff to the back-office dashboard', async () => {
+    // The control: keyed on the permission, so an officer or an administrator is unaffected.
+    restore = mockFetch({
+      '/api/v1/auth/login': {
+        accessToken: `header.${btoa(JSON.stringify({ sub: 'u-3', perms: ['rfq.read', 'rfq.create'] }))}.sig`,
+      },
+    })
+
+    renderPage(<LoginPage />)
+    await signIn()
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/back-office/dashboard' }))
+  })
 })

@@ -74,7 +74,14 @@ export function MinistryOverviewPage() {
       </Card>
 
       <Card title={t('ministry.suppliersByState')}>
-        <CountList counts={data.suppliersByLifecycleState} machine="supplierLifecycle" locale={locale} />
+        {/*
+          "onboarding", not "supplierLifecycle". There is no status.supplierLifecycle machine in the
+          catalogue - §7.1 groups onboarding and lifecycle in one table and the labels live under
+          `onboarding` - so this asked for a machine that does not exist and the defaultValue fell through to
+          the RAW ENUM NAME. The Ministry's screen was showing "Active", "Suspended" and "None" in an Arabic
+          interface, beside RFQ states that were localised correctly.
+        */}
+        <CountList counts={data.suppliersByLifecycleState} machine="onboarding" locale={locale} />
       </Card>
 
       <Card title={t('ministry.rfqsByState')}>

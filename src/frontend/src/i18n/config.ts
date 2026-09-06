@@ -426,6 +426,11 @@ const resources = {
           Submitted: 'مُقدَّم', UnderReview: 'قيد المراجعة', InfoRequested: 'مطلوب معلومات',
           Resubmitted: 'أُعيد التقديم', Approved: 'معتمد', Rejected: 'مرفوض',
           Active: 'نشط', Suspended: 'موقوف', Deactivated: 'مُلغى التفعيل',
+          // SupplierLifecycleState.None: no §7.1 row, and it reached the Ministry's screen as the literal
+          // word "None" - a database value in front of the reader this product is most careful with. Drafted
+          // in §7's register and in ARABIC-REVIEW.md's pile: it means the supplier has no lifecycle state yet
+          // because they are not through onboarding, which "لا ينطبق" says without inventing a status.
+          None: 'لا ينطبق',                                     // [drafted]
         },
         // §7.2 "Supplier document". Its "Required" row has no DocumentState member and is therefore
         // not transcribed; PendingScan and ScanRejected are members with no §7.2 row. Both
@@ -2133,6 +2138,7 @@ const resources = {
           Submitted: 'Submitted', UnderReview: 'Under review', InfoRequested: 'Info requested',
           Resubmitted: 'Resubmitted', Approved: 'Approved', Rejected: 'Rejected',
           Active: 'Active', Suspended: 'Suspended', Deactivated: 'Deactivated',
+          None: 'Not applicable',
         },
         document: {
           Required: 'Required',

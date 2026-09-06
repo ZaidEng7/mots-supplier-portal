@@ -83,4 +83,27 @@ describe('BackOfficeShell navigation', () => {
     renderPage(<BackOfficeShell><div data-testid="page" /></BackOfficeShell>)
     expect(screen.getByTestId('page')).toBeInTheDocument()
   })
+
+  it('shows an evaluator the link to their own dashboard, and hides the review link they cannot use', () => {
+    // Found by signing in as the seeded evaluator: they landed on the shared placeholder dashboard, their nav
+    // had no link to /evaluation at all, and it DID offer Supplier Application Review - a 403 waiting to
+    // happen, on the only work-shaped link they had.
+    signInWith(['evaluation.score', 'evaluation.submit', 'rfq.clarify'])
+
+    renderPage(<BackOfficeShell><div /></BackOfficeShell>)
+
+    expect(hrefs()).toContain('/evaluation')
+    expect(hrefs()).not.toContain('/back-office/review')
+  })
+
+  it('still shows the review link to a reviewer', () => {
+    // The control: the link was ungated, so hiding it from an evaluator must not hide it from the persona
+    // whose whole job it is.
+    signInWith(['supplier.review'])
+
+    renderPage(<BackOfficeShell><div /></BackOfficeShell>)
+
+    expect(hrefs()).toContain('/back-office/review')
+    expect(hrefs()).not.toContain('/evaluation')
+  })
 })
