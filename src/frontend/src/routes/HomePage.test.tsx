@@ -32,10 +32,16 @@ describe('HomePage', () => {
   })
 
   it('reports unhealthy when the check fails, and does not also claim healthy', async () => {
+    // The URL is read as a string via a typed narrowing rather than String(input): a RequestInfo can be a
+    // Request object, and stringifying one yields "[object Object]" - which would match no branch and send
+    // every request down the success path.
+    const urlOf = (input: RequestInfo | URL) =>
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       // Only health fails. The currencies read still succeeds, so this asserts the banner reacts to its
       // OWN query rather than to any failure on the page.
-      if (String(input).includes('/health/')) return new Response('', { status: 503 })
+      if (urlOf(input).includes('/health/')) return new Response('', { status: 503 })
       return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }))
 

@@ -124,7 +124,23 @@ test('the route denominator is what the router actually declares, not what this 
   // 46 (T-079/SCR-720): /back-office/audit - FR-AUD-004's audit explorer. Three audit endpoints
   // existed and no screen called any of them; the supplier-facing two were closed on the supplier's
   // own settings screen, and this is the third.
-  expect(routes.length).toBe(46)
+  // 58 (batch 11): TWELVE routes in one batch, which is the largest single move this count has made -
+  // the batch closed the screen backlog rather than adding a feature. In the order they were built:
+  //   /rfqs/$referenceCode/proposals   SCR-430/431, the buyer's view of the bids on one RFQ
+  //   /profile                          SCR-120, the supplier's own profile outside the wizard
+  //   /documents                        SCR-130, documents outside the wizard
+  //   /proposals                        SCR-150, "what have I bid on"
+  //   /back-office/account              SCR-902, every staff persona's own account
+  //   /about                            SCR-908, public, reachable without signing in
+  //   /help  and  /back-office/help     SCR-907, one screen in each shell
+  //   /back-office/operations           SCR-721/722/723/725/726, the operator's five panels
+  //   /back-office/ui-strings           SCR-716, interface text overrides
+  //   /back-office/search               SCR-906, cross-entity search
+  //   /back-office/email-templates      T-076, the transactional email wording
+  //
+  // This guard fired on all twelve at once, which is what it is for: the a11y scan below would otherwise
+  // have kept covering 46 of 58 pages and stayed green while twelve new screens went unexamined.
+  expect(routes.length).toBe(58)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

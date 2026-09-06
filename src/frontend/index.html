@@ -9,8 +9,7 @@
       /* SCR-047's notice styles live here rather than in the app's CSS: a browser that cannot run the
          bundle cannot load a stylesheet the bundle owns either. Deliberately plain - no custom
          properties, no logical properties, nothing the notice itself depends on being supported. */
-      #legacy-browser-notice {
-        display: none;
+      #legacy-browser-notice-shown {
         margin: 0 auto;
         max-width: 40em;
         padding: 2rem 1.5rem;
@@ -18,10 +17,10 @@
         line-height: 1.6;
         color: #1a1a1a;
       }
-      #legacy-browser-notice h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
-      #legacy-browser-notice p { margin: 0 0 1rem; }
-      #legacy-browser-notice .ar { direction: rtl; text-align: right; }
-      #legacy-browser-notice hr { border: 0; border-top: 1px solid #ccc; margin: 1.5rem 0; }
+      #legacy-browser-notice-shown h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+      #legacy-browser-notice-shown p { margin: 0 0 1rem; }
+      #legacy-browser-notice-shown .ar { direction: rtl; text-align: right; }
+      #legacy-browser-notice-shown hr { border: 0; border-top: 1px solid #ccc; margin: 1.5rem 0; }
     </style>
   </head>
   <body>
@@ -37,7 +36,7 @@
 
       Arabic first, matching the product's own default language.
     -->
-    <div id="legacy-browser-notice">
+    <template id="legacy-browser-notice">
       <div class="ar">
         <h1>هذا المتصفّح غير مدعوم</h1>
         <p>
@@ -53,7 +52,7 @@
           Firefox or Safari, or update the browser you are using.
         </p>
       </div>
-    </div>
+    </template>
 
     <noscript>
       <div style="margin: 0 auto; max-width: 40em; padding: 2rem 1.5rem; font-family: Arial, sans-serif">
@@ -87,8 +86,19 @@
 
         if (supported) return;
 
-        var notice = document.getElementById('legacy-browser-notice');
-        if (notice) notice.style.display = 'block';
+        // A <template>, cloned in only when the check fails - not a hidden div.
+        //
+        // It WAS a display:none div, and that put two <h1> elements in every document: assistive tech
+        // ignores display:none, but anything querying the DOM does not, and reports-reflow.spec.ts started
+        // failing strict mode on locator('h1') resolving to three elements. A notice for a browser that
+        // cannot run the app has no business being in the DOM of one that can.
+        var template = document.getElementById('legacy-browser-notice');
+        if (template && template.content) {
+          var shown = document.createElement('div');
+          shown.id = 'legacy-browser-notice-shown';
+          shown.appendChild(template.content.cloneNode(true));
+          document.body.appendChild(shown);
+        }
         // The empty root is removed as well. Left in place it renders as a blank page below the
         // notice, which reads as the notice itself having broken.
         var root = document.getElementById('root');

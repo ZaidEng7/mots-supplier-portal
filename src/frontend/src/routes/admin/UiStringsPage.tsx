@@ -95,10 +95,16 @@ export function UiStringsPage() {
         <div className="flex flex-col gap-4">
           <div className="max-w-[14rem]">
             <Field label={t('uiStrings.fields.language')}>
-              {() => (
+              {/* The Field's props are threaded through and a placeholder is given, and both matter: Select
+                  names its Radix trigger from `placeholder`, so without one the trigger had no accessible name
+                  at all - axe reported button-name at CRITICAL impact and the e2e a11y sweep failed on this
+                  page. Discarding `p` also meant the visible label's htmlFor pointed at nothing. */}
+              {(p) => (
                 <Select
+                  {...p}
                   value={language}
                   onValueChange={(next) => { setLanguage(next); setSelectedKey(''); setDraft('') }}
+                  placeholder={t('uiStrings.fields.language')}
                   options={[{ value: 'ar', label: t('account.languages.ar') }, { value: 'en', label: t('account.languages.en') }]}
                 />
               )}
