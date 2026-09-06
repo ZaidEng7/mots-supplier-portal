@@ -208,7 +208,11 @@ public sealed class GetReviewerSupplierViewHandler(AppDbContext db) : IGetReview
             .ToListAsync(ct);
 
         var erpSync = new ErpSyncDto(supplier.ExternalId, supplier.SyncStatus.ToString(), supplier.LastSyncedAt);
-        return new ReviewerSupplierViewDto(SupplierDtoMapper.ToDto(supplier), erpSync, documents, annotations);
+        // The root's own version, lifted to the top of the wrapper so the read issues an ETag - the
+        // precondition T-030 split (4)'s decision guards require. Read from the aggregate rather than from
+        // the nested DTO so the two cannot drift.
+        return new ReviewerSupplierViewDto(
+            SupplierDtoMapper.ToDto(supplier), erpSync, documents, annotations, supplier.RowVersion);
     }
 }
 

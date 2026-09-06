@@ -9,9 +9,19 @@ import { forgotPassword } from '../api/auth'
 const schema = z.object({ email: z.string().email() })
 type FormValues = z.infer<typeof schema>
 
+/**
+ * T-084. The page had no failure path at all: `await forgotPassword(...)` then `setSent(true)`, so a
+ * network failure or a 500 rejected the promise, the `sent` panel never appeared, and the form sat there
+ * looking as though the click had not registered. Someone locked out of their account would click again.
+ *
+ * <p>The success message stays deliberately non-committal - "if that account exists" - because saying
+ * whether an address is registered is user enumeration. The new error is about the REQUEST, not the
+ * account, so it does not weaken that.</p>
+ */
 export function ForgotPasswordPage() {
   const { t } = useTranslation()
   const [sent, setSent] = useState(false)
+  const [failed, setFailed] = useState(false)
   const {
     register,
     handleSubmit,
@@ -19,8 +29,16 @@ export function ForgotPasswordPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   const onSubmit = async (values: FormValues) => {
-    await forgotPassword(values.email)
-    setSent(true)
+    setFailed(false)
+    try {
+      await forgotPassword(values.email)
+      setSent(true)
+    } catch {
+      // Any failure, one message. A 500 and a dead connection are the same thing to someone who wants
+      // their password back, and distinguishing them here would tell an attacker which addresses make the
+      // server work harder.
+      setFailed(true)
+    }
   }
 
   return (
@@ -38,6 +56,9 @@ export function ForgotPasswordPage() {
           </p>
         ) : (
           <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+            {failed ? (
+              <p role="alert" style={{ color: 'var(--color-danger-fg)' }}>{t('auth.forgotFailed')}</p>
+            ) : null}
             <Field label={t('auth.email')} error={errors.email?.message} required>
               {(inputProps) => <Input type="email" autoComplete="email" {...inputProps} {...register('email')} />}
             </Field>

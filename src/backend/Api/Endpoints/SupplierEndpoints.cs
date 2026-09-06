@@ -319,6 +319,12 @@ public static class SupplierEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
+        // T-030 split (4). A logo is a field of the Supplier root, and split (1) already moved the root's
+        // version on every upload while guarding nothing - so two of a supplier's users uploading different
+        // logos both won and the second silently replaced the first. The precondition is obtainable from
+        // GET /suppliers/me, which is the batch-3 Offering test this guard has to pass.
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("UploadLogo")
         .DisableAntiforgery();
 
@@ -347,8 +353,8 @@ public static class SupplierEndpoints
         // Offering lesson insists on - a guarded write needs a read that issues its precondition.
         //
         // NOT added to /me/bank-accounts/{id}/reveal: it reads, and a read has nothing to lose to a
-        // concurrent write. Nor to /me/logo or /me/accept-terms, which are split (4) along with the
-        // document routes.
+        // concurrent write. /me/logo and /me/accept-terms DO carry it now - split (4), batch 11 - as do
+        // the document routes in DocumentEndpoints.
         // FEAT-04.4/MSP-52: add/edit/remove representatives with primary designation.
         group.MapPost("/me/representatives", async (
             AddRepresentativeRequest request,
@@ -623,6 +629,11 @@ public static class SupplierEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
+        // T-030 split (4). BRULE-009 records an acceptance with its version and timestamp, and this write
+        // gates submission - so a stale caller re-accepting an OLD terms version over a newer acceptance is
+        // the one lost update on this aggregate with a compliance consequence rather than a cosmetic one.
+        .RequireIfMatch()
+        .WithFreshETag()
         .WithName("AcceptTerms");
 
         // §12.2: "POST /suppliers/{supplierCode}/onboarding/submit - ProfileInProgress -> Submitted",

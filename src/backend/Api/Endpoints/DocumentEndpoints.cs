@@ -1,4 +1,5 @@
 using System.Globalization;
+using MotsSupplierPortal.Api.Concurrency;
 using Microsoft.AspNetCore.Mvc;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
@@ -142,6 +143,12 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
+        // T-030 split (4). Uploading is a child write on the Supplier root, which split (1) already bumped
+        // while guarding nothing. NOT given WithFreshETag: this route answers 201 with the DOCUMENT, not the
+        // supplier, so there is no root version in the response to hand back - the SPA re-reads
+        // /suppliers/me after an upload, which is what refreshes it. Recorded rather than left to be
+        // discovered as a 428 on a second upload.
+        .RequireIfMatch()
         .WithTags("Documents")
         .WithName("UploadDocument")
         .DisableAntiforgery()
@@ -254,6 +261,11 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.DocumentReview)
+        // T-030 split (4). A document decision is a child write on the Supplier aggregate, and two reviewers
+        // deciding the same document at once is the lost update worth refusing on this aggregate - the
+        // second decision would overwrite the first with no trace on screen. The precondition comes from
+        // GET /review/{referenceCode}, which now issues it.
+        .RequireIfMatch()
         .WithTags("Documents")
         .WithName("ApproveDocument");
 
@@ -282,6 +294,8 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.DocumentReview)
+        // T-030 split (4); same reasoning as approve above.
+        .RequireIfMatch()
         .WithTags("Documents")
         .WithName("RejectDocument");
     }

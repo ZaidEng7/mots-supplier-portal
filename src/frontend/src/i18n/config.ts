@@ -517,6 +517,7 @@ const resources = {
         forgotTitle: 'إعادة تعيين كلمة المرور',
         forgotSubmit: 'إرسال رابط إعادة التعيين',
         forgotSent: 'إذا كان الحساب موجوداً، تم إرسال رسالة بريد إلكتروني',
+        forgotFailed: 'تعذّر إرسال الطلب. تحقّق من الاتصال وحاول مرة أخرى.',  // [drafted] T-084
         resetTitle: 'تعيين كلمة مرور جديدة',
         newPassword: 'كلمة المرور الجديدة',
         resetSubmit: 'إعادة تعيين',
@@ -2165,6 +2166,7 @@ const resources = {
         forgotTitle: 'Reset your password',
         forgotSubmit: 'Send reset link',
         forgotSent: 'If that account exists, a reset email has been sent',
+        forgotFailed: 'The request could not be sent. Check your connection and try again.',
         resetTitle: 'Set a new password',
         newPassword: 'New password',
         resetSubmit: 'Reset password',
