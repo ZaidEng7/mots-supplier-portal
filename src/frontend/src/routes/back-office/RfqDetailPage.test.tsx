@@ -12,6 +12,7 @@ vi.mock('@tanstack/react-router', async () => {
 })
 
 const { RfqDetailPage } = await import('./RfqDetailPage')
+const { useAuthStore } = await import('../../lib/authStore')
 
 function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
   return {
@@ -252,17 +253,31 @@ describe('RfqDetailPage', () => {
   })
 
   it('UnderEvaluation: shows criteria with technical/financial envelope badges and the evaluator roster', async () => {
+    // The candidates read is gated on evaluation.assign - the endpoint is, so the query is, so an officer
+    // opening this page does not fetch a list they cannot act on. A test that wants the picker populated has to
+    // say who is signed in.
+    useAuthStore.setState({
+      accessToken: 'token',
+      status: 'authenticated',
+      claims: { userId: 'mgr-1', email: 'manager@example.test', permissions: ['evaluation.assign'] },
+    })
+
     const evaluation: Evaluation = {
       id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'Assigned',
       criteria: [
         { id: 'crit-tech', nameAr: 'جودة', nameEn: 'Quality', dimension: 'Technical', weight: 60, maxScore: 100, threshold: 60, scoringType: 'Numeric', isFinancial: false },
         { id: 'crit-fin', nameAr: 'سعر', nameEn: 'Price', dimension: 'Commercial', weight: 40, maxScore: 100, threshold: null, scoringType: 'Numeric', isFinancial: true },
       ],
-      assignments: [{ evaluatorUserId: 'eval-user-1', assignedAt: '2026-08-01T00:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null }],
+      // evaluatorName: the table rendered the GUID before batch 11, so the fixture now carries what the
+      // screen actually shows.
+      assignments: [{ evaluatorUserId: 'eval-user-1', evaluatorName: 'Rami Haddad', assignedAt: '2026-08-01T00:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null }],
       results: [],
     }
     restore = mockFetch({
       ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation/candidates': [
+        { userId: 'eval-user-2', fullName: 'Nadia Karam', email: 'nadia@example.test' },
+      ],
       '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluation,
       '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('UnderEvaluation'),
     })
@@ -273,9 +288,16 @@ describe('RfqDetailPage', () => {
     expect(screen.getByText('Price')).toBeInTheDocument()
     expect(screen.getAllByText('Technical').length).toBeGreaterThan(0)
     expect(screen.getByText('Financial')).toBeInTheDocument()
-    expect(screen.getByText('eval-user-1')).toBeInTheDocument()
+    // The NAME, not the GUID. This assertion used to look for the user id, which is exactly what the roster
+    // was rendering: a manager deciding whether to recuse an evaluator was reading a UUID, and the recuse
+    // button beside it named nobody.
+    expect(screen.getByText('Rami Haddad')).toBeInTheDocument()
 
-    await userEvent.type(screen.getByLabelText('Evaluator user id'), 'eval-user-2')
+    // A PICKER now, not a box for a raw GUID. This test used to type "eval-user-2" into a text field, which
+    // is exactly what a manager had to do - and they had no way to learn that id, because the only staff list
+    // in the product needs admin.users.manage. Selecting a candidate is what the screen offers.
+    await userEvent.click(screen.getByRole('combobox', { name: 'Choose an evaluator' }))
+    await userEvent.click(await screen.findByRole('option', { name: /Nadia Karam/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Assign' }))
 
     expect(await screen.findByText('Evaluator assigned')).toBeInTheDocument()

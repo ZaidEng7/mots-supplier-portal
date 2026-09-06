@@ -20,10 +20,15 @@ namespace MotsSupplierPortal.Infrastructure.Evaluations;
 
 internal static class EvaluationDtoMapper
 {
-    public static EvaluationDto ToDto(EvaluationAggregate evaluation, Rfq rfq) => new(
+    /// <param name="names">Evaluator user id to display name. Passed in rather than looked up here because
+    /// this mapper is static and has no DbContext - and the alternative, a GUID on the screen, is what a
+    /// manager was actually reading before batch 11.</param>
+    public static EvaluationDto ToDto(
+        EvaluationAggregate evaluation, Rfq rfq, IReadOnlyDictionary<Guid, string>? names = null) => new(
         evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
         [.. evaluation.Criteria.Select(ToCriterionDto)],
-        [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(a.EvaluatorUserId, a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
+        [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(
+            a.EvaluatorUserId, names?.GetValueOrDefault(a.EvaluatorUserId), a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
         [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
         evaluation.RowVersion);
 
@@ -307,7 +312,17 @@ public sealed class GetEvaluationHandler(AppDbContext db, IScopeContext scope) :
     public async Task<EvaluationDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct)
     {
         var loaded = await EvaluationLoader.LoadScopedByOrgAsync(db, scope, rfqReferenceCode, ct);
-        return loaded is null ? null : EvaluationDtoMapper.ToDto(loaded.Value.Evaluation, loaded.Value.Rfq);
+        if (loaded is null) return null;
+
+        // Evaluator NAMES, on the read the screen actually renders. The assignments table was printing user
+        // GUIDs, and the recuse button beside each row therefore named nobody - a manager deciding whether to
+        // recuse an evaluator was reading 01a07461-fa48-7721-abe2-018baaa84d11.
+        var assignedIds = loaded.Value.Evaluation.Assignments.Select(a => a.EvaluatorUserId).ToList();
+        var names = await db.Users.AsNoTracking()
+            .Where(u => assignedIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
+
+        return EvaluationDtoMapper.ToDto(loaded.Value.Evaluation, loaded.Value.Rfq, names);
     }
 }
 

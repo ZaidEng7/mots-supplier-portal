@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -15,7 +16,7 @@ import {
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
 import { fetchCategories, fetchUnitsOfMeasure } from '../../api/reference'
 import {
-  getEvaluation, openEvaluation, assignEvaluators, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
+  getEvaluation, openEvaluation, assignEvaluators, listEvaluatorCandidates, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
   EvaluationApiError,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
@@ -56,6 +57,16 @@ export function RfqDetailPage() {
   const [addendumTitleEn, setAddendumTitleEn] = useState('')
   const [addendumDescAr, setAddendumDescAr] = useState('')
   const [addendumDescEn, setAddendumDescEn] = useState('')
+  /**
+   * The page renders every transition and lets the SERVER refuse the ones this persona cannot take - which is
+   * the pattern here and a good one, because a permission list in the client is a second authority.
+   *
+   * This one is different: it gates a READ that exists only to feed the assign control. An officer opening this
+   * page would fetch a list they cannot act on and get a 403 in the console for their trouble, so the query is
+   * skipped rather than the button hidden.
+   */
+  const canAssignEvaluators = useAuthStore((state) => state.claims?.permissions.includes('evaluation.assign') ?? false)
+
   const [evaluatorUserId, setEvaluatorUserId] = useState('')
   const [recuseReason, setRecuseReason] = useState('')
   const [recuseTargetId, setRecuseTargetId] = useState('')
@@ -76,6 +87,17 @@ export function RfqDetailPage() {
     queryKey: ['evaluation', referenceCode],
     queryFn: () => getEvaluation(referenceCode),
     enabled: evaluationEligible,
+  })
+
+  /**
+   * Who this manager may assign. Fetched only when an evaluation can exist, and only for a caller who may
+   * assign - the endpoint is behind evaluation.assign, so an officer opening this page would get a 403 for a
+   * list they cannot act on.
+   */
+  const evaluatorCandidatesQuery = useQuery({
+    queryKey: ['evaluator-candidates', referenceCode],
+    queryFn: () => listEvaluatorCandidates(referenceCode),
+    enabled: evaluationEligible && canAssignEvaluators,
   })
 
   const categories = categoriesQuery.data ?? []
@@ -846,7 +868,9 @@ export function RfqDetailPage() {
                     <TableBody>
                       {evaluation.assignments.map((a) => (
                         <TableRow key={a.evaluatorUserId}>
-                          <TableCell>{a.evaluatorUserId}</TableCell>
+                          {/* The name, with the id only as a fallback - an assignment whose user row has gone
+                              should still be visible rather than blank. */}
+                          <TableCell>{a.evaluatorName ?? a.evaluatorUserId}</TableCell>
                           <TableCell>{a.submittedAt ? formatDateTime(a.submittedAt, i18n.language) : '—'}</TableCell>
                           <TableCell>{a.recusedAt ? t('evaluation.recusedWithReason', { reason: a.recusalReason }) : '—'}</TableCell>
                           {evaluation.state !== 'Finalized' ? (
@@ -868,8 +892,22 @@ export function RfqDetailPage() {
 
                 {evaluation.state !== 'Finalized' && evaluation.state !== 'Consolidated' ? (
                   <div className="mt-4 flex flex-wrap items-end gap-2">
-                    <Input aria-label={t('evaluation.evaluatorUserId')} placeholder={t('evaluation.evaluatorUserId')}
-                      value={evaluatorUserId} onChange={(e) => setEvaluatorUserId(e.target.value)} />
+                    {/*
+                      A picker, not a free-text GUID box. This was an Input asking a manager to type
+                      01a07461-fa48-7721-abe2-018baaa84d11, and the only staff list in the product needs
+                      admin.users.manage - which a procurement_manager does not hold. The assign step was
+                      unusable without database access; found by walking the tender in the browser.
+                    */}
+                    <div className="min-w-[16rem]">
+                      <Select
+                        value={evaluatorUserId}
+                        onValueChange={setEvaluatorUserId}
+                        placeholder={t('evaluation.chooseEvaluator')}
+                        options={(evaluatorCandidatesQuery.data ?? [])
+                          .filter((c) => !evaluation.assignments.some((a) => a.evaluatorUserId === c.userId))
+                          .map((c) => ({ value: c.userId, label: `${c.fullName} · ${c.email}` }))}
+                      />
+                    </div>
                     <Button size="sm" isLoading={assignEvaluatorsMutation.isPending} disabled={!evaluatorUserId}
                       onClick={() => assignEvaluatorsMutation.mutate()}>
                       {t('evaluation.assign')}

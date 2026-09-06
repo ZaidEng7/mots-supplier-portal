@@ -137,6 +137,22 @@ public static class EvaluationEndpoints
         .RequirePermission(Permissions.EvaluationOpen)
         .WithName("OpenEvaluation");
 
+        // Who a manager may assign. Behind the SAME permission as the assignment itself: the list exists only
+        // to make that action performable, and a wider gate would be a roster of ministry staff readable by
+        // anyone who can open an RFQ.
+        //
+        // It did not exist, and the screen could not work without it - assigning was a free-text box for a raw
+        // user GUID, and the only staff list in the product requires admin.users.manage, which a
+        // procurement_manager does not hold. Found by walking the tender in the browser.
+        group.MapGet("/candidates", async (
+            string referenceCode, IListEvaluatorCandidatesHandler handler, CancellationToken ct) =>
+        {
+            var candidates = await handler.HandleAsync(referenceCode, ct);
+            return candidates is null ? Results.NotFound() : Results.Ok(candidates);
+        })
+        .RequirePermission(Permissions.EvaluationAssign)
+        .WithName("ListEvaluatorCandidates");
+
         group.MapPost("/assignments", async (
             string referenceCode, AssignEvaluatorsRequest request, IValidator<AssignEvaluatorsRequest> validator,
             IAssignEvaluatorsHandler handler, CancellationToken ct) =>

@@ -203,7 +203,29 @@ public static class DevDataSeeder
         db.EvaluationTemplates.Add(template);
         await db.SaveChangesAsync();
 
-        var snapshot = System.Text.Json.JsonSerializer.Serialize(new { criteria = new[] { technical.NameEn, commercial.NameEn } });
+        // The snapshot in the SHAPE THE HANDLER READS, which the first version of this fixture got wrong.
+        //
+        // It wrote { "criteria": ["Technical", "Commercial"] } - a plausible-looking object that
+        // OpenEvaluationHandler cannot parse: it deserialises this column into a LIST of criterion records, so
+        // opening evaluation on any seeded RFQ answered 500 with a JsonException. Nothing caught it, because
+        // the seeded evaluation on RFQ-DEMO-0005 was built by constructing the aggregate directly rather than
+        // going through the handler - the fixture had quietly bypassed the code path it was meant to set up.
+        // Found by walking the tender in the browser: "Open evaluation" 500'd.
+        //
+        // Built by projecting the template's own criteria, the same projection BindEvaluationTemplateHandler
+        // makes, so the fixture and production write one shape.
+        var snapshot = System.Text.Json.JsonSerializer.Serialize(template.Criteria.Select(c => new
+        {
+            c.Id,
+            c.NameAr,
+            c.NameEn,
+            Dimension = c.Dimension.ToString(),
+            c.Weight,
+            c.MaxScore,
+            c.Threshold,
+            ScoringType = c.ScoringType.ToString(),
+            c.RequiresJustification,
+        }));
 
         // Draft / InternalReview / Approved / SubmissionOpen / SubmissionClosed - the five positions
         // the buyer's list, board and workspace each render differently.

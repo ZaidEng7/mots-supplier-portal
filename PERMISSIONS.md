@@ -23,7 +23,7 @@ either dead or waiting for a surface — both are called out below.
 | `award.reject` | `procurement_manager`, `system_admin` | `RejectAward` |
 | `clarification.answer` | `procurement_officer`, `system_admin` | `AnswerClarification`, `PublishClarification` |
 | `comparison.view` | `procurement_manager`, `procurement_officer`, `system_admin` | `ExportComparison`, `GetComparison`, `GetProposalDocumentDownloadUrlForBuyer`, `GetProposalDocumentsForBuyer`, `GetReceivedProposal`, `ListReceivedProposals` |
-| `evaluation.assign` | `procurement_manager`, `system_admin` | `AssignEvaluators`, `RecuseEvaluator` |
+| `evaluation.assign` | `procurement_manager`, `system_admin` | `AssignEvaluators`, `ListEvaluatorCandidates`, `RecuseEvaluator` |
 | `evaluation.consolidate` | `procurement_manager`, `procurement_officer`, `system_admin` | `ConsolidateEvaluation`, `ResolveEvaluationTie` |
 | `evaluation.finalize` | `procurement_manager`, `system_admin` | `FinalizeEvaluation` |
 | `evaluation.open` | `procurement_manager`, `procurement_officer`, `system_admin` | `GetEvaluation`, `OpenEvaluation` |

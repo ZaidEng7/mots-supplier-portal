@@ -11,7 +11,29 @@ public sealed record EvaluationCriterionDto(
     bool RequiresJustification = false);
 
 /// <summary>Buyer-facing roster row - never carries a raw score (blind scoring, OQ-005/BRULE-058).</summary>
-public sealed record EvaluationAssignmentDto(Guid EvaluatorUserId, DateTimeOffset AssignedAt, DateTimeOffset? SubmittedAt, DateTimeOffset? RecusedAt, string? RecusalReason);
+/// <param name="EvaluatorName">The evaluator's own name. Added because the screen was printing the GUID:
+/// a manager reading "which evaluators are on this tender" got a column of
+/// 01a07461-fa48-7721-abe2-018baaa84d11, and the recuse button beside it named nobody.</param>
+public sealed record EvaluationAssignmentDto(
+    Guid EvaluatorUserId, string? EvaluatorName, DateTimeOffset AssignedAt, DateTimeOffset? SubmittedAt,
+    DateTimeOffset? RecusedAt, string? RecusalReason);
+
+/// <summary>
+/// Who a manager may assign to this RFQ's evaluation.
+///
+/// <para><b>This did not exist, and the screen could not work without it.</b> Assigning an evaluator was a
+/// free-text box for a raw user GUID, and the only list of staff in the product requires
+/// <c>admin.users.manage</c> - which a procurement_manager does not hold. So the persona the endpoint names
+/// had no way to learn the id it demanded. Found by walking the tender in the browser: the assign step was
+/// unusable without opening the database.</para>
+/// </summary>
+public sealed record EvaluatorCandidateDto(Guid UserId, string FullName, string Email);
+
+public interface IListEvaluatorCandidatesHandler
+{
+    /// <summary>Null when the RFQ is not visible to the caller - §9.2's 404, never a 403.</summary>
+    Task<IReadOnlyList<EvaluatorCandidateDto>?> HandleAsync(string rfqReferenceCode, CancellationToken ct);
+}
 
 /// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
 /// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>

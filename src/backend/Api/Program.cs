@@ -450,6 +450,8 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteEmailTemp
 // BRULE-016: the link surface. Written by an administrator, read by nothing yet - deliberately.
 builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.IGetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.GetDocumentTypeCategoriesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.ISetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.SetDocumentTypeCategoriesHandler>();
+// The evaluator picker's own read - see ListEvaluatorCandidatesHandler for why it exists.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Evaluations.IListEvaluatorCandidatesHandler, MotsSupplierPortal.Infrastructure.Evaluations.ListEvaluatorCandidatesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();

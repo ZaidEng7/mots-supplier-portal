@@ -937,6 +937,7 @@ const resources = {
         },
       },
       evaluation: {
+        chooseEvaluator: 'اختر مُقيّماً',                        // [drafted] Step 4
         title: 'التقييم',
         open: 'فتح التقييم',
         opened: 'تم فتح التقييم',
@@ -2608,6 +2609,7 @@ const resources = {
         },
       },
       evaluation: {
+        chooseEvaluator: 'Choose an evaluator',
         title: 'Evaluation',
         open: 'Open evaluation',
         opened: 'Evaluation opened',
