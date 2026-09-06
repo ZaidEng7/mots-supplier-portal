@@ -135,7 +135,11 @@ public sealed class GetBuyerProposalHandler(AppDbContext db, IScopeContext scope
         // the bid exists, which is the fact the tier is protecting.
         if (visibility == BuyerProposalVisibility.Sealed) return null;
 
+        // Split, not one join: three sibling collections in a single query multiply out, so a proposal
+        // with 20 items, 15 requirement answers and 5 documents costs 1,500 rows to read 40 entities,
+        // every scalar on the proposal repeated in each. Three round trips is the cheaper shape.
         var proposal = await db.Proposals.AsNoTracking()
+            .AsSplitQuery()
             .Include(p => p.Items)
             .Include(p => p.RequirementAnswers)
             .Include(p => p.Documents)

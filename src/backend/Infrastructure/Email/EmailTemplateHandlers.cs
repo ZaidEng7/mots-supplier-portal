@@ -39,7 +39,10 @@ public sealed class UpsertEmailTemplateHandler(AppDbContext db) : IUpsertEmailTe
 {
     /// <summary>Any <c>{word}</c>. Deliberately permissive: the point is to catch a token the payload cannot
     /// fill, so it has to find the ones nobody declared, including typos of real ones.</summary>
-    private static readonly Regex TokenPattern = new(@"\{([A-Za-z][A-Za-z0-9_]*)\}", RegexOptions.Compiled);
+    /// <remarks>Given a timeout because this pattern runs over operator-supplied template bodies. This one
+    /// cannot backtrack catastrophically, but the input is untrusted and the bound costs nothing.</remarks>
+    private static readonly Regex TokenPattern =
+        new(@"\{([A-Za-z][A-Za-z0-9_]*)\}", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public async Task<UpsertEmailTemplateResult> HandleAsync(UpsertEmailTemplateCommand command, CancellationToken ct)
     {

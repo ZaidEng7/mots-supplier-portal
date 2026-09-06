@@ -834,7 +834,7 @@ if (app.Environment.IsDevelopment())
     if (builder.Configuration.GetValue("DevSeed:Enabled", defaultValue: true))
     {
         var seedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration);
+        await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration, app.Environment);
         Console.WriteLine($"[dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / {MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.Password}");
     }
 }

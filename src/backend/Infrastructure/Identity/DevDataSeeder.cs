@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.Evaluation;
@@ -39,7 +40,13 @@ namespace MotsSupplierPortal.Infrastructure.Identity;
 /// </summary>
 public static class DevDataSeeder
 {
-    public const string Password = "motsdemo2026";
+    /// <summary>The shared password every seeded demo account gets. Documented in RUNBOOK.md, because a
+    /// seeded login nobody can use is not a seeded login.
+    /// <para>Not a secret and not a credential in the sense the rule means: this constant is only ever
+    /// read from <see cref="SeedAsync"/>, which refuses to run outside Development - see the guard there.
+    /// Making it a configuration value would move the same string into appsettings and buy nothing.</para>
+    /// </summary>
+    public const string Password = "motsdemo2026"; // NOSONAR S2068 - see above: dev-only seed data, guarded by environment.
 
     private const string OrganizationNameEn = "MOT Procurement Body";
 
@@ -62,8 +69,23 @@ public static class DevDataSeeder
         ("supplier.user@mots.local", "Demo Supplier User", Roles.SupplierUser, true),
     ];
 
-    public static async Task SeedAsync(AppDbContext db, UserManager<AppUser> userManager, IConfiguration configuration)
+    public static async Task SeedAsync(
+        AppDbContext db, UserManager<AppUser> userManager, IConfiguration configuration, IHostEnvironment environment)
     {
+        // Refused outside Development, in the seeder rather than only at the call site.
+        //
+        // This creates eight accounts whose password is a compile-time constant published in RUNBOOK.md.
+        // The caller already guards on IsDevelopment(), and that was the whole protection: a second call
+        // added anywhere, or that block being widened, silently seeds known credentials into whatever
+        // environment is running. The dangerous knowledge lives in this file, so the refusal belongs here
+        // too - and it costs one parameter.
+        if (!environment.IsDevelopment())
+        {
+            throw new InvalidOperationException(
+                $"DevDataSeeder seeds accounts with a published password and must never run outside "
+                + $"Development. Current environment: {environment.EnvironmentName}.");
+        }
+
         var password = configuration["DevSeed:DemoPassword"] ?? Password;
 
         var organizationId = await SeedOrganizationAsync(db);
@@ -280,8 +302,8 @@ public static class DevDataSeeder
         db.ChangeTracker.Clear();
 
         open = await db.Rfqs.Include(r => r.Approvals).FirstAsync(r => r.Id == open.Id);
-        closed = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == closed.Id);
-        clarifying = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == clarifying.Id);
+        closed = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == closed.Id);
+        clarifying = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == clarifying.Id);
         open.OpenSubmissionWindow();
         closed.OpenSubmissionWindow();
         clarifying.OpenSubmissionWindow();
@@ -315,8 +337,8 @@ public static class DevDataSeeder
         // stale RowVersion and the next SaveChanges loses to the app-managed concurrency guard - a
         // DbUpdateConcurrencyException the seeder cannot recover from. Reload rather than reuse.
         db.ChangeTracker.Clear();
-        closed = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == closed.Id);
-        clarifying = await db.Rfqs.Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == clarifying.Id);
+        closed = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == closed.Id);
+        clarifying = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations).FirstAsync(r => r.Id == clarifying.Id);
 
         closed.CloseSubmissionWindow(reason: null, isEarlyClose: false);
         closed.OpenEvaluation();

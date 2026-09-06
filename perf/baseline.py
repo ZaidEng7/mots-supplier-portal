@@ -22,6 +22,7 @@ import struct
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 # The personas the measured endpoints belong to. Passwords are the dev seed's - this script only ever
@@ -65,7 +66,11 @@ def admin_totp() -> str | None:
         return None
 
     key = base64.b32decode(secret + "=" * (-len(secret) % 8))
-    digest = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), hashlib.sha1).digest()
+    # SHA-1 because TOTP specifies SHA-1 (RFC 6238 section 1.2, RFC 4226 section 5.3), and the server this
+    # code is generating for uses it. Not a hash of anything secret being stored - it is an HMAC keyed by a
+    # shared secret, which SHA-1's collision weakness does not affect. Changing it would only produce codes
+    # the server rejects.
+    digest = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), hashlib.sha1).digest()  # NOSONAR S4790
     offset = digest[19] & 0xF
     return "%06d" % ((struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF) % 1_000_000)
 
@@ -165,10 +170,32 @@ def percentile(samples: list[float], fraction: float) -> float:
     return ordered[index]
 
 
+def checked_base(value: str) -> str:
+    """The --base argument, refused unless it is an http(s) origin on a loopback host.
+
+    This script authenticates as five personas and replays reads with their bearer tokens, so --base is the
+    address those tokens get sent to. Left unchecked it will happily post real credentials to any host given
+    on the command line - a typo is enough, and this is a script people copy invocations of. It measures a
+    local server; loopback is the whole intended range.
+    """
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme not in ("http", "https"):
+        raise argparse.ArgumentTypeError(f"--base must be http or https, got {parsed.scheme or 'no scheme'!r}")
+    if parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+        raise argparse.ArgumentTypeError(
+            f"--base must be a loopback host (localhost, 127.0.0.1, ::1), got {parsed.hostname!r}. "
+            "This script sends persona credentials to that address; point it somewhere else deliberately, "
+            "by editing this guard, not by passing a flag."
+        )
+    if parsed.path.rstrip("/") or parsed.query or parsed.fragment:
+        raise argparse.ArgumentTypeError(f"--base must be an origin with no path or query, got {value!r}")
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--iterations", type=int, default=30)
-    parser.add_argument("--base", default="http://localhost:5080")
+    parser.add_argument("--base", default="http://localhost:5080", type=checked_base)
     parser.add_argument("--warmup", type=int, default=3,
                         help="Discarded requests per endpoint. The first call to an EF query pays for its "
                              "compiled-query cache and its connection, and reporting that as latency would "

@@ -47,7 +47,10 @@ export function UiStringsPage() {
 
   const allKeys = useMemo(() => {
     const bundle = i18n.getResourceBundle(language, 'translation') as unknown
-    return flattenKeys(bundle).sort()
+    // Sorted with an explicit comparator, not bare .sort(), which compares UTF-16 code units: that
+    // puts every uppercase segment ahead of every lowercase one, so `rfq.Status` would sort before
+    // `rfq.actions` and a human scanning the list for a key would not find it where they looked.
+    return flattenKeys(bundle).sort((a, b) => a.localeCompare(b))
   }, [language])
 
   // Capped at fifty, because the bundle has well over a thousand keys and a datalist of all of them is a
