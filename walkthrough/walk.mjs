@@ -277,6 +277,8 @@ async function main() {
     await act3SupplierRegisters(page, ctx)
     await act4Onboarding(page)
     await act5ReviewAndApprove(page)
+    await act6Approve(page)
+    await act7AuthorRfq(page)
   } catch (e) {
     // A driver that dies without saying where it was is a driver you debug by guessing. This is the
     // one screenshot that is not part of the guide.
@@ -565,6 +567,13 @@ async function chooseOption(scope, nameRe, optionRe) {
   await opt.first().click()
 }
 
+/** `datetime-local` wants local wall-clock time with no zone, which toISOString does not give. */
+function localDateTime(offsetMs) {
+  const t = new Date(Date.now() + offsetMs)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`
+}
+
 async function fillIfPresent(locator, value) {
   if (await locator.count()) await locator.first().fill(value)
 }
@@ -601,10 +610,16 @@ async function act5ReviewAndApprove(page) {
     'Every required document is uploaded and scanned. The submit button is offered only now: the server enforces the same list, so a submission that looks possible here is one that will be accepted.',
     'Submit the application for review.')
 
-  const submit = page.getByRole('button', { name: /submit application/i })
-  if (await submit.count()) {
-    await submit.first().click()
-    await settle(page)
+  await page.getByRole('button', { name: /submit application/i }).first().click()
+  await settle(page)
+  // Asserted, and the assertion reports the SERVER's own list of what is missing. The submit used to
+  // be wrapped in a silent `if (count)`: the click happened, the server refused it with a 422 naming
+  // the unmet conditions, the screenshot was taken anyway and captioned "submitted", and the walk
+  // carried on for four more steps against a supplier that was never submitted.
+  const stillOnForm = await page.getByRole('button', { name: /submit application/i }).count()
+  if (stillOnForm) {
+    const blockers = await page.locator('[role=alert], [role=status], ul li').allInnerTexts().catch(() => [])
+    throw new Error(`the application was refused: ${blockers.join(' | ').slice(0, 300) || 'no reason rendered'}`)
   }
   await shot(page, 'supplier_admin', 'Application submitted',
     'The profile is now read-only and sits in the reviewer queue. The supplier cannot edit what is being judged while it is being judged.',
@@ -629,11 +644,11 @@ async function act5ReviewAndApprove(page) {
     'One application waiting — the one created in act 3. The queue is row-scoped: a reviewer sees applications, never tender data.',
     'Open the application and check it against its documents.')
 
-  const row = page.getByRole('link', { name: /SUP-/ }).first()
-  if (await row.count()) {
-    await row.click()
-    await settle(page)
-  }
+  // The row links on the supplier's NAME, not its reference code - and this used to be wrapped in an
+  // `if (count)` that skipped silently when it matched nothing, so the walk stayed on the queue and
+  // failed one step later looking for an Approve button that was never on screen. No silent skips.
+  await page.getByRole('link', { name: new RegExp(SUPPLIER.nameEn, 'i') }).first().click()
+  await settle(page)
   await shot(page, 'onboarding_reviewer', 'Application detail',
     'The whole submitted profile in one place, with every uploaded document downloadable. This is the screen the completeness rules exist to make answerable.',
     'Approve, reject, or request more information. Each one demands a written reason.')
@@ -660,23 +675,95 @@ async function acceptTerms(page) {
 }
 
 async function uploadRequiredDocuments(page) {
-  const inputs = await page.locator('input[type=file]').all()
+  // Per ROW, and the expiry date first.
+  //
+  // The first version set a file on every input[type=file] it could find and reported three uploads.
+  // Only one landed: an expiry-tracked type refuses an upload with no expiry date, so tax_certificate
+  // - which is REQUIRED - silently never uploaded, and the walk discovered it four steps later as a
+  // submission the server would not accept.
+  const rows = page.locator('li,tr,div').filter({ has: page.locator('input[type=file]') })
+  const fileInputs = page.locator('input[type=file]')
+  const count = await fileInputs.count()
   let uploaded = 0
-  for (const input of inputs) {
+
+  for (let i = 0; i < count; i++) {
+    const input = fileInputs.nth(i)
+    // The expiry field that belongs to THIS row, not the first one on the page.
+    const row = input.locator('xpath=ancestor::*[self::li or self::tr or self::div][1]')
+    const expiry = row.locator('input[type=date]')
+    if (await expiry.count()) await expiry.first().fill('2028-06-30')
+
     await input.setInputFiles({
-      name: `document-${uploaded + 1}.pdf`,
+      name: `document-${i + 1}.pdf`,
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF'),
     })
     await settle(page)
     uploaded += 1
+
     if (uploaded === 1) {
       await shot(page, 'supplier_admin', 'Onboarding — document uploaded',
-        'The file went to object storage and ClamAV scanned it before it was accepted. That scan is fail-closed: if clamd is not running the upload is refused rather than stored unscanned.',
-        'Upload the rest of the required documents.')
+        'The file went to object storage and ClamAV scanned it before it was accepted. That scan is fail-closed by design: with clamd stopped the upload is REFUSED rather than stored unscanned, so a portal that cannot scan does not quietly accept attachments.',
+        'Upload the remaining required documents, giving an expiry date where the type tracks one.')
     }
   }
   console.log(`      uploaded ${uploaded} document(s)`)
+}
+
+async function act6Approve(page) {
+  console.log('\nAct 6 — approved and activated')
+
+  await page.getByRole('button', { name: /^approve$/i }).first().click()
+  const dialog = page.getByRole('dialog')
+  if (await dialog.count()) {
+    const reason = dialog.getByRole('textbox').first()
+    if (await reason.count()) {
+      await reason.fill('Registration certificate, tax certificate and chamber membership all check out against the profile.')
+    }
+    await dialog.getByRole('button', { name: /approve|confirm|save/i }).last().click()
+  }
+  await settle(page)
+  await shot(page, 'onboarding_reviewer', 'Application approved',
+    'Approved, with a written reason recorded against the decision. The reason is not decoration: an approval nobody can account for later is the thing an audit trail exists to prevent.',
+    'The supplier is now Active and can be invited to tenders. Sign in as the procurement officer.')
+}
+
+async function act7AuthorRfq(page) {
+  console.log('\nAct 7 — the officer writes a tender')
+
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await chooseEnglish(page)
+  await shot(page, 'procurement_officer', 'Officer landing',
+    'The procurement officer signs in. Their navigation carries the procurement dashboard, the tender list, the offering catalogue and search — the RFQ-facing half of the back office.',
+    'Open the procurement dashboard, which is this role\'s home screen.')
+
+  await page.getByRole('link', { name: /procurement dashboard/i }).first().click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Procurement dashboard',
+    'SCR-400, and until batch 12 nothing in the app linked to it. Tenders by state, approvals waiting, deadlines — the officer\'s actual home screen, reachable at last by clicking.',
+    'Open the tender list and create one.')
+
+  await page.getByRole('link', { name: /^rfqs$/i }).first().click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Tender list (empty)',
+    'No tenders exist yet: this database started empty and everything in it so far was created through these screens.',
+    'Create the first RFQ.')
+
+  await page.getByRole('button', { name: /new rfq/i }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByLabel(/title \(english\)/i).fill('School meals catering, 2026-2027')
+  await d.getByLabel(/title \(arabic\)/i).fill('تموين وجبات مدرسية ٢٠٢٦-٢٠٢٧')
+  await d.getByLabel(/currency/i).fill('SYP')
+  // A REAL window: opens a few minutes ago so publishing opens submissions at once, and closes far
+  // enough out that the officer closes it deliberately later rather than the clock doing it mid-walk.
+  await d.getByLabel(/opens/i).fill(localDateTime(-5 * 60 * 1000))
+  await d.getByLabel(/closes/i).fill(localDateTime(3 * 24 * 60 * 60 * 1000))
+  await d.getByRole('button', { name: /^save$/i }).click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Tender created (Draft)',
+    'The tender exists in Draft, with a reference code allocated by the server. Everything on it is editable while it stays in Draft and nothing is visible to a supplier yet.',
+    'Add the line items being bought, and the requirements bidders must answer.')
 }
 
 main().catch((e) => { console.error('\nFAILED:', e.message); process.exitCode = 1 })

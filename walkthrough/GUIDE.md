@@ -112,7 +112,7 @@ below came into existence through the interface, in the order a real procurement
 ![Email verified](screenshots/10-supplier_admin-email-verified.png)
 
 - **Persona:** supplier_admin
-- **Screen:** Email verified — `/verify-email?token=DmJAdOzcoFXQAzSXJ96YbJJ5WzkobcYg2i_LYQejtIw`
+- **Screen:** Email verified — `/verify-email?token=TurI1zLscgqesibNvTrrYj_O-ERy9mtDZ6utNXZbrE8`
 - **What just happened:** The address is proven and the account is live. The supplier is in Draft: registered, not yet allowed to bid.
 - **What the user does next:** Sign in and complete the company profile.
 
@@ -203,8 +203,8 @@ below came into existence through the interface, in the order a real procurement
 
 - **Persona:** supplier_admin
 - **Screen:** Onboarding — document uploaded — `/onboarding`
-- **What just happened:** The file went to object storage and ClamAV scanned it before it was accepted. That scan is fail-closed: if clamd is not running the upload is refused rather than stored unscanned.
-- **What the user does next:** Upload the rest of the required documents.
+- **What just happened:** The file went to object storage and ClamAV scanned it before it was accepted. That scan is fail-closed by design: with clamd stopped the upload is REFUSED rather than stored unscanned, so a portal that cannot scan does not quietly accept attachments.
+- **What the user does next:** Upload the remaining required documents, giving an expiry date where the type tracks one.
 
 ### 21. Onboarding — terms accepted
 
@@ -265,6 +265,51 @@ below came into existence through the interface, in the order a real procurement
 ![Application detail](screenshots/27-onboarding_reviewer-application-detail.png)
 
 - **Persona:** onboarding_reviewer
-- **Screen:** Application detail — `/back-office/review`
+- **Screen:** Application detail — `/back-office/review/SUP-2026-000001`
 - **What just happened:** The whole submitted profile in one place, with every uploaded document downloadable. This is the screen the completeness rules exist to make answerable.
 - **What the user does next:** Approve, reject, or request more information. Each one demands a written reason.
+
+### 28. Application approved
+
+![Application approved](screenshots/28-onboarding_reviewer-application-approved.png)
+
+- **Persona:** onboarding_reviewer
+- **Screen:** Application approved — `/back-office/review/SUP-2026-000001`
+- **What just happened:** Approved, with a written reason recorded against the decision. The reason is not decoration: an approval nobody can account for later is the thing an audit trail exists to prevent.
+- **What the user does next:** The supplier is now Active and can be invited to tenders. Sign in as the procurement officer.
+
+### 29. Officer landing
+
+![Officer landing](screenshots/29-procurement_officer-officer-landing.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Officer landing — `/back-office/dashboard`
+- **What just happened:** The procurement officer signs in. Their navigation carries the procurement dashboard, the tender list, the offering catalogue and search — the RFQ-facing half of the back office.
+- **What the user does next:** Open the procurement dashboard, which is this role's home screen.
+
+### 30. Procurement dashboard
+
+![Procurement dashboard](screenshots/30-procurement_officer-procurement-dashboard.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Procurement dashboard — `/back-office/procurement`
+- **What just happened:** SCR-400, and until batch 12 nothing in the app linked to it. Tenders by state, approvals waiting, deadlines — the officer's actual home screen, reachable at last by clicking.
+- **What the user does next:** Open the tender list and create one.
+
+### 31. Tender list (empty)
+
+![Tender list (empty)](screenshots/31-procurement_officer-tender-list-empty.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Tender list (empty) — `/back-office/rfqs`
+- **What just happened:** No tenders exist yet: this database started empty and everything in it so far was created through these screens.
+- **What the user does next:** Create the first RFQ.
+
+### 32. Tender created (Draft)
+
+![Tender created (Draft)](screenshots/32-procurement_officer-tender-created-draft.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Tender created (Draft) — `/back-office/rfqs`
+- **What just happened:** The tender exists in Draft, with a reference code allocated by the server. Everything on it is editable while it stays in Draft and nothing is visible to a supplier yet.
+- **What the user does next:** Add the line items being bought, and the requirements bidders must answer.
