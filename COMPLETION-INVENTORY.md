@@ -408,6 +408,19 @@ met, and no claim either way should be made.**
 **Size — M.** A tool choice, a seeded dataset at a realistic scale (the interesting cases are the
 cross-aggregate reads — the procurement dashboard and the comparison matrix), scripts for the read
 and write paths, a baseline run, and a decision about whether it gates CI or runs on a schedule.
+
+**First measurement taken in batch 11 — the READ paths only.** `perf/baseline.py` (standard library only,
+so it needs nothing installed) and `perf/BASELINE.md`. 18 endpoints, 30 samples each, every one 2xx; p95
+ranges from 2.2 ms to 17.3 ms on a developer laptop against the seeded dataset.
+
+**That does not show the targets are met, and BASELINE.md says so in its own section.** The dataset is
+tiny — six RFQs — and the cross-aggregate reads are exactly the ones whose cost grows with it; there is
+no concurrency, so this p95 is not the statistic the target means; and the write half of the target has no
+number at all, because measuring writes repeatedly needs a database that can be reset between runs and
+that script is not written.
+
+One outlier is recorded rather than explained: `audit search` has a p50 of 1.8 ms and a max of 177.8 ms.
+Guessing at a cause from one sample is how a performance myth starts.
 Gating on latency in a shared CI runner produces flakes, so scheduled-with-a-tracked-trend is the
 likelier answer. **This item can change every other estimate here**, which is why it is ranked 11th
 rather than last.
