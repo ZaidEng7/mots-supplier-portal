@@ -131,3 +131,33 @@ public interface IGetSecurityPostureHandler
 {
     Task<SecurityPostureDto> HandleAsync(CancellationToken ct);
 }
+
+/// <summary>
+/// SCR-725. What this deployment does with uploaded files, and whether the things that store and scan
+/// them are actually reachable.
+///
+/// <para><b>Read-only, for the same reason SCR-726 is.</b> The upload cap and the allowed types are a
+/// SECURITY control - §4.1's allow-list exists because a client's Content-Type is not evidence - and
+/// putting either behind an admin click would let a compromised admin session widen what the portal
+/// accepts. Per-document-type rules that ARE administrator-owned (which documents are required, how long
+/// they are valid) already have SCR-710's reference-data screen.</para>
+/// </summary>
+public sealed record StorageSettingsDto(
+    long MaxUploadBytes,
+    /// <summary>Extension to the content type its magic bytes must match. Both halves shown, because the
+    /// pairing IS the rule: a .pdf whose bytes are a PNG is refused.</summary>
+    IReadOnlyDictionary<string, string> AllowedTypes,
+    string Bucket,
+    /// <summary>Whether the object store answered just now. Not a cached health snapshot - an operator
+    /// opening this screen is asking about now.</summary>
+    bool ObjectStorageReachable,
+    bool VirusScannerReachable,
+    /// <summary>How many documents are stored and how many are waiting to be scanned. A backlog that never
+    /// drains is the failure this screen exists to make visible.</summary>
+    int DocumentCount,
+    int PendingScanCount);
+
+public interface IGetStorageSettingsHandler
+{
+    Task<StorageSettingsDto> HandleAsync(CancellationToken ct);
+}

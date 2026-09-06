@@ -73,6 +73,14 @@ public static class OperationsEndpoints
         .RequirePermission(Permissions.AdminUsersManage)
         .WithName("GetSecurityPosture");
 
+        // SCR-725. Read-only for the reason SCR-726 is: the upload cap and the allow-list are a security
+        // control (§4.1), and widening either from a screen is what a compromised admin session would do
+        // first. The document rules administrators DO own already live on SCR-710.
+        group.MapGet("/storage", async (IGetStorageSettingsHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(ct)))
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("GetStorageSettings");
+
         group.MapPost("/outbox/{id:guid}/replay", async (Guid id, IReplayOutboxMessageHandler handler, CancellationToken ct) =>
             // One 404 for two cases - no such message, and a message that is not Failed - and that is
             // deliberate rather than lazy: both mean "there is nothing here to replay", and splitting

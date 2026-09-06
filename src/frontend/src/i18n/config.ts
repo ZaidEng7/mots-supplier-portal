@@ -1584,6 +1584,18 @@ const resources = {
         subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',      // [drafted]
         jobsTitle: 'المهام المجدولة',                           // [drafted]
         outboxTitle: 'الأحداث الصادرة',                         // [drafted]
+        storageTitle: 'الملفات والتخزين',                       // [drafted] SCR-725
+        storage: {
+          objectStore: 'مخزن الملفات', scanner: 'فاحص الفيروسات',
+          reachable: 'متصل', unreachable: 'غير متصل',
+          pendingScans: '{{count}} ملفاً بانتظار الفحص',
+          maxUpload: 'الحد الأقصى لحجم الملف',
+          megabytes: '{{count}} ميغابايت',
+          allowedTypes: 'الأنواع المسموحة',
+          bucket: 'الحاوية',
+          documents: 'عدد الملفات المخزَّنة',
+          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. حد الحجم وقائمة الأنواع المسموحة ضابط أمني يُتحقَّق من بصمة الملف نفسه، وتوسيعه من الواجهة أول ما يفعله من يستولي على حساب إداري. قواعد المستندات التي تملكها الإدارة تُدار من شاشة البيانات المرجعية.', // [drafted]
+        },
         securityTitle: 'إعدادات الأمان',                        // [drafted] SCR-726
         security: {
           passwordLength: 'الحد الأدنى لطول كلمة المرور',
@@ -1636,6 +1648,7 @@ const resources = {
           erpLoadFailed: 'تعذّر تحميل حالات المزامنة',            // [drafted]
           erpRetryFailed: 'تعذّرت إعادة المزامنة',                // [drafted]
           securityLoadFailed: 'تعذّر تحميل إعدادات الأمان',        // [drafted]
+          storageLoadFailed: 'تعذّر تحميل إعدادات التخزين',        // [drafted]
         },
       },
       // ── SCR-716 · ARABIC FOR REVIEW ───────────────────────────────────────────
@@ -3159,6 +3172,18 @@ const resources = {
         subtitle: 'Scheduled jobs and the outgoing event queue.',
         jobsTitle: 'Scheduled jobs',
         outboxTitle: 'Outgoing events',
+        storageTitle: 'Files and storage',
+        storage: {
+          objectStore: 'Object store', scanner: 'Virus scanner',
+          reachable: 'reachable', unreachable: 'unreachable',
+          pendingScans: '{{count}} files awaiting scan',
+          maxUpload: 'Maximum file size',
+          megabytes: '{{count}} MB',
+          allowedTypes: 'Allowed types',
+          bucket: 'Bucket',
+          documents: 'Stored documents',
+          readOnlyExplained: 'This screen reports and does not edit. The size cap and the allowed-type list are a security control checked against each file\'s own magic bytes, and widening either from a screen is the first thing a compromised admin session would do. The document rules administrators own are managed on the reference data screen.',
+        },
         securityTitle: 'Security settings',
         security: {
           passwordLength: 'Minimum password length',
@@ -3211,6 +3236,7 @@ const resources = {
           erpLoadFailed: 'Could not load the synchronisation states',
           erpRetryFailed: 'Could not request the sync again',
           securityLoadFailed: 'Could not load the security settings',
+          storageLoadFailed: 'Could not load the storage settings',
         },
       },
       uiStrings: {

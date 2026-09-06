@@ -8,7 +8,7 @@ import {
 import { formatDateTime } from '../../lib/datetime'
 import {
   getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
-  getSecurityPosture,
+  getSecurityPosture, getStorageSettings,
 } from '../../api/admin'
 import { retryAwardErpSync } from '../../api/awards'
 
@@ -42,6 +42,7 @@ export function OperationsPage() {
   const jobsQuery = useQuery({ queryKey: ['admin-jobs'], queryFn: getJobsMonitor })
   const erpQuery = useQuery({ queryKey: ['admin-erp-sync'], queryFn: () => getErpSyncMonitor() })
   const securityQuery = useQuery({ queryKey: ['admin-security'], queryFn: getSecurityPosture })
+  const storageQuery = useQuery({ queryKey: ['admin-storage'], queryFn: getStorageSettings })
   const outboxQuery = useQuery({ queryKey: ['admin-outbox', status], queryFn: () => getOutboxMonitor(status || undefined) })
 
   const triggerMutation = useMutation({
@@ -438,6 +439,76 @@ export function OperationsPage() {
         <p className="mt-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('operations.security.readOnlyExplained')}
         </p>
+      </Card>
+
+      {/*
+        SCR-725. Read-only for the same reason as the panel above: the cap and the allow-list are §4.1's
+        security control, and the document rules administrators DO own live on SCR-710's screen.
+      */}
+      <Card title={t('operations.storageTitle')}>
+        {storageQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
+        {storageQuery.isError ? (
+          <div className="flex flex-col gap-2">
+            <p>{t('operations.errors.storageLoadFailed')}</p>
+            <Button variant="ghost" onClick={() => void storageQuery.refetch()}>{t('operations.retry')}</Button>
+          </div>
+        ) : null}
+
+        {storageQuery.data ? (
+          <>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {/* Reachability first and as a chip, because it is the only thing on this card that can be
+                  wrong right now. A red one here explains every failing upload in the building. */}
+              <Badge tone={storageQuery.data.objectStorageReachable ? 'success' : 'danger'}>
+                {t('operations.storage.objectStore')}: {t(storageQuery.data.objectStorageReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
+              </Badge>
+              <Badge tone={storageQuery.data.virusScannerReachable ? 'success' : 'danger'}>
+                {t('operations.storage.scanner')}: {t(storageQuery.data.virusScannerReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
+              </Badge>
+              <Badge tone={storageQuery.data.pendingScanCount > 0 ? 'warning' : 'neutral'}>
+                {t('operations.storage.pendingScans', { count: storageQuery.data.pendingScanCount })}
+              </Badge>
+            </div>
+
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>{t('operations.fields.control')}</TableHeaderCell>
+                  <TableHeaderCell>{t('operations.fields.effective')}</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell>{t('operations.storage.maxUpload')}</TableCell>
+                  {/* Megabytes, because nobody reads 20971520 as twenty. */}
+                  <TableCell>{t('operations.storage.megabytes', { count: Math.round(storageQuery.data.maxUploadBytes / (1024 * 1024)) })}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>{t('operations.storage.allowedTypes')}</TableCell>
+                  <TableCell>
+                    {/* Both halves of each pair, because the pairing IS the rule: a .pdf whose bytes are a
+                        PNG is refused, and a list of bare extensions would hide that. */}
+                    <span className="font-mono text-[length:var(--text-body-sm)]">
+                      {Object.entries(storageQuery.data.allowedTypes).map(([ext, type]) => `${ext} → ${type}`).join(', ')}
+                    </span>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>{t('operations.storage.bucket')}</TableCell>
+                  <TableCell><span className="font-mono text-[length:var(--text-body-sm)]">{storageQuery.data.bucket || '—'}</span></TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>{t('operations.storage.documents')}</TableCell>
+                  <TableCell>{storageQuery.data.documentCount}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+
+            <p className="mt-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('operations.storage.readOnlyExplained')}
+            </p>
+          </>
+        ) : null}
       </Card>
     </div>
   )

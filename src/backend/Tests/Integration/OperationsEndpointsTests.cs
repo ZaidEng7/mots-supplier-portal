@@ -215,6 +215,30 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
     }
 
     [Fact]
+    public async Task SCR_725_reports_the_upload_rules_the_upload_path_actually_applies()
+    {
+        var admin = await AdminAsync();
+
+        var storage = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/storage");
+
+        // Asserted against FileTypeSniffer's own constants, which are what UploadDocumentHandler checks and
+        // DocumentEndpoints sizes its multipart limit from. If the cap moves and this screen does not, the
+        // test fails - which is the only way a reported limit stays the enforced one.
+        storage.GetProperty("maxUploadBytes").GetInt64().Should()
+            .Be(Infrastructure.Storage.FileTypeSniffer.MaxSizeBytes);
+
+        var allowed = storage.GetProperty("allowedTypes");
+        foreach (var (extension, contentType) in Infrastructure.Storage.FileTypeSniffer.AllowedExtensionToContentType)
+        {
+            // Both halves, because the PAIRING is the rule: §4.1 refuses a .pdf whose magic bytes are a
+            // PNG, and a list of bare extensions would hide that entirely.
+            allowed.GetProperty(extension).GetString().Should().Be(contentType);
+        }
+
+        storage.GetProperty("pendingScanCount").GetInt32().Should().BeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact]
     public async Task Nobody_without_admin_permission_reaches_any_of_it()
     {
         foreach (var role in new[] { Roles.ProcurementOfficer, Roles.ProcurementManager, Roles.MinistryViewer })
@@ -225,6 +249,7 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
             (await staff.GetAsync("/api/v1/admin/erp-sync")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
             (await staff.GetAsync("/api/v1/admin/security")).StatusCode.Should().Be(HttpStatusCode.Forbidden,
                 $"{role} must not be able to read the deployment's security policy");
+            (await staff.GetAsync("/api/v1/admin/storage")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
             (await staff.PostAsync("/api/v1/admin/jobs/outbox-dispatch/trigger", null))
                 .StatusCode.Should().Be(HttpStatusCode.Forbidden, $"{role} must not be able to run platform jobs");
         }
@@ -239,5 +264,6 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
         (await admin.GetAsync("/api/v1/admin/outbox")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await admin.GetAsync("/api/v1/admin/erp-sync")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await admin.GetAsync("/api/v1/admin/security")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/v1/admin/storage")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

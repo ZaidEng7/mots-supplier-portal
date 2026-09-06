@@ -442,6 +442,7 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMes
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
 // SCR-716: interface string overrides.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListUiStringOverridesHandler, MotsSupplierPortal.Infrastructure.Admin.ListUiStringOverridesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertUiStringOverrideHandler, MotsSupplierPortal.Infrastructure.Admin.UpsertUiStringOverrideHandler>();

@@ -141,3 +141,23 @@ export async function getSecurityPosture(): Promise<SecurityPosture> {
   if (!response.ok) throw new Error('security_posture_unavailable')
   return (await response.json()) as SecurityPosture
 }
+
+/** SCR-725. Read-only by design — the upload cap and the allow-list are a security control. */
+export interface StorageSettings {
+  maxUploadBytes: number
+  /** Extension → the content type its magic bytes must match. The pairing is the rule. */
+  allowedTypes: Record<string, string>
+  bucket: string
+  /** Probed when the request was served, not a cached health snapshot. */
+  objectStorageReachable: boolean
+  virusScannerReachable: boolean
+  documentCount: number
+  /** A backlog that never drains is the failure this screen exists to show. */
+  pendingScanCount: number
+}
+
+export async function getStorageSettings(): Promise<StorageSettings> {
+  const response = await apiFetch('/api/v1/admin/storage')
+  if (!response.ok) throw new Error('storage_settings_unavailable')
+  return (await response.json()) as StorageSettings
+}
