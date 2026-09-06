@@ -113,14 +113,24 @@ for that persona.
 
 Enough that no screen renders an empty state for want of a row:
 
-- **5 suppliers** — Approved/Active, Submitted, UnderReview, Approved/Suspended, ProfileInProgress
-- **5 RFQs** — Draft, InternalReview, Approved, SubmissionOpen, UnderEvaluation
-- **2 proposals** — one draft, one submitted
-- **1 evaluation** — assigned, opened and part-scored
+| Reference | Title | State | Carries |
+|---|---|---|---|
+| `RFQ-DEMO-0001` | Catering supplies | Draft | editable items and requirements |
+| `RFQ-DEMO-0002` | Cleaning services | InternalReview | a manager's approval decision |
+| `RFQ-DEMO-0003` | Office furniture | Approved | ready to publish |
+| `RFQ-DEMO-0004` | Kitchen equipment | SubmissionOpen | `PRP-DEMO-0001`, draft |
+| `RFQ-DEMO-0005` | Lift maintenance | UnderEvaluation | `PRP-DEMO-0002` submitted · evaluation part-scored · award **Recommended** |
+| `RFQ-DEMO-0006` | Stationery | Clarification | `PRP-DEMO-0003`, ClarificationRequested |
 
-It stops short of any verdict: nothing is consolidated and no award is approved or issued.
-Consolidation ranks bids and an award names a winner — both are outcomes, and a fixture that invents
-one puts a tender result in the database that nobody decided. Drive those through the UI.
+Plus **5 suppliers** — `SUP-DEMO-0001`..`0005`, at Approved/Active, Submitted, UnderReview,
+Approved/Suspended and ProfileInProgress — and **one evaluation** on `RFQ-DEMO-0005`, assigned,
+opened and part-scored.
+
+**It stops short of any verdict.** Nothing is consolidated, and the award on `RFQ-DEMO-0005` is
+Recommended and neither routed nor approved. Consolidation ranks bids and an approved award names a
+winner: both are outcomes, and a fixture that invents one puts a tender result in the database that
+nobody decided. So the manager's approval queue has a real row to work and no tender here has a
+winner. Drive those through the UI.
 
 ## 8. Tests
 
@@ -146,3 +156,20 @@ above.
   Reports link, by grant, not by accident.
 - **Recurring jobs are enabled** — 6 of them, including one that opens and closes submission windows,
   so RFQ states move on their own while you watch.
+
+## 10. Three screens have no link to them
+
+Not a "looks broken and is not" — these are genuinely unreachable by clicking, and the only way to
+open them today is to type the address:
+
+| Screen | Address | Who holds the permission |
+|---|---|---|
+| Procurement dashboard (SCR-400) | `/back-office/procurement` | procurement_officer, procurement_manager |
+| Reviewer dashboard (SCR-300) | `/back-office/review-dashboard` | onboarding_reviewer |
+| Reports (FEAT-19.1/19.2) | `/back-office/reports` | procurement_manager, ministry_viewer |
+
+`/back-office/procurement/approvals` **is** linked — from the procurement dashboard, which is itself
+unlinked, so the manager's approval queue sits behind a page nobody can navigate to.
+
+`/back-office/dashboard` is the landing every back-office persona gets, and it is a placeholder that
+lists the permissions on your token. The three real dashboards are the ones above.
