@@ -127,10 +127,20 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public void The_ministry_viewer_holds_governance_read_and_nothing_else()
+    public void The_ministry_viewer_holds_governance_read_and_report_read_and_nothing_else()
     {
         // The permission set itself, asserted rather than assumed - it was empty, and an empty set is
         // how a persona ends up able to log in and reach nothing.
-        Roles.DefaultPermissions[Roles.MinistryViewer].Should().BeEquivalentTo(new[] { Permissions.GovernanceRead });
+        //
+        // report.read was ADDED in batch 11, deliberately, and this test is the record of that decision
+        // rather than a casualty of it. SCR-604's reports screen was reachable by no persona who could
+        // legitimately read it, and the grant was checked before it was made: both report DTOs carry counts
+        // and states only, no bid values and no supplier identities, so A-10/D-6's aggregate-only rule for
+        // the Ministry survives it. The word "nothing else" is the part still worth asserting - this persona
+        // must not accumulate rfq.read or anything that reaches an individual tender.
+        Roles.DefaultPermissions[Roles.MinistryViewer].Should()
+            .BeEquivalentTo(new[] { Permissions.GovernanceRead, Permissions.ReportRead });
+        Roles.DefaultPermissions[Roles.MinistryViewer].Should().NotContain(Permissions.RfqRead,
+            "A-10/D-6: the Ministry sees aggregates, never an individual tender");
     }
 }

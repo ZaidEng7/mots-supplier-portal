@@ -88,6 +88,12 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Default", _postgres.GetConnectionString());
 
+        // The demo data seeder stays OFF under the suite. It exists so no screen renders empty in a manual
+        // walkthrough, and its five suppliers appeared in ReviewQueuePaginationTests' page-one assertions,
+        // which name the rows they expect. A fixture that plants rows tests do not know about makes every
+        // count and every ordering assertion in the suite conditional on it - and only in a full run.
+        builder.UseSetting("DevSeed:Enabled", "false");
+
         // MSP-98: no recurring job may fire under the suite. Hangfire itself stays on - tests
         // invoke jobs directly (AwardEndpointsTests runs AwardErpSyncJob against a deliberately
         // failing adapter, which IS the behaviour under test) and enqueued email jobs still

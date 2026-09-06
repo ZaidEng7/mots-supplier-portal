@@ -785,9 +785,21 @@ if (app.Environment.IsDevelopment())
 
     // The remaining six personas plus enough domain data that no screen renders an empty state for
     // want of a row - see DevDataSeeder on why the lifecycle states are forced rather than walked.
-    var seedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration);
-    Console.WriteLine($"[dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / {MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.Password}");
+    //
+    // GATED, and this was a defect before it was a flag. The integration fixture runs the host as
+    // "Development" (it needs Development's relaxed settings), so this seeder ran inside the test host
+    // too - and its five suppliers turned up in the middle of ReviewQueuePaginationTests' assertions,
+    // which name the exact rows they expect on page one. Found in a full-suite run; every one of those
+    // tests would have kept passing in isolation, which is the worst shape a fixture defect can take.
+    //
+    // A configuration switch rather than an environment check: the fixture already overrides settings and
+    // nothing else has to know why. Default true, so a developer's `dotnet run` is unchanged.
+    if (builder.Configuration.GetValue("DevSeed:Enabled", defaultValue: true))
+    {
+        var seedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration);
+        Console.WriteLine($"[dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / {MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.Password}");
+    }
 }
 
 app.UseCors();
