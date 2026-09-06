@@ -290,6 +290,13 @@ public static class SupplierEndpoints
             return MapProfileResult(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        // The one mutating supplier route that was missing this, out of twenty-three.
+        //
+        // It changes the supplier and answered with no ETag, so every client kept asserting the version
+        // it read BEFORE the write - and the next guarded save on the same page came back 412 with
+        // nothing on screen to explain it. Found by filling in onboarding as a supplier: save the legal
+        // details, choose a currency, save again, and the currency is silently gone after a reload.
+        .WithFreshETag()
         .WithName("UpdateLegalInfo");
 
         // FEAT-04.1: previously a dead field (SetLogo existed, nothing called it).

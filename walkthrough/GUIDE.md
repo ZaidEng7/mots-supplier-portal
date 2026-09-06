@@ -112,7 +112,7 @@ below came into existence through the interface, in the order a real procurement
 ![Email verified](screenshots/10-supplier_admin-email-verified.png)
 
 - **Persona:** supplier_admin
-- **Screen:** Email verified — `/verify-email?token=rtmVdimLl1DupC262mtiIBfF11tkDRtTt-Fz4qCGgNc`
+- **Screen:** Email verified — `/verify-email?token=DmJAdOzcoFXQAzSXJ96YbJJ5WzkobcYg2i_LYQejtIw`
 - **What just happened:** The address is proven and the account is live. The supplier is in Draft: registered, not yet allowed to bid.
 - **What the user does next:** Sign in and complete the company profile.
 
@@ -158,8 +158,8 @@ below came into existence through the interface, in the order a real procurement
 
 - **Persona:** supplier_admin
 - **Screen:** Onboarding — contacts — `/onboarding/contacts`
-- **What just happened:** The people a buyer may contact about a bid. One must be primary — that is the address a clarification is sent to.
-- **What the user does next:** Continue to the next step of the profile.
+- **What just happened:** A primary representative is recorded. This is the person a buyer addresses a clarification to, and the completeness rule requires their phone number specifically — a supplier nobody can reach mid-tender is one a buyer cannot include.
+- **What the user does next:** Add the head-office address.
 
 ### 16. Onboarding — addresses
 
@@ -167,8 +167,8 @@ below came into existence through the interface, in the order a real procurement
 
 - **Persona:** supplier_admin
 - **Screen:** Onboarding — addresses — `/onboarding/addresses`
-- **What just happened:** A head-office address is one of the completeness conditions: an approved supplier with no registered address is one nobody can serve notice on.
-- **What the user does next:** Continue to the next step of the profile.
+- **What just happened:** A head-office address, which is one of the completeness conditions: an approved supplier with no registered address is one nobody can serve notice on.
+- **What the user does next:** Add the bank account an award would be paid into.
 
 ### 17. Onboarding — banking
 
@@ -176,8 +176,8 @@ below came into existence through the interface, in the order a real procurement
 
 - **Persona:** supplier_admin
 - **Screen:** Onboarding — banking — `/onboarding/banking`
-- **What just happened:** Where an award would be paid. The account number is masked everywhere it is displayed afterwards.
-- **What the user does next:** Continue to the next step of the profile.
+- **What just happened:** Where an award would be paid. The account number is masked everywhere it is shown again, including on the reviewer's screen.
+- **What the user does next:** Choose the categories this company supplies.
 
 ### 18. Onboarding — categories
 
@@ -206,11 +206,65 @@ below came into existence through the interface, in the order a real procurement
 - **What just happened:** The file went to object storage and ClamAV scanned it before it was accepted. That scan is fail-closed: if clamd is not running the upload is refused rather than stored unscanned.
 - **What the user does next:** Upload the rest of the required documents.
 
-### 21. Onboarding — ready to submit
+### 21. Onboarding — terms accepted
 
-![Onboarding — ready to submit](screenshots/21-supplier_admin-onboarding-ready-to-submit.png)
+![Onboarding — terms accepted](screenshots/21-supplier_admin-onboarding-terms-accepted.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Onboarding — terms accepted — `/onboarding`
+- **What just happened:** The terms are accepted, recorded against a named version and a timestamp. The tick alone was not the acceptance: a separate button is, so that what is stored is an action somebody took rather than a box that happened to be ticked.
+- **What the user does next:** Every condition is now met. Submit the application.
+
+### 22. Onboarding — ready to submit
+
+![Onboarding — ready to submit](screenshots/22-supplier_admin-onboarding-ready-to-submit.png)
 
 - **Persona:** supplier_admin
 - **Screen:** Onboarding — ready to submit — `/onboarding`
 - **What just happened:** Every required document is uploaded and scanned. The submit button is offered only now: the server enforces the same list, so a submission that looks possible here is one that will be accepted.
 - **What the user does next:** Submit the application for review.
+
+### 23. Application submitted
+
+![Application submitted](screenshots/23-supplier_admin-application-submitted.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Application submitted — `/onboarding`
+- **What just happened:** The profile is now read-only and sits in the reviewer queue. The supplier cannot edit what is being judged while it is being judged.
+- **What the user does next:** Wait for the ministry reviewer. Sign in as the reviewer to see the other side.
+
+### 24. Reviewer landing
+
+![Reviewer landing](screenshots/24-onboarding_reviewer-reviewer-landing.png)
+
+- **Persona:** onboarding_reviewer
+- **Screen:** Reviewer landing — `/back-office/dashboard`
+- **What just happened:** The onboarding reviewer signs in. Their navigation carries exactly two working links — the review queue and its dashboard — because supplier.review is the only permission this role holds.
+- **What the user does next:** Open the reviewer dashboard.
+
+### 25. Reviewer dashboard
+
+![Reviewer dashboard](screenshots/25-onboarding_reviewer-reviewer-dashboard.png)
+
+- **Persona:** onboarding_reviewer
+- **Screen:** Reviewer dashboard — `/back-office/review-dashboard`
+- **What just happened:** SCR-300, and until batch 12 nothing in the app linked to it. It reports the oldest waiting case and the queue age, which is the question a reviewer actually opens the product to answer.
+- **What the user does next:** Open the review queue and take the waiting application.
+
+### 26. Review queue
+
+![Review queue](screenshots/26-onboarding_reviewer-review-queue.png)
+
+- **Persona:** onboarding_reviewer
+- **Screen:** Review queue — `/back-office/review`
+- **What just happened:** One application waiting — the one created in act 3. The queue is row-scoped: a reviewer sees applications, never tender data.
+- **What the user does next:** Open the application and check it against its documents.
+
+### 27. Application detail
+
+![Application detail](screenshots/27-onboarding_reviewer-application-detail.png)
+
+- **Persona:** onboarding_reviewer
+- **Screen:** Application detail — `/back-office/review`
+- **What just happened:** The whole submitted profile in one place, with every uploaded document downloadable. This is the screen the completeness rules exist to make answerable.
+- **What the user does next:** Approve, reject, or request more information. Each one demands a written reason.

@@ -161,9 +161,13 @@ async function signIn(page, email, password, opts = {}) {
   try {
     await attemptSignIn(page, email, password, opts)
   } catch (e) {
-    const limited = await page.getByText(/too many attempts|محاولات كثيرة/i).count()
-    if (!limited) throw e
-    console.log('      rate limited - waiting out the window')
+    // Retried on ANY sign-in failure, not only on a recognised rate-limit message. Keying the retry
+    // on that message worked until the limiter refused the request before the page could render one,
+    // and the walk then failed on a correct password. The message is still reported, because which
+    // one it was is worth knowing.
+    const shown = await page.locator('body').innerText().catch(() => '')
+    const why = /too many attempts|محاولات كثيرة/i.test(shown) ? 'rate limited' : 'sign-in failed'
+    console.log(`      ${why} - waiting out the limiter window and retrying`)
     await new Promise((r) => setTimeout(r, 62000))
     await attemptSignIn(page, email, password, opts)
   }
@@ -277,6 +281,16 @@ async function main() {
     // A driver that dies without saying where it was is a driver you debug by guessing. This is the
     // one screenshot that is not part of the guide.
     await page.screenshot({ path: SHOTS + '00-FAILURE.png', fullPage: true }).catch(() => {})
+    // The controls actually on screen, by accessible name. Faster to read than the screenshot and it
+    // says exactly what a locator should have asked for.
+    const controls = await page.evaluate(() => {
+      const name = (el) => el.getAttribute('aria-label')
+        || document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim()
+        || el.getAttribute('placeholder') || '(unnamed)'
+      return [...document.querySelectorAll('input,textarea,select,button[role=combobox],[role=combobox]')]
+        .map((el) => `${el.tagName.toLowerCase()}${el.type ? '[' + el.type + ']' : ''} :: ${name(el)}`)
+    }).catch(() => [])
+    console.error('  controls on screen:'); for (const c of controls) console.error('    ' + c)
     console.error(`\n  failed at step ${step + 1}, on ${page.url()}`)
     console.error(`  see walkthrough/screenshots/00-FAILURE.png`)
     throw e
@@ -356,11 +370,21 @@ async function acceptStaffInvite(ctx, s) {
   await paceSignIn()
   const p = await ctx.newPage()
   await p.goto(link)
-  await p.getByLabel(/^password|new password/i).first().fill(PW)
-  const confirm = p.getByLabel(/confirm/i)
-  if (await confirm.count()) await confirm.fill(PW)
-  await p.getByRole('button', { name: /set|accept|continue|save/i }).first().click()
-  await p.waitForLoadState('networkidle')
+  await p.getByLabel(/new password/i).first().fill(PW)
+  await p.getByRole('button', { name: /set|accept|continue|save|sign/i }).first().click()
+  await settle(p)
+
+  // VERIFIED, not assumed. The first version printed "accepted" for all six and checked nothing - the
+  // form was refusing silently, every staff password stayed unset, and the walk only discovered it
+  // four acts later when the reviewer could not sign in. A step that reports success without looking
+  // is worse than one that fails.
+  const text = await p.locator('body').innerText()
+  const accepted = /you can now sign in|signed in|password set|تم تعيين/i.test(text) || !/new password/i.test(text)
+  if (!accepted) {
+    const alert = await p.locator('[role=alert]').allInnerTexts().catch(() => [])
+    await p.close()
+    throw new Error(`invitation for ${s.email} was not accepted: ${alert.join(' | ') || text.slice(0, 200)}`)
+  }
   await p.close()
 }
 
@@ -429,22 +453,23 @@ async function act4Onboarding(page) {
 
   // The currency control is a Radix Select, named by its placeholder rather than wired to the visible
   // label, so it answers to getByRole('combobox') and not to getByLabel.
-  const currency = page.getByRole('combobox', { name: /currency/i })
+  const currency = page.getByRole('combobox', { name: /^currency$/i })
   await currency.first().click()
   await page.getByRole('option', { name: /syrian pound|SYP/i }).first().click()
   await page.getByLabel(/primary contact.s phone/i).first().fill('944112233')
   await page.getByRole('button', { name: /^save$/i }).nth(1).click()
   await settle(page)
+  // Asserted, not assumed. The first version selected a currency, clicked Save, and moved on - and
+  // the value never reached the server, which only surfaced four steps later as a submit button that
+  // would not enable and no indication of which condition was unmet.
+  await assertNotMissing(page, /currency/i, 'currency did not save')
   await shot(page, 'supplier_admin', 'Onboarding — company profile saved',
     'Currency and a reachable contact are recorded. The currency matters later: a proposal is priced in it, and the comparison matrix refuses to convert between currencies it was never told the rate for.',
     'Add a head-office address, a bank account, and the categories this company supplies.')
 
-  await fillOnboardingStep(page, '/onboarding/contacts', 'Contacts',
-    'The people a buyer may contact about a bid. One must be primary — that is the address a clarification is sent to.')
-  await fillOnboardingStep(page, '/onboarding/addresses', 'Addresses',
-    'A head-office address is one of the completeness conditions: an approved supplier with no registered address is one nobody can serve notice on.')
-  await fillOnboardingStep(page, '/onboarding/banking', 'Banking',
-    'Where an award would be paid. The account number is masked everywhere it is displayed afterwards.')
+  await addContact(page)
+  await addAddress(page)
+  await addBankAccount(page)
 
   await page.goto(`${APP}/onboarding/offerings`)
   await settle(page)
@@ -467,48 +492,108 @@ async function act4Onboarding(page) {
     'Upload the documents the ministry requires before an application can be submitted.')
 }
 
-async function fillOnboardingStep(page, path, name, why) {
-  await page.goto(`${APP}${path}`)
+/**
+ * One filler per dialog, because the three are not alike.
+ *
+ * The first version drove all three through a single generic routine that filled every text box it
+ * found. It left the address dialog's region and country and the banking dialog's currency untouched,
+ * so both saved nothing - and the failure surfaced two acts later as a submit button that would not
+ * enable, with no indication which condition was unmet.
+ */
+async function addContact(page) {
+  await page.goto(`${APP}/onboarding/contacts`)
   await settle(page)
-  const add = page.getByRole('button', { name: /^add/i })
-  if (await add.count()) {
-    await add.first().click()
-    const dialog = page.getByRole('dialog')
-    if (await dialog.count()) {
-      for (const field of await dialog.getByRole('textbox').all()) {
-        const label = (await field.getAttribute('aria-label')) ?? ''
-        await field.fill(sampleFor(label, name))
-      }
-      const submit = dialog.getByRole('button', { name: /save|add|create/i })
-      if (await submit.count()) await submit.last().click()
-      await settle(page)
-    }
-  }
-  await shot(page, 'supplier_admin', `Onboarding — ${name.toLowerCase()}`, why,
-    'Continue to the next step of the profile.')
+  await page.getByRole('button', { name: /add representative/i }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByLabel(/full name/i).fill('Yara Mansour')
+  await d.getByLabel(/^email/i).fill('yara.mansour@gulfcatering.example')
+  await fillIfPresent(d.getByLabel(/^phone/i), '944112233')
+  await fillIfPresent(d.getByLabel(/position/i), 'Commercial Director')
+  await d.getByRole('button', { name: /^save$/i }).click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Onboarding — contacts',
+    'A primary representative is recorded. This is the person a buyer addresses a clarification to, and the completeness rule requires their phone number specifically — a supplier nobody can reach mid-tender is one a buyer cannot include.',
+    'Add the head-office address.')
 }
 
-function sampleFor(label, section) {
-  const l = label.toLowerCase()
-  if (/email/.test(l)) return 'yara.mansour@gulfcatering.example'
-  if (/phone/.test(l)) return '944112233'
-  if (/iban|account/.test(l)) return 'SY8600000000000012345678901'
-  if (/swift|bic/.test(l)) return 'CBSYSYDA'
-  if (/bank/.test(l)) return 'Commercial Bank of Syria'
-  if (/city/.test(l)) return 'Damascus'
-  if (/line ?2/.test(l)) return 'Mazzeh'
-  if (/line|street|address/.test(l)) return '12 Al-Thawra Street'
-  if (/postal|zip/.test(l)) return '00963'
-  if (/name/.test(l)) return section === 'Contacts' ? 'Yara Mansour' : 'Gulf Catering Company'
-  return 'Damascus'
+async function addAddress(page) {
+  await page.goto(`${APP}/onboarding/addresses`)
+  await settle(page)
+  await page.getByRole('button', { name: /add address/i }).first().click()
+  const d = page.getByRole('dialog')
+  await chooseOption(d, /kind/i, /head office/i)
+  // The trailing " *" is part of the accessible name on every required field, so an end-anchored
+  // regex misses it - and "Address" has to stay distinguishable from "Address line 2", which is why
+  // the anchor is there at all.
+  await d.getByLabel(/^address( \*)?$/i).fill('12 Al-Thawra Street')
+  await fillIfPresent(d.getByLabel(/address line 2/i), 'Mazzeh')
+  await d.getByLabel(/^city( \*)?$/i).fill('Damascus')
+  await chooseOption(d, /region/i, /.+/)
+  await d.getByLabel(/^country( \*)?$/i).fill('Syria')
+  await fillIfPresent(d.getByLabel(/postal code/i), '0100')
+  await d.getByRole('button', { name: /^save$/i }).click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Onboarding — addresses',
+    'A head-office address, which is one of the completeness conditions: an approved supplier with no registered address is one nobody can serve notice on.',
+    'Add the bank account an award would be paid into.')
+}
+
+async function addBankAccount(page) {
+  await page.goto(`${APP}/onboarding/banking`)
+  await settle(page)
+  await page.getByRole('button', { name: /add account/i }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByLabel(/account holder name/i).fill('Gulf Catering Company LLC')
+  await d.getByLabel(/bank name/i).fill('Commercial Bank of Syria')
+  await fillIfPresent(d.getByLabel(/branch name/i), 'Damascus Main')
+  await d.getByLabel(/account number/i).fill('SY8600000000000012345678901')
+  await fillIfPresent(d.getByLabel(/swift/i), 'CBSYSYDA')
+  await chooseOption(d, /currency/i, /syrian pound|SYP/i)
+  await d.getByRole('button', { name: /^save$/i }).click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Onboarding — banking',
+    'Where an award would be paid. The account number is masked everywhere it is shown again, including on the reviewer\'s screen.',
+    'Choose the categories this company supplies.')
+}
+
+/** Radix selects are named by their placeholder, so they answer to role=combobox, not to a label. */
+async function chooseOption(scope, nameRe, optionRe) {
+  const box = scope.getByRole('combobox', { name: nameRe })
+  if (!(await box.count())) return
+  await box.first().click()
+  const opt = scope.page().getByRole('option', { name: optionRe })
+  await opt.first().click()
+}
+
+async function fillIfPresent(locator, value) {
+  if (await locator.count()) await locator.first().fill(value)
+}
+
+/**
+ * Proves a write landed, by re-reading the page rather than the API.
+ *
+ * The access token lives in memory (zustand, with the refresh token in an httpOnly cookie), so there
+ * is nothing in localStorage to borrow for a direct API call - the first version of this helper
+ * assumed there was and reported "could not read profile" for every check. Reloading and reading the
+ * completeness checklist is also the better test: it asserts what the SUPPLIER can see.
+ */
+async function assertNotMissing(page, labelRe, message) {
+  await page.goto(`${APP}/onboarding`)
+  await settle(page)
+  const row = page.getByRole('listitem').filter({ hasText: labelRe }).first()
+  if (!(await row.count())) throw new Error(`${message}: no checklist row matching ${labelRe}`)
+  const text = (await row.innerText()).toLowerCase()
+  if (text.includes('missing')) throw new Error(`${message} - the checklist still lists it as missing`)
 }
 
 async function act5ReviewAndApprove(page) {
-  console.log('\nAct 5 — the reviewer approves the supplier')
+  console.log('\nAct 5 — documents, terms, and the reviewer')
 
   await page.goto(`${APP}/onboarding`)
   await settle(page)
   await uploadRequiredDocuments(page)
+
+  await acceptTerms(page)
 
   await page.goto(`${APP}/onboarding`)
   await settle(page)
@@ -538,7 +623,7 @@ async function act5ReviewAndApprove(page) {
     'SCR-300, and until batch 12 nothing in the app linked to it. It reports the oldest waiting case and the queue age, which is the question a reviewer actually opens the product to answer.',
     'Open the review queue and take the waiting application.')
 
-  await page.getByRole('link', { name: /^supplier review$|^review$/i }).first().click()
+  await page.getByRole('link', { name: /supplier application review/i }).first().click()
   await settle(page)
   await shot(page, 'onboarding_reviewer', 'Review queue',
     'One application waiting — the one created in act 3. The queue is row-scoped: a reviewer sees applications, never tender data.',
@@ -552,6 +637,26 @@ async function act5ReviewAndApprove(page) {
   await shot(page, 'onboarding_reviewer', 'Application detail',
     'The whole submitted profile in one place, with every uploaded document downloadable. This is the screen the completeness rules exist to make answerable.',
     'Approve, reject, or request more information. Each one demands a written reason.')
+}
+
+/**
+ * The last completeness condition, and the only one that is a decision rather than a field.
+ *
+ * Two controls, deliberately: ticking the box is not the acceptance - pressing the button is. The
+ * server records who accepted, when, and against which version of the terms, which is the whole point
+ * of separating them.
+ */
+async function acceptTerms(page) {
+  await page.goto(`${APP}/onboarding`)
+  await settle(page)
+  const box = page.locator('input[type=checkbox]').first()
+  await box.check()
+  await page.getByRole('button', { name: /accept/i }).first().click()
+  await settle(page)
+  await assertNotMissing(page, /terms/i, 'terms were not accepted')
+  await shot(page, 'supplier_admin', 'Onboarding — terms accepted',
+    'The terms are accepted, recorded against a named version and a timestamp. The tick alone was not the acceptance: a separate button is, so that what is stored is an action somebody took rather than a box that happened to be ticked.',
+    'Every condition is now met. Submit the application.')
 }
 
 async function uploadRequiredDocuments(page) {

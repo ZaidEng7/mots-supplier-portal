@@ -563,6 +563,7 @@ const resources = {
         // document chip has exactly one source like every other machine.
         submitBlockedTitle: 'لا يمكن إرسال الطلب بعد',
         submitBlockedIntro: 'الوثائق المطلوبة التالية ناقصة:',
+        missing: 'ناقص',
         complete: 'مكتمل',
         save: 'حفظ',
         submit: 'إرسال الطلب',
@@ -2251,6 +2252,7 @@ const resources = {
         checklist: 'Requirements checklist',
         submitBlockedTitle: 'Your application cannot be submitted yet',
         submitBlockedIntro: 'These required documents are missing:',
+        missing: 'Missing',
         complete: 'Complete',
         save: 'Save',
         submit: 'Submit application',

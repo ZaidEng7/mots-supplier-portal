@@ -1,5 +1,6 @@
 import { hasCode, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
+import { rememberETag } from './etags'
 
 export interface LegalInfo {
   legalNameAr: string | null
@@ -137,10 +138,39 @@ export class SupplierApiError extends Error {
   }
 }
 
-/** MSP-65: the row version we last read travels as the standard `If-Match` header, so the server
- * can reject a write built on stale data instead of silently overwriting the other editor. */
-function ifMatch(rowVersion?: number): Record<string, string> {
-  return rowVersion === undefined ? {} : { 'If-Match': `"${rowVersion}"` }
+/**
+ * REMOVED in batch 12, and this comment is the reason rather than an apology.
+ *
+ * This built `If-Match: "4"` from the numeric rowVersion in the body. That matched the server until
+ * batch 11 changed the ETag to carry the build alongside the row - the real header is now
+ * `"AAAABA.1bdf128d"`, base64 row version and a build hash - so a hand-built numeric tag could never
+ * match again, and every write through it answered 412.
+ *
+ * Worse, it was not merely wrong, it OVERRODE the right answer: apiFetch already attaches the stored
+ * ETag and its own comment says "an explicit If-Match always wins", so this call site's guess beat the
+ * value the server had actually issued. Deleting it restores the design that comment describes -
+ * attached centrally, from what the server sent, never reconstructed at a call site.
+ *
+ * Found by walking onboarding as a supplier: choosing a currency, pressing Save, and watching the
+ * value come back empty after a reload.
+ */
+
+/**
+ * Parses a supplier response and files its ETag under the SUPPLIER-CODE path.
+ *
+ * Every write here answers with the whole profile and a fresh ETag, and `apiFetch` already re-files
+ * that under the prefix the precondition came from - which is `/suppliers/me`, because that is the
+ * path these writes use. The PATCH does not: it is addressed by supplier code. So a legal-info save
+ * followed by a profile save refreshed one prefix and asserted against the other, and the second save
+ * answered 412 on a page where nothing else had touched the record.
+ *
+ * Routing every profile-returning call through here keeps the two paths carrying the same version.
+ */
+async function profileFrom(res: Response): Promise<SupplierProfile> {
+  const etag = res.headers.get('ETag')
+  const profile = await parseOrThrow<SupplierProfile>(res)
+  if (etag) rememberETag(`/api/v1/suppliers/${profile.supplierCode}`, etag)
+  return profile
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {
@@ -150,34 +180,43 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
+/**
+ * Files the read's ETag under the SUPPLIER-CODE path as well as the one it was read from.
+ *
+ * Same shape as D-47, one aggregate later: a supplier reads itself at `/suppliers/me` and is written
+ * at `/suppliers/{code}`. The ETag store walks a path upward and never sideways, so the write could
+ * never find the version the read had issued and the server correctly refused it with 428.
+ *
+ * Declared here because this function is the only thing that knows the two paths name one resource -
+ * `me` resolves to a supplier code the caller does not otherwise learn until the body arrives.
+ */
 export async function getOwnSupplier(): Promise<SupplierProfile> {
-  const res = await apiFetch('/api/v1/suppliers/me')
-  return parseOrThrow(res)
+  return profileFrom(await apiFetch('/api/v1/suppliers/me'))
 }
 
-export async function updateProfile(supplierCode: string, payload: UpdateProfilePayload, rowVersion?: number): Promise<SupplierProfile> {
+export async function updateProfile(supplierCode: string, payload: UpdateProfilePayload): Promise<SupplierProfile> {
   const res = await apiFetch(`/api/v1/suppliers/${supplierCode}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...ifMatch(rowVersion) },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  return parseOrThrow(res)
+  return profileFrom(res)
 }
 
-export async function updateLegalInfo(payload: UpdateLegalInfoPayload, rowVersion?: number): Promise<SupplierProfile> {
+export async function updateLegalInfo(payload: UpdateLegalInfoPayload): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/legal-info', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...ifMatch(rowVersion) },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  return parseOrThrow(res)
+  return profileFrom(res)
 }
 
 export async function uploadLogo(file: File): Promise<SupplierProfile> {
   const form = new FormData()
   form.append('file', file)
   const res = await apiFetch('/api/v1/suppliers/me/logo', { method: 'POST', body: form })
-  return parseOrThrow(res)
+  return profileFrom(res)
 }
 
 export async function getLogoDownloadUrl(): Promise<string> {
@@ -188,15 +227,15 @@ export async function getLogoDownloadUrl(): Promise<string> {
 
 export async function acceptTerms(): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/accept-terms', { method: 'POST' })
-  return parseOrThrow(res)
+  return profileFrom(res)
 }
 
 export async function submitApplication(supplierCode: string): Promise<SupplierProfile> {
   const res = await apiFetch(`/api/v1/suppliers/${supplierCode}/onboarding/submit`, { method: 'POST' })
-  return parseOrThrow(res)
+  return profileFrom(res)
 }
 
 export async function resubmitApplication(): Promise<SupplierProfile> {
   const res = await apiFetch('/api/v1/suppliers/me/resubmit-application', { method: 'POST' })
-  return parseOrThrow(res)
+  return profileFrom(res)
 }
