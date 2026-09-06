@@ -130,7 +130,7 @@ below came into existence through the interface, in the order a real procurement
 ![Email verified](screenshots/12-supplier_admin-email-verified.png)
 
 - **Persona:** supplier_admin
-- **Screen:** Email verified — `/verify-email?token=oa2TddVBP81t2fucqWJVf_xKACQG1bgzp_MNObFlcmM`
+- **Screen:** Email verified — `/verify-email?token=ExUkvdIIMGPbtyB5bhhKNVIz63jg85yphYMugPnew7U`
 - **What just happened:** The address is proven and the account is live. The supplier is in Draft: registered, not yet allowed to bid.
 - **What the user does next:** Sign in and complete the company profile.
 
@@ -592,3 +592,300 @@ below came into existence through the interface, in the order a real procurement
 - **Screen:** Bid submitted — `/rfqs/RFQ-2026-000001/proposal`
 - **What just happened:** Submitted, and now read-only to the supplier. From here the buyer cannot see the commercial half until the submission window closes and the evaluation is consolidated - that is the two-envelope seal, and it is enforced on the server rather than by hiding a column.
 - **What the user does next:** The officer closes the window and opens evaluation.
+
+### 64. Submissions closed
+
+![Submissions closed](screenshots/64-procurement_officer-submissions-closed.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Submissions closed — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** Closed early by the officer rather than waiting for the deadline. Bids are now fixed: nothing further can be submitted, withdrawn or repriced, which is the precondition for looking at any of them.
+- **What the user does next:** Open the evaluation.
+
+### 65. Evaluation opened
+
+![Evaluation opened](screenshots/65-procurement_officer-evaluation-opened.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Evaluation opened — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** The evaluation exists, carrying the criteria frozen when the template was bound. No score exists yet and the commercial envelope stays sealed.
+- **What the user does next:** The manager assigns an evaluator.
+
+### 66. Evaluator assigned
+
+![Evaluator assigned](screenshots/66-procurement_manager-evaluator-assigned.png)
+
+- **Persona:** procurement_manager
+- **Screen:** Evaluator assigned — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** Assigned by name, from the staff who actually hold the scoring permission in this buying body. The picker lists people rather than asking for an identifier, and anyone already assigned is absent from it.
+- **What the user does next:** The evaluator scores the bids.
+
+### 67. Evaluator dashboard
+
+![Evaluator dashboard](screenshots/67-evaluator-evaluator-dashboard.png)
+
+- **Persona:** evaluator
+- **Screen:** Evaluator dashboard — `/evaluation`
+- **What just happened:** The evaluator signs in to a dashboard of their own assignments and almost nothing else: this role holds evaluation.score, evaluation.submit and rfq.clarify, so there is no tender list and no supplier data to browse.
+- **What the user does next:** Open the assignment.
+
+### 68. Conflict of interest declaration
+
+![Conflict of interest declaration](screenshots/68-evaluator-conflict-of-interest-declaration.png)
+
+- **Persona:** evaluator
+- **Screen:** Conflict of interest declaration — `/back-office/rfqs/RFQ-2026-000001/my-evaluation`
+- **What just happened:** Asked before a single bid is visible, and it names the suppliers taking part precisely because that is the one thing an evaluator must see in order to answer honestly. Declaring a conflict here recuses them instead of letting them score and hope nobody checks.
+- **What the user does next:** Declare no conflict and continue.
+
+### 69. Scoring screen — bidders anonymous
+
+![Scoring screen — bidders anonymous](screenshots/69-evaluator-scoring-screen-bidders-anonymous.png)
+
+- **Persona:** evaluator
+- **Screen:** Scoring screen — bidders anonymous — `/back-office/rfqs/RFQ-2026-000001/my-evaluation`
+- **What just happened:** The bids, with the bidder identity withheld and the financial envelope locked. An evaluator scores the technical answer without knowing whose it is or what it costs, which is the two-envelope seal doing its actual job rather than a label on a screen.
+- **What the user does next:** Score each criterion.
+
+### 70. Technical criterion scored, price still locked
+
+![Technical criterion scored, price still locked](screenshots/70-evaluator-technical-criterion-scored-price-still-locked.png)
+
+- **Persona:** evaluator
+- **Screen:** Technical criterion scored, price still locked — `/back-office/rfqs/RFQ-2026-000001/my-evaluation`
+- **What just happened:** The technical score is recorded and the price is still sealed. An evaluator judges the answer before knowing what it costs, which is the entire purpose of separating the envelopes.
+- **What the user does next:** Saving a passing technical score qualifies the bid and unlocks the financial criterion.
+
+### 71. All criteria scored
+
+![All criteria scored](screenshots/71-evaluator-all-criteria-scored.png)
+
+- **Persona:** evaluator
+- **Screen:** All criteria scored — `/back-office/rfqs/RFQ-2026-000001/my-evaluation`
+- **What just happened:** Both criteria now carry a score. The financial one unlocked only once the bid passed technically, and the evaluation cannot be submitted until every unlocked criterion is answered.
+- **What the user does next:** Submit the evaluation.
+
+### 72. Evaluation submitted
+
+![Evaluation submitted](screenshots/72-evaluator-evaluation-submitted.png)
+
+- **Persona:** evaluator
+- **Screen:** Evaluation submitted — `/back-office/rfqs/RFQ-2026-000001/my-evaluation`
+- **What just happened:** Submitted and now read-only to this evaluator. Scores cannot be revised after submission without a manager reopening the evaluation, which is recorded.
+- **What the user does next:** The officer consolidates the results.
+
+### 73. Results consolidated
+
+![Results consolidated](screenshots/73-procurement_officer-results-consolidated.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Results consolidated — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** Consolidation is the moment the two envelopes are put together: technical scores and prices are weighted into one ranking. Until now nobody on the buying side had seen both halves of a bid at once.
+- **What the user does next:** Open the comparison matrix.
+
+### 74. Comparison matrix
+
+![Comparison matrix](screenshots/74-procurement_officer-comparison-matrix.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Comparison matrix — `/back-office/rfqs/RFQ-2026-000001/comparison`
+- **What just happened:** Bids side by side, each identified by its PROPOSAL REFERENCE CODE rather than an internal id — this is the screen on which a tender is decided, and it used to print GUIDs. Technical, financial and weighted totals with a rank.
+- **What the user does next:** Open the award screen and recommend a winner.
+
+### 75. Evaluation finalized
+
+![Evaluation finalized](screenshots/75-procurement_manager-evaluation-finalized.png)
+
+- **Persona:** procurement_manager
+- **Screen:** Evaluation finalized — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** The shortlist is closed and the ranking fixed, by the manager rather than the officer who ran the evaluation. Reopening after this undoes a decision rather than correcting a score, which is why it carries its own permission.
+- **What the user does next:** Back to the officer, who recommends a winner.
+
+### 76. Award — nobody recommended yet
+
+![Award — nobody recommended yet](screenshots/76-procurement_officer-award-nobody-recommended-yet.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Award — nobody recommended yet — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** The award screen before any decision. A winner is recommended by the officer and approved by somebody else, and the screen carries both halves so the separation is visible rather than implied.
+- **What the user does next:** Recommend the winning bid with a justification.
+
+### 77. Winner recommended
+
+![Winner recommended](screenshots/77-procurement_officer-winner-recommended.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Winner recommended — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** A recommendation, with a written justification, naming the bid rather than the company - and it decides nothing on its own. It waits for a manager.
+- **What the user does next:** Route it for approval.
+
+### 78. Routed for approval
+
+![Routed for approval](screenshots/78-procurement_officer-routed-for-approval.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Routed for approval — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** Handed on. The recommender has done all they can do: approving their own recommendation is the one thing the system will not let them attempt.
+- **What the user does next:** The manager who approved the tender tries to approve the award.
+
+### 79. Self-approval refused
+
+![Self-approval refused](screenshots/79-procurement_officer-self-approval-refused.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Self-approval refused — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** Refused, and this is the product working: §6.1 requires the approver to differ from the recommender. The server said so explicitly. It is the most confusing dead end here, which is exactly why it is worth seeing once.
+- **What the user does next:** A second manager approves it.
+
+### 80. Award awaiting a second pair of eyes
+
+![Award awaiting a second pair of eyes](screenshots/80-procurement_manager-award-awaiting-a-second-pair-of-eyes.png)
+
+- **Persona:** procurement_manager
+- **Screen:** Award awaiting a second pair of eyes — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** The second manager sees the recommendation, the justification, and the bid it names. They did not write it and did not recommend it, which is the whole point of them being the one to approve it.
+- **What the user does next:** Approve the award.
+
+### 81. Award approved
+
+![Award approved](screenshots/81-procurement_manager-award-approved.png)
+
+- **Persona:** procurement_manager
+- **Screen:** Award approved — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** Approved by somebody other than the recommender. The tender now has a winner, and the supplier is about to be told.
+- **What the user does next:** The officer issues it, which is what notifies the supplier and starts the ERP sync.
+
+### 82. Award issued
+
+![Award issued](screenshots/82-procurement_manager-award-issued.png)
+
+- **Persona:** procurement_manager
+- **Screen:** Award issued — `/back-office/rfqs/RFQ-2026-000001/award`
+- **What just happened:** Issued. This is the point at which the outcome leaves the building: the winning supplier is notified, and an integration message is queued for the ERP so a purchase order can be raised against it.
+- **What the user does next:** Check the ERP sync, then look at the outcome as the supplier.
+
+### 83. The supplier sees the outcome
+
+![The supplier sees the outcome](screenshots/83-supplier_admin-the-supplier-sees-the-outcome.png)
+
+- **Persona:** supplier_admin
+- **Screen:** The supplier sees the outcome — `/proposals`
+- **What just happened:** The bid the supplier submitted now shows its result. Their own price is visible to them at every state - the two-envelope seal governs what the BUYER may see, and hiding a bid from the company that wrote it would be a bug wearing the costume of a security feature.
+- **What the user does next:** Check the ERP sync as the administrator.
+
+### 84. Operations — jobs, outbox and ERP
+
+![Operations — jobs, outbox and ERP](screenshots/84-system_admin-operations-jobs-outbox-and-erp.png)
+
+- **Persona:** system_admin
+- **Screen:** Operations — jobs, outbox and ERP — `/back-office/operations`
+- **What just happened:** The issued award queued an integration message. This card is honest about what happens to it: NO REAL ERP TRANSPORT IS CONFIGURED in this environment, and the screen says so rather than showing a column of Synced produced by a logging stand-in that accepts everything and sends nothing.
+- **What the user does next:** Look at the rest of the administrator surface.
+
+### 85. Platform administration
+
+![Platform administration](screenshots/85-system_admin-platform-administration.png)
+
+- **Persona:** system_admin
+- **Screen:** Platform administration — `/back-office/admin`
+- **What just happened:** The administrator overview: counts, health and the state of the integrations.
+- **What the user does next:** Continue through the administrator screens.
+
+### 86. Reference data
+
+![Reference data](screenshots/86-system_admin-reference-data.png)
+
+- **Persona:** system_admin
+- **Screen:** Reference data — `/back-office/reference`
+- **What just happened:** The code lists everything else is built from - categories, document types, currencies, units, regions. Codes are deactivated, never deleted, because they are foreign keys in live rows.
+- **What the user does next:** Continue through the administrator screens.
+
+### 87. Interface text
+
+![Interface text](screenshots/87-system_admin-interface-text.png)
+
+- **Persona:** system_admin
+- **Screen:** Interface text — `/back-office/ui-strings`
+- **What just happened:** Any string in the product can be reworded here without a release. The people who own the wording are not the people who own deployments.
+- **What the user does next:** Continue through the administrator screens.
+
+### 88. Email wording
+
+![Email wording](screenshots/88-system_admin-email-wording.png)
+
+- **Persona:** system_admin
+- **Screen:** Email wording — `/back-office/email-templates`
+- **What just happened:** The transactional emails, with their required tokens shown. A save that drops {verifyUrl} is refused, because an email that loses it locks the recipient out of the account they are creating.
+- **What the user does next:** Continue through the administrator screens.
+
+### 89. Audit log
+
+![Audit log](screenshots/89-system_admin-audit-log.png)
+
+- **Persona:** system_admin
+- **Screen:** Audit log — `/back-office/audit`
+- **What just happened:** Every state change, with an actor and a correlation id. Append-only: this is the record that makes an approval accountable months later.
+- **What the user does next:** Continue through the administrator screens.
+
+### 90. Organizations
+
+![Organizations](screenshots/90-system_admin-organizations.png)
+
+- **Persona:** system_admin
+- **Screen:** Organizations — `/back-office/organizations`
+- **What just happened:** The buying bodies, and the boundary every tender query is scoped by.
+- **What the user does next:** Continue through the administrator screens.
+
+### 91. Ministry overview
+
+![Ministry overview](screenshots/91-ministry_viewer-ministry-overview.png)
+
+- **Persona:** ministry_viewer
+- **Screen:** Ministry overview — `/back-office/ministry`
+- **What just happened:** Cross-organization totals and nothing else. NO COMMERCIAL FIGURES APPEAR HERE, and that is a decision rather than an omission: it is held pending an answer from MOT Legal, and until then BRULE-086 grants aggregate access only, with BRULE-087 defaulting to aggregate-only wherever visibility is undecided. There is no drill-down to a named supplier or tender by design.
+- **What the user does next:** The Ministry viewer has no other working screen, which is the grant working as written.
+
+### 92. Supplier dashboard
+
+![Supplier dashboard](screenshots/92-supplier_admin-supplier-dashboard.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Supplier dashboard — `/dashboard`
+- **What just happened:** The supplier home once there is real activity: completeness, invitations, proposals and documents needing attention.
+- **What the user does next:** Continue through the supplier screens.
+
+### 93. Supplier profile
+
+![Supplier profile](screenshots/93-supplier_admin-supplier-profile.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Supplier profile — `/profile`
+- **What just happened:** The company record as its own staff see it, each section linking to the editor rather than duplicating it.
+- **What the user does next:** Continue through the supplier screens.
+
+### 94. Documents centre
+
+![Documents centre](screenshots/94-supplier_admin-documents-centre.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Documents centre — `/documents`
+- **What just happened:** Every document type with its state and expiry, and a filter for the ones needing attention. Expiry is the state a daily job maintains, so this screen and the job cannot disagree.
+- **What the user does next:** Continue through the supplier screens.
+
+### 95. Team
+
+![Team](screenshots/95-supplier_admin-team.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Team — `/team`
+- **What just happened:** The supplier invites its own colleagues. A supplier_user can prepare a bid; only a supplier_admin can submit one.
+- **What the user does next:** Continue through the supplier screens.
+
+### 96. Settings
+
+![Settings](screenshots/96-supplier_admin-settings.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Settings — `/settings`
+- **What just happened:** Account, language, password and active sessions.
+- **What the user does next:** Continue through the supplier screens.

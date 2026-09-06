@@ -66,6 +66,13 @@ export function RfqDetailPage() {
    * skipped rather than the button hidden.
    */
   const canAssignEvaluators = useAuthStore((state) => state.claims?.permissions.includes('evaluation.assign') ?? false)
+  // Finalize and reopen are the MANAGER's, not the officer's - evaluation.finalize and
+  // evaluation.reopen are granted to procurement_manager alone. Both buttons were rendered for
+  // anyone who could see the evaluation panel, so a procurement officer was shown an enabled
+  // Finalize that answered 403 every time. Same hide-never-gate rule as every other control here:
+  // the endpoint re-enforces the permission regardless of what these do.
+  const canFinalizeEvaluation = useAuthStore((state) => state.claims?.permissions.includes('evaluation.finalize') ?? false)
+  const canReopenEvaluation = useAuthStore((state) => state.claims?.permissions.includes('evaluation.reopen') ?? false)
 
   const [evaluatorUserId, setEvaluatorUserId] = useState('')
   const [recuseReason, setRecuseReason] = useState('')
@@ -983,14 +990,14 @@ export function RfqDetailPage() {
                     {t('evaluation.consolidate')}
                   </Button>
                 ) : null}
-                {evaluation.state === 'Consolidated' ? (
+                {evaluation.state === 'Consolidated' && canFinalizeEvaluation ? (
                   <Button isLoading={finalizeMutation.isPending} onClick={() => finalizeMutation.mutate()}>
                     {t('evaluation.finalize')}
                   </Button>
                 ) : null}
               </div>
 
-              {evaluation.state === 'Consolidated' ? (
+              {evaluation.state === 'Consolidated' && canReopenEvaluation ? (
                 <div className="flex flex-wrap items-end gap-2">
                   <Input aria-label={t('evaluation.reopenReason')} placeholder={t('evaluation.reopenReason')}
                     value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />

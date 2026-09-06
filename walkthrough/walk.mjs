@@ -60,6 +60,7 @@ const SUPPLIER = {
 
 let step = 0
 let lastApiFailure = null
+let lastApiWriteOk = null
 const entries = []
 
 /** RFC 6238 TOTP. SHA-1 because the spec says SHA-1 and the server uses it. */
@@ -276,7 +277,15 @@ async function main() {
   // rather than by scraping whatever happens to be on screen. Reading the DOM gave me an attachment
   // filename three times in a row while the actual answer was a 428 in the network tab.
   page.on('response', async (res) => {
-    if (!res.url().includes('/api/v1/') || res.status() < 400) return
+    // WRITES only. A refused action is a failed write; a GET that 400s afterwards is usually the
+    // page re-reading something the action has just moved on from - submitting an evaluation makes
+    // the scoring GET answer "cannot open scoring from state EvaluatorSubmitted", which is correct
+    // and was being reported as the submit having failed.
+    if (!res.url().includes('/api/v1/') || res.request().method() === 'GET') return
+    if (res.status() < 400) {
+      lastApiWriteOk = `${res.request().method()} ${res.url().replace(/^https?:\/\/[^/]+/, '')}`
+      return
+    }
     const body = await res.text().catch(() => '')
     lastApiFailure = `${res.request().method()} ${res.url().replace(/^https?:\/\/[^/]+/, '')} -> ${res.status()} ${body.slice(0, 600)}`
   })
@@ -296,6 +305,11 @@ async function main() {
     await act10SupplierReadsAndAsks(page)
     await act11OfficerAnswers(page)
     await act12Bid(page)
+    await act13CloseAndEvaluate(page)
+    await act14Score(page)
+    await act15ConsolidateAndAward(page)
+    await act16Outcome(page)
+    await act17EveryPersonaScreens(page)
   } catch (e) {
     // A driver that dies without saying where it was is a driver you debug by guessing. This is the
     // one screenshot that is not part of the guide.
@@ -875,11 +889,18 @@ const RFQ_TITLE = 'School meals catering, 2026-2027'
  */
 async function transition(page, buttonRe, what) {
   lastApiFailure = null
+  lastApiWriteOk = null
   const button = page.getByRole('button', { name: buttonRe })
   await button.first().click()
   await settle(page)
-  if (await button.count()) {
-    throw new Error(`${what} was refused: ${lastApiFailure ?? 'no failing API call was seen'}`)
+  // A write that failed is a refusal. The button lingering is not, on its own: some screens re-render
+  // with the control still present and a message beside it.
+  if (lastApiFailure) throw new Error(`${what} was refused: ${lastApiFailure}`)
+  // A SUCCESSFUL write is the positive signal. The control disappearing is the usual sign, but not a
+  // universal one - the scoring screen keeps its buttons after submitting and re-renders around them,
+  // which made a perfectly good submit look like a silent failure.
+  if (!lastApiWriteOk && (await button.count())) {
+    throw new Error(`${what} did not take: no write was made and the control is still on screen`)
   }
 }
 
@@ -1256,6 +1277,310 @@ async function act12Bid(page) {
   await shot(page, 'supplier_admin', 'Bid submitted',
     'Submitted, and now read-only to the supplier. From here the buyer cannot see the commercial half until the submission window closes and the evaluation is consolidated - that is the two-envelope seal, and it is enforced on the server rather than by hiding a column.',
     'The officer closes the window and opens evaluation.')
+}
+
+
+async function act13CloseAndEvaluate(page) {
+  console.log('\nAct 13 — the window closes and evaluation opens')
+
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await openTender(page)
+  await transition(page, /close submission window/i, 'close the submission window')
+  await shot(page, 'procurement_officer', 'Submissions closed',
+    'Closed early by the officer rather than waiting for the deadline. Bids are now fixed: nothing further can be submitted, withdrawn or repriced, which is the precondition for looking at any of them.',
+    'Open the evaluation.')
+
+  await transition(page, /open evaluation/i, 'open the evaluation')
+  await shot(page, 'procurement_officer', 'Evaluation opened',
+    'The evaluation exists, carrying the criteria frozen when the template was bound. No score exists yet and the commercial envelope stays sealed.',
+    'The manager assigns an evaluator.')
+
+  await signOut(page)
+  await signIn(page, STAFF.manager.email, PW)
+  await openTender(page)
+  await chooseOption(page, /evaluator|choose an evaluator/i, new RegExp(STAFF.evaluator.name.split(' ').pop(), 'i'))
+  lastApiFailure = null
+  await page.getByRole('button', { name: /^assign$/i }).first().click()
+  await settle(page)
+  // Asserted by NAME appearing in the assignments table - the evaluator's own dashboard is the next
+  // thing that depends on this, and an unasserted assign left it empty two steps later.
+  const assigned = page.getByText(new RegExp(STAFF.evaluator.name.split(' ').pop(), 'i'))
+  if (!(await assigned.count())) {
+    throw new Error(`the evaluator was not assigned: ${lastApiFailure ?? 'no failing API call was seen'}`)
+  }
+  await shot(page, 'procurement_manager', 'Evaluator assigned',
+    'Assigned by name, from the staff who actually hold the scoring permission in this buying body. The picker lists people rather than asking for an identifier, and anyone already assigned is absent from it.',
+    'The evaluator scores the bids.')
+}
+
+async function act14Score(page) {
+  console.log('\nAct 14 — scoring, with the bidders anonymous')
+
+  await signOut(page)
+  await signIn(page, STAFF.evaluator.email, PW)
+  await chooseEnglish(page)
+  await shot(page, 'evaluator', 'Evaluator dashboard',
+    'The evaluator signs in to a dashboard of their own assignments and almost nothing else: this role holds evaluation.score, evaluation.submit and rfq.clarify, so there is no tender list and no supplier data to browse.',
+    'Open the assignment.')
+
+  // The dashboard links on the ACTION ("Score" / "Review"), not on the reference code.
+  await page.getByRole('link', { name: /start scoring|view evaluation/i }).first().click()
+  await settle(page)
+
+  // A-8's conflict declaration, answered before any bid content is shown.
+  const noConflict = page.getByRole('button', { name: /no conflict/i })
+  if (await noConflict.count()) {
+    await shot(page, 'evaluator', 'Conflict of interest declaration',
+      'Asked before a single bid is visible, and it names the suppliers taking part precisely because that is the one thing an evaluator must see in order to answer honestly. Declaring a conflict here recuses them instead of letting them score and hope nobody checks.',
+      'Declare no conflict and continue.')
+    await noConflict.first().click()
+    await settle(page)
+  }
+
+  await shot(page, 'evaluator', 'Scoring screen — bidders anonymous',
+    'The bids, with the bidder identity withheld and the financial envelope locked. An evaluator scores the technical answer without knowing whose it is or what it costs, which is the two-envelope seal doing its actual job rather than a label on a screen.',
+    'Score each criterion.')
+
+  await scoreEveryCriterion(page)
+
+  await transition(page, /submit evaluation/i, 'submit the evaluation')
+  await shot(page, 'evaluator', 'Evaluation submitted',
+    'Submitted and now read-only to this evaluator. Scores cannot be revised after submission without a manager reopening the evaluation, which is recorded.',
+    'The officer consolidates the results.')
+}
+
+async function scoreEveryCriterion(page) {
+  // Two passes, because the second criterion only becomes scorable once the first is saved.
+  //
+  // The financial envelope is locked "until this proposal passes technical qualification", so on the
+  // first pass only the technical criterion is enabled. Saving a passing technical score unlocks the
+  // price, and submitting is refused until every financial criterion on a technically qualified
+  // proposal has been scored too - "all financial criteria must be scored for technically qualified
+  // proposals". Scoring, unlocking and scoring again is the actual shape of this screen.
+  for (let pass = 1; pass <= 3; pass++) {
+    const inputs = page.getByLabel(/^score:/i)
+    const total = await inputs.count()
+    let scoredThisPass = 0
+
+    for (let i = 0; i < total; i++) {
+      const input = inputs.nth(i)
+      if (!(await input.isEnabled())) continue
+      if ((await input.inputValue()) !== '') continue
+      await input.fill(String(78 + i * 4))
+      scoredThisPass += 1
+    }
+
+    for (const box of await page.getByRole('textbox').all()) {
+      const label = (await box.getAttribute('aria-label')) ?? (await box.getAttribute('placeholder')) ?? ''
+      if (/justif/i.test(label) && (await box.inputValue()) === '') {
+        await box.fill('Cold-chain plan is specific, with a temperature log per drop and named routes.')
+      }
+    }
+
+    for (const save of await page.getByRole('button', { name: /save score/i }).all()) {
+      if (!(await save.isEnabled())) continue
+      await save.click()
+      await settle(page)
+    }
+
+    console.log(`      pass ${pass}: scored ${scoredThisPass} of ${total} criteria`)
+    if (pass === 1) {
+      await shot(page, 'evaluator', 'Technical criterion scored, price still locked',
+        'The technical score is recorded and the price is still sealed. An evaluator judges the answer before knowing what it costs, which is the entire purpose of separating the envelopes.',
+        'Saving a passing technical score qualifies the bid and unlocks the financial criterion.')
+    }
+    if (scoredThisPass === 0) break
+    await page.reload()
+    await settle(page)
+  }
+
+  await shot(page, 'evaluator', 'All criteria scored',
+    'Both criteria now carry a score. The financial one unlocked only once the bid passed technically, and the evaluation cannot be submitted until every unlocked criterion is answered.',
+    'Submit the evaluation.')
+}
+
+
+async function act15ConsolidateAndAward(page) {
+  console.log('\nAct 15 — consolidate, compare, and decide')
+
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await openTender(page)
+  await transition(page, /^consolidate$/i, 'consolidate the evaluation')
+  await shot(page, 'procurement_officer', 'Results consolidated',
+    'Consolidation is the moment the two envelopes are put together: technical scores and prices are weighted into one ranking. Until now nobody on the buying side had seen both halves of a bid at once.',
+    'Open the comparison matrix.')
+
+  await page.getByRole('link', { name: /comparison/i }).first().click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Comparison matrix',
+    'Bids side by side, each identified by its PROPOSAL REFERENCE CODE rather than an internal id — this is the screen on which a tender is decided, and it used to print GUIDs. Technical, financial and weighted totals with a rank.',
+    'Open the award screen and recommend a winner.')
+
+  // Finalize is the MANAGER's, not the officer's - evaluation.finalize is granted to
+  // procurement_manager alone. Consolidating moves the tender to Shortlisting and the award screen is
+  // not offered until the shortlist is closed, so the two roles hand back and forth here.
+  await signOut(page)
+  await signIn(page, STAFF.manager.email, PW)
+  await openTender(page)
+  await transition(page, /^finalize$/i, 'finalize the evaluation')
+  await shot(page, 'procurement_manager', 'Evaluation finalized',
+    'The shortlist is closed and the ranking fixed, by the manager rather than the officer who ran the evaluation. Reopening after this undoes a decision rather than correcting a score, which is why it carries its own permission.',
+    'Back to the officer, who recommends a winner.')
+
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await openTender(page)
+  await page.getByRole('button', { name: /^award$/i }).first().click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Award — nobody recommended yet',
+    'The award screen before any decision. A winner is recommended by the officer and approved by somebody else, and the screen carries both halves so the separation is visible rather than implied.',
+    'Recommend the winning bid with a justification.')
+
+  // The winning bid is CHOSEN, not inferred from the ranking. The comparison matrix ranks; a person
+  // still has to name which bid wins and say why.
+  await chooseOption(page, /select the winning proposal/i, /.+/)
+  await fillIfPresent(page.getByLabel(/justification \(english\)/i), 'Highest weighted total. The cold-chain plan was specific and the price is within the estimate.')
+  await fillIfPresent(page.getByLabel(/justification \(arabic\)/i), 'أعلى مجموع مرجّح. خطة سلسلة التبريد محددة والسعر ضمن التقدير.')
+  await transition(page, /recommend winner/i, 'recommend a winner')
+  await shot(page, 'procurement_officer', 'Winner recommended',
+    'A recommendation, with a written justification, naming the bid rather than the company - and it decides nothing on its own. It waits for a manager.',
+    'Route it for approval.')
+
+  const route = page.getByRole('button', { name: /route for approval/i })
+  if (await route.count()) {
+    await transition(page, /route for approval/i, 'route the recommendation')
+    await shot(page, 'procurement_officer', 'Routed for approval',
+      'Handed on. The recommender has done all they can do: approving their own recommendation is the one thing the system will not let them attempt.',
+      'The manager who approved the tender tries to approve the award.')
+  }
+
+  await attemptSelfApproval(page)
+  await approveAndIssue(page)
+}
+
+/**
+ * §6.1 segregation of duties, demonstrated rather than described.
+ *
+ * The manager who recommended cannot approve. This is the single most confusing dead end in the
+ * product - it looks like a broken button - so the walk drives into it deliberately and captures the
+ * refusal, which is what tells a reader that a wrong turn here is the system working.
+ */
+async function attemptSelfApproval(page) {
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await openTender(page)
+  await page.getByRole('button', { name: /^award$/i }).first().click()
+  await settle(page)
+
+  const approve = page.getByRole('button', { name: /^approve$/i })
+  if (!(await approve.count())) {
+    await shot(page, 'procurement_officer', 'The recommender is offered no Approve',
+      'Segregation of duties, enforced by not offering the control at all: the officer who recommended this award has no way to approve it. §6.1 requires the approver to differ from the recommender, and the screen refuses before the server has to.',
+      'A different manager approves it.')
+    return
+  }
+
+  lastApiFailure = null
+  await approve.first().click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Self-approval refused',
+    `Refused, and this is the product working: §6.1 requires the approver to differ from the recommender. ${lastApiFailure ? 'The server said so explicitly.' : ''} It is the most confusing dead end here, which is exactly why it is worth seeing once.`,
+    'A second manager approves it.')
+}
+
+async function approveAndIssue(page) {
+  await signOut(page)
+  await signIn(page, STAFF.manager2.email, PW)
+  await chooseEnglish(page)
+  await openTender(page)
+  await page.getByRole('button', { name: /^award$/i }).first().click()
+  await settle(page)
+  await shot(page, 'procurement_manager', 'Award awaiting a second pair of eyes',
+    'The second manager sees the recommendation, the justification, and the bid it names. They did not write it and did not recommend it, which is the whole point of them being the one to approve it.',
+    'Approve the award.')
+
+  await transition(page, /^approve$/i, 'approve the award')
+  await shot(page, 'procurement_manager', 'Award approved',
+    'Approved by somebody other than the recommender. The tender now has a winner, and the supplier is about to be told.',
+    'The officer issues it, which is what notifies the supplier and starts the ERP sync.')
+
+  // Already on the award screen, and issuing is ALSO the manager's: award/execute requires
+  // award.approve, the same permission as approving it. The officer who recommended holds neither, so
+  // the second manager carries the award from approval through to issue without handing back.
+  const issue = page.getByRole('button', { name: /issue award/i })
+  if (await issue.count()) {
+    await transition(page, /issue award/i, 'issue the award')
+    await shot(page, 'procurement_manager', 'Award issued',
+      'Issued. This is the point at which the outcome leaves the building: the winning supplier is notified, and an integration message is queued for the ERP so a purchase order can be raised against it.',
+      'Check the ERP sync, then look at the outcome as the supplier.')
+  }
+}
+
+
+async function act16Outcome(page) {
+  console.log('\nAct 16 — the outcome, and the ERP')
+
+  await signOut(page)
+  await signIn(page, SUPPLIER.email, SUPPLIER.password)
+  await page.goto(`${APP}/proposals`)
+  await settle(page)
+  await shot(page, 'supplier_admin', 'The supplier sees the outcome',
+    'The bid the supplier submitted now shows its result. Their own price is visible to them at every state - the two-envelope seal governs what the BUYER may see, and hiding a bid from the company that wrote it would be a bug wearing the costume of a security feature.',
+    'Check the ERP sync as the administrator.')
+
+  await signOut(page)
+  await signIn(page, ADMIN.email, ADMIN.password, { totpSecret: TOTP_SECRET })
+  await page.getByRole('link', { name: /^operations$/i }).click()
+  await settle(page)
+  await shot(page, 'system_admin', 'Operations — jobs, outbox and ERP',
+    'The issued award queued an integration message. This card is honest about what happens to it: NO REAL ERP TRANSPORT IS CONFIGURED in this environment, and the screen says so rather than showing a column of Synced produced by a logging stand-in that accepts everything and sends nothing.',
+    'Look at the rest of the administrator surface.')
+}
+
+async function act17EveryPersonaScreens(page) {
+  console.log('\nAct 17 — the screens each persona owns')
+
+  const adminScreens = [
+    ['Platform administration', 'The administrator overview: counts, health and the state of the integrations.'],
+    ['Reference data', 'The code lists everything else is built from - categories, document types, currencies, units, regions. Codes are deactivated, never deleted, because they are foreign keys in live rows.'],
+    ['Interface text', 'Any string in the product can be reworded here without a release. The people who own the wording are not the people who own deployments.'],
+    ['Email wording', 'The transactional emails, with their required tokens shown. A save that drops {verifyUrl} is refused, because an email that loses it locks the recipient out of the account they are creating.'],
+    ['Audit log', 'Every state change, with an actor and a correlation id. Append-only: this is the record that makes an approval accountable months later.'],
+    ['Organizations', 'The buying bodies, and the boundary every tender query is scoped by.'],
+    ['Roles', 'What each role may do. The catalogue is editable, and the permission a screen checks is the claim on the token rather than a name.'],
+  ]
+  for (const [link, why] of adminScreens) {
+    const target = page.getByRole('link', { name: new RegExp(`^${link}$`, 'i') })
+    if (!(await target.count())) continue
+    await target.first().click()
+    await settle(page)
+    await shot(page, 'system_admin', link, why, 'Continue through the administrator screens.')
+  }
+
+  await signOut(page)
+  await signIn(page, STAFF.ministry.email, PW)
+  await chooseEnglish(page)
+  await page.getByRole('link', { name: /ministry|governance/i }).first().click()
+  await settle(page)
+  await shot(page, 'ministry_viewer', 'Ministry overview',
+    'Cross-organization totals and nothing else. NO COMMERCIAL FIGURES APPEAR HERE, and that is a decision rather than an omission: it is held pending an answer from MOT Legal, and until then BRULE-086 grants aggregate access only, with BRULE-087 defaulting to aggregate-only wherever visibility is undecided. There is no drill-down to a named supplier or tender by design.',
+    'The Ministry viewer has no other working screen, which is the grant working as written.')
+
+  await signOut(page)
+  await signIn(page, SUPPLIER.email, SUPPLIER.password)
+  for (const [path, title, why] of [
+    ['/dashboard', 'Supplier dashboard', 'The supplier home once there is real activity: completeness, invitations, proposals and documents needing attention.'],
+    ['/profile', 'Supplier profile', 'The company record as its own staff see it, each section linking to the editor rather than duplicating it.'],
+    ['/documents', 'Documents centre', 'Every document type with its state and expiry, and a filter for the ones needing attention. Expiry is the state a daily job maintains, so this screen and the job cannot disagree.'],
+    ['/team', 'Team', 'The supplier invites its own colleagues. A supplier_user can prepare a bid; only a supplier_admin can submit one.'],
+    ['/settings', 'Settings', 'Account, language, password and active sessions.'],
+  ]) {
+    await page.goto(`${APP}${path}`)
+    await settle(page)
+    await shot(page, 'supplier_admin', title, why, 'Continue through the supplier screens.')
+  }
 }
 
 main().catch((e) => { console.error('\nFAILED:', e.message); process.exitCode = 1 })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '../../lib/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
@@ -35,6 +36,7 @@ function erpSyncLabelKey(status: ErpSyncStatus): string | null {
 }
 
 export function AwardPage() {
+  const canApproveAward = useAuthStore((state) => state.claims?.permissions.includes('award.approve') ?? false)
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode/award' })
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -155,7 +157,11 @@ export function AwardPage() {
               <p style={{ color: 'var(--color-danger-solid)' }}>{t('award.rejectionReason')}: {lastApproval.comment}</p>
             ) : null}
 
-            {award.state === 'Approved' ? (
+            {/* Issuing requires award.approve - the same permission as approving it, and one the
+                officer who recommended does not hold. The button was rendered for anyone who could
+                open this screen, so an officer was offered an Issue that answered 403 every time.
+                Hide, never gate: AwardEndpoints re-enforces the permission regardless. */}
+            {award.state === 'Approved' && canApproveAward ? (
               <Button isLoading={executeMutation.isPending} onClick={() => executeMutation.mutate()}>{t('award.execute')}</Button>
             ) : null}
 
