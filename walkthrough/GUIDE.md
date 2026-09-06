@@ -130,7 +130,7 @@ below came into existence through the interface, in the order a real procurement
 ![Email verified](screenshots/12-supplier_admin-email-verified.png)
 
 - **Persona:** supplier_admin
-- **Screen:** Email verified — `/verify-email?token=ydRI0O19Ie6Ni-1XwBPP1gVmhZZoW-89PPJeSuNYsus`
+- **Screen:** Email verified — `/verify-email?token=oa2TddVBP81t2fucqWJVf_xKACQG1bgzp_MNObFlcmM`
 - **What just happened:** The address is proven and the account is live. The supplier is in Draft: registered, not yet allowed to bid.
 - **What the user does next:** Sign in and complete the company profile.
 
@@ -484,3 +484,111 @@ below came into existence through the interface, in the order a real procurement
 - **Screen:** Tender published — `/back-office/rfqs/RFQ-2026-000001`
 - **What just happened:** Published. The submission window opens on its own when the start time passes - a scheduled job moves it, not a person - so the tender becomes biddable without anyone having to be at a desk.
 - **What the user does next:** Wait for the window to open, then bid as the supplier.
+
+### 52. Submission window open
+
+![Submission window open](screenshots/52-procurement_officer-submission-window-open.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Submission window open — `/back-office/rfqs`
+- **What just happened:** The window opened on its own. A scheduled job moves the tender from Approved to SubmissionOpen when the start time passes - nobody has to be at a desk for bidding to begin.
+- **What the user does next:** Sign in as the invited supplier.
+
+### 53. Invited tenders
+
+![Invited tenders](screenshots/53-supplier_admin-invited-tenders.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Invited tenders — `/rfqs`
+- **What just happened:** The supplier sees the tender because they were invited to it. This list is scoped to invitations: a supplier cannot browse tenders they were not asked to bid on.
+- **What the user does next:** Open it and read what is being bought.
+
+### 54. Tender as the supplier sees it
+
+![Tender as the supplier sees it](screenshots/54-supplier_admin-tender-as-the-supplier-sees-it.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Tender as the supplier sees it — `/rfqs/RFQ-2026-000001`
+- **What just happened:** The same tender from the other side: the line items, the requirements to answer, the deadline, and the attached specification to download. The evaluation criteria are visible too, so a bidder knows what they are being scored on before they bid.
+- **What the user does next:** Ask a clarification question.
+
+### 55. Question sent
+
+![Question sent](screenshots/55-supplier_admin-question-sent.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Question sent — `/rfqs/RFQ-2026-000001`
+- **What just happened:** The question is recorded against the tender and waits for the buyer. The supplier cannot see other bidders' questions until an answer is published to everyone.
+- **What the user does next:** The officer answers it.
+
+### 56. Clarification waiting
+
+![Clarification waiting](screenshots/56-procurement_officer-clarification-waiting.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Clarification waiting — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** The buyer sees the question. Who asked it is deliberately not the point: an answer goes to every invited supplier, so a question cannot be used to work out who else is bidding.
+- **What the user does next:** Write an answer and publish it to all invitees.
+
+### 57. Answer published to all invitees
+
+![Answer published to all invitees](screenshots/57-procurement_officer-answer-published-to-all-invitees.png)
+
+- **Persona:** procurement_officer
+- **Screen:** Answer published to all invitees — `/back-office/rfqs/RFQ-2026-000001`
+- **What just happened:** Published to every invited supplier at once, with the asker anonymised. That is the rule this screen exists to enforce: one bidder's question must not tell the others who is in the room, and no bidder may receive information the rest do not.
+- **What the user does next:** Back to the supplier to price the bid.
+
+### 58. The published answer, seen by the bidder
+
+![The published answer, seen by the bidder](screenshots/58-supplier_admin-the-published-answer-seen-by-the-bidder.png)
+
+- **Persona:** supplier_admin
+- **Screen:** The published answer, seen by the bidder — `/rfqs/RFQ-2026-000001`
+- **What just happened:** The answer is here, attributed to the buyer and not to whoever asked. Every invited supplier sees the same text at the same time, which is what keeps a clarification from becoming an advantage.
+- **What the user does next:** Start a proposal.
+
+### 59. Proposal started (Draft)
+
+![Proposal started (Draft)](screenshots/59-supplier_admin-proposal-started-draft.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Proposal started (Draft) — `/rfqs/RFQ-2026-000001/proposal`
+- **What just happened:** A draft proposal, private to this supplier. The two envelopes are visible as separate sections: the technical answers and the commercial figures are stored apart because the buyer is allowed to see them at different times.
+- **What the user does next:** Price the line items.
+
+### 60. Line item priced
+
+![Line item priced](screenshots/60-supplier_admin-line-item-priced.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Line item priced — `/rfqs/RFQ-2026-000001/proposal`
+- **What just happened:** A unit price against the line the buyer specified. The total is derived from the quantity on the tender rather than typed, so the two cannot disagree.
+- **What the user does next:** Answer the requirement.
+
+### 61. Requirement answered
+
+![Requirement answered](screenshots/61-supplier_admin-requirement-answered.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Requirement answered — `/rfqs/RFQ-2026-000001/proposal`
+- **What just happened:** The technical half of the bid. This is what an evaluator scores, and it is sealed from the price until the buyer consolidates.
+- **What the user does next:** Set the commercial terms and attach a document.
+
+### 62. Terms set and document attached
+
+![Terms set and document attached](screenshots/62-supplier_admin-terms-set-and-document-attached.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Terms set and document attached — `/rfqs/RFQ-2026-000001/proposal`
+- **What just happened:** Payment terms and a supporting document. Everything a bid consists of is now on the record and still editable, because nothing has been submitted yet.
+- **What the user does next:** Submit the bid.
+
+### 63. Bid submitted
+
+![Bid submitted](screenshots/63-supplier_admin-bid-submitted.png)
+
+- **Persona:** supplier_admin
+- **Screen:** Bid submitted — `/rfqs/RFQ-2026-000001/proposal`
+- **What just happened:** Submitted, and now read-only to the supplier. From here the buyer cannot see the commercial half until the submission window closes and the evaluation is consolidated - that is the two-envelope seal, and it is enforced on the server rather than by hiding a column.
+- **What the user does next:** The officer closes the window and opens evaluation.

@@ -293,6 +293,9 @@ async function main() {
     await act7AuthorRfq(page)
     await act8ItemsAndReview(page)
     await act9PublishAndInvite(page)
+    await act10SupplierReadsAndAsks(page)
+    await act11OfficerAnswers(page)
+    await act12Bid(page)
   } catch (e) {
     // A driver that dies without saying where it was is a driver you debug by guessing. This is the
     // one screenshot that is not part of the guide.
@@ -1094,6 +1097,165 @@ async function act6bOfferings(page) {
   await shot(page, 'supplier_admin', 'Offering listed',
     'The company is now findable. A tender whose line items carry this category will suggest this supplier to the officer writing it — which is the whole mechanism by which a buyer discovers who can bid.',
     'Back to the officer, who writes the tender.')
+}
+
+
+/** Waits for the scheduled job to open the submission window, rather than assuming it has. */
+async function waitForSubmissionOpen(page) {
+  // Up to eight minutes, because the job that opens windows runs on a five-minute cron
+  // ("*/5 * * * *", rfq-timeline) - a shorter wait is shorter than one cycle and fails on a tender
+  // that was always going to open. This is the product's real cadence, not a driver quirk.
+  process.stdout.write('      waiting for the submission window to open (rfq-timeline runs every 5 min)')
+  for (let i = 0; i < 96; i++) {
+    await page.goto(`${APP}/back-office/rfqs`)
+    await settle(page)
+    // Matched on the CHIP's own words, not the enum. The status chip renders a translated label -
+    // "Open for submissions" - so polling for `SubmissionOpen` waited out the whole timeout against a
+    // tender that had been open for three minutes.
+    if (/open for submissions|مفتوح للتقديم/i.test(await page.locator('body').innerText())) {
+      process.stdout.write(' open\n')
+      return
+    }
+    process.stdout.write('.')
+    await page.waitForTimeout(5000)
+  }
+  throw new Error('the submission window never opened')
+}
+
+async function act10SupplierReadsAndAsks(page) {
+  console.log('\nAct 10 — the supplier reads the tender and asks a question')
+
+  await waitForSubmissionOpen(page)
+  await shot(page, 'procurement_officer', 'Submission window open',
+    'The window opened on its own. A scheduled job moves the tender from Approved to SubmissionOpen when the start time passes - nobody has to be at a desk for bidding to begin.',
+    'Sign in as the invited supplier.')
+
+  await signOut(page)
+  await signIn(page, SUPPLIER.email, SUPPLIER.password)
+  await page.goto(`${APP}/rfqs`)
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Invited tenders',
+    'The supplier sees the tender because they were invited to it. This list is scoped to invitations: a supplier cannot browse tenders they were not asked to bid on.',
+    'Open it and read what is being bought.')
+
+  await page.getByRole('link', { name: /^RFQ-\d{4}-\d+$/ }).first().click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Tender as the supplier sees it',
+    'The same tender from the other side: the line items, the requirements to answer, the deadline, and the attached specification to download. The evaluation criteria are visible too, so a bidder knows what they are being scored on before they bid.',
+    'Ask a clarification question.')
+
+  // By its placeholder. The page also carries a "Reason" box for declining the invitation, and a
+  // positional textbox lookup filled that one instead - leaving Send question disabled, which reads
+  // as a broken button rather than an empty field.
+  const ask = page.getByPlaceholder(/type your question/i)
+  await ask.fill('Are the twelve delivery sites all within Damascus governorate, or does the contract include the rural belt?')
+  await page.getByRole('button', { name: /send question/i }).click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Question sent',
+    'The question is recorded against the tender and waits for the buyer. The supplier cannot see other bidders\' questions until an answer is published to everyone.',
+    'The officer answers it.')
+}
+
+async function act11OfficerAnswers(page) {
+  console.log('\nAct 11 — the officer answers, and everyone gets the answer')
+
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await openTender(page)
+  await shot(page, 'procurement_officer', 'Clarification waiting',
+    'The buyer sees the question. Who asked it is deliberately not the point: an answer goes to every invited supplier, so a question cannot be used to work out who else is bidding.',
+    'Write an answer and publish it to all invitees.')
+
+  const answer = page.getByLabel(/^answer$/i).first()
+  await answer.fill('All twelve sites are inside Damascus governorate. The rural belt is out of scope for this tender.')
+  await page.getByRole('button', { name: /^answer$/i }).first().click()
+  await settle(page)
+
+  const publish = page.getByRole('button', { name: /publish to all/i })
+  if (await publish.count()) {
+    await publish.first().click()
+    await settle(page)
+  }
+  await shot(page, 'procurement_officer', 'Answer published to all invitees',
+    'Published to every invited supplier at once, with the asker anonymised. That is the rule this screen exists to enforce: one bidder\'s question must not tell the others who is in the room, and no bidder may receive information the rest do not.',
+    'Back to the supplier to price the bid.')
+}
+
+
+async function act12Bid(page) {
+  console.log('\nAct 12 — the supplier prices and submits a bid')
+
+  await signOut(page)
+  await signIn(page, SUPPLIER.email, SUPPLIER.password)
+  await page.goto(`${APP}/rfqs`)
+  await settle(page)
+  await page.getByRole('link', { name: /^RFQ-\d{4}-\d+$/ }).first().click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'The published answer, seen by the bidder',
+    'The answer is here, attributed to the buyer and not to whoever asked. Every invited supplier sees the same text at the same time, which is what keeps a clarification from becoming an advantage.',
+    'Start a proposal.')
+
+  // The proposal is its own workspace, reached by a link on the tender - not a button on it.
+  // Exact, because the supplier nav also carries "My proposals" and a loose match went to the list.
+  await page.getByRole('link', { name: /^go to my proposal$|^الذهاب إلى عرضي$/i }).first().click()
+  await settle(page)
+  const start = page.getByRole('button', { name: /start proposal/i })
+  if (await start.count()) { await start.first().click(); await settle(page) }
+  await shot(page, 'supplier_admin', 'Proposal started (Draft)',
+    'A draft proposal, private to this supplier. The two envelopes are visible as separate sections: the technical answers and the commercial figures are stored apart because the buyer is allowed to see them at different times.',
+    'Price the line items.')
+
+  const price = page.getByLabel(/unit price/i).first()
+  await price.fill('1450')
+  await page.getByRole('button', { name: /save price/i }).first().click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Line item priced',
+    'A unit price against the line the buyer specified. The total is derived from the quantity on the tender rather than typed, so the two cannot disagree.',
+    'Answer the requirement.')
+
+  // Both languages. The answer fields are labelled "Text (English) - <the requirement>" and the
+  // Arabic equivalent, and Save answer stays disabled until both carry text - which reads as a dead
+  // button rather than a half-filled form.
+  await page.getByLabel(/^text \(english\)/i).first()
+    .fill('Meals are cooked at our Damascus facility and moved in refrigerated vans held below 5C, with a temperature log per drop. All twelve sites are served before 07:30 by three vehicles on fixed routes.')
+  await page.getByLabel(/^text \(arabic\)/i).first()
+    .fill('تُطهى الوجبات في منشأتنا بدمشق وتُنقل في مركبات مبرّدة دون ٥ درجات مع سجل حرارة لكل نقطة تسليم، وتُخدم المواقع الاثنا عشر قبل الساعة ٧:٣٠ بثلاث مركبات على خطوط ثابتة.')
+  await page.getByRole('button', { name: /save answer/i }).first().click()
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Requirement answered',
+    'The technical half of the bid. This is what an evaluator scores, and it is sealed from the price until the buyer consolidates.',
+    'Set the commercial terms and attach a document.')
+
+  await fillIfPresent(page.getByLabel(/payment terms/i), 'Net 30 from monthly invoice')
+  // A real incoterm code. "DDP Damascus" is twelve characters and the column is ten - which used to
+  // answer 500 rather than naming the field; the validator now says so, and this says it correctly.
+  await fillIfPresent(page.getByLabel(/incoterm/i), 'DDP')
+  // Required to submit: a bid with no expiry is an offer the supplier can be held to forever.
+  const validity = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  await fillIfPresent(page.getByLabel(/validity end date/i), validity)
+  await fillIfPresent(page.getByLabel(/^currency$/i), 'SYP')
+  lastApiFailure = null
+  await page.getByRole('button', { name: /save terms/i }).first().click()
+  await settle(page)
+  if (lastApiFailure) throw new Error(`the commercial terms were not saved: ${lastApiFailure}`)
+
+  const upload = page.locator('input[type=file]').first()
+  if (await upload.count()) {
+    await upload.setInputFiles({
+      name: 'food-safety-certificate.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF'),
+    })
+    await settle(page)
+  }
+  await shot(page, 'supplier_admin', 'Terms set and document attached',
+    'Payment terms and a supporting document. Everything a bid consists of is now on the record and still editable, because nothing has been submitted yet.',
+    'Submit the bid.')
+
+  await transition(page, /submit proposal/i, 'submit the proposal')
+  await shot(page, 'supplier_admin', 'Bid submitted',
+    'Submitted, and now read-only to the supplier. From here the buyer cannot see the commercial half until the submission window closes and the evaluation is consolidated - that is the two-envelope seal, and it is enforced on the server rather than by hiding a column.',
+    'The officer closes the window and opens evaluation.')
 }
 
 main().catch((e) => { console.error('\nFAILED:', e.message); process.exitCode = 1 })

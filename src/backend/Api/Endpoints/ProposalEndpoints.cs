@@ -29,9 +29,31 @@ public sealed record SetCommercialTermsRequest(
     string CurrencyCode, string? PaymentTerms, string? IncotermCode,
     string? DeliveryTermsAr, string? DeliveryTermsEn, string? Warranty, DateOnly? ValidityStart, DateOnly? ValidityEnd);
 
+/// <summary>
+/// Lengths mirror the column widths in AppDbContext, and that is the whole point of them being here.
+///
+/// <para>Only CurrencyCode was validated. Every other field on this request is free text with a column
+/// width behind it, so anything longer reached Postgres and came back as
+/// <c>22001: value too long for type character varying(10)</c> - surfaced to the bidder as
+/// <c>500 An unexpected error occurred</c>, with nothing naming the field or the limit. Typing a
+/// twelve-character incoterm is enough to do it, which is how this was found: "DDP Damascus" while
+/// filling in a bid.</para>
+///
+/// <para>A 500 for a value a person typed is the wrong answer twice over - it tells them the system
+/// broke rather than that the input was too long, and it puts an unhandled exception in the log for
+/// something that is not an incident.</para>
+/// </summary>
 public sealed class SetCommercialTermsRequestValidator : AbstractValidator<SetCommercialTermsRequest>
 {
-    public SetCommercialTermsRequestValidator() => RuleFor(x => x.CurrencyCode).NotEmpty().MaximumLength(3);
+    public SetCommercialTermsRequestValidator()
+    {
+        RuleFor(x => x.CurrencyCode).NotEmpty().MaximumLength(3);
+        RuleFor(x => x.PaymentTerms).MaximumLength(500);
+        RuleFor(x => x.IncotermCode).MaximumLength(10);
+        RuleFor(x => x.DeliveryTermsAr).MaximumLength(1000);
+        RuleFor(x => x.DeliveryTermsEn).MaximumLength(1000);
+        RuleFor(x => x.Warranty).MaximumLength(500);
+    }
 }
 
 public sealed record SetNarrativeRequest(string? NarrativeAr, string? NarrativeEn);
