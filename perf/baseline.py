@@ -104,7 +104,7 @@ ENDPOINTS = [
 
 def post_json(base: str, path: str, payload: dict) -> dict:
     request = urllib.request.Request(
-        base + path,
+        endpoint_url(base, path),
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -147,7 +147,7 @@ def measure(base: str, path: str, token: str, iterations: int) -> tuple[list[flo
     samples: list[float] = []
     status = 0
     for _ in range(iterations):
-        request = urllib.request.Request(base + path, headers={"Authorization": f"Bearer {token}"})
+        request = urllib.request.Request(endpoint_url(base, path), headers={"Authorization": f"Bearer {token}"})
         started = time.perf_counter()
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -168,6 +168,34 @@ def percentile(samples: list[float], fraction: float) -> float:
     ordered = sorted(samples)
     index = max(0, min(len(ordered) - 1, int(round(fraction * len(ordered))) - 1))
     return ordered[index]
+
+
+ALLOWED_SCHEMES = ("http", "https")
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
+
+
+def endpoint_url(base: str, path: str) -> str:
+    """A request URL rebuilt from validated parts, never by concatenating the caller's string.
+
+    Every request in this file goes through here, and it re-derives the origin rather than trusting one:
+    the scheme and host are taken only if they match a constant in the two tuples above, and the result is
+    reassembled from those matched values plus `path`, which is always a literal from ENDPOINTS or a literal
+    at the call site. So the address a token can be sent to is one of a fixed handful, whatever --base said.
+
+    Validating once in main() was not enough. It is the right place for a helpful error message, but it
+    leaves the guarantee resting on every future caller remembering to route through it - and it is not
+    visible to a reader of the two request-building functions, who sees only a concatenation.
+    """
+    parsed = urllib.parse.urlsplit(base)
+    if parsed.scheme not in ALLOWED_SCHEMES:
+        raise ValueError(f"refusing to request {parsed.scheme or 'a schemeless URL'!r}; expected http or https")
+    if parsed.hostname not in LOOPBACK_HOSTS:
+        raise ValueError(f"refusing to send credentials to non-loopback host {parsed.hostname!r}")
+    scheme = ALLOWED_SCHEMES[ALLOWED_SCHEMES.index(parsed.scheme)]
+    host = LOOPBACK_HOSTS[LOOPBACK_HOSTS.index(parsed.hostname)]
+    port = parsed.port or (443 if scheme == "https" else 80)
+    netloc = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    return urllib.parse.urlunsplit((scheme, netloc, path, "", ""))
 
 
 def checked_base(value: str) -> str:
