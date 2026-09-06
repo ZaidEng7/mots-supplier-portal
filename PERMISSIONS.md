@@ -16,7 +16,7 @@ either dead or waiting for a surface — both are called out below.
 |---|---|---|
 | `admin.organizations.manage` | `system_admin` | `AddOrgUnit`, `CreateOrganization`, `CreateSupplierOrgLink`, `ListOrganizations`, `ListSupplierOrgLinks`, `RemoveOrgUnit`, `RemoveSupplierOrgLink` |
 | `admin.roles.manage` | `system_admin` | `ListRoles`, `UpdateRolePermissions` |
-| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `GetAdminOverview`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `InviteStaff`, `ListStaff`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig` |
+| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `InviteStaff`, `ListStaff`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig` |
 | `audit.read` | `system_admin` | `ExportAuditLog`, `GetAuditLog`, `SearchAuditLog` |
 | `award.approve` | `procurement_manager`, `system_admin` | `ApproveAward`, `ExecuteAward`, checked in ProcurementDashboardHandler, not on a route |
 | `award.recommend` | `procurement_manager`, `procurement_officer`, `system_admin` | `GetAward`, `RecommendAward`, `RouteAwardForApproval` |

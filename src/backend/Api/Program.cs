@@ -220,7 +220,10 @@ builder.Services
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = jwtSigningKeyProvider.GetValidationKey(),
-            ClockSkew = TimeSpan.FromSeconds(30),
+            // Read from configuration rather than left as a literal, because SCR-726 has to REPORT it:
+            // the skew is why a "15 minute" token is not one, and a screen restating the number would
+            // drift the first time someone changed this line. One key, two readers.
+            ClockSkew = TimeSpan.FromSeconds(builder.Configuration.GetValue("Jwt:ClockSkewSeconds", 30)),
         };
     });
 
@@ -437,6 +440,7 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.ITriggerRecurrin
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetOutboxMonitorHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();

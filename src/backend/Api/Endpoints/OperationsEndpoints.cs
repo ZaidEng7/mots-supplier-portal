@@ -64,6 +64,15 @@ public static class OperationsEndpoints
         .RequirePermission(Permissions.AdminUsersManage)
         .WithName("GetErpSyncMonitor");
 
+        // SCR-726. A READ, with no write beside it, and the screen explains why: every value here is
+        // deployment configuration, and putting a password floor or an MFA requirement behind an admin
+        // click would move a security decision from a reviewed deployment to a runtime action - the first
+        // thing an attacker holding an admin session would reach for.
+        group.MapGet("/security", async (IGetSecurityPostureHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(ct)))
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("GetSecurityPosture");
+
         group.MapPost("/outbox/{id:guid}/replay", async (Guid id, IReplayOutboxMessageHandler handler, CancellationToken ct) =>
             // One 404 for two cases - no such message, and a message that is not Failed - and that is
             // deliberate rather than lazy: both mean "there is nothing here to replay", and splitting

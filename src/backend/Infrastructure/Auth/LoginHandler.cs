@@ -23,10 +23,9 @@ public sealed class LoginHandler(
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
 
-    /// <summary>NFR-SEC-003 mandates MFA for system_admin at minimum. Configurable so the list can
-    /// widen (e.g. procurement_manager per FR-IAM-004) without a code change.</summary>
-    private readonly string[] _mfaRequiredRoles =
-        configuration.GetSection("Mfa:RequiredRoles").Get<string[]>() ?? [Roles.SystemAdmin];
+    /// <summary>See MfaPolicy: shared with SCR-726's security posture screen, which reports this list.
+    /// Two readers of one expression rather than two copies of one default.</summary>
+    private readonly string[] _mfaRequiredRoles = MfaPolicy.RequiredRoles(configuration);
 
     public async Task<LoginResult> HandleAsync(LoginCommand command, CancellationToken ct)
     {

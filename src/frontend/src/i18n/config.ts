@@ -1584,6 +1584,26 @@ const resources = {
         subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',      // [drafted]
         jobsTitle: 'المهام المجدولة',                           // [drafted]
         outboxTitle: 'الأحداث الصادرة',                         // [drafted]
+        securityTitle: 'إعدادات الأمان',                        // [drafted] SCR-726
+        security: {
+          passwordLength: 'الحد الأدنى لطول كلمة المرور',
+          characters: '{{count}} حرفاً',
+          composition: 'تركيب كلمة المرور',
+          digit: 'رقم', uppercase: 'حرف كبير', lowercase: 'حرف صغير', symbol: 'رمز',
+          lengthOnly: 'الطول فقط — لا يُفرض رقم أو حالة أحرف أو رمز (معيار NIST 800-63B)', // [drafted]
+          lockout: 'قفل الحساب',
+          lockoutValue: 'بعد {{attempts}} محاولات فاشلة، لمدة {{minutes}} دقيقة',
+          accessToken: 'مدة رمز الدخول',
+          accessTokenValue: '{{minutes}} دقيقة (زائد {{skew}} ثانية سماحاً لفرق الساعات)',
+          refreshToken: 'مدة رمز التجديد',
+          days: '{{count}} يوماً',
+          mfaRoles: 'الأدوار الملزمة بالتحقق بخطوتين',
+          mfaNone: 'لا يوجد — لا دور مُلزم بعامل ثانٍ',          // [drafted] see the note in the code
+          rateLimit: 'حدّ المعدل',
+          rateLimitValue: '{{permits}} طلبات كل {{seconds}} ثانية',
+          registration: 'تسجيل الموردين الجدد',
+          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. هذه القيم من إعدادات النشر، ونقلها إلى زرّ في الواجهة ينقل قراراً أمنياً من نشرٍ مُراجَع إلى نقرة أثناء التشغيل. تسجيل الموردين وحده يُدار من شاشة إعدادات النظام.', // [drafted]
+        },
         erpTitle: 'مزامنة نظام الموارد',                        // [drafted] SCR-723
         erpNotConfigured: 'لم يُهيَّأ اتصال فعلي بنظام الموارد. الحالات أدناه صادرة عن بديل تسجيلي لا يُرسل شيئاً.', // [drafted]
         erpEmpty: 'لا توجد ترسيات مطابقة',                      // [drafted]
@@ -1605,6 +1625,7 @@ const resources = {
           job: 'المهمة', schedule: 'الجدولة', lastRun: 'آخر تشغيل', nextRun: 'التشغيل القادم',
           type: 'النوع', status: 'الحالة', created: 'أُنشئت', processed: 'عُوملت', actions: 'الإجراءات',
           rfq: 'الطلب', attempts: 'المحاولات', syncedAt: 'وقت المزامنة', poRef: 'مرجع أمر الشراء',
+          control: 'الضابط', effective: 'القيمة السارية',
         },
         errors: {
           jobsLoadFailed: 'تعذّر تحميل المهام',                  // [drafted]
@@ -1614,6 +1635,7 @@ const resources = {
           replayFailed: 'تعذّرت إعادة الإرسال',                  // [drafted]
           erpLoadFailed: 'تعذّر تحميل حالات المزامنة',            // [drafted]
           erpRetryFailed: 'تعذّرت إعادة المزامنة',                // [drafted]
+          securityLoadFailed: 'تعذّر تحميل إعدادات الأمان',        // [drafted]
         },
       },
       settings: {
@@ -3117,6 +3139,26 @@ const resources = {
         subtitle: 'Scheduled jobs and the outgoing event queue.',
         jobsTitle: 'Scheduled jobs',
         outboxTitle: 'Outgoing events',
+        securityTitle: 'Security settings',
+        security: {
+          passwordLength: 'Minimum password length',
+          characters: '{{count}} characters',
+          composition: 'Password composition',
+          digit: 'digit', uppercase: 'uppercase', lowercase: 'lowercase', symbol: 'symbol',
+          lengthOnly: 'Length only — no forced digit, case or symbol (NIST 800-63B)',
+          lockout: 'Account lockout',
+          lockoutValue: 'After {{attempts}} failed attempts, for {{minutes}} minutes',
+          accessToken: 'Access token lifetime',
+          accessTokenValue: '{{minutes}} minutes (plus {{skew}} seconds clock skew)',
+          refreshToken: 'Refresh token lifetime',
+          days: '{{count}} days',
+          mfaRoles: 'Roles requiring two-factor',
+          mfaNone: 'None — no role requires a second factor',
+          rateLimit: 'Rate limit',
+          rateLimitValue: '{{permits}} requests per {{seconds}} seconds',
+          registration: 'Supplier registration',
+          readOnlyExplained: 'This screen reports and does not edit. These are deployment settings, and putting a password floor or an MFA requirement behind a button would move a security decision from a reviewed deployment to a runtime click. Supplier registration is the one value administrators own, and it has its own screen.',
+        },
         erpTitle: 'ERP synchronisation',
         erpNotConfigured: 'No real ERP transport is configured. The states below come from a logging stand-in that sends nothing.',
         erpEmpty: 'No awards match',
@@ -3138,6 +3180,7 @@ const resources = {
           job: 'Job', schedule: 'Schedule', lastRun: 'Last run', nextRun: 'Next run',
           type: 'Type', status: 'Status', created: 'Created', processed: 'Processed', actions: 'Actions',
           rfq: 'RFQ', attempts: 'Attempts', syncedAt: 'Synced', poRef: 'PO reference',
+          control: 'Control', effective: 'In effect',
         },
         errors: {
           jobsLoadFailed: 'Could not load the jobs',
@@ -3147,6 +3190,7 @@ const resources = {
           replayFailed: 'Could not replay the message',
           erpLoadFailed: 'Could not load the synchronisation states',
           erpRetryFailed: 'Could not request the sync again',
+          securityLoadFailed: 'Could not load the security settings',
         },
       },
       settings: {

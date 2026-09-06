@@ -8,6 +8,7 @@ import {
 import { formatDateTime } from '../../lib/datetime'
 import {
   getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
+  getSecurityPosture,
 } from '../../api/admin'
 import { retryAwardErpSync } from '../../api/awards'
 
@@ -40,6 +41,7 @@ export function OperationsPage() {
 
   const jobsQuery = useQuery({ queryKey: ['admin-jobs'], queryFn: getJobsMonitor })
   const erpQuery = useQuery({ queryKey: ['admin-erp-sync'], queryFn: () => getErpSyncMonitor() })
+  const securityQuery = useQuery({ queryKey: ['admin-security'], queryFn: getSecurityPosture })
   const outboxQuery = useQuery({ queryKey: ['admin-outbox', status], queryFn: () => getOutboxMonitor(status || undefined) })
 
   const triggerMutation = useMutation({
@@ -333,6 +335,109 @@ export function OperationsPage() {
             </TableBody>
           </Table>
         ) : null}
+      </Card>
+
+      {/*
+        SCR-726. A REPORT, with no edit control, and the note at the bottom says why rather than leaving
+        the reader to wonder whether the save button is missing. Every number here is read from the thing
+        that enforces it - IdentityOptions, the configured clock skew, the expression LoginHandler uses -
+        so this panel cannot keep showing an old policy after someone changes the real one.
+      */}
+      <Card title={t('operations.securityTitle')}>
+        {securityQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
+        {securityQuery.isError ? (
+          <div className="flex flex-col gap-2">
+            <p>{t('operations.errors.securityLoadFailed')}</p>
+            <Button variant="ghost" onClick={() => void securityQuery.refetch()}>{t('operations.retry')}</Button>
+          </div>
+        ) : null}
+
+        {securityQuery.data ? (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>{t('operations.fields.control')}</TableHeaderCell>
+                <TableHeaderCell>{t('operations.fields.effective')}</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow>
+                <TableCell>{t('operations.security.passwordLength')}</TableCell>
+                <TableCell>{t('operations.security.characters', { count: securityQuery.data.password.minimumLength })}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>{t('operations.security.composition')}</TableCell>
+                {/* Spelled out as a decision, not left as four blank checkboxes: no forced digit, case or
+                    symbol is NIST 800-63B followed on purpose, and a reader who does not know that would
+                    file it as a weakness. */}
+                <TableCell>
+                  {[
+                    securityQuery.data.password.requireDigit ? t('operations.security.digit') : null,
+                    securityQuery.data.password.requireUppercase ? t('operations.security.uppercase') : null,
+                    securityQuery.data.password.requireLowercase ? t('operations.security.lowercase') : null,
+                    securityQuery.data.password.requireNonAlphanumeric ? t('operations.security.symbol') : null,
+                  ].filter(Boolean).join(', ') || t('operations.security.lengthOnly')}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>{t('operations.security.lockout')}</TableCell>
+                <TableCell>
+                  {t('operations.security.lockoutValue', {
+                    attempts: securityQuery.data.lockout.maxFailedAttempts,
+                    minutes: securityQuery.data.lockout.lockoutMinutes,
+                  })}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>{t('operations.security.accessToken')}</TableCell>
+                {/* The skew is shown with the lifetime rather than on its own row, because the only thing
+                    it means is that the lifetime is longer than it says. */}
+                <TableCell>
+                  {t('operations.security.accessTokenValue', {
+                    minutes: securityQuery.data.session.accessTokenMinutes,
+                    skew: securityQuery.data.session.clockSkewSeconds,
+                  })}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>{t('operations.security.refreshToken')}</TableCell>
+                <TableCell>{t('operations.security.days', { count: securityQuery.data.session.refreshTokenDays })}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>{t('operations.security.mfaRoles')}</TableCell>
+                <TableCell>
+                  {securityQuery.data.mfaRequiredRoles.length > 0
+                    ? securityQuery.data.mfaRequiredRoles.join(', ')
+                    /* Not "—": an empty list means NOBODY is required to hold a second factor, which is a
+                       finding rather than a blank. */
+                    : t('operations.security.mfaNone')}
+                </TableCell>
+              </TableRow>
+              {securityQuery.data.rateLimits.map((limit) => (
+                <TableRow key={limit.policy}>
+                  <TableCell>
+                    {t('operations.security.rateLimit')} <span className="font-mono text-[length:var(--text-body-sm)]">{limit.policy}</span>
+                  </TableCell>
+                  <TableCell>
+                    {t('operations.security.rateLimitValue', { permits: limit.permitLimit, seconds: limit.windowSeconds })}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell>{t('operations.security.registration')}</TableCell>
+                <TableCell>
+                  <Badge tone={securityQuery.data.registrationMode === 'open' ? 'neutral' : 'warning'}>
+                    {securityQuery.data.registrationMode}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        ) : null}
+
+        <p className="mt-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('operations.security.readOnlyExplained')}
+        </p>
       </Card>
     </div>
   )

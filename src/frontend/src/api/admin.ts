@@ -118,3 +118,26 @@ export async function getErpSyncMonitor(status?: string): Promise<ErpSyncMonitor
   if (!response.ok) throw new Error('erp_sync_monitor_unavailable')
   return (await response.json()) as ErpSyncMonitor
 }
+
+/** SCR-726. Read-only by design — see the endpoint's own comment. Policy numbers only; no secrets. */
+export interface SecurityPosture {
+  password: {
+    minimumLength: number
+    requireDigit: boolean
+    requireUppercase: boolean
+    requireLowercase: boolean
+    /** False by design: SECURITY-ARCHITECTURE §1.4 follows NIST 800-63B — length over composition. */
+    requireNonAlphanumeric: boolean
+  }
+  lockout: { maxFailedAttempts: number; lockoutMinutes: number }
+  session: { accessTokenMinutes: number; refreshTokenDays: number; clockSkewSeconds: number }
+  mfaRequiredRoles: string[]
+  rateLimits: { policy: string; permitLimit: number; windowSeconds: number }[]
+  registrationMode: string
+}
+
+export async function getSecurityPosture(): Promise<SecurityPosture> {
+  const response = await apiFetch('/api/v1/admin/security')
+  if (!response.ok) throw new Error('security_posture_unavailable')
+  return (await response.json()) as SecurityPosture
+}

@@ -87,3 +87,47 @@ public interface IGetErpSyncMonitorHandler
 {
     Task<ErpSyncMonitorDto> HandleAsync(string? status, CancellationToken ct);
 }
+
+/// <summary>
+/// SCR-726. The security policy this deployment is actually running, as an auditor would ask for it.
+///
+/// <para><b>Read-only, and that is the design rather than an unfinished half.</b> Every value here is
+/// deployment configuration - a password floor, a lockout threshold, which roles must carry a second
+/// factor. Moving them onto a screen would move a security decision from a reviewed deployment to a
+/// runtime click, and the first thing an attacker with an admin session would do is lower the floor.
+/// So the screen reports and does not edit, and says so.</para>
+///
+/// <para>Nothing secret is carried: no signing key, no connection string, no issuer secret. Policy
+/// numbers only.</para>
+/// </summary>
+public sealed record SecurityPostureDto(
+    PasswordPolicyDto Password,
+    LockoutPolicyDto Lockout,
+    SessionPolicyDto Session,
+    /// <summary>The roles for which a second factor is mandatory at sign-in.</summary>
+    IReadOnlyList<string> MfaRequiredRoles,
+    IReadOnlyList<RateLimitPolicyDto> RateLimits,
+    /// <summary>registration.mode, the one security-relevant value that IS administrator-owned - and it
+    /// already has a screen (SCR-724), so this reports it and points there rather than editing it twice.</summary>
+    string RegistrationMode);
+
+/// <param name="RequireNonAlphanumeric">False by design. SECURITY-ARCHITECTURE.md §1.4 follows NIST
+/// 800-63B: length over composition, so a passphrase is not punished in favour of "Password1!". Reported
+/// so a reader can see it is a decision rather than an omission.</param>
+public sealed record PasswordPolicyDto(
+    int MinimumLength,
+    bool RequireDigit,
+    bool RequireUppercase,
+    bool RequireLowercase,
+    bool RequireNonAlphanumeric);
+
+public sealed record LockoutPolicyDto(int MaxFailedAttempts, int LockoutMinutes);
+
+public sealed record SessionPolicyDto(int AccessTokenMinutes, int RefreshTokenDays, int ClockSkewSeconds);
+
+public sealed record RateLimitPolicyDto(string Policy, int PermitLimit, int WindowSeconds);
+
+public interface IGetSecurityPostureHandler
+{
+    Task<SecurityPostureDto> HandleAsync(CancellationToken ct);
+}

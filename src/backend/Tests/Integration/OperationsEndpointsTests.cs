@@ -181,6 +181,40 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
     }
 
     [Fact]
+    public async Task SCR_726_reports_the_policy_that_is_actually_enforced_and_no_secrets()
+    {
+        var admin = await AdminAsync();
+
+        var posture = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/security");
+
+        // Asserted against the values Program.cs configures Identity with. If someone changes the policy
+        // and not this test, the test fails - which is the point: a posture screen that can disagree with
+        // the enforcement it describes is worse than no screen, because it would be believed.
+        var password = posture.GetProperty("password");
+        password.GetProperty("minimumLength").GetInt32().Should().Be(12, "SECURITY-ARCHITECTURE §1.4");
+        password.GetProperty("requireNonAlphanumeric").GetBoolean().Should().BeFalse(
+            "NIST 800-63B: length over composition, and the screen reports it as a decision");
+
+        posture.GetProperty("lockout").GetProperty("maxFailedAttempts").GetInt32().Should().Be(5);
+        posture.GetProperty("session").GetProperty("clockSkewSeconds").GetInt32().Should().Be(30,
+            "the skew is why a 15-minute token is not one; Program.cs and this handler read one key");
+
+        posture.GetProperty("mfaRequiredRoles").EnumerateArray().Select(r => r.GetString())
+            .Should().Contain(Roles.SystemAdmin, "NFR-SEC-003 at minimum");
+
+        posture.GetProperty("rateLimits").EnumerateArray().Should().NotBeEmpty();
+
+        // The negative half, and the one worth having on a screen like this: policy numbers only. A
+        // posture endpoint that grew a signing key or a connection string would be the most valuable
+        // request in the API to an attacker holding an admin session.
+        var raw = posture.GetRawText();
+        foreach (var forbidden in new[] { "SigningKey", "signingKey", "ConnectionString", "connectionString", "Password\":\"", "secret" })
+        {
+            raw.Should().NotContain(forbidden, "the security screen must never carry a secret");
+        }
+    }
+
+    [Fact]
     public async Task Nobody_without_admin_permission_reaches_any_of_it()
     {
         foreach (var role in new[] { Roles.ProcurementOfficer, Roles.ProcurementManager, Roles.MinistryViewer })
@@ -189,6 +223,8 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
             (await staff.GetAsync("/api/v1/admin/jobs")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
             (await staff.GetAsync("/api/v1/admin/outbox")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
             (await staff.GetAsync("/api/v1/admin/erp-sync")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            (await staff.GetAsync("/api/v1/admin/security")).StatusCode.Should().Be(HttpStatusCode.Forbidden,
+                $"{role} must not be able to read the deployment's security policy");
             (await staff.PostAsync("/api/v1/admin/jobs/outbox-dispatch/trigger", null))
                 .StatusCode.Should().Be(HttpStatusCode.Forbidden, $"{role} must not be able to run platform jobs");
         }
@@ -202,5 +238,6 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
         (await admin.GetAsync("/api/v1/admin/jobs")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await admin.GetAsync("/api/v1/admin/outbox")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await admin.GetAsync("/api/v1/admin/erp-sync")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/v1/admin/security")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }
