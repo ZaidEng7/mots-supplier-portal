@@ -7,7 +7,11 @@ using MotsSupplierPortal.Domain.Identity;
 namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record ReferenceItemRequest(
-    string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked);
+    string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked,
+    /// <summary>BRULE-023. Null on every table but document-types - "this table has no such flag" and "this
+    /// row has it off" are different facts, and the handler keeps the existing value when it is null so a
+    /// caller editing a name cannot silently clear it.</summary>
+    bool? IsAwardCritical = null);
 
 public sealed class ReferenceItemRequestValidator : AbstractValidator<ReferenceItemRequest>
 {
@@ -69,7 +73,7 @@ public static class ReferenceDataAdminEndpoints
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return Map(await handler.CreateAsync(new CreateReferenceItemCommand(
-                table, code, request.NameAr, request.NameEn, request.IsRequired, request.ExpiryTracked), ct));
+                table, code, request.NameAr, request.NameEn, request.IsRequired, request.ExpiryTracked, request.IsAwardCritical), ct));
         })
         .RequirePermission(Permissions.ReferenceDataManage)
         .WithName("CreateReferenceItem");
@@ -83,7 +87,7 @@ public static class ReferenceDataAdminEndpoints
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
             return Map(await handler.UpdateAsync(new UpdateReferenceItemCommand(
-                table, code, request.NameAr, request.NameEn, request.IsRequired, request.ExpiryTracked), ct));
+                table, code, request.NameAr, request.NameEn, request.IsRequired, request.ExpiryTracked, request.IsAwardCritical), ct));
         })
         .RequirePermission(Permissions.ReferenceDataManage)
         .WithName("UpdateReferenceItem");

@@ -490,7 +490,20 @@ from participating for a fortnight" is not undone by reactivation. Once decided,
 but small: the flag is not in the reference-data write contract, so even a ministry that has decided
 cannot record it without a migration.
 
-**Logged, not fixed** (this task changes no production code).
+**Logged, not fixed** by the inventory task (which changed no production code).
+
+**The code half closed in batch 11.** `isAwardCritical` is on `ReferenceItemDto`, on the create/update
+contract, and on SCR-710's screen as a per-row toggle with the consequence stated beside the table.
+`DocumentType.IsAwardCritical` was `init`-only, so a migration was genuinely the only way in; it is now
+settable. Omitting it on an update leaves the stored value alone — an administrator fixing an Arabic typo must
+not clear the one flag on that screen whose effect is to suspend live suppliers, and a test asserts exactly
+that.
+
+**No value changed.** All three seeded types are still `false`, asserted by a test that exists so a later
+batch has to acknowledge the change rather than slip it in. **The decision half is still open:** which
+document types are award-critical is a ministry judgement about procurement risk, and the job's own comment
+makes the argument this batch is not going to overrule — "was blocked from participating for a fortnight" is
+not undone by reactivation.
 
 ### 4.2 BRULE-016 — required documents ignore what the supplier does
 

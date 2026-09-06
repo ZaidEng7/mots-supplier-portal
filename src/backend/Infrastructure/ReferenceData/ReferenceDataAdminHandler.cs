@@ -43,7 +43,7 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
             ReferenceTables.Regions => await Project(db.Set<Region>(), includeInactive,
                 r => new ReferenceItemDto(r.Code, r.NameAr, r.NameEn, r.IsActive), r => r.IsActive, ct),
             _ => await Project(db.Set<DocumentType>(), includeInactive,
-                d => new ReferenceItemDto(d.Code, d.NameAr, d.NameEn, d.IsActive, d.IsRequired, d.ExpiryTracked),
+                d => new ReferenceItemDto(d.Code, d.NameAr, d.NameEn, d.IsActive, d.IsRequired, d.ExpiryTracked, d.IsAwardCritical),
                 d => d.IsActive, ct),
         };
     }
@@ -111,6 +111,10 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                     Id = Guid.CreateVersion7(), Code = code, NameAr = command.NameAr, NameEn = command.NameEn,
                     IsRequired = command.IsRequired ?? false,
                     ExpiryTracked = command.ExpiryTracked ?? false,
+                    // BRULE-023. Defaults to false on create, matching the migration that added the column:
+                    // a new document type is not award-critical until somebody says it is, and defaulting the
+                    // other way would suspend suppliers over a type nobody had assessed.
+                    IsAwardCritical = command.IsAwardCritical ?? false,
                 });
                 break;
         }
@@ -141,6 +145,10 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                     // silently un-require a document type.
                     if (command.IsRequired is { } required) d.IsRequired = required;
                     if (command.ExpiryTracked is { } tracked) d.ExpiryTracked = tracked;
+                    // Only when SENT. An administrator renaming a document type must not clear the
+                    // award-critical flag by omission - and this is the one flag on this screen whose
+                    // accidental change suspends live suppliers.
+                    if (command.IsAwardCritical is { } awardCritical) d.IsAwardCritical = awardCritical;
                     break;
             }
         }, ct);

@@ -58,6 +58,40 @@
     "usedIn": "AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, LoginRequest"
   },
   {
+    "key": "SubjectAr.NotEmpty",
+    "code": "SUBJECTAR_REQUIRED",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالعربية مطلوب.",
+    "en": "The Arabic subject is required.",
+    "usedIn": "UpsertEmailTemplateRequest",
+    "flag": "T-076. Both locales are required on every email template: an Arabic-only subject renders blank for an English recipient, and a message with no subject line is the one that gets filtered."
+  },
+  {
+    "key": "SubjectAr.MaximumLength",
+    "code": "SUBJECTAR_TOO_LONG",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالعربية أطول من الحد المسموح.",
+    "en": "The Arabic subject is longer than allowed.",
+    "usedIn": "UpsertEmailTemplateRequest"
+  },
+  {
+    "key": "SubjectEn.NotEmpty",
+    "code": "SUBJECTEN_REQUIRED",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالإنجليزية مطلوب.",
+    "en": "The English subject is required.",
+    "usedIn": "UpsertEmailTemplateRequest",
+    "flag": "T-076. Both locales are required on every email template: an Arabic-only subject renders blank for an English recipient, and a message with no subject line is the one that gets filtered."
+  },
+  {
+    "key": "SubjectEn.MaximumLength",
+    "code": "SUBJECTEN_TOO_LONG",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالإنجليزية أطول من الحد المسموح.",
+    "en": "The English subject is longer than allowed.",
+    "usedIn": "UpsertEmailTemplateRequest"
+  },
+  {
     "key": "Value.NotEmpty",
     "code": "VALUE_REQUIRED",
     "source": "drafted",
@@ -527,7 +561,7 @@
     "source": "drafted",
     "ar": "النص (عربي) مطلوب.",
     "en": "Body (Arabic) is required.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "BodyAr.MaximumLength",
@@ -535,7 +569,7 @@
     "source": "drafted",
     "ar": "يجب ألا يتجاوز النص (عربي) ١٠٠٠ حرف.",
     "en": "Body (Arabic) must not exceed 1000 characters.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "BodyEn.NotEmpty",
@@ -543,7 +577,7 @@
     "source": "drafted",
     "ar": "النص (إنجليزي) مطلوب.",
     "en": "Body (English) is required.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "BodyEn.MaximumLength",
@@ -551,7 +585,7 @@
     "source": "drafted",
     "ar": "يجب ألا يتجاوز النص (إنجليزي) ١٠٠٠ حرف.",
     "en": "Body (English) must not exceed 1000 characters.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "TitleAr.NotEmpty",

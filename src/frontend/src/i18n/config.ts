@@ -220,6 +220,12 @@ const resources = {
       // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
       // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
       referenceAdmin: {
+        // ── BRULE-023 · ARABIC FOR REVIEW ───────────────────────────────────────
+        awardCritical: 'حرج للترسية',                          // [drafted] BRULE-023
+        setAwardCritical: 'تحديده كحرج للترسية',                // [drafted]
+        clearAwardCritical: 'إلغاء الوسم كحرج',                 // [drafted]
+        awardCriticalSaved: 'تم تحديث الوسم',                   // [drafted]
+        awardCriticalExplained: 'انتهاء صلاحية مستند موسوم كحرج للترسية يُعلّق المورد تلقائياً (BRULE-023). لم يُوسم أي نوع حتى الآن، وتحديد الأنواع قرار يخص الوزارة.', // [drafted]
         title: 'إدارة البيانات المرجعية',                    // [§7-style drafted]
         subtitle: 'إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين.', // [§7-style drafted]
         tableLabel: 'الجدول المرجعي',                        // [§7-style drafted]
@@ -1938,6 +1944,11 @@ const resources = {
         },
       },
       referenceAdmin: {
+        awardCritical: 'Award-critical',
+        setAwardCritical: 'Mark award-critical',
+        clearAwardCritical: 'Remove award-critical',
+        awardCriticalSaved: 'Flag updated',
+        awardCriticalExplained: 'When an award-critical document expires, the supplier is suspended automatically (BRULE-023). No type is marked today, and which types qualify is a ministry decision.',
         title: 'Reference data',
         subtitle: 'Add, rename, and deactivate the codes RFQs and supplier profiles are built from.',
         tableLabel: 'Reference table',

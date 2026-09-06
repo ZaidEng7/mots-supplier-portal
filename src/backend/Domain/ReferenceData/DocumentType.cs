@@ -28,6 +28,10 @@ public sealed class DocumentType
     /// somebody sets this. That is the intended state, not an oversight - see
     /// docs/product/BLOCKED-DECISIONS.md.</para>
     /// </summary>
-    public bool IsAwardCritical { get; init; }
+    /// <para><b>Settable since batch 11.</b> It was <c>init</c>-only, which meant the only way to turn the
+    /// rule on was a migration - so a ministry that HAD decided still could not record the decision. That was
+    /// the code half of §4.1's finding; the decision half is still open, and no seeded value changed with
+    /// this.</para>
+    public bool IsAwardCritical { get; set; }
     public bool IsActive { get; set; } = true;
 }

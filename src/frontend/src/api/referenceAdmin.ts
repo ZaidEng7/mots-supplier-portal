@@ -15,6 +15,9 @@ export interface ReferenceItem {
    * "this row has the flag off" are different facts. */
   isRequired: boolean | null
   expiryTracked: boolean | null
+  /** BRULE-023. Null on every table but document-types. Expiry of an award-critical document suspends the
+   *  supplier, and this flag is the only thing that decides which types those are. */
+  isAwardCritical: boolean | null
 }
 
 export interface ReferenceItemPayload {
@@ -22,6 +25,9 @@ export interface ReferenceItemPayload {
   nameEn: string
   isRequired?: boolean | null
   expiryTracked?: boolean | null
+  /** Omit to leave the stored value alone — the server only writes it when it is sent, so editing a name
+   *  cannot clear the one flag on this screen that suspends live suppliers. */
+  isAwardCritical?: boolean | null
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {

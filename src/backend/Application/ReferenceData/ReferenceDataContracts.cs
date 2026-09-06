@@ -18,7 +18,19 @@ public sealed record ReferenceItemDto(
     string Code, string NameAr, string NameEn, bool IsActive,
     // DocumentType only. Null on every other table rather than false, because "this table has no
     // such flag" and "this row has the flag off" are different facts.
-    bool? IsRequired = null, bool? ExpiryTracked = null);
+    bool? IsRequired = null, bool? ExpiryTracked = null,
+    /// <summary>
+    /// BRULE-023's flag, on the wire for the first time. Expiry of an award-critical document suspends the
+    /// supplier (DocumentExpiryJob.AutoSuspendForAwardCriticalExpiryAsync), and the rule has never been able
+    /// to fire: the column exists, the job reads it, and no seeded type sets it - nor could anyone set it,
+    /// because it was absent from this contract and from the admin screen. A migration was the only way in.
+    ///
+    /// <para><b>The values are NOT changed here.</b> Which document types are award-critical is a ministry
+    /// decision about procurement risk, and "was suspended for a fortnight" is not undone by reactivation.
+    /// This closes the code half so a ministry that has decided can record it; the decision itself stays
+    /// open. See COMPLETION-INVENTORY.md §4.1.</para>
+    /// </summary>
+    bool? IsAwardCritical = null);
 
 /// <summary>The tables an administrator may edit, named on the wire so a typo is a refusal rather
 /// than a silent no-op against the wrong table.</summary>
@@ -35,7 +47,8 @@ public static class ReferenceTables
 }
 
 public sealed record CreateReferenceItemCommand(
-    string Table, string Code, string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked);
+    string Table, string Code, string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked,
+    bool? IsAwardCritical);
 
 /// <summary>
 /// Editing an existing row. <b>The code cannot be changed</b> - see DECISIONS-TAKEN.md D-28: it is
@@ -43,7 +56,8 @@ public sealed record CreateReferenceItemCommand(
 /// it would silently change what a historical award record says it was for.
 /// </summary>
 public sealed record UpdateReferenceItemCommand(
-    string Table, string Code, string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked);
+    string Table, string Code, string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked,
+    bool? IsAwardCritical);
 
 /// <summary>Deactivation, which is the only form of removal offered - see D-28.</summary>
 public sealed record SetReferenceItemActiveCommand(string Table, string Code, bool IsActive);
