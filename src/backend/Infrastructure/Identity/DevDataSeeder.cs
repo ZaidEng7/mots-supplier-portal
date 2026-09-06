@@ -111,7 +111,48 @@ public static class DevDataSeeder
         await SetStateAsync(db, suspended.Id, SupplierOnboardingState.Approved, SupplierLifecycleState.Suspended);
         await SetStateAsync(db, draft.Id, SupplierOnboardingState.ProfileInProgress, SupplierLifecycleState.None);
 
+        // The queue-entry audit rows for the two suppliers that are actually in the review queue.
+        //
+        // Found by reading SCR-300 as the reviewer: the counters said one Submitted and one UnderReview, and
+        // the wait-time widget said "no open applications". Both were right. That widget does not read the
+        // supplier row - it reads the AUDIT LOG, because "how long has this been waiting" is a question about
+        // when the application entered the queue, and the state column cannot answer it (ReviewDashboardHandler
+        // says so in its own comment). Forcing the state with ExecuteUpdateAsync writes no audit row, so the
+        // fixture had a supplier in the queue with no record of arriving.
+        //
+        // These rows are not invented history: they say the thing the seeder actually did. Backdated by three
+        // and nine days so the widget has a number to show and the ordering is visible - a queue where
+        // everything arrived this second is a queue nobody can prioritise.
+        await SeedQueueEntryAuditAsync(db, submitted.Id, "SUP-DEMO-0002", daysAgo: 9);
+        await SeedQueueEntryAuditAsync(db, underReview.Id, "SUP-DEMO-0003", daysAgo: 3);
+
         return approved.Id;
+    }
+
+    /// <summary>
+    /// One "application_submitted" row, which is what SCR-300's wait-time widget and the review queue's own
+    /// age column both measure from.
+    ///
+    /// <para>Written directly rather than through IAuditLogger because the seeder has no request scope and no
+    /// actor - and the actor is honestly the system here, which is what ActorKind.System says.</para>
+    /// </summary>
+    private static async Task SeedQueueEntryAuditAsync(AppDbContext db, Guid supplierId, string referenceCode, int daysAgo)
+    {
+        if (await db.AuditLogs.AnyAsync(a => a.AggregateId == supplierId && a.Action == "application_submitted")) return;
+
+        db.AuditLogs.Add(new Domain.Audit.AuditLog
+        {
+            Id = Guid.CreateVersion7(),
+            OccurredAt = DateTimeOffset.UtcNow.AddDays(-daysAgo),
+            ActorKind = Domain.Audit.AuditActorKind.System,
+            ActorLabel = "dev-seed",
+            AggregateType = "Supplier",
+            AggregateId = supplierId,
+            ReferenceCode = referenceCode,
+            Action = "application_submitted",
+            ToState = SupplierOnboardingState.Submitted.ToString(),
+        });
+        await db.SaveChangesAsync();
     }
 
     private static Supplier Register(AppDbContext db, string code, string nameAr, string nameEn, string registration)

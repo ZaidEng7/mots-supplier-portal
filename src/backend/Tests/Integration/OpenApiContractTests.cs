@@ -136,18 +136,42 @@ public sealed class OpenApiContractTests(PostgresApiFixture fixture)
         }
     }
 
-    /// <summary>Required properties per schema, so a field becoming mandatory is caught: an existing client
-    /// that does not send it starts failing, which is a breaking change even though nothing was removed.</summary>
-    private static HashSet<string> RequiredProperties(JsonObject document)
+    /// <summary>
+    /// Required properties on schemas used in REQUEST bodies, so a field becoming mandatory is caught: an
+    /// existing client that does not send it starts failing, which is breaking even though nothing was removed.
+    ///
+    /// <para><b>Requests only, and the first version of this gate got it wrong.</b> It walked every schema, so
+    /// adding two fields to a RESPONSE record failed the gate on its own next run - `ProfileHealthDto` gained
+    /// the document's name beside its code, which no client could possibly break on. "Required" on a response
+    /// is a promise the server keeps; "required" on a request is a demand on the caller. Only the second one
+    /// can break somebody.</para>
+    /// </summary>
+    private static HashSet<string> RequiredRequestProperties(JsonObject document)
     {
+        var schemas = document["components"]?["schemas"]?.AsObject();
         var required = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var (name, schema) in document["components"]?["schemas"]?.AsObject() ?? [])
+
+        // The schemas reachable from a requestBody, one $ref deep - which is how every request body in this
+        // API is shaped (a single $ref to a named record).
+        var requestSchemas = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (_, pathItem) in document["paths"]!.AsObject())
         {
-            foreach (var property in schema?["required"]?.AsArray() ?? [])
+            foreach (var method in Methods)
+            {
+                var reference = pathItem?[method]?["requestBody"]?["content"]?["application/json"]?["schema"]?["$ref"]
+                    ?? pathItem?[method]?["requestBody"]?["content"]?["application/merge-patch+json"]?["schema"]?["$ref"];
+                if (reference?.GetValue<string>() is { } name) requestSchemas.Add(name.Split('/').Last());
+            }
+        }
+
+        foreach (var name in requestSchemas)
+        {
+            foreach (var property in schemas?[name]?["required"]?.AsArray() ?? [])
             {
                 required.Add($"{name}.{property!.GetValue<string>()}");
             }
         }
+
         return required;
     }
 
@@ -172,11 +196,24 @@ public sealed class OpenApiContractTests(PostgresApiFixture fixture)
             "does not exist now is a breaking change, and API-ARCHITECTURE.md §Versioning says it needs " +
             $"/api/v2 rather than a quiet edit:\n  {string.Join("\n  ", removed.Take(40))}");
 
-        var newlyRequired = RequiredProperties(current).Except(RequiredProperties(baseline))
+        // Only on schemas the BASELINE already had. A required field on a request schema that did not exist
+        // before cannot break a client, because no client has ever called that endpoint - and this gate caught
+        // itself on exactly that within an hour of being written: `SetDocumentTypeCategoriesRequest.categoryCodes`
+        // is required on an endpoint added in the same batch. A gate that flags its own additions is a gate
+        // people learn to ignore.
+        var baselineRequestSchemas = RequiredRequestProperties(baseline)
+            .Select(entry => entry.Split('.')[0])
+            .ToHashSet(StringComparer.Ordinal);
+
+        var newlyRequired = RequiredRequestProperties(current)
+            .Except(RequiredRequestProperties(baseline))
+            .Where(entry => baselineRequestSchemas.Contains(entry.Split('.')[0]))
             .OrderBy(x => x, StringComparer.Ordinal).ToList();
         newlyRequired.Should().BeEmpty(
-            "a property that was optional and is now required breaks every existing client that does not " +
-            $"send it, even though nothing was removed:\n  {string.Join("\n  ", newlyRequired.Take(40))}");
+            "a REQUEST property that was optional and is now required breaks every existing client that does " +
+            "not send it, even though nothing was removed. Response properties are deliberately excluded: " +
+            "required there is a promise the server keeps, not a demand on the caller:\n  " +
+            $"{string.Join("\n  ", newlyRequired.Take(40))}");
     }
 
     [Fact]
