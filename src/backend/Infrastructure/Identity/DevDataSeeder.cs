@@ -48,6 +48,14 @@ public static class DevDataSeeder
     [
         ("officer@mots.local", "Demo Procurement Officer", Roles.ProcurementOfficer, false),
         ("manager@mots.local", "Demo Procurement Manager", Roles.ProcurementManager, false),
+        // A SECOND manager, and it is not padding.
+        //
+        // §6.1's segregation of duties refuses an approver who is also the recommender - correctly, and the
+        // refusal is explicit on screen ("The approver must differ from the recommender"). With one manager
+        // seeded, that meant the award-approval step could not be reached at all: whoever recommended could
+        // neither approve nor reject, and no other account held award.approve. Found by walking a tender to the
+        // approval gate and being unable to pass it in either direction.
+        ("manager2@mots.local", "Demo Procurement Manager (Second)", Roles.ProcurementManager, false),
         ("evaluator@mots.local", "Demo Evaluator", Roles.Evaluator, false),
         ("ministry@mots.local", "Demo Ministry Viewer", Roles.MinistryViewer, false),   // organization deliberately null - see below
         ("supplier@mots.local", "Demo Supplier Admin", Roles.SupplierAdmin, true),

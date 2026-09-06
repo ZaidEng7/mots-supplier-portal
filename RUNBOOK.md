@@ -93,6 +93,7 @@ duplicate anything.
 | ministry_viewer | `ministry@mots.local` | `motsdemo2026` |
 | onboarding_reviewer | `reviewer@mots.local` | `motsreview2026` |
 | system_admin | `admin@mots.local` | `motsadmin2026` + **TOTP** |
+| procurement_manager (second) | `manager2@mots.local` | `motsdemo2026` |
 
 **system_admin needs a TOTP code** — it is the only role in `Mfa:RequiredRoles`. Add the printed
 secret to an authenticator app, or generate a code:
