@@ -92,9 +92,21 @@ export function LoginPage() {
         // Read through errorCode for the same reason: ApiError.message falls back to "Request failed:
         // 400" when the body carries `code` rather than `error`, so matching on the message never fired.
         else if (err.status === 400 && errorCode(err) === 'email_not_verified') setFormError(t('auth.emailNotVerified'))
+        // 429 is NOT a credential failure, and calling it one is worse than unhelpful.
+        //
+        // NFR-SEC-009 limits auth attempts, and the limiter answers before Identity is ever consulted -
+        // so the password was never checked, the account's failure count does not move, and the user is
+        // told the one thing that is definitely untrue. What they do next is reset a password that was
+        // always correct, on a reset endpoint that is rate limited too. Reproduced by hitting /login ten
+        // times: nine 401s, then 429s, all of them displayed as "Invalid email or password".
+        else if (err.status === 429) setFormError(t('auth.tooManyAttempts'))
+        // Anything else is the service, not the person. A 500 shown as a rejected password sends
+        // someone to change a credential in response to an outage.
+        else if (err.status >= 500) setFormError(t('auth.serviceUnavailable'))
         else setFormError(t('auth.loginFailed'))
       } else {
-        setFormError(t('auth.loginFailed'))
+        // Never reached the server at all - no response to have an opinion about the credentials.
+        setFormError(t('auth.serviceUnavailable'))
       }
     }
   }

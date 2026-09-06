@@ -9,20 +9,31 @@ import { ApiError, registerSupplier } from '../api/auth'
 import { useQuery } from '@tanstack/react-query'
 import { getPublicSettings } from '../api/systemSettings'
 
+/**
+ * Messages are i18n KEYS, translated where they are rendered.
+ *
+ * Every rule here carried Zod's default before batch 12, so the first screen a supplier ever sees told
+ * them "Too small: expected string to have >=1 characters" - library internals, in English, on an
+ * Arabic-first product. The mismatch rule was worse: it already used a key, `passwords_must_match`,
+ * and nothing translated it, so the literal token was printed under the field.
+ *
+ * The schema is module-scope and `t` is a hook, so the key travels in `message` and the translation
+ * happens at the field. Keeping the schema out of the component also keeps it out of every render.
+ */
 const schema = z
   .object({
-    displayNameAr: z.string().min(1),
-    displayNameEn: z.string().min(1),
+    displayNameAr: z.string().min(1, 'register.errors.required'),
+    displayNameEn: z.string().min(1, 'register.errors.required'),
     registrationNumber: z.string().optional(),
-    representativeName: z.string().min(1),
-    representativePhone: z.string().min(1),
-    email: z.string().email(),
-    password: z.string().min(12),
-    confirmPassword: z.string().min(1),
+    representativeName: z.string().min(1, 'register.errors.required'),
+    representativePhone: z.string().min(1, 'register.errors.required'),
+    email: z.string().email('register.errors.email'),
+    password: z.string().min(12, 'register.errors.passwordLength'),
+    confirmPassword: z.string().min(1, 'register.errors.required'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ['confirmPassword'],
-    message: 'passwords_must_match',
+    message: 'register.errors.passwordsMatch',
   })
 
 type FormValues = z.infer<typeof schema>
@@ -141,10 +152,10 @@ export function RegisterPage() {
         </h1>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label={t('register.displayNameAr')} error={errors.displayNameAr?.message} required>
+            <Field label={t('register.displayNameAr')} error={errors.displayNameAr?.message ? t(errors.displayNameAr.message) : undefined} required>
               {(p) => <Input {...p} {...register('displayNameAr')} />}
             </Field>
-            <Field label={t('register.displayNameEn')} error={errors.displayNameEn?.message} required>
+            <Field label={t('register.displayNameEn')} error={errors.displayNameEn?.message ? t(errors.displayNameEn.message) : undefined} required>
               {(p) => <Input {...p} {...register('displayNameEn')} />}
             </Field>
           </div>
@@ -152,10 +163,10 @@ export function RegisterPage() {
             {(p) => <Input {...p} {...register('registrationNumber')} />}
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label={t('register.representativeName')} error={errors.representativeName?.message} required>
+            <Field label={t('register.representativeName')} error={errors.representativeName?.message ? t(errors.representativeName.message) : undefined} required>
               {(p) => <Input {...p} {...register('representativeName')} />}
             </Field>
-            <Field label={t('register.representativePhone')} error={errors.representativePhone?.message} required>
+            <Field label={t('register.representativePhone')} error={errors.representativePhone?.message ? t(errors.representativePhone.message) : undefined} required>
               {(p) => (
                 <PhoneInput
                   {...p}
@@ -165,14 +176,14 @@ export function RegisterPage() {
               )}
             </Field>
           </div>
-          <Field label={t('auth.email')} error={errors.email?.message} required>
+          <Field label={t('auth.email')} error={errors.email?.message ? t(errors.email.message) : undefined} required>
             {(p) => <Input type="email" autoComplete="email" {...p} {...register('email')} />}
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label={t('auth.password')} error={errors.password?.message} required>
+            <Field label={t('auth.password')} error={errors.password?.message ? t(errors.password.message) : undefined} required>
               {(p) => <Input type="password" autoComplete="new-password" {...p} {...register('password')} />}
             </Field>
-            <Field label={t('register.confirmPassword')} error={errors.confirmPassword?.message} required>
+            <Field label={t('register.confirmPassword')} error={errors.confirmPassword?.message ? t(errors.confirmPassword.message) : undefined} required>
               {(p) => <Input type="password" autoComplete="new-password" {...p} {...register('confirmPassword')} />}
             </Field>
           </div>

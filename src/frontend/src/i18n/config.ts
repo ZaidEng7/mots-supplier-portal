@@ -526,6 +526,8 @@ const resources = {
         submit: 'دخول',
         forgotPassword: 'نسيت كلمة المرور؟',
         loginFailed: 'بيانات الدخول غير صحيحة',
+        tooManyAttempts: 'محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم أعد المحاولة — كلمة المرور لم تُفحص.', // [drafted]
+        serviceUnavailable: 'تعذّر الوصول إلى الخدمة. لا علاقة للأمر ببيانات الدخول.', // [drafted]
         emailNotVerified: 'يرجى تفعيل بريدك الإلكتروني أولاً',
         lockedOut: 'الحساب مقفل مؤقتاً بسبب محاولات فاشلة متكررة',
         forgotTitle: 'إعادة تعيين كلمة المرور',
@@ -1416,6 +1418,13 @@ const resources = {
         displayNameEn: 'اسم الشركة (إنجليزي)',
         registrationNumber: 'رقم السجل التجاري',
         registrationNumberHint: 'اختياري عند التسجيل، مطلوب لاحقاً لإكمال الملف',
+        // ── BATCH 12 · ARABIC FOR REVIEW ──────────────────────────────────────
+        errors: {
+          required: 'هذا الحقل مطلوب',                       // [drafted]
+          email: 'أدخل بريداً إلكترونياً صحيحاً',              // [drafted]
+          passwordLength: 'كلمة المرور ١٢ حرفاً على الأقل',    // [drafted]
+          passwordsMatch: 'كلمتا المرور غير متطابقتين',        // [drafted]
+        },
         representativeName: 'اسم الممثل الرئيسي',
         representativePhone: 'هاتف الممثل الرئيسي',
         confirmPassword: 'تأكيد كلمة المرور',
@@ -2207,6 +2216,8 @@ const resources = {
         submit: 'Sign in',
         forgotPassword: 'Forgot password?',
         loginFailed: 'Invalid email or password',
+        tooManyAttempts: 'Too many attempts in a short time. Wait a minute and try again — your password was not checked.',
+        serviceUnavailable: 'Could not reach the service. This is not about your sign-in details.',
         emailNotVerified: 'Please verify your email first',
         lockedOut: 'Account is temporarily locked after repeated failed attempts',
         forgotTitle: 'Reset your password',
@@ -3068,6 +3079,12 @@ const resources = {
         displayNameEn: 'Company name (English)',
         registrationNumber: 'Registration number',
         registrationNumberHint: 'Optional at registration, required later to complete your profile',
+        errors: {
+          required: 'This field is required',
+          email: 'Enter a valid email address',
+          passwordLength: 'Use at least 12 characters',
+          passwordsMatch: 'The two passwords do not match',
+        },
         representativeName: 'Primary representative name',
         representativePhone: "Primary representative's phone",
         confirmPassword: 'Confirm password',

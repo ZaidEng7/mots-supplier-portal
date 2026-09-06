@@ -6,7 +6,7 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-lc",
-        "cd src/backend/Api && ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5080 DOTNET_ROOT=${DOTNET_ROOT:-$HOME/.dotnet} PATH=\"${DOTNET_ROOT:-$HOME/.dotnet}:$PATH\" dotnet run --no-launch-profile"
+        "cd src/backend/Api && ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5080 DOTNET_ROOT=${DOTNET_ROOT:-$HOME/.dotnet} PATH=\"${DOTNET_ROOT:-$HOME/.dotnet}:$PATH\" DevSeed__Enabled=false dotnet run --no-launch-profile"
       ],
       "port": 5080
     },
