@@ -74,6 +74,14 @@ public sealed class FilterGuardTests
         // active offering anyway - the caller is already entitled to the unfiltered list. It would
         // become one the day this endpoint is row-scoped or paginated by relevance.
         ["query"] = "free-text ILIKE search; no vocabulary to validate against, and unfiltered is already the default",
+
+        // EPIC-20's cross-entity search. A free-text term, so again no vocabulary - but unlike `query`
+        // above, this endpoint does NOT return everything when the term is absent: a blank or
+        // operator-only `q` returns an EMPTY result set, asserted both ways in SearchScopingTests. So the
+        // widening failure this check exists to catch cannot happen here, and the tsquery operators
+        // (& | ! :) are stripped from every token rather than executed - a caller searching for "R&D"
+        // must not be issuing a boolean expression by accident.
+        ["q"] = "free-text tsquery search; a blank or unparseable term returns NOTHING, never everything",
     };
 
     private sealed record FilterParameter(string File, int Line, string Endpoint, string Name, bool Guarded);

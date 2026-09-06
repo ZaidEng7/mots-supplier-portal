@@ -122,6 +122,10 @@ export function BackOfficeShell({ children }: Props) {
             <Link to="/back-office/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.dashboard')}
             </Link>
+            {/* SCR-906. Ungated, like the route: the server decides what each persona can find. */}
+            <Link to="/back-office/search" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('search.title')}
+            </Link>
             {/* SCR-907. */}
             <Link to="/back-office/help" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('help.title')}

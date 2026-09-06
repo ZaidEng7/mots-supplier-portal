@@ -336,6 +336,37 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Supplier>(entity =>
         {
             entity.ToTable("supplier", "supplier");
+            // ── EPIC-20 full-text search ──────────────────────────────────────────────────────
+            // A STORED GENERATED column, not a trigger. Postgres computes it on write from the columns
+            // it names, so there is no trigger to keep in step with a rename and no way for the index to
+            // drift from the row - which is the failure mode of every hand-maintained search column.
+            //
+            // 'simple' for both languages, and this is the decision the sizing flagged rather than a
+            // shortcut: Postgres ships no Arabic dictionary, so no configuration stems Arabic correctly.
+            // 'simple' lower-cases and splits on non-word characters and does not stem, so "contracts"
+            // will not match "contract". Using 'english' on the English column and 'simple' on the Arabic
+            // one would make the two halves of one search behave differently for no stated reason;
+            // picking one honest behaviour and saying so beats half-stemming. Adding an Arabic dictionary
+            // (hunspell, or a thesaurus) is a decision for whoever owns the database, and it is a change
+            // to this expression rather than to the schema.
+            //
+            // The reference code is IN the vector because "find RFQ-2026-000123" is the most common thing
+            // anyone types into a search box on a system like this - and the regexp_replace is what makes
+            // that actually work. Postgres's parser treats "RFQ-2026-000006" as 'rfq', '-2026', '-000006':
+            // it reads the hyphenated numeric parts as SIGNED INTEGERS and keeps the sign in the lexeme. A
+            // query built by splitting the same string on non-alphanumerics produces 'rfq', '2026',
+            // '000006', which match nothing. Caught by an integration test against a real code shape after
+            // the feature worked perfectly against the letter-suffixed demo codes - RFQ-DEMO-0006 tokenises
+            // differently and hid it entirely.
+            //
+            // Collapsing every non-alphanumeric run to a space before tokenising means the stored side and
+            // SearchHandler.Tokenise follow ONE rule. That is the property worth having: the alternative is
+            // two tokenisers that agree on most inputs.
+            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql(
+                    "to_tsvector('simple', regexp_replace(coalesce(\"DisplayNameAr\",'') || ' ' || coalesce(\"DisplayNameEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
+                    stored: true);
+            entity.HasIndex("SearchVector").HasMethod("GIN");
             entity.HasKey(s => s.Id);
             entity.Property(s => s.ReferenceCode).HasMaxLength(30).IsRequired();
             entity.HasIndex(s => s.ReferenceCode).IsUnique();
@@ -543,6 +574,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Offering>(entity =>
         {
             entity.ToTable("offering", "supplier");
+            // EPIC-20. NOT a replacement for the ILIKE pair in SearchBuyerOfferingsHandler, deliberately:
+            // that endpoint's callers get substring matching today ("ater" finds "Catering") and a tsquery
+            // prefix does not, so swapping it would narrow a shipped behaviour without anyone asking. This
+            // vector serves the cross-entity search; the catalogue keeps its own semantics until someone
+            // decides they should change.
+            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql(
+                    "to_tsvector('simple', regexp_replace(coalesce(\"NameAr\",'') || ' ' || coalesce(\"NameEn\",'') || ' ' || coalesce(\"Description\",''), '[^[:alnum:]]+', ' ', 'g'))",
+                    stored: true);
+            entity.HasIndex("SearchVector").HasMethod("GIN");
             entity.Property(o => o.RowVersion).IsAppManagedVersion();
             entity.HasKey(o => o.Id);
             entity.Property(o => o.NameAr).HasMaxLength(200).IsRequired();
@@ -861,6 +902,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Rfq>(entity =>
         {
             entity.ToTable("rfq", "rfq");
+            // EPIC-20; see the Supplier entity for why generated and why 'simple'.
+            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql(
+                    "to_tsvector('simple', regexp_replace(coalesce(\"TitleAr\",'') || ' ' || coalesce(\"TitleEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
+                    stored: true);
+            entity.HasIndex("SearchVector").HasMethod("GIN");
             entity.HasKey(r => r.Id);
             entity.Property(r => r.ReferenceCode).HasMaxLength(30).IsRequired();
             entity.HasIndex(r => r.ReferenceCode).IsUnique();

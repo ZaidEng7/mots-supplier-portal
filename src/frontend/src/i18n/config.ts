@@ -1671,6 +1671,23 @@ const resources = {
           deleteFailed: 'تعذّرت استعادة النص الأصلي',            // [drafted]
         },
       },
+      // ── SCR-906 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      search: {
+        title: 'البحث',                                        // [reused]
+        subtitle: 'بحث واحد في الطلبات والموردين والعروض المُدرجة.', // [drafted]
+        formTitle: 'ما الذي تبحث عنه؟',                         // [drafted]
+        resultsTitle: 'النتائج',                                // [drafted]
+        submit: 'بحث',                                         // [reused]
+        retry: 'إعادة المحاولة',                                // [reused]
+        hint: 'يمكن البحث بالعنوان أو بالرقم المرجعي. آخر كلمة تُطابَق كبداية كلمة.', // [drafted]
+        resultsFor: '{{count}} نتيجة لـ «{{query}}»',            // [drafted]
+        truncated: 'النتائج أكثر من المعروض. حدِّد البحث أكثر.',    // [drafted]
+        empty: 'لا نتائج',                                      // [reused]
+        emptyHint: 'يُطابق البحث الكلمات كاملة أو بداياتها فقط، فصيغة الجمع لا تجد المفرد.', // [drafted]
+        kinds: { rfq: 'طلب عرض', supplier: 'مورّد', offering: 'عرض مُدرَج' }, // [reused] §7's «طلب عرض»
+        fields: { query: 'كلمة البحث' },
+        errors: { failed: 'تعذّر تنفيذ البحث' },                 // [drafted]
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -3257,6 +3274,22 @@ const resources = {
           saveFailed: 'Could not save the override',
           deleteFailed: 'Could not restore the original text',
         },
+      },
+      search: {
+        title: 'Search',
+        subtitle: 'One search across tenders, suppliers and catalogue offerings.',
+        formTitle: 'What are you looking for?',
+        resultsTitle: 'Results',
+        submit: 'Search',
+        retry: 'Try again',
+        hint: 'Search by title or reference code. The last word is matched as a prefix.',
+        resultsFor: '{{count}} results for “{{query}}”',
+        truncated: 'There are more results than shown. Narrow the search.',
+        empty: 'No results',
+        emptyHint: 'Search matches whole words and prefixes only, so a plural will not find a singular.',
+        kinds: { rfq: 'RFQ', supplier: 'Supplier', offering: 'Offering' },
+        fields: { query: 'Search terms' },
+        errors: { failed: 'The search could not be run' },
       },
       settings: {
         title: 'Account Settings',

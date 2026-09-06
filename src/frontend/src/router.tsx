@@ -9,6 +9,7 @@ import { HelpPage } from './routes/HelpPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
 import { OperationsPage } from './routes/admin/OperationsPage'
 import { UiStringsPage } from './routes/admin/UiStringsPage'
+import { SearchPage } from './routes/SearchPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
@@ -494,6 +495,15 @@ const uiStringsRoute = createRoute({
   component: UiStringsPage,
 })
 
+// SCR-906, `/back-office/search`, back-office personas. Not gated in the router: what a caller may find
+// is decided per entity kind on the server, and a route-level permission would either lock out someone who
+// can legitimately search one kind or admit someone who can search none.
+const searchRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/search',
+  component: SearchPage,
+})
+
 const backOfficeAccountRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/account',
@@ -640,7 +650,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

@@ -359,6 +359,22 @@ dictionary, so this is a real decision, not a switch), a cross-entity result con
 per persona, and SCR-906. The row-scoping is the substance: a search that returns rows the caller
 could not open directly is a disclosure, and it must be enforced per entity type.
 
+**Built in batch 11.** Generated `tsvector` columns (no triggers — Postgres computes them on write, so
+nothing can drift), GIN indexes, `GET /api/v1/search`, SCR-906, seven scoping tests. The sizing was
+right about the Arabic decision and about row-scoping being the substance. Two things it did not
+anticipate:
+
+- **`simple` for both languages, stated rather than hidden.** No Arabic dictionary ships with Postgres,
+  so nothing stems Arabic correctly; using `english` on one column and `simple` on the other would make
+  the two halves of one search behave differently for no stated reason. Consequence: whole-word and
+  prefix matching, no word forms. The screen says so where a user meets it.
+- **Reference-code search needed a normalisation nobody would predict.** Postgres parses
+  `RFQ-2026-000006` as `rfq`, `-2026`, `-000006` — it reads the hyphenated numeric parts as signed
+  integers and keeps the sign — so a query split on non-alphanumerics matched nothing. Caught by a test
+  against a real code shape *after* the feature worked against the letter-suffixed demo codes, which
+  tokenise differently and hid it. Both sides now collapse separator runs to spaces, so the stored
+  vector and the query tokeniser follow one rule.
+
 #### 3.2 `Correlation-Id` request-header echo — EPIC-25 · **S**
 
 **What exists:** `HttpAuditContext.CorrelationId` reinterprets `Activity.Current.TraceId` as a Guid,

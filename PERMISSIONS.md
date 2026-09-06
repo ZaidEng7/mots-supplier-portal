@@ -16,7 +16,7 @@ either dead or waiting for a surface — both are called out below.
 |---|---|---|
 | `admin.organizations.manage` | `system_admin` | `AddOrgUnit`, `CreateOrganization`, `CreateSupplierOrgLink`, `ListOrganizations`, `ListSupplierOrgLinks`, `RemoveOrgUnit`, `RemoveSupplierOrgLink` |
 | `admin.roles.manage` | `system_admin` | `ListRoles`, `UpdateRolePermissions` |
-| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `InviteStaff`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertUiStringOverride` |
+| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertUiStringOverride` |
 | `audit.read` | `system_admin` | `ExportAuditLog`, `GetAuditLog`, `SearchAuditLog` |
 | `award.approve` | `procurement_manager`, `system_admin` | `ApproveAward`, `ExecuteAward`, checked in ProcurementDashboardHandler, not on a route |
 | `award.recommend` | `procurement_manager`, `procurement_officer`, `system_admin` | `GetAward`, `RecommendAward`, `RouteAwardForApproval` |
@@ -33,7 +33,7 @@ either dead or waiting for a surface — both are called out below.
 | `evaluation.template.manage` | `procurement_manager`, `system_admin` | `ActivateEvaluationTemplate`, `AddCriterion`, `ArchiveEvaluationTemplate`, `CreateEvaluationTemplate`, `ForkEvaluationTemplate`, `GetEvaluationTemplate`, `ListEvaluationTemplates`, `RemoveCriterion`, `UpdateCriterion` |
 | `governance.read` | `ministry_viewer`, `system_admin` | `GetGovernanceOverview` |
 | `integration.retry` | `system_admin` | `RetryAwardErpSync`, checked in SystemStatusHandler, not on a route |
-| `offering.search` | `procurement_manager`, `procurement_officer`, `system_admin` | `SearchBuyerOfferings` |
+| `offering.search` | `procurement_manager`, `procurement_officer`, `system_admin` | `SearchBuyerOfferings`, checked in SearchHandler, not on a route |
 | `proposal.create` | `supplier_admin`, `supplier_user`, `system_admin` | `GetProposal`, `GetProposalByCode`, `ListMyProposals`, `StartProposal`, `SupplierDeclineInvitation`, `SupplierPostClarification` |
 | `proposal.decline` | `supplier_admin`, `system_admin` | `DeclineAwardOffer` |
 | `proposal.edit` | `supplier_admin`, `supplier_user`, `system_admin` | `AddProposalDocument`, `GetOwnProposalDocumentDownloadUrl`, `PatchProposal`, `RemoveProposalDocument` |
@@ -52,7 +52,7 @@ either dead or waiting for a surface — both are called out below.
 | `rfq.edit` | `procurement_officer`, `system_admin` | `AddRequirement`, `AddRfqAttachment`, `AddRfqItem`, `BindEvaluationTemplate`, `RemoveRequirement`, `RemoveRfqAttachment`, `RemoveRfqItem`, `UpdateRfqBasics` |
 | `rfq.invite` | `procurement_officer`, `system_admin` | `InviteSupplier`, `SuggestInvitationCandidates` |
 | `rfq.publish` | `procurement_manager`, `procurement_officer`, `system_admin` | `PublishRfq` |
-| `rfq.read` | `procurement_manager`, `procurement_officer`, `supplier_admin`, `supplier_user`, `system_admin` | `GetRfq`, `GetRfqAttachmentDownloadUrl`, `GetWorkspace`, `ListRfqAssignees`, `ListRfqs`, `ProcurementDashboard` |
+| `rfq.read` | `procurement_manager`, `procurement_officer`, `supplier_admin`, `supplier_user`, `system_admin` | `GetRfq`, `GetRfqAttachmentDownloadUrl`, `GetWorkspace`, `ListRfqAssignees`, `ListRfqs`, `ProcurementDashboard`, checked in SearchHandler, not on a route |
 | `rfq.reassign` | `procurement_manager`, `system_admin` | `ReassignRfq` |
 | `rfq.review` | `procurement_manager`, `system_admin` | `ReturnRfqForEdits` |
 | `rfq.submit_review` | `procurement_officer`, `system_admin` | `SubmitRfqForReview` |
@@ -60,10 +60,10 @@ either dead or waiting for a surface — both are called out below.
 | `supplier.bankAccount.manage` | `supplier_admin`, `system_admin` | `AddBankAccount`, `RemoveBankAccount`, `RevealBankAccount`, `SetDefaultBankAccount`, `UpdateBankAccount` |
 | `supplier.document.review` | `onboarding_reviewer`, `system_admin` | `ApproveDocument`, `RejectDocument`, checked in GetDocumentDownloadUrlHandler, not on a route, checked in GetDocumentHistoryHandler, not on a route, checked in GetSupplierDocumentHandler, not on a route |
 | `supplier.edit` | `supplier_admin`, `supplier_user`, `system_admin` | `AcceptTerms`, `AddAddress`, `AddBranch`, `AddContact`, `AddRepresentative`, `CreateOffering`, `DeactivateOffering`, `GetOffering`, `LinkCategory`, `ListOfferings`, `RemoveAddress`, `RemoveBranch`, `RemoveContact`, `RemoveRepresentative`, `ResubmitApplication`, `SetPrimaryRepresentative`, `UnlinkCategory`, `UpdateAddress`, `UpdateBranch`, `UpdateContact`, `UpdateLegalInfo`, `UpdateOffering`, `UpdateRepresentative`, `UpdateSupplierProfile`, `UploadDocument`, `UploadLogo` |
-| `supplier.lifecycle.manage` | `onboarding_reviewer`, `procurement_manager`, `system_admin` | `ReviewEndpoints (name resolved at runtime)` |
+| `supplier.lifecycle.manage` | `onboarding_reviewer`, `procurement_manager`, `system_admin` | `ReviewEndpoints (name resolved at runtime)`, checked in SearchHandler, not on a route |
 | `supplier.reject` | `onboarding_reviewer`, `system_admin` | `RejectApplication` |
 | `supplier.requestInfo` | `onboarding_reviewer`, `system_admin` | `RequestApplicationInfo` |
-| `supplier.review` | `onboarding_reviewer`, `system_admin` | `ClaimReviewItem`, `GetReviewerSupplierView`, `ListReviewQueue`, `PickUpApplication`, `ReviewDashboard`, `UnassignReviewItem` |
+| `supplier.review` | `onboarding_reviewer`, `system_admin` | `ClaimReviewItem`, `GetReviewerSupplierView`, `ListReviewQueue`, `PickUpApplication`, `ReviewDashboard`, `UnassignReviewItem`, checked in SearchHandler, not on a route |
 | `supplier.submit` | `supplier_admin`, `system_admin` | `SubmitSupplierApplication` |
 | `supplier.user.manage` | `supplier_admin`, `system_admin` | `DisableSupplierUser`, `InviteSupplierUser`, `ListSupplierUsers` |
 
