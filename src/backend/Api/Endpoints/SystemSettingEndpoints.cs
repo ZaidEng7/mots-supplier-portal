@@ -50,6 +50,15 @@ public static class SystemSettingEndpoints
         // is unauthenticated and has to know whether it should be shown. The response is built from
         // SystemSettings.PubliclyReadable, an allow-list - a setting added later is invisible here
         // until someone decides otherwise, which is the direction that fails safely.
+        // SCR-045: the global chrome's ERP banner. Authenticated but ungated by permission - the
+        // handler answers the narrowest thing the CALLER is entitled to know, so there is no wider
+        // answer for a gate to protect. See SystemStatusHandler on the three scopes.
+        app.MapGet("/api/v1/system/status", async (
+            MotsSupplierPortal.Application.Platform.ISystemStatusHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(ct)))
+        .RequireAuthorization()
+        .WithName("GetSystemStatus");
+
         app.MapGet("/api/v1/reference/settings", async (ISystemSettingAdminHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.ReadPublicAsync(ct)))
             .AllowAnonymous()

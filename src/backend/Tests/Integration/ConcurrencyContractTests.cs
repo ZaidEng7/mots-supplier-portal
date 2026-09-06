@@ -35,6 +35,84 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
 
     // ---- the read half -------------------------------------------------------------------------
 
+    /// <summary>
+    /// §8.1's tag identifies the REPRESENTATION, not only the row - so it has to change when the response's
+    /// shape does.
+    ///
+    /// <para>The tag encoded the row version and nothing else, so adding a field to a DTO changed no tag: after
+    /// a deploy, a client holding a cached body for an unchanged row kept that body and the new field was
+    /// invisible to it. Found while verifying a one-line addition - the API returned the new field to curl and
+    /// the browser rendered the old shape, because its cached body still matched. The build discriminator is
+    /// what makes that stop.</para>
+    ///
+    /// <para>The version half must still be readable, because <c>If-Match</c> depends on it - a client that
+    /// read before a deploy and writes after it is making a legitimate claim about the row.</para>
+    /// </summary>
+    [Fact]
+    public async Task An_entity_tag_carries_the_build_as_well_as_the_row_version()
+    {
+        var (client, _) = await VerifiedSupplierAsync($"Build{Guid.NewGuid():N}"[..12]);
+
+        var read = await client.GetAsync("/api/v1/suppliers/me");
+        var tag = read.Headers.ETag!.ToString();
+
+        tag.Trim('"').Should().Contain(".", "the tag is <version>.<build>; without the build half a cached body " +
+            "survives a deploy that changed the response's shape");
+
+        // And the version half is still recoverable, or every guarded write breaks.
+        ETag.TryParse(tag, out var version).Should().BeTrue();
+        version.Should().BeGreaterThan(0u);
+
+        // A tag from an older build, same row: still parses to the same version, so If-Match keeps working
+        // across a deployment rather than answering 412 over a suffix.
+        var withoutBuild = $"\"{tag.Trim('"').Split('.')[0]}\"";
+        ETag.TryParse(withoutBuild, out var legacyVersion).Should().BeTrue();
+        legacyVersion.Should().Be(version);
+    }
+
+    /// <summary>
+    /// §8.1's BROWSER half: the version a read returns has to be readable by the script that will
+    /// send it back.
+    ///
+    /// <para>Every other test in this file reads <c>response.Headers.ETag</c> from an
+    /// <see cref="HttpClient"/>, which sees every header on the wire. A browser does not: on a
+    /// cross-origin response, script gets the CORS-safelisted headers and nothing else, and ETag is
+    /// not safelisted. So the whole concurrency layer could pass this suite while being invisible to
+    /// the SPA - which is exactly what it was doing until this test existed. Reproduced in the browser
+    /// first: clicking Save on a seeded draft proposal logged
+    /// <c>[concurrency] PATCH ... was refused for a missing If-Match</c> and the API answered 428.</para>
+    ///
+    /// <para>The test is about the CORS response header, not about any endpoint, so it uses the
+    /// cheapest authenticated read that returns an ETag.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_cross_origin_read_exposes_its_ETag_to_script()
+    {
+        var (client, supplierCode) = await VerifiedSupplierAsync($"Expose{Guid.NewGuid():N}"[..12]);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me");
+        request.Headers.Add("Origin", "http://localhost:5173");
+        var response = await client.SendAsync(request);
+
+        response.Headers.ETag.Should().NotBeNull("the header is on the wire either way");
+        response.Headers.TryGetValues("Access-Control-Expose-Headers", out var exposed).Should().BeTrue(
+            "without this header a browser hides ETag from script and every guarded write goes out with no If-Match");
+        string.Join(",", exposed!).Should().Contain("ETag");
+
+        // Control, so the assertion is about the CORS policy rather than a header the app adds to
+        // everything: a same-origin request - no Origin at all - carries no exposure header, because
+        // nothing is being hidden from script in the first place.
+        var sameOrigin = await client.GetAsync("/api/v1/suppliers/me");
+        sameOrigin.Headers.TryGetValues("Access-Control-Expose-Headers", out _).Should().BeFalse();
+
+        // And the origin has to be an ALLOWED one. An unknown origin gets no CORS headers at all,
+        // which is the policy refusing rather than the exposure being unconditional.
+        var foreign = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/suppliers/{supplierCode}");
+        foreign.Headers.Add("Origin", "https://not-the-spa.example");
+        (await client.SendAsync(foreign)).Headers
+            .TryGetValues("Access-Control-Allow-Origin", out _).Should().BeFalse();
+    }
+
     [Fact]
     public async Task A_read_of_a_mutable_aggregate_returns_its_version_as_a_strong_ETag()
     {

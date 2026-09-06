@@ -17,6 +17,17 @@ public interface IAuditContext
     /// audit row can be joined to its trace.</summary>
     Guid CorrelationId { get; }
 
+    /// <summary>
+    /// Adopt a correlation id the CALLER supplied, so their log line and this request's audit rows carry
+    /// the same value (EPIC-25's <c>Correlation-Id</c> echo).
+    ///
+    /// <para>On the interface rather than only on the HTTP implementation because the audit rows are
+    /// written through this abstraction; a middleware that could set an id the audit layer does not read
+    /// would echo a header and record something else. Implementations with no notion of an incoming
+    /// request may ignore it - a job run has no caller to agree with.</para>
+    /// </summary>
+    void OverrideCorrelationId(Guid correlationId);
+
     /// <summary>Caller network provenance, or null when there is no request (background jobs).
     /// See the implementation for the truncation decision and why.</summary>
     string? IpAddress { get; }

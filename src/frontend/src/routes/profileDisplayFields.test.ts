@@ -34,7 +34,7 @@ function asRuntimeValue<T>(value: unknown): T {
  */
 describe('reviewer profile display fields', () => {
   const supplier: SupplierProfile = {
-    referenceCode: 'SUP-2026-000038',
+    supplierCode: 'SUP-2026-000038',
     displayNameAr: 'شركة',
     displayNameEn: 'Lifecycle Demo Co',
     description: 'A tourism supplier',
@@ -43,7 +43,7 @@ describe('reviewer profile display fields', () => {
     supplierGroup: 'SME',
     onboardingState: 'Approved',
     lifecycleState: 'Active',
-    currencyCode: 'SYP',
+    defaultCurrency: 'SYP',
     // The field that caused the crash: an object, present on every registered supplier.
     legalInfo: {
       legalNameAr: 'شركة',
@@ -59,7 +59,7 @@ describe('reviewer profile display fields', () => {
     contacts: [],
     branches: [],
     bankAccounts: [],
-    categoryCodes: [],
+    categories: [],
     missingProfileFields: [],
     termsAcceptedVersion: null,
     termsAcceptedAt: null,

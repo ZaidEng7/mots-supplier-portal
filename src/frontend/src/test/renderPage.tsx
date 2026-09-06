@@ -105,7 +105,29 @@ export function mockFetch(routes: Record<string, unknown>, recorded?: RecordedRe
       )
     }
 
-    const body = routes[match]
+    let body = routes[match]
+
+    // A fixture of the shape { __byMethod: { GET: ..., POST: ... } } declares a DIFFERENT response per
+    // method on one URL.
+    //
+    // Added because a REST collection answers both the list and the write on the same path, so any
+    // page whose create can be refused was untestable here: declaring the failure replaced the list
+    // fixture too, the rows never rendered, and the test failed looking for the control it meant to
+    // click. DocumentsPage's upload is the case that found it, and it is not a special one.
+    //
+    // A method with no entry falls through to `undefined`, which throws below like any undeclared
+    // route - saying which method is missing rather than silently answering the wrong fixture.
+    if (body !== null && typeof body === 'object' && '__byMethod' in body) {
+      const byMethod = (body as { __byMethod: Record<string, unknown> }).__byMethod
+      const verb = (init?.method ?? 'GET').toUpperCase()
+      if (!(verb in byMethod)) {
+        throw new Error(
+          `Mock for ${match} declares __byMethod but not ${verb}. Declare it, or the test is asserting ` +
+            'against a request nobody described.',
+        )
+      }
+      body = byMethod[verb]
+    }
 
     // A fixture of the shape { __status: 4xx|5xx } declares a FAILING response for that route.
     // Added because every screen's error state needs one and the alternative - leaving the route

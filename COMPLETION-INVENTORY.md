@@ -359,6 +359,22 @@ dictionary, so this is a real decision, not a switch), a cross-entity result con
 per persona, and SCR-906. The row-scoping is the substance: a search that returns rows the caller
 could not open directly is a disclosure, and it must be enforced per entity type.
 
+**Built in batch 11.** Generated `tsvector` columns (no triggers — Postgres computes them on write, so
+nothing can drift), GIN indexes, `GET /api/v1/search`, SCR-906, seven scoping tests. The sizing was
+right about the Arabic decision and about row-scoping being the substance. Two things it did not
+anticipate:
+
+- **`simple` for both languages, stated rather than hidden.** No Arabic dictionary ships with Postgres,
+  so nothing stems Arabic correctly; using `english` on one column and `simple` on the other would make
+  the two halves of one search behave differently for no stated reason. Consequence: whole-word and
+  prefix matching, no word forms. The screen says so where a user meets it.
+- **Reference-code search needed a normalisation nobody would predict.** Postgres parses
+  `RFQ-2026-000006` as `rfq`, `-2026`, `-000006` — it reads the hyphenated numeric parts as signed
+  integers and keeps the sign — so a query split on non-alphanumerics matched nothing. Caught by a test
+  against a real code shape *after* the feature worked against the letter-suffixed demo codes, which
+  tokenise differently and hid it. Both sides now collapse separator runs to spaces, so the stored
+  vector and the query tokeniser follow one rule.
+
 #### 3.2 `Correlation-Id` request-header echo — EPIC-25 · **S**
 
 **What exists:** `HttpAuditContext.CorrelationId` reinterprets `Activity.Current.TraceId` as a Guid,
@@ -374,6 +390,12 @@ against this API would think to send.
 echo it on the response, and prefer it over the generated fallback. One middleware, one test asserting
 the echo, one asserting a malformed value is ignored rather than trusted.
 
+**Built in batch 11.** `CorrelationIdMiddleware`, `IAuditContext.OverrideCorrelationId`, five tests.
+The size was right; the one thing it did not anticipate is that echoing the header is the cosmetic half —
+what a caller actually needs is the id on the row the server WROTE, which is why the override goes onto
+`IAuditContext` rather than living in the middleware. Confirmed against the database: an audited RFQ
+transition sent with `Correlation-Id: aaaaaaaa-…` stored that exact value in `ops.audit_log`.
+
 #### 3.3 Load and performance baseline — EPIC-26 · **M**
 
 **What exists:** documented targets — p95 < 300ms reads, < 800ms writes
@@ -386,6 +408,19 @@ met, and no claim either way should be made.**
 **Size — M.** A tool choice, a seeded dataset at a realistic scale (the interesting cases are the
 cross-aggregate reads — the procurement dashboard and the comparison matrix), scripts for the read
 and write paths, a baseline run, and a decision about whether it gates CI or runs on a schedule.
+
+**First measurement taken in batch 11 — the READ paths only.** `perf/baseline.py` (standard library only,
+so it needs nothing installed) and `perf/BASELINE.md`. 18 endpoints, 30 samples each, every one 2xx; p95
+ranges from 2.2 ms to 17.3 ms on a developer laptop against the seeded dataset.
+
+**That does not show the targets are met, and BASELINE.md says so in its own section.** The dataset is
+tiny — six RFQs — and the cross-aggregate reads are exactly the ones whose cost grows with it; there is
+no concurrency, so this p95 is not the statistic the target means; and the write half of the target has no
+number at all, because measuring writes repeatedly needs a database that can be reset between runs and
+that script is not written.
+
+One outlier is recorded rather than explained: `audit search` has a p50 of 1.8 ms and a max of 177.8 ms.
+Guessing at a cause from one sample is how a performance myth starts.
 Gating on latency in a shared CI runner produces flakes, so scheduled-with-a-tracked-trend is the
 likelier answer. **This item can change every other estimate here**, which is why it is ranked 11th
 rather than last.
@@ -417,6 +452,27 @@ committed baseline in CI failing on a breaking diff, and add spectral for the st
 those four documentation requirements**, and the gate will fail loudly on day one until they do. Worth
 knowing before it is started: this is a sweep, not a switch.
 
+**Half built in batch 11 — deliberately half.** The breaking-diff gate exists: the document is published in
+every environment (anonymous in Development, `admin.users.manage` elsewhere), `contracts/openapi-v1.baseline.json`
+is committed with sorted keys so a diff is a diff and not a key-order shuffle, and `OpenApiContractTests`
+fails on a removed path, operation, response status or response field, and on a property that became
+required. Additive change passes, per §Versioning. Proven to fail by renaming `/api/v1/search` and watching
+it name that route.
+
+Implemented as a test rather than an `oasdiff` CI step for one reason: generating the document needs the host
+running, the host needs a database, and the integration fixture already provides one. An `oasdiff` step would
+have had to stand Postgres up a second time to produce its input.
+
+**The style half is NOT built, and that is the sizing's own advice taken.** §11's four documentation
+requirements across **228** operations (up from 195) is a sweep; a gate that fails on day one for all of them
+produces 228 hurried annotations rather than 228 accurate ones. It stays open, and it is now the only part of
+§11 outstanding.
+
+**Found while building it:** `/openapi/v1.json` had never been reachable. `MapOpenApi()` declares no
+authorization, so NFR-SEC-004's deny-by-default `FallbackPolicy` answered 401 — the document was generated
+and served to nobody, including the two consumers §11 names for it (SPA type generation, the ERP ACL
+client). Nothing could have noticed, because nothing fetched it.
+
 ---
 
 ## 4. Two live rules that silently do nothing
@@ -447,7 +503,20 @@ from participating for a fortnight" is not undone by reactivation. Once decided,
 but small: the flag is not in the reference-data write contract, so even a ministry that has decided
 cannot record it without a migration.
 
-**Logged, not fixed** (this task changes no production code).
+**Logged, not fixed** by the inventory task (which changed no production code).
+
+**The code half closed in batch 11.** `isAwardCritical` is on `ReferenceItemDto`, on the create/update
+contract, and on SCR-710's screen as a per-row toggle with the consequence stated beside the table.
+`DocumentType.IsAwardCritical` was `init`-only, so a migration was genuinely the only way in; it is now
+settable. Omitting it on an update leaves the stored value alone — an administrator fixing an Arabic typo must
+not clear the one flag on that screen whose effect is to suspend live suppliers, and a test asserts exactly
+that.
+
+**No value changed.** All three seeded types are still `false`, asserted by a test that exists so a later
+batch has to acknowledge the change rather than slip it in. **The decision half is still open:** which
+document types are award-critical is a ministry judgement about procurement risk, and the job's own comment
+makes the argument this batch is not going to overrule — "was blocked from participating for a fortnight" is
+not undone by reactivation.
 
 ### 4.2 BRULE-016 — required documents ignore what the supplier does
 
@@ -478,7 +547,30 @@ what "complete" means for every supplier in the system, not a query tweak.
 were approved against a list that may not be theirs under a category-conditioned one. Whether tightening
 applies retroactively is a decision, and it belongs with the data decision, not after it.
 
-**Logged, not fixed.**
+**The code half closed in batch 11 — the SHAPE, not the derivation.** `reference.document_type_category`
+exists with a unique (type, category) index, `GET/PUT /api/v1/admin/document-type-categories` records whole
+sets (one decision, not a sequence of clicks), and SCR-710 shows the categories per document type as toggles.
+A category code that does not exist is refused and named: unchecked, it would be a requirement no supplier can
+ever match, invisible until the day the derivation is switched on, at which point it silently excludes a
+document from everybody.
+
+**Nothing derives from it, and a test proves that.** `Recording_a_link_changes_no_suppliers_required_documents`
+links a required type to a category a supplier does not have and asserts their required set is byte-identical
+afterwards. Without that assertion, "we built the shape" would be indistinguishable from "we changed what
+complete means for every supplier in the system". All four derivation sites now carry a comment naming the two
+open decisions rather than looking like an oversight, and the screen says the same thing to the administrator
+in a line beneath the table — someone who records links and sees no change would otherwise reasonably conclude
+the screen is broken.
+
+**QUESTIONS FOR THE BUSINESS, both still open and neither answerable here:**
+
+1. **Which document types attach to which categories?** An empty link set read as "required for nothing" would
+   drop every required document from the submit gate, the resubmit gate, the reviewer's approval gate and the
+   dashboard's completeness figure. A portal that lets an incomplete application through is worse than one that
+   asks for too much, so the reading of "no links" has to be decided with the data.
+2. **Does the tightening reach suppliers already approved?** They were approved against a list that may not be
+   theirs under the conditioned rule. Applying it retroactively could invalidate live approvals; not applying
+   it leaves two standards running side by side. Either is defensible; neither is a query change.
 
 ---
 
@@ -486,6 +578,9 @@ applies retroactively is a decision, and it belongs with the data decision, not 
 
 | Ref | Finding | Evidence |
 |---|---|---|
+| **D-48** | **SCR-901 (notification preferences) is not built, and this is the reason rather than an omission.** Its entire content is a policy value someone else owns. FR-NOT-004 reads "Users manage notification preferences per category/channel (**opt-out of non-critical only**)" and is tagged **[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]** — so both halves are undecided: whether the requirement stands, and which of the 30+ `NotificationTypes` are "non-critical". Nothing in `BUSINESS-PROCESSES.md` §3.1–§3.4 classifies them; those tables name each notification's event and recipients and stop there. Building it would mean partitioning a tender's notifications into muteable and not — deciding, for instance, whether a supplier may switch off `proposal.award_offered`, the message that tells them they have won. The channel half is equally empty: `NotificationChannel` has an `Email` member and nothing writes an Email row, so a per-channel toggle would offer a channel that does not deliver. **Question for the business:** which notification types may a user opt out of, and does the answer differ by role? Same treatment as T-075's threshold — the mechanism is cheap and the value is not ours | `FUNCTIONAL-REQUIREMENTS.md:294`, `NotificationTypes.cs`, `Notification.cs:6` |
+| **D-46** | **Reproduced.** CORS never named `ETag` in `Access-Control-Expose-Headers`, so on a cross-origin response the browser hid it from script: `res.headers.get('ETag')` was always null, `api/etags.ts` stored nothing, and EVERY guarded write in the SPA went out with no `If-Match` and came back 428. App-wide, not proposal-specific. Invisible to the integration suite because its client attaches `If-Match` itself (`ETagAttachingHandler`, and `ConcurrencyContractTests`' own doc comment says so), and invisible in production because a same-origin deployment exposes ETag by default. Fixed with `.WithExposedHeaders("ETag")` | `Program.cs` CORS policy; browser console `[concurrency] PATCH /api/v1/proposals/PRP-DEMO-0001 was refused for a missing If-Match` |
+| **D-47** | **Reproduced.** Second, independent cause of the same 428. The supplier reads a proposal at `/api/v1/rfqs/{rfqCode}/proposals` and writes it at `/api/v1/proposals/{proposalCode}/...`; `etags.ts`'s prefix walk climbs a path and never sideways, so no write in that workspace could reach the stored version. Fixed in `getProposal`, which files the read's ETag under the proposal path too — declared there because that function is the only thing that knows the two paths name one resource | `api/proposals.ts` `getProposal`; `etagTransport.test.ts` red 1 of 5 on revert |
 | **D-43** | `proposal.revise` is granted to `system_admin` only. `ProposalEndpoints.cs:413`'s own comment reads "§4.1: ClarificationRequested -> Revised, **supplier_admin** / proposal.revise", and `PERMISSIONS.md` shows the holder as `system_admin`. The persona the endpoint names cannot call it. SCR-155 is missing on top of that, so nothing has exercised the grant | `PERMISSIONS.md:40`, `ProposalEndpoints.cs:413` |
 | **D-44** | SCR-605: `ReportsPage` is gated on `report.read`, granted by A-17 to `procurement_manager` only. The inventory assigns SCR-605 to `ministry_viewer`, which holds `governance.read` alone. A screen built for a persona that cannot open it | `PERMISSIONS.md`, `SCREEN-INVENTORY.md` SCR-605 |
 | **D-45** | The inventory's `SCR-045` asks for an ERP-degraded banner in **global chrome**. Two partial surfaces exist — `AdminOverviewPage`'s tile and `supplierDashboard.erpDegraded` — and neither is chrome, so a buyer mid-RFQ sees nothing | `AdminOverviewPage.tsx:91` |

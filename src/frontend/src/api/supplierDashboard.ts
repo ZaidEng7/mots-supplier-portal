@@ -40,6 +40,10 @@ export interface ProfileHealth {
   requiredDocumentsTotal: number
   requiredDocumentsSupplied: number
   nextRequiredDocumentTypeCode: string | null
+  /** The document's own name, both languages. The CODE was reaching the screen: a supplier saw
+   *  "commercial_registration" on the one line telling them what to do next. */
+  nextRequiredDocumentNameAr: string | null
+  nextRequiredDocumentNameEn: string | null
 }
 
 export interface SupplierDashboard {

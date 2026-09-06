@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { LanguageSwitch } from '../components/LanguageSwitch'
 import { NotificationBell } from '../components/NotificationBell'
+import { ErpStatusBanner } from '../components/ErpStatusBanner'
 import { Button } from '../components/ui'
 import { useAuthStore } from '../lib/authStore'
 import { logout as apiLogout } from '../api/auth'
@@ -29,6 +30,8 @@ export function BackOfficeShell({ children }: Props) {
   const canManageReferenceData = useAuthStore((s) => s.claims?.permissions.includes('reference.manage') ?? false)
   // T-079/SCR-720: same hide-never-gate rule - every /api/v1/audit route re-enforces audit.read.
   const canReadAudit = useAuthStore((s) => s.claims?.permissions.includes('audit.read') ?? false)
+  const canReviewSuppliers = useAuthStore((s) => s.claims?.permissions.includes('supplier.review') ?? false)
+  const canScoreEvaluations = useAuthStore((s) => s.claims?.permissions.includes('evaluation.score') ?? false)
   // governance.read is the ONLY permission ministry_viewer holds, so without this link the persona
   // had to type the URL: every other link in this bar 403s for it.
   const canViewGovernance = useAuthStore((s) => s.claims?.permissions.includes('governance.read') ?? false)
@@ -66,6 +69,8 @@ export function BackOfficeShell({ children }: Props) {
         Horizontal padding drops to 1rem below `sm` for the same reason the supplier shell's does -
         at 320px, 48px of chrome padding is 15% of the viewport.
       */}
+      {/* SCR-045: above the header, so it is chrome rather than page content. */}
+      <ErpStatusBanner />
       <header className="flex flex-wrap items-center justify-between gap-y-3 border-b px-4 py-4 sm:px-6" style={{ borderColor: 'var(--n-700)', backgroundColor: 'var(--n-800)' }}>
         <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
           <span className="text-lg font-semibold" style={{ color: 'var(--accent-gold-500)' }}>
@@ -102,12 +107,56 @@ export function BackOfficeShell({ children }: Props) {
                 {t('adminOverview.title')}
               </Link>
             ) : null}
+            {/* T-076. */}
+            {canManageStaff ? (
+              <Link to="/back-office/email-templates" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('emailTemplates.title')}
+              </Link>
+            ) : null}
+            {/* SCR-716. */}
+            {canManageStaff ? (
+              <Link to="/back-office/ui-strings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('uiStrings.title')}
+              </Link>
+            ) : null}
+            {/* SCR-721/722. Same gate as the dashboard it drills into - canManageStaff is this shell's
+                stand-in for system_admin, and the endpoints behind the page require the same
+                permission, so a visible link that 403s is not possible here. */}
+            {canManageStaff ? (
+              <Link to="/back-office/operations" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('operations.title')}
+              </Link>
+            ) : null}
             <Link to="/back-office/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.dashboard')}
             </Link>
-            <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
-              {t('review.title')}
+            {/* SCR-906. Ungated, like the route: the server decides what each persona can find. */}
+            <Link to="/back-office/search" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('search.title')}
             </Link>
+            {/* SCR-907. */}
+            <Link to="/back-office/help" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('help.title')}
+            </Link>
+            {/* SCR-902: every back-office persona's own account, password, MFA and sessions. */}
+            <Link to="/back-office/account" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('nav.account')}
+            </Link>
+            {/* Gated on supplier.review, which it always should have been. An evaluator holds
+                evaluation.score, evaluation.submit and rfq.clarify and nothing else, and this link was offered
+                to them - a 403 they could not explain, on the only "work" link their nav had. */}
+            {canReviewSuppliers ? (
+              <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('review.title')}
+              </Link>
+            ) : null}
+            {/* And the link an evaluator actually needs. Their dashboard lives under a different layout
+                (/evaluation, not /back-office/...), which is why it was missing from this nav entirely. */}
+            {canScoreEvaluations ? (
+              <Link to="/evaluation" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('evaluationDashboard.title')}
+              </Link>
+            ) : null}
             {canManageOrganizations ? (
               <Link to="/back-office/organizations" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('organizations.title')}

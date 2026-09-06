@@ -1,7 +1,16 @@
 import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
 import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
 import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
+import { ProfilePage } from './routes/ProfilePage'
+import { DocumentsPage } from './routes/DocumentsPage'
+import { MyProposalsPage } from './routes/MyProposalsPage'
+import { AboutPage } from './routes/AboutPage'
+import { HelpPage } from './routes/HelpPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
+import { OperationsPage } from './routes/admin/OperationsPage'
+import { UiStringsPage } from './routes/admin/UiStringsPage'
+import { EmailTemplatesPage } from './routes/admin/EmailTemplatesPage'
+import { SearchPage } from './routes/SearchPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
@@ -11,7 +20,11 @@ import { useTranslation } from 'react-i18next'
 import { LanguageSwitch } from './components/LanguageSwitch'
 import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
 import { useAuthStore } from './lib/authStore'
-import { refresh } from './api/auth'
+import i18n from 'i18next'
+import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
+import { MaintenanceBanner } from './components/MaintenanceBanner'
+import { FirstRunLocale } from './components/FirstRunLocale'
+import { refresh, getAccount } from './api/auth'
 
 // Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
 // 2.5s ... route-level code splitting"). A single unsplit bundle measured ~3.4s LCP under
@@ -52,6 +65,7 @@ const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((
 const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
 const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
 const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
+const ReceivedProposalsPage = lazy(() => import('./routes/back-office/ReceivedProposalsPage').then((m) => ({ default: m.ReceivedProposalsPage })))
 const AwardPage = lazy(() => import('./routes/back-office/AwardPage').then((m) => ({ default: m.AwardPage })))
 const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
 const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
@@ -62,13 +76,33 @@ const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) =
 /** Ensures a valid access token is in memory before a protected route renders — on a cold load
  * (page refresh) the store is empty, so this silently exchanges the httpOnly refresh cookie for a
  * fresh one before deciding whether to redirect to /login. */
+/**
+ * SCR-902's other half: a stored interface language nobody read would be a setting that does nothing.
+ *
+ * <p>Runs once per app load, after a session exists, and never again - a mid-session toggle has to
+ * keep winning over the value this fetched, or switching language would undo itself on the next
+ * navigation. Fire-and-forget, because no screen should wait on a preference.</p>
+ */
+let languageApplied = false
+function applyStoredLanguage() {
+  if (languageApplied) return
+  languageApplied = true
+  void getAccount()
+    .then((account) => (i18n.language === account.language ? undefined : i18n.changeLanguage(account.language)))
+    .catch(() => undefined)
+}
+
 async function ensureAuthenticated(currentPath: string) {
   const state = useAuthStore.getState()
-  if (state.status === 'authenticated' && state.accessToken) return
+  if (state.status === 'authenticated' && state.accessToken) {
+    applyStoredLanguage()
+    return
+  }
 
   const tokens = await refresh()
   if (tokens) {
     useAuthStore.getState().setSession(tokens.accessToken)
+    applyStoredLanguage()
     return
   }
 
@@ -79,11 +113,27 @@ async function ensureAuthenticated(currentPath: string) {
 const rootRoute = createRootRoute({
   component: () => (
     <Suspense fallback={null}>
+      {/* SCR-044. Above the Outlet so it is the first thing on every page, authenticated or not. */}
+      <MaintenanceBanner />
       <Outlet />
+      {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
+          re-authenticating does not remount the route underneath and discard the work it is protecting. */}
+      <SessionExpiredOverlay />
+      {/* SCR-010. Below the expiry overlay in stacking order (z-40 against z-50): if a session lapses
+          while the language question is open, the expiry is the one that has to be answered first. */}
+      <FirstRunLocale />
     </Suspense>
   ),
   notFoundComponent: () => <ErrorBoundaryScreen code="404" />,
   errorComponent: () => <ErrorBoundaryScreen code="500" />,
+})
+
+// SCR-908, `/about`, public. Outside every authenticated layout on purpose: the moment a user most
+// needs to say which build they are on is when they cannot sign in.
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/about',
+  component: AboutPage,
 })
 
 const loginRoute = createRoute({
@@ -226,6 +276,34 @@ const onboardingOfferingsRoute = createRoute({
   component: OfferingsPage,
 })
 
+// SCR-121, `/profile`, supplier_admin + supplier_user, P0. The supplier's own read of their own
+// profile - which existed as an endpoint since EPIC-01 and was rendered only by the REVIEWER's
+// screen. SCR-122..126's entry points live on it, linking to the editors that already exist rather
+// than growing second copies of them.
+const profileRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/profile',
+  component: ProfilePage,
+})
+
+// SCR-130 (P0) + SCR-131 + SCR-132 + SCR-133, `/documents`, supplier_admin + supplier_user.
+// SCR-133 is a filter on this page rather than its own route: "needs attention" is a view of the
+// same list, and a second screen would be a second place for "expiring" to be defined.
+const documentsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/documents',
+  component: DocumentsPage,
+})
+
+// SCR-150, `/proposals`, supplier_admin + supplier_user, P0. The missing index: SCR-154's read,
+// SCR-155's revise, SCR-156's withdraw and SCR-157's award response all already live in the proposal
+// workspace on the RFQ, and each row links back into it rather than duplicating any of them.
+const myProposalsRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/proposals',
+  component: MyProposalsPage,
+})
+
 const teamRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/team',
@@ -345,6 +423,15 @@ const auditExplorerRoute = createRoute({
   component: AuditExplorerPage,
 })
 
+// SCR-430 + SCR-431, `/back-office/rfqs/$referenceCode/proposals`, procurement_officer and
+// procurement_manager, both P0 (T-082). Two inventory rows on one route: the detail is a panel, not
+// a navigation, for the same reason the comparison matrix is a matrix.
+const receivedProposalsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs/$referenceCode/proposals',
+  component: ReceivedProposalsPage,
+})
+
 const approvalQueuesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement/approvals',
@@ -372,6 +459,62 @@ const backOfficeNotificationsRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/settings',
+  component: SettingsPage,
+})
+
+// SCR-902 is "all authenticated", and until now the settings screen existed only under the supplier
+// shell: a procurement officer, evaluator, reviewer or admin had no way to change their own password,
+// enrol MFA, see their sessions or fix their own name. The SAME page is mounted here rather than a
+// second one written for staff - every card on it is about the caller's own account, and the one
+// supplier-scoped card gates itself on being a supplier.
+// SCR-907, `/help` and `/back-office/help`. One page, mounted in both shells so it keeps the nav the
+// reader came from - a help link that drops a procurement officer into the supplier chrome is worse
+// than no link.
+const helpRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/help',
+  component: HelpPage,
+})
+
+const backOfficeHelpRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/help',
+  component: HelpPage,
+})
+
+// SCR-721 + SCR-722, `/back-office/operations`, system_admin.
+const operationsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/operations',
+  component: OperationsPage,
+})
+
+// SCR-716, `/back-office/ui-strings`, system_admin.
+const uiStringsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ui-strings',
+  component: UiStringsPage,
+})
+
+// SCR-906, `/back-office/search`, back-office personas. Not gated in the router: what a caller may find
+// is decided per entity kind on the server, and a route-level permission would either lock out someone who
+// can legitimately search one kind or admit someone who can search none.
+const searchRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/search',
+  component: SearchPage,
+})
+
+// T-076, `/back-office/email-templates`, system_admin.
+const emailTemplatesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/email-templates',
+  component: EmailTemplatesPage,
+})
+
+const backOfficeAccountRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/account',
   component: SettingsPage,
 })
 
@@ -492,6 +635,7 @@ const awardRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  aboutRoute,
   registerRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
@@ -499,7 +643,7 @@ const routeTree = rootRoute.addChildren([
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
   evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
-  supplierLayoutRoute.addChildren([
+  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, myProposalsRoute, helpRoute, 
     supplierDashboardRoute,
     onboardingRoute,
     onboardingContactsRoute,
@@ -514,7 +658,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

@@ -60,7 +60,11 @@ public sealed class EmailJobBehaviourTests(PostgresApiFixture fixture)
             sender,
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             tokens,
-            scope.ServiceProvider.GetRequiredService<IConfiguration>());
+            scope.ServiceProvider.GetRequiredService<IConfiguration>(),
+            // T-076: resolved from the container, not stubbed. With no override row it returns the shipped
+            // copy, which is what every assertion in these suites is about - and it means the suites now also
+            // cover the path a send actually takes rather than a shape that bypasses it.
+            scope.ServiceProvider.GetRequiredService<MotsSupplierPortal.Application.Admin.IEmailCopySource>());
 
         return new Harness(scope, jobs, sender, tokens);
     }

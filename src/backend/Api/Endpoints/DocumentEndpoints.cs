@@ -1,4 +1,5 @@
 using System.Globalization;
+using MotsSupplierPortal.Api.Concurrency;
 using Microsoft.AspNetCore.Mvc;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
@@ -142,6 +143,24 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
+        // T-030 split (4) deliberately does NOT guard the upload, and the reason is the same shape as the
+        // RFQ group's four stated exclusions rather than an omission.
+        //
+        // I added the guard first and then removed it. Two reasons, one of which a test found:
+        //
+        // 1. There is no lost update here to refuse. Uploading ADDS a document row; it cannot overwrite
+        //    another upload, and two of a supplier's users adding two different documents both succeeding is
+        //    the correct outcome. That is the same reasoning that leaves the supplier's own
+        //    POST /rfqs/{code}/clarifications unguarded - concurrent additions are not a conflict.
+        //
+        // 2. The hazard is real and asymmetric. This route answers 201 with the DOCUMENT, so there is no
+        //    root version to hand back and no WithFreshETag to give one; the SPA's store drops its cached
+        //    version on every successful mutation, so a supplier uploading two documents in a row would meet
+        //    a 428 on the second with nothing on screen to explain it. StreamingUploadTests caught the same
+        //    shape immediately - it uploads with the raw client and got a 428 where it asserts 202.
+        //
+        // The DECISIONS below are guarded, because that is where the lost update lives: two reviewers
+        // deciding the same document is one decision silently replacing the other.
         .WithTags("Documents")
         .WithName("UploadDocument")
         .DisableAntiforgery()
@@ -173,6 +192,21 @@ public static class DocumentEndpoints
         .RequireAuthorization()
         .WithTags("Documents")
         .WithName("GetSupplierDocument");
+
+        // SCR-132: the version chain. SupplierDocument has carried Version and IsLatestVersion since
+        // EPIC-05 and nothing returned the history, so a supplier could see a document's current
+        // state and never why it got there - a rejection then a re-upload looked exactly like a
+        // first upload that was approved.
+        app.MapGet("/api/v1/suppliers/{supplierCode}/documents/types/{documentTypeCode}/history", async (
+            string supplierCode, string documentTypeCode,
+            IGetDocumentHistoryHandler handler, CancellationToken ct) =>
+        {
+            var history = await handler.HandleAsync(supplierCode, documentTypeCode, ct);
+            return history is null ? Results.NotFound() : Results.Ok(history);
+        })
+        .RequireAuthorization()
+        .WithTags("Documents")
+        .WithName("GetDocumentHistory");
 
         app.MapGet("/api/v1/documents/{documentCode}/content", async (
             string documentCode,
@@ -239,6 +273,11 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.DocumentReview)
+        // T-030 split (4). A document decision is a child write on the Supplier aggregate, and two reviewers
+        // deciding the same document at once is the lost update worth refusing on this aggregate - the
+        // second decision would overwrite the first with no trace on screen. The precondition comes from
+        // GET /review/{referenceCode}, which now issues it.
+        .RequireIfMatch()
         .WithTags("Documents")
         .WithName("ApproveDocument");
 
@@ -267,6 +306,8 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.DocumentReview)
+        // T-030 split (4); same reasoning as approve above.
+        .RequireIfMatch()
         .WithTags("Documents")
         .WithName("RejectDocument");
     }

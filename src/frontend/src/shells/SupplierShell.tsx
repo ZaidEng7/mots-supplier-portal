@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { LanguageSwitch } from '../components/LanguageSwitch'
 import { NotificationBell } from '../components/NotificationBell'
+import { ErpStatusBanner } from '../components/ErpStatusBanner'
 import { MobileTabBar } from '../components/MobileTabBar'
 import { Button } from '../components/ui'
 import { useAuthStore } from '../lib/authStore'
@@ -29,6 +30,8 @@ export function SupplierShell({ children }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+      {/* SCR-045: above the header, so it is chrome rather than page content. */}
+      <ErpStatusBanner />
       <header
         className="flex items-center justify-between border-b px-4 py-4 sm:px-6"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
@@ -43,6 +46,22 @@ export function SupplierShell({ children }: Props) {
             </Link>
             <Link to="/onboarding" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.onboarding')}
+            </Link>
+            {/* SCR-121: the supplier's own profile, which had no surface at all until now. */}
+            <Link to="/profile" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.profile')}
+            </Link>
+            {/* SCR-130: documents existed only inside the onboarding wizard. */}
+            <Link to="/documents" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.documents')}
+            </Link>
+            {/* SCR-907. */}
+            <Link to="/help" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('help.title')}
+            </Link>
+            {/* SCR-150: "what have I bid on" had no answer short of opening every invitation. */}
+            <Link to="/proposals" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('nav.proposals')}
             </Link>
             <Link to="/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.offerings')}

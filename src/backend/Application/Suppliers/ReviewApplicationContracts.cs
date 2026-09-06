@@ -74,7 +74,17 @@ public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, st
 /// (see SupplierDto's own doc comment for the other half of that split).</summary>
 public sealed record ErpSyncDto(string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt);
 
-public sealed record ReviewerSupplierViewDto(SupplierDto Supplier, ErpSyncDto ErpSync, IReadOnlyList<DocumentTypeStatusDto> Documents, IReadOnlyList<ReviewAnnotationDto> AnnotationHistory);
+/// <param name="RowVersion">The Supplier root's version, lifted to the TOP of this wrapper.
+/// T-030 split (4) needed it there: the ETag filter looks for a <c>RowVersion</c> property on the response
+/// object itself, so a version nested inside <c>Supplier</c> issued no ETag and a reviewer had no way to
+/// obtain the precondition their own decision routes now require. Guarding a write whose precondition
+/// cannot be read is the batch-3 Offering mistake, and this is the read half added in the same change.</param>
+public sealed record ReviewerSupplierViewDto(
+    SupplierDto Supplier,
+    ErpSyncDto ErpSync,
+    IReadOnlyList<DocumentTypeStatusDto> Documents,
+    IReadOnlyList<ReviewAnnotationDto> AnnotationHistory,
+    uint RowVersion);
 
 public interface IGetReviewerSupplierViewHandler
 {

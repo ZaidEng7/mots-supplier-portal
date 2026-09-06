@@ -17,7 +17,7 @@ function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
     id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'Finalized',
     criteria: [], assignments: [],
     results: [
-      { proposalId: 'proposal-a', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
+      { proposalId: 'proposal-a', proposalReferenceCode: 'PRP-2026-000001', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
     ],
     ...overrides,
   }

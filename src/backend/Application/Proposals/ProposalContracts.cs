@@ -41,6 +41,15 @@ public sealed record ProposalDto(
     string? Warranty, DateOnly? ValidityStart, DateOnly? ValidityEnd,
     string? NarrativeAr, string? NarrativeEn,
     DateTimeOffset? SubmittedAt, DateTimeOffset? WithdrawnAt, string? WithdrawReason,
+    // SCR-155. The aggregate has held §4.1's "Reason; specific questions" since T-051 and no
+    // projection carried it, so a supplier could see the STATE ClarificationRequested and never the
+    // question. That is not a screen the supplier can act on: revising in answer to an unstated
+    // question is guesswork. Not a seal concern - this is the buyer's question addressed to this
+    // bidder, and both are already parties to it.
+    string? ClarificationReason, DateTimeOffset? ClarificationRequestedAt,
+    // §4.1's "New revision n+1". Shown because a supplier on their third revision needs to know
+    // that, and because Revised alone cannot say how many times.
+    int RevisionNumber,
     IReadOnlyList<ProposalItemDto> Items, IReadOnlyList<ProposalDocumentDto> Documents, IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
     // T-056: §12.5's create response shows createdAt and no DTO carried it. The aggregate has had
     // the column all along - this was a projection omission, not a missing fact.
@@ -199,4 +208,32 @@ public interface IWithdrawProposalHandler
 public interface IDeclineAwardOfferHandler
 {
     Task<ProposalResult> HandleAsync(DeclineAwardOfferCommand command, CancellationToken ct);
+}
+
+/// <summary>
+/// SCR-150: the calling supplier's own proposals, across every RFQ.
+///
+/// <para><b>The gap.</b> A supplier could reach a proposal only through the RFQ that contains it —
+/// there was no list scoped to them, so "what have I bid on" had no answer short of opening every
+/// invitation in turn.</para>
+/// </summary>
+/// <param name="RfqTitleAr">Carried so the list reads as work rather than as codes. The RFQ is
+/// already visible to this supplier (they were invited), so no new disclosure.</param>
+public sealed record MyProposalListItemDto(
+    string ProposalCode,
+    string RfqCode,
+    string RfqTitleAr,
+    string RfqTitleEn,
+    ProposalState State,
+    DateTimeOffset? SubmittedAt,
+    DateTimeOffset? SubmissionDeadline,
+    string? CurrencyCode,
+    decimal? TotalValue,
+    int ItemCount);
+
+public interface IListMyProposalsHandler
+{
+    /// <summary>Null when the caller is not a supplier — §9.2's 404 rather than an empty list, which
+    /// would assert that they have a supplier account with nothing in it.</summary>
+    Task<IReadOnlyList<MyProposalListItemDto>?> HandleAsync(CancellationToken ct);
 }

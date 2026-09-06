@@ -1,3 +1,4 @@
+using System.Reflection;
 using MotsSupplierPortal.Infrastructure.Dashboards;
 using MotsSupplierPortal.Application.Dashboards;
 using MotsSupplierPortal.Infrastructure.Notifications;
@@ -219,7 +220,10 @@ builder.Services
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = jwtSigningKeyProvider.GetValidationKey(),
-            ClockSkew = TimeSpan.FromSeconds(30),
+            // Read from configuration rather than left as a literal, because SCR-726 has to REPORT it:
+            // the skew is why a "15 minute" token is not one, and a screen restating the number would
+            // drift the first time someone changed this line. One key, two readers.
+            ClockSkew = TimeSpan.FromSeconds(builder.Configuration.GetValue("Jwt:ClockSkewSeconds", 30)),
         };
     });
 
@@ -269,6 +273,9 @@ builder.Services.AddScoped<IManageRfqAttachmentHandler, ManageRfqAttachmentHandl
 builder.Services.AddScoped<IBindEvaluationTemplateHandler, BindEvaluationTemplateHandler>();
 builder.Services.AddScoped<ISubmitRfqForReviewHandler, SubmitRfqForReviewHandler>();
 builder.Services.AddScoped<IReassignRfqHandler, ReassignRfqHandler>();
+builder.Services.AddScoped<IListBuyerProposalsHandler, ListBuyerProposalsHandler>();
+builder.Services.AddScoped<IGetBuyerProposalHandler, GetBuyerProposalHandler>();
+builder.Services.AddScoped<IListMyProposalsHandler, ListMyProposalsHandler>();
 builder.Services.AddScoped<IListRfqAssigneesHandler, ListRfqAssigneesHandler>();
 builder.Services.AddScoped<IReturnRfqForEditsHandler, ReturnRfqForEditsHandler>();
 builder.Services.AddScoped<IApproveRfqHandler, ApproveRfqHandler>();
@@ -372,6 +379,7 @@ builder.Services.AddScoped<IUploadLogoHandler, UploadLogoHandler>();
 builder.Services.AddScoped<IGetLogoDownloadUrlHandler, GetLogoDownloadUrlHandler>();
 builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHandler>();
 builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
+builder.Services.AddScoped<IGetDocumentHistoryHandler, GetDocumentHistoryHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetGovernanceOverviewHandler, MotsSupplierPortal.Infrastructure.Governance.GetGovernanceOverviewHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
 builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
@@ -421,6 +429,36 @@ builder.Services.AddScoped<ILoginHandler>(sp => sp.GetRequiredService<LoginHandl
 builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
 builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
+builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
+// SCR-902: the account screen's own read and write.
+builder.Services.AddScoped<IGetAccountHandler, GetAccountHandler>();
+builder.Services.AddScoped<IUpdateAccountHandler, UpdateAccountHandler>();
+builder.Services.AddScoped<IChooseLanguageHandler, ChooseLanguageHandler>();
+// SCR-721 / SCR-722: the jobs monitor and the outbox inspector.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetJobsMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetJobsMonitorHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.ITriggerRecurringJobHandler, MotsSupplierPortal.Infrastructure.Admin.TriggerRecurringJobHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetOutboxMonitorHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
+// SCR-716: interface string overrides.
+// T-076: the email templates' override layer, and the copy source the send path uses.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IEmailCopySource, MotsSupplierPortal.Infrastructure.Email.EmailCopySource>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListEmailTemplatesHandler, MotsSupplierPortal.Infrastructure.Email.ListEmailTemplatesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.UpsertEmailTemplateHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.DeleteEmailTemplateHandler>();
+// BRULE-016: the link surface. Written by an administrator, read by nothing yet - deliberately.
+builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.IGetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.GetDocumentTypeCategoriesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.ISetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.SetDocumentTypeCategoriesHandler>();
+// The evaluator picker's own read - see ListEvaluatorCandidatesHandler for why it exists.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Evaluations.IListEvaluatorCandidatesHandler, MotsSupplierPortal.Infrastructure.Evaluations.ListEvaluatorCandidatesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListUiStringOverridesHandler, MotsSupplierPortal.Infrastructure.Admin.ListUiStringOverridesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertUiStringOverrideHandler, MotsSupplierPortal.Infrastructure.Admin.UpsertUiStringOverrideHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteUiStringOverrideHandler, MotsSupplierPortal.Infrastructure.Admin.DeleteUiStringOverrideHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
 builder.Services.AddScoped<IListSessionsHandler, ListSessionsHandler>();
@@ -535,6 +573,21 @@ builder.Services.AddCors(options =>
             ?? ["http://localhost:5173"])
         .AllowAnyHeader()
         .AllowAnyMethod()
+        // §8.1's client half depended on a header the browser was hiding from it. AllowAnyHeader
+        // governs the REQUEST; a cross-origin response exposes only the CORS-safelisted headers to
+        // script unless it names the others here, and ETag is not safelisted. So every SPA read
+        // returned `res.headers.get('ETag') === null`, api/etags.ts stored nothing, and every guarded
+        // write went out with no If-Match and came back 428 - app-wide, not just on proposals.
+        //
+        // Reproduced in the browser rather than reasoned about: clicking Save terms on a seeded draft
+        // logged `[concurrency] PATCH /api/v1/proposals/PRP-DEMO-0001 was refused for a missing
+        // If-Match`, and the preflight for that path carried no Access-Control-Expose-Headers at all.
+        //
+        // It escaped notice because it is a CROSS-ORIGIN-only failure: served same-origin behind one
+        // host, as production is, ETag is readable and the concurrency layer works. Dev on two ports
+        // is the configuration that exposes it, and the integration suite calls the API directly with
+        // no browser in the way, so nothing under test could ever have seen it.
+        .WithExposedHeaders("ETag")
         .AllowCredentials()); // required so the refresh-token HttpOnly cookie is sent cross-port
 });
 
@@ -606,6 +659,31 @@ foreach (var warning in MotsSupplierPortal.Api.Configuration.RequiredConfigurati
 {
     app.Logger.LogWarning("Configuration warning: {Warning}", warning);
 }
+
+// Compression is OUTERMOST, above the error shaping - not below it.
+//
+// It used to sit near the endpoints, under ProblemDetailsMiddleware. That middleware swaps the
+// response body stream so it can rewrite a handler's `{ error: "..." }` into §7's problem+json, and
+// with compression INSIDE it the rewritten bytes were written past a layer that had already declared
+// `Content-Encoding: gzip`. The result: every error response the middleware reshapes arrived at a
+// browser with a gzip header and a body that is not gzip, which Chrome reports as
+// ERR_CONTENT_DECODING_FAILED and hands the SPA as an EMPTY body.
+//
+// Reproduced on `POST /auth/reset-password` (untouched by the change that found this) - 400 with the
+// full problem+json under `curl`, 400 with nothing at all under `curl --compressed`. Every browser
+// sends Accept-Encoding, so in practice the SPA could not read `code` on any reshaped error and fell
+// back to generic wording. That is the same class of failure as T-088, one layer lower.
+//
+// Ordering it first makes compression the last thing to touch the bytes, which is what the
+// middleware's own documented requirement ("before any middleware that writes the response") asks
+// for. Success responses were never affected, which is why this survived: they are not reshaped.
+app.UseResponseCompression();
+
+// EPIC-25's Correlation-Id echo. Immediately after compression and therefore outside everything else:
+// the response header has to be registered before any middleware can start the response, and the id has
+// to be adopted before the first audit row is written - which the problem-details handler below can
+// itself cause.
+app.UseMiddleware<MotsSupplierPortal.Api.Observability.CorrelationIdMiddleware>();
 
 // §7: every non-2xx (except 304) is application/problem+json. Registered BEFORE the concurrency
 // handler below and before the endpoints, so it is outermost among the error-shaping middleware and
@@ -680,14 +758,36 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// Must run before anything that writes a compressible response body, per the middleware's own
-// ordering requirement (docs: "UseResponseCompression must be called before any middleware that
-// compresses responses").
-app.UseResponseCompression();
+// §11: the OpenAPI document is the contract source - for the SPA's types, for the ERP ACL client, and for
+// the CI diff gate below. It is published in EVERY environment for that reason: a contract that only exists
+// where the code is being written cannot be compared against what is deployed.
+//
+// Outside Development it requires the admin permission, matching §11's own rule for Scalar ("non-prod;
+// behind admin auth in prod"). The document lists every route and its shapes - not a secret, but it is a map,
+// and a map is worth asking for a name first.
+if (app.Environment.IsDevelopment())
+{
+    // AllowAnonymous, and it is not a relaxation - it is a fix. NFR-SEC-004's deny-by-default
+    // FallbackPolicy (line ~237) applies to every endpoint that does not state otherwise, and MapOpenApi
+    // states nothing, so `/openapi/v1.json` has answered 401 since the day the fallback landed. The
+    // document was being generated and served to nobody: §11 calls it the contract source for the SPA's
+    // types, the ERP client and the CI diff gate, and none of those could ever have fetched it.
+    // Found by fetching it.
+    app.MapOpenApi().AllowAnonymous();
+}
+else
+{
+    // MapOpenApi returns an IEndpointConventionBuilder, which the RequirePermission extension does not
+    // accept (it takes a RouteHandlerBuilder or a RouteGroupBuilder), so the filter is added directly. Same
+    // filter, same permission - just reached without the sugar.
+    app.MapOpenApi()
+        .AddEndpointFilter(new MotsSupplierPortal.Api.Authorization.PermissionEndpointFilter(
+            MotsSupplierPortal.Domain.Identity.Permissions.AdminUsersManage))
+        .RequireAuthorization();
+}
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
 
     // §7: "500 responses never include stack traces, SQL, or internal messages". That is a NEGATIVE
     // about a path no ordinary request takes, so it can only be proven by deliberately taking it.
@@ -719,6 +819,24 @@ if (app.Environment.IsDevelopment())
     }
 
     await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager, builder.Configuration);
+
+    // The remaining six personas plus enough domain data that no screen renders an empty state for
+    // want of a row - see DevDataSeeder on why the lifecycle states are forced rather than walked.
+    //
+    // GATED, and this was a defect before it was a flag. The integration fixture runs the host as
+    // "Development" (it needs Development's relaxed settings), so this seeder ran inside the test host
+    // too - and its five suppliers turned up in the middle of ReviewQueuePaginationTests' assertions,
+    // which name the exact rows they expect on page one. Found in a full-suite run; every one of those
+    // tests would have kept passing in isolation, which is the worst shape a fixture defect can take.
+    //
+    // A configuration switch rather than an environment check: the fixture already overrides settings and
+    // nothing else has to know why. Default true, so a developer's `dotnet run` is unchanged.
+    if (builder.Configuration.GetValue("DevSeed:Enabled", defaultValue: true))
+    {
+        var seedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration, app.Environment);
+        Console.WriteLine($"[dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / {MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.Password}");
+    }
 }
 
 app.UseCors();
@@ -733,6 +851,62 @@ app.UseAuthorization();
 // a perfectly-alive process because a dependency it doesn't own (Postgres, MinIO) is briefly down,
 // or routing traffic to a replica that answered "alive" while genuinely unable to serve a request.
 // Both must answer before/without authentication or they are useless to an orchestrator.
+// SCR-908, and API-ARCHITECTURE.md's own ops row: "GET /api/v1/meta (build/version/commit)". The
+// document named it; nothing served it, and no version constant existed to serve. The values come from
+// the assembly's informational version - which MSBuild derives from the project's Version and which
+// CI stamps with the commit - so there is nothing here for a release to forget to update.
+//
+// Anonymous, deliberately. An about screen has to render for someone who cannot sign in, which is
+// exactly when knowing the build matters, and a build number is not a secret: it names software, not
+// data. Nothing environment-specific is emitted - no connection strings, no host names, no feature
+// flags - because a public endpoint that grows those becomes reconnaissance.
+app.MapGet("/api/v1/meta", () =>
+{
+    var assembly = typeof(Program).Assembly;
+    var informational = assembly
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+    // The informational version is "1.2.3+<commit sha>" when a build stamps the source revision, and
+    // just "1.2.3" when it does not. Split rather than parsed: a local `dotnet run` has no commit in it,
+    // and reporting the whole string as a version number would be wrong in the one case a developer
+    // reads this most.
+    var parts = informational?.Split('+', 2) ?? [];
+
+    // SCR-044's driver. A planned outage is operational configuration, not a tender rule: an operator
+    // sets Maintenance:MessageEn/MessageAr and, optionally, a window, and the SPA shows the notice.
+    // Absent config means null, which means no banner - so the default state of a fresh deployment is
+    // "nothing to say" rather than a placeholder nobody wrote.
+    //
+    // It rides on /meta rather than getting an endpoint of its own because the SPA needs it in exactly
+    // the same circumstances: anonymously, on any page, including the login screen an outage would
+    // otherwise strand people on.
+    var maintenance = app.Configuration.GetSection("Maintenance");
+    var messageEn = maintenance["MessageEn"];
+    var messageAr = maintenance["MessageAr"];
+
+    return Results.Ok(new
+    {
+        version = parts.Length > 0 ? parts[0] : assembly.GetName().Version?.ToString(),
+        // Null, not "unknown": a caller can tell "this build carries no commit" from a commit whose
+        // value happens to be that word.
+        commit = parts.Length > 1 ? parts[1] : null,
+        maintenance = string.IsNullOrWhiteSpace(messageEn) && string.IsNullOrWhiteSpace(messageAr)
+            ? null
+            : new
+            {
+                messageAr,
+                messageEn,
+                // Both optional and both echoed verbatim. Nothing here decides whether the window has
+                // started: the operator who set the message is the one who knows, and a server that
+                // hid its own notice because a clock disagreed would be worse than one that shows it.
+                from = maintenance["From"],
+                to = maintenance["To"],
+            },
+    });
+})
+.AllowAnonymous()
+.WithName("Meta");
+
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     // Predicate that matches nothing means zero checks run - Healthy confirms only that the
@@ -812,6 +986,10 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithTags("Reference");
 
 app.MapAdminOverviewEndpoints();
+app.MapOperationsEndpoints();
+app.MapUiStringEndpoints();
+app.MapSearchEndpoints();
+app.MapEmailTemplateEndpoints();
 app.MapSystemSettingEndpoints();
 app.MapNotificationTemplateEndpoints();
 app.MapGovernanceEndpoints();

@@ -91,3 +91,15 @@ export async function rejectDocument(supplierCode: string, documentId: string, r
   })
   return parseOrThrow(res)
 }
+
+/**
+ * SCR-132: every version of one document type, newest first.
+ *
+ * <p>Keyed by TYPE code, not by a document id: the history is the type's story — "what happened to
+ * my commercial registration" — rather than one file's. An empty array is a real answer (nothing
+ * uploaded yet) and is not the same as a 404 (no such type).</p>
+ */
+export async function getDocumentHistory(supplierCode: string, documentTypeCode: string): Promise<SupplierDocument[]> {
+  return parseOrThrow(await apiFetch(
+    `/api/v1/suppliers/${supplierCode}/documents/types/${encodeURIComponent(documentTypeCode)}/history`))
+}

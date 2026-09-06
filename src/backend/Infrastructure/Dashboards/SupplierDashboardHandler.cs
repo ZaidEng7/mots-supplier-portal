@@ -111,6 +111,33 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             .ToListAsync(ct);
 
         var missing = await DocumentCompletenessEvaluator.GetMissingRequiredDocumentTypeCodesAsync(db, supplierId, ct);
+
+        // The next required document's NAME as well as its code. The caption on this panel is the one line
+        // telling a supplier what to do next, and it was showing them "commercial_registration" - a database
+        // value. Looked up here rather than mapped in the SPA, because the names live in the reference table
+        // and a second copy in the frontend would drift the first time one is corrected on SCR-710.
+        var nextRequiredCode = missing.FirstOrDefault();
+        var nextRequired = nextRequiredCode is null
+            ? null
+            : await db.Set<Domain.ReferenceData.DocumentType>().AsNoTracking()
+                .Where(t => t.Code == nextRequiredCode)
+                .Select(t => new { t.Code, t.NameAr, t.NameEn })
+                .FirstOrDefaultAsync(ct);
+        // BRULE-016: this filter is FLAT on purpose, and the link table now exists beside it.
+        //
+        // The rule conditions required documents on the supplier's categories. `document_type_category` can
+        // record that (batch 11), and nothing derives from it yet, because two questions come first and
+        // neither is a query decision:
+        //
+        //  - An empty link set read as "required for nothing" would silently drop every required document
+        //    from the submit gate, the resubmit gate, the reviewer's approval gate and the dashboard's
+        //    completeness figure. A portal that lets an incomplete application through is worse than one
+        //    that asks for too much.
+        //  - Suppliers already approved under this flat rule were approved against a list that may not be
+        //    theirs under a conditioned one, and whether the tightening reaches back is a decision about
+        //    live suppliers.
+        //
+        // See COMPLETION-INVENTORY.md §4.2, where both are logged.
         var requiredTotal = await db.DocumentTypes.AsNoTracking().CountAsync(t => t.IsRequired && t.IsActive, ct);
         var supplied = requiredTotal - missing.Count;
 
@@ -142,7 +169,9 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                     missingItems: supplier.GetMissingProfileFields().Count + missing.Count,
                     totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredTotal),
                 requiredTotal, supplied,
-                NextRequiredDocumentTypeCode: missing.FirstOrDefault()),
+                NextRequiredDocumentTypeCode: nextRequired?.Code,
+                NextRequiredDocumentNameAr: nextRequired?.NameAr,
+                NextRequiredDocumentNameEn: nextRequired?.NameEn),
             // §1's ERP-degraded banner, from this supplier's own award only - a failure on someone
             // else's award is not this supplier's business and would leak that it exists.
             ErpDegraded: await db.Awards.AsNoTracking().AnyAsync(

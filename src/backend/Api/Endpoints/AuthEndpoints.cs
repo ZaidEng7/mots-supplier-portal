@@ -1,5 +1,6 @@
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
+using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 
@@ -25,6 +26,52 @@ public sealed class ForgotPasswordRequestValidator : AbstractValidator<ForgotPas
     public ForgotPasswordRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
+    }
+}
+
+/// <summary>SCR-903. Both passwords in the body; the identity comes from the session, never the
+/// payload - a user id in a change-password request would be an account-takeover primitive.</summary>
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
+{
+    public ChangePasswordRequestValidator()
+    {
+        RuleFor(x => x.CurrentPassword).NotEmpty();
+        // Length only, matching the Identity policy configured in Program.cs. The real strength
+        // check is Identity's own, reported back as weak_password with its reasons.
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(12);
+    }
+}
+
+/// <summary>SCR-902. Name and interface language, both the caller's own. No id and no email: the
+/// identity comes from the session, and email is not editable - see AccountDto's own note.</summary>
+public sealed record UpdateAccountRequest(string FullName, string Language);
+
+/// <summary>SCR-010. One field, because a first-run chooser asks one question.</summary>
+public sealed record ChooseLanguageRequest(string Language);
+
+public sealed class ChooseLanguageRequestValidator : AbstractValidator<ChooseLanguageRequest>
+{
+    public ChooseLanguageRequestValidator()
+    {
+        // The same two values UpdateAccountRequestValidator accepts and i18n/config.ts's supportedLngs
+        // defines. Duplicated as a rule, not as a list: see UpdateAccountRequestValidator.Supported.
+        RuleFor(x => x.Language).Must(l => l is "ar" or "en").WithMessage("Language must be one of: ar, en.");
+    }
+}
+
+public sealed class UpdateAccountRequestValidator : AbstractValidator<UpdateAccountRequest>
+{
+    /// <summary>The two languages the product ships and the two values i18n/config.ts defines. Not a
+    /// policy anyone else owns - an interface language outside this set has no strings to render.</summary>
+    private static readonly string[] Supported = ["ar", "en"];
+
+    public UpdateAccountRequestValidator()
+    {
+        RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Language).Must(Supported.Contains!)
+            .WithMessage("Language must be one of: ar, en.");
     }
 }
 
@@ -211,6 +258,95 @@ public static class AuthEndpoints
         .WithName("ResetPassword")
         .RequireRateLimiting("auth-strict")
         .AllowAnonymous();
+
+        // SCR-903. The gap this closes: a signed-in user had no way to change their own password -
+        // the only path was signing out and using the forgotten-password email, which is a recovery
+        // flow being used as a routine one.
+        group.MapPost("/change-password", async (
+            ChangePasswordRequest request,
+            IValidator<ChangePasswordRequest> validator,
+            IChangePasswordHandler handler,
+            IScopeContext scope,
+            HttpContext httpContext,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+
+            httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
+
+            var result = await handler.HandleAsync(
+                new ChangePasswordCommand(userId, request.CurrentPassword, request.NewPassword, currentToken), ct);
+
+            return result switch
+            {
+                ChangePasswordResult.Success => Results.Ok(new { changed = true }),
+                // 422, not 401: the caller IS authenticated. A 401 here would tell the SPA the
+                // session had expired and bounce them to the login screen mid-form.
+                ChangePasswordResult.IncorrectCurrentPassword =>
+                    Results.UnprocessableEntity(new { error = "incorrect_current_password" }),
+                ChangePasswordResult.SameAsCurrent =>
+                    Results.UnprocessableEntity(new { error = "password_unchanged" }),
+                ChangePasswordResult.WeakPassword w => Results.BadRequest(new { error = "weak_password", details = w.Errors }),
+                ChangePasswordResult.UserNotFound => Results.Unauthorized(),
+                _ => Results.Problem(),
+            };
+        })
+        .RequireAuthorization()
+        // Same limiter as the other credential paths: this one takes a password guess per call.
+        .RequireRateLimiting("auth-strict")
+        .WithName("ChangePassword");
+
+        // SCR-902. The gap: name and interface language were fixed at registration with no screen to
+        // change either, so a user whose name was mistyped by whoever invited them was stuck with it.
+        group.MapGet("/me", async (IGetAccountHandler handler, IScopeContext scope, CancellationToken ct) =>
+        {
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+            var account = await handler.HandleAsync(userId, ct);
+            return account is null ? Results.Unauthorized() : Results.Ok(account);
+        })
+        .RequireAuthorization()
+        .WithName("GetAccount");
+
+        group.MapPut("/me", async (
+            UpdateAccountRequest request,
+            IValidator<UpdateAccountRequest> validator,
+            IUpdateAccountHandler handler,
+            IScopeContext scope,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+
+            // No permission on either route, deliberately. Every authenticated persona owns their own
+            // name and their own interface language, and gating them would put an account screen
+            // behind a grant that would then have to be given to all eight roles - which is the same
+            // as no gate, spelled out in eight places that can drift apart.
+            var updated = await handler.HandleAsync(new UpdateAccountCommand(userId, request.FullName, request.Language), ct);
+            return updated is null ? Results.Unauthorized() : Results.Ok(updated);
+        })
+        .RequireAuthorization()
+        .WithName("UpdateAccount");
+
+        // SCR-010: the first-login language choice, recorded so the chooser is shown once.
+        group.MapPost("/me/language", async (
+            ChooseLanguageRequest request,
+            IValidator<ChooseLanguageRequest> validator,
+            IChooseLanguageHandler handler,
+            IScopeContext scope,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+
+            var updated = await handler.HandleAsync(new ChooseLanguageCommand(userId, request.Language), ct);
+            return updated is null ? Results.Unauthorized() : Results.Ok(updated);
+        })
+        .RequireAuthorization()
+        .WithName("ChooseLanguage");
 
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (

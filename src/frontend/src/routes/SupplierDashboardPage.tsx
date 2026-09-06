@@ -215,8 +215,16 @@ export function SupplierDashboardPage() {
               })}
             </p>
             <p style={{ color: 'var(--color-text-secondary)' }}>
+              {/* The NAME, falling back to the code only if the reference row has somehow gone. A supplier
+                  was being shown "commercial_registration" here - a database value on the one line that tells
+                  them what to do next, which made it the least useful place in the product for it. */}
               {data.profileHealth.nextRequiredDocumentTypeCode
-                ? t('supplierDashboard.nextDocument', { code: data.profileHealth.nextRequiredDocumentTypeCode })
+                ? t('supplierDashboard.nextDocument', {
+                    code: (isArabic
+                      ? data.profileHealth.nextRequiredDocumentNameAr
+                      : data.profileHealth.nextRequiredDocumentNameEn)
+                      ?? data.profileHealth.nextRequiredDocumentTypeCode,
+                  })
                 : t('supplierDashboard.allDocuments')}
             </p>
             <Link to="/onboarding">{t('supplierDashboard.profileHealth')}</Link>

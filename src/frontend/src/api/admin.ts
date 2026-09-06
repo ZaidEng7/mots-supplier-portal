@@ -31,3 +31,133 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   if (!response.ok) throw new Error('admin_overview_unavailable')
   return (await response.json()) as AdminOverview
 }
+
+/** SCR-721. One recurring job as an operator needs to see it. */
+export interface RecurringJobRow {
+  id: string
+  /** False when this application expects the job and Hangfire does not hold it — the operational fault
+   *  the overview tile counts, carried per row so it is obvious which one. */
+  registered: boolean
+  cron: string | null
+  lastExecution: string | null
+  nextExecution: string | null
+  /** Hangfire's own vocabulary ("Succeeded", "Failed", ...), not remapped: a mapping of ours would hide
+   *  a state nobody anticipated. Null when the job has never run. */
+  lastState: string | null
+}
+
+export interface JobsMonitor {
+  recurringEnabled: boolean
+  jobs: RecurringJobRow[]
+}
+
+export async function getJobsMonitor(): Promise<JobsMonitor> {
+  const response = await apiFetch('/api/v1/admin/jobs')
+  if (!response.ok) throw new Error('jobs_monitor_unavailable')
+  return (await response.json()) as JobsMonitor
+}
+
+/** SCR-721's one action. 404 means Hangfire does not hold the job — not that the run failed. */
+export async function triggerRecurringJob(jobId: string): Promise<void> {
+  const response = await apiFetch(`/api/v1/admin/jobs/${encodeURIComponent(jobId)}/trigger`, { method: 'POST' })
+  if (!response.ok) throw new Error(response.status === 404 ? 'job_not_registered' : 'job_trigger_failed')
+}
+
+/** SCR-722. */
+export interface OutboxMessageRow {
+  id: string
+  type: string
+  syncStatus: string
+  createdAt: string
+  processedAt: string | null
+  payloadJson: string
+}
+
+export interface OutboxMonitor {
+  /** Every status including the zeroes: "Failed: 0" and a count that failed to load must not look alike. */
+  counts: Record<string, number>
+  messages: OutboxMessageRow[]
+}
+
+export async function getOutboxMonitor(status?: string): Promise<OutboxMonitor> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const response = await apiFetch(`/api/v1/admin/outbox${query}`)
+  if (!response.ok) throw new Error('outbox_monitor_unavailable')
+  return (await response.json()) as OutboxMonitor
+}
+
+/** Only a Failed message replays. A 404 here means there was nothing to replay — see the endpoint. */
+export async function replayOutboxMessage(id: string): Promise<void> {
+  const response = await apiFetch(`/api/v1/admin/outbox/${id}/replay`, { method: 'POST' })
+  if (!response.ok) throw new Error('outbox_replay_failed')
+}
+
+/** SCR-723. Keyed by RFQ code because an Award has no code of its own — and because that is what the
+ *  existing retry endpoint takes. */
+export interface ErpSyncRow {
+  rfqReferenceCode: string
+  erpSyncStatus: string
+  erpRetryCount: number
+  erpSyncedAt: string | null
+  /** Null until the ERP acknowledges. A Synced row with no reference would mean the adapter reported
+   *  success without returning anything, which is worth being able to see. */
+  externalPurchaseOrderRef: string | null
+}
+
+export interface ErpSyncMonitor {
+  /** BRULE-011: false when the logging stand-in is registered rather than a real ERP transport. Every
+   *  row below is then the stub talking to itself. */
+  transportConfigured: boolean
+  counts: Record<string, number>
+  awards: ErpSyncRow[]
+}
+
+export async function getErpSyncMonitor(status?: string): Promise<ErpSyncMonitor> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const response = await apiFetch(`/api/v1/admin/erp-sync${query}`)
+  if (!response.ok) throw new Error('erp_sync_monitor_unavailable')
+  return (await response.json()) as ErpSyncMonitor
+}
+
+/** SCR-726. Read-only by design — see the endpoint's own comment. Policy numbers only; no secrets. */
+export interface SecurityPosture {
+  password: {
+    minimumLength: number
+    requireDigit: boolean
+    requireUppercase: boolean
+    requireLowercase: boolean
+    /** False by design: SECURITY-ARCHITECTURE §1.4 follows NIST 800-63B — length over composition. */
+    requireNonAlphanumeric: boolean
+  }
+  lockout: { maxFailedAttempts: number; lockoutMinutes: number }
+  session: { accessTokenMinutes: number; refreshTokenDays: number; clockSkewSeconds: number }
+  mfaRequiredRoles: string[]
+  rateLimits: { policy: string; permitLimit: number; windowSeconds: number }[]
+  registrationMode: string
+}
+
+export async function getSecurityPosture(): Promise<SecurityPosture> {
+  const response = await apiFetch('/api/v1/admin/security')
+  if (!response.ok) throw new Error('security_posture_unavailable')
+  return (await response.json()) as SecurityPosture
+}
+
+/** SCR-725. Read-only by design — the upload cap and the allow-list are a security control. */
+export interface StorageSettings {
+  maxUploadBytes: number
+  /** Extension → the content type its magic bytes must match. The pairing is the rule. */
+  allowedTypes: Record<string, string>
+  bucket: string
+  /** Probed when the request was served, not a cached health snapshot. */
+  objectStorageReachable: boolean
+  virusScannerReachable: boolean
+  documentCount: number
+  /** A backlog that never drains is the failure this screen exists to show. */
+  pendingScanCount: number
+}
+
+export async function getStorageSettings(): Promise<StorageSettings> {
+  const response = await apiFetch('/api/v1/admin/storage')
+  if (!response.ok) throw new Error('storage_settings_unavailable')
+  return (await response.json()) as StorageSettings
+}

@@ -11,7 +11,7 @@ vi.mock('@tanstack/react-router', async () => {
 const { OnboardingPage } = await import('./OnboardingPage')
 
 const supplier = {
-  referenceCode: 'SUP-2026-000002',
+  supplierCode: 'SUP-2026-000002',
   displayNameAr: 'شركة',
   displayNameEn: 'Upload Demo Co',
   description: null, website: null, logoStorageKey: null, supplierGroup: null,

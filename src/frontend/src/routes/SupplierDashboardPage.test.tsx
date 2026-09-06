@@ -38,6 +38,7 @@ function dashboard(overrides: Record<string, unknown> = {}) {
     profileHealth: {
       completeness: 0.5, requiredDocumentsTotal: 4, requiredDocumentsSupplied: 2,
       nextRequiredDocumentTypeCode: 'commercial_registration',
+      nextRequiredDocumentNameAr: 'السجل التجاري', nextRequiredDocumentNameEn: 'Commercial Registration',
     },
     erpDegraded: false,
     ...overrides,
@@ -126,7 +127,9 @@ describe('SupplierDashboardPage (SCR-120)', () => {
     // The three that must still be standing.
     expect(screen.getByText('Open invitations')).toBeInTheDocument()
     expect(screen.getAllByText('Catering RFQ')).not.toHaveLength(0)
-    expect(screen.getByText('Next required document: commercial_registration')).toBeInTheDocument()
+    expect(screen.getByText(// The NAME now, not the code: that caption is the one line telling a supplier what to do next, and it
+      // was showing them a database value. This assertion used to encode the defect.
+      'Next required document: Commercial Registration')).toBeInTheDocument()
   })
 
   it('erp-degraded: a subtle banner, and the rest of the page unaffected', async () => {
@@ -185,5 +188,50 @@ describe('SupplierDashboardPage (SCR-120)', () => {
 
     expect(await screen.findByText('٣')).toBeInTheDocument()
     expect(screen.getByText('اكتمال الوثائق المطلوبة: ٢ من ٤')).toBeInTheDocument()
+  })
+
+  it('names the next required document instead of showing its code', async () => {
+    // Found by reading this dashboard as the supplier: the caption said "Next required document:
+    // commercial_registration". A database value, on the one line that tells them what to do next.
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': dashboard({
+        profileHealth: {
+          completeness: 0.5,
+          requiredDocumentsTotal: 2,
+          requiredDocumentsSupplied: 0,
+          nextRequiredDocumentTypeCode: 'commercial_registration',
+          nextRequiredDocumentNameAr: 'السجل التجاري',
+          nextRequiredDocumentNameEn: 'Commercial Registration',
+        },
+      }),
+      '/api/v1/notifications/unread-count': { count: 0 },
+    })
+
+    renderPage(<SupplierDashboardPage />)
+
+    expect(await screen.findByText(/Commercial Registration/)).toBeInTheDocument()
+    expect(screen.queryByText(/commercial_registration/)).not.toBeInTheDocument()
+  })
+
+  it('falls back to the code when the reference row is gone', async () => {
+    // The control, and a real case: a document type could be renamed or removed while a supplier's
+    // requirement still points at it. A blank caption would be worse than the code.
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': dashboard({
+        profileHealth: {
+          completeness: 0.5,
+          requiredDocumentsTotal: 2,
+          requiredDocumentsSupplied: 0,
+          nextRequiredDocumentTypeCode: 'orphan_type',
+          nextRequiredDocumentNameAr: null,
+          nextRequiredDocumentNameEn: null,
+        },
+      }),
+      '/api/v1/notifications/unread-count': { count: 0 },
+    })
+
+    renderPage(<SupplierDashboardPage />)
+
+    expect(await screen.findByText(/orphan_type/)).toBeInTheDocument()
   })
 })

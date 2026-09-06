@@ -12,6 +12,7 @@ vi.mock('@tanstack/react-router', async () => {
 })
 
 const { RfqDetailPage } = await import('./RfqDetailPage')
+const { useAuthStore } = await import('../../lib/authStore')
 
 function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
   return {
@@ -252,17 +253,31 @@ describe('RfqDetailPage', () => {
   })
 
   it('UnderEvaluation: shows criteria with technical/financial envelope badges and the evaluator roster', async () => {
+    // The candidates read is gated on evaluation.assign - the endpoint is, so the query is, so an officer
+    // opening this page does not fetch a list they cannot act on. A test that wants the picker populated has to
+    // say who is signed in.
+    useAuthStore.setState({
+      accessToken: 'token',
+      status: 'authenticated',
+      claims: { userId: 'mgr-1', email: 'manager@example.test', permissions: ['evaluation.assign'] },
+    })
+
     const evaluation: Evaluation = {
       id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'Assigned',
       criteria: [
         { id: 'crit-tech', nameAr: 'جودة', nameEn: 'Quality', dimension: 'Technical', weight: 60, maxScore: 100, threshold: 60, scoringType: 'Numeric', isFinancial: false },
         { id: 'crit-fin', nameAr: 'سعر', nameEn: 'Price', dimension: 'Commercial', weight: 40, maxScore: 100, threshold: null, scoringType: 'Numeric', isFinancial: true },
       ],
-      assignments: [{ evaluatorUserId: 'eval-user-1', assignedAt: '2026-08-01T00:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null }],
+      // evaluatorName: the table rendered the GUID before batch 11, so the fixture now carries what the
+      // screen actually shows.
+      assignments: [{ evaluatorUserId: 'eval-user-1', evaluatorName: 'Rami Haddad', assignedAt: '2026-08-01T00:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null }],
       results: [],
     }
     restore = mockFetch({
       ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation/candidates': [
+        { userId: 'eval-user-2', fullName: 'Nadia Karam', email: 'nadia@example.test' },
+      ],
       '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluation,
       '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('UnderEvaluation'),
     })
@@ -273,9 +288,16 @@ describe('RfqDetailPage', () => {
     expect(screen.getByText('Price')).toBeInTheDocument()
     expect(screen.getAllByText('Technical').length).toBeGreaterThan(0)
     expect(screen.getByText('Financial')).toBeInTheDocument()
-    expect(screen.getByText('eval-user-1')).toBeInTheDocument()
+    // The NAME, not the GUID. This assertion used to look for the user id, which is exactly what the roster
+    // was rendering: a manager deciding whether to recuse an evaluator was reading a UUID, and the recuse
+    // button beside it named nobody.
+    expect(screen.getByText('Rami Haddad')).toBeInTheDocument()
 
-    await userEvent.type(screen.getByLabelText('Evaluator user id'), 'eval-user-2')
+    // A PICKER now, not a box for a raw GUID. This test used to type "eval-user-2" into a text field, which
+    // is exactly what a manager had to do - and they had no way to learn that id, because the only staff list
+    // in the product needs admin.users.manage. Selecting a candidate is what the screen offers.
+    await userEvent.click(screen.getByRole('combobox', { name: 'Choose an evaluator' }))
+    await userEvent.click(await screen.findByRole('option', { name: /Nadia Karam/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Assign' }))
 
     expect(await screen.findByText('Evaluator assigned')).toBeInTheDocument()
@@ -555,5 +577,182 @@ describe('RfqDetailPage', () => {
       const bodies = calls.filter((c) => c.url.endsWith('/submit-review')).map((c) => JSON.parse(c.body))
       expect(bodies.some((b) => b.assignedApproverUserId === 'u-manager-1')).toBe(true)
     })
+  })
+})
+
+/**
+ * The evaluation panel's batch-11 changes, each of which was found by walking a tender in a browser
+ * and none of which any existing test could have caught: two cells rendered GUIDs on the screen where
+ * a tender is decided, the assign control was a free-text GUID box, and the panel was hidden for the
+ * four states after UnderEvaluation.
+ */
+describe('RfqDetailPage evaluation panel (T-082)', () => {
+  let restore: () => void
+
+  afterEach(() => {
+    restore?.()
+    useAuthStore.setState({ accessToken: null, claims: null, status: 'idle' })
+  })
+
+  function signInWith(permissions: string[]) {
+    useAuthStore.setState({
+      accessToken: 'test',
+      status: 'authenticated',
+      claims: { userId: 'u-manager-1', email: 'manager@example.test', organizationId: 'org-1', permissions },
+    })
+  }
+
+  function evaluation(overrides: Partial<Evaluation> = {}): Evaluation {
+    return {
+      id: 'ev-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'InProgress',
+      criteria: [], assignments: [], results: [],
+      ...overrides,
+    }
+  }
+
+  const CANDIDATES = '/api/v1/rfqs/RFQ-2026-000001/evaluation/candidates'
+  const EVALUATION = '/api/v1/rfqs/RFQ-2026-000001/evaluation'
+
+  function routes(state: RfqState, ev: Evaluation, candidates: unknown[] = []) {
+    return {
+      ...REFERENCE_ROUTES,
+      [CANDIDATES]: candidates,
+      [EVALUATION]: ev,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture(state),
+    }
+  }
+
+  it('names the evaluator rather than printing their GUID', async () => {
+    signInWith(['evaluation.assign'])
+    restore = mockFetch(routes('UnderEvaluation', evaluation({
+      assignments: [{
+        evaluatorUserId: '01a07461-fa48-7721-abe2-018baaa84d11', evaluatorName: 'Nadia Suleiman',
+        assignedAt: '2026-09-01T09:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null,
+      }],
+    })))
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('Nadia Suleiman')).toBeInTheDocument()
+    expect(screen.queryByText('01a07461-fa48-7721-abe2-018baaa84d11')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the id when the evaluator has no name', async () => {
+    // The control, and a real case: an assignment whose user row has gone should stay visible rather
+    // than leaving the recuse button beside an empty cell.
+    signInWith(['evaluation.assign'])
+    restore = mockFetch(routes('UnderEvaluation', evaluation({
+      assignments: [{
+        evaluatorUserId: 'u-gone', evaluatorName: null,
+        assignedAt: '2026-09-01T09:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null,
+      }],
+    })))
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('u-gone')).toBeInTheDocument()
+  })
+
+  it('offers evaluators as a picker of names, not a box to type a GUID into', async () => {
+    // This was an Input asking a manager to type 01a07461-fa48-7721-abe2-018baaa84d11, and the only
+    // staff list in the product needs admin.users.manage, which a procurement_manager does not hold.
+    signInWith(['evaluation.assign'])
+    restore = mockFetch(routes('UnderEvaluation', evaluation(), [
+      { userId: 'u-eval-1', fullName: 'Nadia Suleiman', email: 'nadia@example.test' },
+    ]))
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('combobox', { name: /evaluator|المقيّم/i }))
+    expect(await screen.findByRole('option', { name: /Nadia Suleiman/ })).toBeInTheDocument()
+  })
+
+  it('leaves an already-assigned evaluator out of the picker', async () => {
+    // Assigning the same person twice is a request the aggregate refuses, so it should not be offered.
+    signInWith(['evaluation.assign'])
+    restore = mockFetch(routes('UnderEvaluation', evaluation({
+      assignments: [{
+        evaluatorUserId: 'u-eval-1', evaluatorName: 'Nadia Suleiman',
+        assignedAt: '2026-09-01T09:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null,
+      }],
+    }), [
+      { userId: 'u-eval-1', fullName: 'Nadia Suleiman', email: 'nadia@example.test' },
+      { userId: 'u-eval-2', fullName: 'Omar Khalil', email: 'omar@example.test' },
+    ]))
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('combobox', { name: /evaluator|المقيّم/i }))
+    expect(await screen.findByRole('option', { name: /Omar Khalil/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Nadia Suleiman/ })).not.toBeInTheDocument()
+  })
+
+  it('does not ask for candidates without evaluation.assign', async () => {
+    // Guard both ways. The candidates endpoint requires the permission, so a persona without it would
+    // get a 403 on every view of an RFQ - an error in the log for a control they cannot use.
+    signInWith([])
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(routes('UnderEvaluation', evaluation()), recorded)
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByText(/Sample RFQ/)
+    await waitFor(() => expect(recorded.length).toBeGreaterThan(2))
+    expect(recorded.some((r) => r.url.includes('/evaluation/candidates'))).toBe(false)
+  })
+
+  it('shows the proposal reference code in the results table, not the internal id', async () => {
+    signInWith(['evaluation.assign'])
+    restore = mockFetch(routes('Recommendation', evaluation({
+      state: 'Consolidated',
+      results: [{
+        proposalId: '9f1c2d3e-0000-4000-8000-000000000001', proposalReferenceCode: 'PRP-2026-000004',
+        technicallyQualified: true, technicalWeightedScore: 82, financialWeightedScore: 15,
+        weightedTotal: 97, rank: 1,
+      }],
+    })))
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('PRP-2026-000004')).toBeInTheDocument()
+    expect(screen.queryByText('9f1c2d3e-0000-4000-8000-000000000001')).not.toBeInTheDocument()
+  })
+
+  it.each(['SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting', 'Recommendation', 'AwardApproval', 'Awarded'])(
+    'shows the evaluation panel in %s', async (state) => {
+      // The list used to stop at UnderEvaluation, which hid the panel for the whole second half of a
+      // tender: a manager at Shortlisting could not see who had scored what.
+      signInWith(['evaluation.assign'])
+      restore = mockFetch(routes(state as RfqState, evaluation(), [
+        { userId: 'u-eval-1', fullName: 'Nadia Suleiman', email: 'nadia@example.test' },
+      ]))
+
+      renderPage(<RfqDetailPage />)
+
+      expect(await screen.findByRole('combobox', { name: /evaluator|المقيّم/i })).toBeInTheDocument()
+    },
+  )
+
+  it('shows no evaluation panel while the RFQ is still open for bids', async () => {
+    // The control for the seven above: there is nothing to evaluate before submissions close.
+    signInWith(['evaluation.assign'])
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByText(/Sample RFQ/)
+    expect(screen.queryByRole('combobox', { name: /evaluator|المقيّم/i })).not.toBeInTheDocument()
+  })
+
+  it('links to the received proposals from SubmissionClosed onward', async () => {
+    // T-082: the bids are readable before the comparison matrix exists and without an opened
+    // evaluation, so the link cannot be gated on either.
+    signInWith(['evaluation.assign'])
+    restore = mockFetch(routes('SubmissionClosed', evaluation()))
+
+    renderPage(<RfqDetailPage />)
+
+    const link = (await screen.findByRole('button', { name: /received proposals|العروض الواردة/i })).closest('a')
+    expect(link).toHaveAttribute('href', '/back-office/rfqs/RFQ-2026-000001/proposals')
   })
 })

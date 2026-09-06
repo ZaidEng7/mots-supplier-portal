@@ -37,8 +37,26 @@ public sealed class EmailJobs(
     IEmailSender emailSender,
     AppDbContext db,
     ISecurityTokenService securityTokenService,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    // T-076: the administrator's wording when there is one, the shipped copy otherwise. Injected rather
+    // than reached for statically, because it reads a table.
+    MotsSupplierPortal.Application.Admin.IEmailCopySource copySource)
 {
+    /// <summary>
+    /// T-076. Every send in this class goes through here, so an override is never inert.
+    ///
+    /// <para>The shipped copy is passed as a lambda rather than looked up by key: this method has the typed
+    /// arguments in hand, so it cannot render the fallback with the wrong ones, and the fallback is only
+    /// evaluated when no override exists - the normal case.</para>
+    /// </summary>
+    private Task<(string Subject, string Body)> ComposeAsync(
+        string key,
+        string? locale,
+        Dictionary<string, string> tokens,
+        Func<(string Subject, string Body)> shipped,
+        CancellationToken ct) =>
+        copySource.ComposeAsync(key, locale, tokens, shipped, ct);
+
     private async Task<(string Email, string? Language)?> RecipientAsync(Guid userId, CancellationToken ct)
     {
         var recipient = await db.Users
@@ -56,12 +74,18 @@ public sealed class EmailJobs(
     /// human to dismiss. The send is best-effort by construction; the durable record of what
     /// happened is the audit row the handler already wrote.
     /// </summary>
-    private async Task SendToUserAsync(Guid userId, Func<string?, (string Subject, string Body)> compose, CancellationToken ct)
+    private async Task SendToUserAsync(
+        Guid userId,
+        string templateKey,
+        Func<string?, (string Subject, string Body)> compose,
+        CancellationToken ct,
+        Dictionary<string, string>? tokens = null)
     {
         var recipient = await RecipientAsync(userId, ct);
         if (recipient is null) return;
 
-        var (subject, body) = compose(recipient.Value.Language);
+        var (subject, body) = await ComposeAsync(
+            templateKey, recipient.Value.Language, tokens ?? [], () => compose(recipient.Value.Language), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -83,7 +107,8 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.EmailVerification, TimeSpan.FromHours(24), ct);
         var verifyUrl = $"{PublicUrl}/verify-email?token={Uri.EscapeDataString(rawToken)}";
 
-        var (subject, body) = EmailTemplates.Verification(recipient.Value.Language, verifyUrl);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.Verification, recipient.Value.Language,
+            new() { ["verifyUrl"] = verifyUrl }, () => EmailTemplates.Verification(recipient.Value.Language, verifyUrl), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -96,7 +121,8 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.PasswordReset, TimeSpan.FromMinutes(30), ct);
         var resetUrl = $"{PublicUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}";
 
-        var (subject, body) = EmailTemplates.PasswordReset(recipient.Value.Language, resetUrl);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.PasswordReset, recipient.Value.Language,
+            new() { ["resetUrl"] = resetUrl }, () => EmailTemplates.PasswordReset(recipient.Value.Language, resetUrl), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -109,7 +135,8 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.SupplierUserInvite, TimeSpan.FromDays(7), ct);
         var acceptUrl = $"{PublicUrl}/accept-invite?token={Uri.EscapeDataString(rawToken)}";
 
-        var (subject, body) = EmailTemplates.SupplierUserInvite(recipient.Value.Language, acceptUrl);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.SupplierUserInvite, recipient.Value.Language,
+            new() { ["acceptUrl"] = acceptUrl }, () => EmailTemplates.SupplierUserInvite(recipient.Value.Language, acceptUrl), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -125,7 +152,8 @@ public sealed class EmailJobs(
             userId, SecurityTokenPurpose.StaffInvite, TimeSpan.FromDays(7), ct);
         var acceptUrl = $"{PublicUrl}/accept-staff-invite?token={Uri.EscapeDataString(rawToken)}";
 
-        var (subject, body) = EmailTemplates.StaffInvite(recipient.Value.Language, acceptUrl);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.StaffInvite, recipient.Value.Language,
+            new() { ["acceptUrl"] = acceptUrl }, () => EmailTemplates.StaffInvite(recipient.Value.Language, acceptUrl), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -137,12 +165,14 @@ public sealed class EmailJobs(
     /// success (see RegistrationEndpoints.cs) - this email is the ONLY signal that goes anywhere,
     /// and it goes only to the account's own inbox, never back to the submitter.</summary>
     public Task SendAlreadyRegisteredNoticeEmailAsync(Guid userId, CancellationToken ct) =>
-        SendToUserAsync(userId, locale => EmailTemplates.AlreadyRegisteredNotice(locale, PublicUrl), ct);
+        SendToUserAsync(userId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.AlreadyRegisteredNotice,
+            locale => EmailTemplates.AlreadyRegisteredNotice(locale, PublicUrl), ct,
+            new() { ["publicUrl"] = PublicUrl });
 
     // ---- application lifecycle ------------------------------------------------------------
 
     public Task SendApplicationApprovedEmailAsync(Guid userId, CancellationToken ct) =>
-        SendToUserAsync(userId, EmailTemplates.ApplicationApproved, ct);
+        SendToUserAsync(userId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ApplicationApproved, EmailTemplates.ApplicationApproved, ct);
 
     /// <summary>
     /// The one remaining free-text argument, and it is stated rather than quietly kept.
@@ -158,7 +188,9 @@ public sealed class EmailJobs(
     /// to a security fix that needs to ship.</para>
     /// </summary>
     public Task SendApplicationRejectedEmailAsync(Guid userId, string reason, CancellationToken ct) =>
-        SendToUserAsync(userId, locale => EmailTemplates.ApplicationRejected(locale, reason), ct);
+        SendToUserAsync(userId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ApplicationRejected,
+            locale => EmailTemplates.ApplicationRejected(locale, reason), ct,
+            new() { ["reason"] = reason });
 
     /// <summary>Takes the annotation id: its Reason is persisted, so it is resolved here rather than
     /// carried through the job store.</summary>
@@ -171,7 +203,8 @@ public sealed class EmailJobs(
             .Where(a => a.Id == annotationId).Select(a => a.Reason).FirstOrDefaultAsync(ct);
         if (reason is null) return;
 
-        var (subject, body) = EmailTemplates.InfoRequested(recipient.Value.Language, reason);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.InfoRequested, recipient.Value.Language,
+            new() { ["reason"] = reason }, () => EmailTemplates.InfoRequested(recipient.Value.Language, reason), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -187,7 +220,8 @@ public sealed class EmailJobs(
             .Where(s => s.Id == supplierId).Select(s => s.ReferenceCode).FirstOrDefaultAsync(ct);
         if (referenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.ApplicationResubmitted(recipient.Value.Language, referenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ApplicationResubmitted, recipient.Value.Language,
+            new() { ["referenceCode"] = referenceCode }, () => EmailTemplates.ApplicationResubmitted(recipient.Value.Language, referenceCode), ct);
         await emailSender.SendAsync(reviewerUserId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -210,7 +244,8 @@ public sealed class EmailJobs(
         var title = recipient.Value.Language == "en" ? rfq.TitleEn : rfq.TitleAr;
         var deepLink = $"{PublicUrl}/rfqs/{Uri.EscapeDataString(rfq.ReferenceCode)}";
 
-        var (subject, body) = EmailTemplates.RfqInvitation(recipient.Value.Language, rfq.ReferenceCode, title, deepLink);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.RfqInvitation, recipient.Value.Language,
+            new() { ["referenceCode"] = rfq.ReferenceCode, ["rfqTitle"] = title, ["deepLink"] = deepLink }, () => EmailTemplates.RfqInvitation(recipient.Value.Language, rfq.ReferenceCode, title, deepLink), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -229,7 +264,8 @@ public sealed class EmailJobs(
         var referenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (referenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.ClarificationAnswered(recipient.Value.Language, referenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ClarificationAnswered, recipient.Value.Language,
+            new() { ["referenceCode"] = referenceCode }, () => EmailTemplates.ClarificationAnswered(recipient.Value.Language, referenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -241,7 +277,8 @@ public sealed class EmailJobs(
         var referenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (referenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.ClarificationPublished(recipient.Value.Language, referenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ClarificationPublished, recipient.Value.Language,
+            new() { ["referenceCode"] = referenceCode }, () => EmailTemplates.ClarificationPublished(recipient.Value.Language, referenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -254,7 +291,8 @@ public sealed class EmailJobs(
         var referenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (referenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.ClarificationPosted(recipient.Value.Language, referenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ClarificationPosted, recipient.Value.Language,
+            new() { ["referenceCode"] = referenceCode }, () => EmailTemplates.ClarificationPosted(recipient.Value.Language, referenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -270,7 +308,8 @@ public sealed class EmailJobs(
         if (addendum is null) return;
 
         var title = recipient.Value.Language == "en" ? addendum.TitleEn : addendum.TitleAr;
-        var (subject, body) = EmailTemplates.RfqAddendum(recipient.Value.Language, rfq, title);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.RfqAddendum, recipient.Value.Language,
+            new() { ["referenceCode"] = rfq, ["addendumTitle"] = title }, () => EmailTemplates.RfqAddendum(recipient.Value.Language, rfq, title), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -281,7 +320,8 @@ public sealed class EmailJobs(
         var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (rfq is null) return;
 
-        var (subject, body) = EmailTemplates.RfqPublished(recipient.Value.Language, rfq);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.RfqPublished, recipient.Value.Language,
+            new() { ["referenceCode"] = rfq }, () => EmailTemplates.RfqPublished(recipient.Value.Language, rfq), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -292,7 +332,8 @@ public sealed class EmailJobs(
         var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (rfq is null) return;
 
-        var (subject, body) = EmailTemplates.RfqCancelled(recipient.Value.Language, rfq);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.RfqCancelled, recipient.Value.Language,
+            new() { ["referenceCode"] = rfq }, () => EmailTemplates.RfqCancelled(recipient.Value.Language, rfq), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -309,7 +350,8 @@ public sealed class EmailJobs(
         var rfqReferenceCode = await db.Rfqs.Where(r => r.Id == proposal.RfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (rfqReferenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.ProposalSubmitted(recipient.Value.Language, proposal.ReferenceCode, rfqReferenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ProposalSubmitted, recipient.Value.Language,
+            new() { ["proposalReferenceCode"] = proposal.ReferenceCode, ["rfqReferenceCode"] = rfqReferenceCode }, () => EmailTemplates.ProposalSubmitted(recipient.Value.Language, proposal.ReferenceCode, rfqReferenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -322,7 +364,8 @@ public sealed class EmailJobs(
         var rfq = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (rfq is null) return;
 
-        var (subject, body) = EmailTemplates.EvaluatorAssigned(recipient.Value.Language, rfq);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.EvaluatorAssigned, recipient.Value.Language,
+            new() { ["referenceCode"] = rfq }, () => EmailTemplates.EvaluatorAssigned(recipient.Value.Language, rfq), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -335,7 +378,8 @@ public sealed class EmailJobs(
         var rfqReferenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (rfqReferenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.AwardIssued(recipient.Value.Language, rfqReferenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.AwardIssued, recipient.Value.Language,
+            new() { ["rfqReferenceCode"] = rfqReferenceCode }, () => EmailTemplates.AwardIssued(recipient.Value.Language, rfqReferenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -348,7 +392,8 @@ public sealed class EmailJobs(
         var rfqReferenceCode = await db.Rfqs.Where(r => r.Id == rfqId).Select(r => r.ReferenceCode).FirstOrDefaultAsync(ct);
         if (rfqReferenceCode is null) return;
 
-        var (subject, body) = EmailTemplates.AwardRegret(recipient.Value.Language, rfqReferenceCode);
+        var (subject, body) = await ComposeAsync(MotsSupplierPortal.Application.Admin.EmailTemplateKeys.AwardRegret, recipient.Value.Language,
+            new() { ["rfqReferenceCode"] = rfqReferenceCode }, () => EmailTemplates.AwardRegret(recipient.Value.Language, rfqReferenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
@@ -359,19 +404,19 @@ public sealed class EmailJobs(
     // it is still the supplier's data, and here it costs nothing to stop carrying it.
 
     public Task SendDocumentRejectedEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
-        SendDocumentEmailAsync(userId, documentId,
+        SendDocumentEmailAsync(userId, documentId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.DocumentRejected,
             (locale, name, reason) => EmailTemplates.DocumentRejected(locale, name, reason), ct);
 
     public Task SendDocumentExpiringEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
-        SendDocumentEmailAsync(userId, documentId,
+        SendDocumentEmailAsync(userId, documentId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.DocumentExpiring,
             (locale, name, _) => EmailTemplates.DocumentExpiring(locale, name), ct);
 
     public Task SendDocumentExpiredEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
-        SendDocumentEmailAsync(userId, documentId,
+        SendDocumentEmailAsync(userId, documentId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.DocumentExpired,
             (locale, name, _) => EmailTemplates.DocumentExpired(locale, name), ct);
 
     private async Task SendDocumentEmailAsync(
-        Guid userId, Guid documentId,
+        Guid userId, Guid documentId, string templateKey,
         Func<string?, string, string?, (string Subject, string Body)> compose, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -383,7 +428,13 @@ public sealed class EmailJobs(
             .FirstOrDefaultAsync(ct);
         if (document is null) return;
 
-        var (subject, body) = compose(recipient.Value.Language, document.OriginalFileName, document.RejectReason);
+        // The reject reason is only present on a rejection; an override of the expiry templates that
+        // referenced it would have been refused at write time, because those two do not declare the token.
+        var tokens = new Dictionary<string, string> { ["fileName"] = document.OriginalFileName };
+        if (document.RejectReason is { } reason) tokens["reason"] = reason;
+
+        var (subject, body) = await ComposeAsync(templateKey, recipient.Value.Language, tokens,
+            () => compose(recipient.Value.Language, document.OriginalFileName, document.RejectReason), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 }

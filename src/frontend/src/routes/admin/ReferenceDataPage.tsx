@@ -8,6 +8,7 @@ import {
 import { SupplierApiError } from '../../api/supplier'
 import {
   REFERENCE_TABLES, listReferenceItems, createReferenceItem, updateReferenceItem, setReferenceItemActive,
+  getDocumentTypeCategories, setDocumentTypeCategories,
   type ReferenceItem, type ReferenceTable,
 } from '../../api/referenceAdmin'
 
@@ -84,8 +85,52 @@ export function ReferenceDataPage() {
         // Omitted means unchanged, not false: an administrator fixing an Arabic typo must not silently
         // clear a document type's requiredness.
         isRequired: item.isRequired, expiryTracked: item.expiryTracked,
+        isAwardCritical: item.isAwardCritical,
       }),
     onSuccess: () => { refresh(); notify({ kind: 'success', title: t('referenceAdmin.renamed') }) },
+    onError: (raised) => onError(raised, t('referenceAdmin.errors.updateFailed'), 'toast'),
+  })
+
+  /**
+   * BRULE-023. Sends the names unchanged alongside the flag, because the update contract takes the whole row
+   * and an omitted name would be read as a rename to empty.
+   */
+  /**
+   * BRULE-016. The link sets, and the categories to choose from.
+   *
+   * <p>Only fetched on the document-types table: these links exist for no other table, and a request that
+   * could only ever return the same rows on four of five tabs is a request not worth making.</p>
+   */
+  const linksQuery = useQuery({
+    queryKey: ['document-type-categories'],
+    queryFn: getDocumentTypeCategories,
+    enabled: table === 'document-types',
+  })
+
+  const categoriesQuery = useQuery({
+    queryKey: ['reference-admin', 'categories'],
+    queryFn: () => listReferenceItems('categories', false),
+    enabled: table === 'document-types',
+  })
+
+  const linksMutation = useMutation({
+    mutationFn: ({ code, categoryCodes }: { code: string; categoryCodes: string[] }) =>
+      setDocumentTypeCategories(code, categoryCodes),
+    onSuccess: async () => {
+      notify({ kind: 'success', title: t('referenceAdmin.linksSaved') })
+      await queryClient.invalidateQueries({ queryKey: ['document-type-categories'] })
+    },
+    onError: (raised) => onError(raised, t('referenceAdmin.errors.updateFailed'), 'toast'),
+  })
+
+  const awardCriticalMutation = useMutation({
+    mutationFn: ({ item, next }: { item: ReferenceItem; next: boolean }) =>
+      updateReferenceItem(table, item.code, {
+        nameAr: item.nameAr, nameEn: item.nameEn,
+        isRequired: item.isRequired, expiryTracked: item.expiryTracked,
+        isAwardCritical: next,
+      }),
+    onSuccess: () => { refresh(); notify({ kind: 'success', title: t('referenceAdmin.awardCriticalSaved') }) },
     onError: (raised) => onError(raised, t('referenceAdmin.errors.updateFailed'), 'toast'),
   })
 
@@ -188,6 +233,43 @@ export function ReferenceDataPage() {
                         {item.isRequired === true ? (
                           <span className="ms-2"><Badge tone="info">{t('referenceAdmin.required')}</Badge></span>
                         ) : null}
+                        {/*
+                          BRULE-016. The recorded links, per document type, with the deliberate inertness said
+                          out loud beneath the table. Chips rather than a multi-select: the set is three
+                          categories today and a select would hide which ones are on without opening it.
+                        */}
+                        {table === 'document-types' ? (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {(categoriesQuery.data ?? []).map((category) => {
+                              const linked = (linksQuery.data ?? [])
+                                .find((l) => l.documentTypeCode === item.code)?.categoryCodes ?? []
+                              const on = linked.includes(category.code)
+                              return (
+                                <Button
+                                  key={category.code}
+                                  size="sm"
+                                  variant={on ? undefined : 'ghost'}
+                                  disabled={linksMutation.isPending}
+                                  onClick={() => linksMutation.mutate({
+                                    code: item.code,
+                                    categoryCodes: on
+                                      ? linked.filter((c) => c !== category.code)
+                                      : [...linked, category.code],
+                                  })}
+                                >
+                                  {category.nameEn}
+                                </Button>
+                              )
+                            })}
+                          </div>
+                        ) : null}
+                        {/* BRULE-023, visible for the first time. The rule - expiry of an award-critical
+                            document suspends the supplier - has been live and unable to fire since the column
+                            was added, because no type sets the flag and no screen could set it. Shown in the
+                            danger tone because that is what it does. */}
+                        {item.isAwardCritical === true ? (
+                          <span className="ms-2"><Badge tone="danger">{t('referenceAdmin.awardCritical')}</Badge></span>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
@@ -198,6 +280,25 @@ export function ReferenceDataPage() {
                           >
                             {t('referenceAdmin.save')}
                           </Button>
+                          {/* Offered only where the flag exists. A null means "this table has no such flag",
+                              and a toggle on a currency would be a control that writes nothing.
+
+                              No confirmation dialog, deliberately: this write does not suspend anybody by
+                              itself. It changes which FUTURE expiries will, and the expiry job is what acts -
+                              so the consequence is explained beside the table rather than dressed up as a
+                              destructive action. */}
+                          {item.isAwardCritical !== null ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={awardCriticalMutation.isPending}
+                              onClick={() => awardCriticalMutation.mutate({ item, next: !item.isAwardCritical })}
+                            >
+                              {item.isAwardCritical
+                                ? t('referenceAdmin.clearAwardCritical')
+                                : t('referenceAdmin.setAwardCritical')}
+                            </Button>
+                          ) : null}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -219,6 +320,23 @@ export function ReferenceDataPage() {
           </p>
         </Card>
       )}
+      {/* BRULE-023's consequence, stated once and near the control rather than in a tooltip: this is the
+          only flag on this screen whose effect is to suspend a live supplier, and it fires from a scheduled
+          job days or months later, which is exactly when nobody remembers setting it. */}
+      {table === 'document-types' ? (
+        <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('referenceAdmin.awardCriticalExplained')}
+        </p>
+      ) : null}
+
+      {/* BRULE-016's inertness, stated rather than left to be discovered. An administrator who records these
+          links and sees no change in any supplier's required list would reasonably conclude the screen is
+          broken; the honest version says the links are recorded and not yet applied, and why. */}
+      {table === 'document-types' ? (
+        <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('referenceAdmin.categoryLinksExplained')}
+        </p>
+      ) : null}
     </div>
   )
 }

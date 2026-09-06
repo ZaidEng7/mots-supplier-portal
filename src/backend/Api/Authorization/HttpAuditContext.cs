@@ -16,6 +16,7 @@ namespace MotsSupplierPortal.Api.Authorization;
 public sealed class HttpAuditContext(IHttpContextAccessor accessor) : IAuditContext
 {
     private Guid? _fallback;
+    private Guid? _supplied;
 
     /// <summary>
     /// The distributed trace id, reinterpreted as a Guid, so an audit row joins directly to its
@@ -29,6 +30,11 @@ public sealed class HttpAuditContext(IHttpContextAccessor accessor) : IAuditCont
     {
         get
         {
+            // The caller's own id wins when they sent one, which is the whole point of EPIC-25's echo:
+            // their log line and these audit rows have to carry the same value. The trace id remains the
+            // fallback, so nothing changes for the callers - every one of them today - who send nothing.
+            if (_supplied is { } supplied) return supplied;
+
             var traceId = Activity.Current?.TraceId;
             if (traceId is { } id && id != default)
             {
@@ -44,6 +50,13 @@ public sealed class HttpAuditContext(IHttpContextAccessor accessor) : IAuditCont
             return _fallback ??= Guid.CreateVersion7();
         }
     }
+
+    /// <summary>
+    /// Set once per scope, and never overwritten. The middleware calls this at most once, but the guard
+    /// is here rather than there: an id that could change mid-request would let two audit rows from one
+    /// unit of work disagree, which is the exact property this class exists to hold.
+    /// </summary>
+    public void OverrideCorrelationId(Guid correlationId) => _supplied ??= correlationId;
 
     /// <summary>
     /// Caller IP, TRUNCATED: IPv4 to /24, IPv6 to /48. Null outside a request.

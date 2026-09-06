@@ -58,12 +58,90 @@
     "usedIn": "AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, LoginRequest"
   },
   {
+    "key": "SubjectAr.NotEmpty",
+    "code": "SUBJECTAR_REQUIRED",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالعربية مطلوب.",
+    "en": "The Arabic subject is required.",
+    "usedIn": "UpsertEmailTemplateRequest",
+    "flag": "T-076. Both locales are required on every email template: an Arabic-only subject renders blank for an English recipient, and a message with no subject line is the one that gets filtered."
+  },
+  {
+    "key": "SubjectAr.MaximumLength",
+    "code": "SUBJECTAR_TOO_LONG",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالعربية أطول من الحد المسموح.",
+    "en": "The Arabic subject is longer than allowed.",
+    "usedIn": "UpsertEmailTemplateRequest"
+  },
+  {
+    "key": "SubjectEn.NotEmpty",
+    "code": "SUBJECTEN_REQUIRED",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالإنجليزية مطلوب.",
+    "en": "The English subject is required.",
+    "usedIn": "UpsertEmailTemplateRequest",
+    "flag": "T-076. Both locales are required on every email template: an Arabic-only subject renders blank for an English recipient, and a message with no subject line is the one that gets filtered."
+  },
+  {
+    "key": "SubjectEn.MaximumLength",
+    "code": "SUBJECTEN_TOO_LONG",
+    "source": "drafted",
+    "ar": "موضوع الرسالة بالإنجليزية أطول من الحد المسموح.",
+    "en": "The English subject is longer than allowed.",
+    "usedIn": "UpsertEmailTemplateRequest"
+  },
+  {
+    "key": "Value.NotEmpty",
+    "code": "VALUE_REQUIRED",
+    "source": "drafted",
+    "ar": "النص المُعدَّل مطلوب.",
+    "en": "The replacement text is required.",
+    "usedIn": "UpsertUiStringRequest",
+    "flag": "SCR-716. An empty override would blank a label, which a user cannot tell from a missing translation - removing the override is how the shipped string comes back."
+  },
+  {
+    "key": "Value.MaximumLength",
+    "code": "VALUE_TOO_LONG",
+    "source": "drafted",
+    "ar": "النص المُعدَّل أطول من الحد المسموح.",
+    "en": "The replacement text is longer than allowed.",
+    "usedIn": "UpsertUiStringRequest"
+  },
+  {
+    "key": "NewPassword.MinimumLength",
+    "code": "NEW_PASSWORD_TOO_SHORT",
+    "source": "drafted",
+    "ar": "كلمة المرور الجديدة يجب أن تكون 12 حرفاً على الأقل.",
+    "en": "The new password must be at least 12 characters.",
+    "usedIn": "ChangePasswordRequest",
+    "flag": "SCR-903/SECURITY-ARCHITECTURE §1.4. The number is repeated in the copy because 'too short' without it makes the user guess; if the Identity policy floor changes, this string is one of the places that has to move with it."
+  },
+    {
+    "key": "Language.Must",
+    "code": "LANGUAGE_NOT_SUPPORTED",
+    "source": "drafted",
+    "ar": "اللغة يجب أن تكون العربية أو الإنجليزية.",
+    "en": "Language must be Arabic or English.",
+    "usedIn": "UpdateAccountRequest, ChooseLanguageRequest",
+    "flag": "SCR-902/SCR-010. Names the two languages rather than echoing the codes: 'must be one of: ar, en' is the validator's own wording and means nothing to the person reading it."
+  },
+  {
+    "key": "CurrentPassword.NotEmpty",
+    "code": "CURRENT_PASSWORD_REQUIRED",
+    "source": "drafted",
+    "ar": "كلمة المرور الحالية مطلوبة.",
+    "en": "Your current password is required.",
+    "usedIn": "ChangePasswordRequest",
+    "flag": "SCR-903. Distinct from Password.NotEmpty on purpose: on the change-password form three password boxes sit together, and 'Password is required' would not say which one."
+  },
+  {
     "key": "NewPassword.NotEmpty",
     "code": "NEW_PASSWORD_REQUIRED",
     "source": "drafted",
     "ar": "كلمة المرور الجديدة مطلوبة.",
     "en": "New password is required.",
-    "usedIn": "ResetPasswordRequest"
+    "usedIn": "ResetPasswordRequest, ChangePasswordRequest"
   },
   {
     "key": "Token.NotEmpty",
@@ -116,7 +194,7 @@
     "source": "SPA",
     "ar": "الاسم الكامل مطلوب.",
     "en": "Full name is required.",
-    "usedIn": "AddContactRequest, AddRepresentativeRequest, AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, InviteStaffRequest, InviteSupplierUserRequest"
+    "usedIn": "AddContactRequest, AddRepresentativeRequest, AcceptStaffInviteRequest, AcceptSupplierUserInviteRequest, InviteStaffRequest, InviteSupplierUserRequest, UpdateAccountRequest"
   },
   {
     "key": "FullName.MaximumLength",
@@ -124,7 +202,7 @@
     "source": "drafted",
     "ar": "يجب ألا يتجاوز الاسم الكامل ٢٠٠ حرف.",
     "en": "Full name must not exceed 200 characters.",
-    "usedIn": "AddContactRequest, AddRepresentativeRequest, InviteStaffRequest, InviteSupplierUserRequest"
+    "usedIn": "AddContactRequest, AddRepresentativeRequest, InviteStaffRequest, InviteSupplierUserRequest, UpdateAccountRequest"
   },
   {
     "key": "Role.NotEmpty",
@@ -483,7 +561,7 @@
     "source": "drafted",
     "ar": "النص (عربي) مطلوب.",
     "en": "Body (Arabic) is required.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "BodyAr.MaximumLength",
@@ -491,7 +569,7 @@
     "source": "drafted",
     "ar": "يجب ألا يتجاوز النص (عربي) ١٠٠٠ حرف.",
     "en": "Body (Arabic) must not exceed 1000 characters.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "BodyEn.NotEmpty",
@@ -499,7 +577,7 @@
     "source": "drafted",
     "ar": "النص (إنجليزي) مطلوب.",
     "en": "Body (English) is required.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "BodyEn.MaximumLength",
@@ -507,7 +585,7 @@
     "source": "drafted",
     "ar": "يجب ألا يتجاوز النص (إنجليزي) ١٠٠٠ حرف.",
     "en": "Body (English) must not exceed 1000 characters.",
-    "usedIn": "NotificationTemplateRequest"
+    "usedIn": "NotificationTemplateRequest, UpsertEmailTemplateRequest"
   },
   {
     "key": "TitleAr.NotEmpty",

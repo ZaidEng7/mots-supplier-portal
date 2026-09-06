@@ -163,7 +163,10 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var tokens = scope.ServiceProvider.GetRequiredService<ISecurityTokenService>();
         var sender = new CapturingSender();
-        var jobs = new EmailJobs(sender, db, tokens, scope.ServiceProvider.GetRequiredService<IConfiguration>());
+        var jobs = new EmailJobs(sender, db, tokens, scope.ServiceProvider.GetRequiredService<IConfiguration>(),
+            // T-076: resolved from the container. With no override row it returns the shipped copy, which is
+            // what this test asserts, and the send now goes through the path production uses.
+            scope.ServiceProvider.GetRequiredService<MotsSupplierPortal.Application.Admin.IEmailCopySource>());
 
         await jobs.SendStaffInviteEmailAsync(userId, CancellationToken.None);
 

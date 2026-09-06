@@ -310,7 +310,7 @@ export function OnboardingPage() {
   // §12-A/C3: the supplier routes are addressed by supplier code now (§12.2, §12.3). The code
   // comes from the profile the page already loads, so no extra request is made for it - and the
   // dependent queries below are gated on having it rather than firing with an empty string.
-  const supplierCode = profileQuery.data?.referenceCode ?? ''
+  const supplierCode = profileQuery.data?.supplierCode ?? ''
 
   const documentsQuery = useQuery({
     queryKey: ['own-documents', supplierCode],
@@ -345,7 +345,7 @@ export function OnboardingPage() {
         description: p.description ?? '',
         website: p.website ?? '',
         supplierGroup: p.supplierGroup ?? '',
-        currencyCode: p.currencyCode ?? '',
+        currencyCode: p.defaultCurrency ?? '',
         primaryContactPhone: p.primaryContactPhone ?? '',
       })
     }

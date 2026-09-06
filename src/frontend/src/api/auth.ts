@@ -1,7 +1,7 @@
 import { forgetETags, lookupETag, ownerPrefixOf, rememberETag } from './etags'
 import { useAuthStore } from '../lib/authStore'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
 
 export interface TokenResponse {
   accessToken: string
@@ -75,6 +75,69 @@ export async function resetPassword(token: string, newPassword: string): Promise
     body: JSON.stringify({ token, newPassword }),
   })
   await parseJsonOrThrow(res)
+}
+
+/** SCR-903: a signed-in user changing their own password.
+ *
+ * <p>Separate from `resetPassword` above and deliberately so: a reset proves identity with a token
+ * from an email, a change proves it with the current password. Before this the only path was signing
+ * out and using the recovery flow to do routine work.</p>
+ *
+ * <p>`credentials` are included by `apiFetch`, which matters here — the refresh cookie is how the
+ * server knows which session made the change, so that this one survives while the others are
+ * revoked.</p> */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await apiFetch('/api/v1/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  }
+}
+
+/** SCR-902. The account facts a user owns about themselves. Roles and permissions are deliberately
+ *  NOT here - those come from the access token's claims (see authStore), and a second copy would be a
+ *  second source of truth for authorization. */
+export interface Account {
+  fullName: string
+  email: string
+  language: string
+  /** SCR-010: false until the user has picked a language themselves. The stored default cannot say
+   *  this on its own - "ar" is both the default and a legitimate choice. */
+  languageChosen: boolean
+}
+
+export async function getAccount(): Promise<Account> {
+  const res = await apiFetch('/api/v1/auth/me')
+  const text = await res.text()
+  if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  return JSON.parse(text) as Account
+}
+
+export async function updateAccount(fullName: string, language: string): Promise<Account> {
+  const res = await apiFetch('/api/v1/auth/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fullName, language }),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  return JSON.parse(text) as Account
+}
+
+/** SCR-010's first-run choice. One field, and it stamps the account as having chosen. */
+export async function chooseLanguage(language: string): Promise<Account> {
+  const res = await apiFetch('/api/v1/auth/me/language', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language }),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  return JSON.parse(text) as Account
 }
 
 export async function resendVerification(email: string): Promise<void> {
@@ -158,7 +221,10 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       useAuthStore.getState().setSession(refreshed.accessToken)
       res = await doFetch()
     } else {
-      useAuthStore.getState().clearSession()
+      // SCR-040: `expireSession`, not `clearSession`. A refresh that fails under a working session is
+      // an expiry the user needs told about over whatever they were doing; a plain clear would drop
+      // them at the login screen and take their unsaved work with it.
+      useAuthStore.getState().expireSession()
     }
   }
   // T-030 splits (3) and (2): FORGET first, then put the response's version back in BOTH places.

@@ -4,6 +4,7 @@ using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Infrastructure.Storage;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Identity;
 
@@ -530,6 +531,32 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.RfqSubmitReview)
         .RequireIfMatch()
         .WithName("SubmitRfqForReview");
+
+        // T-082 / SCR-430: the bids received against this RFQ.
+        //
+        // Behind comparison.view - the permission that already means "may see bid-level data" -
+        // rather than a new one: inventing a second permission for the same class of data puts the
+        // rule in two places and they drift. What limits the answer is the tier, not the gate.
+        group.MapGet("/{referenceCode}/received-proposals", async (
+            string referenceCode, IListBuyerProposalsHandler handler, CancellationToken ct) =>
+        {
+            var proposals = await handler.HandleAsync(referenceCode, ct);
+            return proposals is null ? Results.NotFound() : Results.Ok(proposals);
+        })
+        .RequirePermission(Permissions.ComparisonView)
+        .WithName("ListReceivedProposals");
+
+        // T-082 / SCR-431. Keyed by proposal GUID for the same reason the buyer's document read is -
+        // that is the identifier a buyer holds, and the §3 divergence is recorded there rather than
+        // widened by inventing a second addressing scheme for one route.
+        group.MapGet("/{referenceCode}/received-proposals/{proposalId:guid}", async (
+            string referenceCode, Guid proposalId, IGetBuyerProposalHandler handler, CancellationToken ct) =>
+        {
+            var proposal = await handler.HandleAsync(referenceCode, proposalId, ct);
+            return proposal is null ? Results.NotFound() : Results.Ok(proposal);
+        })
+        .RequirePermission(Permissions.ComparisonView)
+        .WithName("GetReceivedProposal");
 
         group.MapGet("/{referenceCode}/assignees", async (
             string referenceCode, IListRfqAssigneesHandler handler, CancellationToken ct) =>

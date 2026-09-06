@@ -61,6 +61,12 @@ export const SUPPLIER_PROFILE = {
     legalNameAr: 'شركة الاختبار', legalNameEn: 'A11y Test Co', registrationNumber: 'RC-1234',
     taxId: 'TX-5678', supplierType: 'Company', establishedOn: '2020-01-01',
   },
+  // SCR-120's profile screen reads this array's length. It was absent, so /profile threw during render and
+  // the a11y scan hit the router's 500 boundary instead of the page - which the suite's own "no 404/500 on
+  // screen" guard caught. Fixed HERE rather than making the page defensive: the real API always returns the
+  // array (checked against a running server), and a `?? []` in the page would hide a genuinely malformed
+  // response, which is the opposite of what this fixture's fail-loud philosophy is for.
+  categories: ['general'],
   primaryContactPhone: '+963900000000',
   representatives: [{ id: 'r1', fullName: 'Rana Tester', email: 'rana@example.com', phone: '+963900000001', position: 'Manager', isPrimary: true }],
   addresses: [{ id: 'a1', kind: 'HeadOffice', line1: '1 Test Street', line2: null, city: 'Damascus', regionCode: 'DM', country: 'SY', postalCode: null, latitude: null, longitude: null }],
@@ -195,6 +201,59 @@ export async function mockBackend(page: Page) {
       documentsExpired: 2,
     } })
     if (p === '/api/v1/organizations') return route.fulfill({ json: [] })
+    // batch 11's admin screens. Each returns its REAL shape rather than {} - the fallback below 500s an
+    // unmocked GET on purpose, and a page rendering its error card would let an axe scan pass over a failure
+    // state instead of the screen.
+    if (p === '/api/v1/admin/ui-strings/') return route.fulfill({ json: [
+      { key: 'nav.dashboard', language: 'ar', value: 'الرئيسية', updatedAt: '2026-09-01T00:00:00Z' },
+    ] })
+    if (p === '/api/v1/admin/email-templates/') return route.fulfill({ json: [
+      {
+        key: 'email.verification', requiredTokens: ['verifyUrl'], optionalTokens: [],
+        override: null,
+        shipped: {
+          key: 'email.verification', subjectAr: 'تفعيل حسابك', subjectEn: 'Verify your account',
+          bodyAr: '<p>{verifyUrl}</p>', bodyEn: '<p>{verifyUrl}</p>', updatedAt: '1970-01-01T00:00:00Z',
+        },
+      },
+    ] })
+    if (p === '/api/v1/admin/jobs') return route.fulfill({ json: {
+      recurringEnabled: true,
+      jobs: [{ id: 'outbox-dispatch', registered: true, cron: '*/5 * * * *', lastExecution: '2026-09-01T00:00:00Z', nextExecution: '2026-09-01T00:05:00Z', lastState: 'Succeeded' }],
+    } })
+    if (p === '/api/v1/admin/outbox') return route.fulfill({ json: {
+      counts: { Pending: 0, Sent: 3, Failed: 0 },
+      messages: [{ id: '00000000-0000-0000-0000-000000000001', type: 'notification', syncStatus: 'Sent', createdAt: '2026-09-01T00:00:00Z', processedAt: '2026-09-01T00:01:00Z', payloadJson: '{}' }],
+    } })
+    if (p === '/api/v1/admin/erp-sync') return route.fulfill({ json: {
+      transportConfigured: false,
+      counts: { NotRequested: 1, Requested: 0, Synced: 0, Failed: 0 },
+      awards: [{ rfqReferenceCode: REFERENCE_CODE, erpSyncStatus: 'NotRequested', erpRetryCount: 0, erpSyncedAt: null, externalPurchaseOrderRef: null }],
+    } })
+    if (p === '/api/v1/admin/storage') return route.fulfill({ json: {
+      maxUploadBytes: 20971520,
+      allowedTypes: { '.pdf': 'application/pdf' },
+      bucket: 'documents',
+      objectStorageReachable: true, virusScannerReachable: true,
+      documentCount: 3, pendingScanCount: 0,
+    } })
+    if (p === '/api/v1/admin/security') return route.fulfill({ json: {
+      password: { minimumLength: 12, requireDigit: false, requireUppercase: false, requireLowercase: false, requireNonAlphanumeric: false },
+      lockout: { maxFailedAttempts: 5, lockoutMinutes: 15 },
+      session: { accessTokenMinutes: 15, refreshTokenDays: 30, clockSkewSeconds: 30 },
+      mfaRequiredRoles: ['system_admin'],
+      rateLimits: [{ policy: 'auth-strict', permitLimit: 10, windowSeconds: 60 }],
+      registrationMode: 'open',
+    } })
+    if (p === '/api/v1/admin/document-type-categories') return route.fulfill({ json: [
+      { documentTypeCode: 'commercial_registration', categoryCodes: ['general'] },
+    ] })
+    if (p === '/api/v1/search') return route.fulfill({ json: { query: 'demo', hits: [], truncated: false } })
+    if (p === '/api/v1/meta') return route.fulfill({ json: { version: '1.0.0', commit: null, maintenance: null } })
+    if (p === '/api/v1/auth/me') return route.fulfill({ json: {
+      fullName: 'A11y Scan User', email: 'scan@example.com', language: 'en', languageChosen: true,
+    } })
+    if (p === '/api/v1/proposals') return route.fulfill({ json: [] })
     // SCR-600 and SCR-700. Without these two the pages fall through to the catch-all `{}`, render
     // their error card, and the a11y scan silently covers a failure state instead of the screen.
     // T-060: the public allow-list, and the admin catalogue behind SCR-724.

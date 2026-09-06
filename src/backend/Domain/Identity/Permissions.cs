@@ -302,7 +302,7 @@ public static class Roles
         // row-scope (§9.2). A supplier reading the RFQs they were invited to is a read of an RFQ;
         // the invitation-scoped handler behind it is unchanged, so this widens who may call the
         // route, not what any caller can see.
-        [SupplierAdmin] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.ProposalDecline, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
+        [SupplierAdmin] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.ProposalDecline, Permissions.ProposalRevise, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
         // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
@@ -324,7 +324,7 @@ public static class Roles
         // BRULE-086 allows. Re-add only if OQ-001 resolves in favour of line-level Ministry access.
         // D-6/BRULE-086: the Ministry sees governance data. This was an empty set - the persona could
         // log in and reach nothing at all, which is the EPIC-11 defect at persona scale.
-        [MinistryViewer] = [Permissions.GovernanceRead],
+        [MinistryViewer] = [Permissions.GovernanceRead, Permissions.ReportRead],
         [SystemAdmin] = [.. Permissions.All],
     };
 }

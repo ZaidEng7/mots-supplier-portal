@@ -1,5 +1,6 @@
 import { hasCode, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
+import { rememberETag } from './etags'
 
 export type ProposalState =
   | 'Draft' | 'Submitted' | 'Withdrawn' | 'UnderReview' | 'ClarificationRequested' | 'Revised'
@@ -69,6 +70,12 @@ export interface Proposal {
   submittedAt: string | null
   withdrawnAt: string | null
   withdrawReason: string | null
+  /** SCR-155: §4.1's "Reason; specific questions". The aggregate has always held it; nothing
+   *  projected it until now, so the supplier saw the state and not the question. */
+  clarificationReason: string | null
+  clarificationRequestedAt: string | null
+  /** §4.1's "New revision n+1" - 1 for the original submission. */
+  revisionNumber: number
   createdAt: string
   totals: ProposalTotals
   /** §12.5's validityDays, derived from the two dates on the server and read-only - see the DTO's
@@ -132,8 +139,30 @@ export async function startProposal(rfqReferenceCode: string): Promise<Proposal>
   return parseOrThrow(await apiFetch(rfqScoped(rfqReferenceCode), { method: 'POST' }))
 }
 
+/**
+ * The supplier's own proposal on an RFQ.
+ *
+ * <p><b>The read files its ETag under the PROPOSAL path as well as its own.</b> Reproduced in the
+ * browser before fixing: every guarded write in this workspace answered 428 on its first attempt -
+ * Save price, Save terms, Submit, Withdraw, Decline and Revise alike - and the console carried
+ * `[concurrency] PATCH /api/v1/proposals/PRP-... was refused for a missing If-Match`.
+ *
+ * <p>The cause is two paths for one aggregate: this read is `/rfqs/{rfqCode}/proposal` and every
+ * write is `/proposals/{proposalCode}/...`, so etags.ts's prefix walk - which climbs a path and never
+ * sideways - cannot reach the stored version from a write, and correctly refuses to invent one. The
+ * alias is declared HERE rather than taught to the store, because this file is the only thing that
+ * knows the two paths name the same resource; the store deducing it would mean guessing at resource
+ * boundaries, which its own doc comment explains it cannot do.
+ *
+ * <p>The proposal code comes out of the body, not the URL, so the alias is only ever filed for a
+ * proposal the server actually returned.</p>
+ */
 export async function getProposal(rfqReferenceCode: string): Promise<Proposal> {
-  return parseOrThrow(await apiFetch(rfqScoped(rfqReferenceCode)))
+  const res = await apiFetch(rfqScoped(rfqReferenceCode))
+  const etag = res.headers.get('ETag')
+  const proposal = await parseOrThrow<Proposal>(res)
+  if (etag) rememberETag(base(proposal.proposalCode), etag)
+  return proposal
 }
 
 /**
@@ -205,6 +234,22 @@ export async function declineAwardOffer(proposalReferenceCode: string, reason: s
   }))
 }
 
+/** SCR-155/§4.1: ClarificationRequested -> Revised. `POST /proposals/{code}/revise` has existed
+ * since T-051 and nothing called it, and D-43 meant the persona its own comment names could not have
+ * called it either - `proposal.revise` was granted to `system_admin` alone. The grant moved to
+ * supplier_admin in this batch; this is the surface.
+ *
+ * No body, and it does NOT reopen the proposal for editing. Checked in the aggregate rather than
+ * assumed: `Proposal.Patch` and `Proposal.Submit` both refuse any state but Draft, and
+ * `RecordRevision`'s own doc records why - §4.1's "only permitted fields changed" is BRULE-050, a
+ * configurable policy whose default is undecided, and §4.1's "snapshot" needs a revision store
+ * nothing here has. So the transition is the supplier's response and the field-level edit is not
+ * claimed by either half. The screen says that plainly instead of showing an edit form that would
+ * 409. If-Match travels automatically from this proposal's read - see api/etags.ts. */
+export async function reviseProposal(proposalReferenceCode: string): Promise<Proposal> {
+  return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/revise`, { method: 'POST' }))
+}
+
 export async function withdrawProposal(proposalReferenceCode: string, reason: string): Promise<Proposal> {
   return parseOrThrow(await apiFetch(`${base(proposalReferenceCode)}/withdraw`, {
     method: 'POST',
@@ -222,4 +267,30 @@ export async function requestProposalClarification(proposalReferenceCode: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
   }))
+}
+
+/**
+ * SCR-150: the calling supplier's own proposals across every RFQ.
+ *
+ * <p>Scoped server-side by the caller's own supplier — there is no id to pass, which is the point.
+ * Drafts are included here and excluded from the buyer's view of the same rows (T-082): the two
+ * lists answer different questions about the same table.</p>
+ */
+export interface MyProposalListItem {
+  proposalCode: string
+  rfqCode: string
+  rfqTitleAr: string
+  rfqTitleEn: string
+  state: string
+  submittedAt: string | null
+  submissionDeadline: string | null
+  currencyCode: string | null
+  totalValue: number | null
+  itemCount: number
+}
+
+export async function listMyProposals(): Promise<MyProposalListItem[]> {
+  const res = await apiFetch('/api/v1/proposals')
+  if (!res.ok) throw new ProposalApiError(res.status, null)
+  return (await res.json()) as MyProposalListItem[]
 }

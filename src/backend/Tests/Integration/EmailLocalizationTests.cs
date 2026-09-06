@@ -52,7 +52,11 @@ public sealed class EmailLocalizationTests(PostgresApiFixture fixture)
             sender,
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             scope.ServiceProvider.GetRequiredService<ISecurityTokenService>(),
-            scope.ServiceProvider.GetRequiredService<IConfiguration>());
+            scope.ServiceProvider.GetRequiredService<IConfiguration>(),
+            // T-076: resolved from the container, not stubbed. With no override row it returns the shipped
+            // copy, which is what every assertion in these suites is about - and it means the suites now also
+            // cover the path a send actually takes rather than a shape that bypasses it.
+            scope.ServiceProvider.GetRequiredService<MotsSupplierPortal.Application.Admin.IEmailCopySource>());
 
         await jobs.SendApplicationApprovedEmailAsync(userId, CancellationToken.None);
         return sender.Sent.Should().ContainSingle().Subject;

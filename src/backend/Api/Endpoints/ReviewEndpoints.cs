@@ -124,6 +124,10 @@ public static class ReviewEndpoints
             return view is null ? Results.NotFound() : Results.Ok(view);
         })
         .RequirePermission(Permissions.SupplierReview)
+        // T-030 split (4): the reviewer's read now ISSUES the precondition their decision writes require.
+        // Added in the same change as those guards, because a guard whose precondition cannot be obtained
+        // refuses every caller - the Offering lesson from batch 3.
+        .WithETag()
         .WithName("GetReviewerSupplierView");
 
         group.MapPost("/{referenceCode}/pickup", async (

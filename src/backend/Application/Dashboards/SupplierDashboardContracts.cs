@@ -37,7 +37,18 @@ public sealed record ProfileHealthDto(
     double Completeness,
     int RequiredDocumentsTotal,
     int RequiredDocumentsSupplied,
-    string? NextRequiredDocumentTypeCode);
+    string? NextRequiredDocumentTypeCode,
+    /// <param name="NextRequiredDocumentNameAr">
+    /// The document's own name, in both languages, because the CODE was reaching the screen.
+    ///
+    /// <para>Found by reading the supplier dashboard as the supplier: the caption said "Next required
+    /// document: commercial_registration". That is a database value shown to a member of the public, and it is
+    /// the one line on that panel telling them what to do next - so it was also the least useful place for it.
+    /// The name is added rather than the SPA mapping the code, because the mapping lives in the reference
+    /// table and a second copy in the frontend would drift the first time a name is corrected on SCR-710.</para>
+    /// </param>
+    string? NextRequiredDocumentNameAr,
+    string? NextRequiredDocumentNameEn);
 
 /// <summary>
 /// §1's action-required strip: "expiring or rejected documents, invitations closing soon,

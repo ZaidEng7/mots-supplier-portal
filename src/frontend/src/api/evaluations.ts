@@ -20,6 +20,8 @@ export interface EvaluationCriterion {
 
 export interface EvaluationAssignment {
   evaluatorUserId: string
+  /** The evaluator's name. The table used to render the GUID, so the recuse button beside it named nobody. */
+  evaluatorName: string | null
   assignedAt: string
   submittedAt: string | null
   recusedAt: string | null
@@ -28,6 +30,9 @@ export interface EvaluationAssignment {
 
 export interface ConsolidatedResult {
   proposalId: string
+  /** §3's opaque public identifier. The table used to render the internal GUID on the screen where a
+   *  manager decides who wins a tender. */
+  proposalReferenceCode: string | null
   technicallyQualified: boolean
   technicalWeightedScore: number
   financialWeightedScore: number | null
@@ -155,6 +160,17 @@ export async function getEvaluation(rfqReferenceCode: string): Promise<Evaluatio
 
 export async function openEvaluation(rfqReferenceCode: string): Promise<Evaluation> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/evaluation/open`, { method: 'POST' }))
+}
+
+/** Who a manager may assign to this evaluation — staff in the RFQ's organisation who hold evaluation.score. */
+export interface EvaluatorCandidate {
+  userId: string
+  fullName: string
+  email: string
+}
+
+export async function listEvaluatorCandidates(rfqReferenceCode: string): Promise<EvaluatorCandidate[]> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/evaluation/candidates`))
 }
 
 export async function assignEvaluators(rfqReferenceCode: string, evaluatorUserIds: string[]): Promise<Evaluation> {

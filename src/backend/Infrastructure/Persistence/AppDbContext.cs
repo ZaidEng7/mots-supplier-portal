@@ -39,6 +39,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    /// <summary>BRULE-016: which categories a document type is required for. Written by the admin surface,
+    /// read by nothing yet - see DocumentTypeCategory.</summary>
+    public DbSet<Domain.ReferenceData.DocumentTypeCategory> DocumentTypeCategories => Set<Domain.ReferenceData.DocumentTypeCategory>();
+
+    /// <summary>T-076: administrator rewordings of the transactional emails.</summary>
+    public DbSet<Domain.Configuration.EmailTemplateOverride> EmailTemplateOverrides => Set<Domain.Configuration.EmailTemplateOverride>();
+
+    /// <summary>SCR-716: administrator rewordings of shipped interface strings.</summary>
+    public DbSet<Domain.Configuration.UiStringOverride> UiStringOverrides => Set<Domain.Configuration.UiStringOverride>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
@@ -334,6 +343,37 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Supplier>(entity =>
         {
             entity.ToTable("supplier", "supplier");
+            // ── EPIC-20 full-text search ──────────────────────────────────────────────────────
+            // A STORED GENERATED column, not a trigger. Postgres computes it on write from the columns
+            // it names, so there is no trigger to keep in step with a rename and no way for the index to
+            // drift from the row - which is the failure mode of every hand-maintained search column.
+            //
+            // 'simple' for both languages, and this is the decision the sizing flagged rather than a
+            // shortcut: Postgres ships no Arabic dictionary, so no configuration stems Arabic correctly.
+            // 'simple' lower-cases and splits on non-word characters and does not stem, so "contracts"
+            // will not match "contract". Using 'english' on the English column and 'simple' on the Arabic
+            // one would make the two halves of one search behave differently for no stated reason;
+            // picking one honest behaviour and saying so beats half-stemming. Adding an Arabic dictionary
+            // (hunspell, or a thesaurus) is a decision for whoever owns the database, and it is a change
+            // to this expression rather than to the schema.
+            //
+            // The reference code is IN the vector because "find RFQ-2026-000123" is the most common thing
+            // anyone types into a search box on a system like this - and the regexp_replace is what makes
+            // that actually work. Postgres's parser treats "RFQ-2026-000006" as 'rfq', '-2026', '-000006':
+            // it reads the hyphenated numeric parts as SIGNED INTEGERS and keeps the sign in the lexeme. A
+            // query built by splitting the same string on non-alphanumerics produces 'rfq', '2026',
+            // '000006', which match nothing. Caught by an integration test against a real code shape after
+            // the feature worked perfectly against the letter-suffixed demo codes - RFQ-DEMO-0006 tokenises
+            // differently and hid it entirely.
+            //
+            // Collapsing every non-alphanumeric run to a space before tokenising means the stored side and
+            // SearchHandler.Tokenise follow ONE rule. That is the property worth having: the alternative is
+            // two tokenisers that agree on most inputs.
+            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql(
+                    "to_tsvector('simple', regexp_replace(coalesce(\"DisplayNameAr\",'') || ' ' || coalesce(\"DisplayNameEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
+                    stored: true);
+            entity.HasIndex("SearchVector").HasMethod("GIN");
             entity.HasKey(s => s.Id);
             entity.Property(s => s.ReferenceCode).HasMaxLength(30).IsRequired();
             entity.HasIndex(s => s.ReferenceCode).IsUnique();
@@ -541,6 +581,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Offering>(entity =>
         {
             entity.ToTable("offering", "supplier");
+            // EPIC-20. NOT a replacement for the ILIKE pair in SearchBuyerOfferingsHandler, deliberately:
+            // that endpoint's callers get substring matching today ("ater" finds "Catering") and a tsquery
+            // prefix does not, so swapping it would narrow a shipped behaviour without anyone asking. This
+            // vector serves the cross-entity search; the catalogue keeps its own semantics until someone
+            // decides they should change.
+            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql(
+                    "to_tsvector('simple', regexp_replace(coalesce(\"NameAr\",'') || ' ' || coalesce(\"NameEn\",'') || ' ' || coalesce(\"Description\",''), '[^[:alnum:]]+', ' ', 'g'))",
+                    stored: true);
+            entity.HasIndex("SearchVector").HasMethod("GIN");
             entity.Property(o => o.RowVersion).IsAppManagedVersion();
             entity.HasKey(o => o.Id);
             entity.Property(o => o.NameAr).HasMaxLength(200).IsRequired();
@@ -574,6 +624,58 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             // The GC job scans by expiry.
             entity.HasIndex(r => r.ExpiresAt);
+        });
+
+        // SCR-716. Same shape and the same reasoning as notification_template below: an absent row means
+        // the shipped string, so nothing is seeded and a fresh database behaves exactly as the bundle does.
+        // BRULE-016's join table. Present and unread on purpose - see DocumentTypeCategory's own comment for
+        // the two decisions that have to come before anything derives the required set from it.
+        modelBuilder.Entity<Domain.ReferenceData.DocumentTypeCategory>(entity =>
+        {
+            entity.ToTable("document_type_category", "reference");
+            entity.HasKey(l => l.Id);
+            entity.Property(l => l.CategoryCode).HasMaxLength(50).IsRequired();
+            // One link per (type, category). A duplicate would double-count nothing today and would
+            // double-count a requirement the day the derivation is switched on.
+            entity.HasIndex(l => new { l.DocumentTypeId, l.CategoryCode }).IsUnique();
+            // Cascade from the document type, because a link to a type that no longer exists is not a
+            // historical record of anything - unlike the reference CODES themselves, which D-28 keeps.
+            entity.HasOne<Domain.ReferenceData.DocumentType>()
+                .WithMany()
+                .HasForeignKey(l => l.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // T-076. Same shape and reasoning as ui_string_override below: absent means the shipped copy.
+        modelBuilder.Entity<Domain.Configuration.EmailTemplateOverride>(entity =>
+        {
+            entity.ToTable("email_template_override", "ops");
+            entity.Property(o => o.RowVersion).IsAppManagedVersion();
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.Key).HasMaxLength(100).IsRequired();
+            entity.Property(o => o.SubjectAr).HasMaxLength(300).IsRequired();
+            entity.Property(o => o.SubjectEn).HasMaxLength(300).IsRequired();
+            // 4000: these are HTML bodies, and the shipped ones are already 200-400 characters before an
+            // administrator adds a paragraph of their own.
+            entity.Property(o => o.BodyAr).HasMaxLength(4000).IsRequired();
+            entity.Property(o => o.BodyEn).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(o => o.Key).IsUnique();
+        });
+
+        modelBuilder.Entity<Domain.Configuration.UiStringOverride>(entity =>
+        {
+            entity.ToTable("ui_string_override", "ops");
+            entity.Property(o => o.RowVersion).IsAppManagedVersion();
+            entity.HasKey(o => o.Id);
+            // 200 is generous for a dotted i18n path; the longest in the bundle today is under 60.
+            entity.Property(o => o.Key).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.Language).HasMaxLength(8).IsRequired();
+            // 2000, because an override replaces a whole sentence in some places - SCR-726's read-only
+            // explanation is over 300 characters - and truncating a rewording is worse than allowing a
+            // long one.
+            entity.Property(o => o.Value).HasMaxLength(2000).IsRequired();
+            // Per key PER LANGUAGE: rewording an English label is not rewording the Arabic one.
+            entity.HasIndex(o => new { o.Key, o.Language }).IsUnique();
         });
 
         modelBuilder.Entity<Domain.Notifications.NotificationTemplate>(entity =>
@@ -841,6 +943,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Rfq>(entity =>
         {
             entity.ToTable("rfq", "rfq");
+            // EPIC-20; see the Supplier entity for why generated and why 'simple'.
+            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql(
+                    "to_tsvector('simple', regexp_replace(coalesce(\"TitleAr\",'') || ' ' || coalesce(\"TitleEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
+                    stored: true);
+            entity.HasIndex("SearchVector").HasMethod("GIN");
             entity.HasKey(r => r.Id);
             entity.Property(r => r.ReferenceCode).HasMaxLength(30).IsRequired();
             entity.HasIndex(r => r.ReferenceCode).IsUnique();

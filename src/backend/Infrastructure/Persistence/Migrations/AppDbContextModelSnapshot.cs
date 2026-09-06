@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 
 #nullable disable
 
@@ -362,6 +363,58 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.ToTable("outbox_message", "ops");
                 });
 
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Configuration.EmailTemplateOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BodyAr")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("BodyEn")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
+
+                    b.Property<string>("SubjectAr")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("SubjectEn")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("email_template_override", "ops");
+                });
+
             modelBuilder.Entity("MotsSupplierPortal.Domain.Configuration.SupplierFieldConfig", b =>
                 {
                     b.Property<Guid>("Id")
@@ -513,6 +566,48 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("system_setting", "ops");
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Configuration.UiStringOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("RowVersion");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key", "Language")
+                        .IsUnique();
+
+                    b.ToTable("ui_string_override", "ops");
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.Evaluation.ConsolidatedResult", b =>
@@ -906,6 +1001,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LanguageChosenAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
@@ -1726,6 +1824,31 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MotsSupplierPortal.Domain.ReferenceData.DocumentTypeCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CategoryCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentTypeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentTypeId", "CategoryCode")
+                        .IsUnique();
+
+                    b.ToTable("document_type_category", "reference");
+                });
+
             modelBuilder.Entity("MotsSupplierPortal.Domain.ReferenceData.Region", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2107,6 +2230,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(1L)
                         .HasColumnName("RowVersion");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasComputedColumnSql("to_tsvector('simple', regexp_replace(coalesce(\"TitleAr\",'') || ' ' || coalesce(\"TitleEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))", true);
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2138,6 +2266,10 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ReferenceCode")
                         .IsUnique();
+
+                    b.HasIndex("SearchVector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
 
                     b.HasIndex("State");
 
@@ -2559,6 +2691,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(1L)
                         .HasColumnName("RowVersion");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasComputedColumnSql("to_tsvector('simple', regexp_replace(coalesce(\"NameAr\",'') || ' ' || coalesce(\"NameEn\",'') || ' ' || coalesce(\"Description\",''), '[^[:alnum:]]+', ' ', 'g'))", true);
+
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
 
@@ -2568,6 +2705,10 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SearchVector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
 
                     b.HasIndex("SupplierId");
 
@@ -2680,6 +2821,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(1L)
                         .HasColumnName("RowVersion");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasComputedColumnSql("to_tsvector('simple', regexp_replace(coalesce(\"DisplayNameAr\",'') || ' ' || coalesce(\"DisplayNameEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))", true);
+
                     b.Property<string>("SupplierGroup")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -2706,6 +2852,10 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ReferenceCode")
                         .IsUnique();
+
+                    b.HasIndex("SearchVector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
 
                     b.ToTable("supplier", "supplier");
                 });
@@ -3021,6 +3171,15 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.HasOne("MotsSupplierPortal.Domain.Proposals.Proposal", null)
                         .WithMany("RequirementAnswers")
                         .HasForeignKey("ProposalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.ReferenceData.DocumentTypeCategory", b =>
+                {
+                    b.HasOne("MotsSupplierPortal.Domain.ReferenceData.DocumentType", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentTypeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

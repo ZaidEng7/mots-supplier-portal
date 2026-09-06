@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
@@ -220,6 +220,15 @@ const resources = {
       // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
       // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
       referenceAdmin: {
+        // ── BRULE-016 · ARABIC FOR REVIEW ───────────────────────────────────────
+        linksSaved: 'تم تحديث ارتباط التصنيفات',                 // [drafted] BRULE-016
+        categoryLinksExplained: 'ارتباط نوع المستند بالتصنيفات يُسجَّل هنا ولا يُطبَّق بعد: قائمة المستندات المطلوبة ما تزال واحدة لكل الموردين. تطبيقه يغيّر معنى «مكتمل» لكل مورد، ويحتاج قراراً بشأن الموردين المعتمدين سابقاً.', // [drafted]
+        // ── BRULE-023 · ARABIC FOR REVIEW ───────────────────────────────────────
+        awardCritical: 'حرج للترسية',                          // [drafted] BRULE-023
+        setAwardCritical: 'تحديده كحرج للترسية',                // [drafted]
+        clearAwardCritical: 'إلغاء الوسم كحرج',                 // [drafted]
+        awardCriticalSaved: 'تم تحديث الوسم',                   // [drafted]
+        awardCriticalExplained: 'انتهاء صلاحية مستند موسوم كحرج للترسية يُعلّق المورد تلقائياً (BRULE-023). لم يُوسم أي نوع حتى الآن، وتحديد الأنواع قرار يخص الوزارة.', // [drafted]
         title: 'إدارة البيانات المرجعية',                    // [§7-style drafted]
         subtitle: 'إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين.', // [§7-style drafted]
         tableLabel: 'الجدول المرجعي',                        // [§7-style drafted]
@@ -254,6 +263,13 @@ const resources = {
       },
       // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
       // ARABIC-REVIEW.md's pile.
+      // ── SCR-045 · ARABIC FOR REVIEW ────────────────────────────────────────────
+      // §7 has no chrome-banner strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      erpBanner: {
+        degraded: 'مزامنة نظام ERP متوقفة مؤقتاً. تستمر جميع العمليات في البوابة كالمعتاد.', // [drafted] SCR-045
+        notConfigured: 'لا يوجد ربط فعلي بنظام ERP في هذه البيئة.',                          // [drafted] T-089
+      },
       ministry: {
         title: 'لوحة الحوكمة',                          // [§7-style drafted]
         kpis: {
@@ -266,6 +282,11 @@ const resources = {
         commercialWithheld: 'القيم المالية غير معروضة',   // [§7-style drafted]
         commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.', // [§7-style drafted]
         suppliersByState: 'الموردون حسب حالة دورة الحياة', // [reused] matches the compliance report (D-18)
+        // Step 3. NOT a status label: StatusChip's coverage guard refuses an authored label for a state
+        // UX-WRITING §7.1 has no row for, and it is right to - a state label is the document's to write.
+        // This is the SCREEN's caption for the group, which is this file's to write, and it says what the
+        // count means without claiming to name a status.
+        unlabelledLifecycle: 'موردون قبل الاعتماد',              // [drafted] Step 3
         rfqsByState: 'طلبات عروض الأسعار حسب الحالة',     // [reused] matches the procurement report
         empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
         loadFailed: 'تعذّر تحميل لوحة الحوكمة',           // [§7-style drafted]
@@ -510,6 +531,7 @@ const resources = {
         forgotTitle: 'إعادة تعيين كلمة المرور',
         forgotSubmit: 'إرسال رابط إعادة التعيين',
         forgotSent: 'إذا كان الحساب موجوداً، تم إرسال رسالة بريد إلكتروني',
+        forgotFailed: 'تعذّر إرسال الطلب. تحقّق من الاتصال وحاول مرة أخرى.',  // [drafted] T-084
         resetTitle: 'تعيين كلمة مرور جديدة',
         newPassword: 'كلمة المرور الجديدة',
         resetSubmit: 'إعادة تعيين',
@@ -915,6 +937,7 @@ const resources = {
         },
       },
       evaluation: {
+        chooseEvaluator: 'اختر مُقيّماً',                        // [drafted] Step 4
         title: 'التقييم',
         open: 'فتح التقييم',
         opened: 'تم فتح التقييم',
@@ -1000,6 +1023,38 @@ const resources = {
             submitFailed: 'تعذر تقديم التقييم',
             documentFailed: 'تعذر فتح الملف {{fileName}}', // [§7-style drafted]
           },
+        },
+      },
+      // ── T-082 / SCR-430, SCR-431 · ARABIC FOR REVIEW ──────────────────────────
+      // §7 has no received-proposals strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      receivedProposals: {
+        title: 'العروض المستلمة',                            // [drafted] SCR-430
+        subtitle: 'العروض المقدَّمة على الطلب {{code}}.',       // [drafted]
+        listTitle: 'العروض',                                 // [drafted]
+        detailTitle: 'تفاصيل العرض',                          // [drafted] SCR-431
+        open: 'عرض',                                         // [reused]
+        close: 'إغلاق',                                      // [reused]
+        empty: 'لم يُقدَّم أي عرض',                            // [drafted]
+        retry: 'إعادة المحاولة',                              // [reused]
+        // The sealed tier is a state with a reason, not an empty list.
+        sealedTitle: 'العروض مغلقة حتى انتهاء فترة التقديم',    // [drafted]
+        sealedBody: 'لا تُعرض هوية مقدّمي العروض قبل إغلاق باب التقديم. يظهر العدد فقط.', // [drafted]
+        sealedCount: 'عدد العروض المقدَّمة حتى الآن: {{count}}',  // [drafted]
+        commercialWithheld: 'القيم المالية غير معروضة بعد',     // [reused] matches the ministry wording
+        commercialWithheldBody: 'تظهر القيم المالية بعد توحيد نتائج التقييم.', // [drafted] D-7/OQ-009
+        afterConsolidation: 'بعد التوحيد',                     // [drafted]
+        narrative: 'الوصف الفني',                             // [reused] §12.5's technicalResponse
+        answers: 'الردود على المتطلبات',                       // [reused]
+        lineItems: 'بنود العرض',                              // [reused]
+        fields: {
+          supplier: 'المورد', proposal: 'رقم العرض', state: 'الحالة', submittedAt: 'تاريخ التقديم',
+          items: 'عدد البنود', total: 'الإجمالي', actions: 'الإجراءات', documents: 'المرفقات',
+          item: 'البند', quantity: 'الكمية', unitPrice: 'سعر الوحدة', lineTotal: 'إجمالي البند',
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل العروض المستلمة',           // [drafted]
+          detailFailed: 'تعذّر تحميل تفاصيل العرض',            // [drafted]
         },
       },
       comparison: {
@@ -1153,6 +1208,14 @@ const resources = {
         },
         uploadDocument: 'رفع مستند',
         documentAdded: 'تمت إضافة المستند',
+        // ── SCR-155 · ARABIC FOR REVIEW ─────────────────────────────────────────
+        clarificationTitle: 'طلب إيضاح',                         // [drafted] §4.1's «إيضاح»
+        clarificationNoReason: 'لم يُسجَّل نص الطلب.',              // [drafted]
+        clarificationHint: 'تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة.', // [drafted]
+        revise: 'تسجيل الردّ',                                   // [drafted]
+        revised: 'تم تسجيل الردّ',                                // [drafted]
+        revisedTitle: 'بانتظار إعادة المراجعة',                    // [drafted]
+        revisedBody: 'سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة.', // [drafted]
         withdrawTitle: 'سحب العرض',
         withdraw: 'سحب العرض',
         withdrawReasonPlaceholder: 'سبب السحب',
@@ -1169,7 +1232,7 @@ const resources = {
         declined: 'تم تسجيل اعتذاركم',                      // [§7-style drafted]
         errors: {
           startFailed: 'تعذر بدء العرض', saveFailed: 'تعذر الحفظ',
-          submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض',
+          submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض', reviseFailed: 'تعذّر تسجيل الردّ',  // [drafted] SCR-155
           declineFailed: 'تعذر تسجيل الاعتذار',             // [§7-style drafted]
         },
       },
@@ -1367,8 +1430,323 @@ const resources = {
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
         failed: 'تعذر إنشاء الحساب',
       },
+      // ── SCR-121..126 · ARABIC FOR REVIEW ──────────────────────────────────────
+      // §7 has no supplier-profile screen strings. Drafted in §7's register - NOT YET
+      // APPROVED, in ARABIC-REVIEW.md's pile.
+      profile: {
+        title: 'ملف المورد',                                 // [reused] §7's own term
+        edit: 'تعديل',                                       // [reused]
+        manage: 'إدارة',                                     // [reused]
+        retry: 'إعادة المحاولة',                              // [reused]
+        incompleteTitle: 'الملف غير مكتمل',                    // [drafted]
+        incompleteBody: 'العناصر التالية مطلوبة قبل تقديم الطلب:', // [drafted]
+        companyTitle: 'بيانات الشركة',                        // [reused]
+        legalTitle: 'البيانات القانونية',                      // [reused] matches onboarding
+        contactsTitle: 'جهات الاتصال والممثلون',                // [reused]
+        addressesTitle: 'العناوين والفروع',                    // [reused]
+        bankingTitle: 'الحسابات البنكية',                      // [reused]
+        offeringsTitle: 'الفئات والعروض',                      // [reused]
+        noContacts: 'لا توجد جهات اتصال',                      // [drafted]
+        noAddresses: 'لا توجد عناوين',                         // [drafted]
+        noBankAccounts: 'لا توجد حسابات بنكية',                 // [drafted]
+        noCategories: 'لم تُحدَّد أي فئة',                       // [drafted]
+        fields: {
+          description: 'الوصف', website: 'الموقع الإلكتروني', supplierGroup: 'المجموعة',
+          defaultCurrency: 'العملة', primaryContactPhone: 'هاتف جهة الاتصال الرئيسية',
+          legalNameAr: 'الاسم القانوني (عربي)', legalNameEn: 'الاسم القانوني (إنجليزي)',
+          registrationNumber: 'رقم السجل التجاري', taxId: 'الرقم الضريبي',
+          supplierType: 'نوع المورد', establishedOn: 'تاريخ التأسيس',
+          fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', phone: 'الهاتف',
+          primary: 'رئيسي', default: 'افتراضي',
+          legalInfo: 'البيانات القانونية', address: 'العنوان', categoryLink: 'الفئات',
+          termsAccepted: 'الموافقة على الشروط',
+        },
+        errors: { loadFailed: 'تعذّر تحميل ملف المورد' },       // [drafted]
+      },
+      // ── SCR-130..133 · ARABIC FOR REVIEW ──────────────────────────────────────
+      // §7 has no documents-centre strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      documents: {
+        title: 'المستندات',                                   // [reused] §7's own term
+        subtitle: 'مستندات الشركة وحالاتها وتواريخ انتهائها.',   // [drafted]
+        listTitle: 'قائمة المستندات',                          // [drafted]
+        attentionTitle: 'مستندات تحتاج إلى إجراء',              // [drafted] SCR-133
+        attentionBody: 'عدد المستندات التي تحتاج إلى إجراء: {{count}}', // [drafted]
+        showAttention: 'عرض ما يحتاج إجراء فقط',                // [drafted]
+        showAll: 'عرض الكل',                                   // [reused]
+        required: 'إلزامي',                                    // [reused]
+        optional: 'اختياري',                                   // [reused]
+        notUploaded: 'لم يُرفع',                                // [drafted]
+        upload: 'رفع',                                         // [reused]
+        replace: 'استبدال',                                     // [reused]
+        download: 'تنزيل',                                      // [reused]
+        history: 'السجل',                                       // [drafted] SCR-132
+        hideHistory: 'إخفاء السجل',                             // [drafted]
+        historyTitle: 'سجل الإصدارات',                          // [drafted]
+        noHistory: 'لم يُرفع أي إصدار بعد',                      // [drafted]
+        close: 'إغلاق',                                         // [reused]
+        uploaded: 'تم رفع المستند',                              // [reused] matches onboarding
+        retry: 'إعادة المحاولة',                                // [reused]
+        fields: {
+          type: 'نوع المستند', required: 'الإلزامية', state: 'الحالة', expiry: 'تاريخ الانتهاء',
+          actions: 'الإجراءات', version: 'الإصدار', fileName: 'اسم الملف',
+          uploadedAt: 'تاريخ الرفع', reason: 'سبب الرفض',
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل المستندات',                   // [drafted]
+          uploadFailed: 'تعذّر رفع المستند',                     // [reused]
+          downloadFailed: 'تعذّر تنزيل المستند',                  // [drafted]
+          historyFailed: 'تعذّر تحميل سجل الإصدارات',             // [drafted]
+        },
+      },
+      // ── SCR-150 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // §7 has no proposals-list strings. Drafted in §7's register - NOT YET APPROVED,
+      // in ARABIC-REVIEW.md's pile.
+      myProposals: {
+        title: 'عروضي',                                       // [drafted] SCR-150
+        subtitle: 'العروض التي قدّمتها أو بدأت إعدادها.',        // [drafted]
+        listTitle: 'قائمة العروض',                             // [drafted]
+        empty: 'لم تقدّم أي عرض بعد',                          // [drafted]
+        open: 'فتح',                                          // [reused]
+        continue: 'متابعة الإعداد',                            // [drafted]
+        awardOffered: 'عُرضت عليك الترسية',                     // [reused] §8's «ترسية»
+        retry: 'إعادة المحاولة',                               // [reused]
+        fields: {
+          rfq: 'الطلب', proposal: 'رقم العرض', state: 'الحالة',
+          deadline: 'موعد الإغلاق', total: 'الإجمالي', actions: 'الإجراءات',
+        },
+        errors: { loadFailed: 'تعذّر تحميل العروض' },           // [drafted]
+      },
+      // ── SCR-902 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      account: {
+        title: 'الحساب',                                      // [drafted] SCR-902
+        save: 'حفظ',                                          // [reused]
+        retry: 'إعادة المحاولة',                               // [reused]
+        saved: 'تم حفظ التغييرات',                             // [reused]
+        emailFixed: 'لا يمكن تغيير البريد الإلكتروني من هذه الشاشة.',  // [drafted]
+        numeralsFollowLanguage: 'تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9.', // [drafted]
+        fields: { fullName: 'الاسم الكامل', language: 'لغة الواجهة', email: 'البريد الإلكتروني' },
+        languages: { ar: 'العربية', en: 'الإنجليزية' },
+        errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' }, // [drafted]
+      },
+      // ── SCR-040 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      sessionExpired: {
+        title: 'انتهت الجلسة',                                 // [drafted] SCR-040
+        body: 'انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت.', // [drafted]
+        password: 'كلمة المرور',                               // [reused]
+        totp: 'رمز التحقق (إن وُجد)',                          // [reused] §7's «رمز التحقق»
+        signIn: 'تسجيل الدخول',                                // [reused]
+        signOut: 'تسجيل الخروج',                               // [reused]
+        failed: 'تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة.',  // [drafted]
+      },
+      // ── SCR-908 / SCR-907 · ARABIC FOR REVIEW ─────────────────────────────────
+      about: {
+        title: 'حول النظام',                                   // [drafted] SCR-908
+        buildTitle: 'إصدار النظام',                            // [drafted]
+        version: 'الإصدار', commit: 'رقم البناء',               // [drafted]
+        loading: 'جارٍ التحميل...',                            // [reused]
+        unavailable: 'غير متاح حالياً',                         // [drafted]
+        supportTitle: 'عند الإبلاغ عن مشكلة',                   // [drafted]
+        correlationHelp: 'تحتوي رسائل الخطأ على «معرّف المتابعة». أرفقه عند الإبلاغ عن أي مشكلة، فهو يربط طلبك بسجلات النظام.', // [drafted]
+        legalTitle: 'الشروط والخصوصية',                        // [drafted]
+        legalPending: 'لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية. تُنشر هنا عند صدورها عن الوزارة.', // [drafted]
+      },
+      help: {
+        title: 'المساعدة',                                     // [drafted] SCR-907
+        subtitle: 'إجابات عن أكثر ما يُسأل عنه في هذا النظام.',   // [drafted]
+        contactTitle: 'التواصل مع الدعم',                       // [drafted]
+        contactPending: 'لم تُحدَّد بعد قناة الدعم. تُعرض هنا عند اعتمادها.', // [drafted]
+        topics: {
+          submitProposal: {
+            question: 'كيف أتقدّم بعرض؟',
+            answer: 'تظهر الطلبات المُوجّهة إليك في قائمة الطلبات. افتح الطلب، ثم أنشئ عرضاً، وأكمل الأسعار والشروط والمستندات قبل الإرسال.',
+            action: 'الانتقال إلى الطلبات',
+          },
+          afterSubmitting: {
+            question: 'هل يمكنني تعديل عرضي بعد إرساله؟',
+            answer: 'لا. بعد الإرسال يصبح العرض غير قابل للتعديل. يمكنك سحبه ما دام باب التقديم مفتوحاً، ثم إعداد عرض جديد.',
+            action: 'الانتقال إلى عروضي',
+          },
+          clarification: {
+            question: 'طُلب منّي إيضاح، فماذا أفعل؟',
+            answer: 'افتح العرض لقراءة نص الطلب، ثم سجّل ردّك. تُسجَّل مراجعة جديدة ويعود العرض إلى المراجعة.',
+            action: 'الانتقال إلى عروضي',
+          },
+          documentsExpiring: {
+            question: 'ما الذي يحدث عند انتهاء صلاحية مستنداتي؟',
+            answer: 'تُنبّهك الشاشة قبل انتهاء الصلاحية. المستند المنتهي يبقى في السجل، ويلزم رفع نسخة جديدة بدلاً منه.',
+            action: 'الانتقال إلى المستندات',
+          },
+          language: {
+            question: 'كيف أغيّر لغة الواجهة؟',
+            answer: 'من شاشة الحساب. يُحفظ اختيارك ويُطبَّق في كل مرة تسجّل الدخول.',
+            action: 'الانتقال إلى الحساب',
+          },
+          password: {
+            question: 'كيف أغيّر كلمة المرور؟',
+            answer: 'من شاشة الحساب. تغييرها يُنهي جلساتك على الأجهزة الأخرى وتبقى هذه الجلسة مفتوحة.',
+            action: 'الانتقال إلى الحساب',
+          },
+        },
+      },
+      // ── SCR-010 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      firstRunLocale: {
+        derived: 'تتبع الأرقام لغة الواجهة. لا يوفّر النظام حالياً تحويل العملات، فتُعرض كل قيمة بعملتها الأصلية.', // [drafted]
+        failed: 'تعذّر حفظ اختيارك. حاول مرة أخرى.',            // [drafted]
+      },
+      // ── SCR-721 / SCR-722 · ARABIC FOR REVIEW ─────────────────────────────────
+      operations: {
+        title: 'التشغيل والمهام',                               // [drafted] SCR-721/722
+        subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',      // [drafted]
+        jobsTitle: 'المهام المجدولة',                           // [drafted]
+        outboxTitle: 'الأحداث الصادرة',                         // [drafted]
+        storageTitle: 'الملفات والتخزين',                       // [drafted] SCR-725
+        storage: {
+          objectStore: 'مخزن الملفات', scanner: 'فاحص الفيروسات',
+          reachable: 'متصل', unreachable: 'غير متصل',
+          pendingScans: '{{count}} ملفاً بانتظار الفحص',
+          maxUpload: 'الحد الأقصى لحجم الملف',
+          megabytes: '{{count}} ميغابايت',
+          allowedTypes: 'الأنواع المسموحة',
+          bucket: 'الحاوية',
+          documents: 'عدد الملفات المخزَّنة',
+          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. حد الحجم وقائمة الأنواع المسموحة ضابط أمني يُتحقَّق من بصمة الملف نفسه، وتوسيعه من الواجهة أول ما يفعله من يستولي على حساب إداري. قواعد المستندات التي تملكها الإدارة تُدار من شاشة البيانات المرجعية.', // [drafted]
+        },
+        securityTitle: 'إعدادات الأمان',                        // [drafted] SCR-726
+        security: {
+          passwordLength: 'الحد الأدنى لطول كلمة المرور',
+          characters: '{{count}} حرفاً',
+          composition: 'تركيب كلمة المرور',
+          digit: 'رقم', uppercase: 'حرف كبير', lowercase: 'حرف صغير', symbol: 'رمز',
+          lengthOnly: 'الطول فقط — لا يُفرض رقم أو حالة أحرف أو رمز (معيار NIST 800-63B)', // [drafted]
+          lockout: 'قفل الحساب',
+          lockoutValue: 'بعد {{attempts}} محاولات فاشلة، لمدة {{minutes}} دقيقة',
+          accessToken: 'مدة رمز الدخول',
+          accessTokenValue: '{{minutes}} دقيقة (زائد {{skew}} ثانية سماحاً لفرق الساعات)',
+          refreshToken: 'مدة رمز التجديد',
+          days: '{{count}} يوماً',
+          mfaRoles: 'الأدوار الملزمة بالتحقق بخطوتين',
+          mfaNone: 'لا يوجد — لا دور مُلزم بعامل ثانٍ',          // [drafted] see the note in the code
+          rateLimit: 'حدّ المعدل',
+          rateLimitValue: '{{permits}} طلبات كل {{seconds}} ثانية',
+          registration: 'تسجيل الموردين الجدد',
+          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. هذه القيم من إعدادات النشر، ونقلها إلى زرّ في الواجهة ينقل قراراً أمنياً من نشرٍ مُراجَع إلى نقرة أثناء التشغيل. تسجيل الموردين وحده يُدار من شاشة إعدادات النظام.', // [drafted]
+        },
+        erpTitle: 'مزامنة نظام الموارد',                        // [drafted] SCR-723
+        erpNotConfigured: 'لم يُهيَّأ اتصال فعلي بنظام الموارد. الحالات أدناه صادرة عن بديل تسجيلي لا يُرسل شيئاً.', // [drafted]
+        erpEmpty: 'لا توجد ترسيات مطابقة',                      // [drafted]
+        retryErp: 'إعادة المزامنة',                             // [drafted]
+        erpRetryQueued: 'أُعيد طلب المزامنة',                    // [drafted]
+        runNow: 'تشغيل الآن',                                   // [drafted]
+        jobTriggered: 'تم إرسال المهمة للتشغيل',                 // [drafted]
+        notRegistered: 'غير مُسجَّلة',                           // [drafted]
+        never: 'لم تُشغَّل بعد',                                 // [drafted]
+        recurringDisabled: 'المهام المجدولة مُعطَّلة على هذا النظام. لن تُشغَّل أي مهمة في مواعيدها.', // [drafted]
+        noPauseExplained: 'لا يوفّر النظام إيقافاً مؤقتاً لمهمة واحدة: إلغاء تسجيلها يجعلها تبدو كمهمة مفقودة، وهو الخطأ الذي تكشفه هذه الشاشة. الإيقاف يكون على مستوى النظام من الإعدادات.', // [drafted]
+        allStatuses: 'كل الحالات',                              // [reused]
+        outboxEmpty: 'لا توجد رسائل مطابقة',                     // [drafted]
+        showPayload: 'عرض المحتوى', hidePayload: 'إخفاء المحتوى', // [drafted]
+        replay: 'إعادة الإرسال',                                // [drafted]
+        replayQueued: 'أُعيدت الرسالة إلى الطابور',              // [drafted]
+        retry: 'إعادة المحاولة',                                // [reused]
+        fields: {
+          job: 'المهمة', schedule: 'الجدولة', lastRun: 'آخر تشغيل', nextRun: 'التشغيل القادم',
+          type: 'النوع', status: 'الحالة', created: 'أُنشئت', processed: 'عُوملت', actions: 'الإجراءات',
+          rfq: 'الطلب', attempts: 'المحاولات', syncedAt: 'وقت المزامنة', poRef: 'مرجع أمر الشراء',
+          control: 'الضابط', effective: 'القيمة السارية',
+        },
+        errors: {
+          jobsLoadFailed: 'تعذّر تحميل المهام',                  // [drafted]
+          outboxLoadFailed: 'تعذّر تحميل الأحداث الصادرة',        // [drafted]
+          triggerFailed: 'تعذّر تشغيل المهمة',                   // [drafted]
+          notRegistered: 'هذه المهمة غير مُسجَّلة، فلا يمكن تشغيلها', // [drafted]
+          replayFailed: 'تعذّرت إعادة الإرسال',                  // [drafted]
+          erpLoadFailed: 'تعذّر تحميل حالات المزامنة',            // [drafted]
+          erpRetryFailed: 'تعذّرت إعادة المزامنة',                // [drafted]
+          securityLoadFailed: 'تعذّر تحميل إعدادات الأمان',        // [drafted]
+          storageLoadFailed: 'تعذّر تحميل إعدادات التخزين',        // [drafted]
+        },
+      },
+      // ── SCR-716 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      uiStrings: {
+        title: 'نصوص الواجهة',                                  // [drafted] SCR-716
+        subtitle: 'تعديل صياغة أي نص في الواجهة دون إصدار جديد.',  // [drafted]
+        editTitle: 'تعديل نص',                                  // [drafted]
+        listTitle: 'النصوص المُعدَّلة',                          // [drafted]
+        empty: 'لا توجد تعديلات — تُعرض النصوص كما وردت في النظام', // [drafted]
+        searchHint: 'اكتب حرفين على الأقل للبحث في مفاتيح النصوص.', // [drafted]
+        shipped: 'النص الأصلي',                                 // [drafted]
+        save: 'حفظ التعديل', cancel: 'إلغاء', restore: 'استعادة الأصلي', retry: 'إعادة المحاولة',
+        saved: 'تم حفظ التعديل',                                // [drafted]
+        restored: 'أُعيد النص الأصلي',                           // [drafted]
+        takesEffect: 'يظهر التعديل عند إعادة تحميل الصفحة لكل المستخدمين.', // [drafted]
+        fields: { language: 'اللغة', search: 'بحث في المفاتيح', value: 'النص المُعدَّل', key: 'المفتاح', actions: 'الإجراءات' },
+        errors: {
+          loadFailed: 'تعذّر تحميل التعديلات',                   // [drafted]
+          saveFailed: 'تعذّر حفظ التعديل',                       // [drafted]
+          deleteFailed: 'تعذّرت استعادة النص الأصلي',            // [drafted]
+        },
+      },
+      // ── SCR-906 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      search: {
+        title: 'البحث',                                        // [reused]
+        subtitle: 'بحث واحد في الطلبات والموردين والعروض المُدرجة.', // [drafted]
+        formTitle: 'ما الذي تبحث عنه؟',                         // [drafted]
+        resultsTitle: 'النتائج',                                // [drafted]
+        submit: 'بحث',                                         // [reused]
+        retry: 'إعادة المحاولة',                                // [reused]
+        hint: 'يمكن البحث بالعنوان أو بالرقم المرجعي. آخر كلمة تُطابَق كبداية كلمة.', // [drafted]
+        resultsFor: '{{count}} نتيجة لـ «{{query}}»',            // [drafted]
+        truncated: 'النتائج أكثر من المعروض. حدِّد البحث أكثر.',    // [drafted]
+        empty: 'لا نتائج',                                      // [reused]
+        emptyHint: 'يُطابق البحث الكلمات كاملة أو بداياتها فقط، فصيغة الجمع لا تجد المفرد.', // [drafted]
+        kinds: { rfq: 'طلب عرض', supplier: 'مورّد', offering: 'عرض مُدرَج' }, // [reused] §7's «طلب عرض»
+        fields: { query: 'كلمة البحث' },
+        errors: { failed: 'تعذّر تنفيذ البحث' },                 // [drafted]
+      },
+      // ── T-076 · ARABIC FOR REVIEW ─────────────────────────────────────────────
+      emailTemplates: {
+        title: 'نصوص رسائل البريد',                             // [drafted] T-076
+        subtitle: 'صياغة الرسائل التي يرسلها النظام. الرموز بين قوسين معقوفين تُستبدل بقيم فعلية.', // [drafted]
+        overridden: 'صياغة مُعدَّلة', shippedWording: 'الصياغة الأصلية',  // [drafted]
+        required: '(إلزامي)',                                   // [drafted]
+        inForce: 'الصياغة السارية حالياً:',                       // [drafted]
+        edit: 'تعديل', save: 'حفظ', cancel: 'إلغاء', revert: 'استعادة الأصلي', retry: 'إعادة المحاولة',
+        saved: 'تم حفظ الصياغة',                                // [drafted]
+        reverted: 'أُعيدت الصياغة الأصلية',                      // [drafted]
+        tokensNamed: 'الرموز المعنية: {{tokens}}',               // [drafted]
+        fields: {
+          subjectAr: 'الموضوع (عربي)', subjectEn: 'الموضوع (إنجليزي)',
+          bodyAr: 'النص (عربي)', bodyEn: 'النص (إنجليزي)',
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل نصوص الرسائل',                 // [drafted]
+          saveFailed: 'تعذّر حفظ الصياغة',                        // [drafted]
+          revertFailed: 'تعذّرت استعادة الصياغة الأصلية',          // [drafted]
+          missingTokens: 'الصياغة الجديدة تُسقط رمزاً إلزامياً. الرسالة بدون رابطها لا تُفيد المستلم.', // [drafted]
+          unknownTokens: 'الصياغة تحتوي رمزاً لا يعرفه النظام، وسيظهر كما هو في الرسالة.', // [drafted]
+        },
+      },
       settings: {
         title: 'إعدادات الحساب',
+        // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
+        // §7 has no change-password strings. Drafted in §7's register - NOT YET APPROVED,
+        // in ARABIC-REVIEW.md's pile.
+        passwordTitle: 'تغيير كلمة المرور',                       // [drafted] SCR-903
+        passwordHint: 'اختر كلمة مرور جديدة لحسابك.',              // [drafted]
+        currentPassword: 'كلمة المرور الحالية',                    // [drafted]
+        newPasswordLabel: 'كلمة المرور الجديدة',                   // [reused] matches the reset form
+        confirmPassword: 'تأكيد كلمة المرور الجديدة',               // [drafted]
+        passwordRule: 'اثنا عشر حرفاً على الأقل.',                  // [drafted]
+        changePassword: 'تغيير كلمة المرور',                       // [drafted]
+        passwordChanged: 'تم تغيير كلمة المرور',                   // [drafted]
+        passwordIncorrect: 'كلمة المرور الحالية غير صحيحة.',        // [drafted]
+        passwordUnchanged: 'كلمة المرور الجديدة مطابقة للحالية.',    // [drafted]
+        passwordWeak: 'كلمة المرور الجديدة ضعيفة.',                 // [drafted]
+        passwordMismatch: 'الكلمتان غير متطابقتين.',                // [drafted]
+        passwordChangeFailed: 'تعذّر تغيير كلمة المرور',            // [drafted]
+        // Stated before the action, not discovered after it.
+        passwordRevokesOthers: 'سيؤدي التغيير إلى إنهاء جلساتك على الأجهزة الأخرى، وتبقى هذه الجلسة مفتوحة.', // [drafted]
         mfaTitle: 'المصادقة الثنائية',
         mfaEnroll: 'تفعيل المصادقة الثنائية',
         mfaScanOrEnter: 'امسح الرمز باستخدام تطبيق المصادقة أو أدخل المفتاح يدوياً',
@@ -1401,7 +1779,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       supplierDashboard: {
         title: 'Supplier dashboard',
         greeting: 'Welcome, {{name}}',
@@ -1575,6 +1953,13 @@ const resources = {
         },
       },
       referenceAdmin: {
+        linksSaved: 'Category links updated',
+        categoryLinksExplained: 'These category links are recorded and not yet applied: the required-document list is still the same for every supplier. Applying them changes what “complete” means for everyone, and needs a decision about suppliers already approved under the flat list.',
+        awardCritical: 'Award-critical',
+        setAwardCritical: 'Mark award-critical',
+        clearAwardCritical: 'Remove award-critical',
+        awardCriticalSaved: 'Flag updated',
+        awardCriticalExplained: 'When an award-critical document expires, the supplier is suspended automatically (BRULE-023). No type is marked today, and which types qualify is a ministry decision.',
         title: 'Reference data',
         subtitle: 'Add, rename, and deactivate the codes RFQs and supplier profiles are built from.',
         tableLabel: 'Reference table',
@@ -1605,6 +1990,10 @@ const resources = {
           loadFailed: 'Could not load reference data',
         },
       },
+      erpBanner: {
+        degraded: 'ERP sync is paused. Everything in the portal continues as normal.',
+        notConfigured: 'No real ERP integration is configured in this environment.',
+      },
       ministry: {
         title: 'Governance dashboard',
         kpis: {
@@ -1617,6 +2006,7 @@ const resources = {
         commercialWithheld: 'Commercial values are not shown',
         commercialWithheldBody: 'Under the current visibility policy, aggregate metrics are shown without commercial values.',
         suppliersByState: 'Suppliers by lifecycle state',
+        unlabelledLifecycle: 'Suppliers before approval',
         rfqsByState: 'RFQs by state',
         empty: 'No data yet',
         loadFailed: 'Could not load the governance dashboard',
@@ -1822,6 +2212,7 @@ const resources = {
         forgotTitle: 'Reset your password',
         forgotSubmit: 'Send reset link',
         forgotSent: 'If that account exists, a reset email has been sent',
+        forgotFailed: 'The request could not be sent. Check your connection and try again.',
         resetTitle: 'Set a new password',
         newPassword: 'New password',
         resetSubmit: 'Reset password',
@@ -2218,6 +2609,7 @@ const resources = {
         },
       },
       evaluation: {
+        chooseEvaluator: 'Choose an evaluator',
         title: 'Evaluation',
         open: 'Open evaluation',
         opened: 'Evaluation opened',
@@ -2297,6 +2689,34 @@ const resources = {
             submitFailed: 'Could not submit the evaluation',
             documentFailed: 'Could not open {{fileName}}',
           },
+        },
+      },
+      receivedProposals: {
+        title: 'Received proposals',
+        subtitle: 'Bids submitted against {{code}}.',
+        listTitle: 'Proposals',
+        detailTitle: 'Proposal detail',
+        open: 'Open',
+        close: 'Close',
+        empty: 'No proposals were submitted',
+        retry: 'Try again',
+        sealedTitle: 'Bids stay sealed until the window closes',
+        sealedBody: 'Who has bid is not shown while suppliers can still submit. Only the count is.',
+        sealedCount: 'Proposals submitted so far: {{count}}',
+        commercialWithheld: 'Commercial values are not shown yet',
+        commercialWithheldBody: 'Commercial figures appear once the evaluation is consolidated.',
+        afterConsolidation: 'After consolidation',
+        narrative: 'Technical response',
+        answers: 'Requirement answers',
+        lineItems: 'Line items',
+        fields: {
+          supplier: 'Supplier', proposal: 'Proposal', state: 'State', submittedAt: 'Submitted',
+          items: 'Items', total: 'Total', actions: 'Actions', documents: 'Documents',
+          item: 'Item', quantity: 'Quantity', unitPrice: 'Unit price', lineTotal: 'Line total',
+        },
+        errors: {
+          loadFailed: 'Could not load the received proposals',
+          detailFailed: 'Could not load the proposal',
         },
       },
       comparison: {
@@ -2446,6 +2866,13 @@ const resources = {
         },
         uploadDocument: 'Upload document',
         documentAdded: 'Document added',
+        clarificationTitle: 'Clarification requested',
+        clarificationNoReason: 'No question was recorded with this request.',
+        clarificationHint: 'Recording your response returns the proposal for re-review. Proposal lines cannot be edited at this stage.',
+        revise: 'Record response',
+        revised: 'Response recorded',
+        revisedTitle: 'Awaiting re-review',
+        revisedBody: 'Your response was recorded (revision {{revision}}). A procurement officer will return the proposal to review.',
         withdrawTitle: 'Withdraw proposal',
         withdraw: 'Withdraw proposal',
         withdrawReasonPlaceholder: 'Reason for withdrawal',
@@ -2458,7 +2885,7 @@ const resources = {
         declined: 'Your decline has been recorded',
         errors: {
           startFailed: 'Could not start the proposal', saveFailed: 'Could not save',
-          submitFailed: 'Could not submit the proposal', withdrawFailed: 'Could not withdraw the proposal',
+          submitFailed: 'Could not submit the proposal', withdrawFailed: 'Could not withdraw the proposal', reviseFailed: 'Could not record your response',
           declineFailed: 'Could not record the decline',
         },
       },
@@ -2655,8 +3082,302 @@ const resources = {
         weakPassword: "Password doesn't meet the strength requirements",
         failed: 'Could not create the account',
       },
+      profile: {
+        title: 'Company profile',
+        edit: 'Edit',
+        manage: 'Manage',
+        retry: 'Try again',
+        incompleteTitle: 'Profile incomplete',
+        incompleteBody: 'These items are required before the application can be submitted:',
+        companyTitle: 'Company details',
+        legalTitle: 'Legal information',
+        contactsTitle: 'Contacts & representatives',
+        addressesTitle: 'Addresses & branches',
+        bankingTitle: 'Bank accounts',
+        offeringsTitle: 'Categories & offerings',
+        noContacts: 'No contacts yet',
+        noAddresses: 'No addresses yet',
+        noBankAccounts: 'No bank accounts yet',
+        noCategories: 'No categories selected',
+        fields: {
+          description: 'Description', website: 'Website', supplierGroup: 'Group',
+          defaultCurrency: 'Currency', primaryContactPhone: 'Primary contact phone',
+          legalNameAr: 'Legal name (Arabic)', legalNameEn: 'Legal name (English)',
+          registrationNumber: 'Registration number', taxId: 'Tax ID',
+          supplierType: 'Supplier type', establishedOn: 'Established',
+          fullName: 'Full name', email: 'Email', phone: 'Phone',
+          primary: 'Primary', default: 'Default',
+          legalInfo: 'Legal information', address: 'Address', categoryLink: 'Categories',
+          termsAccepted: 'Terms accepted',
+        },
+        errors: { loadFailed: 'Could not load the profile' },
+      },
+      documents: {
+        title: 'Documents',
+        subtitle: 'Your company documents, their status and expiry dates.',
+        listTitle: 'Document list',
+        attentionTitle: 'Documents needing attention',
+        attentionBody: '{{count}} document(s) need attention.',
+        showAttention: 'Show only what needs attention',
+        showAll: 'Show all',
+        required: 'Required',
+        optional: 'Optional',
+        notUploaded: 'Not uploaded',
+        upload: 'Upload',
+        replace: 'Replace',
+        download: 'Download',
+        history: 'History',
+        hideHistory: 'Hide history',
+        historyTitle: 'Version history',
+        noHistory: 'No versions uploaded yet',
+        close: 'Close',
+        uploaded: 'Document uploaded',
+        retry: 'Try again',
+        fields: {
+          type: 'Document type', required: 'Required', state: 'State', expiry: 'Expires',
+          actions: 'Actions', version: 'Version', fileName: 'File name',
+          uploadedAt: 'Uploaded', reason: 'Rejection reason',
+        },
+        errors: {
+          loadFailed: 'Could not load your documents',
+          uploadFailed: 'Could not upload the document',
+          downloadFailed: 'Could not download the document',
+          historyFailed: 'Could not load the version history',
+        },
+      },
+      myProposals: {
+        title: 'My proposals',
+        subtitle: 'Bids you have submitted or started preparing.',
+        listTitle: 'Proposals',
+        empty: 'You have not started a proposal yet',
+        open: 'Open',
+        continue: 'Continue',
+        awardOffered: 'Award offered',
+        retry: 'Try again',
+        fields: {
+          rfq: 'RFQ', proposal: 'Proposal', state: 'State',
+          deadline: 'Deadline', total: 'Total', actions: 'Actions',
+        },
+        errors: { loadFailed: 'Could not load your proposals' },
+      },
+      account: {
+        title: 'Account',
+        save: 'Save',
+        retry: 'Try again',
+        saved: 'Changes saved',
+        emailFixed: 'Your email address cannot be changed from this screen.',
+        numeralsFollowLanguage: 'Numerals follow the interface language: Arabic renders ٠-٩, English 0-9.',
+        fields: { fullName: 'Full name', language: 'Interface language', email: 'Email address' },
+        languages: { ar: 'Arabic', en: 'English' },
+        errors: { loadFailed: 'Could not load your account', saveFailed: 'Could not save your changes' },
+      },
+      sessionExpired: {
+        title: 'Session expired',
+        body: 'Your session has expired. Sign in again to carry on where you left off.',
+        password: 'Password',
+        totp: 'Verification code (if enabled)',
+        signIn: 'Sign in',
+        signOut: 'Sign out',
+        failed: 'Could not sign in. Check the details you entered.',
+      },
+      about: {
+        title: 'About',
+        buildTitle: 'Build',
+        version: 'Version', commit: 'Build reference',
+        loading: 'Loading...',
+        unavailable: 'Unavailable',
+        supportTitle: 'Reporting a problem',
+        correlationHelp: 'Error messages include a correlation ID. Quote it when reporting a problem — it ties your request to the system logs.',
+        legalTitle: 'Terms and privacy',
+        legalPending: 'Terms of use and the privacy notice have not been issued yet. They will appear here once the ministry publishes them.',
+      },
+      help: {
+        title: 'Help',
+        subtitle: 'Answers to what people ask about this system most.',
+        contactTitle: 'Contacting support',
+        contactPending: 'A support channel has not been configured yet. It will appear here once one is.',
+        topics: {
+          submitProposal: {
+            question: 'How do I bid on a tender?',
+            answer: 'Tenders you have been invited to appear in your RFQ list. Open one, start a proposal, and complete pricing, terms and documents before submitting.',
+            action: 'Go to RFQs',
+          },
+          afterSubmitting: {
+            question: 'Can I change my proposal after submitting it?',
+            answer: 'No. A submitted proposal is fixed. You can withdraw it while the submission window is still open and prepare a new one.',
+            action: 'Go to my proposals',
+          },
+          clarification: {
+            question: 'I have been asked for a clarification — what now?',
+            answer: 'Open the proposal to read the question, then record your response. A new revision is recorded and the proposal goes back for review.',
+            action: 'Go to my proposals',
+          },
+          documentsExpiring: {
+            question: 'What happens when my documents expire?',
+            answer: 'The screen warns you before the expiry date. An expired document stays on the record and a replacement has to be uploaded.',
+            action: 'Go to documents',
+          },
+          language: {
+            question: 'How do I change the interface language?',
+            answer: 'On the account screen. Your choice is saved and applied every time you sign in.',
+            action: 'Go to account',
+          },
+          password: {
+            question: 'How do I change my password?',
+            answer: 'On the account screen. Changing it signs you out on your other devices and leaves this session open.',
+            action: 'Go to account',
+          },
+        },
+      },
+      firstRunLocale: {
+        derived: 'Numerals follow the interface language. Amounts are shown in their own currency — the system does not convert between currencies.',
+        failed: 'Could not save your choice. Please try again.',
+      },
+      operations: {
+        title: 'Operations',
+        subtitle: 'Scheduled jobs and the outgoing event queue.',
+        jobsTitle: 'Scheduled jobs',
+        outboxTitle: 'Outgoing events',
+        storageTitle: 'Files and storage',
+        storage: {
+          objectStore: 'Object store', scanner: 'Virus scanner',
+          reachable: 'reachable', unreachable: 'unreachable',
+          pendingScans: '{{count}} files awaiting scan',
+          maxUpload: 'Maximum file size',
+          megabytes: '{{count}} MB',
+          allowedTypes: 'Allowed types',
+          bucket: 'Bucket',
+          documents: 'Stored documents',
+          readOnlyExplained: 'This screen reports and does not edit. The size cap and the allowed-type list are a security control checked against each file\'s own magic bytes, and widening either from a screen is the first thing a compromised admin session would do. The document rules administrators own are managed on the reference data screen.',
+        },
+        securityTitle: 'Security settings',
+        security: {
+          passwordLength: 'Minimum password length',
+          characters: '{{count}} characters',
+          composition: 'Password composition',
+          digit: 'digit', uppercase: 'uppercase', lowercase: 'lowercase', symbol: 'symbol',
+          lengthOnly: 'Length only — no forced digit, case or symbol (NIST 800-63B)',
+          lockout: 'Account lockout',
+          lockoutValue: 'After {{attempts}} failed attempts, for {{minutes}} minutes',
+          accessToken: 'Access token lifetime',
+          accessTokenValue: '{{minutes}} minutes (plus {{skew}} seconds clock skew)',
+          refreshToken: 'Refresh token lifetime',
+          days: '{{count}} days',
+          mfaRoles: 'Roles requiring two-factor',
+          mfaNone: 'None — no role requires a second factor',
+          rateLimit: 'Rate limit',
+          rateLimitValue: '{{permits}} requests per {{seconds}} seconds',
+          registration: 'Supplier registration',
+          readOnlyExplained: 'This screen reports and does not edit. These are deployment settings, and putting a password floor or an MFA requirement behind a button would move a security decision from a reviewed deployment to a runtime click. Supplier registration is the one value administrators own, and it has its own screen.',
+        },
+        erpTitle: 'ERP synchronisation',
+        erpNotConfigured: 'No real ERP transport is configured. The states below come from a logging stand-in that sends nothing.',
+        erpEmpty: 'No awards match',
+        retryErp: 'Retry sync',
+        erpRetryQueued: 'Sync requested again',
+        runNow: 'Run now',
+        jobTriggered: 'Job queued to run',
+        notRegistered: 'Not registered',
+        never: 'Never run',
+        recurringDisabled: 'Scheduled jobs are disabled on this deployment. Nothing will run on schedule.',
+        noPauseExplained: 'There is no per-job pause: removing a registration would make a paused job look like a missing one, which is the fault this screen exists to show. Schedules are stopped deployment-wide in configuration.',
+        allStatuses: 'All statuses',
+        outboxEmpty: 'No messages match',
+        showPayload: 'Show payload', hidePayload: 'Hide payload',
+        replay: 'Replay',
+        replayQueued: 'Message returned to the queue',
+        retry: 'Try again',
+        fields: {
+          job: 'Job', schedule: 'Schedule', lastRun: 'Last run', nextRun: 'Next run',
+          type: 'Type', status: 'Status', created: 'Created', processed: 'Processed', actions: 'Actions',
+          rfq: 'RFQ', attempts: 'Attempts', syncedAt: 'Synced', poRef: 'PO reference',
+          control: 'Control', effective: 'In effect',
+        },
+        errors: {
+          jobsLoadFailed: 'Could not load the jobs',
+          outboxLoadFailed: 'Could not load the outgoing events',
+          triggerFailed: 'Could not run the job',
+          notRegistered: 'That job is not registered, so it cannot be run',
+          replayFailed: 'Could not replay the message',
+          erpLoadFailed: 'Could not load the synchronisation states',
+          erpRetryFailed: 'Could not request the sync again',
+          securityLoadFailed: 'Could not load the security settings',
+          storageLoadFailed: 'Could not load the storage settings',
+        },
+      },
+      uiStrings: {
+        title: 'Interface text',
+        subtitle: 'Reword any string in the interface without a release.',
+        editTitle: 'Edit a string',
+        listTitle: 'Reworded strings',
+        empty: 'No overrides — the product reads exactly as it was built',
+        searchHint: 'Type at least two characters to search the string keys.',
+        shipped: 'Shipped text',
+        save: 'Save override', cancel: 'Cancel', restore: 'Restore original', retry: 'Try again',
+        saved: 'Override saved',
+        restored: 'Original text restored',
+        takesEffect: 'The change appears for every user on their next page load.',
+        fields: { language: 'Language', search: 'Search keys', value: 'Replacement text', key: 'Key', actions: 'Actions' },
+        errors: {
+          loadFailed: 'Could not load the overrides',
+          saveFailed: 'Could not save the override',
+          deleteFailed: 'Could not restore the original text',
+        },
+      },
+      search: {
+        title: 'Search',
+        subtitle: 'One search across tenders, suppliers and catalogue offerings.',
+        formTitle: 'What are you looking for?',
+        resultsTitle: 'Results',
+        submit: 'Search',
+        retry: 'Try again',
+        hint: 'Search by title or reference code. The last word is matched as a prefix.',
+        resultsFor: '{{count}} results for “{{query}}”',
+        truncated: 'There are more results than shown. Narrow the search.',
+        empty: 'No results',
+        emptyHint: 'Search matches whole words and prefixes only, so a plural will not find a singular.',
+        kinds: { rfq: 'RFQ', supplier: 'Supplier', offering: 'Offering' },
+        fields: { query: 'Search terms' },
+        errors: { failed: 'The search could not be run' },
+      },
+      emailTemplates: {
+        title: 'Email wording',
+        subtitle: 'The wording of the emails this system sends. Tokens in braces are replaced with real values.',
+        overridden: 'Reworded', shippedWording: 'Shipped wording',
+        required: '(required)',
+        inForce: 'Currently in force:',
+        edit: 'Edit', save: 'Save', cancel: 'Cancel', revert: 'Restore original', retry: 'Try again',
+        saved: 'Wording saved',
+        reverted: 'Original wording restored',
+        tokensNamed: 'Tokens: {{tokens}}',
+        fields: {
+          subjectAr: 'Subject (Arabic)', subjectEn: 'Subject (English)',
+          bodyAr: 'Body (Arabic)', bodyEn: 'Body (English)',
+        },
+        errors: {
+          loadFailed: 'Could not load the email wording',
+          saveFailed: 'Could not save the wording',
+          revertFailed: 'Could not restore the original wording',
+          missingTokens: 'The new wording drops a required token. An email without its link is no use to the recipient.',
+          unknownTokens: 'The wording contains a token the system does not know, and it would reach the recipient as literal text.',
+        },
+      },
       settings: {
         title: 'Account Settings',
+        passwordTitle: 'Change password',
+        passwordHint: 'Choose a new password for your account.',
+        currentPassword: 'Current password',
+        newPasswordLabel: 'New password',
+        confirmPassword: 'Confirm new password',
+        passwordRule: 'At least twelve characters.',
+        changePassword: 'Change password',
+        passwordChanged: 'Password changed',
+        passwordIncorrect: 'That is not your current password.',
+        passwordUnchanged: 'The new password is the same as the current one.',
+        passwordWeak: 'That password is too weak.',
+        passwordMismatch: 'The two passwords do not match.',
+        passwordChangeFailed: 'Could not change the password',
+        passwordRevokesOthers: 'Changing it signs you out on your other devices. This session stays open.',
         mfaTitle: 'Two-factor authentication',
         mfaEnroll: 'Enable two-factor authentication',
         mfaScanOrEnter: 'Scan with your authenticator app or enter the key manually',

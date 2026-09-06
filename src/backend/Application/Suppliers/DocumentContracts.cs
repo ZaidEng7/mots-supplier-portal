@@ -159,3 +159,21 @@ public interface IRejectDocumentHandler
 {
     Task<ReviewDocumentResult> HandleAsync(string documentCode, string reason, CancellationToken ct);
 }
+
+/// <summary>
+/// SCR-132: every version of one document type for one supplier, newest first.
+///
+/// <para><b>The gap this closes.</b> <c>SupplierDocument</c> has carried <c>Version</c> and
+/// <c>IsLatestVersion</c> since EPIC-05, so the chain has always existed in storage — and no endpoint
+/// returned it. A supplier could see the current state of a document and never why it got there: a
+/// rejection followed by a re-upload looked identical to a first upload that was approved.</para>
+///
+/// <para>Keyed by document TYPE code rather than by a document id, because the history is the type's
+/// story: "what happened to my commercial registration", not "what happened to this one file".</para>
+/// </summary>
+public interface IGetDocumentHistoryHandler
+{
+    /// <summary>Null when the supplier is out of scope or the type is unknown — §9.2's 404 either
+    /// way, since which of the two it was is not a distinction worth disclosing.</summary>
+    Task<IReadOnlyList<SupplierDocumentDto>?> HandleAsync(string supplierCode, string documentTypeCode, CancellationToken ct);
+}
