@@ -4,6 +4,8 @@ import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesP
 import { ProfilePage } from './routes/ProfilePage'
 import { DocumentsPage } from './routes/DocumentsPage'
 import { MyProposalsPage } from './routes/MyProposalsPage'
+import { AboutPage } from './routes/AboutPage'
+import { HelpPage } from './routes/HelpPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
@@ -113,6 +115,14 @@ const rootRoute = createRootRoute({
   ),
   notFoundComponent: () => <ErrorBoundaryScreen code="404" />,
   errorComponent: () => <ErrorBoundaryScreen code="500" />,
+})
+
+// SCR-908, `/about`, public. Outside every authenticated layout on purpose: the moment a user most
+// needs to say which build they are on is when they cannot sign in.
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/about',
+  component: AboutPage,
 })
 
 const loginRoute = createRoute({
@@ -446,6 +456,21 @@ const settingsRoute = createRoute({
 // enrol MFA, see their sessions or fix their own name. The SAME page is mounted here rather than a
 // second one written for staff - every card on it is about the caller's own account, and the one
 // supplier-scoped card gates itself on being a supplier.
+// SCR-907, `/help` and `/back-office/help`. One page, mounted in both shells so it keeps the nav the
+// reader came from - a help link that drops a procurement officer into the supplier chrome is worse
+// than no link.
+const helpRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/help',
+  component: HelpPage,
+})
+
+const backOfficeHelpRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/help',
+  component: HelpPage,
+})
+
 const backOfficeAccountRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/account',
@@ -569,6 +594,7 @@ const awardRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  aboutRoute,
   registerRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
@@ -576,7 +602,7 @@ const routeTree = rootRoute.addChildren([
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
   evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
-  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, myProposalsRoute, 
+  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, myProposalsRoute, helpRoute, 
     supplierDashboardRoute,
     onboardingRoute,
     onboardingContactsRoute,
@@ -591,7 +617,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

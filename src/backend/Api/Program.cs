@@ -1,3 +1,4 @@
+using System.Reflection;
 using MotsSupplierPortal.Infrastructure.Dashboards;
 using MotsSupplierPortal.Application.Dashboards;
 using MotsSupplierPortal.Infrastructure.Notifications;
@@ -777,6 +778,37 @@ app.UseAuthorization();
 // a perfectly-alive process because a dependency it doesn't own (Postgres, MinIO) is briefly down,
 // or routing traffic to a replica that answered "alive" while genuinely unable to serve a request.
 // Both must answer before/without authentication or they are useless to an orchestrator.
+// SCR-908, and API-ARCHITECTURE.md's own ops row: "GET /api/v1/meta (build/version/commit)". The
+// document named it; nothing served it, and no version constant existed to serve. The values come from
+// the assembly's informational version - which MSBuild derives from the project's Version and which
+// CI stamps with the commit - so there is nothing here for a release to forget to update.
+//
+// Anonymous, deliberately. An about screen has to render for someone who cannot sign in, which is
+// exactly when knowing the build matters, and a build number is not a secret: it names software, not
+// data. Nothing environment-specific is emitted - no connection strings, no host names, no feature
+// flags - because a public endpoint that grows those becomes reconnaissance.
+app.MapGet("/api/v1/meta", () =>
+{
+    var assembly = typeof(Program).Assembly;
+    var informational = assembly
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+    // The informational version is "1.2.3+<commit sha>" when a build stamps the source revision, and
+    // just "1.2.3" when it does not. Split rather than parsed: a local `dotnet run` has no commit in it,
+    // and reporting the whole string as a version number would be wrong in the one case a developer
+    // reads this most.
+    var parts = informational?.Split('+', 2) ?? [];
+    return Results.Ok(new
+    {
+        version = parts.Length > 0 ? parts[0] : assembly.GetName().Version?.ToString(),
+        // Null, not "unknown": a caller can tell "this build carries no commit" from a commit whose
+        // value happens to be that word.
+        commit = parts.Length > 1 ? parts[1] : null,
+    });
+})
+.AllowAnonymous()
+.WithName("Meta");
+
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     // Predicate that matches nothing means zero checks run - Healthy confirms only that the

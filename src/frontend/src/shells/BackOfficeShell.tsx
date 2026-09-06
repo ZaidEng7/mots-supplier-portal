@@ -108,6 +108,10 @@ export function BackOfficeShell({ children }: Props) {
             <Link to="/back-office/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.dashboard')}
             </Link>
+            {/* SCR-907. */}
+            <Link to="/back-office/help" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('help.title')}
+            </Link>
             {/* SCR-902: every back-office persona's own account, password, MFA and sessions. */}
             <Link to="/back-office/account" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.account')}

@@ -1523,6 +1523,56 @@ const resources = {
         signOut: 'تسجيل الخروج',                               // [reused]
         failed: 'تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة.',  // [drafted]
       },
+      // ── SCR-908 / SCR-907 · ARABIC FOR REVIEW ─────────────────────────────────
+      about: {
+        title: 'حول النظام',                                   // [drafted] SCR-908
+        buildTitle: 'إصدار النظام',                            // [drafted]
+        version: 'الإصدار', commit: 'رقم البناء',               // [drafted]
+        loading: 'جارٍ التحميل...',                            // [reused]
+        unavailable: 'غير متاح حالياً',                         // [drafted]
+        supportTitle: 'عند الإبلاغ عن مشكلة',                   // [drafted]
+        correlationHelp: 'تحتوي رسائل الخطأ على «معرّف المتابعة». أرفقه عند الإبلاغ عن أي مشكلة، فهو يربط طلبك بسجلات النظام.', // [drafted]
+        legalTitle: 'الشروط والخصوصية',                        // [drafted]
+        legalPending: 'لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية. تُنشر هنا عند صدورها عن الوزارة.', // [drafted]
+      },
+      help: {
+        title: 'المساعدة',                                     // [drafted] SCR-907
+        subtitle: 'إجابات عن أكثر ما يُسأل عنه في هذا النظام.',   // [drafted]
+        contactTitle: 'التواصل مع الدعم',                       // [drafted]
+        contactPending: 'لم تُحدَّد بعد قناة الدعم. تُعرض هنا عند اعتمادها.', // [drafted]
+        topics: {
+          submitProposal: {
+            question: 'كيف أتقدّم بعرض؟',
+            answer: 'تظهر الطلبات المُوجّهة إليك في قائمة الطلبات. افتح الطلب، ثم أنشئ عرضاً، وأكمل الأسعار والشروط والمستندات قبل الإرسال.',
+            action: 'الانتقال إلى الطلبات',
+          },
+          afterSubmitting: {
+            question: 'هل يمكنني تعديل عرضي بعد إرساله؟',
+            answer: 'لا. بعد الإرسال يصبح العرض غير قابل للتعديل. يمكنك سحبه ما دام باب التقديم مفتوحاً، ثم إعداد عرض جديد.',
+            action: 'الانتقال إلى عروضي',
+          },
+          clarification: {
+            question: 'طُلب منّي إيضاح، فماذا أفعل؟',
+            answer: 'افتح العرض لقراءة نص الطلب، ثم سجّل ردّك. تُسجَّل مراجعة جديدة ويعود العرض إلى المراجعة.',
+            action: 'الانتقال إلى عروضي',
+          },
+          documentsExpiring: {
+            question: 'ما الذي يحدث عند انتهاء صلاحية مستنداتي؟',
+            answer: 'تُنبّهك الشاشة قبل انتهاء الصلاحية. المستند المنتهي يبقى في السجل، ويلزم رفع نسخة جديدة بدلاً منه.',
+            action: 'الانتقال إلى المستندات',
+          },
+          language: {
+            question: 'كيف أغيّر لغة الواجهة؟',
+            answer: 'من شاشة الحساب. يُحفظ اختيارك ويُطبَّق في كل مرة تسجّل الدخول.',
+            action: 'الانتقال إلى الحساب',
+          },
+          password: {
+            question: 'كيف أغيّر كلمة المرور؟',
+            answer: 'من شاشة الحساب. تغييرها يُنهي جلساتك على الأجهزة الأخرى وتبقى هذه الجلسة مفتوحة.',
+            action: 'الانتقال إلى الحساب',
+          },
+        },
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -2965,6 +3015,55 @@ const resources = {
         signIn: 'Sign in',
         signOut: 'Sign out',
         failed: 'Could not sign in. Check the details you entered.',
+      },
+      about: {
+        title: 'About',
+        buildTitle: 'Build',
+        version: 'Version', commit: 'Build reference',
+        loading: 'Loading...',
+        unavailable: 'Unavailable',
+        supportTitle: 'Reporting a problem',
+        correlationHelp: 'Error messages include a correlation ID. Quote it when reporting a problem — it ties your request to the system logs.',
+        legalTitle: 'Terms and privacy',
+        legalPending: 'Terms of use and the privacy notice have not been issued yet. They will appear here once the ministry publishes them.',
+      },
+      help: {
+        title: 'Help',
+        subtitle: 'Answers to what people ask about this system most.',
+        contactTitle: 'Contacting support',
+        contactPending: 'A support channel has not been configured yet. It will appear here once one is.',
+        topics: {
+          submitProposal: {
+            question: 'How do I bid on a tender?',
+            answer: 'Tenders you have been invited to appear in your RFQ list. Open one, start a proposal, and complete pricing, terms and documents before submitting.',
+            action: 'Go to RFQs',
+          },
+          afterSubmitting: {
+            question: 'Can I change my proposal after submitting it?',
+            answer: 'No. A submitted proposal is fixed. You can withdraw it while the submission window is still open and prepare a new one.',
+            action: 'Go to my proposals',
+          },
+          clarification: {
+            question: 'I have been asked for a clarification — what now?',
+            answer: 'Open the proposal to read the question, then record your response. A new revision is recorded and the proposal goes back for review.',
+            action: 'Go to my proposals',
+          },
+          documentsExpiring: {
+            question: 'What happens when my documents expire?',
+            answer: 'The screen warns you before the expiry date. An expired document stays on the record and a replacement has to be uploaded.',
+            action: 'Go to documents',
+          },
+          language: {
+            question: 'How do I change the interface language?',
+            answer: 'On the account screen. Your choice is saved and applied every time you sign in.',
+            action: 'Go to account',
+          },
+          password: {
+            question: 'How do I change my password?',
+            answer: 'On the account screen. Changing it signs you out on your other devices and leaves this session open.',
+            action: 'Go to account',
+          },
+        },
       },
       settings: {
         title: 'Account Settings',

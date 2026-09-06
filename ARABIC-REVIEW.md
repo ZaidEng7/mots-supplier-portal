@@ -561,3 +561,61 @@ would tell an administrator the platform has recorded nothing at all.
 | `auditExplorer.fields.from` / `.to` | From date / To date | من تاريخ / إلى تاريخ | [reused] |
 | `auditExplorer.errors.loadFailed` | Could not load the audit log | تعذّر تحميل سجل التغييرات | [drafted] |
 | `auditExplorer.errors.exportFailed` | Could not export the audit log | تعذّر تصدير سجل التغييرات | [drafted] |
+
+## Batch 11 — the screens this batch added
+
+Same rule as every block above: §7 has no strings for any of these, so each was drafted in §7's
+register and none is approved. `[reused]` marks a term §7 or an approved block already uses.
+
+### SCR-150 · the supplier's own proposals
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `myProposals.title` | My proposals | عروضي | [drafted] |
+| `myProposals.subtitle` | Bids you have submitted or started preparing. | العروض التي قدّمتها أو بدأت إعدادها. | [drafted] |
+| `myProposals.empty` | You have not started a proposal yet | لم تقدّم أي عرض بعد | [drafted] |
+| `myProposals.continue` | Continue | متابعة الإعداد | [drafted] longer than the English on purpose — «متابعة» alone reads as "next" |
+| `myProposals.awardOffered` | Award offered | عُرضت عليك الترسية | [reused] §8's «ترسية» |
+| `myProposals.fields.*` | RFQ / Proposal / State / Deadline / Total / Actions | الطلب / رقم العرض / الحالة / موعد الإغلاق / الإجمالي / الإجراءات | [reused] |
+
+### SCR-155 · clarification and response
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `proposal.clarificationTitle` | Clarification requested | طلب إيضاح | [drafted] §4.1's «إيضاح» |
+| `proposal.clarificationNoReason` | No question was recorded with this request. | لم يُسجَّل نص الطلب. | [drafted] |
+| `proposal.clarificationHint` | Recording your response returns the proposal for re-review. Proposal lines cannot be edited at this stage. | تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة. | [drafted] the second sentence matters — see BRULE-050 |
+| `proposal.revise` | Record response | تسجيل الردّ | [drafted] deliberately NOT «تعديل», which would promise an edit the state refuses |
+| `proposal.revisedTitle` | Awaiting re-review | بانتظار إعادة المراجعة | [drafted] |
+| `proposal.revisedBody` | Your response was recorded (revision {{revision}}). A procurement officer will return the proposal to review. | سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة. | [drafted] |
+
+### SCR-902 · the account
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `account.title` | Account | الحساب | [drafted] |
+| `account.emailFixed` | Your email address cannot be changed from this screen. | لا يمكن تغيير البريد الإلكتروني من هذه الشاشة. | [drafted] |
+| `account.numeralsFollowLanguage` | Numerals follow the interface language: Arabic renders ٠-٩, English 0-9. | تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9. | [drafted] the digits are literal in both — do not "translate" them |
+| `account.fields.*` | Full name / Interface language / Email address | الاسم الكامل / لغة الواجهة / البريد الإلكتروني | [reused] |
+| `account.languages.*` | Arabic / English | العربية / الإنجليزية | [reused] |
+
+### SCR-040 · session expiry
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `sessionExpired.title` | Session expired | انتهت الجلسة | [drafted] |
+| `sessionExpired.body` | Your session has expired. Sign in again to carry on where you left off. | انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت. | [drafted] the second clause is the reassurance — the work is not lost |
+| `sessionExpired.totp` | Verification code (if enabled) | رمز التحقق (إن وُجد) | [reused] §7's «رمز التحقق» |
+| `sessionExpired.failed` | Could not sign in. Check the details you entered. | تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة. | [drafted] deliberately says nothing about WHICH detail |
+
+### SCR-908 / SCR-907 · about and help
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `about.title` | About | حول النظام | [drafted] |
+| `about.commit` | Build reference | رقم البناء | [drafted] not «الالتزام», which is the wrong sense of "commit" entirely |
+| `about.correlationHelp` | Error messages include a correlation ID… | تحتوي رسائل الخطأ على «معرّف المتابعة»… | [drafted] «معرّف المتابعة» is a coinage; a reviewer may prefer leaving `correlation ID` in Latin script |
+| `about.legalPending` | Terms of use and the privacy notice have not been issued yet… | لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية… | [drafted] |
+| `help.title` | Help | المساعدة | [reused] |
+| `help.contactPending` | A support channel has not been configured yet… | لم تُحدَّد بعد قناة الدعم… | [drafted] |
+| `help.topics.*` | six question/answer/action triples | see `i18n/config.ts` | [drafted] **the longest prose in this file.** Every answer describes real behaviour; a reviewer changing the wording must not change what it claims |
