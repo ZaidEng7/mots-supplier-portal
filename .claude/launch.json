@@ -2,9 +2,25 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-lc",
+        "cd src/backend/Api && ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5080 DOTNET_ROOT=${DOTNET_ROOT:-$HOME/.dotnet} PATH=\"${DOTNET_ROOT:-$HOME/.dotnet}:$PATH\" dotnet run --no-launch-profile"
+      ],
+      "port": 5080
+    },
+    {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "src/frontend", "run", "dev", "--", "--host"],
+      "runtimeArgs": [
+        "--prefix",
+        "src/frontend",
+        "run",
+        "dev",
+        "--",
+        "--host"
+      ],
       "port": 5173
     }
   ]

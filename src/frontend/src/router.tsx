@@ -23,6 +23,7 @@ import { useAuthStore } from './lib/authStore'
 import i18n from 'i18next'
 import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
+import { PublicFooter } from './components/PublicFooter'
 import { FirstRunLocale } from './components/FirstRunLocale'
 import { refresh, getAccount } from './api/auth'
 
@@ -118,6 +119,9 @@ const rootRoute = createRootRoute({
       <Outlet />
       {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
           re-authenticating does not remount the route underneath and discard the work it is protecting. */}
+      {/* SCR-908/SCR-907 reachable at last - see PublicFooter. Below the Outlet so it sits under the
+          page content, and inside the root so an anonymous user on /login has it too. */}
+      <PublicFooter />
       <SessionExpiredOverlay />
       {/* SCR-010. Below the expiry overlay in stacking order (z-40 against z-50): if a session lapses
           while the language question is open, the expiry is the one that has to be answered first. */}

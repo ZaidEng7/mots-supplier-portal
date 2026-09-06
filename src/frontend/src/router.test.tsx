@@ -85,3 +85,79 @@ describe('route tree', () => {
     expect(router.options.defaultNotFoundComponent).toBeDefined()
   })
 })
+
+/**
+ * The reachability guard, and the reason it exists.
+ *
+ * <p>Six times in this project a screen has been built, permissioned, tested — and reachable only by
+ * typing its address. SCR-400 (the procurement officer's own home screen), SCR-300 (the reviewer's
+ * dashboard), FEAT-19's reports and SCR-908's about page were all in that state at the end of batch 11.
+ * Nothing caught it, because every instrument this repository has asks whether a route RESOLVES, and
+ * they all pass for a screen no menu mentions.</p>
+ *
+ * <p>So this asserts the other direction: for every route, something outside the router links to it.
+ * The four token-entry routes are exempt and named individually — they are reached from an email, which
+ * is the correct and only way in — and naming them rather than pattern-matching means a NEW unreachable
+ * route cannot join the exemption by accident.</p>
+ */
+describe('every screen is reachable by clicking', () => {
+  // Reached from a link in an EMAIL, never from inside the app. Listed by hand on purpose: naming them
+  // means a new unreachable route cannot join the exemption by accident.
+  const ENTERED_FROM_EMAIL = new Set([
+    '/reset-password', '/verify-email', '/accept-invite', '/accept-staff-invite',
+  ])
+
+  // Not screens. '/' is the address you type to open the product at all, and '/back-office' is a LAYOUT
+  // route - it renders the shell and an Outlet, and its children are the screens. Neither can be linked
+  // to meaningfully, and both would otherwise sit in the list forever teaching people to ignore it.
+  const NOT_A_SCREEN = new Set(['/', '/back-office'])
+
+  it('has no route that only a typed URL can reach', () => {
+    const referenced = collectReferencedPaths()
+
+    const unreachable = withPaths
+      .map((r) => r.fullPath)
+      .filter((p) => !ENTERED_FROM_EMAIL.has(p) && !NOT_A_SCREEN.has(p))
+      .filter((p) => !referenced.has(p))
+
+    expect(unreachable, `nothing outside the router mentions: ${unreachable.join(', ')}`).toEqual([])
+  })
+
+  it('finds the paths it is looking for', () => {
+    // The control. A collector that returned nothing would fail the test above loudly; one that
+    // returned everything would pass it while checking nothing. This pins both ends.
+    const referenced = collectReferencedPaths()
+
+    expect(referenced.has('/back-office/procurement')).toBe(true)
+    expect(referenced.has('/dashboard')).toBe(true)
+    expect(referenced.has('/this-route-does-not-exist')).toBe(false)
+  })
+})
+
+/**
+ * Every path literal the app's own source mentions, outside the router.
+ *
+ * <p>Deliberately broader than `to=`: links are written several ways here - a bare attribute, a
+ * template with a parameter, and a data array of steps rendered as `to={step.path}`. Matching only the
+ * attribute form reported three false positives on the first run. What actually matters is whether any
+ * component NAMES the path; a route nothing mentions is one nobody can navigate to.</p>
+ *
+ * <p>The router is excluded because it DEFINES the routes - counting it would make every route
+ * trivially reachable, which is the failure this guard exists to catch.</p>
+ */
+function collectReferencedPaths(): Set<string> {
+  const modules = import.meta.glob('./**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+  const paths = new Set<string>()
+
+  for (const [file, source] of Object.entries(modules)) {
+    if (file.endsWith('/router.tsx')) continue
+    if (/\.(test|spec|stories)\./.test(file)) continue
+
+    for (const m of source.matchAll(/['"`](\/[A-Za-z0-9\-_/$${}.]*)['"`]/g)) {
+      const raw = m[1]
+      // A template parameter reaches the route declared with $referenceCode.
+      paths.add(raw.replace(/\$\{[^}]*\}/g, '$referenceCode').replace(/\/$/, '') || '/')
+    }
+  }
+  return paths
+}

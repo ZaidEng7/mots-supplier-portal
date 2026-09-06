@@ -46,6 +46,13 @@ export function BackOfficeShell({ children }: Props) {
   // to open it. Same defect as the endpoints' own gate, on the navigation side.
   const canViewRfqs = useAuthStore((s) => s.claims?.permissions.includes('rfq.read') ?? false)
   const canManageEvaluationTemplates = useAuthStore((s) => s.claims?.permissions.includes('evaluation.template.manage') ?? false)
+  // Batch 12. Three screens were built, permissioned and unreachable: nothing in this bar linked to
+  // them, so the only way in was to type the address. Same hide-never-gate rule as every link above -
+  // each route's own endpoints re-enforce the permission regardless of what the link does.
+  //
+  // report.read reaches procurement_manager AND ministry_viewer (D-44 resolved in batch 11), so the
+  // link follows the permission rather than naming either role.
+  const canReadReports = useAuthStore((s) => s.claims?.permissions.includes('report.read') ?? false)
 
   const handleLogout = async () => {
     await apiLogout()
@@ -77,6 +84,12 @@ export function BackOfficeShell({ children }: Props) {
             {t('appName')} · {t('nav.backOffice')}
           </span>
           <nav className="flex flex-wrap gap-x-4 gap-y-2">
+            {/* FEAT-19.1/19.2. Permissioned correctly in batch 11 and still unreachable until now. */}
+            {canReadReports ? (
+              <Link to="/back-office/reports" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('reports.title')}
+              </Link>
+            ) : null}
             {canViewGovernance ? (
               <Link to="/back-office/ministry" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('ministry.title')}
@@ -150,6 +163,13 @@ export function BackOfficeShell({ children }: Props) {
                 {t('review.title')}
               </Link>
             ) : null}
+            {/* SCR-300. The reviewer's dashboard - oldest waiting case, queue age, expiring-document
+                watchlist. Beside the queue it summarises, because that is the pair a reviewer works. */}
+            {canReviewSuppliers ? (
+              <Link to="/back-office/review-dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('reviewDashboard.title')}
+              </Link>
+            ) : null}
             {/* And the link an evaluator actually needs. Their dashboard lives under a different layout
                 (/evaluation, not /back-office/...), which is why it was missing from this nav entirely. */}
             {canScoreEvaluations ? (
@@ -175,6 +195,14 @@ export function BackOfficeShell({ children }: Props) {
             {canSearchOfferings ? (
               <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('offeringSearch.title')}
+              </Link>
+            ) : null}
+            {/* SCR-400. The procurement officer's actual home screen - tenders by state, approvals
+                waiting, deadlines. Gated on rfq.read for the same reason the RFQ link below is: a
+                manager reads this dashboard without authoring anything. */}
+            {canViewRfqs ? (
+              <Link to="/back-office/procurement" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('procurementDashboard.title')}
               </Link>
             ) : null}
             {canViewRfqs ? (
