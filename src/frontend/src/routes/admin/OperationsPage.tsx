@@ -7,8 +7,9 @@ import {
 } from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import {
-  getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage,
+  getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
 } from '../../api/admin'
+import { retryAwardErpSync } from '../../api/awards'
 
 /**
  * SCR-721 + SCR-722, `/back-office/operations`, `system_admin`, P1.
@@ -18,6 +19,10 @@ import {
  * for the same reason the reference-data page covers five: they are the same job. An operator asking
  * "is the system moving?" reads schedules and the queue together, and two routes would mean checking
  * one, forming half a picture, and navigating.</p>
+ *
+ * <p>SCR-723 is the third card. Its retry calls the award endpoint that already exists rather than a new
+ * admin one: §6.1's guard that only a Failed sync retries lives there, and a second path would be a
+ * second copy of that guard to keep in step.</p>
  *
  * <p><b>No pause control, and the screen says why.</b> Hangfire has no paused state for a recurring
  * job: the only way to stop one is to delete the registration, which would make "an operator paused
@@ -34,6 +39,7 @@ export function OperationsPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const jobsQuery = useQuery({ queryKey: ['admin-jobs'], queryFn: getJobsMonitor })
+  const erpQuery = useQuery({ queryKey: ['admin-erp-sync'], queryFn: () => getErpSyncMonitor() })
   const outboxQuery = useQuery({ queryKey: ['admin-outbox', status], queryFn: () => getOutboxMonitor(status || undefined) })
 
   const triggerMutation = useMutation({
@@ -49,6 +55,15 @@ export function OperationsPage() {
       kind: 'danger',
       title: error.message === 'job_not_registered' ? t('operations.errors.notRegistered') : t('operations.errors.triggerFailed'),
     }),
+  })
+
+  const retryErpMutation = useMutation({
+    mutationFn: (rfqReferenceCode: string) => retryAwardErpSync(rfqReferenceCode),
+    onSuccess: async () => {
+      notify({ kind: 'success', title: t('operations.erpRetryQueued') })
+      await queryClient.invalidateQueries({ queryKey: ['admin-erp-sync'] })
+    },
+    onError: () => notify({ kind: 'danger', title: t('operations.errors.erpRetryFailed') }),
   })
 
   const replayMutation = useMutation({
@@ -226,6 +241,88 @@ export function OperationsPage() {
                     {message.syncStatus === 'Failed' ? (
                       <Button variant="ghost" disabled={replayMutation.isPending} onClick={() => replayMutation.mutate(message.id)}>
                         {t('operations.replay')}
+                      </Button>
+                    ) : (
+                      <span style={{ color: 'var(--color-text-secondary)' }}>—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : null}
+      </Card>
+
+      <Card title={t('operations.erpTitle')}>
+        {/*
+          Said before any row is read. EPIC-23's adapter has not landed, so what is registered is a
+          logging stand-in that accepts everything and sends nothing - a column of Synced without this
+          line would be an instrument asserting something untrue.
+        */}
+        {erpQuery.data && !erpQuery.data.transportConfigured ? (
+          <p role="status" className="mb-3 rounded-[0.5rem] p-3"
+            style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
+            {t('operations.erpNotConfigured')}
+          </p>
+        ) : null}
+
+        {erpQuery.data ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {Object.entries(erpQuery.data.counts).map(([key, count]) => (
+              <Badge key={key} tone={key === 'Failed' && count > 0 ? 'danger' : 'neutral'}>
+                {key}: {count}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {erpQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
+        {erpQuery.isError ? (
+          <div className="flex flex-col gap-2">
+            <p>{t('operations.errors.erpLoadFailed')}</p>
+            <Button variant="ghost" onClick={() => void erpQuery.refetch()}>{t('operations.retry')}</Button>
+          </div>
+        ) : null}
+
+        {erpQuery.data && erpQuery.data.awards.length === 0 ? (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('operations.erpEmpty')}</p>
+        ) : null}
+
+        {erpQuery.data && erpQuery.data.awards.length > 0 ? (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>{t('operations.fields.rfq')}</TableHeaderCell>
+                <TableHeaderCell>{t('operations.fields.status')}</TableHeaderCell>
+                <TableHeaderCell>{t('operations.fields.attempts')}</TableHeaderCell>
+                <TableHeaderCell>{t('operations.fields.syncedAt')}</TableHeaderCell>
+                <TableHeaderCell>{t('operations.fields.poRef')}</TableHeaderCell>
+                <TableHeaderCell>{t('operations.fields.actions')}</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {erpQuery.data.awards.map((row) => (
+                <TableRow key={row.rfqReferenceCode}>
+                  <TableCell><span className="font-mono text-[length:var(--text-body-sm)]">{row.rfqReferenceCode}</span></TableCell>
+                  <TableCell>
+                    <Badge tone={row.erpSyncStatus === 'Failed' ? 'danger' : row.erpSyncStatus === 'Synced' ? 'success' : 'neutral'}>
+                      {row.erpSyncStatus}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{row.erpRetryCount}</TableCell>
+                  <TableCell>{row.erpSyncedAt ? formatDateTime(row.erpSyncedAt, locale) : '—'}</TableCell>
+                  <TableCell>
+                    {/* Shown even when empty on a Synced row, because that combination means the adapter
+                        claimed success and returned no reference - which nobody would notice in a count. */}
+                    <span className="font-mono text-[length:var(--text-body-sm)]">{row.externalPurchaseOrderRef ?? '—'}</span>
+                  </TableCell>
+                  <TableCell>
+                    {/* §6.1: only a Failed sync retries. The button follows the domain rather than
+                        offering an action the aggregate would refuse. */}
+                    {row.erpSyncStatus === 'Failed' ? (
+                      <Button variant="ghost" disabled={retryErpMutation.isPending}
+                        onClick={() => retryErpMutation.mutate(row.rfqReferenceCode)}>
+                        {t('operations.retryErp')}
                       </Button>
                     ) : (
                       <span style={{ color: 'var(--color-text-secondary)' }}>—</span>

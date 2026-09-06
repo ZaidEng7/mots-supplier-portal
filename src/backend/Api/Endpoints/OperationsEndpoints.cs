@@ -50,6 +50,20 @@ public static class OperationsEndpoints
             .RequirePermission(Permissions.AdminUsersManage)
             .WithName("GetOutboxMonitor");
 
+        // SCR-723. The retry action is NOT here: POST /awards/{code}/retry-erp-sync already exists behind
+        // integration.retry and enforces §6.1's "only a Failed sync retries". The screen calls that one.
+        group.MapGet("/erp-sync", async (string? status, IGetErpSyncMonitorHandler handler, CancellationToken ct) =>
+        {
+            if (!FilterValues.TryParseEnumCsv<Domain.Awards.ErpSyncStatus>(status, out _, out var invalid))
+            {
+                return FilterValues.InvalidFilterValue("status", invalid!);
+            }
+
+            return Results.Ok(await handler.HandleAsync(status, ct));
+        })
+        .RequirePermission(Permissions.AdminUsersManage)
+        .WithName("GetErpSyncMonitor");
+
         group.MapPost("/outbox/{id:guid}/replay", async (Guid id, IReplayOutboxMessageHandler handler, CancellationToken ct) =>
             // One 404 for two cases - no such message, and a message that is not Failed - and that is
             // deliberate rather than lazy: both mean "there is nothing here to replay", and splitting

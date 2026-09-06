@@ -282,6 +282,25 @@ public static class DevDataSeeder
         // the tracked entity's copy did not carry forward, so the guard refused its own write.
         db.Evaluations.Add(evaluation);
         await db.SaveChangesAsync();
+
+        // An award IN FLIGHT, which the brief asks for by name: Recommended, and nothing beyond it.
+        //
+        // The line this stops at matters. Recommending is a step somebody takes and can be seen to have
+        // taken - it names a proposal and a justification and waits for a manager. Approving it, or
+        // executing it, produces a RESULT: an approved award is a decision this fixture has no standing
+        // to make, and an executed one emits the ERP request. So the manager's approval queue has a real
+        // row to work, SCR-723 has a real row to show, and no tender in this database has a winner.
+        //
+        // Not routed for approval either: routing is the recommender handing it on, and leaving it
+        // un-routed is what makes it visibly "in flight" rather than waiting on someone specific.
+        db.ChangeTracker.Clear();
+        var award = Domain.Awards.Award.Recommend(
+            closed.Id, submitted.Id,
+            "أفضل عرض من حيث السعر والمواصفات الفنية.",
+            "Best combination of price and technical specification.",
+            officerId);
+        db.Awards.Add(award);
+        await db.SaveChangesAsync();
     }
 
     private static Rfq NewRfq(AppDbContext db, string code, Guid organizationId, string titleAr, string titleEn,

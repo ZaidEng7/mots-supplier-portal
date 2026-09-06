@@ -91,3 +91,30 @@ export async function replayOutboxMessage(id: string): Promise<void> {
   const response = await apiFetch(`/api/v1/admin/outbox/${id}/replay`, { method: 'POST' })
   if (!response.ok) throw new Error('outbox_replay_failed')
 }
+
+/** SCR-723. Keyed by RFQ code because an Award has no code of its own — and because that is what the
+ *  existing retry endpoint takes. */
+export interface ErpSyncRow {
+  rfqReferenceCode: string
+  erpSyncStatus: string
+  erpRetryCount: number
+  erpSyncedAt: string | null
+  /** Null until the ERP acknowledges. A Synced row with no reference would mean the adapter reported
+   *  success without returning anything, which is worth being able to see. */
+  externalPurchaseOrderRef: string | null
+}
+
+export interface ErpSyncMonitor {
+  /** BRULE-011: false when the logging stand-in is registered rather than a real ERP transport. Every
+   *  row below is then the stub talking to itself. */
+  transportConfigured: boolean
+  counts: Record<string, number>
+  awards: ErpSyncRow[]
+}
+
+export async function getErpSyncMonitor(status?: string): Promise<ErpSyncMonitor> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const response = await apiFetch(`/api/v1/admin/erp-sync${query}`)
+  if (!response.ok) throw new Error('erp_sync_monitor_unavailable')
+  return (await response.json()) as ErpSyncMonitor
+}

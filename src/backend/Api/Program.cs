@@ -436,6 +436,7 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetJobsMonitorH
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.ITriggerRecurringJobHandler, MotsSupplierPortal.Infrastructure.Admin.TriggerRecurringJobHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetOutboxMonitorHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();

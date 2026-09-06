@@ -57,3 +57,33 @@ public interface IReplayOutboxMessageHandler
 {
     Task<bool> HandleAsync(Guid id, CancellationToken ct);
 }
+
+/// <summary>
+/// SCR-723. One award's ERP synchronisation, as an operator needs to judge it.
+///
+/// <para>Keyed by the RFQ's reference code, because an Award has no code of its own - checked in the
+/// aggregate rather than assumed, and it is also what `POST /awards/{referenceCode}/retry-erp-sync`
+/// takes, so the row carries exactly the identifier the retry needs.</para>
+/// </summary>
+/// <param name="ExternalPurchaseOrderRef">The ERP's own reference once it acknowledges. Null while the
+/// sync has not succeeded - and null is the whole point of showing it: a Synced row with no reference
+/// would mean the adapter reported success without returning anything.</param>
+public sealed record ErpSyncRowDto(
+    string RfqReferenceCode,
+    string ErpSyncStatus,
+    int ErpRetryCount,
+    DateTimeOffset? ErpSyncedAt,
+    string? ExternalPurchaseOrderRef);
+
+/// <param name="TransportConfigured">BRULE-011: false when the logging stand-in is registered rather than
+/// a real ERP transport. Without it every row on this screen is the stub talking to itself, and a wall of
+/// Synced would read as a working integration while nothing has left the building.</param>
+public sealed record ErpSyncMonitorDto(
+    bool TransportConfigured,
+    IReadOnlyDictionary<string, int> Counts,
+    IReadOnlyList<ErpSyncRowDto> Awards);
+
+public interface IGetErpSyncMonitorHandler
+{
+    Task<ErpSyncMonitorDto> HandleAsync(string? status, CancellationToken ct);
+}

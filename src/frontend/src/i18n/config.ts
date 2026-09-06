@@ -1584,6 +1584,11 @@ const resources = {
         subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',      // [drafted]
         jobsTitle: 'المهام المجدولة',                           // [drafted]
         outboxTitle: 'الأحداث الصادرة',                         // [drafted]
+        erpTitle: 'مزامنة نظام الموارد',                        // [drafted] SCR-723
+        erpNotConfigured: 'لم يُهيَّأ اتصال فعلي بنظام الموارد. الحالات أدناه صادرة عن بديل تسجيلي لا يُرسل شيئاً.', // [drafted]
+        erpEmpty: 'لا توجد ترسيات مطابقة',                      // [drafted]
+        retryErp: 'إعادة المزامنة',                             // [drafted]
+        erpRetryQueued: 'أُعيد طلب المزامنة',                    // [drafted]
         runNow: 'تشغيل الآن',                                   // [drafted]
         jobTriggered: 'تم إرسال المهمة للتشغيل',                 // [drafted]
         notRegistered: 'غير مُسجَّلة',                           // [drafted]
@@ -1599,6 +1604,7 @@ const resources = {
         fields: {
           job: 'المهمة', schedule: 'الجدولة', lastRun: 'آخر تشغيل', nextRun: 'التشغيل القادم',
           type: 'النوع', status: 'الحالة', created: 'أُنشئت', processed: 'عُوملت', actions: 'الإجراءات',
+          rfq: 'الطلب', attempts: 'المحاولات', syncedAt: 'وقت المزامنة', poRef: 'مرجع أمر الشراء',
         },
         errors: {
           jobsLoadFailed: 'تعذّر تحميل المهام',                  // [drafted]
@@ -1606,6 +1612,8 @@ const resources = {
           triggerFailed: 'تعذّر تشغيل المهمة',                   // [drafted]
           notRegistered: 'هذه المهمة غير مُسجَّلة، فلا يمكن تشغيلها', // [drafted]
           replayFailed: 'تعذّرت إعادة الإرسال',                  // [drafted]
+          erpLoadFailed: 'تعذّر تحميل حالات المزامنة',            // [drafted]
+          erpRetryFailed: 'تعذّرت إعادة المزامنة',                // [drafted]
         },
       },
       settings: {
@@ -3109,6 +3117,11 @@ const resources = {
         subtitle: 'Scheduled jobs and the outgoing event queue.',
         jobsTitle: 'Scheduled jobs',
         outboxTitle: 'Outgoing events',
+        erpTitle: 'ERP synchronisation',
+        erpNotConfigured: 'No real ERP transport is configured. The states below come from a logging stand-in that sends nothing.',
+        erpEmpty: 'No awards match',
+        retryErp: 'Retry sync',
+        erpRetryQueued: 'Sync requested again',
         runNow: 'Run now',
         jobTriggered: 'Job queued to run',
         notRegistered: 'Not registered',
@@ -3124,6 +3137,7 @@ const resources = {
         fields: {
           job: 'Job', schedule: 'Schedule', lastRun: 'Last run', nextRun: 'Next run',
           type: 'Type', status: 'Status', created: 'Created', processed: 'Processed', actions: 'Actions',
+          rfq: 'RFQ', attempts: 'Attempts', syncedAt: 'Synced', poRef: 'PO reference',
         },
         errors: {
           jobsLoadFailed: 'Could not load the jobs',
@@ -3131,6 +3145,8 @@ const resources = {
           triggerFailed: 'Could not run the job',
           notRegistered: 'That job is not registered, so it cannot be run',
           replayFailed: 'Could not replay the message',
+          erpLoadFailed: 'Could not load the synchronisation states',
+          erpRetryFailed: 'Could not request the sync again',
         },
       },
       settings: {

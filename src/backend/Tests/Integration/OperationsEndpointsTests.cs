@@ -153,6 +153,34 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
     }
 
     [Fact]
+    public async Task SCR_723_reports_whether_a_real_ERP_transport_exists_at_all()
+    {
+        var admin = await AdminAsync();
+
+        var monitor = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/erp-sync");
+
+        // BRULE-011, and the reason this field is on the DTO rather than left to the reader: EPIC-23's
+        // adapter has not landed, so what is registered is a logging stand-in that accepts everything and
+        // sends nothing. A column of Synced without this flag would be an instrument asserting something
+        // untrue. False is the CORRECT answer here, and the assertion says so deliberately.
+        monitor.GetProperty("transportConfigured").GetBoolean().Should().BeFalse(
+            "the test host registers the logging stand-in, and a monitor that could not tell would be lying");
+
+        var counts = monitor.GetProperty("counts");
+        foreach (var status in Enum.GetNames<Domain.Awards.ErpSyncStatus>())
+        {
+            counts.TryGetProperty(status, out _).Should().BeTrue($"{status} must be reported even at zero");
+        }
+
+        // Same filter guard as the outbox, same reason: an unrecognised status that applied no predicate
+        // would return every award while looking like a narrowed list.
+        (await admin.GetAsync("/api/v1/admin/erp-sync?status=Syncd")).StatusCode
+            .Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await admin.GetAsync("/api/v1/admin/erp-sync?status=Failed")).StatusCode
+            .Should().Be(HttpStatusCode.OK, "control: a recognised value is accepted");
+    }
+
+    [Fact]
     public async Task Nobody_without_admin_permission_reaches_any_of_it()
     {
         foreach (var role in new[] { Roles.ProcurementOfficer, Roles.ProcurementManager, Roles.MinistryViewer })
@@ -160,6 +188,7 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
             var staff = await StaffTestClient.CreateAsync(fixture, role);
             (await staff.GetAsync("/api/v1/admin/jobs")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
             (await staff.GetAsync("/api/v1/admin/outbox")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            (await staff.GetAsync("/api/v1/admin/erp-sync")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
             (await staff.PostAsync("/api/v1/admin/jobs/outbox-dispatch/trigger", null))
                 .StatusCode.Should().Be(HttpStatusCode.Forbidden, $"{role} must not be able to run platform jobs");
         }
@@ -172,5 +201,6 @@ public sealed class OperationsEndpointsTests(PostgresApiFixture fixture)
         var admin = await AdminAsync();
         (await admin.GetAsync("/api/v1/admin/jobs")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await admin.GetAsync("/api/v1/admin/outbox")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/v1/admin/erp-sync")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }
