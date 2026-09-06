@@ -31,3 +31,63 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   if (!response.ok) throw new Error('admin_overview_unavailable')
   return (await response.json()) as AdminOverview
 }
+
+/** SCR-721. One recurring job as an operator needs to see it. */
+export interface RecurringJobRow {
+  id: string
+  /** False when this application expects the job and Hangfire does not hold it — the operational fault
+   *  the overview tile counts, carried per row so it is obvious which one. */
+  registered: boolean
+  cron: string | null
+  lastExecution: string | null
+  nextExecution: string | null
+  /** Hangfire's own vocabulary ("Succeeded", "Failed", ...), not remapped: a mapping of ours would hide
+   *  a state nobody anticipated. Null when the job has never run. */
+  lastState: string | null
+}
+
+export interface JobsMonitor {
+  recurringEnabled: boolean
+  jobs: RecurringJobRow[]
+}
+
+export async function getJobsMonitor(): Promise<JobsMonitor> {
+  const response = await apiFetch('/api/v1/admin/jobs')
+  if (!response.ok) throw new Error('jobs_monitor_unavailable')
+  return (await response.json()) as JobsMonitor
+}
+
+/** SCR-721's one action. 404 means Hangfire does not hold the job — not that the run failed. */
+export async function triggerRecurringJob(jobId: string): Promise<void> {
+  const response = await apiFetch(`/api/v1/admin/jobs/${encodeURIComponent(jobId)}/trigger`, { method: 'POST' })
+  if (!response.ok) throw new Error(response.status === 404 ? 'job_not_registered' : 'job_trigger_failed')
+}
+
+/** SCR-722. */
+export interface OutboxMessageRow {
+  id: string
+  type: string
+  syncStatus: string
+  createdAt: string
+  processedAt: string | null
+  payloadJson: string
+}
+
+export interface OutboxMonitor {
+  /** Every status including the zeroes: "Failed: 0" and a count that failed to load must not look alike. */
+  counts: Record<string, number>
+  messages: OutboxMessageRow[]
+}
+
+export async function getOutboxMonitor(status?: string): Promise<OutboxMonitor> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const response = await apiFetch(`/api/v1/admin/outbox${query}`)
+  if (!response.ok) throw new Error('outbox_monitor_unavailable')
+  return (await response.json()) as OutboxMonitor
+}
+
+/** Only a Failed message replays. A 404 here means there was nothing to replay — see the endpoint. */
+export async function replayOutboxMessage(id: string): Promise<void> {
+  const response = await apiFetch(`/api/v1/admin/outbox/${id}/replay`, { method: 'POST' })
+  if (!response.ok) throw new Error('outbox_replay_failed')
+}

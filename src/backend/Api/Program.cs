@@ -431,6 +431,11 @@ builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
 builder.Services.AddScoped<IGetAccountHandler, GetAccountHandler>();
 builder.Services.AddScoped<IUpdateAccountHandler, UpdateAccountHandler>();
 builder.Services.AddScoped<IChooseLanguageHandler, ChooseLanguageHandler>();
+// SCR-721 / SCR-722: the jobs monitor and the outbox inspector.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetJobsMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetJobsMonitorHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.ITriggerRecurringJobHandler, MotsSupplierPortal.Infrastructure.Admin.TriggerRecurringJobHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetOutboxMonitorHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
@@ -914,6 +919,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     .WithTags("Reference");
 
 app.MapAdminOverviewEndpoints();
+app.MapOperationsEndpoints();
 app.MapSystemSettingEndpoints();
 app.MapNotificationTemplateEndpoints();
 app.MapGovernanceEndpoints();

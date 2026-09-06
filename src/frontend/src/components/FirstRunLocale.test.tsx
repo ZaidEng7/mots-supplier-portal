@@ -62,7 +62,7 @@ describe('FirstRunLocale', () => {
     let chosen = false
     const answered = { fullName: 'Nadia Karam', email: 'evaluator@example.test', language: 'en', languageChosen: true }
     const originalFetch = globalThis.fetch
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.includes('/api/v1/auth/me/language')) {
         chosen = true

@@ -1578,6 +1578,36 @@ const resources = {
         derived: 'تتبع الأرقام لغة الواجهة. لا يوفّر النظام حالياً تحويل العملات، فتُعرض كل قيمة بعملتها الأصلية.', // [drafted]
         failed: 'تعذّر حفظ اختيارك. حاول مرة أخرى.',            // [drafted]
       },
+      // ── SCR-721 / SCR-722 · ARABIC FOR REVIEW ─────────────────────────────────
+      operations: {
+        title: 'التشغيل والمهام',                               // [drafted] SCR-721/722
+        subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',      // [drafted]
+        jobsTitle: 'المهام المجدولة',                           // [drafted]
+        outboxTitle: 'الأحداث الصادرة',                         // [drafted]
+        runNow: 'تشغيل الآن',                                   // [drafted]
+        jobTriggered: 'تم إرسال المهمة للتشغيل',                 // [drafted]
+        notRegistered: 'غير مُسجَّلة',                           // [drafted]
+        never: 'لم تُشغَّل بعد',                                 // [drafted]
+        recurringDisabled: 'المهام المجدولة مُعطَّلة على هذا النظام. لن تُشغَّل أي مهمة في مواعيدها.', // [drafted]
+        noPauseExplained: 'لا يوفّر النظام إيقافاً مؤقتاً لمهمة واحدة: إلغاء تسجيلها يجعلها تبدو كمهمة مفقودة، وهو الخطأ الذي تكشفه هذه الشاشة. الإيقاف يكون على مستوى النظام من الإعدادات.', // [drafted]
+        allStatuses: 'كل الحالات',                              // [reused]
+        outboxEmpty: 'لا توجد رسائل مطابقة',                     // [drafted]
+        showPayload: 'عرض المحتوى', hidePayload: 'إخفاء المحتوى', // [drafted]
+        replay: 'إعادة الإرسال',                                // [drafted]
+        replayQueued: 'أُعيدت الرسالة إلى الطابور',              // [drafted]
+        retry: 'إعادة المحاولة',                                // [reused]
+        fields: {
+          job: 'المهمة', schedule: 'الجدولة', lastRun: 'آخر تشغيل', nextRun: 'التشغيل القادم',
+          type: 'النوع', status: 'الحالة', created: 'أُنشئت', processed: 'عُوملت', actions: 'الإجراءات',
+        },
+        errors: {
+          jobsLoadFailed: 'تعذّر تحميل المهام',                  // [drafted]
+          outboxLoadFailed: 'تعذّر تحميل الأحداث الصادرة',        // [drafted]
+          triggerFailed: 'تعذّر تشغيل المهمة',                   // [drafted]
+          notRegistered: 'هذه المهمة غير مُسجَّلة، فلا يمكن تشغيلها', // [drafted]
+          replayFailed: 'تعذّرت إعادة الإرسال',                  // [drafted]
+        },
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -3073,6 +3103,35 @@ const resources = {
       firstRunLocale: {
         derived: 'Numerals follow the interface language. Amounts are shown in their own currency — the system does not convert between currencies.',
         failed: 'Could not save your choice. Please try again.',
+      },
+      operations: {
+        title: 'Operations',
+        subtitle: 'Scheduled jobs and the outgoing event queue.',
+        jobsTitle: 'Scheduled jobs',
+        outboxTitle: 'Outgoing events',
+        runNow: 'Run now',
+        jobTriggered: 'Job queued to run',
+        notRegistered: 'Not registered',
+        never: 'Never run',
+        recurringDisabled: 'Scheduled jobs are disabled on this deployment. Nothing will run on schedule.',
+        noPauseExplained: 'There is no per-job pause: removing a registration would make a paused job look like a missing one, which is the fault this screen exists to show. Schedules are stopped deployment-wide in configuration.',
+        allStatuses: 'All statuses',
+        outboxEmpty: 'No messages match',
+        showPayload: 'Show payload', hidePayload: 'Hide payload',
+        replay: 'Replay',
+        replayQueued: 'Message returned to the queue',
+        retry: 'Try again',
+        fields: {
+          job: 'Job', schedule: 'Schedule', lastRun: 'Last run', nextRun: 'Next run',
+          type: 'Type', status: 'Status', created: 'Created', processed: 'Processed', actions: 'Actions',
+        },
+        errors: {
+          jobsLoadFailed: 'Could not load the jobs',
+          outboxLoadFailed: 'Could not load the outgoing events',
+          triggerFailed: 'Could not run the job',
+          notRegistered: 'That job is not registered, so it cannot be run',
+          replayFailed: 'Could not replay the message',
+        },
       },
       settings: {
         title: 'Account Settings',
