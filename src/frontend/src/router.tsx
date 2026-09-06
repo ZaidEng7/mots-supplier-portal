@@ -18,6 +18,7 @@ import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
 import { useAuthStore } from './lib/authStore'
 import i18n from 'i18next'
 import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
+import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { refresh, getAccount } from './api/auth'
 
 // Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
@@ -107,6 +108,8 @@ async function ensureAuthenticated(currentPath: string) {
 const rootRoute = createRootRoute({
   component: () => (
     <Suspense fallback={null}>
+      {/* SCR-044. Above the Outlet so it is the first thing on every page, authenticated or not. */}
+      <MaintenanceBanner />
       <Outlet />
       {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
           re-authenticating does not remount the route underneath and discard the work it is protecting. */}

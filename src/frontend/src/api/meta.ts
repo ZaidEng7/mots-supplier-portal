@@ -5,6 +5,17 @@ export interface Meta {
   version: string | null
   /** Null when the build carries no source revision - a local `dotnet run`, for instance. */
   commit: string | null
+  /** SCR-044. Null unless an operator has configured a notice. */
+  maintenance: MaintenanceNotice | null
+}
+
+export interface MaintenanceNotice {
+  messageAr: string | null
+  messageEn: string | null
+  /** Both optional, both free text as configured. Displayed, never compared against a clock here - the
+   *  operator who wrote the notice is the one who knows when it applies. */
+  from: string | null
+  to: string | null
 }
 
 /**

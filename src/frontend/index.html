@@ -5,9 +5,97 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+    <style>
+      /* SCR-047's notice styles live here rather than in the app's CSS: a browser that cannot run the
+         bundle cannot load a stylesheet the bundle owns either. Deliberately plain - no custom
+         properties, no logical properties, nothing the notice itself depends on being supported. */
+      #legacy-browser-notice {
+        display: none;
+        margin: 0 auto;
+        max-width: 40em;
+        padding: 2rem 1.5rem;
+        font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+        line-height: 1.6;
+        color: #1a1a1a;
+      }
+      #legacy-browser-notice h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+      #legacy-browser-notice p { margin: 0 0 1rem; }
+      #legacy-browser-notice .ar { direction: rtl; text-align: right; }
+      #legacy-browser-notice hr { border: 0; border-top: 1px solid #ccc; margin: 1.5rem 0; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <!--
+      SCR-047 - unsupported browser / low capability.
+
+      It lives in the document rather than in a React route, and that is the whole point: a browser
+      that cannot parse the module bundle never reaches the router, so a route-based version of this
+      screen would be unreachable by exactly the browsers it is for. Same reason the copy is inlined in
+      both languages instead of coming from i18n/config.ts - the i18n bundle is part of what failed.
+
+      Arabic first, matching the product's own default language.
+    -->
+    <div id="legacy-browser-notice">
+      <div class="ar">
+        <h1>هذا المتصفّح غير مدعوم</h1>
+        <p>
+          لا يستطيع هذا المتصفّح تشغيل بوّابة الموردين. يرجى استخدام إصدار حديث من Chrome أو Edge أو
+          Firefox أو Safari، أو تحديث المتصفّح الحالي.
+        </p>
+      </div>
+      <hr />
+      <div>
+        <h1>This browser is not supported</h1>
+        <p>
+          This browser cannot run the supplier portal. Please use a current version of Chrome, Edge,
+          Firefox or Safari, or update the browser you are using.
+        </p>
+      </div>
+    </div>
+
+    <noscript>
+      <div style="margin: 0 auto; max-width: 40em; padding: 2rem 1.5rem; font-family: Arial, sans-serif">
+        <p style="direction: rtl; text-align: right">
+          يجب تمكين JavaScript لاستخدام بوّابة الموردين.
+        </p>
+        <hr />
+        <p>JavaScript must be enabled to use the supplier portal.</p>
+      </div>
+    </noscript>
+
+    <!--
+      ES5 ONLY, and not a module. A `type="module"` script is skipped by the browsers this is for, and
+      any modern syntax in it - an arrow function, `const`, a template literal - would be a parse error
+      that takes the whole check down with it. So: `var`, function expressions, string concatenation.
+
+      The features tested are the ones the app cannot be built without, each verified as actually used:
+      `fetch` (api/auth.ts), `Promise` (everywhere), `Intl.NumberFormat` (lib/datetime.ts's numerals),
+      CSS custom properties (every colour in the design system) and `Object.assign`. Nothing is tested
+      for its own sake - a check that fails a browser the app would have run in is worse than no check.
+    -->
+    <script>
+      (function () {
+        var supported =
+          typeof window.fetch === 'function' &&
+          typeof window.Promise === 'function' &&
+          typeof Object.assign === 'function' &&
+          typeof window.Intl === 'object' &&
+          typeof window.Intl.NumberFormat === 'function' &&
+          !!(window.CSS && window.CSS.supports && window.CSS.supports('color', 'var(--x)'));
+
+        if (supported) return;
+
+        var notice = document.getElementById('legacy-browser-notice');
+        if (notice) notice.style.display = 'block';
+        // The empty root is removed as well. Left in place it renders as a blank page below the
+        // notice, which reads as the notice itself having broken.
+        var root = document.getElementById('root');
+        if (root && root.parentNode) root.parentNode.removeChild(root);
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

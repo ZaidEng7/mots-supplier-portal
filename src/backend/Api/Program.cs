@@ -798,12 +798,37 @@ app.MapGet("/api/v1/meta", () =>
     // and reporting the whole string as a version number would be wrong in the one case a developer
     // reads this most.
     var parts = informational?.Split('+', 2) ?? [];
+
+    // SCR-044's driver. A planned outage is operational configuration, not a tender rule: an operator
+    // sets Maintenance:MessageEn/MessageAr and, optionally, a window, and the SPA shows the notice.
+    // Absent config means null, which means no banner - so the default state of a fresh deployment is
+    // "nothing to say" rather than a placeholder nobody wrote.
+    //
+    // It rides on /meta rather than getting an endpoint of its own because the SPA needs it in exactly
+    // the same circumstances: anonymously, on any page, including the login screen an outage would
+    // otherwise strand people on.
+    var maintenance = app.Configuration.GetSection("Maintenance");
+    var messageEn = maintenance["MessageEn"];
+    var messageAr = maintenance["MessageAr"];
+
     return Results.Ok(new
     {
         version = parts.Length > 0 ? parts[0] : assembly.GetName().Version?.ToString(),
         // Null, not "unknown": a caller can tell "this build carries no commit" from a commit whose
         // value happens to be that word.
         commit = parts.Length > 1 ? parts[1] : null,
+        maintenance = string.IsNullOrWhiteSpace(messageEn) && string.IsNullOrWhiteSpace(messageAr)
+            ? null
+            : new
+            {
+                messageAr,
+                messageEn,
+                // Both optional and both echoed verbatim. Nothing here decides whether the window has
+                // started: the operator who set the message is the one who knows, and a server that
+                // hid its own notice because a clock disagreed would be worse than one that shows it.
+                from = maintenance["From"],
+                to = maintenance["To"],
+            },
     });
 })
 .AllowAnonymous()
