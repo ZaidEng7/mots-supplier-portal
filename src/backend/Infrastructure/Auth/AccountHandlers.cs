@@ -18,10 +18,13 @@ public sealed class GetAccountHandler(AppDbContext db) : IGetAccountHandler
 /// SCR-902's update. Two fields, and neither is an authorization fact: renaming yourself and
 /// switching your own interface language decide nothing about what you may do.
 ///
-/// <para><b>Written through the tracked entity rather than ExecuteUpdateAsync.</b> The user row is
-/// small, the write is a single round trip either way, and going through the change tracker keeps
-/// SaveChangesAsync's interceptors - audit among them - in the path. An ExecuteUpdateAsync here would
-/// silently opt this write out of the audit trail that FR-AUD-003 puts on the account screen itself.</para>
+/// <para><b>Written through the tracked entity rather than ExecuteUpdateAsync.</b> The row is small and
+/// the write is one round trip either way, so the reason is the interceptor: ExpectedVersionInterceptor
+/// runs on SaveChangesAsync and enforces the app-managed version guard, and ExecuteUpdateAsync goes round
+/// it. Not for audit - auditing in this codebase is explicit through IAuditLogger, never an interceptor,
+/// which was checked rather than assumed after an earlier version of this comment claimed otherwise.
+/// Renaming yourself is deliberately NOT audited: FR-AUD-001 scopes the trail to procurement
+/// accountability, and adding identity changes to it is a decision for whoever owns that scope.</para>
 /// </summary>
 public sealed class UpdateAccountHandler(AppDbContext db) : IUpdateAccountHandler
 {

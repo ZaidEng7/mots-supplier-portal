@@ -668,6 +668,12 @@ foreach (var warning in MotsSupplierPortal.Api.Configuration.RequiredConfigurati
 // for. Success responses were never affected, which is why this survived: they are not reshaped.
 app.UseResponseCompression();
 
+// EPIC-25's Correlation-Id echo. Immediately after compression and therefore outside everything else:
+// the response header has to be registered before any middleware can start the response, and the id has
+// to be adopted before the first audit row is written - which the problem-details handler below can
+// itself cause.
+app.UseMiddleware<MotsSupplierPortal.Api.Observability.CorrelationIdMiddleware>();
+
 // §7: every non-2xx (except 304) is application/problem+json. Registered BEFORE the concurrency
 // handler below and before the endpoints, so it is outermost among the error-shaping middleware and
 // therefore sees - and conforms - whatever they produce, including the 409 that handler writes.

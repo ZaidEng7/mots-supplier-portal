@@ -374,6 +374,12 @@ against this API would think to send.
 echo it on the response, and prefer it over the generated fallback. One middleware, one test asserting
 the echo, one asserting a malformed value is ignored rather than trusted.
 
+**Built in batch 11.** `CorrelationIdMiddleware`, `IAuditContext.OverrideCorrelationId`, five tests.
+The size was right; the one thing it did not anticipate is that echoing the header is the cosmetic half —
+what a caller actually needs is the id on the row the server WROTE, which is why the override goes onto
+`IAuditContext` rather than living in the middleware. Confirmed against the database: an audited RFQ
+transition sent with `Correlation-Id: aaaaaaaa-…` stored that exact value in `ops.audit_log`.
+
 #### 3.3 Load and performance baseline — EPIC-26 · **M**
 
 **What exists:** documented targets — p95 < 300ms reads, < 800ms writes
@@ -486,6 +492,7 @@ applies retroactively is a decision, and it belongs with the data decision, not 
 
 | Ref | Finding | Evidence |
 |---|---|---|
+| **D-48** | **SCR-901 (notification preferences) is not built, and this is the reason rather than an omission.** Its entire content is a policy value someone else owns. FR-NOT-004 reads "Users manage notification preferences per category/channel (**opt-out of non-critical only**)" and is tagged **[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]** — so both halves are undecided: whether the requirement stands, and which of the 30+ `NotificationTypes` are "non-critical". Nothing in `BUSINESS-PROCESSES.md` §3.1–§3.4 classifies them; those tables name each notification's event and recipients and stop there. Building it would mean partitioning a tender's notifications into muteable and not — deciding, for instance, whether a supplier may switch off `proposal.award_offered`, the message that tells them they have won. The channel half is equally empty: `NotificationChannel` has an `Email` member and nothing writes an Email row, so a per-channel toggle would offer a channel that does not deliver. **Question for the business:** which notification types may a user opt out of, and does the answer differ by role? Same treatment as T-075's threshold — the mechanism is cheap and the value is not ours | `FUNCTIONAL-REQUIREMENTS.md:294`, `NotificationTypes.cs`, `Notification.cs:6` |
 | **D-46** | **Reproduced.** CORS never named `ETag` in `Access-Control-Expose-Headers`, so on a cross-origin response the browser hid it from script: `res.headers.get('ETag')` was always null, `api/etags.ts` stored nothing, and EVERY guarded write in the SPA went out with no `If-Match` and came back 428. App-wide, not proposal-specific. Invisible to the integration suite because its client attaches `If-Match` itself (`ETagAttachingHandler`, and `ConcurrencyContractTests`' own doc comment says so), and invisible in production because a same-origin deployment exposes ETag by default. Fixed with `.WithExposedHeaders("ETag")` | `Program.cs` CORS policy; browser console `[concurrency] PATCH /api/v1/proposals/PRP-DEMO-0001 was refused for a missing If-Match` |
 | **D-47** | **Reproduced.** Second, independent cause of the same 428. The supplier reads a proposal at `/api/v1/rfqs/{rfqCode}/proposals` and writes it at `/api/v1/proposals/{proposalCode}/...`; `etags.ts`'s prefix walk climbs a path and never sideways, so no write in that workspace could reach the stored version. Fixed in `getProposal`, which files the read's ETag under the proposal path too — declared there because that function is the only thing that knows the two paths name one resource | `api/proposals.ts` `getProposal`; `etagTransport.test.ts` red 1 of 5 on revert |
 | **D-43** | `proposal.revise` is granted to `system_admin` only. `ProposalEndpoints.cs:413`'s own comment reads "§4.1: ClarificationRequested -> Revised, **supplier_admin** / proposal.revise", and `PERMISSIONS.md` shows the holder as `system_admin`. The persona the endpoint names cannot call it. SCR-155 is missing on top of that, so nothing has exercised the grant | `PERMISSIONS.md:40`, `ProposalEndpoints.cs:413` |
