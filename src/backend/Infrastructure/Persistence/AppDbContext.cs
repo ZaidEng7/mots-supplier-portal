@@ -39,6 +39,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    /// <summary>T-076: administrator rewordings of the transactional emails.</summary>
+    public DbSet<Domain.Configuration.EmailTemplateOverride> EmailTemplateOverrides => Set<Domain.Configuration.EmailTemplateOverride>();
+
     /// <summary>SCR-716: administrator rewordings of shipped interface strings.</summary>
     public DbSet<Domain.Configuration.UiStringOverride> UiStringOverrides => Set<Domain.Configuration.UiStringOverride>();
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -621,6 +624,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // SCR-716. Same shape and the same reasoning as notification_template below: an absent row means
         // the shipped string, so nothing is seeded and a fresh database behaves exactly as the bundle does.
+        // T-076. Same shape and reasoning as ui_string_override below: absent means the shipped copy.
+        modelBuilder.Entity<Domain.Configuration.EmailTemplateOverride>(entity =>
+        {
+            entity.ToTable("email_template_override", "ops");
+            entity.Property(o => o.RowVersion).IsAppManagedVersion();
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.Key).HasMaxLength(100).IsRequired();
+            entity.Property(o => o.SubjectAr).HasMaxLength(300).IsRequired();
+            entity.Property(o => o.SubjectEn).HasMaxLength(300).IsRequired();
+            // 4000: these are HTML bodies, and the shipped ones are already 200-400 characters before an
+            // administrator adds a paragraph of their own.
+            entity.Property(o => o.BodyAr).HasMaxLength(4000).IsRequired();
+            entity.Property(o => o.BodyEn).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(o => o.Key).IsUnique();
+        });
+
         modelBuilder.Entity<Domain.Configuration.UiStringOverride>(entity =>
         {
             entity.ToTable("ui_string_override", "ops");

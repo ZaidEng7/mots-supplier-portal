@@ -83,9 +83,9 @@ public static class EmailTemplateKeys
         new(EvaluatorAssigned, [], ["referenceCode"]),
         new(AwardIssued, [], ["rfqReferenceCode"]),
         new(AwardRegret, [], ["rfqReferenceCode"]),
-        new(DocumentRejected, [], ["documentTypeName", "reason"]),
-        new(DocumentExpiring, [], ["documentTypeName"]),
-        new(DocumentExpired, [], ["documentTypeName"]),
+        new(DocumentRejected, [], ["fileName", "reason"]),
+        new(DocumentExpiring, [], ["fileName"]),
+        new(DocumentExpired, [], ["fileName"]),
     ];
 
     public static EmailTemplateDefinition? Find(string key) =>

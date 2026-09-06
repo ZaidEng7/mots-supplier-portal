@@ -1689,6 +1689,29 @@ const resources = {
         fields: { query: 'كلمة البحث' },
         errors: { failed: 'تعذّر تنفيذ البحث' },                 // [drafted]
       },
+      // ── T-076 · ARABIC FOR REVIEW ─────────────────────────────────────────────
+      emailTemplates: {
+        title: 'نصوص رسائل البريد',                             // [drafted] T-076
+        subtitle: 'صياغة الرسائل التي يرسلها النظام. الرموز بين قوسين معقوفين تُستبدل بقيم فعلية.', // [drafted]
+        overridden: 'صياغة مُعدَّلة', shippedWording: 'الصياغة الأصلية',  // [drafted]
+        required: '(إلزامي)',                                   // [drafted]
+        inForce: 'الصياغة السارية حالياً:',                       // [drafted]
+        edit: 'تعديل', save: 'حفظ', cancel: 'إلغاء', revert: 'استعادة الأصلي', retry: 'إعادة المحاولة',
+        saved: 'تم حفظ الصياغة',                                // [drafted]
+        reverted: 'أُعيدت الصياغة الأصلية',                      // [drafted]
+        tokensNamed: 'الرموز المعنية: {{tokens}}',               // [drafted]
+        fields: {
+          subjectAr: 'الموضوع (عربي)', subjectEn: 'الموضوع (إنجليزي)',
+          bodyAr: 'النص (عربي)', bodyEn: 'النص (إنجليزي)',
+        },
+        errors: {
+          loadFailed: 'تعذّر تحميل نصوص الرسائل',                 // [drafted]
+          saveFailed: 'تعذّر حفظ الصياغة',                        // [drafted]
+          revertFailed: 'تعذّرت استعادة الصياغة الأصلية',          // [drafted]
+          missingTokens: 'الصياغة الجديدة تُسقط رمزاً إلزامياً. الرسالة بدون رابطها لا تُفيد المستلم.', // [drafted]
+          unknownTokens: 'الصياغة تحتوي رمزاً لا يعرفه النظام، وسيظهر كما هو في الرسالة.', // [drafted]
+        },
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -3292,6 +3315,28 @@ const resources = {
         kinds: { rfq: 'RFQ', supplier: 'Supplier', offering: 'Offering' },
         fields: { query: 'Search terms' },
         errors: { failed: 'The search could not be run' },
+      },
+      emailTemplates: {
+        title: 'Email wording',
+        subtitle: 'The wording of the emails this system sends. Tokens in braces are replaced with real values.',
+        overridden: 'Reworded', shippedWording: 'Shipped wording',
+        required: '(required)',
+        inForce: 'Currently in force:',
+        edit: 'Edit', save: 'Save', cancel: 'Cancel', revert: 'Restore original', retry: 'Try again',
+        saved: 'Wording saved',
+        reverted: 'Original wording restored',
+        tokensNamed: 'Tokens: {{tokens}}',
+        fields: {
+          subjectAr: 'Subject (Arabic)', subjectEn: 'Subject (English)',
+          bodyAr: 'Body (Arabic)', bodyEn: 'Body (English)',
+        },
+        errors: {
+          loadFailed: 'Could not load the email wording',
+          saveFailed: 'Could not save the wording',
+          revertFailed: 'Could not restore the original wording',
+          missingTokens: 'The new wording drops a required token. An email without its link is no use to the recipient.',
+          unknownTokens: 'The wording contains a token the system does not know, and it would reach the recipient as literal text.',
+        },
       },
       settings: {
         title: 'Account Settings',

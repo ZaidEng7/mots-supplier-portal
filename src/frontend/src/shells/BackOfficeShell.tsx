@@ -105,6 +105,12 @@ export function BackOfficeShell({ children }: Props) {
                 {t('adminOverview.title')}
               </Link>
             ) : null}
+            {/* T-076. */}
+            {canManageStaff ? (
+              <Link to="/back-office/email-templates" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('emailTemplates.title')}
+              </Link>
+            ) : null}
             {/* SCR-716. */}
             {canManageStaff ? (
               <Link to="/back-office/ui-strings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>

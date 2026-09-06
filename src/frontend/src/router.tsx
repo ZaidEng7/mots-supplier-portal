@@ -9,6 +9,7 @@ import { HelpPage } from './routes/HelpPage'
 import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
 import { OperationsPage } from './routes/admin/OperationsPage'
 import { UiStringsPage } from './routes/admin/UiStringsPage'
+import { EmailTemplatesPage } from './routes/admin/EmailTemplatesPage'
 import { SearchPage } from './routes/SearchPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
@@ -504,6 +505,13 @@ const searchRoute = createRoute({
   component: SearchPage,
 })
 
+// T-076, `/back-office/email-templates`, system_admin.
+const emailTemplatesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/email-templates',
+  component: EmailTemplatesPage,
+})
+
 const backOfficeAccountRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/account',
@@ -650,7 +658,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

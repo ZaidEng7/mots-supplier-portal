@@ -442,6 +442,11 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMes
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
 // SCR-716: interface string overrides.
+// T-076: the email templates' override layer, and the copy source the send path uses.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IEmailCopySource, MotsSupplierPortal.Infrastructure.Email.EmailCopySource>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListEmailTemplatesHandler, MotsSupplierPortal.Infrastructure.Email.ListEmailTemplatesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.UpsertEmailTemplateHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.DeleteEmailTemplateHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();
@@ -952,6 +957,7 @@ app.MapAdminOverviewEndpoints();
 app.MapOperationsEndpoints();
 app.MapUiStringEndpoints();
 app.MapSearchEndpoints();
+app.MapEmailTemplateEndpoints();
 app.MapSystemSettingEndpoints();
 app.MapNotificationTemplateEndpoints();
 app.MapGovernanceEndpoints();
