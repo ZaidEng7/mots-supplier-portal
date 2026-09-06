@@ -46,7 +46,8 @@ public sealed class InviteStaffHandler(
 
         // Unusable random password - the account only becomes usable once the invite is accepted
         // and a real password is set via AcceptStaffInviteHandler.
-        var creation = await InviteUserCreation.CreateInvitedUserAsync(userManager, command.Email, command.FullName, supplierId: null);
+        var creation = await InviteUserCreation.CreateInvitedUserAsync(
+            userManager, command.Email, command.FullName, supplierId: null, organizationId: command.OrganizationId);
         if (!creation.Succeeded)
         {
             return new InviteStaffResult.DuplicateEmail();

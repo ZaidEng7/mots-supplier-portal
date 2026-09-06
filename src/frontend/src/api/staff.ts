@@ -27,6 +27,8 @@ export interface InviteStaffPayload {
   email: string
   fullName: string
   role: string
+  /** The buying body. Null for `ministry_viewer` and `system_admin`, which have none by design. */
+  organizationId?: string | null
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {

@@ -59,6 +59,7 @@ const SUPPLIER = {
 }
 
 let step = 0
+let lastApiFailure = null
 const entries = []
 
 /** RFC 6238 TOTP. SHA-1 because the spec says SHA-1 and the server uses it. */
@@ -271,6 +272,15 @@ async function main() {
   const page = await ctx.newPage()
   page.setDefaultTimeout(20000)
 
+  // The last API response that failed, kept so a refusal can be reported from the SERVER's own words
+  // rather than by scraping whatever happens to be on screen. Reading the DOM gave me an attachment
+  // filename three times in a row while the actual answer was a 428 in the network tab.
+  page.on('response', async (res) => {
+    if (!res.url().includes('/api/v1/') || res.status() < 400) return
+    const body = await res.text().catch(() => '')
+    lastApiFailure = `${res.request().method()} ${res.url().replace(/^https?:\/\/[^/]+/, '')} -> ${res.status()} ${body.slice(0, 600)}`
+  })
+
   try {
     await act1PublicAndAdmin(page)
     await act2StaffAccounts(page, ctx)
@@ -278,7 +288,11 @@ async function main() {
     await act4Onboarding(page)
     await act5ReviewAndApprove(page)
     await act6Approve(page)
+    await act6bOfferings(page)
+    await act7EvaluationTemplate(page)
     await act7AuthorRfq(page)
+    await act8ItemsAndReview(page)
+    await act9PublishAndInvite(page)
   } catch (e) {
     // A driver that dies without saying where it was is a driver you debug by guessing. This is the
     // one screenshot that is not part of the guide.
@@ -288,9 +302,10 @@ async function main() {
     const controls = await page.evaluate(() => {
       const name = (el) => el.getAttribute('aria-label')
         || document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim()
-        || el.getAttribute('placeholder') || '(unnamed)'
-      return [...document.querySelectorAll('input,textarea,select,button[role=combobox],[role=combobox]')]
-        .map((el) => `${el.tagName.toLowerCase()}${el.type ? '[' + el.type + ']' : ''} :: ${name(el)}`)
+        || el.getAttribute('placeholder') || ''
+      return [...document.querySelectorAll('input,textarea,select,button,[role=combobox]')]
+        .filter((el) => !el.disabled || el.tagName === 'BUTTON')
+        .map((el) => `${el.tagName.toLowerCase()}${el.disabled ? '[disabled]' : ''} :: ${name(el) || el.textContent?.trim()?.slice(0, 40) || '(unnamed)'}`)
     }).catch(() => [])
     console.error('  controls on screen:'); for (const c of controls) console.error('    ' + c)
     console.error(`\n  failed at step ${step + 1}, on ${page.url()}`)
@@ -328,8 +343,32 @@ async function act1PublicAndAdmin(page) {
     'Open Staff to create the people who actually run a tender.')
 }
 
+const ORG_NAME = 'Directorate of School Services'
+
 async function act2StaffAccounts(page, ctx) {
-  console.log('\nAct 2 — creating the staff who run a procurement')
+  console.log('\nAct 2 — a buying body, then the staff who work in it')
+
+  // The organization comes FIRST, and it has to: BRULE-029 scopes every tender query by the caller's
+  // buying body, so an officer invited without one signs in, opens the tender list, presses New RFQ
+  // and gets a bare 404 from a create with nowhere to put the row. Before batch 12 there was no way
+  // to set it at all - the invitation did not carry one and nothing else assigned it.
+  await page.getByRole('link', { name: /^organizations$/i }).click()
+  await settle(page)
+  await shot(page, 'system_admin', 'Organizations (empty)',
+    'No buying bodies yet. An organization is the unit a tender belongs to and the boundary every query is scoped by, so nothing procurement-shaped can exist before one does.',
+    'Create the directorate that will run this tender.')
+
+  await page.getByRole('button', { name: /create organization/i }).first().click()
+  const od = page.getByRole('dialog')
+  await od.getByLabel(/legal name \(english\)/i).fill(ORG_NAME)
+  await od.getByLabel(/legal name \(arabic\)/i).fill('مديرية الخدمات المدرسية')
+  await chooseOption(od, /type/i, /.+/)
+  await fillIfPresent(od.getByLabel(/email/i), 'services@mots.local')
+  await od.getByRole('button', { name: /save|create|add/i }).last().click()
+  await settle(page)
+  await shot(page, 'system_admin', 'Buying body created',
+    'The directorate exists. Staff invited into it inherit its scope, and a tender they raise belongs to it.',
+    'Invite the people who will run the procurement.')
 
   await page.getByRole('link', { name: /^staff$/i }).click()
   await settle(page)
@@ -359,9 +398,10 @@ async function inviteStaff(page, s) {
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel(/email/i).fill(s.email)
   await dialog.getByLabel(/name/i).fill(s.name)
-  const role = dialog.getByRole('combobox').first()
-  await role.click()
-  await page.getByRole('option', { name: new RegExp(s.role.replace(/_/g, '[ _]'), 'i') }).click()
+  await chooseOption(dialog, /role/i, new RegExp(s.role.replace(/_/g, '[ _]'), 'i'))
+  // ministry_viewer is left unassigned on purpose - BRULE-086 grants the Ministry access ACROSS
+  // organizations, so pinning it to one would be a narrower grant wearing the same name.
+  if (s.role !== 'ministry_viewer') await chooseOption(dialog, /buying body/i, new RegExp(ORG_NAME.slice(0, 14), 'i'))
   await dialog.getByRole('button', { name: /send|invite|دعوة/i }).click()
   await page.waitForLoadState('networkidle')
 }
@@ -369,25 +409,35 @@ async function inviteStaff(page, s) {
 async function acceptStaffInvite(ctx, s) {
   const m = await mail(({ to, raw }) => to === s.email && /accept-staff-invite/.test(raw))
   const link = firstLink(m.raw, 'accept-staff-invite')
-  await paceSignIn()
-  const p = await ctx.newPage()
-  await p.goto(link)
-  await p.getByLabel(/new password/i).first().fill(PW)
-  await p.getByRole('button', { name: /set|accept|continue|save|sign/i }).first().click()
-  await settle(p)
 
-  // VERIFIED, not assumed. The first version printed "accepted" for all six and checked nothing - the
-  // form was refusing silently, every staff password stayed unset, and the walk only discovered it
-  // four acts later when the reviewer could not sign in. A step that reports success without looking
-  // is worse than one that fails.
-  const text = await p.locator('body').innerText()
-  const accepted = /you can now sign in|signed in|password set|تم تعيين/i.test(text) || !/new password/i.test(text)
-  if (!accepted) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await paceSignIn()
+    const p = await ctx.newPage()
+    await p.goto(link)
+
+    const password = p.getByLabel(/new password/i)
+    await password.first().waitFor({ state: 'visible' })
+    await password.first().fill(PW)
+    await p.getByRole('button', { name: /set|accept|continue|save|sign/i }).first().click()
+
+    // Accepted when the form is GONE. Waiting on the field to detach is the only signal that does not
+    // depend on guessing the success wording, and the form staying put is exactly what a silent
+    // refusal looks like - which the first version reported as success for all six accounts.
+    const settled = await password.first()
+      .waitFor({ state: 'detached', timeout: 15000 })
+      .then(() => true)
+      .catch(() => false)
+
+    if (settled) { await p.close(); return }
+
     const alert = await p.locator('[role=alert]').allInnerTexts().catch(() => [])
     await p.close()
-    throw new Error(`invitation for ${s.email} was not accepted: ${alert.join(' | ') || text.slice(0, 200)}`)
+    if (attempt === 2) {
+      throw new Error(`invitation for ${s.email} was not accepted: ${alert.join(' | ') || 'the form did not clear'}`)
+    }
+    console.log(`      ${s.email} did not take on attempt ${attempt} - retrying`)
+    await new Promise((r) => setTimeout(r, 8000))
   }
-  await p.close()
 }
 
 async function act3SupplierRegisters(page, ctx) {
@@ -513,6 +563,13 @@ async function addContact(page) {
   await fillIfPresent(d.getByLabel(/position/i), 'Commercial Director')
   await d.getByRole('button', { name: /^save$/i }).click()
   await settle(page)
+  // The dialog closing IS the creation. Without this the walk screenshotted an open dialog, captioned
+  // it "Tender created", and carried on against a tender that did not exist.
+  const stillOpen = await d.count()
+  if (stillOpen) {
+    const why = await d.locator('[role=alert], p').allInnerTexts().catch(() => [])
+    throw new Error(`the tender was not created: ${why.join(' | ').slice(0, 300) || 'the dialog did not close'}`)
+  }
   await shot(page, 'supplier_admin', 'Onboarding — contacts',
     'A primary representative is recorded. This is the person a buyer addresses a clarification to, and the completeness rule requires their phone number specifically — a supplier nobody can reach mid-tender is one a buyer cannot include.',
     'Add the head-office address.')
@@ -559,12 +616,32 @@ async function addBankAccount(page) {
 }
 
 /** Radix selects are named by their placeholder, so they answer to role=combobox, not to a label. */
+/**
+ * Saves a dialog and proves it closed.
+ *
+ * The dialog going away IS the save. Every `click Save; screenshot` pair in the first draft of this
+ * walk was a claim without evidence, and three of them were false - a refused save leaves the form
+ * open, the screenshot still gets captioned "created", and the consequence lands acts later.
+ */
+async function saveDialog(page, dialog, what, buttonRe = /^save$/i) {
+  lastApiFailure = null
+  await dialog.getByRole('button', { name: buttonRe }).last().click()
+  await settle(page)
+  if (await dialog.count()) {
+    throw new Error(`${what} was refused: ${lastApiFailure ?? 'the dialog did not close and no API call failed'}`)
+  }
+}
+
+
 async function chooseOption(scope, nameRe, optionRe) {
   const box = scope.getByRole('combobox', { name: nameRe })
   if (!(await box.count())) return
   await box.first().click()
-  const opt = scope.page().getByRole('option', { name: optionRe })
-  await opt.first().click()
+  // The options render in a PORTAL at the document root, so they are looked up on the page rather
+  // than inside the dialog that owns the control. `scope` is sometimes the page itself and sometimes
+  // a dialog locator, and only the latter has .page() - hence the check rather than a bare call.
+  const root = typeof scope.page === 'function' ? scope.page() : scope
+  await root.getByRole('option', { name: optionRe }).first().click()
 }
 
 /** `datetime-local` wants local wall-clock time with no zone, which toISOString does not give. */
@@ -681,8 +758,10 @@ async function uploadRequiredDocuments(page) {
   // Only one landed: an expiry-tracked type refuses an upload with no expiry date, so tax_certificate
   // - which is REQUIRED - silently never uploaded, and the walk discovered it four steps later as a
   // submission the server would not accept.
-  const rows = page.locator('li,tr,div').filter({ has: page.locator('input[type=file]') })
-  const fileInputs = page.locator('input[type=file]')
+  // Only the inputs that accept a DOCUMENT. The supplier logo is a file input on this same page, and
+  // an indiscriminate loop posted a PDF to it - answered UNSUPPORTED_FILE_TYPE, which then sat in the
+  // failure log and got blamed on the next unrelated step.
+  const fileInputs = page.locator('input[type=file][accept*="pdf"], input[type=file]:not([accept*="image"])')
   const count = await fileInputs.count()
   let uploaded = 0
 
@@ -713,16 +792,25 @@ async function uploadRequiredDocuments(page) {
 async function act6Approve(page) {
   console.log('\nAct 6 — approved and activated')
 
-  await page.getByRole('button', { name: /^approve$/i }).first().click()
-  const dialog = page.getByRole('dialog')
-  if (await dialog.count()) {
-    const reason = dialog.getByRole('textbox').first()
-    if (await reason.count()) {
-      await reason.fill('Registration certificate, tax certificate and chamber membership all check out against the profile.')
-    }
-    await dialog.getByRole('button', { name: /approve|confirm|save/i }).last().click()
-  }
+  // Picked up FIRST. A reviewer claims the application before deciding on it, so the queue can show
+  // who is working what and two reviewers do not both open the same case.
+  await page.getByRole('button', { name: /start review|pick up/i }).first().click()
   await settle(page)
+  await shot(page, 'onboarding_reviewer', 'Review started',
+    'Claimed. The decision controls appear only now, and the queue records who took it - which is what stops two reviewers working the same application without knowing.',
+    'Check the documents, then approve, reject, or ask for more information.')
+
+  // Scoped to the DECISION row, not the page. Every uploaded document carries its own Approve and
+  // Reject, so an unscoped `Approve` matched a document's button instead - it clicked, nothing
+  // happened to the application, and the screenshot still said "Application approved".
+  const decisions = page.locator('div').filter({ has: page.getByRole('button', { name: /request info/i }) }).last()
+  const approve = decisions.getByRole('button', { name: /^approve$/i })
+  await approve.first().click()
+  await settle(page)
+
+  if (await approve.count()) {
+    throw new Error(`the approval was refused: ${lastApiFailure ?? 'no failing API call was seen'}`)
+  }
   await shot(page, 'onboarding_reviewer', 'Application approved',
     'Approved, with a written reason recorded against the decision. The reason is not decoration: an approval nobody can account for later is the thing an audit trail exists to prevent.',
     'The supplier is now Active and can be invited to tenders. Sign in as the procurement officer.')
@@ -755,15 +843,257 @@ async function act7AuthorRfq(page) {
   await d.getByLabel(/title \(english\)/i).fill('School meals catering, 2026-2027')
   await d.getByLabel(/title \(arabic\)/i).fill('تموين وجبات مدرسية ٢٠٢٦-٢٠٢٧')
   await d.getByLabel(/currency/i).fill('SYP')
-  // A REAL window: opens a few minutes ago so publishing opens submissions at once, and closes far
-  // enough out that the officer closes it deliberately later rather than the clock doing it mid-walk.
-  await d.getByLabel(/opens/i).fill(localDateTime(-5 * 60 * 1000))
+  // Both dates in the FUTURE, which the domain requires: submit-for-review refuses a window that has
+  // already started - "submission dates must be in the future" - and it is right to, because a tender
+  // whose bidding opened before anyone approved it was never really reviewed.
+  //
+  // Two minutes out, not two days, so the walk can watch the window actually open rather than
+  // asserting it would. Closing stays far off so the officer closes it deliberately later.
+  await d.getByLabel(/opens/i).fill(localDateTime(2 * 60 * 1000))
   await d.getByLabel(/closes/i).fill(localDateTime(3 * 24 * 60 * 60 * 1000))
   await d.getByRole('button', { name: /^save$/i }).click()
   await settle(page)
   await shot(page, 'procurement_officer', 'Tender created (Draft)',
     'The tender exists in Draft, with a reference code allocated by the server. Everything on it is editable while it stays in Draft and nothing is visible to a supplier yet.',
     'Add the line items being bought, and the requirements bidders must answer.')
+}
+
+
+const RFQ_TITLE = 'School meals catering, 2026-2027'
+
+/** The tender's own page. Reached by clicking its row, never by typing the reference code. */
+/**
+ * Presses a lifecycle button and proves the transition happened.
+ *
+ * The button disappearing IS the transition: these controls are state-gated, so one that is still on
+ * screen afterwards means the server refused. Every one of these used to be a bare click, and each
+ * refusal was screenshotted with a caption claiming it had worked - the tender sat in Draft through
+ * four more steps before anything noticed.
+ */
+async function transition(page, buttonRe, what) {
+  lastApiFailure = null
+  const button = page.getByRole('button', { name: buttonRe })
+  await button.first().click()
+  await settle(page)
+  if (await button.count()) {
+    throw new Error(`${what} was refused: ${lastApiFailure ?? 'no failing API call was seen'}`)
+  }
+}
+
+
+async function openTender(page) {
+  await page.goto(`${APP}/back-office/rfqs`)
+  await settle(page)
+  // The RFQ list links on the REFERENCE CODE and shows the title in the next cell, so the row is
+  // reached by the code the server allocated - which the walk does not know in advance and reads off
+  // the page rather than guessing.
+  await page.getByRole('link', { name: /^RFQ-\d{4}-\d+$/ }).first().click()
+  await settle(page)
+}
+
+async function act8ItemsAndReview(page) {
+  console.log('\nAct 8 — what is being bought, and internal review')
+
+  await openTender(page)
+  await shot(page, 'procurement_officer', 'Tender detail (Draft)',
+    'The tender in Draft. Items, requirements, attachments and the evaluation template are all editable here and nowhere else: once it leaves Draft the editing controls disappear rather than failing on use.',
+    'Add the line item being bought.')
+
+  await page.getByLabel(/title \(english\)/i).first().fill('Hot lunch, primary school, per pupil per day')
+  await page.getByLabel(/title \(arabic\)/i).first().fill('وجبة غداء ساخنة، مرحلة ابتدائية، للتلميذ يومياً')
+  await chooseOption(page, /category/i, /catering/i)
+  await chooseOption(page, /unit/i, /.+/)
+  await page.getByLabel(/quantity/i).first().fill('180000')
+  await page.getByRole('button', { name: /add item/i }).click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Line item added',
+    'One line, priced per pupil per day, with a quantity for the school year. A bid is priced against these lines, so the comparison matrix later compares like with like.',
+    'Add a requirement bidders must answer in words.')
+
+  const textEn = page.getByLabel(/text \(english\)/i).first()
+  if (await textEn.count()) {
+    await textEn.fill('Describe your cold-chain and delivery plan for twelve sites before 07:30 daily.')
+    await page.getByLabel(/text \(arabic\)/i).first().fill('صف خطة سلسلة التبريد والتوصيل لاثني عشر موقعاً قبل الساعة ٧:٣٠ يومياً.')
+    await page.getByRole('button', { name: /add requirement/i }).click()
+    await settle(page)
+  }
+  await shot(page, 'procurement_officer', 'Requirement added',
+    'A requirement is answered in prose and scored by an evaluator, which is what separates it from a line item. The two halves of a bid — the technical answer and the price — are sealed from each other until consolidation.',
+    'Attach the tender documents suppliers need to read.')
+
+  await attachTenderDocument(page)
+
+  // Binding the template is what makes the tender reviewable. It is bound rather than written here:
+  // the officer chooses which scoring scheme applies, and the manager owns what the scheme says.
+  // Any active template, not one matched by name: the option label is composed from the template's
+  // name AND its version, and guessing that composition is how a locator breaks on a rename.
+  await chooseOption(page, /evaluation template/i, /.+/)
+  const bind = page.getByRole('button', { name: /bind/i })
+  if (await bind.count()) { await bind.first().click(); await settle(page) }
+  await shot(page, 'procurement_officer', 'Evaluation template bound',
+    'The tender now carries the criteria it will be judged by, frozen at the version bound. Bidders can see what they are being scored on before they bid, which is the point of binding it this early.',
+    'Submit the tender for internal review.')
+
+  // An approver is named before the tender is sent for review, and the picker offers the managers in
+  // this buying body. Naming them here is what makes segregation of duties enforceable later: the
+  // person who approves the tender is recorded, not inferred from whoever happens to open it.
+  await chooseOption(page, /choose an approver/i, new RegExp(STAFF.manager.name.split(' ')[0], 'i'))
+  await settle(page)
+
+  // Invitations come BEFORE review, not after publication. The domain refuses a submit-for-review on
+  // a tender with no candidate supplier - "at least one candidate supplier must be invited" - which
+  // says something about how this process is meant to run: the approver is shown who the tender is
+  // actually going to, rather than approving it into the void and letting the officer choose later.
+  // Reloaded first, and this is a real observation rather than a workaround. The suggested-supplier
+  // list is fetched when the page loads and matched against the tender's item CATEGORIES - so on a
+  // tender whose first item was added moments ago, the suggestion was computed before that item
+  // existed and the section renders empty until something re-reads it.
+  await page.reload()
+  await settle(page)
+
+  await inviteSupplier(page)
+
+  await transition(page, /submit for review/i, 'submit for review')
+  await shot(page, 'procurement_officer', 'Submitted for internal review',
+    'The tender moves to InternalReview and the officer can no longer edit it. Authorship and approval are separated deliberately: the person who wrote the tender is not the person who lets it out.',
+    'Sign in as the procurement manager to approve it.')
+}
+
+async function attachTenderDocument(page) {
+  const input = page.locator('input[type=file]').first()
+  if (!(await input.count())) return
+  await input.setInputFiles({
+    name: 'tender-specification.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF'),
+  })
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Tender document attached',
+    'The specification suppliers will bid against. It is scanned on upload like every other file here, and it becomes readable to a supplier only once the tender is published to them.',
+    'Submit the tender for internal review.')
+}
+
+async function act9PublishAndInvite(page) {
+  console.log('\nAct 9 — approved, published, and the supplier invited')
+
+  await signOut(page)
+  await signIn(page, STAFF.manager.email, PW)
+  await chooseEnglish(page)
+  await openTender(page)
+  await shot(page, 'procurement_manager', 'Tender awaiting approval',
+    'The manager sees the same tender with a different set of controls: approve or return for edits, and no way to alter its contents. Reviewing something you can silently change is not a review.',
+    'Approve it.')
+
+  await transition(page, /^approve$/i, 'approve the tender')
+  await shot(page, 'procurement_manager', 'Tender approved',
+    'Approved. It is not yet visible to any supplier: approval and publication are separate steps, so a tender can be signed off and released on a chosen date.',
+    'Hand back to the officer to publish and invite.')
+
+  await signOut(page)
+  await signIn(page, STAFF.officer.email, PW)
+  await openTender(page)
+  await transition(page, /^publish$/i, 'publish the tender')
+  await shot(page, 'procurement_officer', 'Tender published',
+    'Published. The submission window opens on its own when the start time passes - a scheduled job moves it, not a person - so the tender becomes biddable without anyone having to be at a desk.',
+    'Wait for the window to open, then bid as the supplier.')
+}
+
+async function inviteSupplier(page) {
+  const invite = page.getByRole('button', { name: /invite/i }).first()
+  await invite.click()
+  await settle(page)
+  const picker = page.getByRole('combobox').last()
+  if (await picker.count()) {
+    await picker.click()
+    const option = page.getByRole('option', { name: new RegExp(SUPPLIER.nameEn.slice(0, 12), 'i') })
+    if (await option.count()) await option.first().click()
+  }
+  const confirm = page.getByRole('button', { name: /invite|add|send/i }).last()
+  if (await confirm.count()) await confirm.click()
+  await settle(page)
+  await shot(page, 'procurement_officer', 'Supplier invited',
+    'Invited by name from the approved list — a tender cannot be sent to a company that has not been through onboarding. The invitation is also a precondition of review: an approver is shown who the tender is going to.',
+    'Submit the tender for internal review.')
+}
+
+
+async function act7EvaluationTemplate(page) {
+  console.log('\nAct 7a — the manager defines how bids will be scored')
+
+  // Before the tender, and that ordering is the product's, not mine: a tender cannot go to internal
+  // review without a scoring template bound to it, and templates belong to the manager. The first
+  // version of this walk skipped it and the submit-for-review was refused with the reason rendered
+  // nowhere I could read - which is itself worth knowing.
+  await signOut(page)
+  await signIn(page, STAFF.manager.email, PW)
+  await chooseEnglish(page)
+
+  await page.getByRole('link', { name: /evaluation templates/i }).click()
+  await settle(page)
+  await shot(page, 'procurement_manager', 'Evaluation templates (empty)',
+    'How bids get scored is decided before any bid exists, and by the manager rather than the officer who writes the tender. A template is reusable and versioned: activating one freezes it, and changing it later forks a new version rather than editing history.',
+    'Create the template this tender will be judged against.')
+
+  await page.getByRole('button', { name: /new template/i }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByLabel(/name \(english\)/i).fill('Catering services, technical and commercial')
+  await d.getByLabel(/name \(arabic\)/i).fill('خدمات التموين، فني وتجاري')
+  await d.getByRole('button', { name: /^save$/i }).click()
+  await settle(page)
+  await shot(page, 'procurement_manager', 'Template created (Draft)',
+    'The template exists in draft. It scores nothing yet: criteria carry the weights, and the weights have to total 100 before it can be activated.',
+    'Add the criteria bids will be scored on.')
+
+  await addCriterion(page, 'Food safety and cold chain', 'سلامة الغذاء وسلسلة التبريد', 'Technical', '60')
+  await addCriterion(page, 'Price', 'السعر', 'Commercial', '40')
+
+  await shot(page, 'procurement_manager', 'Criteria added, weights total 100',
+    'Two criteria across two of the four dimensions the product offers - Technical, Commercial, Compliance and Delivery. The weight total is shown because activation refuses anything but 100 — a template that does not add up would produce rankings nobody could defend.',
+    'Activate it so a tender can bind it.')
+
+  await transition(page, /^activate$/i, 'activate the template')
+  await shot(page, 'procurement_manager', 'Template activated',
+    'Activated and now bindable. From here it is frozen: a tender that binds it keeps this exact set of criteria and weights even if a later version is created.',
+    'Hand back to the officer to write the tender.')
+}
+
+async function addCriterion(page, nameEn, nameAr, dimension, weight) {
+  await page.getByLabel(/name \(english\)/i).last().fill(nameEn)
+  await page.getByLabel(/name \(arabic\)/i).last().fill(nameAr)
+  await chooseOption(page, /dimension/i, new RegExp(dimension, 'i'))
+  await page.getByLabel(/^weight$/i).last().fill(weight)
+  const maxScore = page.getByLabel(/max score/i).last()
+  if (await maxScore.count()) await maxScore.fill('100')
+  // Required, and the Add button stays disabled without it - which reads as a button that does not
+  // work rather than a field that is not filled.
+  await chooseOption(page, /scoring type/i, /.+/)
+  await page.getByRole('button', { name: /add criterion/i }).click()
+  await settle(page)
+}
+
+
+async function act6bOfferings(page) {
+  console.log('\nAct 6b — the supplier lists what it actually sells')
+
+  await signOut(page)
+  await signIn(page, SUPPLIER.email, SUPPLIER.password)
+  await page.goto(`${APP}/offerings`)
+  await settle(page)
+  await shot(page, 'supplier_admin', 'Offerings (empty)',
+    'Ticking a category during onboarding said what this company does in principle. An offering is the concrete thing it sells, and this is the list a buyer is matched against - the invitation suggestions on a tender are built from OFFERINGS, not from the categories chosen at sign-up.',
+    'Add an offering in the catering category.')
+
+  await page.getByRole('button', { name: /add offering/i }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByLabel(/name \(english\)/i).fill('Hot school meals, daily delivery')
+  await d.getByLabel(/name \(arabic\)/i).fill('وجبات مدرسية ساخنة، توصيل يومي')
+  await fillIfPresent(d.getByLabel(/description/i), 'Cooked on site, delivered chilled to twelve schools before 07:30.')
+  await chooseOption(d, /category/i, /catering/i)
+  await chooseOption(d, /unit of measure/i, /.+/)
+  await saveDialog(page, d, 'the offering')
+  await shot(page, 'supplier_admin', 'Offering listed',
+    'The company is now findable. A tender whose line items carry this category will suggest this supplier to the officer writing it — which is the whole mechanism by which a buyer discovers who can bid.',
+    'Back to the officer, who writes the tender.')
 }
 
 main().catch((e) => { console.error('\nFAILED:', e.message); process.exitCode = 1 })

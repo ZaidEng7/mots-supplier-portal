@@ -6,7 +6,7 @@ using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-public sealed record InviteStaffRequest(string Email, string FullName, string Role);
+public sealed record InviteStaffRequest(string Email, string FullName, string Role, Guid? OrganizationId);
 
 public sealed class InviteStaffRequestValidator : AbstractValidator<InviteStaffRequest>
 {
@@ -64,7 +64,7 @@ public static class StaffEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            var result = await handler.HandleAsync(new InviteStaffCommand(request.Email, request.FullName, request.Role), ct);
+            var result = await handler.HandleAsync(new InviteStaffCommand(request.Email, request.FullName, request.Role, request.OrganizationId), ct);
             return result switch
             {
                 InviteStaffResult.Success s => Results.Created($"/api/v1/staff/{s.Staff.UserId}", s.Staff),

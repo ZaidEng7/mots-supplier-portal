@@ -21,7 +21,9 @@ export PATH="$DOTNET_ROOT:$PATH"
 ./walkthrough/reset.sh
 
 echo "==> restarting the API with demo seeding off"
-if lsof -ti:5080 >/dev/null 2>&1; then kill "$(lsof -ti:5080)"; sleep 2; fi
+# lsof can return SEVERAL pids (the dotnet launcher and the app it spawned), and passing that
+# newline-separated list to kill as one argument fails with "arguments must be process or job IDs".
+if lsof -ti:5080 >/dev/null 2>&1; then lsof -ti:5080 | xargs kill 2>/dev/null || true; sleep 3; fi
 (
   cd src/backend/Api
   ASPNETCORE_ENVIRONMENT=Development \

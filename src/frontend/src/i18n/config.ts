@@ -1325,7 +1325,8 @@ const resources = {
         hint: 'دعوة موظف جديد بالبريد الإلكتروني والدور. سيحصل على رابط لتعيين كلمة المرور الخاصة به.',
         cancel: 'إلغاء',
         invited: 'تم إرسال الدعوة إلى {{email}}',
-        fields: { fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', role: 'الدور' },
+        fields: { fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', role: 'الدور', organization: 'الجهة المشترية' },
+        organizationHint: 'مطلوبة لأدوار المشتريات والتقييم والمراجعة. تُترك فارغة لمشاهد الوزارة ومدير النظام.', // [drafted]
         roles: {
           onboarding_reviewer: 'مراجع استكمال الموردين',
           procurement_officer: 'مسؤول المشتريات',
@@ -2988,7 +2989,8 @@ const resources = {
         hint: 'Invite a new staff member by email and role. They will get a link to set their own password.',
         cancel: 'Cancel',
         invited: 'Invite sent to {{email}}',
-        fields: { fullName: 'Full name', email: 'Email', role: 'Role' },
+        fields: { fullName: 'Full name', email: 'Email', role: 'Role', organization: 'Buying body' },
+        organizationHint: 'Required for the procurement, evaluation and review roles. Left empty for the Ministry viewer and the system administrator.',
         roles: {
           onboarding_reviewer: 'Onboarding Reviewer',
           procurement_officer: 'Procurement Officer',
