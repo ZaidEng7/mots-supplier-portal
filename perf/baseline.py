@@ -7,7 +7,7 @@ load tool (k6, NBomber) models concurrency, ramp-up and think time, and this doe
 BASELINE.md for exactly what this number is and is not. It exists so that the targets stop being
 unmeasured, and so the next change to a cross-aggregate read can be compared against something.
 
-Usage:  python3 perf/baseline.py [--iterations 30] [--port 5080]
+Usage:  python3 perf/baseline.py [--iterations 30]
 """
 from __future__ import annotations
 
@@ -101,9 +101,9 @@ ENDPOINTS = [
 ]
 
 
-def post_json(port: int, path: str, payload: dict) -> dict:
+def post_json(path: str, payload: dict) -> dict:
     request = urllib.request.Request(
-        endpoint_url(port, path),
+        endpoint_url(path),
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -112,7 +112,7 @@ def post_json(port: int, path: str, payload: dict) -> dict:
         return json.loads(response.read().decode())
 
 
-def token_for(port: int, email: str, password: str, totp: str | None = None,
+def token_for(email: str, password: str, totp: str | None = None,
               attempts: int = 3) -> tuple[str | None, str]:
     """(token, reason). The reason is reported rather than swallowed: a baseline missing its slowest
     endpoint is worse than one that says why, and the first run of this script reported "could not sign in"
@@ -124,7 +124,7 @@ def token_for(port: int, email: str, password: str, totp: str | None = None,
 
     for attempt in range(attempts):
         try:
-            return post_json(port, "/api/v1/auth/login", payload)["accessToken"], "ok"
+            return post_json("/api/v1/auth/login", payload)["accessToken"], "ok"
         except urllib.error.HTTPError as error:
             error.read()
             if error.code == 429 and attempt < attempts - 1:
@@ -141,12 +141,12 @@ def token_for(port: int, email: str, password: str, totp: str | None = None,
     return None, "gave up after retries"
 
 
-def measure(port: int, path: str, token: str, iterations: int) -> tuple[list[float], int]:
+def measure(path: str, token: str, iterations: int) -> tuple[list[float], int]:
     """Latencies in milliseconds, plus the status of the last response."""
     samples: list[float] = []
     status = 0
     for _ in range(iterations):
-        request = urllib.request.Request(endpoint_url(port, path), headers={"Authorization": f"Bearer {token}"})
+        request = urllib.request.Request(endpoint_url(path), headers={"Authorization": f"Bearer {token}"})
         started = time.perf_counter()
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -169,26 +169,34 @@ def percentile(samples: list[float], fraction: float) -> float:
     return ordered[index]
 
 
-def endpoint_url(port: int, path: str) -> str:
-    """The URL for one endpoint on the local API. The host is this literal and nothing else.
+# The API this measures, as a constant rather than a flag - see endpoint_url.
+API_ORIGIN = "http://localhost:5080"
 
-    This took three attempts and the third is the only one that is actually true. The script authenticates
-    as five personas and replays reads with their bearer tokens, so whatever names the host decides where
-    those credentials get sent - and it started as `--base`, a free-form string, concatenated onto a path.
 
-    Validating that string, first in main() and then here, both worked and both left the same smell: a URL
-    assembled from something a caller supplied, guarded by a check a reader has to go and find. The flag has
-    no reason to be a string. This script measures a server on this machine; the only thing about its
-    address that can legitimately vary is the port. So the port is the argument, an int, and there is no
-    parse to get wrong - an integer cannot name a different host.
+def endpoint_url(path: str) -> str:
+    """The URL for one endpoint on the local API, built from a module constant and a literal path.
+
+    No part of this address comes from outside the file, and that is the point.
+
+    The script authenticates as five personas and replays reads with their bearer tokens, so whatever names
+    the host decides where those credentials get sent. It began as `--base`, a free-form string concatenated
+    onto a path: a typo in a copied invocation was enough to post real credentials to someone else's server.
+
+    Validating that string - in main(), then again at the point of use - fixed the hole and kept the smell:
+    an address assembled from caller input, safe only because of a check the reader has to go and find.
+    Narrowing the flag to an integer port removed the hole properly but kept the same shape.
+
+    So there is no flag. This measures the local development API, whose port RUNBOOK.md fixes at 5080, and
+    the one documented invocation only ever passes --iterations. Nothing outside this file can influence
+    where a token is sent, which is a stronger statement than any amount of validation, and measuring a
+    different server is a one-line edit above by someone who has read this.
     """
-    return f"http://localhost:{port}{path}"
+    return API_ORIGIN + path
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--iterations", type=int, default=30)
-    parser.add_argument("--port", type=int, default=5080, help="Port of the local API. The host is always localhost.")
     parser.add_argument("--warmup", type=int, default=3,
                         help="Discarded requests per endpoint. The first call to an EF query pays for its "
                              "compiled-query cache and its connection, and reporting that as latency would "
@@ -200,7 +208,7 @@ def main() -> int:
         print("!! could not read the admin's TOTP secret from the dev database - admin endpoints are skipped")
 
     logins = {
-        name: token_for(arguments.port, email, password, code if name == "admin" else None)
+        name: token_for(email, password, code if name == "admin" else None)
         for name, (email, password) in PERSONAS.items()
     }
     tokens = {name: token for name, (token, _) in logins.items()}
@@ -219,8 +227,8 @@ def main() -> int:
             print(f"{label:<26} {persona:<9} {'skip':>6}")
             continue
 
-        measure(arguments.port, path, token, arguments.warmup)
-        samples, status = measure(arguments.port, path, token, arguments.iterations)
+        measure(path, token, arguments.warmup)
+        samples, status = measure(path, token, arguments.iterations)
 
         row = (label, persona, status, len(samples),
                statistics.median(samples), percentile(samples, 0.95), max(samples))
