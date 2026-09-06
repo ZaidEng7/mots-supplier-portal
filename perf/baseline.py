@@ -7,7 +7,7 @@ load tool (k6, NBomber) models concurrency, ramp-up and think time, and this doe
 BASELINE.md for exactly what this number is and is not. It exists so that the targets stop being
 unmeasured, and so the next change to a cross-aggregate read can be compared against something.
 
-Usage:  python3 perf/baseline.py [--iterations 30] [--base http://localhost:5080]
+Usage:  python3 perf/baseline.py [--iterations 30] [--port 5080]
 """
 from __future__ import annotations
 
@@ -22,7 +22,6 @@ import struct
 import subprocess
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 
 # The personas the measured endpoints belong to. Passwords are the dev seed's - this script only ever
@@ -102,9 +101,9 @@ ENDPOINTS = [
 ]
 
 
-def post_json(base: str, path: str, payload: dict) -> dict:
+def post_json(port: int, path: str, payload: dict) -> dict:
     request = urllib.request.Request(
-        endpoint_url(base, path),
+        endpoint_url(port, path),
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -113,7 +112,7 @@ def post_json(base: str, path: str, payload: dict) -> dict:
         return json.loads(response.read().decode())
 
 
-def token_for(base: str, email: str, password: str, totp: str | None = None,
+def token_for(port: int, email: str, password: str, totp: str | None = None,
               attempts: int = 3) -> tuple[str | None, str]:
     """(token, reason). The reason is reported rather than swallowed: a baseline missing its slowest
     endpoint is worse than one that says why, and the first run of this script reported "could not sign in"
@@ -125,7 +124,7 @@ def token_for(base: str, email: str, password: str, totp: str | None = None,
 
     for attempt in range(attempts):
         try:
-            return post_json(base, "/api/v1/auth/login", payload)["accessToken"], "ok"
+            return post_json(port, "/api/v1/auth/login", payload)["accessToken"], "ok"
         except urllib.error.HTTPError as error:
             error.read()
             if error.code == 429 and attempt < attempts - 1:
@@ -142,12 +141,12 @@ def token_for(base: str, email: str, password: str, totp: str | None = None,
     return None, "gave up after retries"
 
 
-def measure(base: str, path: str, token: str, iterations: int) -> tuple[list[float], int]:
+def measure(port: int, path: str, token: str, iterations: int) -> tuple[list[float], int]:
     """Latencies in milliseconds, plus the status of the last response."""
     samples: list[float] = []
     status = 0
     for _ in range(iterations):
-        request = urllib.request.Request(endpoint_url(base, path), headers={"Authorization": f"Bearer {token}"})
+        request = urllib.request.Request(endpoint_url(port, path), headers={"Authorization": f"Bearer {token}"})
         started = time.perf_counter()
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -170,60 +169,26 @@ def percentile(samples: list[float], fraction: float) -> float:
     return ordered[index]
 
 
-ALLOWED_SCHEMES = ("http", "https")
-LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
+def endpoint_url(port: int, path: str) -> str:
+    """The URL for one endpoint on the local API. The host is this literal and nothing else.
 
+    This took three attempts and the third is the only one that is actually true. The script authenticates
+    as five personas and replays reads with their bearer tokens, so whatever names the host decides where
+    those credentials get sent - and it started as `--base`, a free-form string, concatenated onto a path.
 
-def endpoint_url(base: str, path: str) -> str:
-    """A request URL rebuilt from validated parts, never by concatenating the caller's string.
-
-    Every request in this file goes through here, and it re-derives the origin rather than trusting one:
-    the scheme and host are taken only if they match a constant in the two tuples above, and the result is
-    reassembled from those matched values plus `path`, which is always a literal from ENDPOINTS or a literal
-    at the call site. So the address a token can be sent to is one of a fixed handful, whatever --base said.
-
-    Validating once in main() was not enough. It is the right place for a helpful error message, but it
-    leaves the guarantee resting on every future caller remembering to route through it - and it is not
-    visible to a reader of the two request-building functions, who sees only a concatenation.
+    Validating that string, first in main() and then here, both worked and both left the same smell: a URL
+    assembled from something a caller supplied, guarded by a check a reader has to go and find. The flag has
+    no reason to be a string. This script measures a server on this machine; the only thing about its
+    address that can legitimately vary is the port. So the port is the argument, an int, and there is no
+    parse to get wrong - an integer cannot name a different host.
     """
-    parsed = urllib.parse.urlsplit(base)
-    if parsed.scheme not in ALLOWED_SCHEMES:
-        raise ValueError(f"refusing to request {parsed.scheme or 'a schemeless URL'!r}; expected http or https")
-    if parsed.hostname not in LOOPBACK_HOSTS:
-        raise ValueError(f"refusing to send credentials to non-loopback host {parsed.hostname!r}")
-    scheme = ALLOWED_SCHEMES[ALLOWED_SCHEMES.index(parsed.scheme)]
-    host = LOOPBACK_HOSTS[LOOPBACK_HOSTS.index(parsed.hostname)]
-    port = parsed.port or (443 if scheme == "https" else 80)
-    netloc = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
-    return urllib.parse.urlunsplit((scheme, netloc, path, "", ""))
-
-
-def checked_base(value: str) -> str:
-    """The --base argument, refused unless it is an http(s) origin on a loopback host.
-
-    This script authenticates as five personas and replays reads with their bearer tokens, so --base is the
-    address those tokens get sent to. Left unchecked it will happily post real credentials to any host given
-    on the command line - a typo is enough, and this is a script people copy invocations of. It measures a
-    local server; loopback is the whole intended range.
-    """
-    parsed = urllib.parse.urlsplit(value)
-    if parsed.scheme not in ("http", "https"):
-        raise argparse.ArgumentTypeError(f"--base must be http or https, got {parsed.scheme or 'no scheme'!r}")
-    if parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
-        raise argparse.ArgumentTypeError(
-            f"--base must be a loopback host (localhost, 127.0.0.1, ::1), got {parsed.hostname!r}. "
-            "This script sends persona credentials to that address; point it somewhere else deliberately, "
-            "by editing this guard, not by passing a flag."
-        )
-    if parsed.path.rstrip("/") or parsed.query or parsed.fragment:
-        raise argparse.ArgumentTypeError(f"--base must be an origin with no path or query, got {value!r}")
-    return f"{parsed.scheme}://{parsed.netloc}"
+    return f"http://localhost:{port}{path}"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--iterations", type=int, default=30)
-    parser.add_argument("--base", default="http://localhost:5080", type=checked_base)
+    parser.add_argument("--port", type=int, default=5080, help="Port of the local API. The host is always localhost.")
     parser.add_argument("--warmup", type=int, default=3,
                         help="Discarded requests per endpoint. The first call to an EF query pays for its "
                              "compiled-query cache and its connection, and reporting that as latency would "
@@ -235,7 +200,7 @@ def main() -> int:
         print("!! could not read the admin's TOTP secret from the dev database - admin endpoints are skipped")
 
     logins = {
-        name: token_for(arguments.base, email, password, code if name == "admin" else None)
+        name: token_for(arguments.port, email, password, code if name == "admin" else None)
         for name, (email, password) in PERSONAS.items()
     }
     tokens = {name: token for name, (token, _) in logins.items()}
@@ -254,8 +219,8 @@ def main() -> int:
             print(f"{label:<26} {persona:<9} {'skip':>6}")
             continue
 
-        measure(arguments.base, path, token, arguments.warmup)
-        samples, status = measure(arguments.base, path, token, arguments.iterations)
+        measure(arguments.port, path, token, arguments.warmup)
+        samples, status = measure(arguments.port, path, token, arguments.iterations)
 
         row = (label, persona, status, len(samples),
                statistics.median(samples), percentile(samples, 0.95), max(samples))
