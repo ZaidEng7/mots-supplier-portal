@@ -15,6 +15,7 @@ import { LanguageSwitch } from './components/LanguageSwitch'
 import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
 import { useAuthStore } from './lib/authStore'
 import i18n from 'i18next'
+import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
 import { refresh, getAccount } from './api/auth'
 
 // Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
@@ -105,6 +106,9 @@ const rootRoute = createRootRoute({
   component: () => (
     <Suspense fallback={null}>
       <Outlet />
+      {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
+          re-authenticating does not remount the route underneath and discard the work it is protecting. */}
+      <SessionExpiredOverlay />
     </Suspense>
   ),
   notFoundComponent: () => <ErrorBoundaryScreen code="404" />,

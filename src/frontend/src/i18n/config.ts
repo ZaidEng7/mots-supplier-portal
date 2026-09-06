@@ -1513,6 +1513,16 @@ const resources = {
         languages: { ar: 'العربية', en: 'الإنجليزية' },
         errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' }, // [drafted]
       },
+      // ── SCR-040 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      sessionExpired: {
+        title: 'انتهت الجلسة',                                 // [drafted] SCR-040
+        body: 'انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت.', // [drafted]
+        password: 'كلمة المرور',                               // [reused]
+        totp: 'رمز التحقق (إن وُجد)',                          // [reused] §7's «رمز التحقق»
+        signIn: 'تسجيل الدخول',                                // [reused]
+        signOut: 'تسجيل الخروج',                               // [reused]
+        failed: 'تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة.',  // [drafted]
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -2946,6 +2956,15 @@ const resources = {
         fields: { fullName: 'Full name', language: 'Interface language', email: 'Email address' },
         languages: { ar: 'Arabic', en: 'English' },
         errors: { loadFailed: 'Could not load your account', saveFailed: 'Could not save your changes' },
+      },
+      sessionExpired: {
+        title: 'Session expired',
+        body: 'Your session has expired. Sign in again to carry on where you left off.',
+        password: 'Password',
+        totp: 'Verification code (if enabled)',
+        signIn: 'Sign in',
+        signOut: 'Sign out',
+        failed: 'Could not sign in. Check the details you entered.',
       },
       settings: {
         title: 'Account Settings',

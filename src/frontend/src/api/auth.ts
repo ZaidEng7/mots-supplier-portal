@@ -206,7 +206,10 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       useAuthStore.getState().setSession(refreshed.accessToken)
       res = await doFetch()
     } else {
-      useAuthStore.getState().clearSession()
+      // SCR-040: `expireSession`, not `clearSession`. A refresh that fails under a working session is
+      // an expiry the user needs told about over whatever they were doing; a plain clear would drop
+      // them at the login screen and take their unsaved work with it.
+      useAuthStore.getState().expireSession()
     }
   }
   // T-030 splits (3) and (2): FORGET first, then put the response's version back in BOTH places.
