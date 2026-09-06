@@ -67,3 +67,30 @@ export async function setReferenceItemActive(table: ReferenceTable, code: string
   const action = isActive ? 'reactivate' : 'deactivate'
   return parseOrThrow(await apiFetch(`/api/v1/admin/reference/${table}/${encodeURIComponent(code)}/${action}`, { method: 'POST' }))
 }
+
+/** BRULE-016. Which categories a document type is required for — recorded, and read by nothing yet. */
+export interface DocumentTypeCategoryLinks {
+  documentTypeCode: string
+  /** Empty means no links recorded, which is NOT the same as "required for nothing" — see the endpoint. */
+  categoryCodes: string[]
+}
+
+export async function getDocumentTypeCategories(): Promise<DocumentTypeCategoryLinks[]> {
+  const response = await apiFetch('/api/v1/admin/document-type-categories')
+  if (!response.ok) throw new Error('document_type_categories_unavailable')
+  return (await response.json()) as DocumentTypeCategoryLinks[]
+}
+
+/** The whole set, because "required for these categories" is one decision, not a sequence of clicks. */
+export async function setDocumentTypeCategories(
+  documentTypeCode: string,
+  categoryCodes: string[],
+): Promise<DocumentTypeCategoryLinks> {
+  const response = await apiFetch(`/api/v1/admin/document-type-categories/${encodeURIComponent(documentTypeCode)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryCodes }),
+  })
+  if (!response.ok) throw new Error('document_type_categories_save_failed')
+  return (await response.json()) as DocumentTypeCategoryLinks
+}

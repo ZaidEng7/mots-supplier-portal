@@ -220,6 +220,9 @@ const resources = {
       // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
       // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
       referenceAdmin: {
+        // ── BRULE-016 · ARABIC FOR REVIEW ───────────────────────────────────────
+        linksSaved: 'تم تحديث ارتباط التصنيفات',                 // [drafted] BRULE-016
+        categoryLinksExplained: 'ارتباط نوع المستند بالتصنيفات يُسجَّل هنا ولا يُطبَّق بعد: قائمة المستندات المطلوبة ما تزال واحدة لكل الموردين. تطبيقه يغيّر معنى «مكتمل» لكل مورد، ويحتاج قراراً بشأن الموردين المعتمدين سابقاً.', // [drafted]
         // ── BRULE-023 · ARABIC FOR REVIEW ───────────────────────────────────────
         awardCritical: 'حرج للترسية',                          // [drafted] BRULE-023
         setAwardCritical: 'تحديده كحرج للترسية',                // [drafted]
@@ -1944,6 +1947,8 @@ const resources = {
         },
       },
       referenceAdmin: {
+        linksSaved: 'Category links updated',
+        categoryLinksExplained: 'These category links are recorded and not yet applied: the required-document list is still the same for every supplier. Applying them changes what “complete” means for everyone, and needs a decision about suppliers already approved under the flat list.',
         awardCritical: 'Award-critical',
         setAwardCritical: 'Mark award-critical',
         clearAwardCritical: 'Remove award-critical',

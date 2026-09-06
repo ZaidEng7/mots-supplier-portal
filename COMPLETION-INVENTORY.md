@@ -534,7 +534,30 @@ what "complete" means for every supplier in the system, not a query tweak.
 were approved against a list that may not be theirs under a category-conditioned one. Whether tightening
 applies retroactively is a decision, and it belongs with the data decision, not after it.
 
-**Logged, not fixed.**
+**The code half closed in batch 11 — the SHAPE, not the derivation.** `reference.document_type_category`
+exists with a unique (type, category) index, `GET/PUT /api/v1/admin/document-type-categories` records whole
+sets (one decision, not a sequence of clicks), and SCR-710 shows the categories per document type as toggles.
+A category code that does not exist is refused and named: unchecked, it would be a requirement no supplier can
+ever match, invisible until the day the derivation is switched on, at which point it silently excludes a
+document from everybody.
+
+**Nothing derives from it, and a test proves that.** `Recording_a_link_changes_no_suppliers_required_documents`
+links a required type to a category a supplier does not have and asserts their required set is byte-identical
+afterwards. Without that assertion, "we built the shape" would be indistinguishable from "we changed what
+complete means for every supplier in the system". All four derivation sites now carry a comment naming the two
+open decisions rather than looking like an oversight, and the screen says the same thing to the administrator
+in a line beneath the table — someone who records links and sees no change would otherwise reasonably conclude
+the screen is broken.
+
+**QUESTIONS FOR THE BUSINESS, both still open and neither answerable here:**
+
+1. **Which document types attach to which categories?** An empty link set read as "required for nothing" would
+   drop every required document from the submit gate, the resubmit gate, the reviewer's approval gate and the
+   dashboard's completeness figure. A portal that lets an incomplete application through is worse than one that
+   asks for too much, so the reading of "no links" has to be decided with the data.
+2. **Does the tightening reach suppliers already approved?** They were approved against a list that may not be
+   theirs under the conditioned rule. Applying it retroactively could invalidate live approvals; not applying
+   it leaves two standards running side by side. Either is defensible; neither is a query change.
 
 ---
 

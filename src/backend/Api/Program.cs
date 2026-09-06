@@ -447,6 +447,9 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IEmailCopySource
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListEmailTemplatesHandler, MotsSupplierPortal.Infrastructure.Email.ListEmailTemplatesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.UpsertEmailTemplateHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.DeleteEmailTemplateHandler>();
+// BRULE-016: the link surface. Written by an administrator, read by nothing yet - deliberately.
+builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.IGetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.GetDocumentTypeCategoriesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.ISetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.SetDocumentTypeCategoriesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();

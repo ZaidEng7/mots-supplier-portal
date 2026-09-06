@@ -80,3 +80,34 @@ public interface IReferenceDataAdminHandler
     Task<ReferenceDataResult> UpdateAsync(UpdateReferenceItemCommand command, CancellationToken ct);
     Task<ReferenceDataResult> SetActiveAsync(SetReferenceItemActiveCommand command, CancellationToken ct);
 }
+
+/// <summary>
+/// BRULE-016. Which categories a document type is required for.
+/// </summary>
+/// <param name="CategoryCodes">Empty means no links recorded — which today means the same as every other
+/// document type, because nothing derives the required set from these yet. It does NOT mean "required for
+/// nothing"; see DocumentTypeCategory for why that distinction has to be settled before the derivation is
+/// switched on.</param>
+public sealed record DocumentTypeCategoryLinksDto(string DocumentTypeCode, IReadOnlyList<string> CategoryCodes);
+
+public sealed record SetDocumentTypeCategoriesCommand(string DocumentTypeCode, IReadOnlyList<string> CategoryCodes);
+
+public abstract record SetDocumentTypeCategoriesResult
+{
+    public sealed record Success(DocumentTypeCategoryLinksDto Links) : SetDocumentTypeCategoriesResult;
+    public sealed record UnknownDocumentType : SetDocumentTypeCategoriesResult;
+
+    /// <param name="Codes">Named, because "one of these is not a category" sends an administrator to compare
+    /// two lists by eye.</param>
+    public sealed record UnknownCategories(IReadOnlyList<string> Codes) : SetDocumentTypeCategoriesResult;
+}
+
+public interface IGetDocumentTypeCategoriesHandler
+{
+    Task<IReadOnlyList<DocumentTypeCategoryLinksDto>> HandleAsync(CancellationToken ct);
+}
+
+public interface ISetDocumentTypeCategoriesHandler
+{
+    Task<SetDocumentTypeCategoriesResult> HandleAsync(SetDocumentTypeCategoriesCommand command, CancellationToken ct);
+}

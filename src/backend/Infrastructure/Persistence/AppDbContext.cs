@@ -39,6 +39,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    /// <summary>BRULE-016: which categories a document type is required for. Written by the admin surface,
+    /// read by nothing yet - see DocumentTypeCategory.</summary>
+    public DbSet<Domain.ReferenceData.DocumentTypeCategory> DocumentTypeCategories => Set<Domain.ReferenceData.DocumentTypeCategory>();
+
     /// <summary>T-076: administrator rewordings of the transactional emails.</summary>
     public DbSet<Domain.Configuration.EmailTemplateOverride> EmailTemplateOverrides => Set<Domain.Configuration.EmailTemplateOverride>();
 
@@ -624,6 +628,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // SCR-716. Same shape and the same reasoning as notification_template below: an absent row means
         // the shipped string, so nothing is seeded and a fresh database behaves exactly as the bundle does.
+        // BRULE-016's join table. Present and unread on purpose - see DocumentTypeCategory's own comment for
+        // the two decisions that have to come before anything derives the required set from it.
+        modelBuilder.Entity<Domain.ReferenceData.DocumentTypeCategory>(entity =>
+        {
+            entity.ToTable("document_type_category", "reference");
+            entity.HasKey(l => l.Id);
+            entity.Property(l => l.CategoryCode).HasMaxLength(50).IsRequired();
+            // One link per (type, category). A duplicate would double-count nothing today and would
+            // double-count a requirement the day the derivation is switched on.
+            entity.HasIndex(l => new { l.DocumentTypeId, l.CategoryCode }).IsUnique();
+            // Cascade from the document type, because a link to a type that no longer exists is not a
+            // historical record of anything - unlike the reference CODES themselves, which D-28 keeps.
+            entity.HasOne<Domain.ReferenceData.DocumentType>()
+                .WithMany()
+                .HasForeignKey(l => l.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         // T-076. Same shape and reasoning as ui_string_override below: absent means the shipped copy.
         modelBuilder.Entity<Domain.Configuration.EmailTemplateOverride>(entity =>
         {

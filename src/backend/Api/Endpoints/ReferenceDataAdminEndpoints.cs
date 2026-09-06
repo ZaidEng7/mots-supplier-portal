@@ -6,6 +6,9 @@ using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
+/// <summary>BRULE-016. The whole set, because "required for these categories" is one decision.</summary>
+public sealed record SetDocumentTypeCategoriesRequest(IReadOnlyList<string>? CategoryCodes);
+
 public sealed record ReferenceItemRequest(
     string NameAr, string NameEn, bool? IsRequired, bool? ExpiryTracked,
     /// <summary>BRULE-023. Null on every table but document-types - "this table has no such flag" and "this
@@ -77,6 +80,41 @@ public static class ReferenceDataAdminEndpoints
         })
         .RequirePermission(Permissions.ReferenceDataManage)
         .WithName("CreateReferenceItem");
+
+        // BRULE-016. The links are recorded here and read by NOTHING - see DocumentTypeCategory for the two
+        // decisions that come before any gate derives the required set from them. Not on the /{table} group
+        // because it is document-types only.
+        app.MapGet("/api/v1/admin/document-type-categories", async (
+            IGetDocumentTypeCategoriesHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(ct)))
+        .RequirePermission(Permissions.ReferenceDataManage)
+        .WithTags("Admin")
+        .WithName("GetDocumentTypeCategories");
+
+        app.MapPut("/api/v1/admin/document-type-categories/{documentTypeCode}", async (
+            string documentTypeCode,
+            SetDocumentTypeCategoriesRequest request,
+            ISetDocumentTypeCategoriesHandler handler,
+            CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(
+                new SetDocumentTypeCategoriesCommand(documentTypeCode, request.CategoryCodes ?? []), ct);
+
+            return result switch
+            {
+                SetDocumentTypeCategoriesResult.Success s => Results.Ok(s.Links),
+                SetDocumentTypeCategoriesResult.UnknownDocumentType => Results.NotFound(),
+                // 422 naming the codes. A link to a category that does not exist is a requirement no supplier
+                // can match, and it would stay invisible until the derivation is switched on - at which point
+                // it silently excludes a document from everybody.
+                SetDocumentTypeCategoriesResult.UnknownCategories u =>
+                    UnknownReferenceCodesResult.For("categoryCodes", u.Codes),
+                _ => Results.Problem(),
+            };
+        })
+        .RequirePermission(Permissions.ReferenceDataManage)
+        .WithTags("Admin")
+        .WithName("SetDocumentTypeCategories");
 
         group.MapPut("/{code}", async (
             string table, string code, ReferenceItemRequest request,

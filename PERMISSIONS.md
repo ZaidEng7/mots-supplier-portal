@@ -16,7 +16,7 @@ either dead or waiting for a surface — both are called out below.
 |---|---|---|
 | `admin.organizations.manage` | `system_admin` | `AddOrgUnit`, `CreateOrganization`, `CreateSupplierOrgLink`, `ListOrganizations`, `ListSupplierOrgLinks`, `RemoveOrgUnit`, `RemoveSupplierOrgLink` |
 | `admin.roles.manage` | `system_admin` | `ListRoles`, `UpdateRolePermissions` |
-| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertUiStringOverride` |
+| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteEmailTemplate`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListEmailTemplates`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertEmailTemplate`, `UpsertUiStringOverride` |
 | `audit.read` | `system_admin` | `ExportAuditLog`, `GetAuditLog`, `SearchAuditLog` |
 | `award.approve` | `procurement_manager`, `system_admin` | `ApproveAward`, `ExecuteAward`, checked in ProcurementDashboardHandler, not on a route |
 | `award.recommend` | `procurement_manager`, `procurement_officer`, `system_admin` | `GetAward`, `RecommendAward`, `RouteAwardForApproval` |
@@ -40,7 +40,7 @@ either dead or waiting for a surface — both are called out below.
 | `proposal.revise` | `supplier_admin`, `system_admin` | `ReviseProposal` |
 | `proposal.submit` | `supplier_admin`, `system_admin` | `SubmitProposal` |
 | `proposal.withdraw` | `supplier_admin`, `system_admin` | `WithdrawProposal` |
-| `reference.manage` | `system_admin` | `CreateReferenceItem`, `DeactivateReferenceItem`, `ListNotificationTemplates`, `ListReferenceItems`, `ListSystemSettings`, `ReactivateReferenceItem`, `RevertNotificationTemplate`, `UpdateNotificationTemplate`, `UpdateReferenceItem`, `UpdateSystemSetting` |
+| `reference.manage` | `system_admin` | `CreateReferenceItem`, `DeactivateReferenceItem`, `GetDocumentTypeCategories`, `ListNotificationTemplates`, `ListReferenceItems`, `ListSystemSettings`, `ReactivateReferenceItem`, `RevertNotificationTemplate`, `SetDocumentTypeCategories`, `UpdateNotificationTemplate`, `UpdateReferenceItem`, `UpdateSystemSetting` |
 | `report.read` | `ministry_viewer`, `procurement_manager`, `system_admin` | `ExportComplianceReport`, `ExportProcurementReport`, `GetComplianceReport`, `GetProcurementReport` |
 | `rfq.addendum` | `procurement_officer`, `system_admin` | `IssueAddendum` |
 | `rfq.approve` | `procurement_manager`, `system_admin` | `ApprovalQueues`, `ApproveRfq`, checked in ProcurementDashboardHandler, not on a route |

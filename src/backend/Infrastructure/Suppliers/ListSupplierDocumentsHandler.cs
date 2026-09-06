@@ -31,6 +31,21 @@ public sealed class ListSupplierDocumentsHandler(AppDbContext db, IScopeContext 
         {
             var latest = latestDocs.FirstOrDefault(d => d.DocumentTypeId == t.Id);
             return new DocumentTypeStatusDto(
+        // BRULE-016: this filter is FLAT on purpose, and the link table now exists beside it.
+        //
+        // The rule conditions required documents on the supplier's categories. `document_type_category` can
+        // record that (batch 11), and nothing derives from it yet, because two questions come first and
+        // neither is a query decision:
+        //
+        //  - An empty link set read as "required for nothing" would silently drop every required document
+        //    from the submit gate, the resubmit gate, the reviewer's approval gate and the dashboard's
+        //    completeness figure. A portal that lets an incomplete application through is worse than one
+        //    that asks for too much.
+        //  - Suppliers already approved under this flat rule were approved against a list that may not be
+        //    theirs under a conditioned one, and whether the tightening reaches back is a decision about
+        //    live suppliers.
+        //
+        // See COMPLETION-INVENTORY.md §4.2, where both are logged.
                 t.Id, t.Code, t.NameAr, t.NameEn, t.IsRequired, t.ExpiryTracked,
                 latest is null ? null : UploadDocumentHandler.ToDto(latest));
         })];
