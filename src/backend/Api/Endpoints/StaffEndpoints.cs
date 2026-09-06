@@ -6,7 +6,13 @@ using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-public sealed record InviteStaffRequest(string Email, string FullName, string Role, Guid? OrganizationId);
+/// <param name="OrganizationId">
+/// Optional, with a DEFAULT rather than just a nullable type - the two are different on the wire.
+/// Without `= null` the generator emits it as a required property, and the contract gate correctly
+/// refused that: a request field that was optional and becomes required breaks every existing client
+/// that does not send it, even though nothing was removed.
+/// </param>
+public sealed record InviteStaffRequest(string Email, string FullName, string Role, Guid? OrganizationId = null);
 
 public sealed class InviteStaffRequestValidator : AbstractValidator<InviteStaffRequest>
 {

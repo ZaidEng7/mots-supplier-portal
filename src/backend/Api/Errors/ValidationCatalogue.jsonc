@@ -515,6 +515,50 @@
     "usedIn": "RfqBasicsRequest, SetCommercialTermsRequest"
   },
 
+  // Batch 12. These five rules mirror the column widths on the proposal, and they exist because
+  // anything longer used to reach Postgres and answer 22001 -> 500 "An unexpected error occurred".
+  // A bidder typing a twelve-character incoterm was enough to produce it.
+  {
+    "key": "PaymentTerms.MaximumLength",
+    "code": "PAYMENT_TERMS_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز شروط الدفع ٥٠٠ حرف.",
+    "en": "Payment terms must not exceed 500 characters.",
+    "usedIn": "SetCommercialTermsRequest"
+  },
+  {
+    "key": "IncotermCode.MaximumLength",
+    "code": "INCOTERM_CODE_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز رمز الإنكوترم ١٠ أحرف.",
+    "en": "Incoterm code must not exceed 10 characters.",
+    "usedIn": "SetCommercialTermsRequest"
+  },
+  {
+    "key": "DeliveryTermsAr.MaximumLength",
+    "code": "DELIVERY_TERMS_AR_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز شروط التسليم (عربي) ١٠٠٠ حرف.",
+    "en": "Delivery terms (Arabic) must not exceed 1000 characters.",
+    "usedIn": "SetCommercialTermsRequest"
+  },
+  {
+    "key": "DeliveryTermsEn.MaximumLength",
+    "code": "DELIVERY_TERMS_EN_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا تتجاوز شروط التسليم (إنجليزي) ١٠٠٠ حرف.",
+    "en": "Delivery terms (English) must not exceed 1000 characters.",
+    "usedIn": "SetCommercialTermsRequest"
+  },
+  {
+    "key": "Warranty.MaximumLength",
+    "code": "WARRANTY_TOO_LONG",
+    "source": "drafted",
+    "ar": "يجب ألا يتجاوز نص الضمان ٥٠٠ حرف.",
+    "en": "Warranty must not exceed 500 characters.",
+    "usedIn": "SetCommercialTermsRequest"
+  },
+
   // ========================================================================================
   // Offerings (categories, units, pricing)
   // ========================================================================================
