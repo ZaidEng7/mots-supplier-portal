@@ -1,0 +1,7652 @@
+{
+  "components": {
+    "schemas": {
+      "AcceptStaffInviteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object"
+      },
+      "AcceptSupplierUserInviteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object"
+      },
+      "AddAddressRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AddressKind"
+          },
+          "latitude": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          },
+          "line1": {
+            "type": "string"
+          },
+          "line2": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "longitude": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          },
+          "postalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "regionCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "line1",
+          "line2",
+          "city",
+          "regionCode",
+          "country",
+          "postalCode",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object"
+      },
+      "AddBankAccountRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accountHolderName": {
+            "type": "string"
+          },
+          "accountNumber": {
+            "type": "string"
+          },
+          "bankName": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "swiftBic": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "accountHolderName",
+          "bankName",
+          "branchName",
+          "accountNumber",
+          "swiftBic",
+          "currencyCode"
+        ],
+        "type": "object"
+      },
+      "AddBranchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "addressId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nameAr": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nameAr",
+          "nameEn",
+          "addressId"
+        ],
+        "type": "object"
+      },
+      "AddContactRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "fullName",
+          "email",
+          "phone",
+          "role"
+        ],
+        "type": "object"
+      },
+      "AddOrgUnitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "parentOrgUnitId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "parentOrgUnitId"
+        ],
+        "type": "object"
+      },
+      "AddRepresentativeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "position": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "fullName",
+          "email",
+          "phone",
+          "position"
+        ],
+        "type": "object"
+      },
+      "AddressKind": {
+        "enum": [
+          "HeadOffice",
+          "Billing",
+          "Branch"
+        ]
+      },
+      "AnswerClarificationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "AssignEvaluatorsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluatorUserIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "evaluatorUserIds"
+        ],
+        "type": "object"
+      },
+      "BindEvaluationTemplateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluationTemplateId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluationTemplateId"
+        ],
+        "type": "object"
+      },
+      "CancelRfqRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ChangePasswordRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "ChangeStaffRoleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
+      "ChangeSubmissionDeadlineRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "submissionDeadline": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submissionDeadline",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ChooseLanguageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "type": "object"
+      },
+      "CloseSubmissionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ConfirmMfaRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "CreateEvaluationTemplateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "nameAr": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nameAr",
+          "nameEn"
+        ],
+        "type": "object"
+      },
+      "CreateOfferingRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "categoryCode": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nameAr": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "priceAmount": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          },
+          "unitOfMeasureCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nameAr",
+          "nameEn",
+          "description",
+          "categoryCode",
+          "unitOfMeasureCode",
+          "priceAmount",
+          "currencyCode",
+          "attributes"
+        ],
+        "type": "object"
+      },
+      "CreateOrganizationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "contactEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contactPhone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legalNameAr": {
+            "type": "string"
+          },
+          "legalNameEn": {
+            "type": "string"
+          },
+          "organizationType": {
+            "$ref": "#/components/schemas/OrganizationType"
+          }
+        },
+        "required": [
+          "legalNameAr",
+          "legalNameEn",
+          "organizationType",
+          "contactEmail",
+          "contactPhone"
+        ],
+        "type": "object"
+      },
+      "CreateSupplierOrgLinkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "CriterionDimension": {
+        "enum": [
+          "Technical",
+          "Commercial",
+          "Compliance",
+          "Delivery"
+        ]
+      },
+      "CriterionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "$ref": "#/components/schemas/CriterionDimension"
+          },
+          "guidanceAr": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "guidanceEn": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maxScore": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "nameAr": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "requiresJustification": {
+            "default": false,
+            "type": "boolean"
+          },
+          "scoringType": {
+            "$ref": "#/components/schemas/ScoringType"
+          },
+          "threshold": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          },
+          "weight": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "nameAr",
+          "nameEn",
+          "dimension",
+          "weight",
+          "maxScore",
+          "threshold",
+          "scoringType",
+          "guidanceAr",
+          "guidanceEn"
+        ],
+        "type": "object"
+      },
+      "DeclareConflictRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "hasConflict": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "hasConflict",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "DeclineAwardOfferRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "DeclineInvitationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ForgotPasswordRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "InviteStaffRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "fullName",
+          "role"
+        ],
+        "type": "object"
+      },
+      "InviteSupplierRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "supplierId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "supplierId"
+        ],
+        "type": "object"
+      },
+      "InviteSupplierUserRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "fullName"
+        ],
+        "type": "object"
+      },
+      "IssueAddendumRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "descriptionAr": {
+            "type": "string"
+          },
+          "descriptionEn": {
+            "type": "string"
+          },
+          "titleAr": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "titleAr",
+          "titleEn",
+          "descriptionAr",
+          "descriptionEn"
+        ],
+        "type": "object"
+      },
+      "LinkCategoryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryCode"
+        ],
+        "type": "object"
+      },
+      "LoginRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "totpCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "NotificationTemplateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "bodyAr": {
+            "type": "string"
+          },
+          "bodyEn": {
+            "type": "string"
+          },
+          "titleAr": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "titleAr",
+          "titleEn",
+          "bodyAr",
+          "bodyEn"
+        ],
+        "type": "object"
+      },
+      "OrganizationType": {
+        "enum": [
+          "Hotel",
+          "MotBody",
+          "Ministry"
+        ]
+      },
+      "PatchOfstring": {},
+      "PostClarificationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "question": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "type": "object"
+      },
+      "ProposalDocumentEnvelope": {
+        "enum": [
+          "Commercial",
+          "Technical",
+          null
+        ]
+      },
+      "ReassignRfqRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "newOwnerUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "newOwnerUserId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RecommendAwardRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "justificationAr": {
+            "type": "string"
+          },
+          "justificationEn": {
+            "type": "string"
+          },
+          "winningProposalId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "winningProposalId",
+          "justificationAr",
+          "justificationEn"
+        ],
+        "type": "object"
+      },
+      "RecuseEvaluatorRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluatorUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluatorUserId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ReferenceItemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expiryTracked": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "isRequired": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "nameAr": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nameAr",
+          "nameEn",
+          "isRequired",
+          "expiryTracked"
+        ],
+        "type": "object"
+      },
+      "RegisterSupplierRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "displayNameAr": {
+            "type": "string"
+          },
+          "displayNameEn": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "representativeName": {
+            "type": "string"
+          },
+          "representativePhone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayNameAr",
+          "displayNameEn",
+          "registrationNumber",
+          "representativeName",
+          "representativePhone",
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "RejectApplicationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RejectAwardRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RejectDocumentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ReopenEvaluationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RequestClarificationTransitionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RequestInfoRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "flaggedDocumentTypeCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "flaggedProfileFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "flaggedProfileFields",
+          "flaggedDocumentTypeCodes"
+        ],
+        "type": "object"
+      },
+      "RequirementRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "documentTypeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedEnvelope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProposalDocumentEnvelope"
+              }
+            ]
+          },
+          "isMandatory": {
+            "type": "boolean"
+          },
+          "textAr": {
+            "type": "string"
+          },
+          "textEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "textAr",
+          "textEn",
+          "isMandatory",
+          "documentTypeCode"
+        ],
+        "type": "object"
+      },
+      "ResendVerificationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "ResetPasswordRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "newPassword": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "ResolveTieRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "proposalCode": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalCode",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ReturnForEditsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "comments"
+        ],
+        "type": "object"
+      },
+      "RfqBasicsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "clarificationDeadlineAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "descriptionAr": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "descriptionEn": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evaluationTargetDate": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publishAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submissionClosesAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submissionOpensAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "titleAr": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "titleAr",
+          "titleEn",
+          "descriptionAr",
+          "descriptionEn",
+          "currencyCode",
+          "publishAt",
+          "submissionOpensAt",
+          "submissionClosesAt",
+          "clarificationDeadlineAt",
+          "evaluationTargetDate"
+        ],
+        "type": "object"
+      },
+      "RfqItemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryCode": {
+            "type": "string"
+          },
+          "isOptional": {
+            "type": "boolean"
+          },
+          "isUnitPrice": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "specificationAr": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "specificationEn": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "titleAr": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "unitOfMeasureCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "titleAr",
+          "titleEn",
+          "specificationAr",
+          "specificationEn",
+          "categoryCode",
+          "quantity",
+          "unitOfMeasureCode",
+          "isUnitPrice",
+          "isOptional"
+        ],
+        "type": "object"
+      },
+      "ScoreCriterionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commentAr": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "commentEn": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "criterionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposalCode": {
+            "type": "string"
+          },
+          "rawScore": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "proposalCode",
+          "criterionId",
+          "rawScore",
+          "commentAr",
+          "commentEn"
+        ],
+        "type": "object"
+      },
+      "ScoringType": {
+        "enum": [
+          "Numeric",
+          "Scale",
+          "Boolean",
+          "Formula"
+        ]
+      },
+      "SubmitForReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assignedApproverUserId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "assignedApproverUserId"
+        ],
+        "type": "object"
+      },
+      "SupplierLegalType": {
+        "enum": [
+          "Company",
+          "Individual",
+          "Partnership"
+        ]
+      },
+      "SupplierLifecycleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "UpdateAccountRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fullName",
+          "language"
+        ],
+        "type": "object"
+      },
+      "UpdateAddressRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AddressKind"
+          },
+          "latitude": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          },
+          "line1": {
+            "type": "string"
+          },
+          "line2": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "longitude": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          },
+          "postalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "regionCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "line1",
+          "line2",
+          "city",
+          "regionCode",
+          "country",
+          "postalCode",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object"
+      },
+      "UpdateBankAccountRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accountHolderName": {
+            "type": "string"
+          },
+          "accountNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankName": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "swiftBic": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "accountHolderName",
+          "bankName",
+          "branchName",
+          "accountNumber",
+          "swiftBic",
+          "currencyCode"
+        ],
+        "type": "object"
+      },
+      "UpdateBranchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "addressId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "nameAr": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "nameAr",
+          "nameEn",
+          "addressId",
+          "isActive"
+        ],
+        "type": "object"
+      },
+      "UpdateFieldConfigRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "isEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "isEnabled"
+        ],
+        "type": "object"
+      },
+      "UpdateLegalInfoRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "establishedOn": {
+            "format": "date",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legalNameAr": {
+            "type": "string"
+          },
+          "legalNameEn": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "supplierType": {
+            "$ref": "#/components/schemas/SupplierLegalType"
+          },
+          "taxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "legalNameAr",
+          "legalNameEn",
+          "registrationNumber",
+          "taxId",
+          "supplierType",
+          "establishedOn"
+        ],
+        "type": "object"
+      },
+      "UpdateProfileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "currencyCode": {
+            "$ref": "#/components/schemas/PatchOfstring"
+          },
+          "description": {
+            "$ref": "#/components/schemas/PatchOfstring"
+          },
+          "primaryContactPhone": {
+            "$ref": "#/components/schemas/PatchOfstring"
+          },
+          "supplierGroup": {
+            "$ref": "#/components/schemas/PatchOfstring"
+          },
+          "website": {
+            "$ref": "#/components/schemas/PatchOfstring"
+          }
+        },
+        "required": [
+          "description",
+          "website",
+          "supplierGroup",
+          "currencyCode",
+          "primaryContactPhone"
+        ],
+        "type": "object"
+      },
+      "UpdateRolePermissionsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "UpdateSystemSettingRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "UpsertEmailTemplateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "bodyAr": {
+            "type": "string"
+          },
+          "bodyEn": {
+            "type": "string"
+          },
+          "subjectAr": {
+            "type": "string"
+          },
+          "subjectEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subjectAr",
+          "subjectEn",
+          "bodyAr",
+          "bodyEn"
+        ],
+        "type": "object"
+      },
+      "UpsertUiStringRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "VerifyEmailRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "type": "object"
+      },
+      "WithdrawProposalRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "MotsSupplierPortal.Api | v1",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.1",
+  "paths": {
+    "/__test/throw": {
+      "get": {
+        "operationId": "TestThrow",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "MotsSupplierPortal.Api"
+        ]
+      }
+    },
+    "/api/v1/admin/email-templates": {
+      "get": {
+        "operationId": "ListEmailTemplates",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/email-templates/{key}": {
+      "delete": {
+        "operationId": "DeleteEmailTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "UpsertEmailTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertEmailTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/erp-sync": {
+      "get": {
+        "operationId": "GetErpSyncMonitor",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/field-config": {
+      "get": {
+        "operationId": "GetFieldConfig",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/field-config/{category}/{fieldCode}": {
+      "get": {
+        "operationId": "GetOneFieldConfig",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fieldCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateFieldConfig",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fieldCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFieldConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/jobs": {
+      "get": {
+        "operationId": "GetJobsMonitor",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/jobs/{jobId}/trigger": {
+      "post": {
+        "operationId": "TriggerRecurringJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/notification-templates": {
+      "get": {
+        "operationId": "ListNotificationTemplates",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/notification-templates/{type}": {
+      "delete": {
+        "operationId": "RevertNotificationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateNotificationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/outbox": {
+      "get": {
+        "operationId": "GetOutboxMonitor",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/outbox/{id}/replay": {
+      "post": {
+        "operationId": "ReplayOutboxMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "operationId": "GetAdminOverview",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reference/{table}": {
+      "get": {
+        "operationId": "ListReferenceItems",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeInactive",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reference/{table}/{code}": {
+      "post": {
+        "operationId": "CreateReferenceItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferenceItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateReferenceItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferenceItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reference/{table}/{code}/deactivate": {
+      "post": {
+        "operationId": "DeactivateReferenceItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reference/{table}/{code}/reactivate": {
+      "post": {
+        "operationId": "ReactivateReferenceItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/roles": {
+      "get": {
+        "operationId": "ListRoles",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/roles/{roleName}/permissions": {
+      "put": {
+        "operationId": "UpdateRolePermissions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRolePermissionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/security": {
+      "get": {
+        "operationId": "GetSecurityPosture",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/settings": {
+      "get": {
+        "operationId": "ListSystemSettings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/settings/{key}": {
+      "put": {
+        "operationId": "UpdateSystemSetting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSystemSettingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/storage": {
+      "get": {
+        "operationId": "GetStorageSettings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/ui-strings": {
+      "get": {
+        "operationId": "ListUiStringOverrides",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/ui-strings/{language}/{key}": {
+      "delete": {
+        "operationId": "DeleteUiStringOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "UpsertUiStringOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertUiStringRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "operationId": "SearchAuditLog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "aggregateType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aggregateId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorUserId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/export": {
+      "get": {
+        "operationId": "ExportAuditLog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "aggregateType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aggregateId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorUserId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/{aggregateId}": {
+      "get": {
+        "operationId": "GetAuditLog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "aggregateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "ChangePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/forgot-password": {
+      "post": {
+        "operationId": "ForgotPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "Login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "Logout",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "GetAccount",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me/language": {
+      "post": {
+        "operationId": "ChooseLanguage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChooseLanguageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/confirm": {
+      "post": {
+        "operationId": "ConfirmMfaEnrollment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmMfaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Mfa"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/enroll": {
+      "post": {
+        "operationId": "EnrollMfa",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Mfa"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "RefreshToken",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "RegisterSupplier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterSupplierRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Registrations"
+        ]
+      }
+    },
+    "/api/v1/auth/reset-password": {
+      "post": {
+        "operationId": "ResetPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "operationId": "ListSessions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sessions/revoke-all": {
+      "post": {
+        "operationId": "RevokeAllOtherSessions",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sessions/{familyId}/revoke": {
+      "post": {
+        "operationId": "RevokeSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "familyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "operationId": "VerifyEmail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Registrations"
+        ]
+      }
+    },
+    "/api/v1/documents/{documentCode}/content": {
+      "get": {
+        "operationId": "GetDocumentContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{documentCode}/download-url": {
+      "get": {
+        "operationId": "GetDocumentDownloadUrl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates": {
+      "get": {
+        "operationId": "ListEvaluationTemplates",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      },
+      "post": {
+        "operationId": "CreateEvaluationTemplate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEvaluationTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates/{id}": {
+      "get": {
+        "operationId": "GetEvaluationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates/{id}/activate": {
+      "post": {
+        "operationId": "ActivateEvaluationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates/{id}/archive": {
+      "post": {
+        "operationId": "ArchiveEvaluationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates/{id}/criteria": {
+      "post": {
+        "operationId": "AddCriterion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriterionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates/{id}/criteria/{criterionId}": {
+      "delete": {
+        "operationId": "RemoveCriterion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "criterionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateCriterion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "criterionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriterionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/evaluation-templates/{id}/fork": {
+      "post": {
+        "operationId": "ForkEvaluationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "EvaluationTemplates"
+        ]
+      }
+    },
+    "/api/v1/meta": {
+      "get": {
+        "operationId": "Meta",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "MotsSupplierPortal.Api"
+        ]
+      }
+    },
+    "/api/v1/ministry/overview": {
+      "get": {
+        "operationId": "GetGovernanceOverview",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Ministry"
+        ]
+      }
+    },
+    "/api/v1/my-evaluations": {
+      "get": {
+        "operationId": "ListMyAssignments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tab",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "ListNotifications",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "unreadOnly",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "operationId": "MarkAllNotificationsRead",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/unread-count": {
+      "get": {
+        "operationId": "UnreadNotificationCount",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notificationId}/read": {
+      "post": {
+        "operationId": "MarkNotificationRead",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/offerings/search": {
+      "get": {
+        "operationId": "SearchBuyerOfferings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "categoryCode",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Offerings"
+        ]
+      }
+    },
+    "/api/v1/organizations": {
+      "get": {
+        "operationId": "ListOrganizations",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "post": {
+        "operationId": "CreateOrganization",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/v1/organizations/supplier-links/{linkId}": {
+      "delete": {
+        "operationId": "RemoveSupplierOrgLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "linkId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/v1/organizations/supplier-links/{supplierReferenceCode}": {
+      "get": {
+        "operationId": "ListSupplierOrgLinks",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierReferenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "post": {
+        "operationId": "CreateSupplierOrgLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierReferenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupplierOrgLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{organizationId}/org-units": {
+      "post": {
+        "operationId": "AddOrgUnit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOrgUnitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{organizationId}/org-units/{orgUnitId}": {
+      "delete": {
+        "operationId": "RemoveOrgUnit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "orgUnitId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/v1/procurement/approvals": {
+      "get": {
+        "operationId": "ApprovalQueues",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Dashboards"
+        ]
+      }
+    },
+    "/api/v1/procurement/dashboard": {
+      "get": {
+        "operationId": "ProcurementDashboard",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Dashboards"
+        ]
+      }
+    },
+    "/api/v1/proposals": {
+      "get": {
+        "operationId": "ListMyProposals",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}": {
+      "get": {
+        "operationId": "GetProposalByCode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      },
+      "patch": {
+        "operationId": "PatchProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/decline": {
+      "post": {
+        "operationId": "DeclineAwardOffer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineAwardOfferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/documents": {
+      "post": {
+        "operationId": "AddProposalDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/documents/{documentId}": {
+      "delete": {
+        "operationId": "RemoveProposalDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/documents/{documentId}/download-url": {
+      "get": {
+        "operationId": "GetOwnProposalDocumentDownloadUrl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/request-clarification": {
+      "post": {
+        "operationId": "RequestProposalClarification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/revise": {
+      "post": {
+        "operationId": "ReviseProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/submit": {
+      "post": {
+        "operationId": "SubmitProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/proposals/{referenceCode}/withdraw": {
+      "post": {
+        "operationId": "WithdrawProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/reference/categories": {
+      "get": {
+        "operationId": "GetCategories",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
+    "/api/v1/reference/currencies": {
+      "get": {
+        "operationId": "GetCurrencies",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
+    "/api/v1/reference/regions": {
+      "get": {
+        "operationId": "GetRegions",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
+    "/api/v1/reference/settings": {
+      "get": {
+        "operationId": "GetPublicSettings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
+    "/api/v1/reference/units-of-measure": {
+      "get": {
+        "operationId": "GetUnitsOfMeasure",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
+    "/api/v1/registrations/resend-verification": {
+      "post": {
+        "operationId": "ResendVerification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Registrations"
+        ]
+      }
+    },
+    "/api/v1/reports/compliance": {
+      "get": {
+        "operationId": "GetComplianceReport",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/compliance/export": {
+      "get": {
+        "operationId": "ExportComplianceReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/procurement": {
+      "get": {
+        "operationId": "GetProcurementReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/procurement/export": {
+      "get": {
+        "operationId": "ExportProcurementReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/review/dashboard": {
+      "get": {
+        "operationId": "ReviewDashboard",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Dashboards"
+        ]
+      }
+    },
+    "/api/v1/review/queue": {
+      "get": {
+        "operationId": "ListReviewQueue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assignedTo",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}": {
+      "get": {
+        "operationId": "GetReviewerSupplierView",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/approve": {
+      "post": {
+        "operationId": "ApproveApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/claim": {
+      "post": {
+        "operationId": "ClaimReviewItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/deactivate": {
+      "post": {
+        "operationId": "DeactivateSupplier",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/pickup": {
+      "post": {
+        "operationId": "PickUpApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/reactivate": {
+      "post": {
+        "operationId": "ReactivateSupplier",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/reject": {
+      "post": {
+        "operationId": "RejectApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectApplicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/request-info": {
+      "post": {
+        "operationId": "RequestApplicationInfo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestInfoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/suspend": {
+      "post": {
+        "operationId": "SuspendSupplier",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/unassign": {
+      "post": {
+        "operationId": "UnassignReviewItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/rfqs": {
+      "get": {
+        "operationId": "ListRfqs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "owner",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      },
+      "post": {
+        "operationId": "CreateRfq",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfqBasicsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}": {
+      "get": {
+        "operationId": "GetRfq",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateRfqBasics",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfqBasicsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/addenda": {
+      "post": {
+        "operationId": "IssueAddendum",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueAddendumRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/approve": {
+      "post": {
+        "operationId": "ApproveRfq",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/assignees": {
+      "get": {
+        "operationId": "ListRfqAssignees",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/attachments": {
+      "post": {
+        "operationId": "AddRfqAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/attachments/{attachmentId}": {
+      "delete": {
+        "operationId": "RemoveRfqAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/attachments/{attachmentId}/download-url": {
+      "get": {
+        "operationId": "GetRfqAttachmentDownloadUrl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award": {
+      "get": {
+        "operationId": "GetAward",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award/approve": {
+      "post": {
+        "operationId": "ApproveAward",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award/execute": {
+      "post": {
+        "operationId": "ExecuteAward",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award/recommend": {
+      "post": {
+        "operationId": "RecommendAward",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendAwardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award/reject": {
+      "post": {
+        "operationId": "RejectAward",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectAwardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award/retry-erp-sync": {
+      "post": {
+        "operationId": "RetryAwardErpSync",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/award/route-for-approval": {
+      "post": {
+        "operationId": "RouteAwardForApproval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Award"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/cancel": {
+      "post": {
+        "operationId": "CancelRfq",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRfqRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/clarifications": {
+      "post": {
+        "operationId": "SupplierPostClarification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostClarificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer": {
+      "post": {
+        "operationId": "AnswerClarification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "clarificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerClarificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish": {
+      "post": {
+        "operationId": "PublishClarification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "clarificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/close": {
+      "post": {
+        "operationId": "CloseRfqSubmission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseSubmissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/comparison": {
+      "get": {
+        "operationId": "GetComparison",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Comparison"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/comparison/export": {
+      "get": {
+        "operationId": "ExportComparison",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Comparison"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/deadline": {
+      "post": {
+        "operationId": "ChangeSubmissionDeadline",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSubmissionDeadlineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation": {
+      "get": {
+        "operationId": "GetEvaluation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation-template": {
+      "put": {
+        "operationId": "BindEvaluationTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindEvaluationTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/assignments": {
+      "post": {
+        "operationId": "AssignEvaluators",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignEvaluatorsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/consolidate": {
+      "post": {
+        "operationId": "ConsolidateEvaluation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/finalize": {
+      "post": {
+        "operationId": "FinalizeEvaluation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/open": {
+      "post": {
+        "operationId": "OpenEvaluation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/proposals/{proposalId}/documents": {
+      "get": {
+        "operationId": "GetProposalDocumentsForBuyer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/proposals/{proposalId}/documents/{documentId}/download-url": {
+      "get": {
+        "operationId": "GetProposalDocumentDownloadUrlForBuyer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/recuse": {
+      "post": {
+        "operationId": "RecuseEvaluator",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecuseEvaluatorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/reopen": {
+      "post": {
+        "operationId": "ReopenEvaluation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenEvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/evaluation/resolve-tie": {
+      "post": {
+        "operationId": "ResolveEvaluationTie",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveTieRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/invitations": {
+      "post": {
+        "operationId": "InviteSupplier",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteSupplierRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/invitations/candidates": {
+      "get": {
+        "operationId": "SuggestInvitationCandidates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/invitations/decline": {
+      "post": {
+        "operationId": "SupplierDeclineInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/items": {
+      "post": {
+        "operationId": "AddRfqItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfqItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/items/{itemId}": {
+      "delete": {
+        "operationId": "RemoveRfqItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/my-evaluation": {
+      "get": {
+        "operationId": "GetMyEvaluation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/my-evaluation/bidders": {
+      "get": {
+        "operationId": "GetConflictDeclaration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/my-evaluation/declare": {
+      "post": {
+        "operationId": "DeclareConflict",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclareConflictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/my-evaluation/proposals/{proposalCode}/documents/{documentId}/download-url": {
+      "get": {
+        "operationId": "GetProposalDocumentDownloadUrlForEvaluator",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/my-evaluation/scores": {
+      "post": {
+        "operationId": "ScoreCriterion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreCriterionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/my-evaluation/submit": {
+      "post": {
+        "operationId": "SubmitEvaluatorScores",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/proposals": {
+      "get": {
+        "operationId": "GetProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      },
+      "post": {
+        "operationId": "StartProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Proposals"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/publish": {
+      "post": {
+        "operationId": "PublishRfq",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/reassign": {
+      "post": {
+        "operationId": "ReassignRfq",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReassignRfqRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/received-proposals": {
+      "get": {
+        "operationId": "ListReceivedProposals",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/received-proposals/{proposalId}": {
+      "get": {
+        "operationId": "GetReceivedProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/request-clarification": {
+      "post": {
+        "operationId": "RequestRfqClarification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestClarificationTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/requirements": {
+      "post": {
+        "operationId": "AddRequirement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/requirements/{requirementId}": {
+      "delete": {
+        "operationId": "RemoveRequirement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requirementId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/resolve-clarification": {
+      "post": {
+        "operationId": "ResolveRfqClarification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/return": {
+      "post": {
+        "operationId": "ReturnRfqForEdits",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReturnForEditsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/submit-review": {
+      "post": {
+        "operationId": "SubmitRfqForReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SubmitForReviewRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      }
+    },
+    "/api/v1/rfqs/{referenceCode}/workspace": {
+      "get": {
+        "operationId": "GetWorkspace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Workspace"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "Search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/api/v1/staff": {
+      "get": {
+        "operationId": "ListStaff",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/staff/accept-invite": {
+      "post": {
+        "operationId": "AcceptStaffInvite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptStaffInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/staff/invite": {
+      "post": {
+        "operationId": "InviteStaff",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteStaffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/staff/{userId}/deactivate": {
+      "post": {
+        "operationId": "DeactivateStaff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/staff/{userId}/reactivate": {
+      "post": {
+        "operationId": "ReactivateStaff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/staff/{userId}/reset-mfa": {
+      "post": {
+        "operationId": "ResetStaffMfa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/staff/{userId}/role": {
+      "put": {
+        "operationId": "ChangeStaffRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeStaffRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/api/v1/supplier-users/accept-invite": {
+      "post": {
+        "operationId": "AcceptSupplierUserInvite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptSupplierUserInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "SupplierUsers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me": {
+      "get": {
+        "operationId": "GetOwnSupplier",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/accept-terms": {
+      "post": {
+        "operationId": "AcceptTerms",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/active-annotation": {
+      "get": {
+        "operationId": "GetOwnActiveAnnotation",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/addresses": {
+      "post": {
+        "operationId": "AddAddress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddAddressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/addresses/{addressId}": {
+      "delete": {
+        "operationId": "RemoveAddress",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "addressId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateAddress",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "addressId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAddressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/audit": {
+      "get": {
+        "operationId": "GetOwnSupplierAuditTrail",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/audit/export": {
+      "get": {
+        "operationId": "ExportOwnSupplierAuditTrail",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/bank-accounts": {
+      "post": {
+        "operationId": "AddBankAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddBankAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/bank-accounts/{bankAccountId}": {
+      "delete": {
+        "operationId": "RemoveBankAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankAccountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateBankAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankAccountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBankAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/bank-accounts/{bankAccountId}/reveal": {
+      "post": {
+        "operationId": "RevealBankAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankAccountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/bank-accounts/{bankAccountId}/set-default": {
+      "post": {
+        "operationId": "SetDefaultBankAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankAccountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/branches": {
+      "post": {
+        "operationId": "AddBranch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddBranchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/branches/{branchId}": {
+      "delete": {
+        "operationId": "RemoveBranch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateBranch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBranchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/category-links": {
+      "post": {
+        "operationId": "LinkCategory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/category-links/{categoryCode}": {
+      "delete": {
+        "operationId": "UnlinkCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "categoryCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/contacts": {
+      "post": {
+        "operationId": "AddContact",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddContactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/contacts/{contactId}": {
+      "delete": {
+        "operationId": "RemoveContact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateContact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddContactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/dashboard": {
+      "get": {
+        "operationId": "SupplierDashboard",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Dashboards"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/legal-info": {
+      "put": {
+        "operationId": "UpdateLegalInfo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLegalInfoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/logo": {
+      "post": {
+        "operationId": "UploadLogo",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/logo/download-url": {
+      "get": {
+        "operationId": "GetLogoDownloadUrl",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/offerings": {
+      "get": {
+        "operationId": "ListOfferings",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Offerings"
+        ]
+      },
+      "post": {
+        "operationId": "CreateOffering",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOfferingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Offerings"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/offerings/{offeringId}": {
+      "get": {
+        "operationId": "GetOffering",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offeringId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Offerings"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateOffering",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offeringId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOfferingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Offerings"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/offerings/{offeringId}/deactivate": {
+      "post": {
+        "operationId": "DeactivateOffering",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offeringId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Offerings"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/representatives": {
+      "post": {
+        "operationId": "AddRepresentative",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRepresentativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/representatives/{representativeId}": {
+      "delete": {
+        "operationId": "RemoveRepresentative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "representativeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateRepresentative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "representativeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRepresentativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/representatives/{representativeId}/set-primary": {
+      "post": {
+        "operationId": "SetPrimaryRepresentative",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "representativeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/resubmit-application": {
+      "post": {
+        "operationId": "ResubmitApplication",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/users": {
+      "get": {
+        "operationId": "ListSupplierUsers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "SupplierUsers"
+        ]
+      },
+      "post": {
+        "operationId": "InviteSupplierUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteSupplierUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "SupplierUsers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/users/{userId}/disable": {
+      "post": {
+        "operationId": "DisableSupplierUser",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "SupplierUsers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{referenceCode}": {
+      "get": {
+        "operationId": "GetSupplier",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}": {
+      "patch": {
+        "operationId": "UpdateSupplierProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}/documents": {
+      "get": {
+        "operationId": "ListOwnDocuments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      },
+      "post": {
+        "operationId": "UploadDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}/documents/types/{documentTypeCode}/history": {
+      "get": {
+        "operationId": "GetDocumentHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentTypeCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}/documents/{documentCode}": {
+      "get": {
+        "operationId": "GetSupplierDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}/documents/{documentCode}/approve": {
+      "post": {
+        "operationId": "ApproveDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}/documents/{documentCode}/reject": {
+      "post": {
+        "operationId": "RejectDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/suppliers/{supplierCode}/onboarding/submit": {
+      "post": {
+        "operationId": "SubmitSupplierApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supplierCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
+    "/api/v1/system/status": {
+      "get": {
+        "operationId": "GetSystemStatus",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "MotsSupplierPortal.Api"
+        ]
+      }
+    },
+    "/api/v1/ui-strings/{language}": {
+      "get": {
+        "operationId": "GetUiStringBundle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "language",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5080/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "MotsSupplierPortal.Api"
+    },
+    {
+      "name": "Reference"
+    },
+    {
+      "name": "Admin"
+    },
+    {
+      "name": "Search"
+    },
+    {
+      "name": "Ministry"
+    },
+    {
+      "name": "Dashboards"
+    },
+    {
+      "name": "SupplierUsers"
+    },
+    {
+      "name": "Audit"
+    },
+    {
+      "name": "Documents"
+    },
+    {
+      "name": "Suppliers"
+    },
+    {
+      "name": "Staff"
+    },
+    {
+      "name": "Offerings"
+    },
+    {
+      "name": "Proposals"
+    },
+    {
+      "name": "Evaluation"
+    },
+    {
+      "name": "Comparison"
+    },
+    {
+      "name": "Workspace"
+    },
+    {
+      "name": "Notifications"
+    },
+    {
+      "name": "Registrations"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Mfa"
+    },
+    {
+      "name": "Review"
+    },
+    {
+      "name": "Organizations"
+    },
+    {
+      "name": "EvaluationTemplates"
+    },
+    {
+      "name": "Rfqs"
+    },
+    {
+      "name": "Reports"
+    },
+    {
+      "name": "Award"
+    }
+  ]
+}

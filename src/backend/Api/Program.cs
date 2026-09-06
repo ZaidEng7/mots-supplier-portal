@@ -753,9 +753,36 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// §11: the OpenAPI document is the contract source - for the SPA's types, for the ERP ACL client, and for
+// the CI diff gate below. It is published in EVERY environment for that reason: a contract that only exists
+// where the code is being written cannot be compared against what is deployed.
+//
+// Outside Development it requires the admin permission, matching §11's own rule for Scalar ("non-prod;
+// behind admin auth in prod"). The document lists every route and its shapes - not a secret, but it is a map,
+// and a map is worth asking for a name first.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // AllowAnonymous, and it is not a relaxation - it is a fix. NFR-SEC-004's deny-by-default
+    // FallbackPolicy (line ~237) applies to every endpoint that does not state otherwise, and MapOpenApi
+    // states nothing, so `/openapi/v1.json` has answered 401 since the day the fallback landed. The
+    // document was being generated and served to nobody: §11 calls it the contract source for the SPA's
+    // types, the ERP client and the CI diff gate, and none of those could ever have fetched it.
+    // Found by fetching it.
+    app.MapOpenApi().AllowAnonymous();
+}
+else
+{
+    // MapOpenApi returns an IEndpointConventionBuilder, which the RequirePermission extension does not
+    // accept (it takes a RouteHandlerBuilder or a RouteGroupBuilder), so the filter is added directly. Same
+    // filter, same permission - just reached without the sugar.
+    app.MapOpenApi()
+        .AddEndpointFilter(new MotsSupplierPortal.Api.Authorization.PermissionEndpointFilter(
+            MotsSupplierPortal.Domain.Identity.Permissions.AdminUsersManage))
+        .RequireAuthorization();
+}
+
+if (app.Environment.IsDevelopment())
+{
 
     // §7: "500 responses never include stack traces, SQL, or internal messages". That is a NEGATIVE
     // about a path no ordinary request takes, so it can only be proven by deliberately taking it.

@@ -439,6 +439,27 @@ committed baseline in CI failing on a breaking diff, and add spectral for the st
 those four documentation requirements**, and the gate will fail loudly on day one until they do. Worth
 knowing before it is started: this is a sweep, not a switch.
 
+**Half built in batch 11 — deliberately half.** The breaking-diff gate exists: the document is published in
+every environment (anonymous in Development, `admin.users.manage` elsewhere), `contracts/openapi-v1.baseline.json`
+is committed with sorted keys so a diff is a diff and not a key-order shuffle, and `OpenApiContractTests`
+fails on a removed path, operation, response status or response field, and on a property that became
+required. Additive change passes, per §Versioning. Proven to fail by renaming `/api/v1/search` and watching
+it name that route.
+
+Implemented as a test rather than an `oasdiff` CI step for one reason: generating the document needs the host
+running, the host needs a database, and the integration fixture already provides one. An `oasdiff` step would
+have had to stand Postgres up a second time to produce its input.
+
+**The style half is NOT built, and that is the sizing's own advice taken.** §11's four documentation
+requirements across **228** operations (up from 195) is a sweep; a gate that fails on day one for all of them
+produces 228 hurried annotations rather than 228 accurate ones. It stays open, and it is now the only part of
+§11 outstanding.
+
+**Found while building it:** `/openapi/v1.json` had never been reachable. `MapOpenApi()` declares no
+authorization, so NFR-SEC-004's deny-by-default `FallbackPolicy` answered 401 — the document was generated
+and served to nobody, including the two consumers §11 names for it (SPA type generation, the ERP ACL
+client). Nothing could have noticed, because nothing fetched it.
+
 ---
 
 ## 4. Two live rules that silently do nothing
