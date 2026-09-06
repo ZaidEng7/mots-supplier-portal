@@ -4,6 +4,25 @@ import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch, listPage } from '../test/renderPage'
 
 const { SettingsPage } = await import('./SettingsPage')
+const { useAuthStore } = await import('../lib/authStore')
+
+/**
+ * SCR-902 mounted this page for every authenticated persona, and the activity-trail card is
+ * supplier-scoped - it reads `GET /suppliers/me/audit`, which a procurement officer cannot. So the
+ * card now renders only when the caller's claims carry a supplierId, and a test that wants to see it
+ * has to say who is signed in. The fixture said nothing before, which was a fixture claiming a
+ * supplier's screen while presenting nobody's session.
+ */
+/** SCR-902's read, which every test on this page now performs. */
+const account = { '/api/v1/auth/me': { fullName: 'Layla Haddad', email: 'supplier@example.test', language: 'en' } }
+
+function signInAsSupplier() {
+  useAuthStore.setState({
+    accessToken: 'test',
+    status: 'authenticated',
+    claims: { userId: 'u-1', email: 'supplier@example.test', supplierId: 'sup-1', permissions: [] },
+  })
+}
 
 /**
  * Task #19: revokeMutation's onSuccess (queryClient.invalidateQueries, now invalidateQuietly) was
@@ -16,6 +35,7 @@ describe('SettingsPage session revoke flow', () => {
 
   it('shows a success toast once a session is revoked', async () => {
     restore = mockFetch({
+      ...account,
       '/api/v1/auth/sessions': listPage([
         { familyId: 'family-1', ip: '1.2.3.4', userAgent: 'Other Device', createdAt: new Date().toISOString(), expiresAt: new Date().toISOString(), isCurrent: false },
       ]),
@@ -30,6 +50,7 @@ describe('SettingsPage session revoke flow', () => {
 
   it('shows a success toast once all other sessions are revoked', async () => {
     restore = mockFetch({
+      ...account,
       '/api/v1/auth/sessions/revoke-all': { revokedCount: 2 },
       // Two sessions: the "Sign out of all other devices" button is disabled when there is at
       // most one (the guard reasons that a lone visible session could still be undercounting a
@@ -48,6 +69,7 @@ describe('SettingsPage session revoke flow', () => {
   })
 
   it('shows the supplier their own activity trail and offers the CSV', async () => {
+    signInAsSupplier()
     // B-1/FR-AUD-003. The list AND its export have existed since EPIC-01 and nothing called either - a
     // compliance affordance that shipped unreachable, found by the phase 12a sweep.
     const created = vi.fn()
@@ -60,6 +82,7 @@ describe('SettingsPage session revoke flow', () => {
     HTMLAnchorElement.prototype.click = clicked
 
     restore = mockFetch({
+      ...account,
       '/api/v1/suppliers/me/audit/export': {},
       '/api/v1/suppliers/me/audit': {
         data: [{
@@ -92,5 +115,50 @@ describe('SettingsPage session revoke flow', () => {
     URL.createObjectURL = originalCreate
     URL.revokeObjectURL = originalRevoke
     HTMLAnchorElement.prototype.click = originalClick
+  })
+
+  it('saves a new name and language, and the interface follows', async () => {
+    signInAsSupplier()
+    restore = mockFetch({
+      ...account,
+      '/api/v1/auth/sessions': listPage([]),
+    })
+
+    renderPage(<SettingsPage />)
+
+    const name = await screen.findByLabelText(/Full name/)
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Layla H. Haddad')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Changes saved')).toBeInTheDocument()
+  })
+
+  it('offers no save until something actually changes', async () => {
+    signInAsSupplier()
+    restore = mockFetch({ ...account, '/api/v1/auth/sessions': listPage([]) })
+
+    renderPage(<SettingsPage />)
+
+    // The control for the test above: the button exists and is refused, so a green save there is the
+    // edit reaching the server rather than the button being clickable at all times.
+    await screen.findByLabelText(/Full name/)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('hides the supplier-only activity trail from a staff persona', async () => {
+    // Guard both ways. The trail reads `/suppliers/me/audit`, which a procurement officer cannot, so
+    // the card has to be absent rather than present-and-failing.
+    useAuthStore.setState({
+      accessToken: 'test',
+      status: 'authenticated',
+      claims: { userId: 'u-2', email: 'officer@example.test', organizationId: 'org-1', permissions: [] },
+    })
+    restore = mockFetch({ ...account, '/api/v1/auth/sessions': listPage([]) })
+
+    renderPage(<SettingsPage />)
+
+    await screen.findByLabelText(/Full name/)
+    expect(screen.queryByText('My account activity')).not.toBeInTheDocument()
   })
 })

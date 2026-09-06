@@ -6,7 +6,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
@@ -1501,6 +1501,18 @@ const resources = {
         },
         errors: { loadFailed: 'تعذّر تحميل العروض' },           // [drafted]
       },
+      // ── SCR-902 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      account: {
+        title: 'الحساب',                                      // [drafted] SCR-902
+        save: 'حفظ',                                          // [reused]
+        retry: 'إعادة المحاولة',                               // [reused]
+        saved: 'تم حفظ التغييرات',                             // [reused]
+        emailFixed: 'لا يمكن تغيير البريد الإلكتروني من هذه الشاشة.',  // [drafted]
+        numeralsFollowLanguage: 'تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9.', // [drafted]
+        fields: { fullName: 'الاسم الكامل', language: 'لغة الواجهة', email: 'البريد الإلكتروني' },
+        languages: { ar: 'العربية', en: 'الإنجليزية' },
+        errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' }, // [drafted]
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -1553,7 +1565,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', proposals: 'My proposals', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
       supplierDashboard: {
         title: 'Supplier dashboard',
         greeting: 'Welcome, {{name}}',
@@ -2923,6 +2935,17 @@ const resources = {
           deadline: 'Deadline', total: 'Total', actions: 'Actions',
         },
         errors: { loadFailed: 'Could not load your proposals' },
+      },
+      account: {
+        title: 'Account',
+        save: 'Save',
+        retry: 'Try again',
+        saved: 'Changes saved',
+        emailFixed: 'Your email address cannot be changed from this screen.',
+        numeralsFollowLanguage: 'Numerals follow the interface language: Arabic renders ٠-٩, English 0-9.',
+        fields: { fullName: 'Full name', language: 'Interface language', email: 'Email address' },
+        languages: { ar: 'Arabic', en: 'English' },
+        errors: { loadFailed: 'Could not load your account', saveFailed: 'Could not save your changes' },
       },
       settings: {
         title: 'Account Settings',

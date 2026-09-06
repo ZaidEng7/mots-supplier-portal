@@ -44,6 +44,24 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
     }
 }
 
+/// <summary>SCR-902. Name and interface language, both the caller's own. No id and no email: the
+/// identity comes from the session, and email is not editable - see AccountDto's own note.</summary>
+public sealed record UpdateAccountRequest(string FullName, string Language);
+
+public sealed class UpdateAccountRequestValidator : AbstractValidator<UpdateAccountRequest>
+{
+    /// <summary>The two languages the product ships and the two values i18n/config.ts defines. Not a
+    /// policy anyone else owns - an interface language outside this set has no strings to render.</summary>
+    private static readonly string[] Supported = ["ar", "en"];
+
+    public UpdateAccountRequestValidator()
+    {
+        RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Language).Must(Supported.Contains!)
+            .WithMessage("Language must be one of: ar, en.");
+    }
+}
+
 public sealed record ResetPasswordRequest(string Token, string NewPassword);
 
 public sealed class ResetPasswordRequestValidator : AbstractValidator<ResetPasswordRequest>
@@ -266,6 +284,38 @@ public static class AuthEndpoints
         // Same limiter as the other credential paths: this one takes a password guess per call.
         .RequireRateLimiting("auth-strict")
         .WithName("ChangePassword");
+
+        // SCR-902. The gap: name and interface language were fixed at registration with no screen to
+        // change either, so a user whose name was mistyped by whoever invited them was stuck with it.
+        group.MapGet("/me", async (IGetAccountHandler handler, IScopeContext scope, CancellationToken ct) =>
+        {
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+            var account = await handler.HandleAsync(userId, ct);
+            return account is null ? Results.Unauthorized() : Results.Ok(account);
+        })
+        .RequireAuthorization()
+        .WithName("GetAccount");
+
+        group.MapPut("/me", async (
+            UpdateAccountRequest request,
+            IValidator<UpdateAccountRequest> validator,
+            IUpdateAccountHandler handler,
+            IScopeContext scope,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+
+            // No permission on either route, deliberately. Every authenticated persona owns their own
+            // name and their own interface language, and gating them would put an account screen
+            // behind a grant that would then have to be given to all eight roles - which is the same
+            // as no gate, spelled out in eight places that can drift apart.
+            var updated = await handler.HandleAsync(new UpdateAccountCommand(userId, request.FullName, request.Language), ct);
+            return updated is null ? Results.Unauthorized() : Results.Ok(updated);
+        })
+        .RequireAuthorization()
+        .WithName("UpdateAccount");
 
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (

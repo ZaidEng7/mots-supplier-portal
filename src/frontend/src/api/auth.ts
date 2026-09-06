@@ -98,6 +98,33 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 }
 
+/** SCR-902. The account facts a user owns about themselves. Roles and permissions are deliberately
+ *  NOT here - those come from the access token's claims (see authStore), and a second copy would be a
+ *  second source of truth for authorization. */
+export interface Account {
+  fullName: string
+  email: string
+  language: string
+}
+
+export async function getAccount(): Promise<Account> {
+  const res = await apiFetch('/api/v1/auth/me')
+  const text = await res.text()
+  if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  return JSON.parse(text) as Account
+}
+
+export async function updateAccount(fullName: string, language: string): Promise<Account> {
+  const res = await apiFetch('/api/v1/auth/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fullName, language }),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  return JSON.parse(text) as Account
+}
+
 export async function resendVerification(email: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/registrations/resend-verification`, {
     method: 'POST',

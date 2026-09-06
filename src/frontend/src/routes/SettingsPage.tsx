@@ -3,7 +3,8 @@ import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
 import { listOwnAuditTrail, downloadOwnAuditTrail } from '../api/audit'
 import { formatDateTime } from '../lib/datetime'
-import { changePassword, ApiError } from '../api/auth'
+import { changePassword, getAccount, updateAccount, ApiError } from '../api/auth'
+import { useAuthStore } from '../lib/authStore'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
 import { Badge, Button, Field, Input, SkeletonList, useToast } from '../components/ui'
@@ -15,6 +16,111 @@ import {
   revokeAllOtherSessions,
   type EnrollMfaResponse,
 } from '../api/settings'
+
+/**
+ * SCR-902 — the account itself: name and interface language.
+ *
+ * <p>Both were fixed at registration with no screen to change either, so a user whose name was
+ * mistyped by whoever invited them was stuck with it, and a user who wanted the other language had
+ * only the header toggle, which resets on the next sign-in because nothing stored the choice.</p>
+ *
+ * <p><b>Email is displayed and not editable.</b> Changing it means re-verifying it, and no document
+ * here defines that flow - SCREEN-INVENTORY.md's own row for SCR-902 lists "Name, language, numerals,
+ * contact" and not email. Shown anyway, because "which address do my notifications go to" is a
+ * question this screen should answer.</p>
+ *
+ * <p><b>Numerals are derived, not chosen.</b> The inventory row asks for a numerals preference;
+ * lib/datetime.ts's own doc records the decision that numerals follow the locale - Arabic renders
+ * ٠-٩, English 0-9 - so that a price and a deadline on one screen cannot disagree. A second control
+ * here would be a second source of truth for the same formatting, so the screen states the rule
+ * instead. Logged as an open question rather than decided quietly.</p>
+ */
+function AccountSection() {
+  const { t, i18n } = useTranslation()
+  const { notify } = useToast()
+  const queryClient = useQueryClient()
+  const accountQuery = useQuery({ queryKey: ['account'], queryFn: getAccount })
+
+  const [fullName, setFullName] = useState<string | null>(null)
+  const [language, setLanguage] = useState<string | null>(null)
+
+  // The server's values are the initial ones, and the local state only exists once the user types.
+  // Seeding state from the query in an effect would fight the query on every refetch.
+  const nameValue = fullName ?? accountQuery.data?.fullName ?? ''
+  const languageValue = language ?? accountQuery.data?.language ?? 'ar'
+
+  const saveMutation = useMutation({
+    mutationFn: () => updateAccount(nameValue, languageValue),
+    onSuccess: (account) => {
+      invalidateQuietly(queryClient, { queryKey: ['account'] })
+      setFullName(null)
+      setLanguage(null)
+      // The saved language takes effect immediately. Without this the user saves "English", the
+      // request succeeds, and the page they are looking at stays Arabic until they sign in again -
+      // which reads as the save having failed.
+      if (i18n.language !== account.language) void i18n.changeLanguage(account.language)
+      notify({ kind: 'success', title: t('account.saved') })
+    },
+    onError: () => notify({ kind: 'danger', title: t('account.errors.saveFailed') }),
+  })
+
+  if (accountQuery.isLoading) return <SkeletonList label={t('common.loading')} />
+  if (accountQuery.isError) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p>{t('account.errors.loadFailed')}</p>
+        <Button variant="ghost" onClick={() => void accountQuery.refetch()}>{t('account.retry')}</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Field label={t('account.fields.fullName')} required>
+        {(p) => <Input {...p} value={nameValue} onChange={(e) => setFullName(e.target.value)} />}
+      </Field>
+
+      <Field label={t('account.fields.language')}>
+        {(p) => (
+        <select
+          {...p}
+          className="w-full rounded-[0.5rem] px-3 py-2 text-[length:var(--text-body)]"
+          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
+          value={languageValue}
+          onChange={(e) => setLanguage(e.target.value)}
+        >
+          <option value="ar">{t('account.languages.ar')}</option>
+          <option value="en">{t('account.languages.en')}</option>
+        </select>
+        )}
+      </Field>
+
+      <div>
+        <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('account.fields.email')}
+        </p>
+        <p style={{ color: 'var(--color-text-primary)' }}>{accountQuery.data?.email}</p>
+        <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('account.emailFixed')}
+        </p>
+      </div>
+
+      <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+        {t('account.numeralsFollowLanguage')}
+      </p>
+
+      <div>
+        <Button
+          isLoading={saveMutation.isPending}
+          disabled={!nameValue.trim() || (fullName === null && language === null)}
+          onClick={() => saveMutation.mutate()}
+        >
+          {t('account.save')}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 /**
  * SCR-903 — change password, and the reason it is the first card on this screen.
@@ -243,12 +349,20 @@ function SessionsSection() {
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const isSupplier = useAuthStore((state) => state.claims?.supplierId) !== undefined
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
         {t('settings.title')}
       </h1>
+
+      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {t('account.title')}
+        </h2>
+        <AccountSection />
+      </div>
 
       <ChangePasswordSection />
 
@@ -272,12 +386,20 @@ export function SettingsPage() {
         own route because it is the supplier's own record of their own account, which is what this screen
         is; a separate page would be one more route for one table.
       */}
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('settings.auditTitle')}
-        </h2>
-        <AuditTrailSection />
-      </div>
+      {/*
+        Gated on the caller actually BEING a supplier. SCR-902 made this screen reachable by every
+        authenticated persona, and `GET /suppliers/me/audit` is supplier-scoped - a procurement officer
+        opening it would meet a failed panel on an otherwise working page, which reads as a defect
+        rather than as a section that does not apply to them.
+      */}
+      {isSupplier ? (
+        <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+          <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+            {t('settings.auditTitle')}
+          </h2>
+          <AuditTrailSection />
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -14,7 +14,8 @@ import { useTranslation } from 'react-i18next'
 import { LanguageSwitch } from './components/LanguageSwitch'
 import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
 import { useAuthStore } from './lib/authStore'
-import { refresh } from './api/auth'
+import i18n from 'i18next'
+import { refresh, getAccount } from './api/auth'
 
 // Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
 // 2.5s ... route-level code splitting"). A single unsplit bundle measured ~3.4s LCP under
@@ -66,13 +67,33 @@ const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) =
 /** Ensures a valid access token is in memory before a protected route renders — on a cold load
  * (page refresh) the store is empty, so this silently exchanges the httpOnly refresh cookie for a
  * fresh one before deciding whether to redirect to /login. */
+/**
+ * SCR-902's other half: a stored interface language nobody read would be a setting that does nothing.
+ *
+ * <p>Runs once per app load, after a session exists, and never again - a mid-session toggle has to
+ * keep winning over the value this fetched, or switching language would undo itself on the next
+ * navigation. Fire-and-forget, because no screen should wait on a preference.</p>
+ */
+let languageApplied = false
+function applyStoredLanguage() {
+  if (languageApplied) return
+  languageApplied = true
+  void getAccount()
+    .then((account) => (i18n.language === account.language ? undefined : i18n.changeLanguage(account.language)))
+    .catch(() => undefined)
+}
+
 async function ensureAuthenticated(currentPath: string) {
   const state = useAuthStore.getState()
-  if (state.status === 'authenticated' && state.accessToken) return
+  if (state.status === 'authenticated' && state.accessToken) {
+    applyStoredLanguage()
+    return
+  }
 
   const tokens = await refresh()
   if (tokens) {
     useAuthStore.getState().setSession(tokens.accessToken)
+    applyStoredLanguage()
     return
   }
 
@@ -416,6 +437,17 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
+// SCR-902 is "all authenticated", and until now the settings screen existed only under the supplier
+// shell: a procurement officer, evaluator, reviewer or admin had no way to change their own password,
+// enrol MFA, see their sessions or fix their own name. The SAME page is mounted here rather than a
+// second one written for staff - every card on it is about the caller's own account, and the one
+// supplier-scoped card gates itself on being a supplier.
+const backOfficeAccountRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/account',
+  component: SettingsPage,
+})
+
 const supplierRfqListRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/rfqs',
@@ -555,7 +587,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

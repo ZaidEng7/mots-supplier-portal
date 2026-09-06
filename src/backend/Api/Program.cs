@@ -426,6 +426,9 @@ builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
 builder.Services.AddScoped<IForgotPasswordHandler, ForgotPasswordHandler>();
 builder.Services.AddScoped<IResetPasswordHandler, ResetPasswordHandler>();
 builder.Services.AddScoped<IChangePasswordHandler, ChangePasswordHandler>();
+// SCR-902: the account screen's own read and write.
+builder.Services.AddScoped<IGetAccountHandler, GetAccountHandler>();
+builder.Services.AddScoped<IUpdateAccountHandler, UpdateAccountHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
