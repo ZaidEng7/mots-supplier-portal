@@ -282,6 +282,11 @@ const resources = {
         commercialWithheld: 'القيم المالية غير معروضة',   // [§7-style drafted]
         commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.', // [§7-style drafted]
         suppliersByState: 'الموردون حسب حالة دورة الحياة', // [reused] matches the compliance report (D-18)
+        // Step 3. NOT a status label: StatusChip's coverage guard refuses an authored label for a state
+        // UX-WRITING §7.1 has no row for, and it is right to - a state label is the document's to write.
+        // This is the SCREEN's caption for the group, which is this file's to write, and it says what the
+        // count means without claiming to name a status.
+        unlabelledLifecycle: 'موردون قبل الاعتماد',              // [drafted] Step 3
         rfqsByState: 'طلبات عروض الأسعار حسب الحالة',     // [reused] matches the procurement report
         empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
         loadFailed: 'تعذّر تحميل لوحة الحوكمة',           // [§7-style drafted]
@@ -426,11 +431,6 @@ const resources = {
           Submitted: 'مُقدَّم', UnderReview: 'قيد المراجعة', InfoRequested: 'مطلوب معلومات',
           Resubmitted: 'أُعيد التقديم', Approved: 'معتمد', Rejected: 'مرفوض',
           Active: 'نشط', Suspended: 'موقوف', Deactivated: 'مُلغى التفعيل',
-          // SupplierLifecycleState.None: no §7.1 row, and it reached the Ministry's screen as the literal
-          // word "None" - a database value in front of the reader this product is most careful with. Drafted
-          // in §7's register and in ARABIC-REVIEW.md's pile: it means the supplier has no lifecycle state yet
-          // because they are not through onboarding, which "لا ينطبق" says without inventing a status.
-          None: 'لا ينطبق',                                     // [drafted]
         },
         // §7.2 "Supplier document". Its "Required" row has no DocumentState member and is therefore
         // not transcribed; PendingScan and ScanRejected are members with no §7.2 row. Both
@@ -2005,6 +2005,7 @@ const resources = {
         commercialWithheld: 'Commercial values are not shown',
         commercialWithheldBody: 'Under the current visibility policy, aggregate metrics are shown without commercial values.',
         suppliersByState: 'Suppliers by lifecycle state',
+        unlabelledLifecycle: 'Suppliers before approval',
         rfqsByState: 'RFQs by state',
         empty: 'No data yet',
         loadFailed: 'Could not load the governance dashboard',
@@ -2138,7 +2139,6 @@ const resources = {
           Submitted: 'Submitted', UnderReview: 'Under review', InfoRequested: 'Info requested',
           Resubmitted: 'Resubmitted', Approved: 'Approved', Rejected: 'Rejected',
           Active: 'Active', Suspended: 'Suspended', Deactivated: 'Deactivated',
-          None: 'Not applicable',
         },
         document: {
           Required: 'Required',
