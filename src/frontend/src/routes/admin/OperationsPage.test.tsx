@@ -228,4 +228,87 @@ describe('OperationsPage (SCR-721)', () => {
     expect(await screen.findByText('document-expiry')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /try again|إعادة المحاولة/i }).length).toBeGreaterThan(0)
   })
+
+  it('confirms a triggered run, and names the reason when the job is not registered', async () => {
+    // 404 from this endpoint means Hangfire does not hold the job - not that the run failed. Those are
+    // different things for an operator: one is a deployment problem, the other is a job problem.
+    restore = mockFetch({
+      ...healthy(),
+      '/api/v1/admin/jobs/document-expiry/trigger': { __status: 404 },
+    })
+
+    renderPage(<OperationsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /run now|تشغيل/i }))
+
+    expect(await screen.findByText(/not registered|غير مُسجَّلة/i)).toBeInTheDocument()
+  })
+
+  it('confirms a queued replay', async () => {
+    restore = mockFetch({
+      ...healthy({
+        [OUTBOX]: {
+          counts: { Failed: 1 },
+          messages: [{ id: 'm-1', type: 'AwardIssued', syncStatus: 'Failed', createdAt: '2026-09-05T10:00:00Z', processedAt: null, payloadJson: '{}' }],
+        },
+      }),
+      '/api/v1/admin/outbox/m-1/replay': {},
+    })
+
+    renderPage(<OperationsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /^replay|إعادة الإرسال/i }))
+
+    expect(await screen.findByText(/returned to the queue|أُعيدت الرسالة/i)).toBeInTheDocument()
+  })
+
+  it('says so when a replay is refused', async () => {
+    restore = mockFetch({
+      ...healthy({
+        [OUTBOX]: {
+          counts: { Failed: 1 },
+          messages: [{ id: 'm-1', type: 'AwardIssued', syncStatus: 'Failed', createdAt: '2026-09-05T10:00:00Z', processedAt: null, payloadJson: '{}' }],
+        },
+      }),
+      '/api/v1/admin/outbox/m-1/replay': { __status: 409 },
+    })
+
+    renderPage(<OperationsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /^replay|إعادة الإرسال/i }))
+
+    expect(await screen.findByText(/could not|تعذّر/i)).toBeInTheDocument()
+  })
+
+  it('retries an ERP sync through the award endpoint, not an admin one', async () => {
+    // §6.1's guard that only a Failed sync retries lives on the award endpoint. A second admin path
+    // would be a second copy of that guard to keep in step.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      ...healthy({
+        [ERP]: {
+          transportConfigured: true, counts: { Failed: 1 },
+          awards: [{ rfqReferenceCode: 'RFQ-2026-000001', erpSyncStatus: 'Failed', erpRetryCount: 2, erpSyncedAt: null, externalPurchaseOrderRef: null }],
+        },
+      }),
+      '/api/v1/rfqs/RFQ-2026-000001/award/retry-erp-sync': { rfqReferenceCode: 'RFQ-2026-000001', erpSyncStatus: 'Pending' },
+    }, recorded)
+
+    renderPage(<OperationsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /retry|إعادة/i }))
+
+    expect(recorded.some((r) => r.method === 'POST' && r.url.endsWith('/award/retry-erp-sync'))).toBe(true)
+    expect(await screen.findByText(/sync requested again|أُعيد طلب المزامنة/i)).toBeInTheDocument()
+  })
+
+  it('offers a retry on each card that failed, independently', async () => {
+    // All five queries broken at once. The point is that each card carries its own recovery: a single
+    // page-level error would make an operator reload to find out which endpoint is actually down.
+    restore = mockFetch({
+      [JOBS]: { __status: 500 }, [OUTBOX]: { __status: 500 }, [ERP]: { __status: 500 },
+      [SECURITY]: { __status: 500 }, [STORAGE]: { __status: 500 },
+    })
+
+    renderPage(<OperationsPage />)
+
+    const retries = await screen.findAllByRole('button', { name: /try again|إعادة المحاولة/i })
+    expect(retries).toHaveLength(5)
+  })
 })

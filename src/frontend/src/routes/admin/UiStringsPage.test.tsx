@@ -118,4 +118,80 @@ describe('UiStringsPage (SCR-716)', () => {
 
     expect(await screen.findByRole('button', { name: /try again|إعادة المحاولة/i })).toBeInTheDocument()
   })
+
+  it('says so when a save is refused', async () => {
+    restore = mockFetch({
+      [LIST]: [],
+      '/api/v1/admin/ui-strings/ar/common.loading': { __status: 500 },
+    })
+
+    renderPage(<UiStringsPage />)
+    await userEvent.type(await screen.findByLabelText(/search|بحث/i), 'common.loading')
+    await userEvent.click(screen.getAllByRole('button', { name: /common\.loading/ })[0])
+
+    const value = screen.getByLabelText(/replacement text|النص المُعدَّل/i)
+    await userEvent.clear(value)
+    await userEvent.type(value, 'Loading, please wait')
+    await userEvent.click(screen.getByRole('button', { name: /save override|حفظ التعديل/i }))
+
+    expect(await screen.findByText(/could not save|تعذّر/i)).toBeInTheDocument()
+  })
+
+  it('clears the editor after a successful save', async () => {
+    // An editor still holding the key it just saved invites a second save of the same text, and the
+    // list below is the confirmation that it took.
+    restore = mockFetch({
+      [LIST]: [],
+      '/api/v1/admin/ui-strings/ar/common.loading': { language: 'ar', key: 'common.loading', value: 'x' },
+    })
+
+    renderPage(<UiStringsPage />)
+    await userEvent.type(await screen.findByLabelText(/search|بحث/i), 'common.loading')
+    await userEvent.click(screen.getAllByRole('button', { name: /common\.loading/ })[0])
+
+    const value = screen.getByLabelText(/replacement text|النص المُعدَّل/i)
+    await userEvent.clear(value)
+    await userEvent.type(value, 'Loading, please wait')
+    await userEvent.click(screen.getByRole('button', { name: /save override|حفظ التعديل/i }))
+
+    await screen.findByText(/override saved|حُفظ التعديل/i)
+    expect(screen.queryByLabelText(/replacement text|النص المُعدَّل/i)).not.toBeInTheDocument()
+  })
+
+  it('restores the shipped string for one override', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      [LIST]: [{ language: 'ar', key: 'common.loading', value: 'جارٍ التحميل…' }],
+      '/api/v1/admin/ui-strings/ar/common.loading': { __byMethod: { DELETE: {} } },
+    }, recorded)
+
+    renderPage(<UiStringsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /restore|استعادة/i }))
+
+    expect(recorded.some((r) => r.method === 'DELETE' && r.url.endsWith('/ar/common.loading'))).toBe(true)
+    expect(await screen.findByText(/original text restored|أُعيد النص الأصلي/i)).toBeInTheDocument()
+  })
+
+  it('says so when the restore is refused', async () => {
+    restore = mockFetch({
+      [LIST]: [{ language: 'ar', key: 'common.loading', value: 'جارٍ التحميل…' }],
+      '/api/v1/admin/ui-strings/ar/common.loading': { __byMethod: { DELETE: { __status: 500 } } },
+    })
+
+    renderPage(<UiStringsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /restore|استعادة/i }))
+
+    expect(await screen.findByText(/could not restore|تعذّر/i)).toBeInTheDocument()
+  })
+
+  it('abandons a selection on cancel', async () => {
+    restore = mockFetch({ [LIST]: [] })
+
+    renderPage(<UiStringsPage />)
+    await userEvent.type(await screen.findByLabelText(/search|بحث/i), 'common.loading')
+    await userEvent.click(screen.getAllByRole('button', { name: /common\.loading/ })[0])
+    await userEvent.click(screen.getByRole('button', { name: /^cancel|^إلغاء/i }))
+
+    expect(screen.queryByLabelText(/replacement text|النص المُعدَّل/i)).not.toBeInTheDocument()
+  })
 })

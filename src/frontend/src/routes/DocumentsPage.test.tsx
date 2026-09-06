@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest } from '../test/renderPage'
 
 const { DocumentsPage } = await import('./DocumentsPage')
 
@@ -164,5 +164,108 @@ describe('DocumentsPage (SCR-130)', () => {
     renderPage(<DocumentsPage />)
 
     expect(await screen.findByRole('button', { name: /try again|إعادة المحاولة/i })).toBeInTheDocument()
+  })
+
+  it('uploads a chosen file against its type, with the expiry date entered beside it', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: null })],
+    }, recorded)
+
+    renderPage(<DocumentsPage />)
+
+    // fireEvent.change, not userEvent.type: a date input takes a value, not keystrokes, and typing
+    // into one silently leaves it empty.
+    fireEvent.change(await screen.findByLabelText(/^expires|تاريخ الانتهاء/i), { target: { value: '2027-06-30' } })
+    expect(screen.getByLabelText(/^expires|تاريخ الانتهاء/i)).toHaveValue('2027-06-30')
+
+    await userEvent.upload(
+      screen.getByLabelText(/^upload/i),
+      new File(['scan'], 'cr.pdf', { type: 'application/pdf' }),
+    )
+
+    // The request body is FormData, which the harness records as empty, so what is asserted is that
+    // the write went to the collection - the field names are the client's contract and are covered
+    // where that client is exercised.
+    expect(recorded.some((r) => r.method === 'POST' && r.url.endsWith('/SUP-000001/documents'))).toBe(true)
+    expect(await screen.findByText(/document uploaded|تم رفع/i)).toBeInTheDocument()
+  })
+
+  it("reports why an upload was refused, in the server's own words", async () => {
+    // The refusals here are specific - an expiry date in the past, a type the allow-list does not
+    // carry - and a generic "upload failed" would leave the supplier with nothing to act on.
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      // The POST goes to the collection, with the type id in the form body, so the list and the
+      // upload share one URL - hence __byMethod: the row has to render before there is anything to
+      // click, and a single fixture cannot be both an array and a refusal.
+      '/api/v1/suppliers/SUP-000001/documents': {
+        __byMethod: {
+          GET: [docType({ latestDocument: null })],
+          // `detail`, because that is where §7 puts the prose - RFC 9457's "human-readable explanation
+          // of this occurrence". A fixture using `message` would make this test pass against a client
+          // that reads the wrong field.
+          POST: { __status: 422, code: 'INVALID_EXPIRY', detail: 'The expiry date is in the past.' },
+        },
+      },
+    })
+
+    renderPage(<DocumentsPage />)
+
+    await userEvent.upload(
+      await screen.findByLabelText(/^upload/i),
+      new File(['scan'], 'cr.pdf', { type: 'application/pdf' }),
+    )
+
+    expect(await screen.findByText('The expiry date is in the past.')).toBeInTheDocument()
+  })
+
+  it('labels the control "replace" once a version exists', async () => {
+    // Not cosmetic: "upload" on a type that already has an approved document invites a supplier to
+    // think they are adding a second one, when the write supersedes what is there.
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: version() })],
+    })
+
+    renderPage(<DocumentsPage />)
+
+    expect(await screen.findByLabelText(/replace — Commercial registration/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^upload — Commercial registration/i)).not.toBeInTheDocument()
+  })
+
+  it('fetches the download URL rather than linking straight to it', async () => {
+    // The URL needs the Authorization header, so a plain anchor would arrive unauthenticated. The
+    // window.open is stubbed because jsdom does not implement it.
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: version() })],
+      '/api/v1/documents/d-1/download-url': { url: 'https://storage.example.test/signed' },
+    })
+
+    renderPage(<DocumentsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /download|تنزيل/i }))
+
+    await waitFor(() => expect(open).toHaveBeenCalled())
+    expect(open.mock.calls[0][0]).toBe('https://storage.example.test/signed')
+    open.mockRestore()
+  })
+
+  it('says so when the download URL cannot be obtained', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: version() })],
+      '/api/v1/documents/d-1/download-url': { __status: 500 },
+    })
+
+    renderPage(<DocumentsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /download|تنزيل/i }))
+
+    expect(await screen.findByText(/could not|تعذّر/i)).toBeInTheDocument()
+    expect(open).not.toHaveBeenCalled()
+    open.mockRestore()
   })
 })

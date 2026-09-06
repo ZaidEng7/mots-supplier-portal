@@ -119,4 +119,79 @@ describe('EmailTemplatesPage (T-076)', () => {
 
     expect(await screen.findByRole('button', { name: /try again|إعادة المحاولة/i })).toBeInTheDocument()
   })
+
+  it('restores the shipped wording on request', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      [LIST]: [template({ override: { subjectAr: 'x', subjectEn: 'Custom', bodyAr: '{verifyUrl}', bodyEn: '{verifyUrl}' } })],
+      '/api/v1/admin/email-templates/supplier.invitation': {
+        __byMethod: { DELETE: {}, PUT: {} },
+      },
+    }, recorded)
+
+    renderPage(<EmailTemplatesPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /restore original|استعادة الأصلي/i }))
+
+    expect(recorded.some((r) => r.method === 'DELETE')).toBe(true)
+    expect(await screen.findByText(/original wording restored|أُعيدت الصياغة/i)).toBeInTheDocument()
+  })
+
+  it('says so when the restore is refused', async () => {
+    restore = mockFetch({
+      [LIST]: [template({ override: { subjectAr: 'x', subjectEn: 'Custom', bodyAr: '{verifyUrl}', bodyEn: '{verifyUrl}' } })],
+      '/api/v1/admin/email-templates/supplier.invitation': { __byMethod: { DELETE: { __status: 500 } } },
+    })
+
+    renderPage(<EmailTemplatesPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /restore original|استعادة الأصلي/i }))
+
+    expect(await screen.findByText(/could not restore|تعذّر/i)).toBeInTheDocument()
+  })
+
+  it('names an unknown token as well as a missing one', async () => {
+    // The other half of the guard: a typo of a real token is a placeholder the payload cannot fill, so
+    // it reaches the recipient verbatim. Naming it is the difference between a fixable save and a
+    // second attempt at the same mistake.
+    restore = mockFetch({
+      [LIST]: [template()],
+      '/api/v1/admin/email-templates/supplier.invitation': {
+        __status: 422, code: 'UNKNOWN_TOKENS', tokens: ['verifyURL'],
+      },
+    })
+
+    renderPage(<EmailTemplatesPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /^edit|تعديل/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^save|حفظ/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('verifyURL')
+  })
+
+  it('leaves the editor and clears the refusal after a successful save', async () => {
+    restore = mockFetch({
+      [LIST]: [template()],
+      '/api/v1/admin/email-templates/supplier.invitation': {
+        subjectAr: 'x', subjectEn: 'x', bodyAr: 'x', bodyEn: 'x',
+      },
+    })
+
+    renderPage(<EmailTemplatesPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /^edit|تعديل/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^save|حفظ/i }))
+
+    await screen.findByText(/saved|حُفظت/i)
+    // Back to the read view: an editor left open after a save reads as a save that did not take.
+    expect(screen.queryByRole('button', { name: /^save|حفظ/i })).not.toBeInTheDocument()
+  })
+
+  it('abandons an edit on cancel without writing', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ [LIST]: [template()] }, recorded)
+
+    renderPage(<EmailTemplatesPage />)
+    await userEvent.click(await screen.findByRole('button', { name: /^edit|تعديل/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^cancel|إلغاء/i }))
+
+    expect(recorded.every((r) => r.method === 'GET')).toBe(true)
+    expect(screen.queryByRole('button', { name: /^save|حفظ/i })).not.toBeInTheDocument()
+  })
 })
