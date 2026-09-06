@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest } from '../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -32,7 +32,7 @@ describe('SearchPage (SCR-906)', () => {
   afterEach(() => restore?.())
 
   it('does not query until the form is submitted', async () => {
-    const requests: { url: string }[] = []
+    const requests: RecordedRequest[] = []
     restore = mockFetch({ '/api/v1/search': { query: 'catering', hits: [hit()], truncated: false } }, requests)
 
     renderPage(<SearchPage />)
