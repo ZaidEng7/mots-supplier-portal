@@ -164,10 +164,13 @@ function StaffAccounts() {
     // The two refusals worth naming: acting on your own account, and the last administrator. Both are
     // things an administrator has to understand rather than retry.
     const code = error instanceof SupplierApiError ? (error.code ?? '') : ''
-    const message =
-      code === 'CANNOT_ACT_ON_OWN_ACCOUNT' ? t('staff.errors.cannotActOnSelf')
-        : code === 'WOULD_LOCK_OUT_ADMINISTRATION' ? t('staff.errors.wouldLockOutAdministration')
-          : fallback
+    // A lookup rather than a ternary chain: each server code maps to one message, and the next code
+    // to be added is a row instead of another level of nesting.
+    const messages: Record<string, string> = {
+      CANNOT_ACT_ON_OWN_ACCOUNT: t('staff.errors.cannotActOnSelf'),
+      WOULD_LOCK_OUT_ADMINISTRATION: t('staff.errors.wouldLockOutAdministration'),
+    }
+    const message = messages[code ?? ''] ?? fallback
     notify({ kind: 'danger', title: message })
   }
 

@@ -130,7 +130,7 @@ below came into existence through the interface, in the order a real procurement
 ![Email verified](screenshots/12-supplier_admin-email-verified.png)
 
 - **Persona:** supplier_admin
-- **Screen:** Email verified — `/verify-email?token=ExUkvdIIMGPbtyB5bhhKNVIz63jg85yphYMugPnew7U`
+- **Screen:** Email verified — `/verify-email?token=iA7TpbFcsDpT8hDb11yvRZ4_cpXTIXfTBnMxUcohjM4`
 - **What just happened:** The address is proven and the account is live. The supplier is in Draft: registered, not yet allowed to bid.
 - **What the user does next:** Sign in and complete the company profile.
 

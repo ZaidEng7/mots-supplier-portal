@@ -76,9 +76,14 @@ function totp(secret) {
 function base32(s) {
   const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
   let bits = ''
-  for (const c of s.replace(/=+$/, '')) bits += A.indexOf(c).toString(2).padStart(5, '0')
+  // Padding stripped without a regex. `/=+$/` backtracks super-linearly on a long run of '=' - it
+  // can never happen with a 32-character secret, but a scanner cannot know that and it is not worth
+  // arguing with over one line.
+  let end = s.length
+  while (end > 0 && s[end - 1] === '=') end -= 1
+  for (const c of s.slice(0, end)) bits += A.indexOf(c).toString(2).padStart(5, '0')
   const out = []
-  for (let i = 0; i + 8 <= bits.length; i += 8) out.push(parseInt(bits.slice(i, i + 8), 2))
+  for (let i = 0; i + 8 <= bits.length; i += 8) out.push(Number.parseInt(bits.slice(i, i + 8), 2))
   return out
 }
 
@@ -110,7 +115,7 @@ async function mail(predicate, { timeout = 20000 } = {}) {
       const body = m.Content?.Body ?? ''
       const raw = /base64/i.test(enc)
         ? Buffer.from(body, 'base64').toString('utf8')
-        : body.replace(/=\r?\n/g, '').replace(/=3D/g, '=')
+        : body.replaceAll(/=\r?\n/g, '').replaceAll('=3D', '=')
       if (predicate({ to, subject, raw })) return { to, subject, raw }
     }
     await new Promise((r) => setTimeout(r, 800))
@@ -121,7 +126,7 @@ async function mail(predicate, { timeout = 20000 } = {}) {
 function firstLink(raw, pathHint) {
   const m = raw.match(new RegExp(`https?://[^\\s"'<>]*${pathHint}[^\\s"'<>]*`))
   if (!m) throw new Error(`no ${pathHint} link in mail`)
-  return m[0].replace(/&amp;/g, '&')
+  return m[0].replaceAll('&amp;', '&')
 }
 
 /**
@@ -393,7 +398,7 @@ async function act2StaffAccounts(page, ctx) {
     'The staff list, empty apart from the administrator. There is no other way in: registration only ever creates a supplier, so ministry accounts must be invited from here.',
     'Invite each role the procurement needs — officer, manager, evaluator, reviewer and the Ministry viewer.')
 
-  for (const [key, s] of Object.entries(STAFF)) {
+  for (const s of Object.values(STAFF)) {
     await inviteStaff(page, s)
     console.log(`      invited ${s.role} <${s.email}>`)
   }

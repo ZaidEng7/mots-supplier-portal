@@ -9,7 +9,7 @@ import { ApiError, login } from '../api/auth'
 import { useAuthStore } from '../lib/authStore'
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(1),
 })
 
@@ -71,9 +71,11 @@ export function LoginPage() {
     // Keyed on the permission rather than the role name, because the token carries permissions and a second
     // source for "is this an evaluator" would disagree the day a role's grants change.
     const isEvaluator = claims?.permissions.includes('evaluation.score') ?? false
-    const defaultRoute = claims?.supplierId
-      ? '/dashboard'
-      : isEvaluator ? '/evaluation' : '/back-office/dashboard'
+    // Written out rather than nested, because the three cases are three different shells and a
+    // reader should not have to unpick precedence to see which one a persona lands in.
+    let defaultRoute = '/back-office/dashboard'
+    if (claims?.supplierId) defaultRoute = '/dashboard'
+    else if (isEvaluator) defaultRoute = '/evaluation'
     await navigate({ to: search.redirect ?? defaultRoute })
   }
 

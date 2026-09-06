@@ -13,7 +13,7 @@ import { SupplierApiError } from '../api/supplier'
 
 const inviteSchema = z.object({
   fullName: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
 })
 type InviteFormValues = z.infer<typeof inviteSchema>
 

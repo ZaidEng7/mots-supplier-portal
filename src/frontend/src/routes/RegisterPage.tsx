@@ -27,7 +27,7 @@ const schema = z
     registrationNumber: z.string().optional(),
     representativeName: z.string().min(1, 'register.errors.required'),
     representativePhone: z.string().min(1, 'register.errors.required'),
-    email: z.string().email('register.errors.email'),
+    email: z.email('register.errors.email'),
     password: z.string().min(12, 'register.errors.passwordLength'),
     confirmPassword: z.string().min(1, 'register.errors.required'),
   })
