@@ -1638,6 +1638,26 @@ const resources = {
           securityLoadFailed: 'تعذّر تحميل إعدادات الأمان',        // [drafted]
         },
       },
+      // ── SCR-716 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      uiStrings: {
+        title: 'نصوص الواجهة',                                  // [drafted] SCR-716
+        subtitle: 'تعديل صياغة أي نص في الواجهة دون إصدار جديد.',  // [drafted]
+        editTitle: 'تعديل نص',                                  // [drafted]
+        listTitle: 'النصوص المُعدَّلة',                          // [drafted]
+        empty: 'لا توجد تعديلات — تُعرض النصوص كما وردت في النظام', // [drafted]
+        searchHint: 'اكتب حرفين على الأقل للبحث في مفاتيح النصوص.', // [drafted]
+        shipped: 'النص الأصلي',                                 // [drafted]
+        save: 'حفظ التعديل', cancel: 'إلغاء', restore: 'استعادة الأصلي', retry: 'إعادة المحاولة',
+        saved: 'تم حفظ التعديل',                                // [drafted]
+        restored: 'أُعيد النص الأصلي',                           // [drafted]
+        takesEffect: 'يظهر التعديل عند إعادة تحميل الصفحة لكل المستخدمين.', // [drafted]
+        fields: { language: 'اللغة', search: 'بحث في المفاتيح', value: 'النص المُعدَّل', key: 'المفتاح', actions: 'الإجراءات' },
+        errors: {
+          loadFailed: 'تعذّر تحميل التعديلات',                   // [drafted]
+          saveFailed: 'تعذّر حفظ التعديل',                       // [drafted]
+          deleteFailed: 'تعذّرت استعادة النص الأصلي',            // [drafted]
+        },
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -3191,6 +3211,25 @@ const resources = {
           erpLoadFailed: 'Could not load the synchronisation states',
           erpRetryFailed: 'Could not request the sync again',
           securityLoadFailed: 'Could not load the security settings',
+        },
+      },
+      uiStrings: {
+        title: 'Interface text',
+        subtitle: 'Reword any string in the interface without a release.',
+        editTitle: 'Edit a string',
+        listTitle: 'Reworded strings',
+        empty: 'No overrides — the product reads exactly as it was built',
+        searchHint: 'Type at least two characters to search the string keys.',
+        shipped: 'Shipped text',
+        save: 'Save override', cancel: 'Cancel', restore: 'Restore original', retry: 'Try again',
+        saved: 'Override saved',
+        restored: 'Original text restored',
+        takesEffect: 'The change appears for every user on their next page load.',
+        fields: { language: 'Language', search: 'Search keys', value: 'Replacement text', key: 'Key', actions: 'Actions' },
+        errors: {
+          loadFailed: 'Could not load the overrides',
+          saveFailed: 'Could not save the override',
+          deleteFailed: 'Could not restore the original text',
         },
       },
       settings: {

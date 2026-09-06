@@ -441,6 +441,11 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonito
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
+// SCR-716: interface string overrides.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListUiStringOverridesHandler, MotsSupplierPortal.Infrastructure.Admin.ListUiStringOverridesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertUiStringOverrideHandler, MotsSupplierPortal.Infrastructure.Admin.UpsertUiStringOverrideHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteUiStringOverrideHandler, MotsSupplierPortal.Infrastructure.Admin.DeleteUiStringOverrideHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Platform.ISystemStatusHandler, MotsSupplierPortal.Infrastructure.Platform.SystemStatusHandler>();
 builder.Services.AddScoped<IEnrollMfaHandler, EnrollMfaHandler>();
 builder.Services.AddScoped<IConfirmMfaEnrollmentHandler, ConfirmMfaEnrollmentHandler>();
@@ -925,6 +930,7 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
 
 app.MapAdminOverviewEndpoints();
 app.MapOperationsEndpoints();
+app.MapUiStringEndpoints();
 app.MapSystemSettingEndpoints();
 app.MapNotificationTemplateEndpoints();
 app.MapGovernanceEndpoints();

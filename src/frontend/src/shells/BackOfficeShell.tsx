@@ -105,6 +105,12 @@ export function BackOfficeShell({ children }: Props) {
                 {t('adminOverview.title')}
               </Link>
             ) : null}
+            {/* SCR-716. */}
+            {canManageStaff ? (
+              <Link to="/back-office/ui-strings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('uiStrings.title')}
+              </Link>
+            ) : null}
             {/* SCR-721/722. Same gate as the dashboard it drills into - canManageStaff is this shell's
                 stand-in for system_admin, and the endpoints behind the page require the same
                 permission, so a visible link that 403s is not possible here. */}

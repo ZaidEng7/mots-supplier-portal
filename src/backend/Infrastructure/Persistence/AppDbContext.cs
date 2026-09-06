@@ -39,6 +39,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    /// <summary>SCR-716: administrator rewordings of shipped interface strings.</summary>
+    public DbSet<Domain.Configuration.UiStringOverride> UiStringOverrides => Set<Domain.Configuration.UiStringOverride>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
@@ -574,6 +576,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             // The GC job scans by expiry.
             entity.HasIndex(r => r.ExpiresAt);
+        });
+
+        // SCR-716. Same shape and the same reasoning as notification_template below: an absent row means
+        // the shipped string, so nothing is seeded and a fresh database behaves exactly as the bundle does.
+        modelBuilder.Entity<Domain.Configuration.UiStringOverride>(entity =>
+        {
+            entity.ToTable("ui_string_override", "ops");
+            entity.Property(o => o.RowVersion).IsAppManagedVersion();
+            entity.HasKey(o => o.Id);
+            // 200 is generous for a dotted i18n path; the longest in the bundle today is under 60.
+            entity.Property(o => o.Key).HasMaxLength(200).IsRequired();
+            entity.Property(o => o.Language).HasMaxLength(8).IsRequired();
+            // 2000, because an override replaces a whole sentence in some places - SCR-726's read-only
+            // explanation is over 300 characters - and truncating a rewording is worse than allowing a
+            // long one.
+            entity.Property(o => o.Value).HasMaxLength(2000).IsRequired();
+            // Per key PER LANGUAGE: rewording an English label is not rewording the Arabic one.
+            entity.HasIndex(o => new { o.Key, o.Language }).IsUnique();
         });
 
         modelBuilder.Entity<Domain.Notifications.NotificationTemplate>(entity =>
