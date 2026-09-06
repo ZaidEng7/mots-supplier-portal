@@ -105,6 +105,9 @@ export interface Account {
   fullName: string
   email: string
   language: string
+  /** SCR-010: false until the user has picked a language themselves. The stored default cannot say
+   *  this on its own - "ar" is both the default and a legitimate choice. */
+  languageChosen: boolean
 }
 
 export async function getAccount(): Promise<Account> {
@@ -119,6 +122,18 @@ export async function updateAccount(fullName: string, language: string): Promise
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fullName, language }),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)
+  return JSON.parse(text) as Account
+}
+
+/** SCR-010's first-run choice. One field, and it stamps the account as having chosen. */
+export async function chooseLanguage(language: string): Promise<Account> {
+  const res = await apiFetch('/api/v1/auth/me/language', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language }),
   })
   const text = await res.text()
   if (!res.ok) throw new ApiError(res.status, text ? JSON.parse(text) : null)

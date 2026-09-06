@@ -48,6 +48,19 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
 /// identity comes from the session, and email is not editable - see AccountDto's own note.</summary>
 public sealed record UpdateAccountRequest(string FullName, string Language);
 
+/// <summary>SCR-010. One field, because a first-run chooser asks one question.</summary>
+public sealed record ChooseLanguageRequest(string Language);
+
+public sealed class ChooseLanguageRequestValidator : AbstractValidator<ChooseLanguageRequest>
+{
+    public ChooseLanguageRequestValidator()
+    {
+        // The same two values UpdateAccountRequestValidator accepts and i18n/config.ts's supportedLngs
+        // defines. Duplicated as a rule, not as a list: see UpdateAccountRequestValidator.Supported.
+        RuleFor(x => x.Language).Must(l => l is "ar" or "en").WithMessage("Language must be one of: ar, en.");
+    }
+}
+
 public sealed class UpdateAccountRequestValidator : AbstractValidator<UpdateAccountRequest>
 {
     /// <summary>The two languages the product ships and the two values i18n/config.ts defines. Not a
@@ -316,6 +329,24 @@ public static class AuthEndpoints
         })
         .RequireAuthorization()
         .WithName("UpdateAccount");
+
+        // SCR-010: the first-login language choice, recorded so the chooser is shown once.
+        group.MapPost("/me/language", async (
+            ChooseLanguageRequest request,
+            IValidator<ChooseLanguageRequest> validator,
+            IChooseLanguageHandler handler,
+            IScopeContext scope,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+            if (scope.UserId is not { } userId) return Results.Unauthorized();
+
+            var updated = await handler.HandleAsync(new ChooseLanguageCommand(userId, request.Language), ct);
+            return updated is null ? Results.Unauthorized() : Results.Ok(updated);
+        })
+        .RequireAuthorization()
+        .WithName("ChooseLanguage");
 
         // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (

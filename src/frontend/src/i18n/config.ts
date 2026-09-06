@@ -1573,6 +1573,11 @@ const resources = {
           },
         },
       },
+      // ── SCR-010 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      firstRunLocale: {
+        derived: 'تتبع الأرقام لغة الواجهة. لا يوفّر النظام حالياً تحويل العملات، فتُعرض كل قيمة بعملتها الأصلية.', // [drafted]
+        failed: 'تعذّر حفظ اختيارك. حاول مرة أخرى.',            // [drafted]
+      },
       settings: {
         title: 'إعدادات الحساب',
         // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
@@ -3064,6 +3069,10 @@ const resources = {
             action: 'Go to account',
           },
         },
+      },
+      firstRunLocale: {
+        derived: 'Numerals follow the interface language. Amounts are shown in their own currency — the system does not convert between currencies.',
+        failed: 'Could not save your choice. Please try again.',
       },
       settings: {
         title: 'Account Settings',

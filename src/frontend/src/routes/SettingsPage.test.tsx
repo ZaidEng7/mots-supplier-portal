@@ -14,7 +14,7 @@ const { useAuthStore } = await import('../lib/authStore')
  * supplier's screen while presenting nobody's session.
  */
 /** SCR-902's read, which every test on this page now performs. */
-const account = { '/api/v1/auth/me': { fullName: 'Layla Haddad', email: 'supplier@example.test', language: 'en' } }
+const account = { '/api/v1/auth/me': { fullName: 'Layla Haddad', email: 'supplier@example.test', language: 'en', languageChosen: true } }
 
 function signInAsSupplier() {
   useAuthStore.setState({

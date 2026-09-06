@@ -13,7 +13,10 @@ namespace MotsSupplierPortal.Application.Auth;
 /// numerals, contact" and not email. Shown so the user can see which address their notifications go
 /// to; not editable, because the alternative is inventing an identity-change lifecycle.</para>
 /// </summary>
-public sealed record AccountDto(string FullName, string Email, string Language);
+/// <param name="LanguageChosen">SCR-010: false until the user has picked a language for themselves.
+/// The default "ar" cannot say this on its own - it is indistinguishable from a deliberate choice of
+/// Arabic - and a first-run chooser needs exactly this one fact.</param>
+public sealed record AccountDto(string FullName, string Email, string Language, bool LanguageChosen);
 
 /// <summary>
 /// SCR-902's write. Both fields are the user's own, so there is no id in the command: the identity
@@ -21,6 +24,11 @@ public sealed record AccountDto(string FullName, string Email, string Language);
 /// anyone.
 /// </summary>
 public sealed record UpdateAccountCommand(Guid UserId, string FullName, string Language);
+
+/// <summary>SCR-010's write: the first-run chooser sets a language and nothing else. Separate from
+/// UpdateAccountCommand because a first-run screen has no name to send, and passing the name it has
+/// not asked for would mean inventing or echoing one.</summary>
+public sealed record ChooseLanguageCommand(Guid UserId, string Language);
 
 public interface IGetAccountHandler
 {
@@ -30,4 +38,9 @@ public interface IGetAccountHandler
 public interface IUpdateAccountHandler
 {
     Task<AccountDto?> HandleAsync(UpdateAccountCommand command, CancellationToken ct);
+}
+
+public interface IChooseLanguageHandler
+{
+    Task<AccountDto?> HandleAsync(ChooseLanguageCommand command, CancellationToken ct);
 }

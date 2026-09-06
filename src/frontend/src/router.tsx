@@ -19,6 +19,7 @@ import { useAuthStore } from './lib/authStore'
 import i18n from 'i18next'
 import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
+import { FirstRunLocale } from './components/FirstRunLocale'
 import { refresh, getAccount } from './api/auth'
 
 // Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
@@ -114,6 +115,9 @@ const rootRoute = createRootRoute({
       {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
           re-authenticating does not remount the route underneath and discard the work it is protecting. */}
       <SessionExpiredOverlay />
+      {/* SCR-010. Below the expiry overlay in stacking order (z-40 against z-50): if a session lapses
+          while the language question is open, the expiry is the one that has to be answered first. */}
+      <FirstRunLocale />
     </Suspense>
   ),
   notFoundComponent: () => <ErrorBoundaryScreen code="404" />,
