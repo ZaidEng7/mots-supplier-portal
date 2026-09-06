@@ -82,7 +82,23 @@ export function RfqDetailPage() {
     queryFn: () => suggestInvitationCandidates(referenceCode),
   })
   const rfq = rfqQuery.data
-  const evaluationEligible = !!rfq && ['SubmissionClosed', 'UnderEvaluation'].includes(rfq.state)
+  /**
+   * Where the evaluation panel is shown - and it used to be two states, which was a dead end.
+   *
+   * <p>Consolidating advances the RFQ to Shortlisting. The panel disappeared at that point, taking FINALIZE
+   * with it - and recommending an award refuses until the evaluation is finalized ("Cannot recommend an award:
+   * the evaluation has not been finalized"). So a tender that had been scored and consolidated could not be
+   * carried any further through the UI at all. Found by walking one: the award screen offered a winner and the
+   * server refused, with the button that would have unblocked it on a panel no longer rendered.</p>
+   *
+   * <p>Every state from SubmissionClosed onward that is not terminal: the evaluation still exists, its results
+   * are still what the award is being decided from, and Reopen is still a legitimate action. Cancelled and
+   * Completed are excluded - nothing is left to do to an evaluation on either.</p>
+   */
+  const evaluationEligible = !!rfq && [
+    'SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting',
+    'Recommendation', 'AwardApproval', 'Awarded',
+  ].includes(rfq.state)
   const evaluationQuery = useQuery({
     queryKey: ['evaluation', referenceCode],
     queryFn: () => getEvaluation(referenceCode),
@@ -943,7 +959,9 @@ export function RfqDetailPage() {
                       {[...evaluation.results].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)).map((r) => (
                         <TableRow key={r.proposalId}>
                           <TableCell>{r.rank ?? '—'}</TableCell>
-                          <TableCell>{r.proposalId}</TableCell>
+                          {/* §3's reference code, with the internal id only as a fallback. This cell was the
+                              GUID - on the screen where a tender is decided. */}
+                          <TableCell>{r.proposalReferenceCode ?? r.proposalId}</TableCell>
                           <TableCell>
                             <Badge tone={r.technicallyQualified ? 'success' : 'danger'}>
                               {r.technicallyQualified ? t('evaluation.qualifiedYes') : t('evaluation.qualifiedNo')}

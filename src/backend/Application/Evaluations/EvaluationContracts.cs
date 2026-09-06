@@ -37,9 +37,13 @@ public interface IListEvaluatorCandidatesHandler
 
 /// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
 /// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>
+/// <param name="ProposalReferenceCode">§3's opaque public identifier for the bid. Added because the results
+/// table was rendering <paramref name="ProposalId"/> - the internal GUID - on the screen where a manager
+/// decides who wins a tender. Null only if the proposal row has gone, which the screen falls back on.</param>
 public sealed record ConsolidatedResultDto(
-    Guid ProposalId, bool TechnicallyQualified, decimal TechnicalWeightedScore, decimal? FinancialWeightedScore,
-    decimal WeightedTotal, int? Rank, bool TieUnresolved = false, string? TieResolutionReason = null);
+    Guid ProposalId, string? ProposalReferenceCode, bool TechnicallyQualified, decimal TechnicalWeightedScore,
+    decimal? FinancialWeightedScore, decimal WeightedTotal, int? Rank, bool TieUnresolved = false,
+    string? TieResolutionReason = null);
 
 /// <summary>A-1: a person breaks a tie the rules could not, and says why. Addressed by the proposal's
 /// PUBLIC code, not its GUID - §3 keeps internal identifiers out of payloads, and a caller that has

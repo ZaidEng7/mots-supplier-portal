@@ -36,6 +36,41 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     // ---- the read half -------------------------------------------------------------------------
 
     /// <summary>
+    /// §8.1's tag identifies the REPRESENTATION, not only the row - so it has to change when the response's
+    /// shape does.
+    ///
+    /// <para>The tag encoded the row version and nothing else, so adding a field to a DTO changed no tag: after
+    /// a deploy, a client holding a cached body for an unchanged row kept that body and the new field was
+    /// invisible to it. Found while verifying a one-line addition - the API returned the new field to curl and
+    /// the browser rendered the old shape, because its cached body still matched. The build discriminator is
+    /// what makes that stop.</para>
+    ///
+    /// <para>The version half must still be readable, because <c>If-Match</c> depends on it - a client that
+    /// read before a deploy and writes after it is making a legitimate claim about the row.</para>
+    /// </summary>
+    [Fact]
+    public async Task An_entity_tag_carries_the_build_as_well_as_the_row_version()
+    {
+        var (client, _) = await VerifiedSupplierAsync($"Build{Guid.NewGuid():N}"[..12]);
+
+        var read = await client.GetAsync("/api/v1/suppliers/me");
+        var tag = read.Headers.ETag!.ToString();
+
+        tag.Trim('"').Should().Contain(".", "the tag is <version>.<build>; without the build half a cached body " +
+            "survives a deploy that changed the response's shape");
+
+        // And the version half is still recoverable, or every guarded write breaks.
+        ETag.TryParse(tag, out var version).Should().BeTrue();
+        version.Should().BeGreaterThan(0u);
+
+        // A tag from an older build, same row: still parses to the same version, so If-Match keeps working
+        // across a deployment rather than answering 412 over a suffix.
+        var withoutBuild = $"\"{tag.Trim('"').Split('.')[0]}\"";
+        ETag.TryParse(withoutBuild, out var legacyVersion).Should().BeTrue();
+        legacyVersion.Should().Be(version);
+    }
+
+    /// <summary>
     /// §8.1's BROWSER half: the version a read returns has to be readable by the script that will
     /// send it back.
     ///

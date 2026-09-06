@@ -23,13 +23,19 @@ internal static class EvaluationDtoMapper
     /// <param name="names">Evaluator user id to display name. Passed in rather than looked up here because
     /// this mapper is static and has no DbContext - and the alternative, a GUID on the screen, is what a
     /// manager was actually reading before batch 11.</param>
+    /// <param name="proposalCodes">Proposal id to §3 reference code. Same reason as <paramref name="names"/>:
+    /// the alternative is a GUID on the screen where a tender is decided.</param>
     public static EvaluationDto ToDto(
-        EvaluationAggregate evaluation, Rfq rfq, IReadOnlyDictionary<Guid, string>? names = null) => new(
+        EvaluationAggregate evaluation, Rfq rfq,
+        IReadOnlyDictionary<Guid, string>? names = null,
+        IReadOnlyDictionary<Guid, string>? proposalCodes = null) => new(
         evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
         [.. evaluation.Criteria.Select(ToCriterionDto)],
         [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(
             a.EvaluatorUserId, names?.GetValueOrDefault(a.EvaluatorUserId), a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
-        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(r.ProposalId, r.TechnicallyQualified, r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
+        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(
+            r.ProposalId, proposalCodes?.GetValueOrDefault(r.ProposalId), r.TechnicallyQualified,
+            r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
         evaluation.RowVersion);
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
@@ -322,7 +328,14 @@ public sealed class GetEvaluationHandler(AppDbContext db, IScopeContext scope) :
             .Where(u => assignedIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
 
-        return EvaluationDtoMapper.ToDto(loaded.Value.Evaluation, loaded.Value.Rfq, names);
+        // And the proposals' §3 reference codes. The consolidated results table was rendering the internal
+        // GUID on the screen where a manager decides who wins.
+        var resultIds = loaded.Value.Evaluation.Results.Select(r => r.ProposalId).ToList();
+        var proposalCodes = await db.Proposals.AsNoTracking()
+            .Where(p => resultIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.ReferenceCode, ct);
+
+        return EvaluationDtoMapper.ToDto(loaded.Value.Evaluation, loaded.Value.Rfq, names, proposalCodes);
     }
 }
 

@@ -186,8 +186,17 @@ export function AwardPage() {
             <p style={{ color: 'var(--color-text-secondary)' }}>{t('award.noQualifiedProposals')}</p>
           ) : (
             <div className="flex flex-col gap-2">
+              {/* The proposal's §3 code in the label. "Rank 1 — 86.00" identifies a row on this screen and
+                  nothing outside it; a manager recommending a winner, and anyone later reading the award file,
+                  needs the bid it refers to. The code is not the bidder's name, so this discloses nothing the
+                  seal withholds. */}
               <Select value={winningProposalId} onValueChange={setWinningProposalId} placeholder={t('award.selectWinner')}
-                options={qualifiedResults.map((r) => ({ value: r.proposalId, label: t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) }) }))} />
+                options={qualifiedResults.map((r) => ({
+                  value: r.proposalId,
+                  label: r.proposalReferenceCode
+                    ? `${r.proposalReferenceCode} · ${t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) })}`
+                    : t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) }),
+                }))} />
               <Input aria-label={t('award.justificationEn')} placeholder={t('award.justificationEn')} value={justificationEn} onChange={(e) => setJustificationEn(e.target.value)} />
               <Input aria-label={t('award.justificationAr')} placeholder={t('award.justificationAr')} value={justificationAr} onChange={(e) => setJustificationAr(e.target.value)} />
               <Button size="sm" className="self-start" isLoading={recommendMutation.isPending}

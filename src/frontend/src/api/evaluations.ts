@@ -30,6 +30,9 @@ export interface EvaluationAssignment {
 
 export interface ConsolidatedResult {
   proposalId: string
+  /** §3's opaque public identifier. The table used to render the internal GUID on the screen where a
+   *  manager decides who wins a tender. */
+  proposalReferenceCode: string | null
   technicallyQualified: boolean
   technicalWeightedScore: number
   financialWeightedScore: number | null

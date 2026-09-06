@@ -154,7 +154,11 @@ public static class ConcurrencyEndpoints
         if (header.Trim() == "*") return true;
 
         // A list of candidates is legal here, unlike If-Match: any one matching means not modified.
-        return header.Split(',').Any(candidate => ETag.TryParse(candidate, out var v) && v == rowVersion);
+        //
+        // MatchesCurrentRepresentation, not TryParse: a 304 tells the caller the body it already has is still
+        // right, and a body from an older build is not - a field added to a DTO moves no row version, so
+        // comparing versions alone kept warm clients on the old shape indefinitely. See ETag's own note.
+        return header.Split(',').Any(candidate => ETag.MatchesCurrentRepresentation(candidate, rowVersion));
     }
 
     private static IResult Problem(HttpContext http, int status, string type, string title, string code, string detail) =>
