@@ -101,6 +101,27 @@ decision they made has no route to it that does not involve typing a reference c
 Not the same as the batch-12 class: the screen is linked, it is the *list* that is missing. The
 router guard would not catch it, and did not.
 
+### F-7 — Nothing on a tender can be corrected, only removed and re-added
+**Open.** Sized **S**, and it is F-4's sibling rather than a separate idea.
+
+Every editable collection on the tender detail screen offers **Remove** and nothing else. Items,
+requirements and attachments are all add-or-delete: a line item with the wrong quantity, a
+requirement with a typo, an attachment with the wrong file — each has to be deleted and typed again.
+
+Seen for real: an officer meant to add one line item reading "Hot lunch, primary school, per pupil
+per day" with a quantity of 180,000, and ended up with three items — "Hot lunch", "primary school",
+"per pupil per day" — each at quantity 1,000. Nothing on the screen corrects any of it, and by the
+time it was noticed the tender had moved to `InternalReview`, where even Remove is gone.
+
+The recovery that does exist is the manager's **Return for edits**, which puts the tender back in
+`Draft` — a stage-gate meant for "this tender is wrong, think again", pressed here because a number
+was mistyped. It works, and using it for this is out of proportion.
+
+Same shape as F-4, one level down: F-4 is the tender's own fields having no editor, this is its
+children having none. Whoever builds one should build both, and the API side is worth checking first
+— `PUT /rfqs/{code}` already exists with nothing calling it, and the item and requirement routes may
+be in the same state.
+
 ## Also confirmed, already known
 
 **D-66 — the offering category checkbox does not re-tick until the profile is re-read.** Recorded in
