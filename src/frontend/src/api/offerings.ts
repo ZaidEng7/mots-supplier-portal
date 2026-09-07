@@ -64,7 +64,28 @@ export async function createOffering(payload: OfferingPayload): Promise<Offering
   return parseOrThrow(res)
 }
 
+/**
+ * The single-offering read, which exists to ISSUE the precondition the two writes below require.
+ *
+ * <p>`PUT /offerings/{id}` and `POST /offerings/{id}/deactivate` both declare RequireIfMatch, and the
+ * only route that emits an offering's ETag is this one - the LIST does not, and could not usefully:
+ * a collection's version is not any item's version, so filing one under the collection path would
+ * produce a 412 rather than a 428. Nothing called this, so every edit and every deactivation from
+ * the catalogue answered 428 and nothing saved.</p>
+ *
+ * <p>This is the batch-3 Offering lesson a second time, from the other side: back then the guard
+ * arrived without a route that could satisfy it, and the item GET was added to fix that. The route
+ * has been there ever since; the client just never used it.</p>
+ */
+export async function getOffering(offeringId: string): Promise<Offering> {
+  const res = await apiFetch(`/api/v1/suppliers/me/offerings/${offeringId}`)
+  return parseOrThrow(res)
+}
+
 export async function updateOffering(offeringId: string, payload: OfferingPayload): Promise<Offering> {
+  // Read first, for the version. apiFetch files this read's ETag under the offering's own path, which
+  // is the prefix the write below walks up to.
+  await getOffering(offeringId)
   const res = await apiFetch(`/api/v1/suppliers/me/offerings/${offeringId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -74,6 +95,7 @@ export async function updateOffering(offeringId: string, payload: OfferingPayloa
 }
 
 export async function deactivateOffering(offeringId: string): Promise<Offering> {
+  await getOffering(offeringId)
   const res = await apiFetch(`/api/v1/suppliers/me/offerings/${offeringId}/deactivate`, { method: 'POST' })
   return parseOrThrow(res)
 }

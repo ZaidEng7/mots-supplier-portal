@@ -4,6 +4,7 @@ import { clearETags } from './etags'
 import { getProposal, patchProposal } from './proposals'
 import { getReviewerSupplierView } from './review'
 import { approveDocument } from './documents'
+import { deactivateOffering } from './offerings'
 
 /**
  * T-030 split (2). The store's prefix walk is unit-tested in `etags.test.ts`; what is asserted here is
@@ -185,5 +186,45 @@ describe('the reviewer read and the document write', () => {
     await approveDocument('SUP-2026-000002', 'DOC-2026-000009')
 
     expect(calls[0].ifMatch).toBeNull()
+  })
+})
+
+/**
+ * Offerings, and the fourth appearance of the same shape in one afternoon.
+ *
+ * Found by a supplier pressing Deactivate on their own offering: 428, "this resource requires the
+ * ETag of the version you are editing". The catalogue lists offerings through a GET that issues no
+ * ETag, and both writes on that row - edit and deactivate - declare RequireIfMatch. The one route
+ * that does issue an offering's version is the single-item GET, and nothing called it.
+ */
+describe('offering writes take their version from the item read', () => {
+  let calls: { url: string; method: string; ifMatch: string | null }[]
+
+  beforeEach(() => {
+    clearETags()
+    calls = []
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stubOfferingServer() {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      calls.push({ url: String(url), method: init?.method ?? 'GET', ifMatch: headers.get('If-Match') })
+      return new Response(JSON.stringify({ id: 'of-1', nameEn: 'Hot school meals' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"AAAABQ.a6fe2f2e"' },
+      })
+    }))
+  }
+
+  it('reads the offering for its version before deactivating it', async () => {
+    stubOfferingServer()
+
+    await deactivateOffering('of-1')
+
+    expect(calls[0].method).toBe('GET')
+    expect(calls[1].url).toContain('/offerings/of-1/deactivate')
+    // Null before the fix: the list read carries no ETag, so the walk found nothing.
+    expect(calls[1].ifMatch).toBe('"AAAABQ.a6fe2f2e"')
   })
 })
