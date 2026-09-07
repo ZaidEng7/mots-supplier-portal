@@ -1,4 +1,5 @@
 import { problemMessage, type ProblemDetails } from './problem'
+import { rememberETag } from './etags'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 import type { DocumentTypeStatus } from './documents'
@@ -81,6 +82,16 @@ export async function unassignReviewItem(referenceCode: string): Promise<ReviewQ
 
 export async function getReviewerSupplierView(referenceCode: string): Promise<ReviewerSupplierView> {
   const res = await apiFetch(`/api/v1/review/${referenceCode}`)
+  // The reviewer READS the application at /review/{code} and writes its documents at
+  // /suppliers/{code}/documents/{doc}/approve. Both address the same supplier aggregate, and both
+  // document transitions declare RequireIfMatch - but the ETag store walks a path UPWARDS and never
+  // sideways, so a version filed under /review/... is unreachable from a write under /suppliers/...
+  // Every document approval and rejection answered 428 for that reason, on the one screen where a
+  // reviewer decides on documents.
+  //
+  // Filed here rather than in the transport because this function is the only thing that knows the
+  // two paths name one resource - the same reasoning as getProposal (D-47) and profileFrom (D-60).
+  rememberETag(`/api/v1/suppliers/${referenceCode}`, res.headers.get('ETag'))
   return parseOrThrow(res)
 }
 

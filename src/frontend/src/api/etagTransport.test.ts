@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFetch } from './auth'
 import { clearETags } from './etags'
 import { getProposal, patchProposal } from './proposals'
+import { getReviewerSupplierView } from './review'
+import { approveDocument } from './documents'
 
 /**
  * T-030 split (2). The store's prefix walk is unit-tested in `etags.test.ts`; what is asserted here is
@@ -130,6 +132,57 @@ describe('the proposal read files its version where the writes will look for it'
     // The control. Without this the assertion above would pass just as happily if the transport
     // attached some version to every write regardless of what was read.
     await patchProposal('PRP-2026-000002', { commercialTerms: { warranty: '6 months' } })
+
+    expect(calls[0].ifMatch).toBeNull()
+  })
+})
+
+/**
+ * The same shape again, one aggregate over: the reviewer reads an application at `/review/{code}`
+ * and approves its documents at `/suppliers/{code}/documents/{doc}/approve`.
+ *
+ * Found by a reviewer pressing Approve on a document and being told "this resource requires the ETag
+ * of the version you are editing". Both document transitions declare RequireIfMatch, the read does
+ * issue an ETag, and the store walks a path upwards and never sideways - so the version sat under
+ * `/api/v1/review/...` where a write under `/api/v1/suppliers/...` could not reach it. Every document
+ * approval and rejection answered 428, on the one screen where a reviewer decides on documents.
+ */
+describe('the reviewer read and the document write', () => {
+  let calls: { url: string; ifMatch: string | null }[]
+
+  beforeEach(() => {
+    clearETags()
+    calls = []
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stubReviewServer() {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      calls.push({ url: String(url), ifMatch: headers.get('If-Match') })
+      return new Response(JSON.stringify({ supplier: {}, documents: [], annotationHistory: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"AAAAJQ.a6fe2f2e"' },
+      })
+    }))
+  }
+
+  it('sends If-Match when approving a document read through the review view', async () => {
+    stubReviewServer()
+
+    await getReviewerSupplierView('SUP-2026-000001')
+    await approveDocument('SUP-2026-000001', 'DOC-2026-000001')
+
+    expect(calls[0].url).toContain('/api/v1/review/SUP-2026-000001')
+    expect(calls[1].url).toContain('/api/v1/suppliers/SUP-2026-000001/documents/DOC-2026-000001/approve')
+    // Null before the fix.
+    expect(calls[1].ifMatch).toBe('"AAAAJQ.a6fe2f2e"')
+  })
+
+  it('does not invent a version for a supplier whose application was never opened', async () => {
+    stubReviewServer()
+
+    await approveDocument('SUP-2026-000002', 'DOC-2026-000009')
 
     expect(calls[0].ifMatch).toBeNull()
   })
