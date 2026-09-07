@@ -24,3 +24,28 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {}
 }
+
+// A request path containing "undefined" is always a defect, and never one the test asserting the
+// happy path will notice.
+//
+// This exists because of a real one: the server sends a document's public code as `documentId` and
+// the client's own interface declared it as `id`, so `latestDocument.id` was `undefined` on every
+// screen that showed a document. Download, approve and reject all built a URL from it and asked the
+// API for `/api/v1/documents/undefined/download-url`. The API answered 404, correctly. Nothing
+// failed: TypeScript was satisfied because the type was wrong about the wire, and every test passed
+// because the FIXTURES were written from that same wrong type.
+//
+// So the guard is not on the type - it is on the traffic. Any fetch whose path carries the literal
+// "undefined" fails the test that made it, naming the URL, whatever the assertion was about.
+const realFetch = globalThis.fetch
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (/\/undefined(\/|\?|$)/.test(url)) {
+    throw new Error(
+      `a request was built from an undefined value: ${url}\n` +
+      '  Something read a field the server does not send under that name. Check the client type ' +
+      'against the API response rather than against the fixture.',
+    )
+  }
+  return realFetch(input as RequestInfo, init)
+}) as typeof fetch

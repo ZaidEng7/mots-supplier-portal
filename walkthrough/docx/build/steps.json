@@ -1,0 +1,1975 @@
+[
+ {
+  "num": "01",
+  "title": "Landing page",
+  "persona": "anonymous",
+  "screen": "Landing page",
+  "route": "/",
+  "happened": "The portal answers with a live health check and the currencies the system booted with. This is a clean database: reference data only.",
+  "next": "Click Sign in, or About in the footer to see which build is deployed.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/01-anonymous-landing-page.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "02",
+  "title": "About",
+  "persona": "anonymous",
+  "screen": "About",
+  "route": "/about",
+  "happened": "Reached by clicking the footer, not by typing the address \u2014 this screen had no link to it until batch 12. It names the version and the exact commit deployed.",
+  "next": "Quote the build reference when reporting a problem. Go back and sign in.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/02-anonymous-about.png",
+    "w_in": 6.3,
+    "h_in": 3.9375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "03",
+  "title": "Choose your language",
+  "persona": "system_admin",
+  "screen": "Choose your language",
+  "route": "/evaluation",
+  "happened": "SCR-010, asked once and only of someone who has not answered it. The product ships Arabic-first, so this is the first thing a new account sees, in both languages at once \u2014 a language chooser written only in the language you cannot read is no use.",
+  "next": "Pick a language. The choice is stored against the account, so it is not asked again on any device.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/03-system_admin-choose-your-language.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "04",
+  "title": "Back-office landing",
+  "persona": "system_admin",
+  "screen": "Back-office landing",
+  "route": "/evaluation",
+  "happened": "Signed in as the bootstrap administrator \u2014 the only account that exists on a fresh database. It required a six-digit authenticator code: system_admin is the one role for which MFA is mandatory.",
+  "next": "Open Staff to create the people who actually run a tender.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/04-system_admin-back-office-landing.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "05",
+  "title": "Organizations (empty)",
+  "persona": "system_admin",
+  "screen": "Organizations (empty)",
+  "route": "/back-office/organizations",
+  "happened": "No buying bodies yet. An organization is the unit a tender belongs to and the boundary every query is scoped by, so nothing procurement-shaped can exist before one does.",
+  "next": "Create the directorate that will run this tender.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/05-system_admin-organizations-empty.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "06",
+  "title": "Buying body created",
+  "persona": "system_admin",
+  "screen": "Buying body created",
+  "route": "/back-office/organizations",
+  "happened": "The directorate exists. Staff invited into it inherit its scope, and a tender they raise belongs to it.",
+  "next": "Invite the people who will run the procurement.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/06-system_admin-buying-body-created.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "07",
+  "title": "Staff",
+  "persona": "system_admin",
+  "screen": "Staff",
+  "route": "/back-office/staff",
+  "happened": "The staff list, empty apart from the administrator. There is no other way in: registration only ever creates a supplier, so ministry accounts must be invited from here.",
+  "next": "Invite each role the procurement needs \u2014 officer, manager, evaluator, reviewer and the Ministry viewer.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/07-system_admin-staff.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "08",
+  "title": "Staff after invitations",
+  "persona": "system_admin",
+  "screen": "Staff after invitations",
+  "route": "/back-office/staff",
+  "happened": "Six invitations sent. Each recipient gets an email with a single-use link; nobody has a password until they set one, so an unaccepted invitation is not a live account.",
+  "next": "Each person opens their invitation and sets a password.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/08-system_admin-staff-after-invitations.png",
+    "w_in": 6.3,
+    "h_in": 4.983124999999999,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "09",
+  "title": "Register",
+  "persona": "anonymous",
+  "screen": "Register",
+  "route": "/register",
+  "happened": "The only self-service account creation in the product, and it always produces a supplier. Ministry staff cannot register; they are invited.",
+  "next": "Fill in the company name in both languages and an email, then submit.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/09-anonymous-register.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "10",
+  "title": "Register \u2014 filled in",
+  "persona": "anonymous",
+  "screen": "Register \u2014 filled in",
+  "route": "/register",
+  "happened": "Every required field answered. The company name is asked in both languages because the tender record it will appear on is bilingual.",
+  "next": "Submit. Nothing is trusted until the email address is proven.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/10-anonymous-register-filled-in.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "11",
+  "title": "Registered \u2014 check your email",
+  "persona": "supplier_admin",
+  "screen": "Registered \u2014 check your email",
+  "route": "/register",
+  "happened": "The account exists but cannot sign in yet. Nothing is trusted until the address is proven.",
+  "next": "Open the verification email and follow its link.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/11-supplier_admin-registered-check-your-email.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "12",
+  "title": "Email verified",
+  "persona": "supplier_admin",
+  "screen": "Email verified",
+  "route": "/verify-email?token=iA7TpbFcsDpT8hDb11yvRZ4_cpXTIXfTBnMxUcohjM4",
+  "happened": "The address is proven and the account is live. The supplier is in Draft: registered, not yet allowed to bid.",
+  "next": "Sign in and complete the company profile.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/12-supplier_admin-email-verified.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "13",
+  "title": "Supplier dashboard (new account)",
+  "persona": "supplier_admin",
+  "screen": "Supplier dashboard (new account)",
+  "route": "/dashboard",
+  "happened": "The supplier can sign in now. There is no tender activity yet and the screen says so rather than showing empty widgets: what it offers instead is the completeness of the profile that stands between this account and bidding.",
+  "next": "Open Onboarding and fill in the company record.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/13-supplier_admin-supplier-dashboard-new-account.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "14",
+  "title": "Onboarding \u2014 checklist",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 checklist",
+  "route": "/onboarding",
+  "happened": "The checklist is the gate. Each item is a condition the server enforces on submission, so this screen and the refusal cannot disagree.",
+  "next": "Fill in the legal information first.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/14-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.8081249999999995,
+    "same_page": false,
+    "label": "Screen 14, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/14-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.01375,
+    "same_page": false,
+    "label": "Screen 14, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "15",
+  "title": "Onboarding \u2014 legal information saved",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 legal information saved",
+  "route": "/onboarding",
+  "happened": "The legal identity is recorded. This is the block a reviewer checks against the registration certificate.",
+  "next": "Fill in the company profile below it \u2014 currency and the contact phone are both required.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/15-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.8081249999999995,
+    "same_page": false,
+    "label": "Screen 15, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/15-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.01375,
+    "same_page": false,
+    "label": "Screen 15, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "16",
+  "title": "Onboarding \u2014 company profile saved",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 company profile saved",
+  "route": "/onboarding",
+  "happened": "Currency and a reachable contact are recorded. The currency matters later: a proposal is priced in it, and the comparison matrix refuses to convert between currencies it was never told the rate for.",
+  "next": "Add a head-office address, a bank account, and the categories this company supplies.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/16-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.8081249999999995,
+    "same_page": false,
+    "label": "Screen 16, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/16-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.01375,
+    "same_page": false,
+    "label": "Screen 16, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "17",
+  "title": "Onboarding \u2014 contacts",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 contacts",
+  "route": "/onboarding/contacts",
+  "happened": "A primary representative is recorded. This is the person a buyer addresses a clarification to, and the completeness rule requires their phone number specifically \u2014 a supplier nobody can reach mid-tender is one a buyer cannot include.",
+  "next": "Add the head-office address.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/17-supplier_admin-onboarding-contacts.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "18",
+  "title": "Onboarding \u2014 addresses",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 addresses",
+  "route": "/onboarding/addresses",
+  "happened": "A head-office address, which is one of the completeness conditions: an approved supplier with no registered address is one nobody can serve notice on.",
+  "next": "Add the bank account an award would be paid into.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/18-supplier_admin-onboarding-addresses.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "19",
+  "title": "Onboarding \u2014 banking",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 banking",
+  "route": "/onboarding/banking",
+  "happened": "Where an award would be paid. The account number is masked everywhere it is shown again, including on the reviewer's screen.",
+  "next": "Choose the categories this company supplies.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/19-supplier_admin-onboarding-banking.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "20",
+  "title": "Onboarding \u2014 categories",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 categories",
+  "route": "/onboarding/offerings",
+  "happened": "What this company supplies, chosen from the ministry-maintained category list rather than typed. Invitations are matched against these.",
+  "next": "Tick at least one category \u2014 a supplier with none cannot be matched to any tender.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/20-supplier_admin-onboarding-categories.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "21",
+  "title": "Onboarding \u2014 category chosen",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 category chosen",
+  "route": "/onboarding/offerings",
+  "happened": "The category link is recorded and the completeness checklist drops one item.",
+  "next": "Upload the documents the ministry requires before an application can be submitted.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/21-supplier_admin-onboarding-category-chosen.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "22",
+  "title": "Onboarding \u2014 document uploaded",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 document uploaded",
+  "route": "/onboarding",
+  "happened": "The file went to object storage and ClamAV scanned it before it was accepted. That scan is fail-closed by design: with clamd stopped the upload is REFUSED rather than stored unscanned, so a portal that cannot scan does not quietly accept attachments.",
+  "next": "Upload the remaining required documents, giving an expiry date where the type tracks one.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/22-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.8081249999999995,
+    "same_page": false,
+    "label": "Screen 22, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/22-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.01375,
+    "same_page": false,
+    "label": "Screen 22, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "23",
+  "title": "Onboarding \u2014 terms accepted",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 terms accepted",
+  "route": "/onboarding",
+  "happened": "The terms are accepted, recorded against a named version and a timestamp. The tick alone was not the acceptance: a separate button is, so that what is stored is an action somebody took rather than a box that happened to be ticked.",
+  "next": "Every condition is now met. Submit the application.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/23-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.71625,
+    "same_page": false,
+    "label": "Screen 23, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/23-part2.png",
+    "w_in": 6.3,
+    "h_in": 4.92625,
+    "same_page": false,
+    "label": "Screen 23, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "24",
+  "title": "Onboarding \u2014 ready to submit",
+  "persona": "supplier_admin",
+  "screen": "Onboarding \u2014 ready to submit",
+  "route": "/onboarding",
+  "happened": "Every required document is uploaded and scanned. The submit button is offered only now: the server enforces the same list, so a submission that looks possible here is one that will be accepted.",
+  "next": "Submit the application for review.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/24-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.71625,
+    "same_page": false,
+    "label": "Screen 24, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/24-part2.png",
+    "w_in": 6.3,
+    "h_in": 4.92625,
+    "same_page": false,
+    "label": "Screen 24, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "25",
+  "title": "Application submitted",
+  "persona": "supplier_admin",
+  "screen": "Application submitted",
+  "route": "/onboarding",
+  "happened": "The profile is now read-only and sits in the reviewer queue. The supplier cannot edit what is being judged while it is being judged.",
+  "next": "Wait for the ministry reviewer. Sign in as the reviewer to see the other side.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/25-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.418749999999999,
+    "same_page": false,
+    "label": "Screen 25, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/25-part2.png",
+    "w_in": 6.3,
+    "h_in": 4.624375,
+    "same_page": false,
+    "label": "Screen 25, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "26",
+  "title": "Reviewer landing",
+  "persona": "onboarding_reviewer",
+  "screen": "Reviewer landing",
+  "route": "/back-office/dashboard",
+  "happened": "The onboarding reviewer signs in. Their navigation carries exactly two working links \u2014 the review queue and its dashboard \u2014 because supplier.review is the only permission this role holds.",
+  "next": "Open the reviewer dashboard.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/26-onboarding_reviewer-reviewer-landing.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "27",
+  "title": "Reviewer dashboard",
+  "persona": "onboarding_reviewer",
+  "screen": "Reviewer dashboard",
+  "route": "/back-office/review-dashboard",
+  "happened": "SCR-300, and until batch 12 nothing in the app linked to it. It reports the oldest waiting case and the queue age, which is the question a reviewer actually opens the product to answer.",
+  "next": "Open the review queue and take the waiting application.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/27-onboarding_reviewer-reviewer-dashboard.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "28",
+  "title": "Review queue",
+  "persona": "onboarding_reviewer",
+  "screen": "Review queue",
+  "route": "/back-office/review",
+  "happened": "One application waiting \u2014 the one created in act 3. The queue is row-scoped: a reviewer sees applications, never tender data.",
+  "next": "Open the application and check it against its documents.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/28-onboarding_reviewer-review-queue.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "29",
+  "title": "Application detail",
+  "persona": "onboarding_reviewer",
+  "screen": "Application detail",
+  "route": "/back-office/review/SUP-2026-000001",
+  "happened": "The whole submitted profile in one place, with every uploaded document downloadable. This is the screen the completeness rules exist to make answerable.",
+  "next": "Approve, reject, or request more information. Each one demands a written reason.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/29-part1.png",
+    "w_in": 6.3,
+    "h_in": 3.731875,
+    "same_page": false,
+    "label": "Screen 29, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/29-part2.png",
+    "w_in": 6.3,
+    "h_in": 3.9375,
+    "same_page": false,
+    "label": "Screen 29, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "30",
+  "title": "Review started",
+  "persona": "onboarding_reviewer",
+  "screen": "Review started",
+  "route": "/back-office/review/SUP-2026-000001",
+  "happened": "Claimed. The decision controls appear only now, and the queue records who took it - which is what stops two reviewers working the same application without knowing.",
+  "next": "Check the documents, then approve, reject, or ask for more information.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/30-part1.png",
+    "w_in": 6.3,
+    "h_in": 3.73625,
+    "same_page": false,
+    "label": "Screen 30, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/30-part2.png",
+    "w_in": 6.3,
+    "h_in": 3.941875,
+    "same_page": false,
+    "label": "Screen 30, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "31",
+  "title": "Application approved",
+  "persona": "onboarding_reviewer",
+  "screen": "Application approved",
+  "route": "/back-office/review/SUP-2026-000001",
+  "happened": "Approved, with a written reason recorded against the decision. The reason is not decoration: an approval nobody can account for later is the thing an audit trail exists to prevent.",
+  "next": "The supplier is now Active and can be invited to tenders. Sign in as the procurement officer.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/31-part1.png",
+    "w_in": 6.3,
+    "h_in": 3.73625,
+    "same_page": false,
+    "label": "Screen 31, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/31-part2.png",
+    "w_in": 6.3,
+    "h_in": 3.941875,
+    "same_page": false,
+    "label": "Screen 31, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "32",
+  "title": "Offerings (empty)",
+  "persona": "supplier_admin",
+  "screen": "Offerings (empty)",
+  "route": "/offerings",
+  "happened": "Ticking a category during onboarding said what this company does in principle. An offering is the concrete thing it sells, and this is the list a buyer is matched against - the invitation suggestions on a tender are built from OFFERINGS, not from the categories chosen at sign-up.",
+  "next": "Add an offering in the catering category.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/32-supplier_admin-offerings-empty.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "33",
+  "title": "Offering listed",
+  "persona": "supplier_admin",
+  "screen": "Offering listed",
+  "route": "/offerings",
+  "happened": "The company is now findable. A tender whose line items carry this category will suggest this supplier to the officer writing it \u2014 which is the whole mechanism by which a buyer discovers who can bid.",
+  "next": "Back to the officer, who writes the tender.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/33-supplier_admin-offering-listed.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "34",
+  "title": "Evaluation templates (empty)",
+  "persona": "procurement_manager",
+  "screen": "Evaluation templates (empty)",
+  "route": "/back-office/evaluation-templates",
+  "happened": "How bids get scored is decided before any bid exists, and by the manager rather than the officer who writes the tender. A template is reusable and versioned: activating one freezes it, and changing it later forks a new version rather than editing history.",
+  "next": "Create the template this tender will be judged against.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/34-procurement_manager-evaluation-templates-empty.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "35",
+  "title": "Template created (Draft)",
+  "persona": "procurement_manager",
+  "screen": "Template created (Draft)",
+  "route": "/back-office/evaluation-templates",
+  "happened": "The template exists in draft. It scores nothing yet: criteria carry the weights, and the weights have to total 100 before it can be activated.",
+  "next": "Add the criteria bids will be scored on.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/35-procurement_manager-template-created-draft.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "36",
+  "title": "Criteria added, weights total 100",
+  "persona": "procurement_manager",
+  "screen": "Criteria added, weights total 100",
+  "route": "/back-office/evaluation-templates",
+  "happened": "Two criteria across two of the four dimensions the product offers - Technical, Commercial, Compliance and Delivery. The weight total is shown because activation refuses anything but 100 \u2014 a template that does not add up would produce rankings nobody could defend.",
+  "next": "Activate it so a tender can bind it.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/36-procurement_manager-criteria-added-weights-total-100.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "37",
+  "title": "Template activated",
+  "persona": "procurement_manager",
+  "screen": "Template activated",
+  "route": "/back-office/evaluation-templates",
+  "happened": "Activated and now bindable. From here it is frozen: a tender that binds it keeps this exact set of criteria and weights even if a later version is created.",
+  "next": "Hand back to the officer to write the tender.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/37-procurement_manager-template-activated.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "38",
+  "title": "Officer landing",
+  "persona": "procurement_officer",
+  "screen": "Officer landing",
+  "route": "/back-office/dashboard",
+  "happened": "The procurement officer signs in. Their navigation carries the procurement dashboard, the tender list, the offering catalogue and search \u2014 the RFQ-facing half of the back office.",
+  "next": "Open the procurement dashboard, which is this role's home screen.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/38-procurement_officer-officer-landing.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "39",
+  "title": "Procurement dashboard",
+  "persona": "procurement_officer",
+  "screen": "Procurement dashboard",
+  "route": "/back-office/procurement",
+  "happened": "SCR-400, and until batch 12 nothing in the app linked to it. Tenders by state, approvals waiting, deadlines \u2014 the officer's actual home screen, reachable at last by clicking.",
+  "next": "Open the tender list and create one.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/39-procurement_officer-procurement-dashboard.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "40",
+  "title": "Tender list (empty)",
+  "persona": "procurement_officer",
+  "screen": "Tender list (empty)",
+  "route": "/back-office/rfqs",
+  "happened": "No tenders exist yet: this database started empty and everything in it so far was created through these screens.",
+  "next": "Create the first RFQ.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/40-procurement_officer-tender-list-empty.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "41",
+  "title": "Tender created (Draft)",
+  "persona": "procurement_officer",
+  "screen": "Tender created (Draft)",
+  "route": "/back-office/rfqs",
+  "happened": "The tender exists in Draft, with a reference code allocated by the server. Everything on it is editable while it stays in Draft and nothing is visible to a supplier yet.",
+  "next": "Add the line items being bought, and the requirements bidders must answer.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/41-procurement_officer-tender-created-draft.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "42",
+  "title": "Tender detail (Draft)",
+  "persona": "procurement_officer",
+  "screen": "Tender detail (Draft)",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The tender in Draft. Items, requirements, attachments and the evaluation template are all editable here and nowhere else: once it leaves Draft the editing controls disappear rather than failing on use.",
+  "next": "Add the line item being bought.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/42-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.41625,
+    "same_page": false,
+    "label": "Screen 42, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/42-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.621875,
+    "same_page": false,
+    "label": "Screen 42, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "43",
+  "title": "Line item added",
+  "persona": "procurement_officer",
+  "screen": "Line item added",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "One line, priced per pupil per day, with a quantity for the school year. A bid is priced against these lines, so the comparison matrix later compares like with like.",
+  "next": "Add a requirement bidders must answer in words.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/43-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.569375,
+    "same_page": false,
+    "label": "Screen 43, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/43-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.7749999999999995,
+    "same_page": false,
+    "label": "Screen 43, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "44",
+  "title": "Requirement added",
+  "persona": "procurement_officer",
+  "screen": "Requirement added",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "A requirement is answered in prose and scored by an evaluator, which is what separates it from a line item. The two halves of a bid \u2014 the technical answer and the price \u2014 are sealed from each other until consolidation.",
+  "next": "Attach the tender documents suppliers need to read.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/44-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.7225,
+    "same_page": false,
+    "label": "Screen 44, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/44-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.928125,
+    "same_page": false,
+    "label": "Screen 44, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "45",
+  "title": "Tender document attached",
+  "persona": "procurement_officer",
+  "screen": "Tender document attached",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The specification suppliers will bid against. It is scanned on upload like every other file here, and it becomes readable to a supplier only once the tender is published to them.",
+  "next": "Submit the tender for internal review.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/45-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.735625,
+    "same_page": false,
+    "label": "Screen 45, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/45-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.945625,
+    "same_page": false,
+    "label": "Screen 45, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "46",
+  "title": "Evaluation template bound",
+  "persona": "procurement_officer",
+  "screen": "Evaluation template bound",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The tender now carries the criteria it will be judged by, frozen at the version bound. Bidders can see what they are being scored on before they bid, which is the point of binding it this early.",
+  "next": "Submit the tender for internal review.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/46-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.735625,
+    "same_page": false,
+    "label": "Screen 46, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/46-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.945625,
+    "same_page": false,
+    "label": "Screen 46, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "47",
+  "title": "Supplier invited",
+  "persona": "procurement_officer",
+  "screen": "Supplier invited",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Invited by name from the approved list \u2014 a tender cannot be sent to a company that has not been through onboarding. The invitation is also a precondition of review: an approver is shown who the tender is going to.",
+  "next": "Submit the tender for internal review.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/47-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.866875,
+    "same_page": false,
+    "label": "Screen 47, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/47-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.0725,
+    "same_page": false,
+    "label": "Screen 47, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "48",
+  "title": "Submitted for internal review",
+  "persona": "procurement_officer",
+  "screen": "Submitted for internal review",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The tender moves to InternalReview and the officer can no longer edit it. Authorship and approval are separated deliberately: the person who wrote the tender is not the person who lets it out.",
+  "next": "Sign in as the procurement manager to approve it.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/48-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.495,
+    "same_page": false,
+    "label": "Screen 48, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/48-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.700625,
+    "same_page": false,
+    "label": "Screen 48, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "49",
+  "title": "Tender awaiting approval",
+  "persona": "procurement_manager",
+  "screen": "Tender awaiting approval",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The manager sees the same tender with a different set of controls: approve or return for edits, and no way to alter its contents. Reviewing something you can silently change is not a review.",
+  "next": "Approve it.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/49-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.48625,
+    "same_page": false,
+    "label": "Screen 49, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/49-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.691875,
+    "same_page": false,
+    "label": "Screen 49, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "50",
+  "title": "Tender approved",
+  "persona": "procurement_manager",
+  "screen": "Tender approved",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Approved. It is not yet visible to any supplier: approval and publication are separate steps, so a tender can be signed off and released on a chosen date.",
+  "next": "Hand back to the officer to publish and invite.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/50-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.0443750000000005,
+    "same_page": false,
+    "label": "Screen 50, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/50-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.2543750000000005,
+    "same_page": false,
+    "label": "Screen 50, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "51",
+  "title": "Tender published",
+  "persona": "procurement_officer",
+  "screen": "Tender published",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Published. The submission window opens on its own when the start time passes - a scheduled job moves it, not a person - so the tender becomes biddable without anyone having to be at a desk.",
+  "next": "Wait for the window to open, then bid as the supplier.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/51-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.164375,
+    "same_page": false,
+    "label": "Screen 51, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/51-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.369999999999999,
+    "same_page": false,
+    "label": "Screen 51, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "52",
+  "title": "Submission window open",
+  "persona": "procurement_officer",
+  "screen": "Submission window open",
+  "route": "/back-office/rfqs",
+  "happened": "The window opened on its own. A scheduled job moves the tender from Approved to SubmissionOpen when the start time passes - nobody has to be at a desk for bidding to begin.",
+  "next": "Sign in as the invited supplier.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/52-procurement_officer-submission-window-open.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "53",
+  "title": "Invited tenders",
+  "persona": "supplier_admin",
+  "screen": "Invited tenders",
+  "route": "/rfqs",
+  "happened": "The supplier sees the tender because they were invited to it. This list is scoped to invitations: a supplier cannot browse tenders they were not asked to bid on.",
+  "next": "Open it and read what is being bought.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/53-supplier_admin-invited-tenders.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "54",
+  "title": "Tender as the supplier sees it",
+  "persona": "supplier_admin",
+  "screen": "Tender as the supplier sees it",
+  "route": "/rfqs/RFQ-2026-000001",
+  "happened": "The same tender from the other side: the line items, the requirements to answer, the deadline, and the attached specification to download. The evaluation criteria are visible too, so a bidder knows what they are being scored on before they bid.",
+  "next": "Ask a clarification question.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/54-supplier_admin-tender-as-the-supplier-sees-it.png",
+    "w_in": 6.3,
+    "h_in": 5.25875,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "55",
+  "title": "Question sent",
+  "persona": "supplier_admin",
+  "screen": "Question sent",
+  "route": "/rfqs/RFQ-2026-000001",
+  "happened": "The question is recorded against the tender and waits for the buyer. The supplier cannot see other bidders' questions until an answer is published to everyone.",
+  "next": "The officer answers it.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/55-supplier_admin-question-sent.png",
+    "w_in": 6.3,
+    "h_in": 5.41625,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "56",
+  "title": "Clarification waiting",
+  "persona": "procurement_officer",
+  "screen": "Clarification waiting",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The buyer sees the question. Who asked it is deliberately not the point: an answer goes to every invited supplier, so a question cannot be used to work out who else is bidding.",
+  "next": "Write an answer and publish it to all invitees.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/56-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.444375,
+    "same_page": false,
+    "label": "Screen 56, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/56-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.65,
+    "same_page": false,
+    "label": "Screen 56, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "57",
+  "title": "Answer published to all invitees",
+  "persona": "procurement_officer",
+  "screen": "Answer published to all invitees",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Published to every invited supplier at once, with the asker anonymised. That is the rule this screen exists to enforce: one bidder's question must not tell the others who is in the room, and no bidder may receive information the rest do not.",
+  "next": "Back to the supplier to price the bid.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/57-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.25625,
+    "same_page": false,
+    "label": "Screen 57, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/57-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.461875,
+    "same_page": false,
+    "label": "Screen 57, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "58",
+  "title": "The published answer, seen by the bidder",
+  "persona": "supplier_admin",
+  "screen": "The published answer, seen by the bidder",
+  "route": "/rfqs/RFQ-2026-000001",
+  "happened": "The answer is here, attributed to the buyer and not to whoever asked. Every invited supplier sees the same text at the same time, which is what keeps a clarification from becoming an advantage.",
+  "next": "Start a proposal.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/58-supplier_admin-the-published-answer-seen-by-the-bidder.png",
+    "w_in": 6.3,
+    "h_in": 5.41625,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "59",
+  "title": "Proposal started (Draft)",
+  "persona": "supplier_admin",
+  "screen": "Proposal started (Draft)",
+  "route": "/rfqs/RFQ-2026-000001/proposal",
+  "happened": "A draft proposal, private to this supplier. The two envelopes are visible as separate sections: the technical answers and the commercial figures are stored apart because the buyer is allowed to see them at different times.",
+  "next": "Price the line items.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/59-supplier_admin-proposal-started-draft.png",
+    "w_in": 6.3,
+    "h_in": 6.566875,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "60",
+  "title": "Line item priced",
+  "persona": "supplier_admin",
+  "screen": "Line item priced",
+  "route": "/rfqs/RFQ-2026-000001/proposal",
+  "happened": "A unit price against the line the buyer specified. The total is derived from the quantity on the tender rather than typed, so the two cannot disagree.",
+  "next": "Answer the requirement.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/60-supplier_admin-line-item-priced.png",
+    "w_in": 6.3,
+    "h_in": 6.566875,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "61",
+  "title": "Requirement answered",
+  "persona": "supplier_admin",
+  "screen": "Requirement answered",
+  "route": "/rfqs/RFQ-2026-000001/proposal",
+  "happened": "The technical half of the bid. This is what an evaluator scores, and it is sealed from the price until the buyer consolidates.",
+  "next": "Set the commercial terms and attach a document.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/61-supplier_admin-requirement-answered.png",
+    "w_in": 6.3,
+    "h_in": 6.566875,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "62",
+  "title": "Terms set and document attached",
+  "persona": "supplier_admin",
+  "screen": "Terms set and document attached",
+  "route": "/rfqs/RFQ-2026-000001/proposal",
+  "happened": "Payment terms and a supporting document. Everything a bid consists of is now on the record and still editable, because nothing has been submitted yet.",
+  "next": "Submit the bid.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/62-supplier_admin-terms-set-and-document-attached.png",
+    "w_in": 6.3,
+    "h_in": 6.5975,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "63",
+  "title": "Bid submitted",
+  "persona": "supplier_admin",
+  "screen": "Bid submitted",
+  "route": "/rfqs/RFQ-2026-000001/proposal",
+  "happened": "Submitted, and now read-only to the supplier. From here the buyer cannot see the commercial half until the submission window closes and the evaluation is consolidated - that is the two-envelope seal, and it is enforced on the server rather than by hiding a column.",
+  "next": "The officer closes the window and opens evaluation.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/63-supplier_admin-bid-submitted.png",
+    "w_in": 6.3,
+    "h_in": 4.974374999999999,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "64",
+  "title": "Submissions closed",
+  "persona": "procurement_officer",
+  "screen": "Submissions closed",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Closed early by the officer rather than waiting for the deadline. Bids are now fixed: nothing further can be submitted, withdrawn or repriced, which is the precondition for looking at any of them.",
+  "next": "Open the evaluation.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/64-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.578125,
+    "same_page": false,
+    "label": "Screen 64, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/64-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.788125,
+    "same_page": false,
+    "label": "Screen 64, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "65",
+  "title": "Evaluation opened",
+  "persona": "procurement_officer",
+  "screen": "Evaluation opened",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The evaluation exists, carrying the criteria frozen when the template was bound. No score exists yet and the commercial envelope stays sealed.",
+  "next": "The manager assigns an evaluator.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/65-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.2475,
+    "same_page": false,
+    "label": "Screen 65, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/65-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.453125,
+    "same_page": false,
+    "label": "Screen 65, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "66",
+  "title": "Evaluator assigned",
+  "persona": "procurement_manager",
+  "screen": "Evaluator assigned",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Assigned by name, from the staff who actually hold the scoring permission in this buying body. The picker lists people rather than asking for an identifier, and anyone already assigned is absent from it.",
+  "next": "The evaluator scores the bids.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/66-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.422499999999999,
+    "same_page": false,
+    "label": "Screen 66, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/66-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.628124999999999,
+    "same_page": false,
+    "label": "Screen 66, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "67",
+  "title": "Evaluator dashboard",
+  "persona": "evaluator",
+  "screen": "Evaluator dashboard",
+  "route": "/evaluation",
+  "happened": "The evaluator signs in to a dashboard of their own assignments and almost nothing else: this role holds evaluation.score, evaluation.submit and rfq.clarify, so there is no tender list and no supplier data to browse.",
+  "next": "Open the assignment.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/67-evaluator-evaluator-dashboard.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "68",
+  "title": "Conflict of interest declaration",
+  "persona": "evaluator",
+  "screen": "Conflict of interest declaration",
+  "route": "/back-office/rfqs/RFQ-2026-000001/my-evaluation",
+  "happened": "Asked before a single bid is visible, and it names the suppliers taking part precisely because that is the one thing an evaluator must see in order to answer honestly. Declaring a conflict here recuses them instead of letting them score and hope nobody checks.",
+  "next": "Declare no conflict and continue.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/68-evaluator-conflict-of-interest-declaration.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "69",
+  "title": "Scoring screen \u2014 bidders anonymous",
+  "persona": "evaluator",
+  "screen": "Scoring screen \u2014 bidders anonymous",
+  "route": "/back-office/rfqs/RFQ-2026-000001/my-evaluation",
+  "happened": "The bids, with the bidder identity withheld and the financial envelope locked. An evaluator scores the technical answer without knowing whose it is or what it costs, which is the two-envelope seal doing its actual job rather than a label on a screen.",
+  "next": "Score each criterion.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/69-evaluator-scoring-screen-bidders-anonymous.png",
+    "w_in": 6.3,
+    "h_in": 4.4975,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "70",
+  "title": "Technical criterion scored, price still locked",
+  "persona": "evaluator",
+  "screen": "Technical criterion scored, price still locked",
+  "route": "/back-office/rfqs/RFQ-2026-000001/my-evaluation",
+  "happened": "The technical score is recorded and the price is still sealed. An evaluator judges the answer before knowing what it costs, which is the entire purpose of separating the envelopes.",
+  "next": "Saving a passing technical score qualifies the bid and unlocks the financial criterion.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/70-evaluator-technical-criterion-scored-price-still-locked.png",
+    "w_in": 6.3,
+    "h_in": 4.4975,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "71",
+  "title": "All criteria scored",
+  "persona": "evaluator",
+  "screen": "All criteria scored",
+  "route": "/back-office/rfqs/RFQ-2026-000001/my-evaluation",
+  "happened": "Both criteria now carry a score. The financial one unlocked only once the bid passed technically, and the evaluation cannot be submitted until every unlocked criterion is answered.",
+  "next": "Submit the evaluation.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/71-evaluator-all-criteria-scored.png",
+    "w_in": 6.3,
+    "h_in": 4.4975,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "72",
+  "title": "Evaluation submitted",
+  "persona": "evaluator",
+  "screen": "Evaluation submitted",
+  "route": "/back-office/rfqs/RFQ-2026-000001/my-evaluation",
+  "happened": "Submitted and now read-only to this evaluator. Scores cannot be revised after submission without a manager reopening the evaluation, which is recorded.",
+  "next": "The officer consolidates the results.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/72-evaluator-evaluation-submitted.png",
+    "w_in": 6.3,
+    "h_in": 4.4975,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "73",
+  "title": "Results consolidated",
+  "persona": "procurement_officer",
+  "screen": "Results consolidated",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "Consolidation is the moment the two envelopes are put together: technical scores and prices are weighted into one ranking. Until now nobody on the buying side had seen both halves of a bid at once.",
+  "next": "Open the comparison matrix.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/73-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.566875,
+    "same_page": false,
+    "label": "Screen 73, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/73-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.776875,
+    "same_page": false,
+    "label": "Screen 73, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "74",
+  "title": "Comparison matrix",
+  "persona": "procurement_officer",
+  "screen": "Comparison matrix",
+  "route": "/back-office/rfqs/RFQ-2026-000001/comparison",
+  "happened": "Bids side by side, each identified by its PROPOSAL REFERENCE CODE rather than an internal id \u2014 this is the screen on which a tender is decided, and it used to print GUIDs. Technical, financial and weighted totals with a rank.",
+  "next": "Open the award screen and recommend a winner.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/74-procurement_officer-comparison-matrix.png",
+    "w_in": 6.3,
+    "h_in": 5.25,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "75",
+  "title": "Evaluation finalized",
+  "persona": "procurement_manager",
+  "screen": "Evaluation finalized",
+  "route": "/back-office/rfqs/RFQ-2026-000001",
+  "happened": "The shortlist is closed and the ranking fixed, by the manager rather than the officer who ran the evaluation. Reopening after this undoes a decision rather than correcting a score, which is why it carries its own permission.",
+  "next": "Back to the officer, who recommends a winner.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/75-part1.png",
+    "w_in": 6.3,
+    "h_in": 6.566875,
+    "same_page": false,
+    "label": "Screen 75, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/75-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.776875,
+    "same_page": false,
+    "label": "Screen 75, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "76",
+  "title": "Award \u2014 nobody recommended yet",
+  "persona": "procurement_officer",
+  "screen": "Award \u2014 nobody recommended yet",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "The award screen before any decision. A winner is recommended by the officer and approved by somebody else, and the screen carries both halves so the separation is visible rather than implied.",
+  "next": "Recommend the winning bid with a justification.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/76-procurement_officer-award-nobody-recommended-yet.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "77",
+  "title": "Winner recommended",
+  "persona": "procurement_officer",
+  "screen": "Winner recommended",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "A recommendation, with a written justification, naming the bid rather than the company - and it decides nothing on its own. It waits for a manager.",
+  "next": "Route it for approval.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/77-procurement_officer-winner-recommended.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "78",
+  "title": "Routed for approval",
+  "persona": "procurement_officer",
+  "screen": "Routed for approval",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "Handed on. The recommender has done all they can do: approving their own recommendation is the one thing the system will not let them attempt.",
+  "next": "The manager who approved the tender tries to approve the award.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/78-procurement_officer-routed-for-approval.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "79",
+  "title": "Self-approval refused",
+  "persona": "procurement_officer",
+  "screen": "Self-approval refused",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "Refused, and this is the product working: \u00a76.1 requires the approver to differ from the recommender. The server said so explicitly. It is the most confusing dead end here, which is exactly why it is worth seeing once.",
+  "next": "A second manager approves it.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/79-procurement_officer-self-approval-refused.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "80",
+  "title": "Award awaiting a second pair of eyes",
+  "persona": "procurement_manager",
+  "screen": "Award awaiting a second pair of eyes",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "The second manager sees the recommendation, the justification, and the bid it names. They did not write it and did not recommend it, which is the whole point of them being the one to approve it.",
+  "next": "Approve the award.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/80-procurement_manager-award-awaiting-a-second-pair-of-eyes.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "81",
+  "title": "Award approved",
+  "persona": "procurement_manager",
+  "screen": "Award approved",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "Approved by somebody other than the recommender. The tender now has a winner, and the supplier is about to be told.",
+  "next": "The officer issues it, which is what notifies the supplier and starts the ERP sync.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/81-procurement_manager-award-approved.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "82",
+  "title": "Award issued",
+  "persona": "procurement_manager",
+  "screen": "Award issued",
+  "route": "/back-office/rfqs/RFQ-2026-000001/award",
+  "happened": "Issued. This is the point at which the outcome leaves the building: the winning supplier is notified, and an integration message is queued for the ERP so a purchase order can be raised against it.",
+  "next": "Check the ERP sync, then look at the outcome as the supplier.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/82-procurement_manager-award-issued.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "83",
+  "title": "The supplier sees the outcome",
+  "persona": "supplier_admin",
+  "screen": "The supplier sees the outcome",
+  "route": "/proposals",
+  "happened": "The bid the supplier submitted now shows its result. Their own price is visible to them at every state - the two-envelope seal governs what the BUYER may see, and hiding a bid from the company that wrote it would be a bug wearing the costume of a security feature.",
+  "next": "Check the ERP sync as the administrator.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/83-supplier_admin-the-supplier-sees-the-outcome.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "84",
+  "title": "Operations \u2014 jobs, outbox and ERP",
+  "persona": "system_admin",
+  "screen": "Operations \u2014 jobs, outbox and ERP",
+  "route": "/back-office/operations",
+  "happened": "The issued award queued an integration message. This card is honest about what happens to it: NO REAL ERP TRANSPORT IS CONFIGURED in this environment, and the screen says so rather than showing a column of Synced produced by a logging stand-in that accepts everything and sends nothing.",
+  "next": "Look at the rest of the administrator surface.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/84-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.884375,
+    "same_page": false,
+    "label": "Screen 84, part 1 of 3 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/84-part2.png",
+    "w_in": 6.3,
+    "h_in": 6.094374999999999,
+    "same_page": false,
+    "label": "Screen 84, part 2 of 3 \u2014 continued"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/84-part3.png",
+    "w_in": 6.3,
+    "h_in": 6.085625,
+    "same_page": false,
+    "label": "Screen 84, part 3 of 3 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "85",
+  "title": "Platform administration",
+  "persona": "system_admin",
+  "screen": "Platform administration",
+  "route": "/back-office/admin",
+  "happened": "The administrator overview: counts, health and the state of the integrations.",
+  "next": "Continue through the administrator screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/85-system_admin-platform-administration.png",
+    "w_in": 6.3,
+    "h_in": 4.948125,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "86",
+  "title": "Reference data",
+  "persona": "system_admin",
+  "screen": "Reference data",
+  "route": "/back-office/reference",
+  "happened": "The code lists everything else is built from - categories, document types, currencies, units, regions. Codes are deactivated, never deleted, because they are foreign keys in live rows.",
+  "next": "Continue through the administrator screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/86-part1.png",
+    "w_in": 6.3,
+    "h_in": 3.381875,
+    "same_page": false,
+    "label": "Screen 86, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/86-part2.png",
+    "w_in": 6.3,
+    "h_in": 3.5875,
+    "same_page": false,
+    "label": "Screen 86, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "87",
+  "title": "Interface text",
+  "persona": "system_admin",
+  "screen": "Interface text",
+  "route": "/back-office/ui-strings",
+  "happened": "Any string in the product can be reworded here without a release. The people who own the wording are not the people who own deployments.",
+  "next": "Continue through the administrator screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/87-system_admin-interface-text.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "88",
+  "title": "Email wording",
+  "persona": "system_admin",
+  "screen": "Email wording",
+  "route": "/back-office/email-templates",
+  "happened": "The transactional emails, with their required tokens shown. A save that drops {verifyUrl} is refused, because an email that loses it locks the recipient out of the account they are creating.",
+  "next": "Continue through the administrator screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/88-part1.png",
+    "w_in": 6.3,
+    "h_in": 7.39375,
+    "same_page": false,
+    "label": "Screen 88, part 1 of 4 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/88-part2.png",
+    "w_in": 6.3,
+    "h_in": 7.60375,
+    "same_page": false,
+    "label": "Screen 88, part 2 of 4 \u2014 continued"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/88-part3.png",
+    "w_in": 6.3,
+    "h_in": 7.60375,
+    "same_page": false,
+    "label": "Screen 88, part 3 of 4 \u2014 continued"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/88-part4.png",
+    "w_in": 6.3,
+    "h_in": 7.60375,
+    "same_page": false,
+    "label": "Screen 88, part 4 of 4 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "89",
+  "title": "Audit log",
+  "persona": "system_admin",
+  "screen": "Audit log",
+  "route": "/back-office/audit",
+  "happened": "Every state change, with an actor and a correlation id. Append-only: this is the record that makes an approval accountable months later.",
+  "next": "Continue through the administrator screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/89-part1.png",
+    "w_in": 6.3,
+    "h_in": 4.449375,
+    "same_page": false,
+    "label": "Screen 89, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/89-part2.png",
+    "w_in": 6.3,
+    "h_in": 4.659375,
+    "same_page": false,
+    "label": "Screen 89, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ },
+ {
+  "num": "90",
+  "title": "Organizations",
+  "persona": "system_admin",
+  "screen": "Organizations",
+  "route": "/back-office/organizations",
+  "happened": "The buying bodies, and the boundary every tender query is scoped by.",
+  "next": "Continue through the administrator screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/90-system_admin-organizations.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "91",
+  "title": "Ministry overview",
+  "persona": "ministry_viewer",
+  "screen": "Ministry overview",
+  "route": "/back-office/ministry",
+  "happened": "Cross-organization totals and nothing else. NO COMMERCIAL FIGURES APPEAR HERE, and that is a decision rather than an omission: it is held pending an answer from MOT Legal, and until then BRULE-086 grants aggregate access only, with BRULE-087 defaulting to aggregate-only wherever visibility is undecided. There is no drill-down to a named supplier or tender by design.",
+  "next": "The Ministry viewer has no other working screen, which is the grant working as written.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/91-ministry_viewer-ministry-overview.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "92",
+  "title": "Supplier dashboard",
+  "persona": "supplier_admin",
+  "screen": "Supplier dashboard",
+  "route": "/dashboard",
+  "happened": "The supplier home once there is real activity: completeness, invitations, proposals and documents needing attention.",
+  "next": "Continue through the supplier screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/92-supplier_admin-supplier-dashboard.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "93",
+  "title": "Supplier profile",
+  "persona": "supplier_admin",
+  "screen": "Supplier profile",
+  "route": "/profile",
+  "happened": "The company record as its own staff see it, each section linking to the editor rather than duplicating it.",
+  "next": "Continue through the supplier screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/93-supplier_admin-supplier-profile.png",
+    "w_in": 6.3,
+    "h_in": 6.514374999999999,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "94",
+  "title": "Documents centre",
+  "persona": "supplier_admin",
+  "screen": "Documents centre",
+  "route": "/documents",
+  "happened": "Every document type with its state and expiry, and a filter for the ones needing attention. Expiry is the state a daily job maintains, so this screen and the job cannot disagree.",
+  "next": "Continue through the supplier screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/94-supplier_admin-documents-centre.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "95",
+  "title": "Team",
+  "persona": "supplier_admin",
+  "screen": "Team",
+  "route": "/team",
+  "happened": "The supplier invites its own colleagues. A supplier_user can prepare a bid; only a supplier_admin can submit one.",
+  "next": "Continue through the supplier screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/screenshots/95-supplier_admin-team.png",
+    "w_in": 6.3,
+    "h_in": 4.379375,
+    "same_page": true,
+    "label": null
+   }
+  ]
+ },
+ {
+  "num": "96",
+  "title": "Settings",
+  "persona": "supplier_admin",
+  "screen": "Settings",
+  "route": "/settings",
+  "happened": "Account, language, password and active sessions.",
+  "next": "Continue through the supplier screens.",
+  "parts": [
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/96-part1.png",
+    "w_in": 6.3,
+    "h_in": 5.5737499999999995,
+    "same_page": false,
+    "label": "Screen 96, part 1 of 2 \u2014 top of the page"
+   },
+   {
+    "file": "/Users/zaid/Projects/Supplier/walkthrough/docx/build/img/96-part2.png",
+    "w_in": 6.3,
+    "h_in": 5.7837499999999995,
+    "same_page": false,
+    "label": "Screen 96, part 2 of 2 \u2014 bottom of the page"
+   }
+  ]
+ }
+]

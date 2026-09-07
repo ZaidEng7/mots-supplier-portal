@@ -410,12 +410,12 @@ export function ReviewApplicationPage() {
               </div>
               {doc.latestDocument ? (
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" isLoading={downloadMutation.isPending} onClick={() => downloadMutation.mutate(doc.latestDocument!.id)}>
+                  <Button variant="ghost" size="sm" isLoading={downloadMutation.isPending} onClick={() => downloadMutation.mutate(doc.latestDocument!.documentId)}>
                     {t('onboarding.download')}
                   </Button>
                   {doc.latestDocument.state === 'Uploaded' || doc.latestDocument.state === 'UnderReview' ? (
                     <>
-                      <Button size="sm" isLoading={approveDocMutation.isPending} onClick={() => approveDocMutation.mutate(doc.latestDocument!.id)}>
+                      <Button size="sm" isLoading={approveDocMutation.isPending} onClick={() => approveDocMutation.mutate(doc.latestDocument!.documentId)}>
                         {t('review.approve')}
                       </Button>
                       <Button
@@ -424,7 +424,7 @@ export function ReviewApplicationPage() {
                         isLoading={rejectDocMutation.isPending}
                         onClick={() => {
                           const reason = window.prompt(t('review.reason')) ?? ''
-                          if (reason.trim()) rejectDocMutation.mutate({ id: doc.latestDocument!.id, reason })
+                          if (reason.trim()) rejectDocMutation.mutate({ id: doc.latestDocument!.documentId, reason })
                         }}
                       >
                         {t('review.reject')}

@@ -2,7 +2,16 @@ import { problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
 export interface SupplierDocument {
-  id: string
+  /**
+   * The public document code (DOC-2026-000001), and the ONLY identifier the API accepts.
+   *
+   * Named `documentId` because that is what the server sends: T-010 took internal GUIDs out of
+   * payloads, and R-9 then settled the spelling as `documentId` across both document DTOs. This
+   * interface said `id`, so every `latestDocument.id` read `undefined` and every call built from it
+   * addressed `/api/v1/documents/undefined/...` - download, approve and reject alike, on three
+   * screens. TypeScript could not catch it: the type was simply wrong about the wire.
+   */
+  documentId: string
   version: number
   state: string
   originalFileName: string

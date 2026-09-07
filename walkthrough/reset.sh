@@ -26,12 +26,22 @@ docker compose exec -T postgres psql -U postgres \
   -c "CREATE DATABASE mots_supplier_portal;" >/dev/null
 
 echo "==> migrating (reference data, roles, permission claims)"
-dotnet ef database update --project src/backend/Infrastructure --startup-project src/backend/Api >/dev/null 2>&1
+# dotnet-ef lives under $DOTNET_ROOT/tools and is NOT on a plain login PATH. Output used to be sent to
+# /dev/null, so when the tool could not be found this step failed silently, the API then started
+# against a database with no tables, and the first thing anybody saw was a crash in RoleSeeder several
+# minutes later. Failures are shown, and a non-zero exit stops the script.
+export PATH="$DOTNET_ROOT/tools:$PATH"
+if ! dotnet ef database update --project src/backend/Infrastructure --startup-project src/backend/Api > /tmp/walkthrough-migrate.log 2>&1; then
+  echo "    migration FAILED - last lines of /tmp/walkthrough-migrate.log:" >&2
+  tail -5 /tmp/walkthrough-migrate.log >&2
+  exit 1
+fi
 
 echo "==> clearing MailHog"
 curl -s -X DELETE http://localhost:8025/api/v1/messages >/dev/null || true
 
 echo
 echo "Database is empty apart from reference data and roles."
-echo "Now restart the API with DevSeed__Enabled=false, take the TOTP secret from its log,"
-echo "and put it in walkthrough/walk.mjs (TOTP_SECRET)."
+echo "Now restart the API with DevSeed__Enabled=false. The bootstrap admin's authenticator secret is"
+echo "generated on that start-up; walkthrough/totp.sh reads it from the database, so nothing needs"
+echo "pasting anywhere."
