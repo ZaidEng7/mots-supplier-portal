@@ -1,5 +1,6 @@
 import { problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
+import { rememberETag } from './etags'
 
 /** Backend returns { error: "invalid_state", message: "<precise domain message>" } for every
  * EvaluationTemplate invariant refusal (EvaluationTemplateMutationResult.InvalidState) - unlike
@@ -62,12 +63,31 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
+/**
+ * Files a template response's ETag under the TEMPLATE's own path.
+ *
+ * `activate`, `archive` and `fork` all declare RequireIfMatch, and nothing gave the client a version
+ * to send: the list GET carries no ETag, and a create or a criteria write stores its fresh tag under
+ * the path it was written to - the collection, or the criteria sub-path - never under the template.
+ * The store climbs a path but not sideways, so activate found nothing and answered 428 every time.
+ * Activating a template through the interface was simply not possible.
+ *
+ * Same treatment as the supplier profile, and for the same reason: only these functions know that the
+ * body they just parsed is the resource a later write will address by id.
+ */
+async function templateFrom(res: Response): Promise<EvaluationTemplate> {
+  const etag = res.headers.get('ETag')
+  const template = await parseOrThrow<EvaluationTemplate>(res)
+  if (etag) rememberETag(`/api/v1/evaluation-templates/${template.id}`, etag)
+  return template
+}
+
 export async function listEvaluationTemplates(): Promise<EvaluationTemplate[]> {
   return parseOrThrow(await apiFetch('/api/v1/evaluation-templates'))
 }
 
 export async function createEvaluationTemplate(nameAr: string, nameEn: string): Promise<EvaluationTemplate> {
-  return parseOrThrow(await apiFetch('/api/v1/evaluation-templates', {
+  return templateFrom(await apiFetch('/api/v1/evaluation-templates', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nameAr, nameEn }),
@@ -75,7 +95,7 @@ export async function createEvaluationTemplate(nameAr: string, nameEn: string): 
 }
 
 export async function addCriterion(templateId: string, payload: CriterionPayload): Promise<EvaluationTemplate> {
-  return parseOrThrow(await apiFetch(`/api/v1/evaluation-templates/${templateId}/criteria`, {
+  return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/criteria`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -83,13 +103,13 @@ export async function addCriterion(templateId: string, payload: CriterionPayload
 }
 
 export async function activateEvaluationTemplate(templateId: string): Promise<EvaluationTemplate> {
-  return parseOrThrow(await apiFetch(`/api/v1/evaluation-templates/${templateId}/activate`, { method: 'POST' }))
+  return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/activate`, { method: 'POST' }))
 }
 
 export async function archiveEvaluationTemplate(templateId: string): Promise<EvaluationTemplate> {
-  return parseOrThrow(await apiFetch(`/api/v1/evaluation-templates/${templateId}/archive`, { method: 'POST' }))
+  return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/archive`, { method: 'POST' }))
 }
 
 export async function forkEvaluationTemplate(templateId: string): Promise<EvaluationTemplate> {
-  return parseOrThrow(await apiFetch(`/api/v1/evaluation-templates/${templateId}/fork`, { method: 'POST' }))
+  return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/fork`, { method: 'POST' }))
 }

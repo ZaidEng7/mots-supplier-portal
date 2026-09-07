@@ -13,7 +13,7 @@ public static class InviteUserCreation
     public sealed record Outcome(bool Succeeded, AppUser? User);
 
     public static async Task<Outcome> CreateInvitedUserAsync(
-        UserManager<AppUser> userManager, string email, string fullName, Guid? supplierId)
+        UserManager<AppUser> userManager, string email, string fullName, Guid? supplierId, Guid? organizationId = null)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var existing = await userManager.FindByEmailAsync(normalizedEmail);
@@ -29,6 +29,7 @@ public static class InviteUserCreation
             Email = normalizedEmail,
             FullName = fullName,
             SupplierId = supplierId,
+            OrganizationId = organizationId,
             EmailConfirmed = true,
             IsActive = true,
         };

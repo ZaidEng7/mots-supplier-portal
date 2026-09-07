@@ -13,16 +13,27 @@ import {
   type Staff, type StaffAccount,
 } from '../../api/staff'
 import { SupplierApiError } from '../../api/supplier'
+import { listOrganizations } from '../../api/organizations'
 
 // Task #28: deliberately excludes supplier_admin/supplier_user - those accounts come from
 // supplier registration or the supplier-side team invite, not this staff-only flow. Mirrors
 // InviteStaffHandler's own InvitableRoles set exactly.
 const STAFF_ROLES = ['onboarding_reviewer', 'procurement_officer', 'procurement_manager', 'evaluator', 'ministry_viewer', 'system_admin'] as const
 
+/**
+ * `organizationId` is optional, and that is a decision rather than laxity.
+ *
+ * Two roles have no buying body on purpose: `ministry_viewer`, because BRULE-086 grants the Ministry
+ * cross-organization access and pinning it to one body would be a narrower grant wearing the same
+ * name, and `system_admin`, which administers the platform rather than procuring through it. The
+ * others need one - BRULE-029 scopes every tender query by it - and the hint under the field says so
+ * rather than the form guessing on the administrator's behalf.
+ */
 const inviteSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(1),
   role: z.enum(STAFF_ROLES),
+  organizationId: z.string().optional(),
 })
 type InviteFormValues = z.infer<typeof inviteSchema>
 
@@ -38,6 +49,10 @@ function InviteStaffDialog({ open, onOpenChange }: { open: boolean; onOpenChange
     formState: { errors },
   } = useForm<InviteFormValues>({ resolver: zodResolver(inviteSchema), defaultValues: { role: 'onboarding_reviewer' } })
   const role = watch('role')
+  const organizationId = watch('organizationId')
+  // Only the active bodies are offerable, and the list is the same one the Organizations screen
+  // manages - a second source would let this picker offer a body that screen had retired.
+  const organizationsQuery = useQuery({ queryKey: ['organizations'], queryFn: listOrganizations })
 
   const inviteMutation = useMutation({
     mutationFn: (values: InviteFormValues) => inviteStaff(values),
@@ -65,6 +80,20 @@ function InviteStaffDialog({ open, onOpenChange }: { open: boolean; onOpenChange
               value={role}
               onValueChange={(v) => setValue('role', v as (typeof STAFF_ROLES)[number])}
               options={STAFF_ROLES.map((r) => ({ value: r, label: t(`staff.roles.${r}`) }))}
+            />
+          )}
+        </Field>
+        <Field label={t('staff.fields.organization')} hint={t('staff.organizationHint')}>
+          {(p) => (
+            <Select
+              id={p.id}
+              aria-describedby={p['aria-describedby']}
+              value={organizationId || undefined}
+              onValueChange={(v) => setValue('organizationId', v)}
+              placeholder={t('staff.fields.organization')}
+              options={(organizationsQuery.data ?? [])
+                .filter((o) => o.isActive)
+                .map((o) => ({ value: o.id, label: o.legalNameEn || o.legalNameAr }))}
             />
           )}
         </Field>
@@ -135,10 +164,13 @@ function StaffAccounts() {
     // The two refusals worth naming: acting on your own account, and the last administrator. Both are
     // things an administrator has to understand rather than retry.
     const code = error instanceof SupplierApiError ? (error.code ?? '') : ''
-    const message =
-      code === 'CANNOT_ACT_ON_OWN_ACCOUNT' ? t('staff.errors.cannotActOnSelf')
-        : code === 'WOULD_LOCK_OUT_ADMINISTRATION' ? t('staff.errors.wouldLockOutAdministration')
-          : fallback
+    // A lookup rather than a ternary chain: each server code maps to one message, and the next code
+    // to be added is a row instead of another level of nesting.
+    const messages: Record<string, string> = {
+      CANNOT_ACT_ON_OWN_ACCOUNT: t('staff.errors.cannotActOnSelf'),
+      WOULD_LOCK_OUT_ADMINISTRATION: t('staff.errors.wouldLockOutAdministration'),
+    }
+    const message = messages[code ?? ''] ?? fallback
     notify({ kind: 'danger', title: message })
   }
 

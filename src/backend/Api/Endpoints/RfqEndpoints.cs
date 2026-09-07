@@ -496,6 +496,15 @@ public static class RfqEndpoints
             MapMutation(await handler.HandleAsync(new BindEvaluationTemplateCommand(referenceCode, request.EvaluationTemplateId), ct)))
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
+        // A child-resource write, like items, requirements, attachments and invitations - all of which
+        // carry this. Binding mutates the RFQ, so apiFetch drops the version the client was holding;
+        // with no fresh one to put back, the NEXT guarded action found nothing and answered 428. That
+        // next action is submit-for-review, and binding a template is a precondition of it, so the two
+        // always happen in that order and the tender could never leave Draft through the interface.
+        //
+        // Same omission as PUT /suppliers/me/legal-info, not the deliberate split in this file between
+        // child writes and state transitions: every other child write here already has it.
+        .WithFreshETag()
         .WithName("BindEvaluationTemplate");
 
         // T-018/BRULE-035. NO permission filter on the route, deliberately, and this was got wrong

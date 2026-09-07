@@ -22,12 +22,39 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    /// <summary>
+    /// The read is wider than the writes, and this test changed in batch 12 to say so.
+    ///
+    /// <para>It used to assert that a procurement officer could not LIST templates. That was the
+    /// behaviour, and it made the product unusable: binding a template to a tender is gated on
+    /// rfq.edit, which an officer holds, and binding is a precondition of submitting for review - so
+    /// the officer could bind a template the API forbade them to see, the picker came back empty, and
+    /// no tender could ever leave Draft. Found by walking a procurement from an empty database.</para>
+    ///
+    /// <para>The write half is unchanged and is asserted here as the control, because widening a read
+    /// is only defensible if the writes stay where they were.</para>
+    /// </summary>
     [Fact]
-    public async Task Non_manager_caller_is_forbidden()
+    public async Task An_officer_may_read_templates_but_not_change_them()
     {
         var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer);
 
-        var response = await officer.GetAsync("/api/v1/evaluation-templates");
+        var list = await officer.GetAsync("/api/v1/evaluation-templates");
+        list.StatusCode.Should().Be(HttpStatusCode.OK, "binding a template requires seeing the list of them");
+
+        var create = await officer.PostAsJsonAsync("/api/v1/evaluation-templates", new { nameAr = "قالب", nameEn = "Officer attempt" });
+        create.StatusCode.Should().Be(HttpStatusCode.Forbidden, "authoring a scoring scheme is the manager's");
+    }
+
+    [Fact]
+    public async Task A_supplier_may_not_read_templates()
+    {
+        // The other control. Widening the read to rfq.edit must not widen it to everyone signed in -
+        // and it nearly did: moving the permission off the endpoint GROUP left the by-id read with
+        // nothing but RequireAuthorization until the generated permission catalogue caught it.
+        var (supplier, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, $"Tpl {Guid.NewGuid():N}"[..20]);
+
+        var response = await supplier.GetAsync("/api/v1/evaluation-templates");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }

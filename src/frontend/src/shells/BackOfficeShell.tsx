@@ -14,38 +14,60 @@ interface Props {
 
 /** Back-office (MOTS staff) app shell: dark sidebar-style top bar, visually distinct from the
  * supplier shell so staff and suppliers are never mistaken for the same surface. */
+/**
+ * One permission lookup for the whole shell.
+ *
+ * <p>This was thirteen separate `useAuthStore` subscriptions, each repeating
+ * `claims?.permissions.includes(x) ?? false`. Sonar put the component's cognitive complexity at 20
+ * against a limit of 15 and it was right: the count is the point, not any one line. Reading the claim
+ * list once and returning a predicate says the same thing in one place, and adding a link no longer
+ * means adding a subscription.</p>
+ */
+function usePermissions(): (permission: string) => boolean {
+  const permissions = useAuthStore((s) => s.claims?.permissions)
+  return (permission) => permissions?.includes(permission) ?? false
+}
+
 export function BackOfficeShell({ children }: Props) {
+  const can = usePermissions()
   const { t } = useTranslation()
   const clearSession = useAuthStore((s) => s.clearSession)
   // FR-IAM-010: hide, never gate - the API re-enforces admin.organizations.manage on every
   // Organization endpoint regardless of what this link's visibility does.
-  const canManageOrganizations = useAuthStore((s) => s.claims?.permissions.includes('admin.organizations.manage') ?? false)
+  const canManageOrganizations = can('admin.organizations.manage')
   // Task #28: same hide-never-gate rule - StaffEndpoints re-enforces admin.users.manage
   // (Permissions.AdminUsersManage) on the actual invite endpoint regardless of this link.
-  const canManageStaff = useAuthStore((s) => s.claims?.permissions.includes('admin.users.manage') ?? false)
-  const canManageRoles = useAuthStore((s) => s.claims?.permissions.includes('admin.roles.manage') ?? false)
+  const canManageStaff = can('admin.users.manage')
+  const canManageRoles = can('admin.roles.manage')
   // T-080: same hide-never-gate rule - every /api/v1/admin/reference route re-enforces
   // reference.manage. Its own permission rather than admin.users.manage, because the two are
   // separately grantable and a role that edits code lists need not administer accounts.
-  const canManageReferenceData = useAuthStore((s) => s.claims?.permissions.includes('reference.manage') ?? false)
+  const canManageReferenceData = can('reference.manage')
   // T-079/SCR-720: same hide-never-gate rule - every /api/v1/audit route re-enforces audit.read.
-  const canReadAudit = useAuthStore((s) => s.claims?.permissions.includes('audit.read') ?? false)
-  const canReviewSuppliers = useAuthStore((s) => s.claims?.permissions.includes('supplier.review') ?? false)
-  const canScoreEvaluations = useAuthStore((s) => s.claims?.permissions.includes('evaluation.score') ?? false)
+  const canReadAudit = can('audit.read')
+  const canReviewSuppliers = can('supplier.review')
+  const canScoreEvaluations = can('evaluation.score')
   // governance.read is the ONLY permission ministry_viewer holds, so without this link the persona
   // had to type the URL: every other link in this bar 403s for it.
-  const canViewGovernance = useAuthStore((s) => s.claims?.permissions.includes('governance.read') ?? false)
+  const canViewGovernance = can('governance.read')
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
-  const canSearchOfferings = useAuthStore((s) => s.claims?.permissions.includes('offering.search') ?? false)
+  const canSearchOfferings = can('offering.search')
   // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.read/rfq.edit/etc on
   // every actual RFQ endpoint regardless of what this link's visibility does.
   //
   // Gated on rfq.read, not rfq.create: procurement_manager approves RFQs but does not author them,
   // so keying the link on the authoring permission hid the section from the one role whose job is
   // to open it. Same defect as the endpoints' own gate, on the navigation side.
-  const canViewRfqs = useAuthStore((s) => s.claims?.permissions.includes('rfq.read') ?? false)
-  const canManageEvaluationTemplates = useAuthStore((s) => s.claims?.permissions.includes('evaluation.template.manage') ?? false)
+  const canViewRfqs = can('rfq.read')
+  const canManageEvaluationTemplates = can('evaluation.template.manage')
+  // Batch 12. Three screens were built, permissioned and unreachable: nothing in this bar linked to
+  // them, so the only way in was to type the address. Same hide-never-gate rule as every link above -
+  // each route's own endpoints re-enforce the permission regardless of what the link does.
+  //
+  // report.read reaches procurement_manager AND ministry_viewer (D-44 resolved in batch 11), so the
+  // link follows the permission rather than naming either role.
+  const canReadReports = can('report.read')
 
   const handleLogout = async () => {
     await apiLogout()
@@ -77,6 +99,12 @@ export function BackOfficeShell({ children }: Props) {
             {t('appName')} · {t('nav.backOffice')}
           </span>
           <nav className="flex flex-wrap gap-x-4 gap-y-2">
+            {/* FEAT-19.1/19.2. Permissioned correctly in batch 11 and still unreachable until now. */}
+            {canReadReports ? (
+              <Link to="/back-office/reports" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('reports.title')}
+              </Link>
+            ) : null}
             {canViewGovernance ? (
               <Link to="/back-office/ministry" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('ministry.title')}
@@ -150,6 +178,13 @@ export function BackOfficeShell({ children }: Props) {
                 {t('review.title')}
               </Link>
             ) : null}
+            {/* SCR-300. The reviewer's dashboard - oldest waiting case, queue age, expiring-document
+                watchlist. Beside the queue it summarises, because that is the pair a reviewer works. */}
+            {canReviewSuppliers ? (
+              <Link to="/back-office/review-dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('reviewDashboard.title')}
+              </Link>
+            ) : null}
             {/* And the link an evaluator actually needs. Their dashboard lives under a different layout
                 (/evaluation, not /back-office/...), which is why it was missing from this nav entirely. */}
             {canScoreEvaluations ? (
@@ -175,6 +210,14 @@ export function BackOfficeShell({ children }: Props) {
             {canSearchOfferings ? (
               <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('offeringSearch.title')}
+              </Link>
+            ) : null}
+            {/* SCR-400. The procurement officer's actual home screen - tenders by state, approvals
+                waiting, deadlines. Gated on rfq.read for the same reason the RFQ link below is: a
+                manager reads this dashboard without authoring anything. */}
+            {canViewRfqs ? (
+              <Link to="/back-office/procurement" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('procurementDashboard.title')}
               </Link>
             ) : null}
             {canViewRfqs ? (

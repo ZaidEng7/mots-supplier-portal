@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Field, Input } from '../components/ui'
 import { forgotPassword } from '../api/auth'
 
-const schema = z.object({ email: z.string().email() })
+const schema = z.object({ email: z.email() })
 type FormValues = z.infer<typeof schema>
 
 /**

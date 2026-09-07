@@ -526,6 +526,8 @@ const resources = {
         submit: 'دخول',
         forgotPassword: 'نسيت كلمة المرور؟',
         loginFailed: 'بيانات الدخول غير صحيحة',
+        tooManyAttempts: 'محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم أعد المحاولة — كلمة المرور لم تُفحص.', // [drafted]
+        serviceUnavailable: 'تعذّر الوصول إلى الخدمة. لا علاقة للأمر ببيانات الدخول.', // [drafted]
         emailNotVerified: 'يرجى تفعيل بريدك الإلكتروني أولاً',
         lockedOut: 'الحساب مقفل مؤقتاً بسبب محاولات فاشلة متكررة',
         forgotTitle: 'إعادة تعيين كلمة المرور',
@@ -561,6 +563,7 @@ const resources = {
         // document chip has exactly one source like every other machine.
         submitBlockedTitle: 'لا يمكن إرسال الطلب بعد',
         submitBlockedIntro: 'الوثائق المطلوبة التالية ناقصة:',
+        missing: 'ناقص',
         complete: 'مكتمل',
         save: 'حفظ',
         submit: 'إرسال الطلب',
@@ -1322,7 +1325,8 @@ const resources = {
         hint: 'دعوة موظف جديد بالبريد الإلكتروني والدور. سيحصل على رابط لتعيين كلمة المرور الخاصة به.',
         cancel: 'إلغاء',
         invited: 'تم إرسال الدعوة إلى {{email}}',
-        fields: { fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', role: 'الدور' },
+        fields: { fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', role: 'الدور', organization: 'الجهة المشترية' },
+        organizationHint: 'مطلوبة لأدوار المشتريات والتقييم والمراجعة. تُترك فارغة لمشاهد الوزارة ومدير النظام.', // [drafted]
         roles: {
           onboarding_reviewer: 'مراجع استكمال الموردين',
           procurement_officer: 'مسؤول المشتريات',
@@ -1416,6 +1420,13 @@ const resources = {
         displayNameEn: 'اسم الشركة (إنجليزي)',
         registrationNumber: 'رقم السجل التجاري',
         registrationNumberHint: 'اختياري عند التسجيل، مطلوب لاحقاً لإكمال الملف',
+        // ── BATCH 12 · ARABIC FOR REVIEW ──────────────────────────────────────
+        errors: {
+          required: 'هذا الحقل مطلوب',                       // [drafted]
+          email: 'أدخل بريداً إلكترونياً صحيحاً',              // [drafted]
+          passwordLength: 'كلمة المرور ١٢ حرفاً على الأقل',    // [drafted]
+          passwordsMatch: 'كلمتا المرور غير متطابقتين',        // [drafted]
+        },
         representativeName: 'اسم الممثل الرئيسي',
         representativePhone: 'هاتف الممثل الرئيسي',
         confirmPassword: 'تأكيد كلمة المرور',
@@ -2207,6 +2218,8 @@ const resources = {
         submit: 'Sign in',
         forgotPassword: 'Forgot password?',
         loginFailed: 'Invalid email or password',
+        tooManyAttempts: 'Too many attempts in a short time. Wait a minute and try again — your password was not checked.',
+        serviceUnavailable: 'Could not reach the service. This is not about your sign-in details.',
         emailNotVerified: 'Please verify your email first',
         lockedOut: 'Account is temporarily locked after repeated failed attempts',
         forgotTitle: 'Reset your password',
@@ -2240,6 +2253,7 @@ const resources = {
         checklist: 'Requirements checklist',
         submitBlockedTitle: 'Your application cannot be submitted yet',
         submitBlockedIntro: 'These required documents are missing:',
+        missing: 'Missing',
         complete: 'Complete',
         save: 'Save',
         submit: 'Submit application',
@@ -2975,7 +2989,8 @@ const resources = {
         hint: 'Invite a new staff member by email and role. They will get a link to set their own password.',
         cancel: 'Cancel',
         invited: 'Invite sent to {{email}}',
-        fields: { fullName: 'Full name', email: 'Email', role: 'Role' },
+        fields: { fullName: 'Full name', email: 'Email', role: 'Role', organization: 'Buying body' },
+        organizationHint: 'Required for the procurement, evaluation and review roles. Left empty for the Ministry viewer and the system administrator.',
         roles: {
           onboarding_reviewer: 'Onboarding Reviewer',
           procurement_officer: 'Procurement Officer',
@@ -3068,6 +3083,12 @@ const resources = {
         displayNameEn: 'Company name (English)',
         registrationNumber: 'Registration number',
         registrationNumberHint: 'Optional at registration, required later to complete your profile',
+        errors: {
+          required: 'This field is required',
+          email: 'Enter a valid email address',
+          passwordLength: 'Use at least 12 characters',
+          passwordsMatch: 'The two passwords do not match',
+        },
         representativeName: 'Primary representative name',
         representativePhone: "Primary representative's phone",
         confirmPassword: 'Confirm password',

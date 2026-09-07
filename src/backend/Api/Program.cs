@@ -818,9 +818,7 @@ if (app.Environment.IsDevelopment())
         Console.WriteLine($"[dev-seed] TOTP secret (add to an authenticator app): {totpSecret}");
     }
 
-    await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager, builder.Configuration);
-
-    // The remaining six personas plus enough domain data that no screen renders an empty state for
+    // The remaining seven personas plus enough domain data that no screen renders an empty state for
     // want of a row - see DevDataSeeder on why the lifecycle states are forced rather than walked.
     //
     // GATED, and this was a defect before it was a flag. The integration fixture runs the host as
@@ -833,6 +831,13 @@ if (app.Environment.IsDevelopment())
     // nothing else has to know why. Default true, so a developer's `dotnet run` is unchanged.
     if (builder.Configuration.GetValue("DevSeed:Enabled", defaultValue: true))
     {
+        // The reviewer moved inside this gate in batch 12. It was ungated, which meant
+        // DevSeed:Enabled=false still left one demo account standing - and "no demo data" that leaves
+        // an account behind is a switch nobody can trust. One flag now governs every seeded persona;
+        // the bootstrap system_admin above stays outside it, because somebody has to create the first
+        // staff accounts and registration only ever produces a supplier.
+        await MotsSupplierPortal.Infrastructure.Identity.ReviewerSeeder.SeedAsync(userManager, builder.Configuration);
+
         var seedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.SeedAsync(seedDb, userManager, builder.Configuration, app.Environment);
         Console.WriteLine($"[dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / {MotsSupplierPortal.Infrastructure.Identity.DevDataSeeder.Password}");
