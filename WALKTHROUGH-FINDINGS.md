@@ -122,6 +122,33 @@ children having none. Whoever builds one should build both, and the API side is 
 — `PUT /rfqs/{code}` already exists with nothing calling it, and the item and requirement routes may
 be in the same state.
 
+### F-8 — A published tender's attachments cannot be corrected by any route
+**Open.** Sized **M**, and this one is a rule question before it is a build.
+
+The wrong file was attached to a tender during the walk — a supplier registration certificate where
+the specification should have been. By the time it was noticed the tender was `SubmissionOpen`, and
+there is no way to correct it:
+
+- `AddAttachment` and `RemoveAttachment` both call `EnsureDraftEditable()`, so attachments are
+  `Draft`-only.
+- `ReturnForEdits` is refused from anything but `InternalReview`, so a published tender has no path
+  back to `Draft`.
+- **An addendum carries no file.** `IssueAddendum` takes a title and description in both languages
+  and nothing else, and it is the only content change a published tender allows.
+
+So the only remedy is to cancel the tender and author it again — on a tender bidders have already
+read, with a clarification already answered on it.
+
+**The rule question first.** Locking a published tender's attachments is defensible: bidders price
+against what they downloaded, and a file swapped underneath them is exactly what the lock exists to
+prevent. But real procurement corrects published documents constantly, and the instrument for it is
+an addendum that CARRIES the revised document, so the change is announced, dated, and visible to
+every invitee at once. This product has the announcement and not the document.
+
+Whether an addendum may carry an attachment is a procurement decision, not a code one. If the answer
+is yes, the build is small: an attachment collection on `Addendum`, reusing the existing upload and
+scan path.
+
 ## Also confirmed, already known
 
 **D-66 — the offering category checkbox does not re-tick until the profile is re-read.** Recorded in
