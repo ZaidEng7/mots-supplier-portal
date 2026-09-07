@@ -29,6 +29,10 @@ than reconstructing them.
 
 D-17 onward were made in the course of the work and are recorded here as they were taken.
 
+Batches 11 and 12 are the exception to "as they were taken": their six rulings were written into
+commit messages and into `COMPLETION-INVENTORY.md` at the time, and transcribed here afterwards as
+**Part B** (D-50 onward — see the note there on why the numbering skips D-43 to D-49).
+
 ## The log
 
 ### D-6 — The Ministry viewer sees governance data, and no commercial figures
@@ -646,3 +650,91 @@ something else, that row is superseded and says so rather than being deleted.
 | **Why** | Two reasons, and the second is the one that settles it. First, a guard nobody can satisfy refuses every caller — the same lesson T-029 recorded when `SupplierFieldConfig` gained a single-item read in the same change as its guard. Second, and more important: the concurrency it would be guarding is not a lost update. Two invited suppliers asking unrelated questions about the same tender are not overwriting each other's work; neither can see the other's question, and neither's write invalidates the other's. Refusing the second because the first moved a version they cannot observe would make one supplier's participation depend on another supplier's timing — a fairness problem in a public tender, introduced in the name of a safety property that was not at risk. §8.1 exists to stop a writer clobbering a state they were shown; these suppliers were shown nothing that changed. |
 | **What it costs if wrong** | If the document owner reads §8.1 as covering every write to a versioned aggregate regardless of actor, the change is two filters plus a version on `SupplierRfqDto` — and the fairness consequence above would need answering first. |
 | **Who should confirm it** | The document owner, alongside D-37 and A-13's other §8.1 readings. |
+
+---
+
+## Part B — batches 11 and 12
+
+Six rulings taken while building the batch-11 screen list and walking the product from an empty
+database. They are recorded late: batches 11 and 12 wrote their reasoning into commit messages and
+into `COMPLETION-INVENTORY.md` §4–§5, and a commit message is not findable by someone asking why the
+product behaves as it does. That is the gap this file exists to close, so they are transcribed here.
+
+**On the numbering.** These start at **D-50**, not D-43. `COMPLETION-INVENTORY.md` §5 has been using
+`D-43`–`D-49` for *defects* since batch 9, so those seven ids are spoken for in the other direction.
+Re-using them would make "D-44" mean two different things in two files that cite each other. The gap
+between D-42 and D-50 is deliberate and is what this paragraph is for.
+
+---
+
+### D-50 — `ministry_viewer` is invited without an organization, on purpose
+
+| | |
+|---|---|
+| **What was undecided** | Batch 12 gave the staff invitation an organization, because BRULE-029 scopes every tender query by it and an invited officer without one could not create anything. The question that came with it: does *every* invited staff account get one? |
+| **Where the gap is** | BRULE-086 grants the Ministry aggregate access **across** organizations. BRULE-029 scopes queries **by** organization. A `ministry_viewer` pinned to one directorate would satisfy BRULE-029 and silently contradict BRULE-086 — and it would look correct, because the screen would render. |
+| **What was decided** | The organization picker on the staff invitation is optional, `ministry_viewer` is invited without one, and the dialog carries a hint naming which roles need one. |
+| **Why** | A narrower grant wearing the same name is the worst kind of wrong: nobody reading the invitation would see that the Ministry's cross-organization view had been quietly reduced to one body's data. The absence has to be deliberate and visible rather than an omission somebody later "fixes". |
+| **What it costs if wrong** | One nullable column and one optional field. If the Ministry is later scoped per organization, the picker becomes required for that role and the hint changes. |
+| **Who should confirm it** | Whoever answers the Ministry visibility question (OQ-001), since it is the same question in a different place. |
+
+---
+
+### D-51 — `report.read` reaches `ministry_viewer`, and the permission was the defect
+
+| | |
+|---|---|
+| **What was undecided** | `SCREEN-INVENTORY.md` assigns SCR-605 to `ministry_viewer`. `ReportsPage` is gated on `report.read`, which A-17 granted to `procurement_manager` only. A screen built for a persona that could not open it — either the screen was wrong or the grant was. |
+| **What was decided** | The grant. `report.read` was added to `ministry_viewer`, checked before it was made rather than after. |
+| **Why** | Both report DTOs carry counts, states and medians — no supplier identity, no RFQ title, no commercial value — and the compliance export declares its own scope as ministry-wide because the registry has no organization dimension. That is precisely BRULE-086's aggregate grant, so widening the permission does not widen what the Ministry can see beyond what A-10/D-6 already allow. The test that pins this asserts the persona holds `governance.read` and `report.read` **and nothing else**, because the risk here is accumulation: this persona must never pick up `rfq.read` and reach an individual tender. |
+| **What it costs if wrong** | One row in the permission seed. The screen stays; only who may open it changes. |
+| **Who should confirm it** | MOT Legal, with the rest of the Ministry visibility question. |
+
+---
+
+### D-52 — SCR-901 is refused until somebody classifies the notifications
+
+| | |
+|---|---|
+| **What was undecided** | Whether to build notification preferences (SCR-901) with a sensible default set of muteable categories. |
+| **Where the gap is** | FR-NOT-004 reads "users manage notification preferences per category/channel (opt-out of non-critical only)" and is tagged `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. Both halves are undecided: whether the requirement stands at all, and which of the 30+ notification types are "non-critical". Nothing in `BUSINESS-PROCESSES.md` classifies them. The channel half is equally empty — `NotificationChannel` has an `Email` member and nothing writes an Email row. |
+| **What was decided** | Not built. Recorded as a refusal with its reason rather than as an omission. |
+| **Why** | Building it means partitioning a tender's notifications into muteable and not — deciding, for instance, whether a supplier may switch off the message that tells them they have won. That is a procurement-fairness judgement wearing the clothes of a preferences screen. The mechanism is cheap and the classification is not ours, which is the same shape as T-075's threshold. |
+| **What it costs if wrong** | The screen and its endpoint are a normal build once the classification exists. Nothing else depends on it. |
+| **Who should confirm it** | The Ministry, as the owner of FR-NOT-004. |
+
+---
+
+### D-53 — BRULE-023's flag became settable; none of its values changed
+
+| | |
+|---|---|
+| **What was undecided** | `DocumentType.IsAwardCritical` drives an auto-suspend that has never fired, because no seeded type sets it and no admin surface could. Two things were wrong: a code gap and a data decision. |
+| **What was decided** | The code gap was closed and the data decision was left alone. `isAwardCritical` is now on the reference-data contract and on SCR-710 as a per-row toggle with its consequence stated beside the table. All three seeded types are still `false`, asserted by a test. |
+| **Why** | Separating the two halves is the point. A ministry that has decided which documents are award-critical could not previously record it without a migration — that is ours to fix. Which types those are is a procurement-risk judgement: "was blocked from participating for a fortnight" is not undone by reactivation. The test over the seeded values exists so a later batch has to acknowledge changing them rather than slipping it in, and an update that omits the field leaves the stored value alone, so an administrator fixing an Arabic typo cannot clear the one flag on that screen that suspends live suppliers. |
+| **What it costs if wrong** | Nothing structural. Somebody ticks boxes on SCR-710. |
+| **Who should confirm it** | The Ministry. |
+
+---
+
+### D-54 — The fresh-ETag guard is scoped to the supplier aggregate, and the RFQ question is logged rather than answered
+
+| | |
+|---|---|
+| **What was undecided** | Batch 12 added an architecture test asserting that every mutating route returns a fresh ETag, after finding one supplier route of twenty-three that did not. Its first draft asserted the rule across every file and reported fourteen RFQ routes. |
+| **What was decided** | The guard is narrowed to `SupplierEndpoints.cs`. The fourteen RFQ routes are left alone and the question is written into the test file itself. |
+| **Why** | Those fourteen are not a backlog. `RfqEndpoints.cs` splits twelve child-collection writes that carry a fresh tag from fourteen state transitions that do not — a distinction somebody drew, not one they forgot. I had already "fixed" one of them before checking, and reverted it. Fixing the rest to satisfy a test I had just written would have been inventing a convention and calling it a defect. The supplier aggregate is where the rule is demonstrably held — twenty-two of twenty-three routes carried it and the twenty-third was reproducibly broken — so that is where the guard is honest. |
+| **What it costs if wrong** | If the RFQ transitions should carry a fresh tag, it is fourteen filters and a widened guard. The question is in the file, not in somebody's memory. |
+| **Who should confirm it** | Whoever owns §8.1's reading, alongside D-37 and D-42. |
+
+---
+
+### D-55 — A screen counts as delivered when a persona can reach it by clicking
+
+| | |
+|---|---|
+| **What was undecided** | What "built" means. Six times in this project a screen was built, permissioned, tested and left reachable only by typing its address, and every instrument the project had reported it as done. |
+| **What was decided** | The standard is: a persona who owns the screen can reach it by clicking, and it renders populated data. Half of it is now enforced — `router.test.tsx` fails, naming the screen, when a declared route is named by nothing outside the router. The other half is checked by walking the product. |
+| **Why** | Every existing instrument asked whether a route *resolves*; none asked whether anything *links* to it, which is why the same defect recurred six times without ever failing a check. A guard that closes the class is worth more than the four fixes it shipped beside. Its exemption lists are hand-written — four routes entered from an email link, and two paths that are not screens — so a new unreachable route cannot join one by accident. |
+| **What it costs if wrong** | The exemption lists are two `Set`s. The guard reports by name, so a false positive is a one-line judgement, not an investigation. |
+| **Who should confirm it** | Nobody. This one is ours, and the record of its six repetitions is the argument. |

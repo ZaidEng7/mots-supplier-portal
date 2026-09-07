@@ -11,6 +11,21 @@
 
 ## 0. The headline numbers
 
+> **Superseded in part, 2026-09-07 (`ba2dde2`, after PR #118).** The count below was taken at batch 10
+> and is kept because the working is what makes it checkable. **Re-checked against source today, 30 of
+> those 34 rows are built** — batch 11 shipped them and batch 12 made four of them reachable. What is
+> left of the 34 is three missing screens (**SCR-307**, **SCR-402**, **SCR-604**) and one refusal
+> (**SCR-901**, D-48/D-52). SCR-501 is still the one **Unresolved** row, as it was.
+>
+> So the inventory now reads **142 rows: 133 delivered, 3 missing, 5 refused, 1 unresolved.**
+> `MOTS-PROGRESS.md` §4 carries the recount and reconciles it against the epic and phase views, which
+> disagree with it and with each other.
+>
+> **What the recount does not change is §5**, and §5 is why this document was worth keeping: batch 12
+> found five defects that made a clean install unable to run one tender, while every suite here was
+> green. Rows can be built, permissioned, tested and still not usable in sequence.
+
+
 ### 0.1 The real missing count: **34**
 
 Not 48, and not the 41 that batch 10's recount estimated. The working:
@@ -304,38 +319,53 @@ and **SCR-903**.
 
 ## 3. What is left to close each epic
 
-EPIC-23 (ERP Integration) is excluded — a colleague is building the adapter and it integrates later.
-T-089 and T-083's SCR-723 are the portal-side work it will land against.
+> **Rewritten at `ba2dde2` (2026-09-07), after PR #118.** The table below was taken at batch 10 and
+> had gone stale in one direction only — work landed and the row did not move. Batch 11 built 34
+> screens and batch 12 made four of them reachable, which closed nine of the fifteen epics this
+> section listed as open. Every row was re-checked against source for this edition.
+>
+> **`MOTS-PROGRESS.md` §1 is the fuller version of this table**, with the phase each epic belongs to
+> and the PR that closed it. This section keeps the "what is left" column, which is what the rest of
+> this document is organised around.
+
+EPIC-23 (ERP Integration) is still excluded from the "what is left" reading in the same way: a
+colleague is building the adapter. What changed is that the portal side is now finished and says so
+in a test — `ErpSyncVacuityTests` asserts that `Supplier.MarkSynced` is never called, because the
+only transport is a logging stand-in, so BRULE-011 passes vacuously rather than correctly.
 
 | Epic | What remains | Kind |
 |---|---|---|
-| EPIC-01 Identity & Access | SCR-902, SCR-903 (both P0), SCR-040's overlay, SCR-010. T-084's remaining component tests | **Screens + endpoints** |
-| EPIC-02 Supplier Registration | Nothing. Closed — registration, verification, invitation acceptance all built and tested | **Closed** (PR #109 and earlier) |
-| EPIC-03 Onboarding | Nothing screen-shaped. **BRULE-016** is the open item (§4) | **A decision** |
-| EPIC-04 Supplier Profile | SCR-121–127 — the whole profile surface, seven screens, route-only | **Screens** |
-| EPIC-05 Documents | SCR-130, 132, 133. SCR-132 needs a version-history endpoint. **BRULE-023** (§4) | **Screens + one endpoint + a decision** |
-| EPIC-06 Offerings | SCR-127 (shared with EPIC-04). Otherwise closed | **Screens** |
-| EPIC-07 RFQ authoring & lifecycle | Nothing. T-030 split (4) is concurrency hardening, not RFQ scope | **Closed** (PR #116's A-7 was the last accountability gap) |
+| EPIC-01 Identity & Access | Nothing. SCR-902, SCR-903, SCR-010 and SCR-040's overlay all built in batch 11; T-084 closed with them | **Closed** (batch 11) |
+| EPIC-02 Supplier Registration | Nothing | **Closed** (PR #109 and earlier) |
+| EPIC-03 Onboarding | Nothing screen-shaped. **BRULE-016** is the open item (§4.2) | **A decision** |
+| EPIC-04 Supplier Profile | Nothing. SCR-121–126 all render; the profile sections are served by the `/onboarding/*` routes rather than `/profile/*` — a path divergence, not a gap | **Closed** (batch 11) |
+| EPIC-05 Documents | Nothing screen-shaped. SCR-130/131/132/133 built and the version-history endpoint exists. **BRULE-023**'s data half is the open item (§4.1) | **A decision** |
+| EPIC-06 Offerings | Nothing. SCR-127 is the catalog page at `/offerings` | **Closed** |
+| EPIC-07 RFQ authoring & lifecycle | Nothing. T-030 split (4) is concurrency hardening, not RFQ scope | **Closed** (PR #116) |
 | EPIC-08 Invitations | Nothing | **Closed** |
-| EPIC-09 Proposals | SCR-150, SCR-155 supplier-side; SCR-430/431 buyer-side (T-082). D-43's permission grant | **Screens + endpoints** |
-| EPIC-10 Clarifications | Nothing. A-4 settled the visibility rule and both directions are built | **Closed** (batch 10) |
-| EPIC-11 Evaluation | SCR-501 **unresolved** (§0.2). Otherwise closed — A-8 settled anonymity | **A decision** |
-| EPIC-12 Comparison | Nothing. A-1 settled tie-breaks | **Closed** (batch 10) |
-| EPIC-13 Procurement Workflow | Nothing. A-7 gave the workflow an owner | **Closed** (PR #116) |
-| EPIC-14 Award | Nothing. A-3 kept the full path | **Closed** |
-| EPIC-15 Notifications | SCR-901 (screen + endpoint). T-076's email bodies | **Screens + endpoints** |
+| EPIC-09 Proposals | Nothing. SCR-150, SCR-155, SCR-430 and SCR-431 all built; D-43's grant moved | **Closed** (batch 11) |
+| EPIC-10 Clarifications | Nothing | **Closed** (batch 10) |
+| EPIC-11 Evaluation | SCR-501 **unresolved** (§0.2) | **A decision** |
+| EPIC-12 Comparison | Nothing | **Closed** (batch 10) |
+| EPIC-13 Procurement Workflow | Nothing | **Closed** (PR #116) |
+| EPIC-14 Award | Nothing. Batch 12 hid Finalize, Reopen and Issue from the personas the permissions refuse | **Closed** |
+| EPIC-15 Notifications | SCR-901, **refused** rather than missing — D-48. T-076's 23 email bodies shipped in batch 11 | **A decision** |
 | EPIC-16 Supplier Dashboard | Nothing | **Closed** |
-| EPIC-17 Procurement Dashboard | Nothing. A-7 made "Awaiting my action" mean something | **Closed** (PR #116) |
-| EPIC-18 Ministry Dashboard | SCR-604. SCR-601/602/603/606 stay **refused** under BRULE-086/A-10 | **Screens** |
-| EPIC-19 Reporting | SCR-605 — the screen exists and `ministry_viewer` cannot open it | **A permission decision** |
-| EPIC-20 Search | SCR-906, and full-text search itself — see below | **Screens + endpoints** |
-| EPIC-21 Administration | SCR-716, 721, 722, 725, 726. T-075's approval-hierarchy routing | **Screens + endpoints + a decision** |
-| EPIC-22 Audit & Compliance | Nothing. T-079 closed the last screenless endpoint | **Closed** (PR #116) |
-| EPIC-24 Security | SCR-726, SCR-903. OQ-014's AV-scanning scope stays a business question (A-11 kept fail-closed) | **Screens + a decision** |
-| EPIC-25 Observability | The `Correlation-Id` request-header echo — see below | **Endpoints** |
-| EPIC-26 Performance | No baseline has ever been taken — see below | **Neither: a measurement** |
-| EPIC-27 Localization | SCR-716, SCR-010. `ARABIC-REVIEW.md` holds six sets of drafted Arabic awaiting a reviewer | **Screens + a review** |
-| EPIC-28 Responsive / Mobile | Nothing outstanding — the 320px reflow guard covers every back-office route and both shells | **Closed** |
+| EPIC-17 Procurement Dashboard | Nothing. SCR-400 existed since PR #99 and was reachable only by URL until PR #118 | **Closed** (PR #118) |
+| EPIC-18 Ministry Dashboard | **SCR-604**, the one screen in this document still missing and buildable. SCR-601/602/603/606 stay **refused** under BRULE-086/A-10 | **Screens** |
+| EPIC-19 Reporting | Nothing. `report.read` reached `ministry_viewer` in batch 11 (D-44/D-51) and PR #118 made the screen reachable by clicking | **Closed** (PR #118) |
+| EPIC-20 Search | Nothing. **Superseded** — SCR-906 and full-text search both landed in batch 11: `tsvector` columns over suppliers, offerings and RFQs, and one cross-entity `/api/v1/search` authorised per kind | **Closed** (batch 11) |
+| EPIC-21 Administration | **Superseded** — SCR-716, 721, 722, 725 and 726 are all built. T-075's approval-hierarchy routing remains, blocked on a threshold | **A decision** |
+| EPIC-22 Audit & Compliance | Nothing | **Closed** (PR #116) |
+| EPIC-24 Security | **Superseded** — SCR-726 and SCR-903 are both built. What remains is P12's ASVS L2 pass and authz fuzzing, not epic scope. OQ-014 stays a business question with A-11's fail-closed default | **Verification** |
+| EPIC-25 Observability | Nothing. **Superseded** — `CorrelationIdMiddleware` reads the caller's header, refuses a malformed value, and echoes it on every response | **Closed** (batch 11) |
+| EPIC-26 Performance | **Superseded** — `perf/BASELINE.md` measures 18 read endpoints at p95 2.2–17.3 ms against a 300 ms target. Writes, LCP and INP are still unmeasured, and that is P12 | **A measurement, partly taken** |
+| EPIC-27 Localization | A native reviewer for `ARABIC-REVIEW.md`, which now holds every drafted string through batch 12 | **A review** |
+| EPIC-28 Responsive / Mobile | Nothing | **Closed** |
+
+**Two screens outside this table are still missing** and belong to no epic's remaining-work line:
+SCR-307 (the reviewer's supplier directory) and SCR-402 (the buyer's). `/back-office/search` finds
+suppliers across entities; neither persona has a directory screen. Both are **S**.
 
 ### The four items in no backlog file
 
@@ -591,3 +621,36 @@ failure the findings below are about, applied to the document that records them.
 | **D-44** | **Fixed** batch 11 (`64357de`) + batch 12 (nav) | **Resolved: `report.read` granted to `ministry_viewer` as well, and the permission was the defect rather than the screen.** Checked before granting rather than after: both report DTOs are counts and totals with no named supplier, no RFQ title and no commercial value, and the compliance export declares its own scope as ministry-wide because the registry has no organization dimension — precisely BRULE-086's grant. The screen then stayed unreachable until batch 12 added the navigation link, which is a second, separate defect of the same family. Original finding: SCR-605's `ReportsPage` is gated on `report.read`, granted by A-17 to `procurement_manager` only. The inventory assigns SCR-605 to `ministry_viewer`, which holds `governance.read` alone. A screen built for a persona that cannot open it | `PERMISSIONS.md`, `SCREEN-INVENTORY.md` SCR-605 |
 | **D-49** | **Fixed** batch 12 | **Four built screens were reachable only by typing their address**, and this is the sixth time in this project that a screen has been built for a persona who could not navigate to it. `/back-office/procurement` (SCR-400, a procurement officer's home screen), `/back-office/review-dashboard` (SCR-300), `/back-office/reports` (FEAT-19, permissioned correctly in batch 11 and still unreachable) and `/about` (SCR-908, whose own route comment explains it must be reachable when a user cannot sign in). Every instrument here asked whether a route RESOLVES; none asked whether anything LINKS to it, so all four passed every check. Navigation added for the owning personas, plus a guard test that fails naming the screen — proved by reverting one link | `BackOfficeShell.tsx`, new `PublicFooter.tsx`, `router.test.tsx` "every screen is reachable by clicking" |
 | **D-45** | **Fixed** batch 11 (`fb7bc5a`) | The inventory's `SCR-045` asks for an ERP-degraded banner in **global chrome**. Two partial surfaces exist — `AdminOverviewPage`'s tile and `supplierDashboard.erpDegraded` — and neither is chrome, so a buyer mid-RFQ sees nothing | `AdminOverviewPage.tsx:91` |
+
+### 5.1 The walkthrough register — sixteen defects, batch 12
+
+Every defect above was found by **reading** the product against its specification. The sixteen below
+were found by **driving** it from an empty database, and the difference in what the two methods find
+is the point of recording them separately.
+
+Five of them — marked **blocker** — meant the documented workflow could not be completed through the
+interface even once on a clean install, while 731 integration, 431 unit, 17 architecture, 562
+frontend-unit and 206 end-to-end tests were passing. `MOTS-PROGRESS.md` §5 explains why no suite
+could see them: each lives in a path the fixtures write directly rather than travel.
+
+| # | Severity | Finding | Evidence |
+|---|---|---|---|
+| D-56 | **Blocker** | **Staff had no way to belong to a buying body.** The invitation carried no organization and nothing else assigned one, while BRULE-029 scopes every tender query by it. An invited officer pressed New RFQ and got a bare 404 from a create with nowhere to put the row. `ministry_viewer` stays unassigned on purpose — D-50 | `StaffEndpoints.cs`, `InviteStaffRequest` |
+| D-57 | **Blocker** | **An evaluation template could never be activated.** Activate, archive and fork all declare `RequireIfMatch`; no route in that family emitted an ETag, so the version those three demand could never be obtained. Every attempt answered 428 — and no activated template means no tender reaches internal review | `EvaluationTemplateEndpoints.cs`, 7 mutating routes |
+| D-58 | **Blocker** | **The officer could bind a template they were forbidden to list.** Binding is gated on `rfq.edit`; listing was gated on `evaluation.template.manage`. The picker came back 403-empty. Fixed with `RequireAnyPermission` rather than granting officers create/activate/archive to solve a read. **The tail:** moving the permission off the endpoint group left the by-id read on `RequireAuthorization` alone — the generated permission catalogue caught it | `EvaluationTemplateEndpoints.cs`, `PermissionEndpointFilter.cs` |
+| D-59 | **Blocker** | **Binding a template cleared the client's version and put nothing back.** `PUT /rfqs/{code}/evaluation-template` returned no fresh ETag, so submit-for-review — which can only happen after binding — answered 428 every time | `RfqEndpoints.cs`, `BindEvaluationTemplate` |
+| D-60 | **Blocker** | **A supplier could not save its own profile.** Three faults stacked: a hand-built `If-Match` from the numeric row version overriding the correct stored ETag; a read at `/suppliers/me` and a write at `/suppliers/{code}` the ETag store could not join; and `PUT /suppliers/me/legal-info`, the one mutating supplier route of twenty-three returning no fresh ETag. Verified 412 → 428 → 200 across the three fixes | `api/supplier.ts`, `SupplierEndpoints.cs`, `FreshETagGuardTests.cs` |
+| D-61 | Wrong answer | **A 500 for a value somebody typed.** The commercial-terms validator checked the currency code and nothing else. "DDP Damascus" — 12 characters into a `varchar(10)` — reached Postgres and came back `22001`, surfaced as "An unexpected error occurred" with nothing naming the field, and an unhandled exception in the log for something that is not an incident. The rules now mirror the column widths | `ProposalEndpoints.cs`, `SetCommercialTermsRequestValidator` |
+| D-62 | Wrong answer | **A rate limit reported as "Invalid email or password".** NFR-SEC-009's limiter answers before Identity is consulted, so on a 429 the password was never checked — and the user is told the one thing that is definitely untrue, then goes to reset a correct password on an endpoint that is also rate limited. Reproduced: ten posts give nine 401s then 429s | `LoginPage.tsx` |
+| D-63 | Wrong answer | **The registration form printed the validation library's internals.** "Too small: expected string to have >=1 characters", in English, on the first screen a supplier meets on an Arabic-first product. `passwords_must_match` and `onboarding.missing` had no translation in either language and rendered as raw keys | `RegisterPage.tsx`, `i18n/config.ts` |
+| D-64 | Wrong answer | **Three controls offered to personas the permissions refuse.** Finalize and Reopen were rendered for anyone who could see the evaluation panel, though both belong to `procurement_manager`; Issue award was rendered for anyone who could open the award screen, though executing needs `award.approve`, which the recommending officer does not hold. Hidden now, not disabled; the endpoints re-enforce all three | `EvaluationPage.tsx`, `AwardPage.tsx` |
+| D-49 | Unreachable | **Four built screens reachable only by typing the address** — recorded above, and the reason the guard exists (D-55) | `BackOfficeShell.tsx`, `PublicFooter.tsx`, `router.test.tsx` |
+| D-65 | Hygiene | **Demo data switched off still left a demo account standing.** `ReviewerSeeder` ran outside the `DevSeed:Enabled` gate. A switch that leaves an account behind is one nobody can trust. The bootstrap `system_admin` stays outside it deliberately — somebody has to create the first staff accounts, and registration only produces suppliers | `ReviewerSeeder.cs` |
+| D-66 | **Open** | **An offering category that accepts the click and shows nothing.** Ticking a category writes the link server-side, but the checkbox does not re-tick until the profile is re-read, and the mutation has no error branch — so a failure there would be silent too. A control that accepts a click and shows nothing is one a user clicks again. **Recorded in the driver, not fixed** | `walkthrough/walk.mjs`, `OfferingsPage.tsx` |
+
+**On the count.** Twelve rows, sixteen defects: D-60 is three stacked faults, D-64 is three controls,
+and D-49 is four screens. Counted as the rows a reader would fix separately, it is twelve; counted as
+distinct faults, sixteen.
+
+**On the numbering.** These continue from D-55 in `DECISIONS-TAKEN.md` Part B rather than from D-49
+here, so that one sequence covers both files and no id means two things.
