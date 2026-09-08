@@ -42,3 +42,8 @@ TestResults/
 
 # Local agent session state - machine-specific, never shared
 .claude/scheduled_tasks.lock
+
+# The walkthrough document is generated from GUIDE.md and the screenshots by walkthrough/docx.
+# 10 MB of images already committed once; regenerate it rather than versioning it twice.
+walkthrough/docx/build/
+walkthrough/*.docx
