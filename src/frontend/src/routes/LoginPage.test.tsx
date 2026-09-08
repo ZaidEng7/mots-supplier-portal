@@ -165,6 +165,25 @@ describe('LoginPage failure states', () => {
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/evaluation' }))
   })
 
+  it('does not send an administrator to the evaluator dashboard', async () => {
+    // A system_admin holds all 104 permissions, evaluation.score among them, so a check that asked
+    // only "does this account score" sent the administrator to the evaluator's screen on every sign-in.
+    // The question has to be "is this account ONLY an evaluator", and rfq.read is what separates them.
+    restore = mockFetch({
+      '/api/v1/auth/login': {
+        accessToken: `header.${btoa(JSON.stringify({
+          sub: 'u-4',
+          perms: ['evaluation.score', 'evaluation.submit', 'rfq.read', 'admin.manage'],
+        }))}.sig`,
+      },
+    })
+
+    renderPage(<LoginPage />)
+    await signIn()
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/back-office/dashboard' }))
+  })
+
   it('still routes other staff to the back-office dashboard', async () => {
     // The control: keyed on the permission, so an officer or an administrator is unaffected.
     restore = mockFetch({

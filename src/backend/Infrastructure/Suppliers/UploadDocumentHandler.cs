@@ -34,7 +34,21 @@ public sealed class UploadDocumentHandler(
             return new UploadDocumentResult.NotFoundOrOutOfScope();
         }
 
-        if (supplier.OnboardingState is not (SupplierOnboardingState.EmailVerified or SupplierOnboardingState.ProfileInProgress or SupplierOnboardingState.InfoRequested))
+        // Approved is permitted, and this is a renewal rather than a loophole.
+        //
+        // Documents EXPIRE. The system tracks the date, warns "expiring soon", moves the document to
+        // Expired on a daily job, and BRULE-023 suspends the supplier when an award-critical one goes.
+        // Until this line changed, the supplier's own Documents screen offered them an expiry field and
+        // a file picker and then refused the upload - and a reviewer could not help either, because
+        // RequestInfo needs UnderReview. A supplier suspended for an expired certificate had no way,
+        // through any screen, to replace it. The only remedy was a database edit.
+        //
+        // The renewal rides the DOCUMENT lifecycle, which already exists for exactly this: the new
+        // version is uploaded, scanned, and sits UnderReview for a reviewer to approve or reject,
+        // beside the version it replaces. The SUPPLIER's onboarding state is not touched, because a
+        // company whose tax certificate is a year newer is not a company that needs onboarding again.
+        if (supplier.OnboardingState is SupplierOnboardingState.Draft or SupplierOnboardingState.Submitted
+            or SupplierOnboardingState.UnderReview or SupplierOnboardingState.Rejected)
         {
             return new UploadDocumentResult.NotEditable(
                 $"Cannot upload documents from state '{supplier.OnboardingState}'.");

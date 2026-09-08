@@ -3,7 +3,7 @@ import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -11,6 +11,7 @@ import {
   submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
   changeSubmissionDeadline, reassignRfq, listRfqAssignees,
   inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
+  updateRfqBasics, updateRfqItem, updateRequirement,
   RfqApiError,
 } from '../../api/rfqs'
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
@@ -25,6 +26,19 @@ import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
  * state guard server-side regardless of what this page shows. */
+/**
+ * An ISO instant as `<input type="datetime-local">` wants it: local wall time, no zone, no seconds.
+ *
+ * <p>Slicing the ISO string instead would put UTC into a control the browser reads as local, which
+ * shifts every displayed deadline by the offset - three hours here, and silently.</p>
+ */
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function RfqDetailPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode' })
   const { t, i18n } = useTranslation()
@@ -53,6 +67,18 @@ export function RfqDetailPage() {
   const [returnComments, setReturnComments] = useState('')
   const [cancelReason, setCancelReason] = useState('')
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string }>>({})
+  // Which row is being corrected, and the values being typed into it. Null means "nobody is editing".
+  //
+  // An inline editor rather than a dialog: a correction is almost always one field on one row, and
+  // the row is the context. The tender's own fields get a dialog, because there are ten of them.
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editItem, setEditItem] = useState({ titleAr: '', titleEn: '', categoryCode: '', unitOfMeasureCode: '', quantity: '1' })
+  const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null)
+  const [editRequirement, setEditRequirement] = useState({ textAr: '', textEn: '', isMandatory: true })
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [details, setDetails] = useState({
+    titleAr: '', titleEn: '', currencyCode: '', submissionOpensAt: '', submissionClosesAt: '',
+  })
   const [addendumTitleAr, setAddendumTitleAr] = useState('')
   const [addendumTitleEn, setAddendumTitleEn] = useState('')
   const [addendumDescAr, setAddendumDescAr] = useState('')
@@ -145,6 +171,16 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
   })
 
+  const updateItemMutation = useMutation({
+    mutationFn: () => updateRfqItem(referenceCode, editingItemId!, {
+      titleAr: editItem.titleAr, titleEn: editItem.titleEn, specificationAr: null, specificationEn: null,
+      categoryCode: editItem.categoryCode, quantity: Number(editItem.quantity),
+      unitOfMeasureCode: editItem.unitOfMeasureCode, isUnitPrice: true, isOptional: false,
+    }),
+    onSuccess: () => { invalidate(); setEditingItemId(null); notify({ kind: 'success', title: t('rfq.itemUpdated') }) },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
+  })
+
   const removeItemMutation = useMutation({
     mutationFn: (itemId: string) => removeRfqItem(referenceCode, itemId),
     onSuccess: () => invalidate(),
@@ -154,6 +190,15 @@ export function RfqDetailPage() {
   const addRequirementMutation = useMutation({
     mutationFn: () => addRequirement(referenceCode, { textAr: reqTextAr, textEn: reqTextEn, isMandatory: reqMandatory, documentTypeCode: null }),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.requirementAdded') }); setReqTextAr(''); setReqTextEn('') },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
+  })
+
+  const updateRequirementMutation = useMutation({
+    mutationFn: () => updateRequirement(referenceCode, editingRequirementId!, {
+      textAr: editRequirement.textAr, textEn: editRequirement.textEn,
+      isMandatory: editRequirement.isMandatory, documentTypeCode: null,
+    }),
+    onSuccess: () => { invalidate(); setEditingRequirementId(null); notify({ kind: 'success', title: t('rfq.requirementUpdated') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
   })
 
@@ -237,8 +282,14 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
+  // The officer's own words, not a constant.
+  //
+  // The aggregate refuses an early close without a reason, because closing bidding before the
+  // advertised deadline is a decision bidders can challenge and the answer has to be on the record.
+  // This sent a fixed translated string, so every early close in the system carried the same sentence
+  // and the audit trail said nothing about why - satisfying the rule while defeating it.
   const closeMutation = useMutation({
-    mutationFn: () => closeRfqSubmission(referenceCode, t('rfq.manualCloseReason')),
+    mutationFn: (reason: string) => closeRfqSubmission(referenceCode, reason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.closed') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
@@ -278,6 +329,26 @@ export function RfqDetailPage() {
     mutationFn: (clarificationId: string) => publishClarification(referenceCode, clarificationId),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.clarifications.published') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.clarifications.errors.answerFailed')) }),
+  })
+
+  // F-4: PUT /rfqs/{code} and updateRfqBasics both existed and nothing called either, so a tender
+  // created with the wrong submission window - the easiest mistake on that form, both dates typed by
+  // hand - could only be recovered by cancelling the tender and authoring it again.
+  const detailsMutation = useMutation({
+    mutationFn: () => updateRfqBasics(referenceCode, {
+      titleAr: details.titleAr,
+      titleEn: details.titleEn,
+      descriptionAr: rfq?.descriptionAr ?? null,
+      descriptionEn: rfq?.descriptionEn ?? null,
+      currencyCode: details.currencyCode,
+      publishAt: rfq?.publishAt ?? null,
+      submissionOpensAt: details.submissionOpensAt ? new Date(details.submissionOpensAt).toISOString() : null,
+      submissionClosesAt: details.submissionClosesAt ? new Date(details.submissionClosesAt).toISOString() : null,
+      clarificationDeadlineAt: rfq?.clarificationDeadlineAt ?? null,
+      evaluationTargetDate: rfq?.evaluationTargetDate ?? null,
+    }),
+    onSuccess: () => { invalidate(); setDetailsOpen(false); notify({ kind: 'success', title: t('rfq.detailsSaved') }) },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
   })
 
   const addendumMutation = useMutation({
@@ -393,7 +464,16 @@ export function RfqDetailPage() {
             <Button isLoading={publishMutation.isPending} onClick={() => publishMutation.mutate()}>{t('rfq.publish')}</Button>
           ) : null}
           {isSubmissionOpen ? (
-            <Button variant="secondary" isLoading={closeMutation.isPending} onClick={() => closeMutation.mutate()}>{t('rfq.closeSubmission')}</Button>
+            <Button
+              variant="secondary"
+              isLoading={closeMutation.isPending}
+              onClick={() => {
+                const reason = window.prompt(t('rfq.closeReasonPrompt'))?.trim()
+                if (reason) closeMutation.mutate(reason)
+              }}
+            >
+              {t('rfq.closeSubmission')}
+            </Button>
           ) : null}
         </div>
       </div>
@@ -432,6 +512,70 @@ export function RfqDetailPage() {
               {t('rfq.ownership.reassign')}
             </Button>
           </div>
+        </Card>
+      ) : null}
+
+      {/*
+        * F-4: the tender's own fields, editable while Draft - which is what Draft is documented to mean.
+        *
+        * `PUT /api/v1/rfqs/{code}` and `updateRfqBasics` both existed and nothing called either, so an
+        * officer who typed the submission window wrongly at creation had two options: cancel the tender
+        * and author it again, or ask an engineer to issue the PUT. Both happened during the walkthrough.
+        *
+        * Draft only, and that is the domain's rule rather than this screen's: UpdateBasics calls
+        * EnsureDraftEditable, because bidders price against what they were shown.
+        */}
+      {isDraft ? (
+        <Card title={t('rfq.details.title')}>
+          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.details.help')}
+          </p>
+          <Button variant="secondary" onClick={() => {
+            setDetails({
+              titleAr: rfq.titleAr,
+              titleEn: rfq.titleEn,
+              currencyCode: rfq.currencyCode,
+              submissionOpensAt: toLocalInput(rfq.submissionOpensAt),
+              submissionClosesAt: toLocalInput(rfq.submissionClosesAt),
+            })
+            setDetailsOpen(true)
+          }}>{t('rfq.details.edit')}</Button>
+
+          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen} title={t('rfq.details.title')}>
+            <div className="flex flex-col gap-3">
+              <Field label={t('rfq.fields.titleEn')}>
+                {(inputProps) => (
+                  <Input {...inputProps} value={details.titleEn} onChange={(e) => setDetails((p) => ({ ...p, titleEn: e.target.value }))} />
+                )}
+              </Field>
+              <Field label={t('rfq.fields.titleAr')}>
+                {(inputProps) => (
+                  <Input {...inputProps} value={details.titleAr} onChange={(e) => setDetails((p) => ({ ...p, titleAr: e.target.value }))} />
+                )}
+              </Field>
+              <Field label={t('rfq.fields.currency')}>
+                {(inputProps) => (
+                  <Input {...inputProps} value={details.currencyCode} onChange={(e) => setDetails((p) => ({ ...p, currencyCode: e.target.value }))} />
+                )}
+              </Field>
+              <Field label={t('rfq.fields.submissionOpensAt')}>
+                {(inputProps) => (
+                  <Input {...inputProps} type="datetime-local" value={details.submissionOpensAt}
+                    onChange={(e) => setDetails((p) => ({ ...p, submissionOpensAt: e.target.value }))} />
+                )}
+              </Field>
+              <Field label={t('rfq.fields.submissionClosesAt')}>
+                {(inputProps) => (
+                  <Input {...inputProps} type="datetime-local" value={details.submissionClosesAt}
+                    onChange={(e) => setDetails((p) => ({ ...p, submissionClosesAt: e.target.value }))} />
+                )}
+              </Field>
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>{t('rfq.cancelEdit')}</Button>
+                <Button isLoading={detailsMutation.isPending} onClick={() => detailsMutation.mutate()}>{t('rfq.save')}</Button>
+              </div>
+            </div>
+          </Dialog>
         </Card>
       ) : null}
 
@@ -527,17 +671,55 @@ export function RfqDetailPage() {
             </TableHead>
             <TableBody>
               {rfq.items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.lineNo}</TableCell>
-                  <TableCell>{isArabic ? item.titleAr : item.titleEn}</TableCell>
-                  <TableCell>{item.categoryCode}</TableCell>
-                  <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
-                  {isDraft ? (
+                editingItemId === item.id ? (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.lineNo}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => removeItemMutation.mutate(item.id)}>{t('rfq.remove')}</Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Input aria-label={`${t('rfq.fields.titleEn')} — ${item.lineNo}`} value={editItem.titleEn}
+                          onChange={(e) => setEditItem((p) => ({ ...p, titleEn: e.target.value }))} />
+                        <Input aria-label={`${t('rfq.fields.titleAr')} — ${item.lineNo}`} value={editItem.titleAr}
+                          onChange={(e) => setEditItem((p) => ({ ...p, titleAr: e.target.value }))} />
+                      </div>
                     </TableCell>
-                  ) : null}
-                </TableRow>
+                    <TableCell>
+                      <Select value={editItem.categoryCode} onValueChange={(v) => setEditItem((p) => ({ ...p, categoryCode: v }))}
+                        placeholder={t('rfq.fields.category')}
+                        options={categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))} />
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" aria-label={`${t('rfq.fields.quantity')} — ${item.lineNo}`} value={editItem.quantity}
+                        onChange={(e) => setEditItem((p) => ({ ...p, quantity: e.target.value }))} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button size="sm" isLoading={updateItemMutation.isPending} onClick={() => updateItemMutation.mutate()}>{t('rfq.save')}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingItemId(null)}>{t('rfq.cancelEdit')}</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.lineNo}</TableCell>
+                    <TableCell>{isArabic ? item.titleAr : item.titleEn}</TableCell>
+                    <TableCell>{item.categoryCode}</TableCell>
+                    <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
+                    {isDraft ? (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setEditingItemId(item.id)
+                            setEditItem({
+                              titleAr: item.titleAr, titleEn: item.titleEn, categoryCode: item.categoryCode,
+                              unitOfMeasureCode: item.unitOfMeasureCode, quantity: String(item.quantity),
+                            })
+                          }}>{t('rfq.edit')}</Button>
+                          <Button size="sm" variant="ghost" onClick={() => removeItemMutation.mutate(item.id)}>{t('rfq.remove')}</Button>
+                        </div>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                )
               ))}
             </TableBody>
           </Table>
@@ -567,16 +749,42 @@ export function RfqDetailPage() {
               {isDraft ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
             </TableHead>
             <TableBody>
-              {rfq.requirements.map((req) => (
-                <TableRow key={req.id}>
-                  <TableCell>{isArabic ? req.textAr : req.textEn}</TableCell>
-                  <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
-                  {isDraft ? (
+              {rfq.requirements.map((req, index) => (
+                editingRequirementId === req.id ? (
+                  <TableRow key={req.id}>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => removeRequirementMutation.mutate(req.id)}>{t('rfq.remove')}</Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Input aria-label={`${t('rfq.fields.textEn')} — ${index + 1}`} value={editRequirement.textEn}
+                          onChange={(e) => setEditRequirement((p) => ({ ...p, textEn: e.target.value }))} />
+                        <Input aria-label={`${t('rfq.fields.textAr')} — ${index + 1}`} value={editRequirement.textAr}
+                          onChange={(e) => setEditRequirement((p) => ({ ...p, textAr: e.target.value }))} />
+                      </div>
                     </TableCell>
-                  ) : null}
-                </TableRow>
+                    <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button size="sm" isLoading={updateRequirementMutation.isPending} onClick={() => updateRequirementMutation.mutate()}>{t('rfq.save')}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingRequirementId(null)}>{t('rfq.cancelEdit')}</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow key={req.id}>
+                    <TableCell>{isArabic ? req.textAr : req.textEn}</TableCell>
+                    <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
+                    {isDraft ? (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setEditingRequirementId(req.id)
+                            setEditRequirement({ textAr: req.textAr, textEn: req.textEn, isMandatory: req.isMandatory })
+                          }}>{t('rfq.edit')}</Button>
+                          <Button size="sm" variant="ghost" onClick={() => removeRequirementMutation.mutate(req.id)}>{t('rfq.remove')}</Button>
+                        </div>
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                )
               ))}
             </TableBody>
           </Table>
@@ -597,6 +805,23 @@ export function RfqDetailPage() {
       </Card>
 
       <Card title={t('rfq.attachments.title')}>
+        {/*
+          * F-8, and the warning is the whole fix.
+          *
+          * Attachments are Draft-only by design: bidders price against what they downloaded, and a
+          * file swapped underneath them is what that lock prevents. The ruling (D-56) is that an
+          * addendum announces a change and does not carry a document, so there is NO route to correct
+          * a published tender's attachments - the tender has to be cancelled and authored again.
+          *
+          * That is defensible and it is invisible. An officer attaching the wrong file has no way to
+          * know, at the moment they attach it, that they are making a permanent decision. Saying so
+          * here is what turns a trap into a rule.
+          */}
+        {isDraft ? (
+          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.attachments.permanentWarning')}
+          </p>
+        ) : null}
         {rfq.attachments.length > 0 ? (
           <ul className="flex flex-col gap-2">
             {rfq.attachments.map((attachment) => (

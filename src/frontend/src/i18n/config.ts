@@ -821,6 +821,16 @@ const resources = {
         cancel: 'إلغاء',
         created: 'تم إنشاء الطلب',
         itemAdded: 'تمت إضافة البند',
+        itemUpdated: 'تم تعديل البند',                          // [drafted]
+        requirementUpdated: 'تم تعديل المتطلب',                 // [drafted]
+        edit: 'تعديل',                                          // [drafted]
+        cancelEdit: 'إلغاء',                                    // [drafted]
+        detailsSaved: 'تم حفظ بيانات المناقصة',                 // [drafted]
+        details: {
+          title: 'بيانات المناقصة',                             // [drafted]
+          help: 'العنوان والعملة ونافذة تقديم العروض. قابلة للتعديل ما دامت المناقصة مسودة.',   // [drafted]
+          edit: 'تعديل البيانات',                               // [drafted]
+        },
         requirementAdded: 'تمت إضافة المتطلب',
         templateBound: 'تم ربط قالب التقييم',
         submitted: 'تم إرسال الطلب للمراجعة',
@@ -846,6 +856,7 @@ const resources = {
         },
         closeSubmission: 'إغلاق باب التقديم',
         manualCloseReason: 'إغلاق يدوي من قبل موظف المشتريات',
+        closeReasonPrompt: 'سبب إغلاق باب العروض مبكراً — يُسجَّل في سجل التدقيق:',   // [drafted]
         returnForEditsTitle: 'إعادة للتعديل',
         returnForEdits: 'إعادة للتعديل',
         cancelTitle: 'إلغاء الطلب',
@@ -857,6 +868,7 @@ const resources = {
         actions: 'إجراءات',
         noItems: 'لا توجد بنود بعد',
         attachments: {
+          permanentWarning: 'تحقق من الملفات قبل إرسال المناقصة للمراجعة: لا يمكن إضافة المرفقات أو استبدالها أو حذفها بعد مغادرة حالة المسودة، ولا يحمل الملحق ملفاً. التصحيح بعد ذلك يتطلب إلغاء المناقصة وإعادة إنشائها.',   // [drafted]
           title: 'مرفقات الطلب',                            // [§7-style drafted]
           none: 'لا توجد مرفقات',                           // [reused] §4's empty-state pattern
           add: 'إضافة مرفق',                                // [§7-style drafted]
@@ -1277,7 +1289,9 @@ const resources = {
         actions: 'إجراءات',
         filterState: 'الحالة',
         filterAssignee: 'المسؤول',
-        filterAll: 'الكل',
+        // "All" said something untrue: this option is the queue's default, which is the three states
+        // awaiting a decision. Approved and Rejected are now filterable and were never in "all".
+        filterAll: 'بانتظار قرار',                              // [drafted]
         claim: 'تولي المراجعة',
         claimed: 'تم تولي المراجعة',
         claimFailed: 'تعذر تولي المراجعة',
@@ -2511,6 +2525,16 @@ const resources = {
         cancel: 'Cancel',
         created: 'RFQ created',
         itemAdded: 'Item added',
+        itemUpdated: 'Item updated',
+        requirementUpdated: 'Requirement updated',
+        edit: 'Edit',
+        cancelEdit: 'Cancel',
+        detailsSaved: 'Tender details saved',
+        details: {
+          title: 'Tender details',
+          help: 'Title, currency and the submission window. Editable while the tender is a draft.',
+          edit: 'Edit details',
+        },
         requirementAdded: 'Requirement added',
         templateBound: 'Evaluation template bound',
         submitted: 'RFQ submitted for review',
@@ -2533,6 +2557,7 @@ const resources = {
         },
         closeSubmission: 'Close submission window',
         manualCloseReason: 'Manually closed by procurement officer',
+        closeReasonPrompt: 'Why are you closing bidding early? This is recorded in the audit trail:',
         returnForEditsTitle: 'Return for edits',
         returnForEdits: 'Return for edits',
         cancelTitle: 'Cancel RFQ',
@@ -2544,6 +2569,7 @@ const resources = {
         actions: 'Actions',
         noItems: 'No items yet',
         attachments: {
+          permanentWarning: 'Check these files before sending the tender for review: attachments cannot be added, replaced or removed once it leaves Draft, and an addendum cannot carry a file. Correcting one after that means cancelling the tender and authoring it again.',
           title: 'RFQ attachments',
           none: 'No attachments',
           add: 'Add an attachment',
@@ -2941,7 +2967,7 @@ const resources = {
         actions: 'Actions',
         filterState: 'State',
         filterAssignee: 'Assignee',
-        filterAll: 'All',
+        filterAll: 'Awaiting a decision',
         claim: 'Claim',
         claimed: 'Claimed',
         claimFailed: 'Could not claim',

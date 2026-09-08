@@ -134,7 +134,7 @@ describe('OnboardingPage document grouping', () => {
     const rejected = {
       ...documentType('commercial_registration', true),
       latestDocument: {
-        id: 'doc-1', version: 1, state: 'Rejected', originalFileName: 'file.pdf', contentType: 'application/pdf',
+        documentId: 'doc-1', version: 1, state: 'Rejected', originalFileName: 'file.pdf', contentType: 'application/pdf',
         sizeBytes: 1024, issueDate: null, expiryDate: null, rejectReason: 'Illegible scan',
         uploadedAt: new Date().toISOString(), reviewedAt: new Date().toISOString(),
       },

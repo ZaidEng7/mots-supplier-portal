@@ -110,7 +110,20 @@ public sealed class PatchProposalHandler(AppDbContext db, IScopeContext scope, I
                 item["discount"]?.GetValue<decimal>(), item["leadTimeDays"]?.GetValue<int>(),
                 item["notesAr"]?.GetValue<string>(), item["notesEn"]?.GetValue<string>());
 
-            db.ProposalItems.Add(proposal.Items.First(i => i.RfqItemId == rfqItemId));
+            // Only a line the aggregate has just CREATED needs telling to the change tracker.
+            //
+            // SetItemPricing upserts: re-pricing a line already on the proposal mutates it in place,
+            // and that entity is already tracked from the Include above. Adding it again marks a
+            // persisted row as Added, so SaveChanges issues an INSERT carrying its existing primary
+            // key - "23505: duplicate key value violates unique constraint PK_proposal_item", a 500
+            // rather than a refusal anybody could act on.
+            //
+            // It survived because it only fires from the SECOND line onwards: RFC 7396 replaces the
+            // array wholesale, so the client resends every line it wants kept, and the first PATCH on
+            // a one-line proposal has nothing persisted to re-add. Every walkthrough of this product
+            // has priced exactly one line.
+            var entity = proposal.Items.First(i => i.RfqItemId == rfqItemId);
+            if (db.Entry(entity).State == EntityState.Detached) db.ProposalItems.Add(entity);
             keep.Add(rfqItemId);
         }
 

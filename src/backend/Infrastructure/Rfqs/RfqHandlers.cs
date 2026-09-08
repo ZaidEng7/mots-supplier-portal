@@ -404,6 +404,38 @@ public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, I
         return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }
 
+    public async Task<RfqMutationResult> UpdateAsync(UpdateRfqItemCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        // The same reference-data checks the add does. A correction can change the category or the
+        // unit, and a correction into a code that does not exist is the same defect as a create into one.
+        if (!await db.Categories.AnyAsync(c => c.Code == command.CategoryCode, ct))
+        {
+            return new RfqMutationResult.InvalidCategory();
+        }
+        if (!await db.UnitsOfMeasure.AnyAsync(u => u.Code == command.UnitOfMeasureCode, ct))
+        {
+            return new RfqMutationResult.InvalidUnitOfMeasure();
+        }
+
+        try
+        {
+            rfq.UpdateItem(
+                command.ItemId, command.TitleAr, command.TitleEn, command.SpecificationAr, command.SpecificationEn,
+                command.CategoryCode, command.Quantity, command.UnitOfMeasureCode, command.IsUnitPrice, command.IsOptional);
+        }
+        catch (DomainException ex)
+        {
+            return RfqTransitions.Refusal(rfq, ex);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_item_updated", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+
     public async Task<RfqMutationResult> RemoveAsync(RemoveRfqItemCommand command, CancellationToken ct)
     {
         var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
@@ -443,6 +475,26 @@ public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scop
 
         db.Requirements.Add(requirement);
         await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_added", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+
+    public async Task<RfqMutationResult> UpdateAsync(UpdateRequirementCommand command, CancellationToken ct)
+    {
+        var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
+        if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        try
+        {
+            rfq.UpdateRequirement(command.RequirementId, command.TextAr, command.TextEn, command.IsMandatory,
+                command.DocumentTypeCode, command.ExpectedEnvelope);
+        }
+        catch (DomainException ex)
+        {
+            return RfqTransitions.Refusal(rfq, ex);
+        }
+
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_requirement_updated", scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);
         return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
     }

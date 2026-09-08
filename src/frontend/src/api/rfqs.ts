@@ -239,6 +239,14 @@ export async function addRfqItem(referenceCode: string, payload: RfqItemPayload)
   }))
 }
 
+export async function updateRfqItem(referenceCode: string, itemId: string, payload: RfqItemPayload): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/items/${itemId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }))
+}
+
 export async function removeRfqItem(referenceCode: string, itemId: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/items/${itemId}`, { method: 'DELETE' }))
 }
@@ -246,6 +254,14 @@ export async function removeRfqItem(referenceCode: string, itemId: string): Prom
 export async function addRequirement(referenceCode: string, payload: RequirementPayload): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/requirements`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }))
+}
+
+export async function updateRequirement(referenceCode: string, requirementId: string, payload: RequirementPayload): Promise<Rfq> {
+  return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/requirements/${requirementId}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }))

@@ -49,7 +49,7 @@ either dead or waiting for a surface — both are called out below.
 | `rfq.close` | `procurement_officer`, `system_admin` | `CloseRfqSubmission` |
 | `rfq.create` | `procurement_officer`, `system_admin` | `CreateRfq` |
 | `rfq.deadline.shorten` | `procurement_manager`, `system_admin` | checked in RfqHandlers, not on a route |
-| `rfq.edit` | `procurement_officer`, `system_admin` | `AddRequirement`, `AddRfqAttachment`, `AddRfqItem`, `BindEvaluationTemplate`, `RemoveRequirement`, `RemoveRfqAttachment`, `RemoveRfqItem`, `UpdateRfqBasics` |
+| `rfq.edit` | `procurement_officer`, `system_admin` | `AddRequirement`, `AddRfqAttachment`, `AddRfqItem`, `BindEvaluationTemplate`, `RemoveRequirement`, `RemoveRfqAttachment`, `RemoveRfqItem`, `UpdateRequirement`, `UpdateRfqBasics`, `UpdateRfqItem` |
 | `rfq.invite` | `procurement_officer`, `system_admin` | `InviteSupplier`, `SuggestInvitationCandidates` |
 | `rfq.publish` | `procurement_manager`, `procurement_officer`, `system_admin` | `PublishRfq` |
 | `rfq.read` | `procurement_manager`, `procurement_officer`, `supplier_admin`, `supplier_user`, `system_admin` | `GetRfq`, `GetRfqAttachmentDownloadUrl`, `GetWorkspace`, `ListRfqAssignees`, `ListRfqs`, `ProcurementDashboard`, checked in SearchHandler, not on a route |

@@ -70,7 +70,14 @@ export function LoginPage() {
     //
     // Keyed on the permission rather than the role name, because the token carries permissions and a second
     // source for "is this an evaluator" would disagree the day a role's grants change.
-    const isEvaluator = claims?.permissions.includes('evaluation.score') ?? false
+    // "Is this account an evaluator" was `permissions.includes('evaluation.score')`, and a system_admin
+    // holds all 104 permissions including that one - so the administrator was sent to the evaluator's
+    // dashboard on every sign-in. The claim set carries no role, so the question has to be asked of the
+    // permissions: an evaluator scores and nothing else. `rfq.read` is the discriminator because every
+    // back-office persona that is more than an evaluator holds it, and the evaluator does not - their
+    // whole grant is evaluation.score, evaluation.submit and rfq.clarify.
+    const permissions = claims?.permissions ?? []
+    const isEvaluator = permissions.includes('evaluation.score') && !permissions.includes('rfq.read')
     // Written out rather than nested, because the three cases are three different shells and a
     // reader should not have to unpick precedence to see which one a persona lands in.
     let defaultRoute = '/back-office/dashboard'

@@ -647,6 +647,13 @@
           "fullName": {
             "type": "string"
           },
+          "organizationId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "role": {
             "type": "string"
           }
@@ -855,6 +862,12 @@
         "additionalProperties": false,
         "properties": {
           "expiryTracked": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "isAwardCritical": {
             "type": [
               "null",
               "boolean"
@@ -1276,6 +1289,24 @@
           "Formula"
         ]
       },
+      "SetDocumentTypeCategoriesRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "categoryCodes"
+        ],
+        "type": "object"
+      },
       "SubmitForReviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1645,6 +1676,52 @@
         },
         "tags": [
           "MotsSupplierPortal.Api"
+        ]
+      }
+    },
+    "/api/v1/admin/document-type-categories": {
+      "get": {
+        "operationId": "GetDocumentTypeCategories",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/document-type-categories/{documentTypeCode}": {
+      "put": {
+        "operationId": "SetDocumentTypeCategories",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "documentTypeCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDocumentTypeCategoriesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Admin"
         ]
       }
     },
@@ -5179,6 +5256,29 @@
         ]
       }
     },
+    "/api/v1/rfqs/{referenceCode}/evaluation/candidates": {
+      "get": {
+        "operationId": "ListEvaluatorCandidates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
     "/api/v1/rfqs/{referenceCode}/evaluation/consolidate": {
       "post": {
         "operationId": "ConsolidateEvaluation",
@@ -5564,6 +5664,46 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateRfqItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RfqItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -5992,6 +6132,46 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Rfqs"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateRequirement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requirementId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"

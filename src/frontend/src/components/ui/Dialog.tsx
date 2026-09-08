@@ -33,8 +33,20 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
       {trigger ? <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger> : null}
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-40" style={{ backgroundColor: 'var(--color-bg-overlay)' }} />
+        {/*
+          * The dialog is capped and scrolls its own body, rather than growing until its buttons leave
+          * the screen.
+          *
+          * Found on the offering editor: it carries a repeater for "additional attributes", and five
+          * rows pushed Save and Cancel below the fold while clipping the Arabic name field off the
+          * top. The form was intact and simply could not be finished or dismissed - a modal traps
+          * focus, so scrolling the page behind it is not a way out either.
+          *
+          * Fixed here rather than on that one page because any dialog with a repeater in it has the
+          * same shape, and the next one will be written by somebody who never saw this.
+          */}
         <RadixDialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-[0.5rem] p-6 shadow-xl"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-[0.5rem] p-6 shadow-xl"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
           onCloseAutoFocus={(e) => {
             if (previouslyFocused.current) {
@@ -43,7 +55,7 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
             }
           }}
         >
-          <div className="mb-4 flex items-start justify-between">
+          <div className="mb-4 flex flex-none items-start justify-between">
             <div>
               <RadixDialog.Title className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
                 {title}
@@ -64,7 +76,8 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
               <X size={18} aria-hidden="true" />
             </RadixDialog.Close>
           </div>
-          {children}
+          {/* The scroll region: the title and the close button stay put, the form moves. */}
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>

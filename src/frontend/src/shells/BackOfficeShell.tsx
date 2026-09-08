@@ -28,8 +28,30 @@ function usePermissions(): (permission: string) => boolean {
   return (permission) => permissions?.includes(permission) ?? false
 }
 
+/**
+ * Whether this account belongs to a buying body.
+ *
+ * <p>BRULE-029 scopes every procurement query by the caller's organization, and two personas
+ * deliberately have none: the bootstrap administrator, and `ministry_viewer`, whose grant is
+ * cross-organization by BRULE-086 and would be narrowed by pinning it to one. For those two the
+ * procurement screens answer 404 - correctly, there is nothing in scope to return.</p>
+ *
+ * <p>The links were offered anyway, because they are gated on permission and `system_admin` holds
+ * all of them. An administrator clicking Procurement dashboard got "Couldn't load the dashboard -
+ * Try again", a retry that can never succeed. Hidden now, which is what already happens to the
+ * Ministry viewer for every link but its own.</p>
+ *
+ * <p>Hiding rather than widening is the reversible half of the choice: whether a platform
+ * administrator SHOULD read across every organization's live procurements is a policy question, and
+ * the same one BRULE-086 answers for the Ministry. It should not be settled by a nav gate.</p>
+ */
+function useHasOrganization(): boolean {
+  return useAuthStore((s) => Boolean(s.claims?.organizationId))
+}
+
 export function BackOfficeShell({ children }: Props) {
   const can = usePermissions()
+  const inABuyingBody = useHasOrganization()
   const { t } = useTranslation()
   const clearSession = useAuthStore((s) => s.clearSession)
   // FR-IAM-010: hide, never gate - the API re-enforces admin.organizations.manage on every
@@ -52,15 +74,15 @@ export function BackOfficeShell({ children }: Props) {
   const canViewGovernance = can('governance.read')
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
-  const canSearchOfferings = can('offering.search')
+  const canSearchOfferings = can('offering.search') && inABuyingBody
   // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.read/rfq.edit/etc on
   // every actual RFQ endpoint regardless of what this link's visibility does.
   //
   // Gated on rfq.read, not rfq.create: procurement_manager approves RFQs but does not author them,
   // so keying the link on the authoring permission hid the section from the one role whose job is
   // to open it. Same defect as the endpoints' own gate, on the navigation side.
-  const canViewRfqs = can('rfq.read')
-  const canManageEvaluationTemplates = can('evaluation.template.manage')
+  const canViewRfqs = can('rfq.read') && inABuyingBody
+  const canManageEvaluationTemplates = can('evaluation.template.manage') && inABuyingBody
   // Batch 12. Three screens were built, permissioned and unreachable: nothing in this bar linked to
   // them, so the only way in was to type the address. Same hide-never-gate rule as every link above -
   // each route's own endpoints re-enforce the permission regardless of what the link does.

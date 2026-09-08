@@ -123,6 +123,46 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     }
 
     /// <summary>
+    /// A tender with more than one line could have exactly one of them priced.
+    ///
+    /// <para>Found by a person pricing a three-line tender by hand. The first line saved; the second
+    /// answered 500 - <c>23505: duplicate key value violates unique constraint "PK_proposal_item"</c>
+    /// - and so did every line after it.</para>
+    ///
+    /// <para><b>Why nothing here caught it.</b> The patch handler called <c>db.ProposalItems.Add</c>
+    /// on every line in the array, including ones already persisted, which marks a stored row as
+    /// Added and issues an INSERT carrying its existing key. It cannot fire on the first line: RFC
+    /// 7396 replaces the array wholesale, so the client resends what it wants kept, and the first
+    /// PATCH on an empty proposal has nothing to re-add. Every test in this file - and every
+    /// walkthrough of this product - priced exactly one line, so the second write never happened.</para>
+    ///
+    /// <para>The assertion is on the second call's status and on both lines surviving, because the
+    /// bug's signature is one line stored and the rest refused.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_second_line_can_be_priced_without_colliding_with_the_first()
+    {
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"TwoLines {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"TwoLinesOther {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, requiredItemId, optionalItemId, _) =
+            await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Two-line RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+
+        var first = await ProposalPatch.PriceItemAsync(supplierA, proposalCode, requiredItemId, 10m, 5m, (decimal?)null, 3, (string?)null, (string?)null);
+        first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
+
+        var second = await ProposalPatch.PriceItemAsync(supplierA, proposalCode, optionalItemId, 2m, 7m, (decimal?)null, 3, (string?)null, (string?)null);
+
+        second.StatusCode.Should().Be(HttpStatusCode.OK, await second.Content.ReadAsStringAsync());
+
+        var proposal = await supplierA.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        var priced = proposal.GetProperty("items").EnumerateArray().ToList();
+        priced.Should().HaveCount(2, "pricing a second line must not drop or duplicate the first");
+        priced.Select(i => i.GetProperty("rfqItemId").GetGuid())
+            .Should().BeEquivalentTo(new[] { requiredItemId, optionalItemId });
+    }
+
+    /// <summary>
     /// §7.2 documents this rule twice over - in the error code it names (PRICE_NON_POSITIVE) and in
     /// the message it prints («يجب أن يكون سعر الوحدة أكبر من صفر») - but the validator was
     /// GreaterThanOrEqualTo(0), so a zero-price bid line was accepted while the contract said it

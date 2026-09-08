@@ -143,6 +143,51 @@ public sealed class ReviewQueueAssignmentTests(PostgresApiFixture fixture)
         codes.Should().NotContain(submitted.ReferenceCode, "state=UnderReview must exclude Submitted items");
     }
 
+    /// <summary>
+    /// F-6: a reviewer can find an application they have already decided.
+    ///
+    /// <para>The queue serves the three reviewable states by default, which is right - it answers
+    /// "what needs me". But a decided application dropped out of every list the moment it was decided
+    /// and no other list carried it, so a reviewer wanting to look back at their own decision had to
+    /// type the supplier's reference code into the address bar. The detail screen was reachable the
+    /// whole time; nothing pointed at it.</para>
+    ///
+    /// <para>The default is asserted too, because widening a filter must not widen the queue: an
+    /// approved supplier appearing in the unfiltered list would put decided work back in front of a
+    /// reviewer who has none to do on it.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_decided_application_is_findable_by_state_and_absent_from_the_default_queue()
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+
+        Supplier waiting, decided;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            waiting = MakeSubmitted("DECIDED1");
+            decided = MakeSubmitted("DECIDED2");
+            decided.PickUpForReview();
+            decided.Approve([]);
+            db.Suppliers.AddRange(waiting, decided);
+            await db.SaveChangesAsync();
+        }
+
+        var approvedPage = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?state=Approved&pageSize=100");
+        var approvedCodes = approvedPage.GetProperty("data").EnumerateArray()
+            .Select(i => i.GetProperty("referenceCode").GetString()).ToList();
+
+        approvedCodes.Should().Contain(decided.ReferenceCode, "a reviewer must be able to reach a decision they made");
+        approvedCodes.Should().NotContain(waiting.ReferenceCode);
+
+        var defaultPage = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/review/queue?pageSize=100");
+        var defaultCodes = defaultPage.GetProperty("data").EnumerateArray()
+            .Select(i => i.GetProperty("referenceCode").GetString()).ToList();
+
+        defaultCodes.Should().Contain(waiting.ReferenceCode);
+        defaultCodes.Should().NotContain(decided.ReferenceCode, "the queue still answers what needs a decision");
+    }
+
     [Fact]
     public async Task Filtering_by_unassigned_excludes_claimed_items()
     {

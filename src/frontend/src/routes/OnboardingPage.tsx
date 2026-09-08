@@ -250,7 +250,7 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
       </div>
       <div className="flex items-center gap-2">
         {doc.latestDocument && doc.latestDocument.state !== 'PendingScan' && doc.latestDocument.state !== 'ScanRejected' ? (
-          <Button variant="ghost" size="sm" isLoading={downloadMutation.isPending} onClick={() => downloadMutation.mutate(doc.latestDocument!.id)}>
+          <Button variant="ghost" size="sm" isLoading={downloadMutation.isPending} onClick={() => downloadMutation.mutate(doc.latestDocument!.documentId)}>
             {t('onboarding.download')}
           </Button>
         ) : null}

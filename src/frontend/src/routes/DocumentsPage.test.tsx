@@ -22,7 +22,7 @@ function docType(overrides: Record<string, unknown> = {}) {
 
 function version(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'd-1', version: 1, state: 'Approved', originalFileName: 'cr.pdf',
+    documentId: 'd-1', version: 1, state: 'Approved', originalFileName: 'cr.pdf',
     uploadedAt: '2026-08-01T09:00:00Z', expiryDate: '2027-01-01', rejectReason: null,
     ...overrides,
   }
@@ -105,7 +105,7 @@ describe('DocumentsPage (SCR-130)', () => {
       '/api/v1/suppliers/me': PROFILE,
       '/api/v1/suppliers/SUP-000001/documents': [
         docType({ documentTypeId: 'dt-1', code: 'CR', nameEn: 'Commercial registration', latestDocument: version({ state: 'Expired' }) }),
-        docType({ documentTypeId: 'dt-2', code: 'VAT', nameEn: 'VAT certificate', latestDocument: version({ id: 'd-2', state: 'Approved' }) }),
+        docType({ documentTypeId: 'dt-2', code: 'VAT', nameEn: 'VAT certificate', latestDocument: version({ documentId: 'd-2', state: 'Approved' }) }),
       ],
     })
 
@@ -141,8 +141,8 @@ describe('DocumentsPage (SCR-130)', () => {
       '/api/v1/suppliers/me': PROFILE,
       '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: version({ version: 2 }) })],
       '/api/v1/suppliers/SUP-000001/documents/types/CR/history': [
-        version({ id: 'd-2', version: 2, state: 'Approved', originalFileName: 'cr-v2.pdf' }),
-        version({ id: 'd-1', version: 1, state: 'Rejected', originalFileName: 'cr-v1.pdf', rejectReason: 'Wrong document' }),
+        version({ documentId: 'd-2', version: 2, state: 'Approved', originalFileName: 'cr-v2.pdf' }),
+        version({ documentId: 'd-1', version: 1, state: 'Rejected', originalFileName: 'cr-v1.pdf', rejectReason: 'Wrong document' }),
       ],
     })
 

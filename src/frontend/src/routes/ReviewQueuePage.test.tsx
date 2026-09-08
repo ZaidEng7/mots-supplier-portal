@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { AT_RISK_HOURS, OVERDUE_HOURS, ageTone, formatAge } from './ReviewQueuePage'
+import { afterEach, describe, expect, it } from 'vitest'
+import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { renderPage, mockFetch } from '../test/renderPage'
+import { AT_RISK_HOURS, OVERDUE_HOURS, ReviewQueuePage, ageTone, formatAge } from './ReviewQueuePage'
 
 /** FEAT-03.6/FR-ONB-012: the age-badge logic had zero test coverage before this - the backend
  * sourcing (EnteredQueueAt) is tested in ReviewQueuePaginationTests.cs, but the tone thresholds
@@ -41,5 +44,33 @@ describe('formatAge', () => {
     expect(formatAge(24, true)).toBe('1 يوم')
     expect(formatAge(47.9, false)).toBe('1d')
     expect(formatAge(240, false)).toBe('10d')
+  })
+})
+
+
+/**
+ * F-6: a reviewer can reach an application they have already decided.
+ *
+ * <p>The queue lists the three states awaiting a decision, which is what it is for. A decided
+ * application dropped out of it and no other list carried it, so the only route back to a decision a
+ * reviewer had made was typing the supplier's reference code into the address bar.</p>
+ */
+describe('ReviewQueuePage state filter', () => {
+  let restore: (() => void) | undefined
+  afterEach(() => restore?.())
+
+  it('offers the decided states, and labels the default as what it actually is', async () => {
+    restore = mockFetch({
+      '/api/v1/review/queue': { data: [], pagination: { mode: 'cursor', nextCursor: null, prevCursor: null, pageSize: 20, totalCount: null, hasMore: false, page: null }, meta: { sort: 'createdAt', filtersApplied: null } },
+    })
+
+    renderPage(<ReviewQueuePage />)
+
+    await userEvent.click(await screen.findByRole('combobox', { name: /state/i }))
+
+    expect(await screen.findByRole('option', { name: 'Approved' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Rejected' })).toBeInTheDocument()
+    // The default option said "All" and meant "the three that need a decision", which is not all.
+    expect(screen.getByRole('option', { name: 'Awaiting a decision' })).toBeInTheDocument()
   })
 })

@@ -119,6 +119,31 @@ public sealed class Supplier : IVersionedAggregate
     public bool IsEmailVerifiedOrLater =>
         OnboardingState is not SupplierOnboardingState.Draft;
 
+    /// <summary>
+    /// The gate on "how to reach us" data, which an ACTIVE supplier must be able to maintain.
+    ///
+    /// <para><b>Why this is separate from <see cref="EnsureEditable"/>.</b> Every child collection on
+    /// this aggregate shared one guard, and that guard stops at Approved - so an approved supplier
+    /// could not change a contact, a representative, an address or a branch. People leave and offices
+    /// move; a buyer whose only named contact has left the company cannot ask a clarification, and the
+    /// supplier has no way to fix it. That is not a rule anybody wrote, it is the onboarding gate
+    /// applied to data onboarding was never about.</para>
+    ///
+    /// <para><b>What stays behind the stricter gate, deliberately.</b> Legal identity is what the
+    /// reviewer approved, and bank details are where an award is paid - changing either after approval
+    /// is a claim that needs checking, not a correction. Both keep <see cref="EnsureEditable"/> until
+    /// somebody decides what re-review a change to them should trigger.</para>
+    /// </summary>
+    private void EnsureContactDetailsEditable()
+    {
+        if (OnboardingState is SupplierOnboardingState.Draft or SupplierOnboardingState.Submitted
+            or SupplierOnboardingState.UnderReview or SupplierOnboardingState.Rejected)
+        {
+            throw new DomainException(
+                $"Cannot edit contact details from state '{OnboardingState}'.");
+        }
+    }
+
     private void EnsureEditable()
     {
         if (OnboardingState is not (SupplierOnboardingState.EmailVerified or SupplierOnboardingState.ProfileInProgress or SupplierOnboardingState.InfoRequested))
@@ -170,7 +195,7 @@ public sealed class Supplier : IVersionedAggregate
     /// omitted.</summary>
     public void UpdateCoreProfile(string? description, string? website, string? supplierGroup, string? currencyCode)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         Description = description;
         Website = website;
         SupplierGroup = supplierGroup;
@@ -180,7 +205,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void SetLogo(string storageKey)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         LogoStorageKey = storageKey;
     }
 
@@ -217,7 +242,7 @@ public sealed class Supplier : IVersionedAggregate
     /// the caller must explicitly SetPrimaryRepresentative if they want to reassign it.</summary>
     public Representative AddRepresentative(string fullName, string email, string? phone, string? position)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         if (_representatives.Count >= MaxRepresentatives)
         {
             throw new DomainException($"A supplier may have at most {MaxRepresentatives} representatives.");
@@ -238,7 +263,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void UpdateRepresentative(Guid representativeId, string fullName, string email, string? phone, string? position)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var representative = _representatives.FirstOrDefault(r => r.Id == representativeId) ?? throw new DomainException("Representative not found.");
         representative.FullName = fullName;
         representative.Email = email;
@@ -252,7 +277,7 @@ public sealed class Supplier : IVersionedAggregate
     /// holds continuously, not just "by construction" at registration.</summary>
     public void RemoveRepresentative(Guid representativeId)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var representative = _representatives.FirstOrDefault(r => r.Id == representativeId) ?? throw new DomainException("Representative not found.");
         if (_representatives.Count == 1)
         {
@@ -269,7 +294,7 @@ public sealed class Supplier : IVersionedAggregate
     /// <summary>DOMAIN-MODEL.md §5.3 invariant example: supplier.SetPrimaryRepresentative(id).</summary>
     public void SetPrimaryRepresentative(Guid representativeId)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var representative = _representatives.FirstOrDefault(r => r.Id == representativeId) ?? throw new DomainException("Representative not found.");
         foreach (var r in _representatives) r.IsPrimary = false;
         representative.IsPrimary = true;
@@ -277,7 +302,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public Address AddAddress(AddressKind kind, string line1, string? line2, string city, string regionCode, string country, string? postalCode, double? latitude, double? longitude)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         if (_addresses.Count >= MaxAddresses)
         {
             throw new DomainException($"A supplier may have at most {MaxAddresses} addresses.");
@@ -304,7 +329,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void UpdateAddress(Guid addressId, AddressKind kind, string line1, string? line2, string city, string regionCode, string country, string? postalCode, double? latitude, double? longitude)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var address = _addresses.FirstOrDefault(a => a.Id == addressId) ?? throw new DomainException("Address not found.");
         address.Kind = kind;
         address.Line1 = line1;
@@ -319,7 +344,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void RemoveAddress(Guid addressId)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var address = _addresses.FirstOrDefault(a => a.Id == addressId) ?? throw new DomainException("Address not found.");
         _addresses.Remove(address);
         if (address.IsPrimary && _addresses.Count > 0)
@@ -330,7 +355,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public Contact AddContact(string fullName, string email, string? phone, string? role)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         if (_contacts.Count >= MaxContacts)
         {
             throw new DomainException($"A supplier may have at most {MaxContacts} contacts.");
@@ -342,7 +367,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void UpdateContact(Guid contactId, string fullName, string email, string? phone, string? role)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var contact = _contacts.FirstOrDefault(c => c.Id == contactId) ?? throw new DomainException("Contact not found.");
         contact.FullName = fullName;
         contact.Email = email;
@@ -352,7 +377,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void RemoveContact(Guid contactId)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var contact = _contacts.FirstOrDefault(c => c.Id == contactId) ?? throw new DomainException("Contact not found.");
         _contacts.Remove(contact);
     }
@@ -369,7 +394,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public Branch AddBranch(string nameAr, string nameEn, Guid? addressId)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         if (_branches.Count >= MaxBranches)
         {
             throw new DomainException($"A supplier may have at most {MaxBranches} branches.");
@@ -382,7 +407,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void UpdateBranch(Guid branchId, string nameAr, string nameEn, Guid? addressId, bool isActive)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         EnsureAddressBelongsToThisSupplier(addressId);
         var branch = _branches.FirstOrDefault(b => b.Id == branchId) ?? throw new DomainException("Branch not found.");
         branch.NameAr = nameAr;
@@ -393,7 +418,7 @@ public sealed class Supplier : IVersionedAggregate
 
     public void RemoveBranch(Guid branchId)
     {
-        EnsureEditable();
+        EnsureContactDetailsEditable();
         var branch = _branches.FirstOrDefault(b => b.Id == branchId) ?? throw new DomainException("Branch not found.");
         _branches.Remove(branch);
     }

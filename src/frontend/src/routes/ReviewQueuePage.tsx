@@ -29,7 +29,12 @@ export function formatAge(hours: number, isArabic: boolean): string {
   return isArabic ? `${Math.max(0, Math.floor(hours))} ساعة` : `${Math.max(0, Math.floor(hours))}h`
 }
 
-const STATE_OPTIONS = ['Submitted', 'UnderReview', 'InfoRequested']
+// The three the queue serves by default, then the two it does not.
+//
+// F-6: a decided application dropped out of every list the moment it was decided, and no other list
+// carried it - so a reviewer wanting to look back at their own decision had to type the supplier's
+// reference code into the address bar. The detail screen was reachable; nothing pointed at it.
+const STATE_OPTIONS = ['Submitted', 'UnderReview', 'InfoRequested', 'Approved', 'Rejected']
 
 export function ReviewQueuePage() {
   const { t, i18n } = useTranslation()

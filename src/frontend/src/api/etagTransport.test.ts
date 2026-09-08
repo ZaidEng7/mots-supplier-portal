@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFetch } from './auth'
 import { clearETags } from './etags'
 import { getProposal, patchProposal } from './proposals'
+import { getReviewerSupplierView } from './review'
+import { approveDocument } from './documents'
+import { deactivateOffering } from './offerings'
 
 /**
  * T-030 split (2). The store's prefix walk is unit-tested in `etags.test.ts`; what is asserted here is
@@ -132,5 +135,96 @@ describe('the proposal read files its version where the writes will look for it'
     await patchProposal('PRP-2026-000002', { commercialTerms: { warranty: '6 months' } })
 
     expect(calls[0].ifMatch).toBeNull()
+  })
+})
+
+/**
+ * The same shape again, one aggregate over: the reviewer reads an application at `/review/{code}`
+ * and approves its documents at `/suppliers/{code}/documents/{doc}/approve`.
+ *
+ * Found by a reviewer pressing Approve on a document and being told "this resource requires the ETag
+ * of the version you are editing". Both document transitions declare RequireIfMatch, the read does
+ * issue an ETag, and the store walks a path upwards and never sideways - so the version sat under
+ * `/api/v1/review/...` where a write under `/api/v1/suppliers/...` could not reach it. Every document
+ * approval and rejection answered 428, on the one screen where a reviewer decides on documents.
+ */
+describe('the reviewer read and the document write', () => {
+  let calls: { url: string; ifMatch: string | null }[]
+
+  beforeEach(() => {
+    clearETags()
+    calls = []
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stubReviewServer() {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      calls.push({ url: String(url), ifMatch: headers.get('If-Match') })
+      return new Response(JSON.stringify({ supplier: {}, documents: [], annotationHistory: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"AAAAJQ.a6fe2f2e"' },
+      })
+    }))
+  }
+
+  it('sends If-Match when approving a document read through the review view', async () => {
+    stubReviewServer()
+
+    await getReviewerSupplierView('SUP-2026-000001')
+    await approveDocument('SUP-2026-000001', 'DOC-2026-000001')
+
+    expect(calls[0].url).toContain('/api/v1/review/SUP-2026-000001')
+    expect(calls[1].url).toContain('/api/v1/suppliers/SUP-2026-000001/documents/DOC-2026-000001/approve')
+    // Null before the fix.
+    expect(calls[1].ifMatch).toBe('"AAAAJQ.a6fe2f2e"')
+  })
+
+  it('does not invent a version for a supplier whose application was never opened', async () => {
+    stubReviewServer()
+
+    await approveDocument('SUP-2026-000002', 'DOC-2026-000009')
+
+    expect(calls[0].ifMatch).toBeNull()
+  })
+})
+
+/**
+ * Offerings, and the fourth appearance of the same shape in one afternoon.
+ *
+ * Found by a supplier pressing Deactivate on their own offering: 428, "this resource requires the
+ * ETag of the version you are editing". The catalogue lists offerings through a GET that issues no
+ * ETag, and both writes on that row - edit and deactivate - declare RequireIfMatch. The one route
+ * that does issue an offering's version is the single-item GET, and nothing called it.
+ */
+describe('offering writes take their version from the item read', () => {
+  let calls: { url: string; method: string; ifMatch: string | null }[]
+
+  beforeEach(() => {
+    clearETags()
+    calls = []
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stubOfferingServer() {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      calls.push({ url: String(url), method: init?.method ?? 'GET', ifMatch: headers.get('If-Match') })
+      return new Response(JSON.stringify({ id: 'of-1', nameEn: 'Hot school meals' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: '"AAAABQ.a6fe2f2e"' },
+      })
+    }))
+  }
+
+  it('reads the offering for its version before deactivating it', async () => {
+    stubOfferingServer()
+
+    await deactivateOffering('of-1')
+
+    expect(calls[0].method).toBe('GET')
+    expect(calls[1].url).toContain('/offerings/of-1/deactivate')
+    // Null before the fix: the list read carries no ETag, so the walk found nothing.
+    expect(calls[1].ifMatch).toBe('"AAAABQ.a6fe2f2e"')
   })
 })

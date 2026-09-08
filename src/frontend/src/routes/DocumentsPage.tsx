@@ -183,7 +183,7 @@ export function DocumentsPage() {
                       />
                     </label>
                     {row.latestDocument ? (
-                      <Button size="sm" variant="ghost" onClick={() => void download(row.latestDocument!.id)}>
+                      <Button size="sm" variant="ghost" onClick={() => void download(row.latestDocument!.documentId)}>
                         {t('documents.download')}
                       </Button>
                     ) : null}
@@ -234,7 +234,7 @@ export function DocumentsPage() {
               </TableHead>
               <TableBody>
                 {history.data.map((v) => (
-                  <TableRow key={v.id}>
+                  <TableRow key={v.documentId}>
                     <TableCell>{v.version}</TableCell>
                     <TableCell><StatusChip machine="document" value={v.state} /></TableCell>
                     <TableCell>{v.originalFileName}</TableCell>

@@ -258,6 +258,188 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         items[0].GetProperty("titleEn").GetString().Should().Be("2");
     }
 
+    /// <summary>
+    /// F-7: correcting a line, rather than deleting it and typing it again.
+    ///
+    /// <para>The aggregate had Add and Remove and nothing between them. An officer who meant to add
+    /// one line item and added three - each with the wrong quantity - had no control on any screen
+    /// that changed any of them, and deleting renumbers every line after the one removed.</para>
+    ///
+    /// <para>The line number is asserted deliberately: a correction is the same line with better
+    /// values, and one that reordered the tender would move every reference to "item 2" underneath
+    /// whoever was reading it.</para>
+    /// </summary>
+    [Fact]
+    public async Task An_item_can_be_corrected_in_place_without_changing_its_line_number()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Item Correction RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "أول", titleEn = "First", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 1, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var second = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "ثان", titleEn = "Mistyped", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 1000, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>();
+        var target = secondBody.GetProperty("items").EnumerateArray()
+            .Single(i => i.GetProperty("titleEn").GetString() == "Mistyped");
+        var itemId = target.GetProperty("id").GetGuid();
+        var lineNo = target.GetProperty("lineNo").GetInt32();
+
+        var corrected = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items/{itemId}", new
+        {
+            titleAr = "وجبة غداء ساخنة", titleEn = "Hot lunch, per pupil per day",
+            specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 180000, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
+        });
+
+        corrected.StatusCode.Should().Be(HttpStatusCode.OK, await corrected.Content.ReadAsStringAsync());
+        var body = await corrected.Content.ReadFromJsonAsync<JsonElement>();
+        var item = body.GetProperty("items").EnumerateArray().Single(i => i.GetProperty("id").GetGuid() == itemId);
+        item.GetProperty("titleEn").GetString().Should().Be("Hot lunch, per pupil per day");
+        item.GetProperty("quantity").GetDecimal().Should().Be(180000m);
+        item.GetProperty("lineNo").GetInt32().Should().Be(lineNo, "a correction is the same line, not a new one");
+        body.GetProperty("items").EnumerateArray().Should().HaveCount(2, "correcting one line must not drop the other");
+    }
+
+    /// <summary>
+    /// The control on the control: editing is Draft-only, and widening it to corrections must not
+    /// widen it past the state bidders start reading from. UpdateItem calls EnsureDraftEditable for
+    /// the same reason AddItem does.
+    /// </summary>
+    /// <summary>
+    /// The reference-data guards on the correction path, which the add path has had since it was
+    /// written. A correction can change the category or the unit, and one into a code that does not
+    /// exist is the same defect as a create into one - so it earns the same refusal rather than a
+    /// 500 from a foreign key.
+    /// </summary>
+    [Fact]
+    public async Task Correcting_an_item_into_an_unknown_category_or_unit_is_refused()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Correction Reference RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var itemId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var badCategory = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items/{itemId}", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "no-such-category", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var badUnit = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items/{itemId}", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "no-such-unit", isUnitPrice = false, isOptional = false,
+        });
+
+        // The same status and the same machine code the ADD path answers with - asserted rather than
+        // assumed, because a correction refused differently from a create is a second vocabulary for
+        // one rule.
+        badCategory.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await badCategory.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("code").GetString().Should().Be("INVALID_CATEGORY");
+        badUnit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await badUnit.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("code").GetString().Should().Be("INVALID_UNIT_OF_MEASURE");
+    }
+
+    /// <summary>A requirement correction refused by the aggregate, surfaced rather than swallowed:
+    /// an empty text is the same refusal adding one earns.</summary>
+    [Fact]
+    public async Task Correcting_a_requirement_to_empty_text_is_refused()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Requirement Correction RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements", new
+        { textAr = "شرط", textEn = "Requirement", isMandatory = true, documentTypeCode = (string?)null });
+        var requirementId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("requirements").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var refused = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements/{requirementId}", new
+        { textAr = "شرط", textEn = "   ", isMandatory = true, documentTypeCode = (string?)null });
+
+        refused.StatusCode.Should().NotBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>The correction that works, on a requirement, through the endpoint rather than the
+    /// aggregate - the buyer-visible half of the same fix.</summary>
+    [Fact]
+    public async Task A_requirement_can_be_corrected_in_place()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Requirement Edit RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements", new
+        { textAr = "شرط", textEn = "Mistyped requirement", isMandatory = true, documentTypeCode = (string?)null });
+        var requirementId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("requirements").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var corrected = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements/{requirementId}", new
+        {
+            textAr = "صف خطة سلسلة التبريد", textEn = "Describe your cold-chain plan",
+            isMandatory = false, documentTypeCode = (string?)null,
+        });
+
+        corrected.StatusCode.Should().Be(HttpStatusCode.OK, await corrected.Content.ReadAsStringAsync());
+        var body = await corrected.Content.ReadFromJsonAsync<JsonElement>();
+        var requirement = body.GetProperty("requirements").EnumerateArray().Single();
+        requirement.GetProperty("textEn").GetString().Should().Be("Describe your cold-chain plan");
+        requirement.GetProperty("isMandatory").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task An_item_cannot_be_corrected_once_the_tender_has_left_draft()
+    {
+        var (officer, manager, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Locked Correction RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var itemId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        // Cancelled rather than approved, because reaching InternalReview needs an invited candidate
+        // and an Active supplier to invite - a fixture three times the size of what this asserts.
+        // Any state that is not Draft exercises the same guard, and cancellation is one call.
+        var cancelled = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/cancel", new { reason = "Superseded" });
+        cancelled.StatusCode.Should().Be(HttpStatusCode.OK, await cancelled.Content.ReadAsStringAsync());
+
+        var refused = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items/{itemId}", new
+        {
+            titleAr = "بند", titleEn = "Changed after approval", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 9, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+
+        refused.StatusCode.Should().NotBe(HttpStatusCode.OK);
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("detail").GetString().Should().Contain("Draft");
+    }
+
     [Fact]
     public async Task Unknown_category_or_unit_of_measure_is_rejected_with_a_localized_error_code()
     {
