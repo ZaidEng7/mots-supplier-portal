@@ -552,6 +552,16 @@ document types are award-critical is a ministry judgement about procurement risk
 makes the argument this batch is not going to overrule — "was blocked from participating for a fortnight" is
 not undone by reactivation.
 
+**Closed in phase 1 (2026-09-08), decision half included.** D-58 names two: `commercial_registration` and
+`tax_certificate`. Migration `20260908115449_AwardCriticalDocumentTypes` sets them, and the acknowledgement
+test above was rewritten to assert exactly those two rather than none — which is what that test was for.
+BRULE-023 therefore fires for the first time. The condition D-58 shipped with is
+`AwardCriticalBlocksBiddingTests`: an approved commercial register, backdated, the real expiry job, the
+supplier suspended, and the same supplier then refused a bid on a second open tender. Until that test existed
+the rule had never run against a real value, and a rule everyone believes in and nobody has seen is worse
+than no rule at all. Chamber membership stays off, which is what keeps the negative test in
+`AwardCriticalSuspensionTests` capable of failing.
+
 ### 4.2 BRULE-016 — required documents ignore what the supplier does
 
 **The rule.** Required documents are conditioned on the supplier's categories.
@@ -605,6 +615,24 @@ the screen is broken.
 2. **Does the tightening reach suppliers already approved?** They were approved against a list that may not be
    theirs under the conditioned rule. Applying it retroactively could invalidate live approvals; not applying
    it leaves two standards running side by side. Either is defensible; neither is a query change.
+
+**Both answered, and the derivation switched on, in phase 1 (2026-09-08).** D-59: on, and applied to every
+supplier rather than only to new registrations. The reading of "no links" is the first answer's other half —
+a required type with no links is required of **everyone**, and a link NARROWS a type to the categories named.
+That is what makes an empty link table safe: it is the flat rule, unchanged, rather than a portal that asks
+for nothing.
+
+The derivation now lives in one place, `RequiredDocumentTypeResolver`, asked by all four sites that used to
+repeat it. That was not tidiness: a dashboard telling a supplier they need a document the submit gate does
+not ask for is the defect a second copy produces. `Recording_a_link_changes_no_suppliers_required_documents`
+became `A_link_narrows_a_required_type_to_the_categories_named`, and it asserts both directions — narrowing
+and restoring — because a test that only proved the narrowing would pass against a resolver that had stopped
+returning anything at all.
+
+**What D-59 records and this does not remove:** it is a one-way door. It is safe today only because every
+supplier in the system is demonstration data. Applied to a live registry it retroactively changes the basis
+on which existing suppliers were approved, and toggling the flag back does not un-make the approvals granted
+meanwhile.
 
 ---
 
