@@ -75,6 +75,10 @@ export function BackOfficeShell({ children }: Props) {
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
   const canSearchOfferings = can('offering.search') && inABuyingBody
+  // SCR-402: same hide-never-gate rule. Its own permission rather than offering.search, because the two
+  // answer different questions - one searches catalogue entries, the other lists companies - and a
+  // supplier with no catalogue was invisible to the officer choosing whom to invite.
+  const canBrowseSuppliers = can('supplier.directory.read') && inABuyingBody
   // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.read/rfq.edit/etc on
   // every actual RFQ endpoint regardless of what this link's visibility does.
   //
@@ -130,6 +134,13 @@ export function BackOfficeShell({ children }: Props) {
             {canViewGovernance ? (
               <Link to="/back-office/ministry" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('ministry.title')}
+              </Link>
+            ) : null}
+            {/* SCR-604. The second of the Ministry's two non-refused screens, and the one that answers a
+                question the overview cannot: which categories has nobody registered for. */}
+            {canViewGovernance ? (
+              <Link to="/back-office/ministry/categories" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('categoryCoverage.title')}
               </Link>
             ) : null}
             {canManageStaff ? (
@@ -192,12 +203,24 @@ export function BackOfficeShell({ children }: Props) {
             <Link to="/back-office/account" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.account')}
             </Link>
+            {/* SCR-901. Beside the account link because that is where a user goes looking for "what does this
+                system send me", and the answer includes the four families they cannot switch off. */}
+            <Link to="/back-office/account/notifications" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('notificationPreferences.title')}
+            </Link>
             {/* Gated on supplier.review, which it always should have been. An evaluator holds
                 evaluation.score, evaluation.submit and rfq.clarify and nothing else, and this link was offered
                 to them - a 403 they could not explain, on the only "work" link their nav had. */}
             {canReviewSuppliers ? (
               <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('review.title')}
+              </Link>
+            ) : null}
+            {/* SCR-307. The whole registry, not the queue: everything that happens to a supplier AFTER
+                their application is decided happened on no screen until this one. */}
+            {canReviewSuppliers ? (
+              <Link to="/back-office/review/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('complianceDirectory.title')}
               </Link>
             ) : null}
             {/* SCR-300. The reviewer's dashboard - oldest waiting case, queue age, expiring-document
@@ -232,6 +255,13 @@ export function BackOfficeShell({ children }: Props) {
             {canSearchOfferings ? (
               <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('offeringSearch.title')}
+              </Link>
+            ) : null}
+            {/* SCR-402. Beside the offering search on purpose: an officer looking for a supplier starts
+                from one or the other, and before this only the catalogue had a link. */}
+            {canBrowseSuppliers ? (
+              <Link to="/back-office/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('supplierDirectory.title')}
               </Link>
             ) : null}
             {/* SCR-400. The procurement officer's actual home screen - tenders by state, approvals

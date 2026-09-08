@@ -8,7 +8,11 @@ public sealed record EvaluationCriterionDto(
     Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, ScoringType ScoringType, bool IsFinancial,
     // T-021/BRULE-061: on the evaluator's own view, so the form can mark the comment required
     // before the score is refused rather than after it.
-    bool RequiresJustification = false);
+    bool RequiresJustification = false,
+    // SCR-501: the template author's instruction for THIS criterion, snapshotted when the RFQ bound the
+    // template. Null on a tender that bound one before the field existed - see CriterionSnapshotJson for
+    // why that is reported as absent rather than backfilled from the template's current text.
+    string? GuidanceAr = null, string? GuidanceEn = null);
 
 /// <summary>Buyer-facing roster row - never carries a raw score (blind scoring, OQ-005/BRULE-058).</summary>
 /// <param name="EvaluatorName">The evaluator's own name. Added because the screen was printing the GUID:

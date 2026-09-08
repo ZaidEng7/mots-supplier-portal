@@ -75,6 +75,11 @@ export function SupplierShell({ children }: Props) {
             <Link to="/settings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.settings')}
             </Link>
+            {/* SCR-901, for the supplier too: they receive invitations and award offers, and this screen is
+                where they learn which of those arrive whatever their preferences say. */}
+            <Link to="/settings/notifications" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('notificationPreferences.title')}
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3">

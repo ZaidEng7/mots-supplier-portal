@@ -18,10 +18,17 @@ export function Table({ children, caption, maxHeight }: { children: ReactNode; c
   )
 }
 
-export function TableHead({ children, sticky }: { children: ReactNode; sticky?: boolean }) {
+/**
+ * `labels` declares a plain header row from an array; `children` is for the rows that need more than a
+ * word per column - a sticky first cell, a colspan, a sort control.
+ *
+ * <p>Most tables in this product need neither, and spelling six identical `<TableHeaderCell>{t(...)}`
+ * lines out per screen is how they end up differing by accident. Pass exactly one of the two.</p>
+ */
+export function TableHead({ children, labels, sticky }: { children?: ReactNode; labels?: string[]; sticky?: boolean }) {
   return (
     <thead style={{ backgroundColor: 'var(--color-bg-sunken)', ...(sticky ? { position: 'sticky', insetBlockStart: 0, zIndex: 2 } : {}) }}>
-      <tr>{children}</tr>
+      <tr>{labels ? labels.map((label) => <TableHeaderCell key={label}>{label}</TableHeaderCell>) : children}</tr>
     </thead>
   )
 }

@@ -634,3 +634,71 @@ category links were recorded and not applied, which stopped being true the momen
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
 | `referenceAdmin.categoryLinksExplained` | A category link narrows a document type to suppliers in those categories. A type with no links stays required of every supplier. Changes take effect immediately, including for suppliers already approved. | ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً. | [drafted] **replaces the previous text, which said the links were not yet applied.** Three sentences because three separate facts an administrator cannot infer from the chips: what a link does, what NO link does, and that the change is retroactive. «يقصر … على» for "narrows to" rather than «يحدّد», which reads as "specifies" and loses the restriction |
+
+### Phase 3 · SCR-402 and SCR-307, the two supplier directories
+
+Two screens over one registry, which is why the two titles had to be different words rather than the same
+word twice. A «دليل» is something you look a supplier up in; a «سجل» is the register itself.
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `supplierDirectory.title` | Supplier Directory | دليل الموردين | [drafted] the buyer's browse |
+| `supplierDirectory.subtitle` | Browse approved suppliers and their categories before sending invitations. | استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات. | [drafted] |
+| `supplierDirectory.searchPlaceholder` | Search by name or code… | ابحث بالاسم أو الرمز… | [drafted] «الرمز» for the reference code, matching how it is labelled elsewhere |
+| `supplierDirectory.empty` | No suppliers match | لا يوجد موردون مطابقون | [drafted] |
+| `supplierDirectory.error` | Could not load the directory | تعذّر تحميل الدليل | [drafted] same «تعذّر» register as the other load failures |
+| `supplierDirectory.noCategories` | No categories recorded | لا فئات مسجّلة | [drafted] states an absence rather than leaving a blank cell |
+| `supplierDirectory.fields.*` | Supplier / Code / Categories / Offerings / City / Status | المورد / الرمز / الفئات / العروض / المدينة / الحالة | [reused] every term already approved elsewhere in this file |
+| `complianceDirectory.title` | Supplier Register | سجل الموردين | [drafted] **deliberately not «دليل»** — this is the reviewer's audit view of the whole registry, not a lookup |
+| `complianceDirectory.subtitle` | Every supplier and the state of their documents, including already-approved files. | كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً. | [drafted] the last clause is the point of the screen |
+| `complianceDirectory.filterState` | Application status | حالة الطلب | [drafted] «الطلب» = the onboarding application, distinct from «التعامل» below |
+| `complianceDirectory.filterHealth` | Document health | حالة المستندات | [drafted] literally "document status"; «صحة» would read as medical |
+| `complianceDirectory.healthAttention` | Needs attention | تحتاج متابعة | [drafted] feminine agreement — the subject is المستندات |
+| `complianceDirectory.healthOk` | Healthy | سليمة | [drafted] same agreement |
+| `complianceDirectory.expired` / `expiring` / `rejected` | Expired / Expiring / Rejected: {{count}} | منتهٍ / ينتهي قريباً / مرفوض: {{count}} | [reused] §7.2's own three document labels, with a count appended |
+| `complianceDirectory.fields.lifecycle` | Standing | حالة التعامل | [drafted] the post-approval lifecycle, which §7.1 groups with onboarding but the screen shows in its own column |
+
+### Phase 3 · SCR-501, the evaluator's brief
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `evaluationBrief.title` | Evaluation Brief | كراسة التقييم | [drafted] «كراسة» is what a procurement file calls the instruction document itself; «ملخص» would read as a summary somebody wrote about the tender |
+| `evaluationBrief.toScoring` | Go to scoring | الانتقال إلى التقييم | [drafted] |
+| `evaluationBrief.tender` | What is being bought | موضوع الطلب | [drafted] |
+| `evaluationBrief.howToScore` | Criteria and how they are scored | معايير التقييم وطريقة احتسابها | [drafted] |
+| `evaluationBrief.totalWeight` | Weights total: {{total}} | مجموع الأوزان: {{total}} | [drafted] |
+| `evaluationBrief.justificationRequired` | Justification required | يلزم تبرير | [drafted] BRULE-061 |
+| `evaluationBrief.noGuidance` | No guidance was recorded for this criterion | لم تُسجَّل تعليمات لهذا المعيار | [drafted] **says NOT RECORDED, deliberately** — a tender that bound its template before the field existed has none, and "no guidance" would read as the author having decided there should be none |
+| `evaluationBrief.noDescription` | No description was recorded for this tender | لا يوجد وصف مسجّل لهذا الطلب | [drafted] same shape |
+| `evaluationBrief.noThreshold` | No minimum | لا حد أدنى | [drafted] |
+| `evaluationBrief.error` | Could not load the brief | تعذّر تحميل الكراسة | [drafted] |
+| `evaluationBrief.fields.guidance` | How to score it | تعليمات التقييم | [drafted] the column the whole screen exists for |
+| `evaluationBrief.dimension.*` | Technical / Commercial | فني / تجاري | [reused] §7's own pair |
+
+**One correction logged while adding these.** The `supplierDirectory`, `complianceDirectory` and
+`evaluationBrief` English blocks were first inserted into the **Arabic** resource object by mistake. Because
+a later duplicate key wins in a JavaScript object literal, the Arabic UI would have rendered English for all
+three screens while every test passed — the English lookups were resolving through the fallback. Moved into
+the `en` resource before commit; worth recording because the failure mode is silent in both directions.
+
+### Phase 3 · SCR-604 and SCR-901
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `categoryCoverage.title` | Category Coverage | تغطية الفئات | [drafted] SCR-604 |
+| `categoryCoverage.subtitle` | Suppliers and tenders per category, and the categories nobody serves. | أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد. | [drafted] the second clause is what the screen is for |
+| `categoryCoverage.uncovered` | {{count}} of {{total}} categories have no active supplier | {{count}} من {{total}} فئة بلا مورد فعّال | [drafted] the headline figure |
+| `categoryCoverage.flatNote` | The category list is currently flat and carries no hierarchy. | قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً. | [drafted] **states an absence deliberately** — SCR-604's row says "tree" and MSP-54's list is flat |
+| `categoryCoverage.noSupplier` / `noAward` | No supplier / No award | بلا مورد / بلا ترسية | [drafted] |
+| `categoryCoverage.fields.*` | Category / Approved suppliers / Active suppliers / Offerings / Tenders / Awarded | الفئة / موردون معتمدون / موردون فعّالون / العروض / الطلبات / الطلبات المُرساة | [drafted] «معتمدون» vs «فعّالون» is the approved-versus-can-trade distinction the two columns exist for |
+| `notificationPreferences.title` | Notification Preferences | تفضيلات التنبيهات | [drafted] SCR-901 |
+| `notificationPreferences.subtitle` | Choose which optional notifications you want switched off. | اختر التنبيهات الاختيارية التي تريد إيقافها. | [drafted] |
+| `notificationPreferences.optional` / `optionalHint` | Optional notifications / Unticking one stops it reaching you. | تنبيهات اختيارية / إلغاء التحديد يوقف وصول هذا التنبيه إليك. | [drafted] |
+| `notificationPreferences.alwaysOn` | Notifications that cannot be switched off | تنبيهات لا يمكن إيقافها | [drafted] D-60 |
+| `notificationPreferences.alwaysOnHint` | Invitations, clarification requests, award outcomes and document expiry are always sent. | الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً. | [drafted] **names D-60's four families verbatim** — this line is the ruling as a user reads it |
+| `notificationPreferences.saved` / `saveFailed` / `loadFailed` / `unsaved` | Preferences saved / Could not save your preferences / Could not load your preferences / Unsaved changes | تم حفظ التفضيلات / تعذّر حفظ التفضيلات / تعذّر تحميل التفضيلات / تغييرات غير محفوظة | [drafted] same «تعذّر» register as the other failures |
+
+**No Arabic was drafted for the 32 notification names,** and that is deliberate: SCR-901 renders each type's
+own title from the notification copy catalogue — including an administrator's SCR-717 rewording — rather than
+a second set of 32 labels in `i18n/config.ts`. The words a user recognises are the words they were sent, and a
+second copy would drift from the first the day somebody reworded a template.

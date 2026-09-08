@@ -384,6 +384,8 @@ builder.Services.AddScoped<IManageRepresentativeHandler, ManageRepresentativeHan
 builder.Services.AddScoped<IGetSupplierDocumentHandler, GetSupplierDocumentHandler>();
 builder.Services.AddScoped<IGetDocumentHistoryHandler, GetDocumentHistoryHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetGovernanceOverviewHandler, MotsSupplierPortal.Infrastructure.Governance.GetGovernanceOverviewHandler>();
+// SCR-604: the same aggregate-only grant, one screen further - see GetCategoryCoverageHandler.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetCategoryCoverageHandler, MotsSupplierPortal.Infrastructure.Governance.GetCategoryCoverageHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
 builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
@@ -488,6 +490,10 @@ builder.Services.AddScoped<IRejectDocumentHandler, RejectDocumentHandler>();
 builder.Services.AddScoped<DocumentScanJob>();
 builder.Services.AddScoped<DocumentExpiryJob>();
 builder.Services.AddScoped<IListReviewQueueHandler, ListReviewQueueHandler>();
+// SCR-402 and SCR-307: the two directory reads across the whole registry - see
+// SupplierDirectoryEndpoints for why they are two endpoints and not one shaped by the caller's role.
+builder.Services.AddScoped<IListSupplierDirectoryHandler, MotsSupplierPortal.Infrastructure.Suppliers.ListSupplierDirectoryHandler>();
+builder.Services.AddScoped<IListComplianceDirectoryHandler, MotsSupplierPortal.Infrastructure.Suppliers.ListComplianceDirectoryHandler>();
 builder.Services.AddScoped<IClaimReviewItemHandler, ClaimReviewItemHandler>();
 builder.Services.AddScoped<IUnassignReviewItemHandler, UnassignReviewItemHandler>();
 builder.Services.AddScoped<IGetReviewerSupplierViewHandler, GetReviewerSupplierViewHandler>();
@@ -505,6 +511,10 @@ builder.Services.AddSingleton<IOutboxTransport, MotsSupplierPortal.Infrastructur
 builder.Services.AddScoped<IListNotificationsHandler, ListNotificationsHandler>();
 builder.Services.AddScoped<IUnreadNotificationCountHandler, UnreadNotificationCountHandler>();
 builder.Services.AddScoped<IMarkNotificationReadHandler, MarkNotificationReadHandler>();
+// SCR-901/D-60: the caller's own notification preferences, and the enforcement lives in
+// NotificationMaterialiser - the single place a notification row is written.
+builder.Services.AddScoped<IGetNotificationPreferencesHandler, MotsSupplierPortal.Infrastructure.Notifications.GetNotificationPreferencesHandler>();
+builder.Services.AddScoped<ISetNotificationPreferencesHandler, MotsSupplierPortal.Infrastructure.Notifications.SetNotificationPreferencesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Notifications.INotificationMaterialiser,
     MotsSupplierPortal.Infrastructure.Notifications.NotificationMaterialiser>();
 builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Suppliers.OutboxDispatcher>();
@@ -1014,6 +1024,7 @@ app.MapAuditEndpoints();
 app.MapAdminEndpoints();
 app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
+app.MapSupplierDirectoryEndpoints();
 app.MapOrganizationEndpoints();
 app.MapStaffEndpoints();
 app.MapRoleEndpoints();

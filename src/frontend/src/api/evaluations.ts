@@ -16,6 +16,14 @@ export interface EvaluationCriterion {
   threshold: number | null
   scoringType: ScoringType
   isFinancial: boolean
+  /** T-021/BRULE-061. On the wire since EPIC-07 and absent from this interface until SCR-501 needed it —
+   * the same shape of drift T-110 found on the supplier profile, where the type and the response had
+   * disagreed for two batches. The scoring form still does not read it; the brief does. */
+  requiresJustification?: boolean
+  /** SCR-501: the template author's instruction for this criterion, snapshotted when the RFQ bound the
+   * template. Null or absent on a tender that bound one before the field existed. */
+  guidanceAr?: string | null
+  guidanceEn?: string | null
 }
 
 export interface EvaluationAssignment {

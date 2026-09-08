@@ -6,7 +6,9 @@ import type { MyEvaluation } from '../../api/evaluations'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  // Link as a plain anchor as well as the param, because the header now links to SCR-501's brief and this
+  // harness has no router - same treatment as every other page test that renders a link.
+  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }), Link: 'a' }
 })
 
 const { MyEvaluationPage } = await import('./MyEvaluationPage')

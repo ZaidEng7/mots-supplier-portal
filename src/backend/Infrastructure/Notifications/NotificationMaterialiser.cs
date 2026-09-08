@@ -29,6 +29,24 @@ public sealed class NotificationMaterialiser(IServiceScopeFactory scopeFactory, 
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // SCR-901/D-60, enforced HERE because this is the single place a notification row is written - every
+        // caller in the product goes through the outbox and then through this method. Filtering recipients at
+        // each of the forty-odd call sites would be forty chances to forget, and the one that forgot would be
+        // invisible: the user would simply keep receiving something they had switched off.
+        //
+        // IsMuteable is consulted as well as the stored row, and not as a shortcut. It is fail-closed for
+        // anything it does not recognise, so a stale preference row for a type that has since become
+        // actionable stops suppressing it - which is the direction that matters: over-delivery irritates
+        // somebody, under-delivery loses them a tender.
+        if (NotificationClassification.IsMuteable(request.Type)
+            && await db.NotificationPreferences.AsNoTracking().AnyAsync(
+                p => p.UserId == request.RecipientUserId && p.NotificationType == request.Type, ct))
+        {
+            logger.LogDebug("Notification {Type} suppressed for {Recipient} by their own preference",
+                request.Type, request.RecipientUserId);
+            return;
+        }
+
         var data = NotificationPayload.Build(request.Data);
         // T-061: the administrator's override if there is one, the shipped catalogue otherwise. The
         // interpolation is the same either way - an override gains no capability the shipped copy

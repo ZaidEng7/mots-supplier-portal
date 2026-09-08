@@ -49,6 +49,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// <summary>SCR-716: administrator rewordings of shipped interface strings.</summary>
     public DbSet<Domain.Configuration.UiStringOverride> UiStringOverrides => Set<Domain.Configuration.UiStringOverride>();
     public DbSet<Notification> Notifications => Set<Notification>();
+
+    /// <summary>SCR-901/D-60: the notification types a user has switched off. A row means "do not deliver";
+    /// no row means deliver - see NotificationPreference for why absence is the safe direction.</summary>
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
     public DbSet<Domain.Notifications.NotificationTemplate> NotificationTemplates => Set<Domain.Notifications.NotificationTemplate>();
@@ -871,6 +875,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         //                                twice produces one row rather than two
         //   IX(recipient_user_id, read_at) - the bell's own query (unread for this user), which is
         //                                on every page of the app for every authenticated persona
+        modelBuilder.Entity<NotificationPreference>(entity =>
+        {
+            entity.ToTable("notification_preference", "shared");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.NotificationType).HasMaxLength(200).IsRequired();
+
+            // One row per (user, type). A duplicate would mute the same type twice, which changes nothing -
+            // and that is exactly why it must be refused here rather than tidied up later: a set the user
+            // sends twice has to be idempotent at the database, not in whichever handler happens to write it.
+            entity.HasIndex(p => new { p.UserId, p.NotificationType }).IsUnique();
+
+            entity.HasOne<AppUser>().WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Notification>(entity =>
         {
             entity.ToTable("notification", "shared");
@@ -1187,6 +1207,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(c => c.Weight).HasPrecision(5, 2);
             entity.Property(c => c.MaxScore).HasPrecision(6, 2);
             entity.Property(c => c.Threshold).HasPrecision(6, 2);
+            // SCR-501. The same 1000 as Criterion.Guidance on the template this is copied from: a shorter
+            // column here would truncate an instruction the author was allowed to write.
+            entity.Property(c => c.GuidanceAr).HasMaxLength(1000);
+            entity.Property(c => c.GuidanceEn).HasMaxLength(1000);
             entity.Ignore(c => c.IsFinancial);
             entity.HasIndex(c => c.EvaluationId);
         });

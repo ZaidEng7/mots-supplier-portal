@@ -604,6 +604,12 @@ public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext
             // T-021: carried into the snapshot so the rule is the one the RFQ bound, not the one the
             // template happens to hold now.
             c.RequiresJustification,
+            // SCR-501, and the same argument one field further: the guidance an evaluator scores against
+            // must be the instruction in force when this tender bound the template. It was absent from
+            // both this snapshot and the evaluation's own, so the text existed on the template and reached
+            // nobody - which is why the evaluator's screen rendered name, weight and max and nothing else.
+            c.GuidanceAr,
+            c.GuidanceEn,
         }));
 
         try

@@ -777,6 +777,100 @@ const resources = {
           deactivateFailed: 'تعذر إلغاء تفعيل الخدمة',
         },
       },
+      // ── SCR-901 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      notificationPreferences: {
+        title: 'تفضيلات التنبيهات',                              // [drafted] SCR-901
+        subtitle: 'اختر التنبيهات الاختيارية التي تريد إيقافها.',   // [drafted]
+        optional: 'تنبيهات اختيارية',                            // [drafted]
+        optionalHint: 'إلغاء التحديد يوقف وصول هذا التنبيه إليك.',  // [drafted]
+        alwaysOn: 'تنبيهات لا يمكن إيقافها',                      // [drafted] D-60
+        alwaysOnHint: 'الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً.', // [drafted] names D-60's four families
+        save: 'حفظ',                                            // [reused]
+        saved: 'تم حفظ التفضيلات',                               // [drafted]
+        saveFailed: 'تعذّر حفظ التفضيلات',                        // [drafted]
+        loadFailed: 'تعذّر تحميل التفضيلات',                      // [drafted]
+        unsaved: 'تغييرات غير محفوظة',                           // [drafted]
+      },
+      // ── SCR-604 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      categoryCoverage: {
+        title: 'تغطية الفئات',                                  // [drafted] SCR-604
+        subtitle: 'أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد.', // [drafted]
+        summary: 'الخلاصة',                                     // [drafted]
+        uncovered: '{{count}} من {{total}} فئة بلا مورد فعّال',    // [drafted] the headline figure
+        flatNote: 'قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً.', // [drafted] states the absence of a tree
+        noSupplier: 'بلا مورد',                                 // [drafted]
+        noAward: 'بلا ترسية',                                   // [drafted]
+        empty: 'لا توجد فئات مفعّلة',                            // [drafted]
+        loadFailed: 'تعذّر تحميل تغطية الفئات',                   // [drafted]
+        fields: {
+          category: 'الفئة', approved: 'موردون معتمدون', active: 'موردون فعّالون',
+          offerings: 'العروض', tenders: 'الطلبات', awarded: 'الطلبات المُرساة',
+        },
+      },
+      // ── SCR-501 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // The evaluator's brief. «كراسة» is the word a procurement file uses for the instruction
+      // document itself, which is what this screen is - not «ملخص», which would read as a summary
+      // somebody wrote about the tender.
+      evaluationBrief: {
+        title: 'كراسة التقييم',                                // [drafted] SCR-501
+        toScoring: 'الانتقال إلى التقييم',                      // [drafted]
+        tender: 'موضوع الطلب',                                 // [drafted]
+        howToScore: 'معايير التقييم وطريقة احتسابها',            // [drafted]
+        totalWeight: 'مجموع الأوزان: {{total}}',                // [drafted]
+        mandatory: 'إلزامي',                                    // [reused]
+        justificationRequired: 'يلزم تبرير',                    // [drafted] BRULE-061
+        noDescription: 'لا يوجد وصف مسجّل لهذا الطلب',           // [drafted]
+        noGuidance: 'لم تُسجَّل تعليمات لهذا المعيار',             // [drafted] says NOT RECORDED, not "none"
+        noThreshold: 'لا حد أدنى',                              // [drafted]
+        error: 'تعذّر تحميل الكراسة',                            // [drafted]
+        dimension: { Technical: 'فني', Commercial: 'تجاري' },    // [reused] §7's own pair
+        fields: {
+          criterion: 'المعيار', dimension: 'البُعد', weight: 'الوزن',
+          max: 'الدرجة العليا', threshold: 'الحد الأدنى', guidance: 'تعليمات التقييم',
+        },
+      },
+      // ── SCR-402 / SCR-307 · ARABIC FOR REVIEW ───────────────────────────────
+      // Two directories over one registry. «دليل الموردين» for the buyer's browse and «سجل الموردين»
+      // for the reviewer's audit view: a دليل is something you look a supplier up in, a سجل is the
+      // register itself, which is the distinction between the two screens.
+      supplierDirectory: {
+        title: 'دليل الموردين',                               // [drafted] SCR-402
+        subtitle: 'استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات.', // [drafted]
+        filterCategory: 'الفئة',                              // [reused]
+        filterState: 'الحالة',                                // [reused] §7's own term
+        filterAll: 'الكل',                                    // [reused]
+        search: 'بحث',                                        // [reused]
+        searchPlaceholder: 'ابحث بالاسم أو الرمز…',            // [drafted]
+        empty: 'لا يوجد موردون مطابقون',                      // [drafted]
+        error: 'تعذّر تحميل الدليل',                           // [drafted]
+        noCategories: 'لا فئات مسجّلة',                        // [drafted]
+        loadMore: 'عرض المزيد',                                // [reused]
+        fields: {
+          name: 'المورد', code: 'الرمز', categories: 'الفئات',
+          offerings: 'العروض', location: 'المدينة', state: 'الحالة',
+        },
+      },
+      complianceDirectory: {
+        title: 'سجل الموردين',                                 // [drafted] SCR-307
+        subtitle: 'كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً.', // [drafted]
+        filterState: 'حالة الطلب',                             // [drafted]
+        filterHealth: 'حالة المستندات',                        // [drafted]
+        filterAll: 'الكل',                                     // [reused]
+        healthAttention: 'تحتاج متابعة',                       // [drafted]
+        healthOk: 'سليمة',                                     // [drafted]
+        search: 'بحث',                                         // [reused]
+        searchPlaceholder: 'ابحث بالاسم أو الرمز…',             // [reused] same control as SCR-402
+        empty: 'لا يوجد موردون مطابقون',                       // [reused]
+        error: 'تعذّر تحميل السجل',                             // [drafted]
+        expired: 'منتهٍ: {{count}}',                           // [reused] §7.2's «منتهٍ»
+        expiring: 'ينتهي قريباً: {{count}}',                    // [reused] §7.2's own label
+        rejected: 'مرفوض: {{count}}',                          // [reused] §7.2's own label
+        loadMore: 'عرض المزيد',                                // [reused]
+        fields: {
+          name: 'المورد', onboarding: 'حالة الطلب', lifecycle: 'حالة التعامل',
+          documents: 'المستندات', registered: 'تاريخ التسجيل',
+        },
+      },
       offeringSearch: {
         title: 'البحث عن الخدمات المعروضة',
         subtitle: 'ابحث في خدمات الموردين النشطين لأغراض دعوات طلب العروض.',
@@ -2479,6 +2573,90 @@ const resources = {
           invalidCurrency: 'Unknown currency',
           saveFailed: 'Could not save the offering',
           deactivateFailed: 'Could not deactivate the offering',
+        },
+      },
+      notificationPreferences: {
+        title: 'Notification Preferences',
+        subtitle: 'Choose which optional notifications you want switched off.',
+        optional: 'Optional notifications',
+        optionalHint: 'Unticking one stops it reaching you.',
+        alwaysOn: 'Notifications that cannot be switched off',
+        alwaysOnHint: 'Invitations, clarification requests, award outcomes and document expiry are always sent.',
+        save: 'Save',
+        saved: 'Preferences saved',
+        saveFailed: 'Could not save your preferences',
+        loadFailed: 'Could not load your preferences',
+        unsaved: 'Unsaved changes',
+      },
+      categoryCoverage: {
+        title: 'Category Coverage',
+        subtitle: 'Suppliers and tenders per category, and the categories nobody serves.',
+        summary: 'Summary',
+        uncovered: '{{count}} of {{total}} categories have no active supplier',
+        flatNote: 'The category list is currently flat and carries no hierarchy.',
+        noSupplier: 'No supplier',
+        noAward: 'No award',
+        empty: 'No active categories',
+        loadFailed: 'Could not load category coverage',
+        fields: {
+          category: 'Category', approved: 'Approved suppliers', active: 'Active suppliers',
+          offerings: 'Offerings', tenders: 'Tenders', awarded: 'Awarded',
+        },
+      },
+      evaluationBrief: {
+        title: 'Evaluation Brief',
+        toScoring: 'Go to scoring',
+        tender: 'What is being bought',
+        howToScore: 'Criteria and how they are scored',
+        totalWeight: 'Weights total: {{total}}',
+        mandatory: 'Mandatory',
+        justificationRequired: 'Justification required',
+        noDescription: 'No description was recorded for this tender',
+        noGuidance: 'No guidance was recorded for this criterion',
+        noThreshold: 'No minimum',
+        error: 'Could not load the brief',
+        dimension: { Technical: 'Technical', Commercial: 'Commercial' },
+        fields: {
+          criterion: 'Criterion', dimension: 'Dimension', weight: 'Weight',
+          max: 'Max score', threshold: 'Minimum', guidance: 'How to score it',
+        },
+      },
+      supplierDirectory: {
+        title: 'Supplier Directory',
+        subtitle: 'Browse approved suppliers and their categories before sending invitations.',
+        filterCategory: 'Category',
+        filterState: 'Status',
+        filterAll: 'All',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        error: 'Could not load the directory',
+        noCategories: 'No categories recorded',
+        loadMore: 'Load more',
+        fields: {
+          name: 'Supplier', code: 'Code', categories: 'Categories',
+          offerings: 'Offerings', location: 'City', state: 'Status',
+        },
+      },
+      complianceDirectory: {
+        title: 'Supplier Register',
+        subtitle: 'Every supplier and the state of their documents, including already-approved files.',
+        filterState: 'Application status',
+        filterHealth: 'Document health',
+        filterAll: 'All',
+        healthAttention: 'Needs attention',
+        healthOk: 'Healthy',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        error: 'Could not load the register',
+        expired: 'Expired: {{count}}',
+        expiring: 'Expiring: {{count}}',
+        rejected: 'Rejected: {{count}}',
+        loadMore: 'Load more',
+        fields: {
+          name: 'Supplier', onboarding: 'Application', lifecycle: 'Standing',
+          documents: 'Documents', registered: 'Registered',
         },
       },
       offeringSearch: {
