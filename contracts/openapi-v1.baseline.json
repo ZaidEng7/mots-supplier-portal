@@ -1859,7 +1859,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1884,6 +1892,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1898,7 +1915,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3012,7 +3043,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3036,7 +3075,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3056,11 +3103,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3080,11 +3150,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3118,7 +3211,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3151,7 +3252,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3192,7 +3301,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3216,7 +3333,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3641,7 +3766,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3658,11 +3791,34 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3681,6 +3837,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -3695,7 +3860,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3834,11 +4013,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3857,11 +4051,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -3876,6 +4085,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -3895,6 +4113,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4173,7 +4397,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4192,11 +4424,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4327,6 +4574,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -4342,6 +4598,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4356,6 +4618,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -4375,6 +4646,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4522,7 +4799,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4535,6 +4820,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -4554,6 +4848,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4572,6 +4872,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -4586,7 +4895,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4605,11 +4928,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4651,11 +4989,34 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4683,11 +5044,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4742,7 +5126,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4761,11 +5153,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4784,11 +5191,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4840,6 +5262,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -4855,6 +5286,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4896,11 +5333,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4915,6 +5367,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -4934,6 +5395,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -4994,6 +5461,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5008,7 +5484,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5036,11 +5526,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5055,6 +5568,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -5074,6 +5596,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5145,6 +5673,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5159,7 +5696,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5182,7 +5733,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -5201,6 +5760,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5215,7 +5783,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5290,11 +5872,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5313,11 +5910,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5465,6 +6077,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5480,6 +6101,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5531,6 +6158,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5545,7 +6181,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5620,6 +6270,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5634,7 +6293,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5662,11 +6335,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5692,6 +6388,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -5706,7 +6411,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5904,7 +6623,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -5944,11 +6671,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -5963,6 +6705,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -5982,6 +6733,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6088,6 +6845,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6102,7 +6868,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6130,11 +6910,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6160,6 +6963,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6174,7 +6986,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6216,6 +7042,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6231,6 +7066,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6245,6 +7086,15 @@
           {
             "in": "path",
             "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
             "required": true,
             "schema": {
               "type": "string"
@@ -6270,6 +7120,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6543,7 +7399,15 @@
         "operationId": "GetOwnSupplier",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -6554,9 +7418,34 @@
     "/api/v1/suppliers/me/accept-terms": {
       "post": {
         "operationId": "AcceptTerms",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6580,6 +7469,17 @@
     "/api/v1/suppliers/me/addresses": {
       "post": {
         "operationId": "AddAddress",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6592,7 +7492,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6612,11 +7526,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6634,6 +7571,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6648,7 +7594,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6713,6 +7673,17 @@
     "/api/v1/suppliers/me/bank-accounts": {
       "post": {
         "operationId": "AddBankAccount",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6725,7 +7696,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6745,11 +7730,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6767,6 +7775,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6781,7 +7798,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6825,11 +7856,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6840,6 +7894,17 @@
     "/api/v1/suppliers/me/branches": {
       "post": {
         "operationId": "AddBranch",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6852,7 +7917,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6872,11 +7951,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6894,6 +7996,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6908,7 +8019,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6919,6 +8044,17 @@
     "/api/v1/suppliers/me/category-links": {
       "post": {
         "operationId": "LinkCategory",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6931,7 +8067,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6950,11 +8100,34 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6965,6 +8138,17 @@
     "/api/v1/suppliers/me/contacts": {
       "post": {
         "operationId": "AddContact",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6977,7 +8161,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -6997,11 +8195,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7019,6 +8240,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7033,7 +8263,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7069,7 +8313,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7080,9 +8332,34 @@
     "/api/v1/suppliers/me/logo": {
       "post": {
         "operationId": "UploadLogo",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7153,7 +8430,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7171,6 +8456,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7185,7 +8479,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7205,11 +8513,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7220,6 +8551,17 @@
     "/api/v1/suppliers/me/representatives": {
       "post": {
         "operationId": "AddRepresentative",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7232,7 +8574,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7252,11 +8608,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7274,6 +8653,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7288,7 +8676,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7308,11 +8710,34 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7323,9 +8748,26 @@
     "/api/v1/suppliers/me/resubmit-application": {
       "post": {
         "operationId": "ResubmitApplication",
+        "parameters": [
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7434,7 +8876,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -7453,6 +8903,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7467,7 +8926,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7631,11 +9104,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7662,6 +9150,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7677,6 +9174,12 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7695,11 +9198,34 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
           }
         },
         "tags": [
@@ -7746,7 +9272,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:5080/"
+      "url": "http://localhost/"
     }
   ],
   "tags": [

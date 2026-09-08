@@ -106,7 +106,10 @@ builder.Services.AddOpenTelemetry()
         .AddMeter(MotsSupplierPortal.Infrastructure.Observability.AppMetrics.MeterName)
         .AddPrometheusExporter());
 
-builder.Services.AddOpenApi();
+// §8.1's precondition, documented rather than only enforced - see ConcurrencyOpenApiTransformer for what
+// the published document was missing and who it cost.
+builder.Services.AddOpenApi(options =>
+    options.AddOperationTransformer<MotsSupplierPortal.Api.Concurrency.ConcurrencyOpenApiTransformer>());
 
 // Global: every enum (AddressKind, OnboardingState, SupplierLegalType, DocumentTypeKind, ...)
 // reads/writes its string name on the wire, not a raw integer - applies to every Minimal API
