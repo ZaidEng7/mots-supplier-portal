@@ -196,6 +196,47 @@ to something the persona's data scope has no place in.
 is not a transient failure, and nothing about the screen says so. Same class as F-9 — a message that
 describes the wrong thing to the person reading it.
 
+### F-11 — Adding a contact answers 428, on a page whose other writes work
+**Open.** Sized **M** — the cause is not yet pinned, and that is the honest state of it.
+
+On `/onboarding/contacts`, **Add contact** answers 428: "This resource requires the ETag of the
+version you are editing, sent as If-Match". Representatives on the same screen had saved fine.
+
+`POST /suppliers/me/contacts` declares `RequireIfMatch` and `WithFreshETag`; the page reads the
+profile through `getOwnSupplier()`, which files the version under both `/api/v1/suppliers/me` and
+`/api/v1/suppliers/{code}`; and the write walks up to the first of those. On paper it should hold.
+
+**The two mechanisms that would explain it, neither confirmed:**
+
+1. **The sibling-child hole T-030 split (2) closed, reopening when a write returns no ETag.** The
+   transport forgets every prefix on a successful mutation and then files the response's fresh
+   version back at the precondition prefix — but `rememberETag` ignores a null tag. So a mutating
+   route that answers without an `ETag` header leaves the aggregate's version deleted and nothing put
+   back, and the NEXT write to a sibling collection has no precondition to send. That would make the
+   failure depend on which write you did first, which matches: the representative saved, the contact
+   did not.
+2. **The page never read the profile in this tab.** The store is in-memory and per tab; a route
+   transition that served the contacts page from cache without re-reading `/suppliers/me` would leave
+   nothing to walk up to.
+
+Deciding between them takes a browser with the network panel open and a deliberate sequence — read
+profile, add representative, add contact — checking which responses carry an ETag. Worth doing
+properly rather than fixing the symptom: this is the fifth 428 of the day, and the four before it
+each had a different cause.
+
+### F-12 — The offering dialog grows past the screen and takes its buttons with it
+**Open.** Sized **S**.
+
+Add four or five rows to **Additional attributes** on an offering and the dialog outgrows the
+viewport. There is no internal scroll, so the fields keep pushing downward and Save and Cancel go off
+the bottom of the screen — the form is still there, it just cannot be finished or dismissed without
+zooming the browser out. The top of the dialog is clipped too: the Arabic name field is cut off above
+the visible area.
+
+A dialog whose height is driven by a repeatable row needs a max height and its own scroll region,
+with the action row pinned. It is worth checking every other dialog with a repeater in it at the same
+time rather than fixing this one: the same shape is likely wherever "add another row" exists.
+
 ## Also confirmed, already known
 
 **D-66 — the offering category checkbox does not re-tick until the profile is re-read.** Recorded in
