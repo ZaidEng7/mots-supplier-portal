@@ -1,8 +1,7 @@
 # MOTS Supplier Portal — progress
 
-> **Taken at:** `main` @ `f73fef7`, 2026-09-08, after PR #126 (phase 3) and PR #127 (phase 4 and the
-> Ministry screens) merged — plus two items finished on `fix/document-decision-etag` and named where they
-> land: P12 item 26 (the document decisions' fresh ETag) and item 29 (the migration squash).
+> **Taken at:** `main` @ `5c9acab`, 2026-09-09, after PRs #126 (phase 3), #127 (phase 4 and the Ministry
+> screens) and #128 (P12 items 26 and 29) merged.
 > **This edition moves verdicts for the first time in three editions.** Every screen the inventory names
 > is built: the three that were missing, the five that were refused by decision, and the one that was
 > unresolved. What remains is one other engineer's integration and one deferred testing pass.
