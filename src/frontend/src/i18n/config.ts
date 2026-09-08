@@ -16,9 +16,9 @@ const resources = {
       // SCR-400 §10, SCR-401, SCR-300 (FR-DSH-002). KPI labels are drafted: the specs name the
       // tiles in English prose and no Arabic copy exists for them in UX-WRITING.
       // ═══════════════════════════════════════════════════════════════════════════════════════
-      // EPIC-16 · ARABIC FOR REVIEW (part 2 of 2; part 1 is `status.invitation` above).
+      // EPIC-16 · ARABIC, REVIEWED (D-62) (part 2 of 2; part 1 is `status.invitation` above).
       //
-      //   [§7-style drafted]  authored here in the style of §7's tables - NOT YET APPROVED
+  // authored here in the style of §7's tables, and accepted under D-62
       //   [reused]            already approved elsewhere in this file, repeated for consistency
       //
       // InvitationStatus has no §7 table - five members that ship on the wire (§12.4's
@@ -27,41 +27,41 @@ const resources = {
       // is feminine, which is why Declined is not «مرفوض»).
       // ═══════════════════════════════════════════════════════════════════════════════════════
       supplierDashboard: {
-        title: 'لوحة المورد',                     // [§7-style drafted]
-        greeting: 'أهلاً بك، {{name}}',          // [§7-style drafted]
+        title: 'لوحة المورد',
+        greeting: 'أهلاً بك، {{name}}',
         kpis: {
-          openInvitations: 'دعوات مفتوحة',        // [§7-style drafted]
-          draftProposals: 'عروض مسودة',           // [§7-style drafted]
-          submittedProposals: 'عروض مُقدَّمة',      // [§7-style drafted] reuses §7.4's «مُقدَّم» as an adjective
-          documentsNeedingAttention: 'وثائق بحاجة إلى إجراء', // [§7-style drafted]
+          openInvitations: 'دعوات مفتوحة',
+          draftProposals: 'عروض مسودة',
+          submittedProposals: 'عروض مُقدَّمة',  // reuses §7.4's «مُقدَّم» as an adjective
+          documentsNeedingAttention: 'وثائق بحاجة إلى إجراء',
         },
         actionRequired: {
-          title: 'يتطلب إجراءً',                                        // [§7-style drafted]
-          expiringDocuments: 'وثائق تقترب من الانتهاء ({{count}})',      // [§7-style drafted]
-          rejectedDocuments: 'وثائق مرفوضة ({{count}})',                 // [§7-style drafted]
-          invitationsClosingSoon: 'دعوات تُغلق قريباً ({{count}})',        // [§7-style drafted]
-          clarificationsAnswered: 'استيضاحات تمت الإجابة عليها ({{count}})', // [§7-style drafted] §8's glossary term
-          awardOffers: 'عروض ترسية ({{count}})',                         // [§7-style drafted] §8's «ترسية»
-          dismiss: 'إخفاء',                                              // [§7-style drafted]
+          title: 'يتطلب إجراءً',
+          expiringDocuments: 'وثائق تقترب من الانتهاء ({{count}})',
+          rejectedDocuments: 'وثائق مرفوضة ({{count}})',
+          invitationsClosingSoon: 'دعوات تُغلق قريباً ({{count}})',
+          clarificationsAnswered: 'استيضاحات تمت الإجابة عليها ({{count}})',  // §8's glossary term
+          awardOffers: 'عروض ترسية ({{count}})',  // §8's «ترسية»
+          dismiss: 'إخفاء',
         },
-        invitations: 'الدعوات والمواعيد',          // [§7-style drafted]
-        proposals: 'عروضي',                        // [§7-style drafted]
-        validUntil: 'سارٍ حتى {{date}}',            // [§7-style drafted]
-        noValidity: 'لا يوجد تاريخ سريان',          // [§7-style drafted]
-        profileHealth: 'اكتمال الملف والوثائق',      // [§7-style drafted]
-        completeness: 'اكتمال الوثائق المطلوبة: {{done}} من {{total}}', // [§7-style drafted]
-        nextDocument: 'الوثيقة التالية المطلوبة: {{code}}',              // [§7-style drafted]
-        allDocuments: 'اكتملت جميع الوثائق المطلوبة.',                   // [§7-style drafted]
-        notifications: 'آخر الإشعارات',            // [§7-style drafted]
+        invitations: 'الدعوات والمواعيد',
+        proposals: 'عروضي',
+        validUntil: 'سارٍ حتى {{date}}',
+        noValidity: 'لا يوجد تاريخ سريان',
+        profileHealth: 'اكتمال الملف والوثائق',
+        completeness: 'اكتمال الوثائق المطلوبة: {{done}} من {{total}}',
+        nextDocument: 'الوثيقة التالية المطلوبة: {{code}}',
+        allDocuments: 'اكتملت جميع الوثائق المطلوبة.',
+        notifications: 'آخر الإشعارات',
         openNotifications: 'عرض الإشعارات',        // [reused] wording of procurementDashboard.openNotifications
         // §1's not-yet-approved state. Deliberately not an empty dashboard - see the report.
-        pendingTitle: 'طلب التسجيل قيد المراجعة',   // [§7-style drafted]
-        pendingBody: 'سنُعلمك فور اعتماد ملفكم. يمكنك متابعة استكمال بياناتكم في هذه الأثناء.', // [§7-style drafted]
-        pendingCta: 'متابعة استكمال الملف',         // [§7-style drafted]
-        erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.', // [§7-style drafted] §9's sync tone
+        pendingTitle: 'طلب التسجيل قيد المراجعة',
+        pendingBody: 'سنُعلمك فور اعتماد ملفكم. يمكنك متابعة استكمال بياناتكم في هذه الأثناء.',
+        pendingCta: 'متابعة استكمال الملف',
+        erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.',  // §9's sync tone
         emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
-        emptyBody: 'ستظهر هنا دعوات طلبات عروض الأسعار عند دعوتكم للمشاركة.', // [§7-style drafted]
-        loadFailed: 'تعذر تحميل هذا القسم',         // [§7-style drafted] per-widget, not per-page
+        emptyBody: 'ستظهر هنا دعوات طلبات عروض الأسعار عند دعوتكم للمشاركة.',
+        loadFailed: 'تعذر تحميل هذا القسم',  // per-widget, not per-page
         retry: 'إعادة المحاولة',                    // [reused]
       },
       // FEAT-19.1/19.2 report screen. AUTHORED, not transcribed: no document specifies this
@@ -74,105 +74,105 @@ const resources = {
       // both surfaces render the same table with the same column headers, so there is no context the
       // export lacks, and all three divergences turned out to be errors rather than adaptations.
       // See DECISIONS-TAKEN.md.
-      // ── EPIC-18/SCR-600 · ARABIC FOR REVIEW ─────────────────────────────────────────
-      // §7 has no notification-template table. Drafted in §7's register - NOT YET APPROVED.
+      // ── EPIC-18/SCR-600 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
+      // §7 has no notification-template table. Authored in §7's register and accepted under D-62.
       notificationTemplates: {
-        title: 'قوالب الإشعارات',                            // [§7-style drafted]
-        subtitle: 'صياغة الإشعارات لكل نوع بالعربية والإنجليزية. النوع غير المعدّل يستخدم الصياغة الأصلية.', // [§7-style drafted]
-        shipped: 'الصياغة الأصلية',                          // [§7-style drafted]
+        title: 'قوالب الإشعارات',
+        subtitle: 'صياغة الإشعارات لكل نوع بالعربية والإنجليزية. النوع غير المعدّل يستخدم الصياغة الأصلية.',
+        shipped: 'الصياغة الأصلية',
         overridden: 'معدّل',                                 // [reused] matches systemSettings
         overriddenAt: 'عُدّل في {{at}}',                      // [reused] matches systemSettings
         edit: 'تعديل',                                       // [reused]
         collapse: 'إخفاء',                                   // [reused]
         titleAr: 'العنوان (عربي)',                           // [reused] §7's own term
         titleEn: 'العنوان (إنجليزي)',                        // [reused] §7's own term
-        bodyAr: 'النص (عربي)',                               // [§7-style drafted]
-        bodyEn: 'النص (إنجليزي)',                            // [§7-style drafted]
-        tokens: 'الرموز المتاحة: {{tokens}}',                 // [§7-style drafted]
-        noTokens: 'لا رموز متاحة لهذا النوع.',                // [§7-style drafted]
-        shippedCopy: 'الصياغة الأصلية (ما سيُستعاد)',          // [§7-style drafted]
+        bodyAr: 'النص (عربي)',
+        bodyEn: 'النص (إنجليزي)',
+        tokens: 'الرموز المتاحة: {{tokens}}',
+        noTokens: 'لا رموز متاحة لهذا النوع.',
+        shippedCopy: 'الصياغة الأصلية (ما سيُستعاد)',
         save: 'حفظ',                                         // [reused]
-        saved: 'تم حفظ الصياغة',                             // [§7-style drafted]
-        revert: 'استعادة الصياغة الأصلية',                    // [§7-style drafted]
-        reverted: 'تمت استعادة الصياغة الأصلية',              // [§7-style drafted]
-        loadFailed: 'تعذّر تحميل القوالب',                    // [§7-style drafted]
+        saved: 'تم حفظ الصياغة',
+        revert: 'استعادة الصياغة الأصلية',
+        reverted: 'تمت استعادة الصياغة الأصلية',
+        loadFailed: 'تعذّر تحميل القوالب',
         retry: 'إعادة المحاولة',                             // [reused]
         errors: {
-          unknownTokens: 'رموز غير متاحة لهذا النوع: {{tokens}}', // [§7-style drafted]
-          saveFailed: 'تعذّر حفظ الصياغة',                    // [§7-style drafted]
-          revertFailed: 'تعذّرت الاستعادة',                   // [§7-style drafted]
+          unknownTokens: 'رموز غير متاحة لهذا النوع: {{tokens}}',
+          saveFailed: 'تعذّر حفظ الصياغة',
+          revertFailed: 'تعذّرت الاستعادة',
         },
       },
-      // §7 has no settings table. Drafted in §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md.
+      // §7 has no settings table. Authored in §7's register, accepted under D-62; logged in ARABIC-REVIEW.md.
       systemSettings: {
-        title: 'إعدادات النظام',                            // [§7-style drafted]
-        subtitle: 'قيم تسري على النظام بأكمله. الإعداد غير المعدّل يعمل بالقيمة الافتراضية.', // [§7-style drafted]
+        title: 'إعدادات النظام',
+        subtitle: 'قيم تسري على النظام بأكمله. الإعداد غير المعدّل يعمل بالقيمة الافتراضية.',
         value: 'القيمة',                                    // [reused] §7's own term
         save: 'حفظ',                                        // [reused]
-        saved: 'تم حفظ الإعداد',                            // [§7-style drafted]
-        overridden: 'معدّل',                                // [§7-style drafted]
-        overriddenAt: 'عُدّل في {{at}}',                     // [§7-style drafted]
-        usingDefault: 'القيمة الافتراضية ({{value}})',        // [§7-style drafted]
-        loadFailed: 'تعذّر تحميل الإعدادات',                  // [§7-style drafted]
+        saved: 'تم حفظ الإعداد',
+        overridden: 'معدّل',
+        overriddenAt: 'عُدّل في {{at}}',
+        usingDefault: 'القيمة الافتراضية ({{value}})',
+        loadFailed: 'تعذّر تحميل الإعدادات',
         retry: 'إعادة المحاولة',                             // [reused]
         keys: {
-          'registration.mode': 'تسجيل الموردين',             // [§7-style drafted]
-          'proposals.defaultCurrencyCode': 'العملة الافتراضية', // [§7-style drafted]
-          'documents.expiringSoonWindowDays': 'مهلة التنبيه لقرب انتهاء المستند (أيام)', // [§7-style drafted]
-          'documents.renewalReminderDays': 'مواعيد تذكير التجديد (أيام)', // [§7-style drafted]
+          'registration.mode': 'تسجيل الموردين',
+          'proposals.defaultCurrencyCode': 'العملة الافتراضية',
+          'documents.expiringSoonWindowDays': 'مهلة التنبيه لقرب انتهاء المستند (أيام)',
+          'documents.renewalReminderDays': 'مواعيد تذكير التجديد (أيام)',
         },
         help: {
-          'registration.mode': 'عند الإغلاق يُرفض التسجيل الذاتي ويُطلب من المتقدّم التواصل مع الوزارة.', // [§7-style drafted]
-          'proposals.defaultCurrencyCode': 'تُستخدم كقيمة أولية في نماذج العروض. يجب أن تكون عملة مفعّلة.', // [§7-style drafted]
-          'documents.expiringSoonWindowDays': 'تحدّد متى تنتقل حالة المستند إلى «قارب على الانتهاء»، وهي مستقلة عن مواعيد التذكير.', // [§7-style drafted]
-          'documents.renewalReminderDays': 'قائمة أيام قبل الانتهاء يُرسل عندها تذكير. لا تكرار.', // [§7-style drafted]
+          'registration.mode': 'عند الإغلاق يُرفض التسجيل الذاتي ويُطلب من المتقدّم التواصل مع الوزارة.',
+          'proposals.defaultCurrencyCode': 'تُستخدم كقيمة أولية في نماذج العروض. يجب أن تكون عملة مفعّلة.',
+          'documents.expiringSoonWindowDays': 'تحدّد متى تنتقل حالة المستند إلى «قارب على الانتهاء»، وهي مستقلة عن مواعيد التذكير.',
+          'documents.renewalReminderDays': 'قائمة أيام قبل الانتهاء يُرسل عندها تذكير. لا تكرار.',
         },
         choices: {
           'registration.mode': {
-            open: 'مفتوح للتسجيل الذاتي',                    // [§7-style drafted]
-            closed: 'مغلق',                                 // [§7-style drafted]
+            open: 'مفتوح للتسجيل الذاتي',
+            closed: 'مغلق',
           },
         },
         hints: {
-          integerList: 'أرقام مفصولة بفواصل، مثال: 30,14,3',   // [§7-style drafted]
-          range: 'من {{min}} إلى {{max}}',                   // [§7-style drafted]
+          integerList: 'أرقام مفصولة بفواصل، مثال: 30,14,3',
+          range: 'من {{min}} إلى {{max}}',
         },
         errors: {
           value_required: 'القيمة مطلوبة',                    // [reused] §4's required pattern
-          value_not_allowed: 'قيمة غير مسموحة',               // [§7-style drafted]
-          value_out_of_range: 'القيمة خارج النطاق المسموح',    // [§7-style drafted]
-          value_has_duplicates: 'لا يمكن تكرار الرقم نفسه',    // [§7-style drafted]
-          reference_code_not_active: 'الرمز غير موجود أو غير مفعّل', // [§7-style drafted]
-          unknown: 'تعذّر حفظ الإعداد',                       // [§7-style drafted]
+          value_not_allowed: 'قيمة غير مسموحة',
+          value_out_of_range: 'القيمة خارج النطاق المسموح',
+          value_has_duplicates: 'لا يمكن تكرار الرقم نفسه',
+          reference_code_not_active: 'الرمز غير موجود أو غير مفعّل',
+          unknown: 'تعذّر حفظ الإعداد',
         },
       },
-      // §7 has no admin-dashboard table either. Drafted in §7's register - NOT YET APPROVED, in
+      // §7 has no admin-dashboard table either. Authored in §7's register and accepted under D-62; logged in
       // ARABIC-REVIEW.md's pile.
       adminOverview: {
-        title: 'لوحة إدارة النظام',                        // [§7-style drafted]
+        title: 'لوحة إدارة النظام',
         kpis: {
           users: 'المستخدمون',                             // [reused] §7's own term
           roles: 'الأدوار',                                // [reused] matches roleManagement
-          outboxPending: 'رسائل قيد الإرسال',               // [§7-style drafted]
-          auditRows: 'سجلات التدقيق (24 ساعة)',            // [§7-style drafted]
+          outboxPending: 'رسائل قيد الإرسال',
+          auditRows: 'سجلات التدقيق (24 ساعة)',
         },
-        outbox: 'قائمة الإرسال',                           // [§7-style drafted]
-        outboxPending: 'قيد الإرسال',                      // [§7-style drafted]
+        outbox: 'قائمة الإرسال',
+        outboxPending: 'قيد الإرسال',
         outboxFailed: 'فاشلة',                             // [reused] §4's failure wording
-        outboxOldest: 'عمر أقدم رسالة قيد الإرسال',        // [§7-style drafted]
-        outboxDrained: 'لا توجد رسائل معلّقة',              // [§7-style drafted]
-        outboxFailedWarning: 'توجد رسائل فاشلة تحتاج مراجعة', // [§7-style drafted]
-        erpNotConfigured: 'لا يوجد ربط فعلي بنظام ERP',           // [drafted] B-1/BRULE-011
-        erpNotConfiguredBody: 'تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي. لا تُعتبر الرسائل المُرسلة دليلاً على وصول البيانات.', // [drafted]
-        minutes: '{{value}} دقيقة',                        // [§7-style drafted]
-        jobs: 'المهام المجدولة',                            // [§7-style drafted]
-        jobsDisabled: 'المهام المجدولة معطّلة',              // [§7-style drafted]
-        jobsDisabledBody: 'لن تُرسل التذكيرات ولن تُغلق الطلبات تلقائياً حتى تُفعّل المهام المجدولة في إعدادات النشر.', // [§7-style drafted]
-        jobsMissing: 'مهام مفقودة من التسجيل',              // [§7-style drafted]
-        jobsHealthy: '{{value}} مهام مسجّلة',               // [§7-style drafted]
+        outboxOldest: 'عمر أقدم رسالة قيد الإرسال',
+        outboxDrained: 'لا توجد رسائل معلّقة',
+        outboxFailedWarning: 'توجد رسائل فاشلة تحتاج مراجعة',
+        erpNotConfigured: 'لا يوجد ربط فعلي بنظام ERP',  // B-1/BRULE-011
+        erpNotConfiguredBody: 'تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي. لا تُعتبر الرسائل المُرسلة دليلاً على وصول البيانات.',
+        minutes: '{{value}} دقيقة',
+        jobs: 'المهام المجدولة',
+        jobsDisabled: 'المهام المجدولة معطّلة',
+        jobsDisabledBody: 'لن تُرسل التذكيرات ولن تُغلق الطلبات تلقائياً حتى تُفعّل المهام المجدولة في إعدادات النشر.',
+        jobsMissing: 'مهام مفقودة من التسجيل',
+        jobsHealthy: '{{value}} مهام مسجّلة',
         referenceData: 'البيانات المرجعية',                 // [reused] §7's own term
-        referenceEmpty: 'جدول مرجعي بلا رموز مفعّلة - سيتعذّر التسجيل', // [§7-style drafted]
-        activeOfTotal: '{{active}} من {{total}}',           // [§7-style drafted]
+        referenceEmpty: 'جدول مرجعي بلا رموز مفعّلة - سيتعذّر التسجيل',
+        activeOfTotal: '{{active}} من {{total}}',
         tables: {
           categories: 'التصنيفات',                         // [reused] §7's own term
           'document-types': 'أنواع المستندات',              // [reused] §7's own term
@@ -180,59 +180,59 @@ const resources = {
           'units-of-measure': 'وحدات القياس',               // [reused] §7's own term
           regions: 'المناطق',                              // [reused] §7's own term
         },
-        loadFailed: 'تعذّر تحميل لوحة إدارة النظام',        // [§7-style drafted]
+        loadFailed: 'تعذّر تحميل لوحة إدارة النظام',
         retry: 'إعادة المحاولة',                           // [reused]
       },
       // SCR-720 (T-079). §7 has no audit-explorer strings. Drafted in §7's register - NOT YET
       // APPROVED, in ARABIC-REVIEW.md's pile.
       auditExplorer: {
         title: 'سجل التغييرات',                              // [reused] §7's own term for the audit trail
-        subtitle: 'البحث في سجل التغييرات على مستوى المنصة وتصديره.', // [drafted]
-        filtersTitle: 'عوامل التصفية',                       // [drafted]
+        subtitle: 'البحث في سجل التغييرات على مستوى المنصة وتصديره.',
+        filtersTitle: 'عوامل التصفية',
         resultsTitle: 'النتائج',                             // [reused]
         search: 'بحث',                                       // [reused]
-        clear: 'إلغاء التصفية',                              // [drafted]
+        clear: 'إلغاء التصفية',
         export: 'تصدير (CSV)',                               // [reused] matches the supplier's own export
         loadMore: 'عرض المزيد',                              // [reused]
         retry: 'إعادة المحاولة',                             // [reused]
-        empty: 'لا توجد سجلات',                              // [drafted]
+        empty: 'لا توجد سجلات',
         // Two different facts, two different sentences: a filter that matched nothing is not an empty log.
-        emptyFiltered: 'لا توجد سجلات تطابق عوامل التصفية',    // [drafted]
-        filtersApplied: 'عوامل التصفية المطبَّقة: {{filters}}', // [drafted]
-        systemActor: 'إجراء تلقائي من النظام',                // [drafted]
+        emptyFiltered: 'لا توجد سجلات تطابق عوامل التصفية',
+        filtersApplied: 'عوامل التصفية المطبَّقة: {{filters}}',
+        systemActor: 'إجراء تلقائي من النظام',
         fields: {
           occurredAt: 'التاريخ والوقت',                      // [reused]
           action: 'الإجراء',                                 // [reused] §7's own term
-          aggregate: 'السجل',                                // [drafted]
-          aggregateType: 'نوع السجل',                        // [drafted]
-          aggregateId: 'معرّف السجل',                        // [drafted]
-          actor: 'المنفِّذ',                                 // [drafted]
-          actorUserId: 'معرّف المنفِّذ',                      // [drafted]
-          transition: 'تغيّر الحالة',                        // [drafted]
+          aggregate: 'السجل',
+          aggregateType: 'نوع السجل',
+          aggregateId: 'معرّف السجل',
+          actor: 'المنفِّذ',
+          actorUserId: 'معرّف المنفِّذ',
+          transition: 'تغيّر الحالة',
           from: 'من تاريخ',                                  // [reused]
           to: 'إلى تاريخ',                                   // [reused]
         },
         errors: {
-          loadFailed: 'تعذّر تحميل سجل التغييرات',            // [drafted]
-          exportFailed: 'تعذّر تصدير سجل التغييرات',          // [drafted]
+          loadFailed: 'تعذّر تحميل سجل التغييرات',
+          exportFailed: 'تعذّر تصدير سجل التغييرات',
         },
       },
-      // SCR-710/711/712 (T-080). §7 has no reference-data admin screen. Drafted in §7's register -
-      // NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
+      // SCR-710/711/712 (T-080). §7 has no reference-data admin screen, so this block was authored in
+      // §7's register and accepted under D-62; it is logged in ARABIC-REVIEW.md.
       referenceAdmin: {
-        // ── BRULE-016 · ARABIC FOR REVIEW ───────────────────────────────────────
-        linksSaved: 'تم تحديث ارتباط التصنيفات',                 // [drafted] BRULE-016
-        categoryLinksExplained: 'ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً.', // [drafted] BRULE-016 · D-59
-        // ── BRULE-023 · ARABIC FOR REVIEW ───────────────────────────────────────
-        awardCritical: 'حرج للترسية',                          // [drafted] BRULE-023
-        setAwardCritical: 'تحديده كحرج للترسية',                // [drafted]
-        clearAwardCritical: 'إلغاء الوسم كحرج',                 // [drafted]
-        awardCriticalSaved: 'تم تحديث الوسم',                   // [drafted]
-        awardCriticalExplained: 'انتهاء صلاحية مستند موسوم كحرج للترسية يُعلّق المورد تلقائياً (BRULE-023). لم يُوسم أي نوع حتى الآن، وتحديد الأنواع قرار يخص الوزارة.', // [drafted]
-        title: 'إدارة البيانات المرجعية',                    // [§7-style drafted]
-        subtitle: 'إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين.', // [§7-style drafted]
-        tableLabel: 'الجدول المرجعي',                        // [§7-style drafted]
-        addTitle: 'إضافة رمز جديد',                          // [§7-style drafted]
+        // ── BRULE-016 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────
+        linksSaved: 'تم تحديث ارتباط التصنيفات',  // BRULE-016
+        categoryLinksExplained: 'ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً.',  // BRULE-016 · D-59
+        // ── BRULE-023 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────
+        awardCritical: 'حرج للترسية',  // BRULE-023
+        setAwardCritical: 'تحديده كحرج للترسية',
+        clearAwardCritical: 'إلغاء الوسم كحرج',
+        awardCriticalSaved: 'تم تحديث الوسم',
+        awardCriticalExplained: 'انتهاء صلاحية مستند موسوم كحرج للترسية يُعلّق المورد تلقائياً (BRULE-023). الموسومان حالياً هما السجل التجاري والشهادة الضريبية (D-58)؛ وأي تغيير في هذه القائمة قرار يخص الوزارة.',
+        title: 'إدارة البيانات المرجعية',
+        subtitle: 'إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين.',
+        tableLabel: 'الجدول المرجعي',
+        addTitle: 'إضافة رمز جديد',
         code: 'الرمز',                                       // [reused] §7's own term
         name: 'الاسم',                                       // [reused]
         nameAr: 'الاسم بالعربية',                            // [reused] matches the onboarding form
@@ -246,50 +246,50 @@ const resources = {
         active: 'مفعّل',                                      // [reused] §7's own term
         inactive: 'معطّل',                                    // [reused] §7's own term
         required: 'إلزامي',                                   // [reused] §7's own term
-        created: 'تمت إضافة الرمز',                           // [§7-style drafted]
-        renamed: 'تم حفظ الاسم',                              // [§7-style drafted]
-        empty: 'لا توجد رموز في هذا الجدول',                   // [§7-style drafted]
+        created: 'تمت إضافة الرمز',
+        renamed: 'تم حفظ الاسم',
+        empty: 'لا توجد رموز في هذا الجدول',
         retry: 'إعادة المحاولة',                              // [reused]
         // D-28 stated on the screen: an administrator who cannot find a delete button deserves to
         // know it is absent on purpose.
-        noDeleteNotice: 'لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة.', // [drafted] D-28
-        inactiveNotice: 'تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها.', // [drafted] D-28
+        noDeleteNotice: 'لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة.',  // D-28
+        inactiveNotice: 'تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها.',  // D-28
         errors: {
-          duplicateCode: 'هذا الرمز موجود بالفعل في هذا الجدول.', // [§7-style drafted]
-          createFailed: 'تعذّرت إضافة الرمز',                  // [§7-style drafted]
-          updateFailed: 'تعذّر حفظ التغيير',                   // [§7-style drafted]
-          loadFailed: 'تعذّر تحميل البيانات المرجعية',          // [§7-style drafted]
+          duplicateCode: 'هذا الرمز موجود بالفعل في هذا الجدول.',
+          createFailed: 'تعذّرت إضافة الرمز',
+          updateFailed: 'تعذّر حفظ التغيير',
+          loadFailed: 'تعذّر تحميل البيانات المرجعية',
         },
       },
-      // §7 has no ministry table. Drafted in §7's register - NOT YET APPROVED, in
+      // §7 has no ministry table. Authored in §7's register and accepted under D-62; logged in
       // ARABIC-REVIEW.md's pile.
-      // ── SCR-045 · ARABIC FOR REVIEW ────────────────────────────────────────────
-      // §7 has no chrome-banner strings. Drafted in §7's register - NOT YET APPROVED,
+      // ── SCR-045 · ARABIC, REVIEWED (D-62) ────────────────────────────────────────────
+      // §7 has no chrome-banner strings. Authored in §7's register, accepted under D-62,
       // in ARABIC-REVIEW.md's pile.
       erpBanner: {
-        degraded: 'مزامنة نظام ERP متوقفة مؤقتاً. تستمر جميع العمليات في البوابة كالمعتاد.', // [drafted] SCR-045
-        notConfigured: 'لا يوجد ربط فعلي بنظام ERP في هذه البيئة.',                          // [drafted] T-089
+        degraded: 'مزامنة نظام ERP متوقفة مؤقتاً. تستمر جميع العمليات في البوابة كالمعتاد.',  // SCR-045
+        notConfigured: 'لا يوجد ربط فعلي بنظام ERP في هذه البيئة.',  // T-089
       },
       ministry: {
-        title: 'لوحة الحوكمة',                          // [§7-style drafted]
+        title: 'لوحة الحوكمة',
         kpis: {
-          suppliers: 'الموردون المسجلون',                // [§7-style drafted]
+          suppliers: 'الموردون المسجلون',
           rfqs: 'طلبات عروض الأسعار',                    // [reused] §7's own term
           awards: 'الترسيات',                            // [reused] §8's «ترسية»
-          participation: 'متوسط العروض لكل طلب',          // [§7-style drafted]
+          participation: 'متوسط العروض لكل طلب',
         },
-        awardedValue: 'إجمالي قيمة الترسيات',            // [§7-style drafted]
-        commercialWithheld: 'القيم المالية غير معروضة',   // [§7-style drafted]
-        commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.', // [§7-style drafted]
+        awardedValue: 'إجمالي قيمة الترسيات',
+        commercialWithheld: 'القيم المالية غير معروضة',
+        commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.',
         suppliersByState: 'الموردون حسب حالة دورة الحياة', // [reused] matches the compliance report (D-18)
         // Step 3. NOT a status label: StatusChip's coverage guard refuses an authored label for a state
         // UX-WRITING §7.1 has no row for, and it is right to - a state label is the document's to write.
         // This is the SCREEN's caption for the group, which is this file's to write, and it says what the
         // count means without claiming to name a status.
-        unlabelledLifecycle: 'موردون قبل الاعتماد',              // [drafted] Step 3
+        unlabelledLifecycle: 'موردون قبل الاعتماد',  // Step 3
         rfqsByState: 'طلبات عروض الأسعار حسب الحالة',     // [reused] matches the procurement report
         empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
-        loadFailed: 'تعذّر تحميل لوحة الحوكمة',           // [§7-style drafted]
+        loadFailed: 'تعذّر تحميل لوحة الحوكمة',
         retry: 'إعادة المحاولة',                         // [reused]
       },
       reports: {
@@ -457,21 +457,21 @@ const resources = {
         // "pending" would tell a procurement officer a request is in flight when none was made.
         // Absence is the label. AwardPage renders no chip at all for it.
         erpSync: { Requested: 'بانتظار المزامنة', Synced: 'تمت المزامنة', Failed: 'فشل المزامنة' },
-        // EPIC-16 · ARABIC FOR REVIEW (part 1 of 2; part 2 is the `supplierDashboard` block below).
+        // EPIC-16 · ARABIC, REVIEWED (D-62) (part 1 of 2; part 2 is the `supplierDashboard` block below).
         //
         // §7 has NO invitation table. These five ship on the wire (§12.4's invitationStatus) and
         // render as chips, so they are drafted here in §7's own register: professional MSA, authored
         // rather than translated, gender agreeing with the subject - الدعوة is feminine, which is why
         // Declined is not «مرفوض».
         //
-        //   [§7-style drafted]  authored here - NOT YET APPROVED
+  // authored here, and accepted under D-62
         //   [reused]            already approved elsewhere in this file, kept identical
         invitation: {
-          Invited: 'مدعو',           // [§7-style drafted] masculine; the subject is المورد
-          Viewed: 'تمت المشاهدة',     // [§7-style drafted] §9's «تم الحفظ» construction
-          Responding: 'قيد الرد',     // [§7-style drafted] mirrors §7.3's «قيد التقييم»
+          Invited: 'مدعو',  // masculine; the subject is المورد
+          Viewed: 'تمت المشاهدة',  // §9's «تم الحفظ» construction
+          Responding: 'قيد الرد',  // mirrors §7.3's «قيد التقييم»
           Submitted: 'مُقدَّم',         // [reused] §7.4's Proposal:Submitted - same concept, same word
-          Declined: 'معتذر عنها',     // [§7-style drafted] feminine; declining an invitation is اعتذار, not رفض
+          Declined: 'معتذر عنها',  // feminine; declining an invitation is اعتذار, not رفض
         },
         rfq: {
           Draft: 'مسودة', InternalReview: 'مراجعة داخلية', Approved: 'معتمد', Published: 'منشور',
@@ -484,8 +484,8 @@ const resources = {
           ClarificationRequested: 'مطلوب استيضاح', Revised: 'مُعدَّل', Shortlisted: 'ضمن القائمة المختصرة',
           NotSelected: 'غير مختار', AwardOffered: 'عرض ترسية', Awarded: 'تمت الترسية',
           Declined: 'مرفوض من المورد', Withdrawn: 'مسحوب',
-          Lapsed: 'انتهت المهلة',            // [drafted] A-9/BRULE-052
-          Cancelled: 'ملغى مع الطلب',        // [drafted] A-9/BRULE-056
+          Lapsed: 'انتهت المهلة',  // A-9/BRULE-052
+          Cancelled: 'ملغى مع الطلب',  // A-9/BRULE-056
         },
         evaluation: {
           NotStarted: 'لم يبدأ', Assigned: 'مُسند', InProgress: 'قيد التنفيذ',
@@ -526,14 +526,14 @@ const resources = {
         submit: 'دخول',
         forgotPassword: 'نسيت كلمة المرور؟',
         loginFailed: 'بيانات الدخول غير صحيحة',
-        tooManyAttempts: 'محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم أعد المحاولة — كلمة المرور لم تُفحص.', // [drafted]
-        serviceUnavailable: 'تعذّر الوصول إلى الخدمة. لا علاقة للأمر ببيانات الدخول.', // [drafted]
+        tooManyAttempts: 'محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم أعد المحاولة — كلمة المرور لم تُفحص.',
+        serviceUnavailable: 'تعذّر الوصول إلى الخدمة. لا علاقة للأمر ببيانات الدخول.',
         emailNotVerified: 'يرجى تفعيل بريدك الإلكتروني أولاً',
         lockedOut: 'الحساب مقفل مؤقتاً بسبب محاولات فاشلة متكررة',
         forgotTitle: 'إعادة تعيين كلمة المرور',
         forgotSubmit: 'إرسال رابط إعادة التعيين',
         forgotSent: 'إذا كان الحساب موجوداً، تم إرسال رسالة بريد إلكتروني',
-        forgotFailed: 'تعذّر إرسال الطلب. تحقّق من الاتصال وحاول مرة أخرى.',  // [drafted] T-084
+        forgotFailed: 'تعذّر إرسال الطلب. تحقّق من الاتصال وحاول مرة أخرى.',  // T-084
         resetTitle: 'تعيين كلمة مرور جديدة',
         newPassword: 'كلمة المرور الجديدة',
         resetSubmit: 'إعادة تعيين',
@@ -728,6 +728,7 @@ const resources = {
         errors: { accountHolderRequired: 'اسم صاحب الحساب مطلوب', bankNameRequired: 'اسم البنك مطلوب', accountNumberRequired: 'رقم الحساب مطلوب', removeFailed: 'تعذر الحذف' },
       },
       offerings: {
+        toggleFailed: 'تعذّر تحديث التصنيف',  // D-66: the toggle used to fail silently
         title: 'الفئات المعروضة',
         subtitle: 'اختر الفئات التي يقدمها موردكم. مطلوبة فئة واحدة على الأقل لإرسال الطلب.',
         categoriesTitle: 'الفئات',
@@ -777,73 +778,141 @@ const resources = {
           deactivateFailed: 'تعذر إلغاء تفعيل الخدمة',
         },
       },
-      // ── SCR-901 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // ── SCR-901 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
       notificationPreferences: {
-        title: 'تفضيلات التنبيهات',                              // [drafted] SCR-901
-        subtitle: 'اختر التنبيهات الاختيارية التي تريد إيقافها.',   // [drafted]
-        optional: 'تنبيهات اختيارية',                            // [drafted]
-        optionalHint: 'إلغاء التحديد يوقف وصول هذا التنبيه إليك.',  // [drafted]
-        alwaysOn: 'تنبيهات لا يمكن إيقافها',                      // [drafted] D-60
-        alwaysOnHint: 'الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً.', // [drafted] names D-60's four families
+        title: 'تفضيلات التنبيهات',  // SCR-901
+        subtitle: 'اختر التنبيهات الاختيارية التي تريد إيقافها.',
+        optional: 'تنبيهات اختيارية',
+        optionalHint: 'إلغاء التحديد يوقف وصول هذا التنبيه إليك.',
+        alwaysOn: 'تنبيهات لا يمكن إيقافها',  // D-60
+        alwaysOnHint: 'الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً.',  // names D-60's four families
         save: 'حفظ',                                            // [reused]
-        saved: 'تم حفظ التفضيلات',                               // [drafted]
-        saveFailed: 'تعذّر حفظ التفضيلات',                        // [drafted]
-        loadFailed: 'تعذّر تحميل التفضيلات',                      // [drafted]
-        unsaved: 'تغييرات غير محفوظة',                           // [drafted]
+        saved: 'تم حفظ التفضيلات',
+        saveFailed: 'تعذّر حفظ التفضيلات',
+        loadFailed: 'تعذّر تحميل التفضيلات',
+        unsaved: 'تغييرات غير محفوظة',
       },
-      // ── SCR-604 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // ── SCR-601 / 602 / 603 / 606 · D-66 ────────────────────────────────────
+      // The four Ministry screens. «رصد» for the monitor (watching, not managing), «سجل» for the registry
+      // (the register itself), and «الترسيات والإنفاق» for analytics - «الإنفاق» is the word a budget
+      // document uses, which is what a spend screen is read as.
+      ministryRfqs: {
+        title: 'رصد المناقصات',
+        subtitle: 'كل الطلبات على مستوى الجهات، مع الجهة المشترية وقيمة الترسية حيثما وُجدت.',
+        filterState: 'الحالة',
+        filterAll: 'الكل',
+        search: 'بحث',
+        searchPlaceholder: 'ابحث بالعنوان أو الرمز…',
+        empty: 'لا توجد طلبات مطابقة',
+        loadFailed: 'تعذّر تحميل قائمة الطلبات',
+        loadMore: 'عرض المزيد',
+        bidsOfInvited: '{{bids}} من {{invited}}',
+        fields: {
+          tender: 'الطلب', organization: 'الجهة المشترية', state: 'الحالة',
+          bids: 'العروض/المدعوون', closes: 'إغلاق التقديم', awarded: 'قيمة الترسية',
+        },
+      },
+      ministryRfqDetail: {
+        title: 'تفاصيل الطلب',
+        backToMonitor: '→ العودة إلى رصد المناقصات',
+        readOnly: 'اطّلاع فقط',
+        tender: 'الطلب',
+        items: 'البنود',
+        bids: 'العروض المقدَّمة',
+        noBids: 'لم تُقدَّم عروض بعد',
+        noDescription: 'لا يوجد وصف مسجّل',
+        invited: 'الموردون المدعوون',
+        bidsReceived: 'العروض الواردة',
+        notAwarded: 'لم تُرسَ بعد',
+        withheld: 'غير متاح',
+        awarded: 'العرض الفائز',
+        valuesWithheld: 'القيم المالية محجوبة حالياً بحسب سياسة الإفصاح؛ الأعداد معروضة.',
+        loadFailed: 'تعذّر تحميل تفاصيل الطلب',
+        fields: { supplier: 'المورد', state: 'حالة العرض', submitted: 'تاريخ التقديم', value: 'قيمة العرض' },
+      },
+      ministrySuppliers: {
+        title: 'سجل الموردين الوطني',
+        subtitle: 'الموردون المسجّلون وفئاتهم ومشاركتهم في المناقصات.',
+        filterState: 'حالة التعامل',
+        filterAll: 'الكل',
+        search: 'بحث',
+        searchPlaceholder: 'ابحث بالاسم أو الرمز…',
+        empty: 'لا يوجد موردون مطابقون',
+        loadFailed: 'تعذّر تحميل السجل',
+        loadMore: 'عرض المزيد',
+        fields: {
+          supplier: 'المورد', categories: 'الفئات', onboarding: 'حالة الطلب', standing: 'حالة التعامل',
+          bids: 'العروض المقدَّمة', won: 'الترسيات', registered: 'تاريخ التسجيل',
+        },
+      },
+      ministryAwards: {
+        title: 'الترسيات والإنفاق',
+        subtitle: 'اتجاهات الترسية والإنفاق بحسب الشهر والفئة والجهة المشترية.',
+        totalAwards: 'إجمالي الترسيات',
+        totalValue: 'إجمالي القيمة',
+        withheld: 'غير متاح',
+        valuesWithheld: 'القيم المالية محجوبة حالياً بحسب سياسة الإفصاح؛ أعداد الترسيات معروضة.',
+        byMonth: 'حسب الشهر',
+        byCategory: 'حسب الفئة',
+        byOrganization: 'حسب الجهة المشترية',
+        categoryNote: 'تُحتسب الترسية مرة واحدة لكل فئة يشملها الطلب، لذا قد يتجاوز مجموع العمود عدد الترسيات.',
+        empty: 'لا توجد بيانات بعد',
+        loadFailed: 'تعذّر تحميل التحليلات',
+        fields: { awards: 'الترسيات', value: 'القيمة', month: 'الشهر', category: 'الفئة', organization: 'الجهة' },
+      },
+      // ── SCR-604 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
       categoryCoverage: {
-        title: 'تغطية الفئات',                                  // [drafted] SCR-604
-        subtitle: 'أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد.', // [drafted]
-        summary: 'الخلاصة',                                     // [drafted]
-        uncovered: '{{count}} من {{total}} فئة بلا مورد فعّال',    // [drafted] the headline figure
-        flatNote: 'قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً.', // [drafted] states the absence of a tree
-        noSupplier: 'بلا مورد',                                 // [drafted]
-        noAward: 'بلا ترسية',                                   // [drafted]
-        empty: 'لا توجد فئات مفعّلة',                            // [drafted]
-        loadFailed: 'تعذّر تحميل تغطية الفئات',                   // [drafted]
+        title: 'تغطية الفئات',  // SCR-604
+        subtitle: 'أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد.',
+        summary: 'الخلاصة',
+        uncovered: '{{count}} من {{total}} فئة بلا مورد فعّال',  // the headline figure
+        flatNote: 'قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً.',  // states the absence of a tree
+        noSupplier: 'بلا مورد',
+        noAward: 'بلا ترسية',
+        empty: 'لا توجد فئات مفعّلة',
+        loadFailed: 'تعذّر تحميل تغطية الفئات',
         fields: {
           category: 'الفئة', approved: 'موردون معتمدون', active: 'موردون فعّالون',
           offerings: 'العروض', tenders: 'الطلبات', awarded: 'الطلبات المُرساة',
         },
       },
-      // ── SCR-501 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // ── SCR-501 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
       // The evaluator's brief. «كراسة» is the word a procurement file uses for the instruction
       // document itself, which is what this screen is - not «ملخص», which would read as a summary
       // somebody wrote about the tender.
       evaluationBrief: {
-        title: 'كراسة التقييم',                                // [drafted] SCR-501
-        toScoring: 'الانتقال إلى التقييم',                      // [drafted]
-        tender: 'موضوع الطلب',                                 // [drafted]
-        howToScore: 'معايير التقييم وطريقة احتسابها',            // [drafted]
-        totalWeight: 'مجموع الأوزان: {{total}}',                // [drafted]
+        title: 'كراسة التقييم',  // SCR-501
+        toScoring: 'الانتقال إلى التقييم',
+        tender: 'موضوع الطلب',
+        howToScore: 'معايير التقييم وطريقة احتسابها',
+        totalWeight: 'مجموع الأوزان: {{total}}',
         mandatory: 'إلزامي',                                    // [reused]
-        justificationRequired: 'يلزم تبرير',                    // [drafted] BRULE-061
-        noDescription: 'لا يوجد وصف مسجّل لهذا الطلب',           // [drafted]
-        noGuidance: 'لم تُسجَّل تعليمات لهذا المعيار',             // [drafted] says NOT RECORDED, not "none"
-        noThreshold: 'لا حد أدنى',                              // [drafted]
-        error: 'تعذّر تحميل الكراسة',                            // [drafted]
+        justificationRequired: 'يلزم تبرير',  // BRULE-061
+        noDescription: 'لا يوجد وصف مسجّل لهذا الطلب',
+        noGuidance: 'لم تُسجَّل تعليمات لهذا المعيار',  // says NOT RECORDED, not "none"
+        noThreshold: 'لا حد أدنى',
+        error: 'تعذّر تحميل الكراسة',
         dimension: { Technical: 'فني', Commercial: 'تجاري' },    // [reused] §7's own pair
         fields: {
           criterion: 'المعيار', dimension: 'البُعد', weight: 'الوزن',
           max: 'الدرجة العليا', threshold: 'الحد الأدنى', guidance: 'تعليمات التقييم',
         },
       },
-      // ── SCR-402 / SCR-307 · ARABIC FOR REVIEW ───────────────────────────────
+      // ── SCR-402 / SCR-307 · ARABIC, REVIEWED (D-62) ───────────────────────────────
       // Two directories over one registry. «دليل الموردين» for the buyer's browse and «سجل الموردين»
       // for the reviewer's audit view: a دليل is something you look a supplier up in, a سجل is the
       // register itself, which is the distinction between the two screens.
       supplierDirectory: {
-        title: 'دليل الموردين',                               // [drafted] SCR-402
-        subtitle: 'استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات.', // [drafted]
+        title: 'دليل الموردين',  // SCR-402
+        subtitle: 'استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات.',
         filterCategory: 'الفئة',                              // [reused]
         filterState: 'الحالة',                                // [reused] §7's own term
         filterAll: 'الكل',                                    // [reused]
         search: 'بحث',                                        // [reused]
-        searchPlaceholder: 'ابحث بالاسم أو الرمز…',            // [drafted]
-        empty: 'لا يوجد موردون مطابقون',                      // [drafted]
-        error: 'تعذّر تحميل الدليل',                           // [drafted]
-        noCategories: 'لا فئات مسجّلة',                        // [drafted]
+        searchPlaceholder: 'ابحث بالاسم أو الرمز…',
+        empty: 'لا يوجد موردون مطابقون',
+        error: 'تعذّر تحميل الدليل',
+        noCategories: 'لا فئات مسجّلة',
         loadMore: 'عرض المزيد',                                // [reused]
         fields: {
           name: 'المورد', code: 'الرمز', categories: 'الفئات',
@@ -851,17 +920,17 @@ const resources = {
         },
       },
       complianceDirectory: {
-        title: 'سجل الموردين',                                 // [drafted] SCR-307
-        subtitle: 'كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً.', // [drafted]
-        filterState: 'حالة الطلب',                             // [drafted]
-        filterHealth: 'حالة المستندات',                        // [drafted]
+        title: 'سجل الموردين',  // SCR-307
+        subtitle: 'كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً.',
+        filterState: 'حالة الطلب',
+        filterHealth: 'حالة المستندات',
         filterAll: 'الكل',                                     // [reused]
-        healthAttention: 'تحتاج متابعة',                       // [drafted]
-        healthOk: 'سليمة',                                     // [drafted]
+        healthAttention: 'تحتاج متابعة',
+        healthOk: 'سليمة',
         search: 'بحث',                                         // [reused]
         searchPlaceholder: 'ابحث بالاسم أو الرمز…',             // [reused] same control as SCR-402
         empty: 'لا يوجد موردون مطابقون',                       // [reused]
-        error: 'تعذّر تحميل السجل',                             // [drafted]
+        error: 'تعذّر تحميل السجل',
         expired: 'منتهٍ: {{count}}',                           // [reused] §7.2's «منتهٍ»
         expiring: 'ينتهي قريباً: {{count}}',                    // [reused] §7.2's own label
         rejected: 'مرفوض: {{count}}',                          // [reused] §7.2's own label
@@ -915,15 +984,15 @@ const resources = {
         cancel: 'إلغاء',
         created: 'تم إنشاء الطلب',
         itemAdded: 'تمت إضافة البند',
-        itemUpdated: 'تم تعديل البند',                          // [drafted]
-        requirementUpdated: 'تم تعديل المتطلب',                 // [drafted]
-        edit: 'تعديل',                                          // [drafted]
-        cancelEdit: 'إلغاء',                                    // [drafted]
-        detailsSaved: 'تم حفظ بيانات المناقصة',                 // [drafted]
+        itemUpdated: 'تم تعديل البند',
+        requirementUpdated: 'تم تعديل المتطلب',
+        edit: 'تعديل',
+        cancelEdit: 'إلغاء',
+        detailsSaved: 'تم حفظ بيانات المناقصة',
         details: {
-          title: 'بيانات المناقصة',                             // [drafted]
-          help: 'العنوان والعملة ونافذة تقديم العروض. قابلة للتعديل ما دامت المناقصة مسودة.',   // [drafted]
-          edit: 'تعديل البيانات',                               // [drafted]
+          title: 'بيانات المناقصة',
+          help: 'العنوان والعملة ونافذة تقديم العروض. قابلة للتعديل ما دامت المناقصة مسودة.',
+          edit: 'تعديل البيانات',
         },
         requirementAdded: 'تمت إضافة المتطلب',
         templateBound: 'تم ربط قالب التقييم',
@@ -936,21 +1005,21 @@ const resources = {
         submitForReview: 'إرسال للمراجعة',
         approve: 'موافقة',
         publish: 'نشر',
-        // ── T-018 · ARABIC FOR REVIEW ──────────────────────────────────────────────
-        // §7 has no deadline-change strings. Drafted in §7's register - NOT YET APPROVED,
+        // ── T-018 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────
+        // §7 has no deadline-change strings. Authored in §7's register, accepted under D-62,
         // in ARABIC-REVIEW.md's pile.
         deadline: {
           title: 'موعد إغلاق التقديم',                  // [reused] §12.4's own field name in Arabic
-          help: 'التمديد من صلاحية موظف المشتريات، وتقديم الموعد من صلاحية المدير. يُبلَّغ جميع المدعوين بأي تغيير.', // [§7-style drafted]
-          newDeadline: 'الموعد الجديد',                 // [§7-style drafted]
-          reason: 'سبب التغيير',                        // [drafted] A-6
-          apply: 'تغيير الموعد',                        // [§7-style drafted]
-          changed: 'تم تغيير موعد إغلاق التقديم',        // [§7-style drafted]
-          failed: 'تعذر تغيير موعد إغلاق التقديم',       // [§7-style drafted]
+          help: 'التمديد من صلاحية موظف المشتريات، وتقديم الموعد من صلاحية المدير. يُبلَّغ جميع المدعوين بأي تغيير.',
+          newDeadline: 'الموعد الجديد',
+          reason: 'سبب التغيير',  // A-6
+          apply: 'تغيير الموعد',
+          changed: 'تم تغيير موعد إغلاق التقديم',
+          failed: 'تعذر تغيير موعد إغلاق التقديم',
         },
         closeSubmission: 'إغلاق باب التقديم',
         manualCloseReason: 'إغلاق يدوي من قبل موظف المشتريات',
-        closeReasonPrompt: 'سبب إغلاق باب العروض مبكراً — يُسجَّل في سجل التدقيق:',   // [drafted]
+        closeReasonPrompt: 'سبب إغلاق باب العروض مبكراً — يُسجَّل في سجل التدقيق:',
         returnForEditsTitle: 'إعادة للتعديل',
         returnForEdits: 'إعادة للتعديل',
         cancelTitle: 'إلغاء الطلب',
@@ -962,11 +1031,11 @@ const resources = {
         actions: 'إجراءات',
         noItems: 'لا توجد بنود بعد',
         attachments: {
-          permanentWarning: 'تحقق من الملفات قبل إرسال المناقصة للمراجعة: لا يمكن إضافة المرفقات أو استبدالها أو حذفها بعد مغادرة حالة المسودة، ولا يحمل الملحق ملفاً. التصحيح بعد ذلك يتطلب إلغاء المناقصة وإعادة إنشائها.',   // [drafted]
-          title: 'مرفقات الطلب',                            // [§7-style drafted]
+          permanentWarning: 'تحقق من الملفات قبل إرسال المناقصة للمراجعة: لا يمكن إضافة المرفقات أو استبدالها أو حذفها بعد مغادرة حالة المسودة، ولا يحمل الملحق ملفاً. التصحيح بعد ذلك يتطلب إلغاء المناقصة وإعادة إنشائها.',
+          title: 'مرفقات الطلب',
           none: 'لا توجد مرفقات',                           // [reused] §4's empty-state pattern
-          add: 'إضافة مرفق',                                // [§7-style drafted]
-          added: 'تمت إضافة المرفق',                        // [§7-style drafted]
+          add: 'إضافة مرفق',
+          added: 'تمت إضافة المرفق',
           download: 'تنزيل',                                // [reused] §7's own term
         },
         noRequirements: 'لا توجد متطلبات بعد',
@@ -982,33 +1051,33 @@ const resources = {
           text: 'النص', textAr: 'النص (عربي)', textEn: 'النص (إنجليزي)', mandatory: 'إلزامي',
           evaluationTemplate: 'قالب التقييم', approvals: 'الموافقات', step: 'الخطوة', decision: 'القرار',
           comments: 'ملاحظات', reason: 'السبب',
-          owner: 'المسؤول',                                 // [drafted] A-7
+          owner: 'المسؤول',  // A-7
         },
-        // ── A-7 · ARABIC FOR REVIEW ────────────────────────────────────────────────
+        // ── A-7 · ARABIC, REVIEWED (D-62) ────────────────────────────────────────────────
         // §7 has no ownership strings - nothing in the documents gives an RFQ an owner. Drafted in
-        // §7's register - NOT YET APPROVED, in ARABIC-REVIEW.md's pile.
-        unassigned: 'غير مُسند',                            // [drafted] A-7
+        // §7's register, accepted under D-62 and logged in ARABIC-REVIEW.md.
+        unassigned: 'غير مُسند',  // A-7
         ownerFilter: {
-          label: 'تصفية حسب المسؤول',                       // [drafted]
+          label: 'تصفية حسب المسؤول',
           all: 'الكل',                                     // [reused]
-          me: 'المُسندة إليّ',                              // [drafted]
-          unassigned: 'غير مُسندة',                         // [drafted]
+          me: 'المُسندة إليّ',
+          unassigned: 'غير مُسندة',
           empty: {
-            me: 'لا توجد طلبات مُسندة إليك',                 // [drafted]
-            unassigned: 'كل الطلبات مُسندة إلى مسؤول',        // [drafted]
+            me: 'لا توجد طلبات مُسندة إليك',
+            unassigned: 'كل الطلبات مُسندة إلى مسؤول',
           },
         },
         ownership: {
-          title: 'المسؤول عن الطلب',                        // [drafted]
-          help: 'يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات.', // [drafted]
-          ownerLabel: 'المسؤول',                            // [drafted]
+          title: 'المسؤول عن الطلب',
+          help: 'يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات.',
+          ownerLabel: 'المسؤول',
           approverLabel: 'المعتمِد',                        // [reused] §3.1's «اعتماد» family
-          newOwner: 'المسؤول الجديد',                       // [drafted]
-          reason: 'سبب النقل',                              // [drafted]
-          reassign: 'نقل المسؤولية',                        // [drafted]
-          reassigned: 'تم نقل المسؤولية',                    // [drafted]
-          nominateApprover: 'تحديد المعتمِد',                // [drafted]
-          anyManager: 'أي مدير',                            // [drafted]
+          newOwner: 'المسؤول الجديد',
+          reason: 'سبب النقل',
+          reassign: 'نقل المسؤولية',
+          reassigned: 'تم نقل المسؤولية',
+          nominateApprover: 'تحديد المعتمِد',
+          anyManager: 'أي مدير',
         },
         errors: { saveFailed: 'تعذر حفظ الطلب', transitionFailed: 'تعذر تنفيذ الإجراء' },
         invitations: {
@@ -1032,7 +1101,7 @@ const resources = {
           private: 'خاص بالسائل',
           // A-4: kept for the legacy-row publish button; the answer form no longer offers a choice.
           publishNow: 'نشر مباشرة',
-          broadcastNotice: 'يُرسل الجواب إلى جميع المدعوين دون ذكر السائل.',   // [drafted]
+          broadcastNotice: 'يُرسل الجواب إلى جميع المدعوين دون ذكر السائل.',
           errors: { answerFailed: 'تعذر حفظ الإجابة' },
         },
         addenda: {
@@ -1046,7 +1115,7 @@ const resources = {
         },
       },
       evaluation: {
-        chooseEvaluator: 'اختر مُقيّماً',                        // [drafted] Step 4
+        chooseEvaluator: 'اختر مُقيّماً',  // Step 4
         title: 'التقييم',
         open: 'فتح التقييم',
         opened: 'تم فتح التقييم',
@@ -1094,8 +1163,11 @@ const resources = {
           proposal: 'العرض',
           score: 'الدرجة',
           scorePlaceholder: 'أدخل الدرجة',
-          commentAr: 'ملاحظة (عربي)',
-          commentEn: 'ملاحظة (إنجليزي)',
+          justification: 'التبرير',
+          justificationRequired: 'التبرير مطلوب',
+          justificationPlaceholder: 'تبرير اختياري',
+          justificationPlaceholderRequired: 'اكتب تبريرك لهذه الدرجة',
+          justificationMissing: 'هذا المعيار يتطلب تبريراً قبل حفظ الدرجة.',
           save: 'حفظ الدرجة',
           saved: 'تم حفظ الدرجة',
           submit: 'تقديم التقييم',
@@ -1104,55 +1176,55 @@ const resources = {
           financialLocked: 'المغلف المالي مقفل حتى يجتاز هذا العرض التأهيل الفني',
           qualified: 'مؤهَّل فنياً',
           notQualified: 'غير مؤهَّل فنياً',
-          anonymousBidder: 'هوية المورد محجوبة أثناء التقييم',   // [drafted] A-8
+          anonymousBidder: 'هوية المورد محجوبة أثناء التقييم',  // A-8
           declaration: {
-            title: 'إقرار تعارض المصالح',                        // [drafted] A-8/BRULE-067
-            body: 'هذه أسماء الموردين المشاركين. إن كان لديك تعارض مصالح مع أيٍّ منهم فبيّنه الآن؛ بعد الإقرار تُحجب الأسماء ويجري التقييم دون معرفتها.', // [drafted]
-            noConflict: 'لا يوجد تعارض — متابعة',                // [drafted]
-            hasConflict: 'لديّ تعارض — تنحّي',                   // [drafted]
-            reasonLabel: 'سبب التنحّي',                          // [drafted]
-            reasonPlaceholder: 'سبب التنحّي',                    // [drafted]
-            failed: 'تعذّر تسجيل الإقرار',                       // [drafted]
+            title: 'إقرار تعارض المصالح',  // A-8/BRULE-067
+            body: 'هذه أسماء الموردين المشاركين. إن كان لديك تعارض مصالح مع أيٍّ منهم فبيّنه الآن؛ بعد الإقرار تُحجب الأسماء ويجري التقييم دون معرفتها.',
+            noConflict: 'لا يوجد تعارض — متابعة',
+            hasConflict: 'لديّ تعارض — تنحّي',
+            reasonLabel: 'سبب التنحّي',
+            reasonPlaceholder: 'سبب التنحّي',
+            failed: 'تعذّر تسجيل الإقرار',
           },
-          // ── T-067 · ARABIC FOR REVIEW ──────────────────────────────────────────────────
+          // ── T-067 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────────
           // §7 has no table for an evaluator's workspace. Drafted here in §7's register:
-          // professional MSA, authored rather than translated. NOT YET APPROVED - added to
+          // professional MSA, authored rather than translated, and accepted under D-62 - logged in
           // ARABIC-REVIEW.md's pile alongside the four sets already waiting.
-          //   [§7-style drafted]  authored here
+  // authored here
           //   [reused]            already approved elsewhere in this file
-          specification: 'المواصفات المطلوبة',      // [§7-style drafted]
+          specification: 'المواصفات المطلوبة',
           items: 'البنود',                          // [reused] §7's own column word for RfqItem
           requirements: 'المتطلبات',                // [reused] the RFQ authoring screen's own label
-          mandatory: 'إلزامي',                      // [§7-style drafted]
-          narrative: 'الشرح الفني',                 // [§7-style drafted] "technical narrative"
-          answers: 'الردود على المتطلبات',           // [§7-style drafted]
-          documents: 'المستندات الفنية',             // [§7-style drafted] Technical envelope only (D-7)
+          mandatory: 'إلزامي',
+          narrative: 'الشرح الفني',  // "technical narrative"
+          answers: 'الردود على المتطلبات',
+          documents: 'المستندات الفنية',  // Technical envelope only (D-7)
           errors: {
             scoreFailed: 'تعذر حفظ الدرجة',
             submitFailed: 'تعذر تقديم التقييم',
-            documentFailed: 'تعذر فتح الملف {{fileName}}', // [§7-style drafted]
+            documentFailed: 'تعذر فتح الملف {{fileName}}',
           },
         },
       },
-      // ── T-082 / SCR-430, SCR-431 · ARABIC FOR REVIEW ──────────────────────────
-      // §7 has no received-proposals strings. Drafted in §7's register - NOT YET APPROVED,
+      // ── T-082 / SCR-430, SCR-431 · ARABIC, REVIEWED (D-62) ──────────────────────────
+      // §7 has no received-proposals strings. Authored in §7's register, accepted under D-62,
       // in ARABIC-REVIEW.md's pile.
       receivedProposals: {
-        title: 'العروض المستلمة',                            // [drafted] SCR-430
-        subtitle: 'العروض المقدَّمة على الطلب {{code}}.',       // [drafted]
-        listTitle: 'العروض',                                 // [drafted]
-        detailTitle: 'تفاصيل العرض',                          // [drafted] SCR-431
+        title: 'العروض المستلمة',  // SCR-430
+        subtitle: 'العروض المقدَّمة على الطلب {{code}}.',
+        listTitle: 'العروض',
+        detailTitle: 'تفاصيل العرض',  // SCR-431
         open: 'عرض',                                         // [reused]
         close: 'إغلاق',                                      // [reused]
-        empty: 'لم يُقدَّم أي عرض',                            // [drafted]
+        empty: 'لم يُقدَّم أي عرض',
         retry: 'إعادة المحاولة',                              // [reused]
         // The sealed tier is a state with a reason, not an empty list.
-        sealedTitle: 'العروض مغلقة حتى انتهاء فترة التقديم',    // [drafted]
-        sealedBody: 'لا تُعرض هوية مقدّمي العروض قبل إغلاق باب التقديم. يظهر العدد فقط.', // [drafted]
-        sealedCount: 'عدد العروض المقدَّمة حتى الآن: {{count}}',  // [drafted]
+        sealedTitle: 'العروض مغلقة حتى انتهاء فترة التقديم',
+        sealedBody: 'لا تُعرض هوية مقدّمي العروض قبل إغلاق باب التقديم. يظهر العدد فقط.',
+        sealedCount: 'عدد العروض المقدَّمة حتى الآن: {{count}}',
         commercialWithheld: 'القيم المالية غير معروضة بعد',     // [reused] matches the ministry wording
-        commercialWithheldBody: 'تظهر القيم المالية بعد توحيد نتائج التقييم.', // [drafted] D-7/OQ-009
-        afterConsolidation: 'بعد التوحيد',                     // [drafted]
+        commercialWithheldBody: 'تظهر القيم المالية بعد توحيد نتائج التقييم.',  // D-7/OQ-009
+        afterConsolidation: 'بعد التوحيد',
         narrative: 'الوصف الفني',                             // [reused] §12.5's technicalResponse
         answers: 'الردود على المتطلبات',                       // [reused]
         lineItems: 'بنود العرض',                              // [reused]
@@ -1162,28 +1234,28 @@ const resources = {
           item: 'البند', quantity: 'الكمية', unitPrice: 'سعر الوحدة', lineTotal: 'إجمالي البند',
         },
         errors: {
-          loadFailed: 'تعذّر تحميل العروض المستلمة',           // [drafted]
-          detailFailed: 'تعذّر تحميل تفاصيل العرض',            // [drafted]
+          loadFailed: 'تعذّر تحميل العروض المستلمة',
+          detailFailed: 'تعذّر تحميل تفاصيل العرض',
         },
       },
       comparison: {
         // A-1/BRULE-069's surfaced tie. Drafted, marked, in ARABIC-REVIEW.md's pile.
         // B-1/SCR-433: the clarification request, reachable for the first time.
-        clarifyTitle: 'طلب استيضاح من مورد',                     // [drafted]
-        clarifyBody: 'اطلب من المورد توضيحاً حول عرضه. يُبلَّغ المورد ويعود العرض إلى حالة «مطلوب استيضاح».', // [drafted]
-        clarifyReason: 'سبب الاستيضاح لـ {{code}}',              // [drafted]
-        clarifyReasonPlaceholder: 'ما المطلوب توضيحه',            // [drafted]
+        clarifyTitle: 'طلب استيضاح من مورد',
+        clarifyBody: 'اطلب من المورد توضيحاً حول عرضه. يُبلَّغ المورد ويعود العرض إلى حالة «مطلوب استيضاح».',
+        clarifyReason: 'سبب الاستيضاح لـ {{code}}',
+        clarifyReasonPlaceholder: 'ما المطلوب توضيحه',
         clarifyAsk: 'طلب استيضاح',                               // [reused] §8's «استيضاح»
-        clarifyRequested: 'تم إرسال طلب الاستيضاح',               // [drafted]
-        clarifyFailed: 'تعذّر إرسال طلب الاستيضاح',               // [drafted]
-        tieUnresolved: 'تعادل غير محلول',                        // [drafted]
-        tieTitle: 'تعادل في الترتيب يحتاج قراراً',                 // [drafted]
-        tieBody: 'تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك.', // [drafted]
-        tieReason: 'سبب اختيار {{code}}',                        // [drafted]
-        tieReasonPlaceholder: 'سبب القرار',                       // [drafted]
-        tieResolve: 'تثبيت الترتيب',                              // [drafted]
-        tieResolved: 'تم تثبيت الترتيب',                          // [drafted]
-        tieResolveFailed: 'تعذّر تثبيت الترتيب',                  // [drafted]
+        clarifyRequested: 'تم إرسال طلب الاستيضاح',
+        clarifyFailed: 'تعذّر إرسال طلب الاستيضاح',
+        tieUnresolved: 'تعادل غير محلول',
+        tieTitle: 'تعادل في الترتيب يحتاج قراراً',
+        tieBody: 'تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك.',
+        tieReason: 'سبب اختيار {{code}}',
+        tieReasonPlaceholder: 'سبب القرار',
+        tieResolve: 'تثبيت الترتيب',
+        tieResolved: 'تم تثبيت الترتيب',
+        tieResolveFailed: 'تعذّر تثبيت الترتيب',
         title: 'مقارنة العروض',
         notFound: 'المقارنة غير متاحة',
         empty: 'لا توجد عروض مقدَّمة بعد',
@@ -1248,13 +1320,13 @@ const resources = {
       },
       supplierRfq: {
         deadlineChanged: {
-          title: 'تغيّر موعد إغلاق التقديم',                  // [drafted] A-6
+          title: 'تغيّر موعد إغلاق التقديم',  // A-6
         },
         attachments: {
           title: 'مرفقات الطلب',                            // [reused] matches rfq.attachments
           none: 'لا توجد مرفقات',                           // [reused]
           download: 'تنزيل',                                // [reused] §7's own term
-          downloadFailed: 'تعذّر تنزيل المرفق',              // [§7-style drafted]
+          downloadFailed: 'تعذّر تنزيل المرفق',
         },
         title: 'طلبات عروض الأسعار',
         subtitle: 'طلبات العروض التي دُعيت للمشاركة فيها.',
@@ -1308,41 +1380,41 @@ const resources = {
         termsSaved: 'تم حفظ الشروط',
         documents: 'المستندات',
         noDocuments: 'لا توجد مستندات بعد',
-        envelope: 'المغلف',                                  // [drafted] A-2
+        envelope: 'المغلف',  // A-2
         envelopeCommercial: 'المغلف المالي',                  // [reused] §7's own term
         envelopeTechnical: 'المغلف الفني',                    // [reused] §7's own term
         envelopeExpected: {
-          Technical: 'يُتوقع أن يكون هذا المستند في المغلف الفني.',   // [drafted] A-2
-          Commercial: 'يُتوقع أن يكون هذا المستند في المغلف المالي.', // [drafted] A-2
+          Technical: 'يُتوقع أن يكون هذا المستند في المغلف الفني.',  // A-2
+          Commercial: 'يُتوقع أن يكون هذا المستند في المغلف المالي.',  // A-2
         },
         uploadDocument: 'رفع مستند',
         documentAdded: 'تمت إضافة المستند',
-        // ── SCR-155 · ARABIC FOR REVIEW ─────────────────────────────────────────
-        clarificationTitle: 'طلب إيضاح',                         // [drafted] §4.1's «إيضاح»
-        clarificationNoReason: 'لم يُسجَّل نص الطلب.',              // [drafted]
-        clarificationHint: 'تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة.', // [drafted]
-        revise: 'تسجيل الردّ',                                   // [drafted]
-        revised: 'تم تسجيل الردّ',                                // [drafted]
-        revisedTitle: 'بانتظار إعادة المراجعة',                    // [drafted]
-        revisedBody: 'سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة.', // [drafted]
+        // ── SCR-155 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
+        clarificationTitle: 'طلب إيضاح',  // §4.1's «إيضاح»
+        clarificationNoReason: 'لم يُسجَّل نص الطلب.',
+        clarificationHint: 'تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة.',
+        revise: 'تسجيل الردّ',
+        revised: 'تم تسجيل الردّ',
+        revisedTitle: 'بانتظار إعادة المراجعة',
+        revisedBody: 'سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة.',
         withdrawTitle: 'سحب العرض',
         withdraw: 'سحب العرض',
         withdrawReasonPlaceholder: 'سبب السحب',
         withdrawn: 'تم سحب العرض',
-        // ── T-064 · ARABIC FOR REVIEW ──────────────────────────────────────────────
-        // §7 has no award-offer strings. Drafted in §7's register - NOT YET APPROVED, in
+        // ── T-064 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────
+        // §7 has no award-offer strings. Authored in §7's register and accepted under D-62; logged in
         // ARABIC-REVIEW.md's pile. «اعتذار» not «رفض» for declining, matching the invitation
         // register and the proposal.declined notification.
-        awardOfferedTitle: 'عرض ترسية',                    // [§7-style drafted]
-        awardOfferedBody: 'اختير عرضكم للترسية. يمكنكم الاعتذار عن الترسية مع بيان السبب، أو انتظار تأكيد الجهة.', // [§7-style drafted]
-        decline: 'الاعتذار عن الترسية',                     // [§7-style drafted]
-        declineReason: 'سبب الاعتذار',                      // [§7-style drafted]
-        declineReasonPlaceholder: 'سبب الاعتذار عن الترسية', // [§7-style drafted]
-        declined: 'تم تسجيل اعتذاركم',                      // [§7-style drafted]
+        awardOfferedTitle: 'عرض ترسية',
+        awardOfferedBody: 'اختير عرضكم للترسية. يمكنكم الاعتذار عن الترسية مع بيان السبب، أو انتظار تأكيد الجهة.',
+        decline: 'الاعتذار عن الترسية',
+        declineReason: 'سبب الاعتذار',
+        declineReasonPlaceholder: 'سبب الاعتذار عن الترسية',
+        declined: 'تم تسجيل اعتذاركم',
         errors: {
           startFailed: 'تعذر بدء العرض', saveFailed: 'تعذر الحفظ',
-          submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض', reviseFailed: 'تعذّر تسجيل الردّ',  // [drafted] SCR-155
-          declineFailed: 'تعذر تسجيل الاعتذار',             // [§7-style drafted]
+          submitFailed: 'تعذر إرسال العرض', withdrawFailed: 'تعذر سحب العرض', reviseFailed: 'تعذّر تسجيل الردّ',  // SCR-155
+          declineFailed: 'تعذر تسجيل الاعتذار',
         },
       },
       team: {
@@ -1378,14 +1450,14 @@ const resources = {
         title: 'مراجعة طلبات الموردين',
         queue: 'قائمة المراجعة',
         age: 'المدة',
-        reviewTarget: 'الموعد المستهدف',                 // [drafted] A-5
+        reviewTarget: 'الموعد المستهدف',  // A-5
         assignee: 'المسؤول',
         actions: 'إجراءات',
         filterState: 'الحالة',
         filterAssignee: 'المسؤول',
         // "All" said something untrue: this option is the queue's default, which is the three states
         // awaiting a decision. Approved and Rejected are now filterable and were never in "all".
-        filterAll: 'بانتظار قرار',                              // [drafted]
+        filterAll: 'بانتظار قرار',
         claim: 'تولي المراجعة',
         claimed: 'تم تولي المراجعة',
         claimFailed: 'تعذر تولي المراجعة',
@@ -1434,7 +1506,7 @@ const resources = {
         cancel: 'إلغاء',
         invited: 'تم إرسال الدعوة إلى {{email}}',
         fields: { fullName: 'الاسم الكامل', email: 'البريد الإلكتروني', role: 'الدور', organization: 'الجهة المشترية' },
-        organizationHint: 'مطلوبة لأدوار المشتريات والتقييم والمراجعة. تُترك فارغة لمشاهد الوزارة ومدير النظام.', // [drafted]
+        organizationHint: 'مطلوبة لأدوار المشتريات والتقييم والمراجعة. تُترك فارغة لمشاهد الوزارة ومدير النظام.',
         roles: {
           onboarding_reviewer: 'مراجع استكمال الموردين',
           procurement_officer: 'مسؤول المشتريات',
@@ -1447,26 +1519,26 @@ const resources = {
           fullNameRequired: 'الاسم الكامل مطلوب',
           emailInvalid: 'البريد الإلكتروني غير صحيح',
           inviteFailed: 'تعذر إرسال الدعوة',
-          loadFailed: 'تعذّر تحميل حسابات الموظفين',              // [drafted]
-          updateFailed: 'تعذّر تنفيذ الإجراء',                    // [drafted]
-          cannotActOnSelf: 'لا يمكنك تنفيذ هذا الإجراء على حسابك.', // [drafted]
-          wouldLockOutAdministration: 'لا يمكن تعطيل آخر مسؤول نظام مفعّل.', // [drafted]
+          loadFailed: 'تعذّر تحميل حسابات الموظفين',
+          updateFailed: 'تعذّر تنفيذ الإجراء',
+          cannotActOnSelf: 'لا يمكنك تنفيذ هذا الإجراء على حسابك.',
+          wouldLockOutAdministration: 'لا يمكن تعطيل آخر مسؤول نظام مفعّل.',
           passwordTooShort: 'كلمة المرور قصيرة جداً',
         },
         // T-077/SCR-701/702. Drafted in §7's register, marked, in ARABIC-REVIEW.md.
-        accountsTitle: 'حسابات الموظفين',                     // [drafted]
+        accountsTitle: 'حسابات الموظفين',
         noAccounts: 'لا توجد حسابات',                          // [reused] §4's empty-state pattern
         status: 'الحالة',                                      // [reused] §7's own term
         actions: 'إجراءات',                                    // [reused]
         active: 'مفعّل',                                        // [reused]
-        inactive: 'معطّل',                                      // [drafted]
-        mfaOn: 'التحقق بخطوتين مُفعّل',                          // [drafted]
-        sessions: 'جلسات نشطة: {{count}}',                      // [drafted]
-        deactivate: 'تعطيل',                                    // [drafted]
-        reactivate: 'إعادة التفعيل',                            // [drafted]
-        resetMfa: 'إعادة ضبط التحقق بخطوتين',                   // [drafted]
-        roleChanged: 'تم تغيير الدور',                          // [drafted]
-        mfaReset: 'تمت إعادة ضبط التحقق بخطوتين',                // [drafted]
+        inactive: 'معطّل',
+        mfaOn: 'التحقق بخطوتين مُفعّل',
+        sessions: 'جلسات نشطة: {{count}}',
+        deactivate: 'تعطيل',
+        reactivate: 'إعادة التفعيل',
+        resetMfa: 'إعادة ضبط التحقق بخطوتين',
+        roleChanged: 'تم تغيير الدور',
+        mfaReset: 'تمت إعادة ضبط التحقق بخطوتين',
         retry: 'إعادة المحاولة',                                // [reused]
         acceptInviteTitle: 'قبول دعوة الموظف',
         acceptInviteHint: 'عيّن كلمة مرور لإكمال إعداد حسابك.',
@@ -1528,12 +1600,12 @@ const resources = {
         displayNameEn: 'اسم الشركة (إنجليزي)',
         registrationNumber: 'رقم السجل التجاري',
         registrationNumberHint: 'اختياري عند التسجيل، مطلوب لاحقاً لإكمال الملف',
-        // ── BATCH 12 · ARABIC FOR REVIEW ──────────────────────────────────────
+        // ── BATCH 12 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
         errors: {
-          required: 'هذا الحقل مطلوب',                       // [drafted]
-          email: 'أدخل بريداً إلكترونياً صحيحاً',              // [drafted]
-          passwordLength: 'كلمة المرور ١٢ حرفاً على الأقل',    // [drafted]
-          passwordsMatch: 'كلمتا المرور غير متطابقتين',        // [drafted]
+          required: 'هذا الحقل مطلوب',
+          email: 'أدخل بريداً إلكترونياً صحيحاً',
+          passwordLength: 'كلمة المرور ١٢ حرفاً على الأقل',
+          passwordsMatch: 'كلمتا المرور غير متطابقتين',
         },
         representativeName: 'اسم الممثل الرئيسي',
         representativePhone: 'هاتف الممثل الرئيسي',
@@ -1542,14 +1614,14 @@ const resources = {
         haveAccount: 'لديك حساب بالفعل؟ تسجيل الدخول',
         createAccount: 'إنشاء حساب جديد',
         successTitle: 'تم إنشاء الحساب',
-        closedTitle: 'التسجيل مغلق حالياً',                  // [§7-style drafted]
-        closedBody: 'التسجيل الذاتي مغلق حالياً. يرجى التواصل مع الوزارة لإتمام التسجيل.', // [§7-style drafted]
+        closedTitle: 'التسجيل مغلق حالياً',
+        closedBody: 'التسجيل الذاتي مغلق حالياً. يرجى التواصل مع الوزارة لإتمام التسجيل.',
         checkEmail: 'تحقق من بريدك الإلكتروني لتفعيل الحساب. رقم المرجع الخاص بك:',
         duplicateEmail: 'يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل',
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
         failed: 'تعذر إنشاء الحساب',
       },
-      // ── SCR-121..126 · ARABIC FOR REVIEW ──────────────────────────────────────
+      // ── SCR-121..126 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
       // §7 has no supplier-profile screen strings. Drafted in §7's register - NOT YET
       // APPROVED, in ARABIC-REVIEW.md's pile.
       profile: {
@@ -1557,18 +1629,18 @@ const resources = {
         edit: 'تعديل',                                       // [reused]
         manage: 'إدارة',                                     // [reused]
         retry: 'إعادة المحاولة',                              // [reused]
-        incompleteTitle: 'الملف غير مكتمل',                    // [drafted]
-        incompleteBody: 'العناصر التالية مطلوبة قبل تقديم الطلب:', // [drafted]
+        incompleteTitle: 'الملف غير مكتمل',
+        incompleteBody: 'العناصر التالية مطلوبة قبل تقديم الطلب:',
         companyTitle: 'بيانات الشركة',                        // [reused]
         legalTitle: 'البيانات القانونية',                      // [reused] matches onboarding
         contactsTitle: 'جهات الاتصال والممثلون',                // [reused]
         addressesTitle: 'العناوين والفروع',                    // [reused]
         bankingTitle: 'الحسابات البنكية',                      // [reused]
         offeringsTitle: 'الفئات والعروض',                      // [reused]
-        noContacts: 'لا توجد جهات اتصال',                      // [drafted]
-        noAddresses: 'لا توجد عناوين',                         // [drafted]
-        noBankAccounts: 'لا توجد حسابات بنكية',                 // [drafted]
-        noCategories: 'لم تُحدَّد أي فئة',                       // [drafted]
+        noContacts: 'لا توجد جهات اتصال',
+        noAddresses: 'لا توجد عناوين',
+        noBankAccounts: 'لا توجد حسابات بنكية',
+        noCategories: 'لم تُحدَّد أي فئة',
         fields: {
           description: 'الوصف', website: 'الموقع الإلكتروني', supplierGroup: 'المجموعة',
           defaultCurrency: 'العملة', primaryContactPhone: 'هاتف جهة الاتصال الرئيسية',
@@ -1580,29 +1652,29 @@ const resources = {
           legalInfo: 'البيانات القانونية', address: 'العنوان', categoryLink: 'الفئات',
           termsAccepted: 'الموافقة على الشروط',
         },
-        errors: { loadFailed: 'تعذّر تحميل ملف المورد' },       // [drafted]
+        errors: { loadFailed: 'تعذّر تحميل ملف المورد' },
       },
-      // ── SCR-130..133 · ARABIC FOR REVIEW ──────────────────────────────────────
-      // §7 has no documents-centre strings. Drafted in §7's register - NOT YET APPROVED,
+      // ── SCR-130..133 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
+      // §7 has no documents-centre strings. Authored in §7's register, accepted under D-62,
       // in ARABIC-REVIEW.md's pile.
       documents: {
         title: 'المستندات',                                   // [reused] §7's own term
-        subtitle: 'مستندات الشركة وحالاتها وتواريخ انتهائها.',   // [drafted]
-        listTitle: 'قائمة المستندات',                          // [drafted]
-        attentionTitle: 'مستندات تحتاج إلى إجراء',              // [drafted] SCR-133
-        attentionBody: 'عدد المستندات التي تحتاج إلى إجراء: {{count}}', // [drafted]
-        showAttention: 'عرض ما يحتاج إجراء فقط',                // [drafted]
+        subtitle: 'مستندات الشركة وحالاتها وتواريخ انتهائها.',
+        listTitle: 'قائمة المستندات',
+        attentionTitle: 'مستندات تحتاج إلى إجراء',  // SCR-133
+        attentionBody: 'عدد المستندات التي تحتاج إلى إجراء: {{count}}',
+        showAttention: 'عرض ما يحتاج إجراء فقط',
         showAll: 'عرض الكل',                                   // [reused]
         required: 'إلزامي',                                    // [reused]
         optional: 'اختياري',                                   // [reused]
-        notUploaded: 'لم يُرفع',                                // [drafted]
+        notUploaded: 'لم يُرفع',
         upload: 'رفع',                                         // [reused]
         replace: 'استبدال',                                     // [reused]
         download: 'تنزيل',                                      // [reused]
-        history: 'السجل',                                       // [drafted] SCR-132
-        hideHistory: 'إخفاء السجل',                             // [drafted]
-        historyTitle: 'سجل الإصدارات',                          // [drafted]
-        noHistory: 'لم يُرفع أي إصدار بعد',                      // [drafted]
+        history: 'السجل',  // SCR-132
+        hideHistory: 'إخفاء السجل',
+        historyTitle: 'سجل الإصدارات',
+        noHistory: 'لم يُرفع أي إصدار بعد',
         close: 'إغلاق',                                         // [reused]
         uploaded: 'تم رفع المستند',                              // [reused] matches onboarding
         retry: 'إعادة المحاولة',                                // [reused]
@@ -1612,69 +1684,69 @@ const resources = {
           uploadedAt: 'تاريخ الرفع', reason: 'سبب الرفض',
         },
         errors: {
-          loadFailed: 'تعذّر تحميل المستندات',                   // [drafted]
+          loadFailed: 'تعذّر تحميل المستندات',
           uploadFailed: 'تعذّر رفع المستند',                     // [reused]
-          downloadFailed: 'تعذّر تنزيل المستند',                  // [drafted]
-          historyFailed: 'تعذّر تحميل سجل الإصدارات',             // [drafted]
+          downloadFailed: 'تعذّر تنزيل المستند',
+          historyFailed: 'تعذّر تحميل سجل الإصدارات',
         },
       },
-      // ── SCR-150 · ARABIC FOR REVIEW ───────────────────────────────────────────
-      // §7 has no proposals-list strings. Drafted in §7's register - NOT YET APPROVED,
+      // ── SCR-150 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
+      // §7 has no proposals-list strings. Authored in §7's register, accepted under D-62,
       // in ARABIC-REVIEW.md's pile.
       myProposals: {
-        title: 'عروضي',                                       // [drafted] SCR-150
-        subtitle: 'العروض التي قدّمتها أو بدأت إعدادها.',        // [drafted]
-        listTitle: 'قائمة العروض',                             // [drafted]
-        empty: 'لم تقدّم أي عرض بعد',                          // [drafted]
+        title: 'عروضي',  // SCR-150
+        subtitle: 'العروض التي قدّمتها أو بدأت إعدادها.',
+        listTitle: 'قائمة العروض',
+        empty: 'لم تقدّم أي عرض بعد',
         open: 'فتح',                                          // [reused]
-        continue: 'متابعة الإعداد',                            // [drafted]
+        continue: 'متابعة الإعداد',
         awardOffered: 'عُرضت عليك الترسية',                     // [reused] §8's «ترسية»
         retry: 'إعادة المحاولة',                               // [reused]
         fields: {
           rfq: 'الطلب', proposal: 'رقم العرض', state: 'الحالة',
           deadline: 'موعد الإغلاق', total: 'الإجمالي', actions: 'الإجراءات',
         },
-        errors: { loadFailed: 'تعذّر تحميل العروض' },           // [drafted]
+        errors: { loadFailed: 'تعذّر تحميل العروض' },
       },
-      // ── SCR-902 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // ── SCR-902 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       account: {
-        title: 'الحساب',                                      // [drafted] SCR-902
+        title: 'الحساب',  // SCR-902
         save: 'حفظ',                                          // [reused]
         retry: 'إعادة المحاولة',                               // [reused]
         saved: 'تم حفظ التغييرات',                             // [reused]
-        emailFixed: 'لا يمكن تغيير البريد الإلكتروني من هذه الشاشة.',  // [drafted]
-        numeralsFollowLanguage: 'تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9.', // [drafted]
+        emailFixed: 'لا يمكن تغيير البريد الإلكتروني من هذه الشاشة.',
+        numeralsFollowLanguage: 'تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9.',
         fields: { fullName: 'الاسم الكامل', language: 'لغة الواجهة', email: 'البريد الإلكتروني' },
         languages: { ar: 'العربية', en: 'الإنجليزية' },
-        errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' }, // [drafted]
+        errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' },
       },
-      // ── SCR-040 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // ── SCR-040 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       sessionExpired: {
-        title: 'انتهت الجلسة',                                 // [drafted] SCR-040
-        body: 'انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت.', // [drafted]
+        title: 'انتهت الجلسة',  // SCR-040
+        body: 'انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت.',
         password: 'كلمة المرور',                               // [reused]
         totp: 'رمز التحقق (إن وُجد)',                          // [reused] §7's «رمز التحقق»
         signIn: 'تسجيل الدخول',                                // [reused]
         signOut: 'تسجيل الخروج',                               // [reused]
-        failed: 'تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة.',  // [drafted]
+        failed: 'تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة.',
       },
-      // ── SCR-908 / SCR-907 · ARABIC FOR REVIEW ─────────────────────────────────
+      // ── SCR-908 / SCR-907 · ARABIC, REVIEWED (D-62) ─────────────────────────────────
       about: {
-        title: 'حول النظام',                                   // [drafted] SCR-908
-        buildTitle: 'إصدار النظام',                            // [drafted]
-        version: 'الإصدار', commit: 'رقم البناء',               // [drafted]
+        title: 'حول النظام',  // SCR-908
+        buildTitle: 'إصدار النظام',
+        version: 'الإصدار', commit: 'رقم البناء',
         loading: 'جارٍ التحميل...',                            // [reused]
-        unavailable: 'غير متاح حالياً',                         // [drafted]
-        supportTitle: 'عند الإبلاغ عن مشكلة',                   // [drafted]
-        correlationHelp: 'تحتوي رسائل الخطأ على «معرّف المتابعة». أرفقه عند الإبلاغ عن أي مشكلة، فهو يربط طلبك بسجلات النظام.', // [drafted]
-        legalTitle: 'الشروط والخصوصية',                        // [drafted]
-        legalPending: 'لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية. تُنشر هنا عند صدورها عن الوزارة.', // [drafted]
+        unavailable: 'غير متاح حالياً',
+        supportTitle: 'عند الإبلاغ عن مشكلة',
+        correlationHelp: 'تحتوي رسائل الخطأ على «معرّف المتابعة». أرفقه عند الإبلاغ عن أي مشكلة، فهو يربط طلبك بسجلات النظام.',
+        legalTitle: 'الشروط والخصوصية',
+        legalPending: 'لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية. تُنشر هنا عند صدورها عن الوزارة.',
       },
       help: {
-        title: 'المساعدة',                                     // [drafted] SCR-907
-        subtitle: 'إجابات عن أكثر ما يُسأل عنه في هذا النظام.',   // [drafted]
-        contactTitle: 'التواصل مع الدعم',                       // [drafted]
-        contactPending: 'لم تُحدَّد بعد قناة الدعم. تُعرض هنا عند اعتمادها.', // [drafted]
+        title: 'المساعدة',  // SCR-907
+        subtitle: 'إجابات عن أكثر ما يُسأل عنه في هذا النظام.',
+        contactTitle: 'التواصل مع الدعم',
+        contactPending: 'لم تُحدَّد بعد قناة الدعم. تُعرض هنا عند اعتمادها.',
         topics: {
           submitProposal: {
             question: 'كيف أتقدّم بعرض؟',
@@ -1708,18 +1780,18 @@ const resources = {
           },
         },
       },
-      // ── SCR-010 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // ── SCR-010 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       firstRunLocale: {
-        derived: 'تتبع الأرقام لغة الواجهة. لا يوفّر النظام حالياً تحويل العملات، فتُعرض كل قيمة بعملتها الأصلية.', // [drafted]
-        failed: 'تعذّر حفظ اختيارك. حاول مرة أخرى.',            // [drafted]
+        derived: 'تتبع الأرقام لغة الواجهة. لا يوفّر النظام حالياً تحويل العملات، فتُعرض كل قيمة بعملتها الأصلية.',
+        failed: 'تعذّر حفظ اختيارك. حاول مرة أخرى.',
       },
-      // ── SCR-721 / SCR-722 · ARABIC FOR REVIEW ─────────────────────────────────
+      // ── SCR-721 / SCR-722 · ARABIC, REVIEWED (D-62) ─────────────────────────────────
       operations: {
-        title: 'التشغيل والمهام',                               // [drafted] SCR-721/722
-        subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',      // [drafted]
-        jobsTitle: 'المهام المجدولة',                           // [drafted]
-        outboxTitle: 'الأحداث الصادرة',                         // [drafted]
-        storageTitle: 'الملفات والتخزين',                       // [drafted] SCR-725
+        title: 'التشغيل والمهام',  // SCR-721/722
+        subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',
+        jobsTitle: 'المهام المجدولة',
+        outboxTitle: 'الأحداث الصادرة',
+        storageTitle: 'الملفات والتخزين',  // SCR-725
         storage: {
           objectStore: 'مخزن الملفات', scanner: 'فاحص الفيروسات',
           reachable: 'متصل', unreachable: 'غير متصل',
@@ -1729,15 +1801,15 @@ const resources = {
           allowedTypes: 'الأنواع المسموحة',
           bucket: 'الحاوية',
           documents: 'عدد الملفات المخزَّنة',
-          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. حد الحجم وقائمة الأنواع المسموحة ضابط أمني يُتحقَّق من بصمة الملف نفسه، وتوسيعه من الواجهة أول ما يفعله من يستولي على حساب إداري. قواعد المستندات التي تملكها الإدارة تُدار من شاشة البيانات المرجعية.', // [drafted]
+          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. حد الحجم وقائمة الأنواع المسموحة ضابط أمني يُتحقَّق من بصمة الملف نفسه، وتوسيعه من الواجهة أول ما يفعله من يستولي على حساب إداري. قواعد المستندات التي تملكها الإدارة تُدار من شاشة البيانات المرجعية.',
         },
-        securityTitle: 'إعدادات الأمان',                        // [drafted] SCR-726
+        securityTitle: 'إعدادات الأمان',  // SCR-726
         security: {
           passwordLength: 'الحد الأدنى لطول كلمة المرور',
           characters: '{{count}} حرفاً',
           composition: 'تركيب كلمة المرور',
           digit: 'رقم', uppercase: 'حرف كبير', lowercase: 'حرف صغير', symbol: 'رمز',
-          lengthOnly: 'الطول فقط — لا يُفرض رقم أو حالة أحرف أو رمز (معيار NIST 800-63B)', // [drafted]
+          lengthOnly: 'الطول فقط — لا يُفرض رقم أو حالة أحرف أو رمز (معيار NIST 800-63B)',
           lockout: 'قفل الحساب',
           lockoutValue: 'بعد {{attempts}} محاولات فاشلة، لمدة {{minutes}} دقيقة',
           accessToken: 'مدة رمز الدخول',
@@ -1745,28 +1817,28 @@ const resources = {
           refreshToken: 'مدة رمز التجديد',
           days: '{{count}} يوماً',
           mfaRoles: 'الأدوار الملزمة بالتحقق بخطوتين',
-          mfaNone: 'لا يوجد — لا دور مُلزم بعامل ثانٍ',          // [drafted] see the note in the code
+          mfaNone: 'لا يوجد — لا دور مُلزم بعامل ثانٍ',  // see the note in the code
           rateLimit: 'حدّ المعدل',
           rateLimitValue: '{{permits}} طلبات كل {{seconds}} ثانية',
           registration: 'تسجيل الموردين الجدد',
-          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. هذه القيم من إعدادات النشر، ونقلها إلى زرّ في الواجهة ينقل قراراً أمنياً من نشرٍ مُراجَع إلى نقرة أثناء التشغيل. تسجيل الموردين وحده يُدار من شاشة إعدادات النظام.', // [drafted]
+          readOnlyExplained: 'هذه الشاشة تقرأ ولا تُعدّل. هذه القيم من إعدادات النشر، ونقلها إلى زرّ في الواجهة ينقل قراراً أمنياً من نشرٍ مُراجَع إلى نقرة أثناء التشغيل. تسجيل الموردين وحده يُدار من شاشة إعدادات النظام.',
         },
-        erpTitle: 'مزامنة نظام الموارد',                        // [drafted] SCR-723
-        erpNotConfigured: 'لم يُهيَّأ اتصال فعلي بنظام الموارد. الحالات أدناه صادرة عن بديل تسجيلي لا يُرسل شيئاً.', // [drafted]
-        erpEmpty: 'لا توجد ترسيات مطابقة',                      // [drafted]
-        retryErp: 'إعادة المزامنة',                             // [drafted]
-        erpRetryQueued: 'أُعيد طلب المزامنة',                    // [drafted]
-        runNow: 'تشغيل الآن',                                   // [drafted]
-        jobTriggered: 'تم إرسال المهمة للتشغيل',                 // [drafted]
-        notRegistered: 'غير مُسجَّلة',                           // [drafted]
-        never: 'لم تُشغَّل بعد',                                 // [drafted]
-        recurringDisabled: 'المهام المجدولة مُعطَّلة على هذا النظام. لن تُشغَّل أي مهمة في مواعيدها.', // [drafted]
-        noPauseExplained: 'لا يوفّر النظام إيقافاً مؤقتاً لمهمة واحدة: إلغاء تسجيلها يجعلها تبدو كمهمة مفقودة، وهو الخطأ الذي تكشفه هذه الشاشة. الإيقاف يكون على مستوى النظام من الإعدادات.', // [drafted]
+        erpTitle: 'مزامنة نظام الموارد',  // SCR-723
+        erpNotConfigured: 'لم يُهيَّأ اتصال فعلي بنظام الموارد. الحالات أدناه صادرة عن بديل تسجيلي لا يُرسل شيئاً.',
+        erpEmpty: 'لا توجد ترسيات مطابقة',
+        retryErp: 'إعادة المزامنة',
+        erpRetryQueued: 'أُعيد طلب المزامنة',
+        runNow: 'تشغيل الآن',
+        jobTriggered: 'تم إرسال المهمة للتشغيل',
+        notRegistered: 'غير مُسجَّلة',
+        never: 'لم تُشغَّل بعد',
+        recurringDisabled: 'المهام المجدولة مُعطَّلة على هذا النظام. لن تُشغَّل أي مهمة في مواعيدها.',
+        noPauseExplained: 'لا يوفّر النظام إيقافاً مؤقتاً لمهمة واحدة: إلغاء تسجيلها يجعلها تبدو كمهمة مفقودة، وهو الخطأ الذي تكشفه هذه الشاشة. الإيقاف يكون على مستوى النظام من الإعدادات.',
         allStatuses: 'كل الحالات',                              // [reused]
-        outboxEmpty: 'لا توجد رسائل مطابقة',                     // [drafted]
-        showPayload: 'عرض المحتوى', hidePayload: 'إخفاء المحتوى', // [drafted]
-        replay: 'إعادة الإرسال',                                // [drafted]
-        replayQueued: 'أُعيدت الرسالة إلى الطابور',              // [drafted]
+        outboxEmpty: 'لا توجد رسائل مطابقة',
+        showPayload: 'عرض المحتوى', hidePayload: 'إخفاء المحتوى',
+        replay: 'إعادة الإرسال',
+        replayQueued: 'أُعيدت الرسالة إلى الطابور',
         retry: 'إعادة المحاولة',                                // [reused]
         fields: {
           job: 'المهمة', schedule: 'الجدولة', lastRun: 'آخر تشغيل', nextRun: 'التشغيل القادم',
@@ -1775,97 +1847,97 @@ const resources = {
           control: 'الضابط', effective: 'القيمة السارية',
         },
         errors: {
-          jobsLoadFailed: 'تعذّر تحميل المهام',                  // [drafted]
-          outboxLoadFailed: 'تعذّر تحميل الأحداث الصادرة',        // [drafted]
-          triggerFailed: 'تعذّر تشغيل المهمة',                   // [drafted]
-          notRegistered: 'هذه المهمة غير مُسجَّلة، فلا يمكن تشغيلها', // [drafted]
-          replayFailed: 'تعذّرت إعادة الإرسال',                  // [drafted]
-          erpLoadFailed: 'تعذّر تحميل حالات المزامنة',            // [drafted]
-          erpRetryFailed: 'تعذّرت إعادة المزامنة',                // [drafted]
-          securityLoadFailed: 'تعذّر تحميل إعدادات الأمان',        // [drafted]
-          storageLoadFailed: 'تعذّر تحميل إعدادات التخزين',        // [drafted]
+          jobsLoadFailed: 'تعذّر تحميل المهام',
+          outboxLoadFailed: 'تعذّر تحميل الأحداث الصادرة',
+          triggerFailed: 'تعذّر تشغيل المهمة',
+          notRegistered: 'هذه المهمة غير مُسجَّلة، فلا يمكن تشغيلها',
+          replayFailed: 'تعذّرت إعادة الإرسال',
+          erpLoadFailed: 'تعذّر تحميل حالات المزامنة',
+          erpRetryFailed: 'تعذّرت إعادة المزامنة',
+          securityLoadFailed: 'تعذّر تحميل إعدادات الأمان',
+          storageLoadFailed: 'تعذّر تحميل إعدادات التخزين',
         },
       },
-      // ── SCR-716 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // ── SCR-716 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       uiStrings: {
-        title: 'نصوص الواجهة',                                  // [drafted] SCR-716
-        subtitle: 'تعديل صياغة أي نص في الواجهة دون إصدار جديد.',  // [drafted]
-        editTitle: 'تعديل نص',                                  // [drafted]
-        listTitle: 'النصوص المُعدَّلة',                          // [drafted]
-        empty: 'لا توجد تعديلات — تُعرض النصوص كما وردت في النظام', // [drafted]
-        searchHint: 'اكتب حرفين على الأقل للبحث في مفاتيح النصوص.', // [drafted]
-        shipped: 'النص الأصلي',                                 // [drafted]
+        title: 'نصوص الواجهة',  // SCR-716
+        subtitle: 'تعديل صياغة أي نص في الواجهة دون إصدار جديد.',
+        editTitle: 'تعديل نص',
+        listTitle: 'النصوص المُعدَّلة',
+        empty: 'لا توجد تعديلات — تُعرض النصوص كما وردت في النظام',
+        searchHint: 'اكتب حرفين على الأقل للبحث في مفاتيح النصوص.',
+        shipped: 'النص الأصلي',
         save: 'حفظ التعديل', cancel: 'إلغاء', restore: 'استعادة الأصلي', retry: 'إعادة المحاولة',
-        saved: 'تم حفظ التعديل',                                // [drafted]
-        restored: 'أُعيد النص الأصلي',                           // [drafted]
-        takesEffect: 'يظهر التعديل عند إعادة تحميل الصفحة لكل المستخدمين.', // [drafted]
+        saved: 'تم حفظ التعديل',
+        restored: 'أُعيد النص الأصلي',
+        takesEffect: 'يظهر التعديل عند إعادة تحميل الصفحة لكل المستخدمين.',
         fields: { language: 'اللغة', search: 'بحث في المفاتيح', value: 'النص المُعدَّل', key: 'المفتاح', actions: 'الإجراءات' },
         errors: {
-          loadFailed: 'تعذّر تحميل التعديلات',                   // [drafted]
-          saveFailed: 'تعذّر حفظ التعديل',                       // [drafted]
-          deleteFailed: 'تعذّرت استعادة النص الأصلي',            // [drafted]
+          loadFailed: 'تعذّر تحميل التعديلات',
+          saveFailed: 'تعذّر حفظ التعديل',
+          deleteFailed: 'تعذّرت استعادة النص الأصلي',
         },
       },
-      // ── SCR-906 · ARABIC FOR REVIEW ───────────────────────────────────────────
+      // ── SCR-906 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       search: {
         title: 'البحث',                                        // [reused]
-        subtitle: 'بحث واحد في الطلبات والموردين والعروض المُدرجة.', // [drafted]
-        formTitle: 'ما الذي تبحث عنه؟',                         // [drafted]
-        resultsTitle: 'النتائج',                                // [drafted]
+        subtitle: 'بحث واحد في الطلبات والموردين والعروض المُدرجة.',
+        formTitle: 'ما الذي تبحث عنه؟',
+        resultsTitle: 'النتائج',
         submit: 'بحث',                                         // [reused]
         retry: 'إعادة المحاولة',                                // [reused]
-        hint: 'يمكن البحث بالعنوان أو بالرقم المرجعي. آخر كلمة تُطابَق كبداية كلمة.', // [drafted]
-        resultsFor: '{{count}} نتيجة لـ «{{query}}»',            // [drafted]
-        truncated: 'النتائج أكثر من المعروض. حدِّد البحث أكثر.',    // [drafted]
+        hint: 'يمكن البحث بالعنوان أو بالرقم المرجعي. آخر كلمة تُطابَق كبداية كلمة.',
+        resultsFor: '{{count}} نتيجة لـ «{{query}}»',
+        truncated: 'النتائج أكثر من المعروض. حدِّد البحث أكثر.',
         empty: 'لا نتائج',                                      // [reused]
-        emptyHint: 'يُطابق البحث الكلمات كاملة أو بداياتها فقط، فصيغة الجمع لا تجد المفرد.', // [drafted]
+        emptyHint: 'يُطابق البحث الكلمات كاملة أو بداياتها فقط، فصيغة الجمع لا تجد المفرد.',
         kinds: { rfq: 'طلب عرض', supplier: 'مورّد', offering: 'عرض مُدرَج' }, // [reused] §7's «طلب عرض»
         fields: { query: 'كلمة البحث' },
-        errors: { failed: 'تعذّر تنفيذ البحث' },                 // [drafted]
+        errors: { failed: 'تعذّر تنفيذ البحث' },
       },
-      // ── T-076 · ARABIC FOR REVIEW ─────────────────────────────────────────────
+      // ── T-076 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────────
       emailTemplates: {
-        title: 'نصوص رسائل البريد',                             // [drafted] T-076
-        subtitle: 'صياغة الرسائل التي يرسلها النظام. الرموز بين قوسين معقوفين تُستبدل بقيم فعلية.', // [drafted]
-        overridden: 'صياغة مُعدَّلة', shippedWording: 'الصياغة الأصلية',  // [drafted]
-        required: '(إلزامي)',                                   // [drafted]
-        inForce: 'الصياغة السارية حالياً:',                       // [drafted]
+        title: 'نصوص رسائل البريد',  // T-076
+        subtitle: 'صياغة الرسائل التي يرسلها النظام. الرموز بين قوسين معقوفين تُستبدل بقيم فعلية.',
+        overridden: 'صياغة مُعدَّلة', shippedWording: 'الصياغة الأصلية',
+        required: '(إلزامي)',
+        inForce: 'الصياغة السارية حالياً:',
         edit: 'تعديل', save: 'حفظ', cancel: 'إلغاء', revert: 'استعادة الأصلي', retry: 'إعادة المحاولة',
-        saved: 'تم حفظ الصياغة',                                // [drafted]
-        reverted: 'أُعيدت الصياغة الأصلية',                      // [drafted]
-        tokensNamed: 'الرموز المعنية: {{tokens}}',               // [drafted]
+        saved: 'تم حفظ الصياغة',
+        reverted: 'أُعيدت الصياغة الأصلية',
+        tokensNamed: 'الرموز المعنية: {{tokens}}',
         fields: {
           subjectAr: 'الموضوع (عربي)', subjectEn: 'الموضوع (إنجليزي)',
           bodyAr: 'النص (عربي)', bodyEn: 'النص (إنجليزي)',
         },
         errors: {
-          loadFailed: 'تعذّر تحميل نصوص الرسائل',                 // [drafted]
-          saveFailed: 'تعذّر حفظ الصياغة',                        // [drafted]
-          revertFailed: 'تعذّرت استعادة الصياغة الأصلية',          // [drafted]
-          missingTokens: 'الصياغة الجديدة تُسقط رمزاً إلزامياً. الرسالة بدون رابطها لا تُفيد المستلم.', // [drafted]
-          unknownTokens: 'الصياغة تحتوي رمزاً لا يعرفه النظام، وسيظهر كما هو في الرسالة.', // [drafted]
+          loadFailed: 'تعذّر تحميل نصوص الرسائل',
+          saveFailed: 'تعذّر حفظ الصياغة',
+          revertFailed: 'تعذّرت استعادة الصياغة الأصلية',
+          missingTokens: 'الصياغة الجديدة تُسقط رمزاً إلزامياً. الرسالة بدون رابطها لا تُفيد المستلم.',
+          unknownTokens: 'الصياغة تحتوي رمزاً لا يعرفه النظام، وسيظهر كما هو في الرسالة.',
         },
       },
       settings: {
         title: 'إعدادات الحساب',
-        // ── SCR-903 · ARABIC FOR REVIEW ────────────────────────────────────────────
-        // §7 has no change-password strings. Drafted in §7's register - NOT YET APPROVED,
+        // ── SCR-903 · ARABIC, REVIEWED (D-62) ────────────────────────────────────────────
+        // §7 has no change-password strings. Authored in §7's register, accepted under D-62,
         // in ARABIC-REVIEW.md's pile.
-        passwordTitle: 'تغيير كلمة المرور',                       // [drafted] SCR-903
-        passwordHint: 'اختر كلمة مرور جديدة لحسابك.',              // [drafted]
-        currentPassword: 'كلمة المرور الحالية',                    // [drafted]
+        passwordTitle: 'تغيير كلمة المرور',  // SCR-903
+        passwordHint: 'اختر كلمة مرور جديدة لحسابك.',
+        currentPassword: 'كلمة المرور الحالية',
         newPasswordLabel: 'كلمة المرور الجديدة',                   // [reused] matches the reset form
-        confirmPassword: 'تأكيد كلمة المرور الجديدة',               // [drafted]
-        passwordRule: 'اثنا عشر حرفاً على الأقل.',                  // [drafted]
-        changePassword: 'تغيير كلمة المرور',                       // [drafted]
-        passwordChanged: 'تم تغيير كلمة المرور',                   // [drafted]
-        passwordIncorrect: 'كلمة المرور الحالية غير صحيحة.',        // [drafted]
-        passwordUnchanged: 'كلمة المرور الجديدة مطابقة للحالية.',    // [drafted]
-        passwordWeak: 'كلمة المرور الجديدة ضعيفة.',                 // [drafted]
-        passwordMismatch: 'الكلمتان غير متطابقتين.',                // [drafted]
-        passwordChangeFailed: 'تعذّر تغيير كلمة المرور',            // [drafted]
+        confirmPassword: 'تأكيد كلمة المرور الجديدة',
+        passwordRule: 'اثنا عشر حرفاً على الأقل.',
+        changePassword: 'تغيير كلمة المرور',
+        passwordChanged: 'تم تغيير كلمة المرور',
+        passwordIncorrect: 'كلمة المرور الحالية غير صحيحة.',
+        passwordUnchanged: 'كلمة المرور الجديدة مطابقة للحالية.',
+        passwordWeak: 'كلمة المرور الجديدة ضعيفة.',
+        passwordMismatch: 'الكلمتان غير متطابقتين.',
+        passwordChangeFailed: 'تعذّر تغيير كلمة المرور',
         // Stated before the action, not discovered after it.
-        passwordRevokesOthers: 'سيؤدي التغيير إلى إنهاء جلساتك على الأجهزة الأخرى، وتبقى هذه الجلسة مفتوحة.', // [drafted]
+        passwordRevokesOthers: 'سيؤدي التغيير إلى إنهاء جلساتك على الأجهزة الأخرى، وتبقى هذه الجلسة مفتوحة.',
         mfaTitle: 'المصادقة الثنائية',
         mfaEnroll: 'تفعيل المصادقة الثنائية',
         mfaScanOrEnter: 'امسح الرمز باستخدام تطبيق المصادقة أو أدخل المفتاح يدوياً',
@@ -1877,12 +1949,12 @@ const resources = {
         recoveryCodesNotice: 'احفظ رموز الاسترداد هذه في مكان آمن — لن تظهر مرة أخرى.',
         sessionsTitle: 'الجلسات النشطة',
         // B-1/FR-AUD-003: the supplier's own trail, reachable for the first time.
-        auditTitle: 'سجل نشاط حسابي',                            // [drafted]
-        auditHint: 'أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم.', // [drafted]
+        auditTitle: 'سجل نشاط حسابي',
+        auditHint: 'أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم.',
         auditEmpty: 'لا توجد أحداث مسجّلة بعد',                   // [reused] §4's empty-state pattern
-        auditExport: 'تنزيل السجل (CSV)',                        // [drafted]
-        auditExportFailed: 'تعذّر تنزيل السجل',                   // [drafted]
-        auditLoadFailed: 'تعذّر تحميل السجل',                     // [drafted]
+        auditExport: 'تنزيل السجل (CSV)',
+        auditExportFailed: 'تعذّر تنزيل السجل',
+        auditLoadFailed: 'تعذّر تحميل السجل',
         retry: 'إعادة المحاولة',                                 // [reused]
         currentSession: 'الجلسة الحالية',
         unknownDevice: 'جهاز غير معروف',
@@ -2078,7 +2150,7 @@ const resources = {
         setAwardCritical: 'Mark award-critical',
         clearAwardCritical: 'Remove award-critical',
         awardCriticalSaved: 'Flag updated',
-        awardCriticalExplained: 'When an award-critical document expires, the supplier is suspended automatically (BRULE-023). No type is marked today, and which types qualify is a ministry decision.',
+        awardCriticalExplained: 'When an award-critical document expires, the supplier is suspended automatically (BRULE-023). The commercial register and the tax certificate are marked (D-58); changing that list is a ministry decision.',
         title: 'Reference data',
         subtitle: 'Add, rename, and deactivate the codes RFQs and supplier profiles are built from.',
         tableLabel: 'Reference table',
@@ -2526,6 +2598,7 @@ const resources = {
         errors: { accountHolderRequired: 'Account holder name is required', bankNameRequired: 'Bank name is required', accountNumberRequired: 'Account number is required', removeFailed: 'Could not remove' },
       },
       offerings: {
+        toggleFailed: 'Could not update the category',
         title: 'Offered Categories',
         subtitle: 'Select the categories your supplier offers. At least one is required to submit.',
         categoriesTitle: 'Categories',
@@ -2587,6 +2660,70 @@ const resources = {
         saveFailed: 'Could not save your preferences',
         loadFailed: 'Could not load your preferences',
         unsaved: 'Unsaved changes',
+      },
+      ministryRfqs: {
+        title: 'Tender Monitor',
+        subtitle: 'Every tender across all buying bodies, with the awarding organisation and, where there is one, the award value.',
+        filterState: 'Status',
+        filterAll: 'All',
+        search: 'Search',
+        searchPlaceholder: 'Search by title or code…',
+        empty: 'No tenders match',
+        loadFailed: 'Could not load the tender monitor',
+        loadMore: 'Load more',
+        bidsOfInvited: '{{bids}} of {{invited}}',
+        fields: {
+          tender: 'Tender', organization: 'Buying body', state: 'Status',
+          bids: 'Bids / invited', closes: 'Closes', awarded: 'Award value',
+        },
+      },
+      ministryRfqDetail: {
+        title: 'Tender detail',
+        backToMonitor: '← Back to the tender monitor',
+        readOnly: 'Read-only',
+        tender: 'Tender',
+        items: 'Line items',
+        bids: 'Bids received',
+        noBids: 'No bids submitted yet',
+        noDescription: 'No description recorded',
+        invited: 'Suppliers invited',
+        bidsReceived: 'Bids received',
+        notAwarded: 'Not awarded yet',
+        withheld: 'Withheld',
+        awarded: 'Winning bid',
+        valuesWithheld: 'Commercial values are currently withheld by disclosure policy; counts are shown.',
+        loadFailed: 'Could not load the tender',
+        fields: { supplier: 'Supplier', state: 'Bid status', submitted: 'Submitted', value: 'Bid value' },
+      },
+      ministrySuppliers: {
+        title: 'National Supplier Registry',
+        subtitle: 'Registered suppliers, their categories, and how they participate in tenders.',
+        filterState: 'Standing',
+        filterAll: 'All',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        loadFailed: 'Could not load the registry',
+        loadMore: 'Load more',
+        fields: {
+          supplier: 'Supplier', categories: 'Categories', onboarding: 'Application', standing: 'Standing',
+          bids: 'Bids submitted', won: 'Awards won', registered: 'Registered',
+        },
+      },
+      ministryAwards: {
+        title: 'Awards & Spend',
+        subtitle: 'Award and spend trends by month, category and buying body.',
+        totalAwards: 'Awards',
+        totalValue: 'Total value',
+        withheld: 'Withheld',
+        valuesWithheld: 'Commercial values are currently withheld by disclosure policy; award counts are shown.',
+        byMonth: 'By month',
+        byCategory: 'By category',
+        byOrganization: 'By buying body',
+        categoryNote: 'An award counts once per category its tender touched, so this column can total more than the number of awards.',
+        empty: 'Nothing recorded yet',
+        loadFailed: 'Could not load the analytics',
+        fields: { awards: 'Awards', value: 'Value', month: 'Month', category: 'Category', organization: 'Buying body' },
       },
       categoryCoverage: {
         title: 'Category Coverage',
@@ -2875,8 +3012,11 @@ const resources = {
           proposal: 'Proposal',
           score: 'Score',
           scorePlaceholder: 'Enter a score',
-          commentAr: 'Comment (Arabic)',
-          commentEn: 'Comment (English)',
+          justification: 'Justification',
+          justificationRequired: 'Justification required',
+          justificationPlaceholder: 'Optional justification',
+          justificationPlaceholderRequired: 'Say why you gave this score',
+          justificationMissing: 'This criterion requires a justification before the score can be saved.',
           save: 'Save score',
           saved: 'Score saved',
           submit: 'Submit evaluation',

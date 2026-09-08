@@ -108,4 +108,39 @@ describe('OfferingsPage', () => {
 
     expect(await screen.findByText(/no categories|لا توجد فئات/i)).toBeInTheDocument()
   })
+
+  it('says so when a toggle is refused, instead of failing silently', async () => {
+    // D-66. The checkbox wrote, did not re-tick, and said nothing - on the one screen whose completion
+    // gates the whole application. Reported twice from the walkthrough and still open until now.
+    restore = mockFetch({
+      '/api/v1/suppliers/me': profile({ categories: [] }),
+      '/api/v1/reference/categories': CATEGORIES,
+      '/api/v1/suppliers/me/category-links': { __status: 428 },
+    })
+
+    renderPage(<OfferingsPage />)
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: /catering/i }))
+
+    expect(await screen.findByText('Could not update the category')).toBeInTheDocument()
+  })
+
+  it('re-reads the profile after a successful toggle rather than trusting the response alone', async () => {
+    // The other half of D-66: the tick now comes from a re-read, so it cannot depend on this particular
+    // response having carried the categories collection.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me': profile({ categories: [] }),
+      '/api/v1/reference/categories': CATEGORIES,
+      '/api/v1/suppliers/me/category-links': profile({ categories: ['catering'] }),
+    }, recorded)
+
+    renderPage(<OfferingsPage />)
+    await userEvent.click(await screen.findByRole('checkbox', { name: /catering/i }))
+
+    await vi.waitFor(() => {
+      const reads = recorded.filter((r) => r.method === 'GET' && r.url.endsWith('/api/v1/suppliers/me'))
+      expect(reads.length).toBeGreaterThan(1)
+    })
+  })
 })

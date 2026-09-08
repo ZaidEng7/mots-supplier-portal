@@ -77,6 +77,14 @@ public static class NotificationClassification
 
         // ---- Operations ----
         NotificationTypes.AwardErpFailed,           // a failed sync somebody has to clear
+
+        // ---- Lifecycle (D-67) ----
+        //
+        // Actionable, and the classification is not obvious. It reads like good news - "you are active
+        // again" - but its non-arrival is the expensive kind: a supplier who believes they are still
+        // suspended does not bid, and the tender they skipped does not come back. The same argument D-60
+        // makes for an invitation.
+        NotificationTypes.SupplierReinstated,
     };
 
     /// <summary>

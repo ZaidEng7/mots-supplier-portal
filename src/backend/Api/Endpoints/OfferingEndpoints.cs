@@ -101,7 +101,10 @@ public static class OfferingEndpoints
         // header is not a second concurrency path, it is the one from #96.
         .RequireIfMatch()
         .WithETag()
-        .WithName("UpdateOffering");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("UpdateOffering");
 
         group.MapPost("/{offeringId:guid}/deactivate", async (Guid offeringId, IDeactivateOfferingHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(offeringId, ct)))
@@ -110,7 +113,10 @@ public static class OfferingEndpoints
         // deactivate arriving together must not both silently win.
         .RequireIfMatch()
         .WithETag()
-        .WithName("DeactivateOffering");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("DeactivateOffering");
 
         // FEAT-06.3/FR-OFF-004/FR-SRCH-001: a separate route from /suppliers/me/offerings above -
         // this is procurement staff searching across ALL suppliers' offerings, not a supplier

@@ -148,7 +148,14 @@ test('the route denominator is what the router actually declares, not what this 
   //   /ministry/categories              SCR-604, category coverage
   //   /settings/notifications  and  /account/notifications
   //                                     SCR-901, one screen in each shell, as SCR-907 and SCR-900 are
-  expect(routes.length).toBe(64)
+  //
+  // 68 (phase 4, D-66): the four Ministry oversight screens. This is the widest disclosure in the
+  // product, so it is also the set most worth scanning in Arabic as well as English:
+  //   /ministry/rfqs                    SCR-602, every tender across every buying body
+  //   /ministry/rfqs/$referenceCode     SCR-606, each named bidder and what it bid
+  //   /ministry/suppliers               SCR-601, the registry as an overseer reads it
+  //   /ministry/awards                  SCR-603, award trends and spend
+  expect(routes.length).toBe(68)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
@@ -167,6 +174,9 @@ for (const route of routes) {
       }
       if (route.name === 'reviewApplicationRoute') {
         target = target.replace('$referenceCode', REFERENCE_CODE)
+      }
+      if (route.name === 'ministryRfqDetailRoute') {
+        target = target.replace('$referenceCode', RFQ_REFERENCE_CODE)
       }
       if (route.name === 'rfqDetailRoute' || route.name === 'supplierRfqDetailRoute' || route.name === 'supplierProposalRoute' || route.name === 'myEvaluationRoute' || route.name === 'myEvaluationBriefRoute' || route.name === 'comparisonRoute' || route.name === 'awardRoute') {
         target = target.replace('$referenceCode', RFQ_REFERENCE_CODE)

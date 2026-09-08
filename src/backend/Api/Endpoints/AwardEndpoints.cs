@@ -69,14 +69,20 @@ public static class AwardEndpoints
             MapMutation(await handler.HandleAsync(new RouteAwardForApprovalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardRecommend)
         .RequireIfMatch()
-        .WithName("RouteAwardForApproval");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("RouteAwardForApproval");
 
         group.MapPost("/approve", async (string referenceCode, IApproveAwardHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ApproveAwardCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardApprove)
         .RequireIfMatch()
         .RequireIdempotencyKey()
-        .WithName("ApproveAward");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ApproveAward");
 
         group.MapPost("/reject", async (
             string referenceCode, RejectAwardRequest request, IValidator<RejectAwardRequest> validator,
@@ -89,13 +95,19 @@ public static class AwardEndpoints
         })
         .RequirePermission(Permissions.AwardReject)
         .RequireIfMatch()
-        .WithName("RejectAward");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("RejectAward");
 
         group.MapPost("/execute", async (string referenceCode, IExecuteAwardHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ExecuteAwardCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardApprove)
         .RequireIfMatch()
-        .WithName("ExecuteAward");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ExecuteAward");
 
         group.MapPost("/retry-erp-sync", async (string referenceCode, IRetryErpSyncHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new RetryErpSyncCommand(referenceCode), ct)))

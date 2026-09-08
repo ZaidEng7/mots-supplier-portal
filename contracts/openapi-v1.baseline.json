@@ -3380,6 +3380,19 @@
         ]
       }
     },
+    "/api/v1/ministry/awards": {
+      "get": {
+        "operationId": "GetMinistryAwardAnalytics",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Ministry"
+        ]
+      }
+    },
     "/api/v1/ministry/categories": {
       "get": {
         "operationId": "GetCategoryCoverage",
@@ -3396,6 +3409,139 @@
     "/api/v1/ministry/overview": {
       "get": {
         "operationId": "GetGovernanceOverview",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Ministry"
+        ]
+      }
+    },
+    "/api/v1/ministry/rfqs": {
+      "get": {
+        "operationId": "ListMinistryRfqs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Ministry"
+        ]
+      }
+    },
+    "/api/v1/ministry/rfqs/{referenceCode}": {
+      "get": {
+        "operationId": "GetMinistryRfqDetail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Ministry"
+        ]
+      }
+    },
+    "/api/v1/ministry/suppliers": {
+      "get": {
+        "operationId": "ListMinistrySuppliers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lifecycleState",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
@@ -4091,7 +4237,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -4129,7 +4283,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -4177,7 +4339,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -4564,7 +4734,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -4724,7 +4902,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -4772,7 +4958,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -4974,7 +5168,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5068,7 +5270,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5293,7 +5503,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5331,7 +5549,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5412,7 +5638,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5473,7 +5707,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5521,7 +5763,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -5722,7 +5972,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -6012,7 +6270,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -6050,7 +6316,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -6227,7 +6501,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -6811,7 +7093,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -6859,7 +7149,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -7192,7 +7490,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -7246,7 +7552,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -8950,7 +9264,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"

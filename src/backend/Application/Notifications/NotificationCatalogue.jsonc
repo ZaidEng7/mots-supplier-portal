@@ -377,5 +377,17 @@
     "titleEn": "The RFQ was cancelled",
     "bodyAr": "أُلغي طلب عرض الأسعار {rfqCode}، وبذلك أُغلق عرضك ولن يُقيَّم.",
     "bodyEn": "RFQ {rfqCode} was cancelled, so your proposal is closed and will not be evaluated."
+  },
+  {
+    // D-67. The reverse of BRULE-023's automatic suspension: the replacement document was approved, so
+    // participation is restored. Says WHY, because a supplier told only "you are active again" has no way
+    // to know whether the thing that suspended them is actually resolved.
+    "type": "supplier.reinstated",
+    "source": "drafted",
+    "recipients": "In-app to the supplier's users",
+    "titleAr": "أُعيد تفعيل حسابكم",
+    "titleEn": "Your account is active again",
+    "bodyAr": "اعتُمد المستند البديل، وأُعيد تفعيل المورد {supplierCode}. يمكنكم الآن التقدّم للمناقصات من جديد.",
+    "bodyEn": "The replacement document was approved and supplier {supplierCode} is active again. You can take part in tenders once more."
   }
 ]

@@ -304,7 +304,10 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalEdit)
         .RequireIfMatch()
         .WithETag()
-        .WithName("PatchProposal");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("PatchProposal");
 
         // FEAT-09.3/FR-PRP-004: same inline IFileStorage pattern as RfqEndpoints' attachment upload
         // (no AV-scan quarantine flow here either - see ManageProposalDocumentHandler's own comment).
@@ -384,7 +387,10 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalDecline)
         .RequireIfMatch()
         .WithETag()
-        .WithName("DeclineAwardOffer");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("DeclineAwardOffer");
 
         group.MapPost("/submit", async (string referenceCode, ISubmitProposalHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(new SubmitProposalCommand(referenceCode), ct)))
@@ -394,7 +400,10 @@ public static class ProposalEndpoints
         // award.approve, rfq.publish". This is the one the document names first, and the one a
         // double-click actually threatens.
         .RequireIdempotencyKey()
-        .WithName("SubmitProposal");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("SubmitProposal");
 
         group.MapPost("/withdraw", async (
             string referenceCode,
@@ -410,7 +419,10 @@ public static class ProposalEndpoints
         })
         .RequirePermission(Permissions.ProposalWithdraw)
         .RequireIfMatch()
-        .WithName("WithdrawProposal");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("WithdrawProposal");
 
         // T-051, §4.1: UnderReview -> ClarificationRequested. Buyer-side, so rfq.clarify - the same
         // permission the RFQ-level clarification already uses, not a new one.
@@ -452,6 +464,9 @@ public static class ProposalEndpoints
             MapResult(await handler.HandleAsync(new ReviseProposalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.ProposalRevise)
         .RequireIfMatch()
-        .WithName("ReviseProposal");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ReviseProposal");
     }
 }

@@ -21,6 +21,9 @@ export function MyEvaluationPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  /* Kept apart from the score drafts rather than folded into one object: a criterion can have a comment
+     with no score typed yet, and the save button reads the two conditions separately. */
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
 
   /**
@@ -71,9 +74,23 @@ export function MyEvaluationPage() {
   const errorMessage = (err: unknown, fallback: string) =>
     err instanceof EvaluationApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof EvaluationApiError ? err.message : fallback
 
+  /**
+   * BRULE-061's comment travels with the score, in ONE language - whichever the evaluator is working in.
+   *
+   * <p>The domain accepts either and requires neither to be translated, and that is deliberate: this is
+   * internal evidence for a procurement file, written by the person making the judgment and read by the
+   * committee and later by an auditor. Demanding both languages from an evaluator would produce a
+   * machine-translated second copy or stop the score being recorded at all.</p>
+   */
   const scoreMutation = useMutation({
-    mutationFn: ({ proposalCode, criterionId, rawScore }: { proposalCode: string; criterionId: string; rawScore: number }) =>
-      scoreCriterion(referenceCode, { proposalCode, criterionId, rawScore, commentAr: null, commentEn: null }),
+    mutationFn: ({ proposalCode, criterionId, rawScore, comment }: { proposalCode: string; criterionId: string; rawScore: number; comment: string }) =>
+      scoreCriterion(referenceCode, {
+        proposalCode,
+        criterionId,
+        rawScore,
+        commentAr: i18n.language.startsWith('ar') ? (comment.trim() || null) : null,
+        commentEn: i18n.language.startsWith('ar') ? null : (comment.trim() || null),
+      }),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('evaluation.my.saved') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluation.my.errors.scoreFailed')) }),
   })
@@ -278,31 +295,55 @@ export function MyEvaluationPage() {
                 const existing = scoreFor(proposalCode, criterion.id)
                 const key = draftKey(proposalCode, criterion.id)
                 const value = drafts[key] ?? (existing ? String(existing.rawScore) : '')
+                const savedComment = (isArabic ? existing?.commentAr : existing?.commentEn)
+                  ?? existing?.commentEn ?? existing?.commentAr ?? ''
+                const comment = commentDrafts[key] ?? savedComment
+                /* BRULE-061: a criterion that requires justification cannot be saved without one. The
+                   domain refuses it either way; the point of checking here is that the evaluator learns
+                   it from the button rather than from a red toast after the score is typed. */
+                const justificationMissing = (criterion.requiresJustification ?? false) && comment.trim() === ''
                 return (
-                  <div key={criterion.id} className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-40">{criterion.nameEn}</span>
-                    <Badge tone={criterion.isFinancial ? 'warning' : 'info'}>
-                      {criterion.isFinancial ? t('evaluation.financialEnvelope') : t('evaluation.technicalEnvelope')}
-                    </Badge>
-                    <Input
-                      type="number"
-                      aria-label={`${t('evaluation.my.score')}: ${criterion.nameEn}`}
-                      placeholder={t('evaluation.my.scorePlaceholder')}
-                      value={value}
-                      disabled={locked || isSubmitted}
-                      title={locked ? t('evaluation.my.financialLocked') : undefined}
-                      onChange={(e) => setDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
-                      className="w-24"
-                    />
-                    <Button
-                      size="sm"
-                      disabled={locked || isSubmitted || value === ''}
-                      isLoading={scoreMutation.isPending}
-                      onClick={() => scoreMutation.mutate({ proposalCode, criterionId: criterion.id, rawScore: Number(value) })}
-                    >
-                      {t('evaluation.my.save')}
-                    </Button>
-                    {locked ? <span style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.financialLocked')}</span> : null}
+                  <div key={criterion.id} className="flex flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-40">{isArabic ? criterion.nameAr : criterion.nameEn}</span>
+                      <Badge tone={criterion.isFinancial ? 'warning' : 'info'}>
+                        {criterion.isFinancial ? t('evaluation.financialEnvelope') : t('evaluation.technicalEnvelope')}
+                      </Badge>
+                      {criterion.requiresJustification ? (
+                        <Badge tone="info">{t('evaluation.my.justificationRequired')}</Badge>
+                      ) : null}
+                      <Input
+                        type="number"
+                        aria-label={`${t('evaluation.my.score')}: ${isArabic ? criterion.nameAr : criterion.nameEn}`}
+                        placeholder={t('evaluation.my.scorePlaceholder')}
+                        value={value}
+                        disabled={locked || isSubmitted}
+                        title={locked ? t('evaluation.my.financialLocked') : undefined}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                        className="w-24"
+                      />
+                      <Input
+                        aria-label={`${t('evaluation.my.justification')}: ${isArabic ? criterion.nameAr : criterion.nameEn}`}
+                        placeholder={criterion.requiresJustification ? t('evaluation.my.justificationPlaceholderRequired') : t('evaluation.my.justificationPlaceholder')}
+                        value={comment}
+                        disabled={locked || isSubmitted}
+                        onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={locked || isSubmitted || value === '' || justificationMissing}
+                        isLoading={scoreMutation.isPending}
+                        onClick={() => scoreMutation.mutate({ proposalCode, criterionId: criterion.id, rawScore: Number(value), comment })}
+                      >
+                        {t('evaluation.my.save')}
+                      </Button>
+                      {locked ? <span style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.financialLocked')}</span> : null}
+                    </div>
+                    {justificationMissing && !locked && !isSubmitted ? (
+                      <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+                        {t('evaluation.my.justificationMissing')}
+                      </span>
+                    ) : null}
                   </div>
                 )
               })}

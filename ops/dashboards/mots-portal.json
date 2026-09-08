@@ -1,0 +1,168 @@
+{
+  "__comment": "Grafana dashboard for the MOTS Supplier Portal. Every panel queries an instrument the application actually publishes - ASP.NET Core's own http_server_request_duration_seconds, AppMetrics' mots_rate_limit_rejections_total, and OutboxBacklogGauge's mots_outbox_backlog. Import with the Prometheus datasource that scrapes /metrics. See ops/README.md for what this does and does not show.",
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "Is it up, and is it answering",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Requests per second",
+      "description": "All routes. A drop to zero on a weekday is the first thing to notice, and it is not the same as the process being down.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count[5m]))",
+          "legendFormat": "rps",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "decimals": 2 }, "overrides": [] }
+    },
+    {
+      "type": "stat",
+      "title": "5xx share",
+      "description": "A ratio, not a count: a fixed count reads as calm on a quiet night in which everything is broken. The MotsPortalServerErrors alert pages above 2%.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 0.001)",
+          "legendFormat": "5xx / all",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.005 },
+              { "color": "red", "value": 0.02 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Read latency p95 by route",
+      "description": "Reads only, and that is a limitation rather than a choice: perf/BASELINE.md covers 18 reads and no write path has been measured (P12 item 22). Do not read this panel as a write-path SLO.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "topk(8, histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{http_request_method=\"GET\"}[5m]))))",
+          "legendFormat": "{{http_route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "type": "row",
+      "title": "The two failure modes this product actually has",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Precondition refusals (428) and stale versions (412)",
+      "description": "428 means the SPA sent a guarded write with no If-Match - a transport bug, not a user mistake. Batch 13 found five separate causes, each invisible until somebody pressed a button. 412 is the honest case: two people editing one record.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=\"428\"}[5m]))",
+          "legendFormat": "428 IF_MATCH_REQUIRED",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=\"412\"}[5m]))",
+          "legendFormat": "412 ETAG_MISMATCH",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Notification outbox backlog",
+      "description": "Pending rows. A burst is normal; a floor that does not fall is the dispatcher stuck, and nobody is being notified even though nothing has been lost.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "targets": [
+        { "expr": "mots_outbox_backlog", "legendFormat": "pending", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "Security surfaces",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate-limit rejections by surface",
+      "description": "The limiter working is the system defending itself, so this is a watch rather than a page. Per-target on login is somebody being attacked; per-ip is usually one misbehaving client.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "targets": [
+        {
+          "expr": "sum by (surface, layer) (rate(mots_rate_limit_rejections_total[5m]))",
+          "legendFormat": "{{surface}} / {{layer}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Refusals: 401, 403 and 429",
+      "description": "A step change in 403 usually means a permission or a role seed moved - AuthorizationFuzzTests proves the gates refuse the wrong persona, not that the right one still gets through.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "targets": [
+        {
+          "expr": "sum by (http_response_status_code) (rate(http_server_request_duration_seconds_count{http_response_status_code=~\"401|403|429\"}[5m]))",
+          "legendFormat": "{{http_response_status_code}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["mots", "supplier-portal"],
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "label": "Prometheus",
+        "query": "prometheus",
+        "current": {}
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "MOTS Supplier Portal",
+  "uid": "mots-supplier-portal",
+  "version": 1
+}

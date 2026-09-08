@@ -180,6 +180,73 @@ public sealed class IfMatchPreconditionSweepTests(PostgresApiFixture fixture)
     private static string Normalise(string template) =>
         System.Text.RegularExpressions.Regex.Replace(template, @"\{([^}:]+)(:[^}]+)?\}", "{$1}").TrimEnd('/');
 
+
+    /// <summary>
+    /// Writes that demand a version and do not hand back the new one - P12 item 26, T-030's fourth split,
+    /// measured rather than guessed at.
+    ///
+    /// <para><b>Why it matters.</b> The SPA drops its cached version the moment a mutation succeeds, because a
+    /// kept version is stale by definition. If the response carries no fresh ETag the next write on that
+    /// aggregate has nothing to send, and the user meets a 428 on their SECOND edit - which is exactly the
+    /// defect T-030's third split fixed for the supplier profile, one aggregate at a time.</para>
+    ///
+    /// <para>The exemptions are the honest part. A route whose response body carries no version cannot emit
+    /// one, and <c>WithFreshETag</c> on it would be decoration: the filter looks for a <c>RowVersion</c>
+    /// property and does nothing when there is none. Those are named below with what they return, so the list
+    /// is a work item rather than an alibi - closing one means widening a DTO, which is a contract change.</para>
+    /// </summary>
+    [Fact]
+    public void Every_guarded_write_that_can_return_a_fresh_version_does()
+    {
+        var endpoints = fixture.Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<RequiresIfMatchMetadata>() is not null)
+            .ToList();
+
+        endpoints.Should().HaveCountGreaterThan(30);
+
+        var missing = endpoints
+            .Where(e => e.Metadata.GetMetadata<EmitsETagMetadata>() is null)
+            .Select(e => $"{string.Join("/", Methods(e))} {Normalise(e.RoutePattern.RawText!)}")
+            .Where(key => !NoVersionOnTheResponse.ContainsKey(key))
+            .OrderBy(k => k, StringComparer.Ordinal)
+            .ToList();
+
+        missing.Should().BeEmpty(
+            "these writes demand a precondition and return no new version, so a second edit on the same "
+            + "aggregate has nothing to send:\n  " + string.Join("\n  ", missing));
+
+        // And the exemptions are checked in the other direction: one that HAS gained a fresh ETag is an entry
+        // that should go, or the list stops describing the product.
+        var stale = NoVersionOnTheResponse.Keys
+            .Where(key => endpoints.Any(e =>
+                $"{string.Join("/", Methods(e))} {Normalise(e.RoutePattern.RawText!)}" == key
+                && e.Metadata.GetMetadata<EmitsETagMetadata>() is not null))
+            .ToList();
+
+        stale.Should().BeEmpty("these now emit a fresh ETag, so their exemptions are describing the past: "
+            + string.Join(", ", stale));
+    }
+
+    /// <summary>
+    /// Guarded writes whose response body carries no version, so there is nothing for a fresh ETag to be made
+    /// from. Each entry says what the route returns instead - that is what a fix would have to change.
+    ///
+    /// <para>P12 item 26's remaining work, in one place. Every one of these is a second-edit 428 waiting for a
+    /// user who does two things in a row without a re-read in between; the SPA hides it today by refetching
+    /// after a mutation, which is a screen-by-screen habit rather than a property of the transport.</para>
+    /// </summary>
+    private static readonly Dictionary<string, string> NoVersionOnTheResponse = new(StringComparer.Ordinal)
+    {
+        ["POST /api/v1/suppliers/{supplierCode}/documents/{documentCode}/approve"] =
+            "Returns SupplierDocumentDto, which carries no version at all - the filter looks for a RowVersion "
+            + "property and would do nothing here. Closing this means putting the SUPPLIER's version on a "
+            + "document response, which is a contract change and a decision about what that DTO is for. The "
+            + "reviewer's screen refetches after each decision, which is why the gap has not been felt.",
+        ["POST /api/v1/suppliers/{supplierCode}/documents/{documentCode}/reject"] =
+            "The same DTO and the same argument as the approve above.",
+    };
+
     private static IReadOnlyList<string> Methods(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()?.HttpMethods ?? [];
 
