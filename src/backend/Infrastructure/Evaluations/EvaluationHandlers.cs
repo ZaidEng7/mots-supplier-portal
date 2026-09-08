@@ -619,13 +619,24 @@ public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope,
         // the audit row is only written when a transition genuinely happened, not on every
         // subsequent GET once already InProgress.
         var fromState = evaluation.State;
-        try
+        // Opening scoring is a transition, and a READ must not be refused because the transition is no
+        // longer available. Once this evaluator had submitted, the evaluation sat at EvaluatorSubmitted,
+        // OpenScoring threw, and the GET answered 400 - so an evaluator could not look at the scores they
+        // had just submitted, and the dashboard's own "View evaluation" link led nowhere. The same refusal
+        // closed the post-consolidation window this file's own comments describe, where bidder names are
+        // revealed: unreachable, because the read threw before reaching it.
+        //
+        // The transition still happens on exactly the states it was written for. Everything else reads.
+        if (evaluation.State is EvaluationState.Assigned or EvaluationState.InProgress)
         {
-            evaluation.OpenScoring(scope.UserId!.Value);
-        }
-        catch (DomainException ex)
-        {
-            return new MyEvaluationResult.InvalidState(ex.Message);
+            try
+            {
+                evaluation.OpenScoring(scope.UserId!.Value);
+            }
+            catch (DomainException ex)
+            {
+                return new MyEvaluationResult.InvalidState(ex.Message);
+            }
         }
         if (evaluation.State != fromState)
         {

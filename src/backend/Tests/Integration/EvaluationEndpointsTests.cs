@@ -164,6 +164,49 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         body.GetProperty("detail").GetString().Should().Contain("not yet passed technical qualification");
     }
 
+    /// <summary>
+    /// An evaluator can still READ their evaluation after submitting it.
+    ///
+    /// <para>Found by an evaluator pressing "View evaluation" on their own dashboard, on the
+    /// assignment they had just submitted, and being told "You are not assigned to this evaluation".
+    /// They were assigned. The GET answered 400: reading this endpoint also OPENS scoring, and once
+    /// the evaluation had reached EvaluatorSubmitted that transition was no longer legal, so the
+    /// whole read was refused.</para>
+    ///
+    /// <para>The same refusal closed the post-consolidation window this file's own handler documents,
+    /// where bidder names are revealed to the evaluator - unreachable, because the read threw before
+    /// it could reveal anything.</para>
+    /// </summary>
+    [Fact]
+    public async Task An_evaluator_can_still_read_their_evaluation_after_submitting_it()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "ReadBack");
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        Guid criterionId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            criterionId = await db.EvaluationCriterionSnapshots
+                .Where(c => c.EvaluationId == seeded.EvaluationId).Select(c => c.Id).FirstAsync();
+        }
+
+        await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new { proposalCode = seeded.ProposalCode, criterionId, rawScore = 82m, commentAr = (string?)null, commentEn = (string?)null });
+        var submit = await seeded.Evaluator.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/submit", null);
+        submit.StatusCode.Should().Be(HttpStatusCode.OK, await submit.Content.ReadAsStringAsync());
+
+        var readBack = await seeded.Evaluator.GetAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation");
+
+        readBack.StatusCode.Should().Be(HttpStatusCode.OK, await readBack.Content.ReadAsStringAsync());
+        var body = await readBack.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("submittedAt").ValueKind.Should().NotBe(JsonValueKind.Null,
+            "the read must show the submission it is being read after");
+        body.GetProperty("myScores").EnumerateArray().Should().ContainSingle(
+            "the score that was submitted is the whole reason for reading it again");
+    }
+
     /// <summary>The report's own required proof: once a proposal is disqualified (technical score
     /// below threshold), its pricing is unreachable through every scoring endpoint that exists -
     /// not merely refused for one attempt, but never readable at all through this evaluator's own
