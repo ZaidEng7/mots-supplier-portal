@@ -1,6 +1,9 @@
 # MOTS Supplier Portal — progress
 
-> **Taken at:** `main` @ `ba2dde2`, 2026-09-07, immediately after PR #118 merged.
+> **Taken at:** `main` @ `f070d9e`, 2026-09-08, after PR #120 (batch 13) merged.
+> **Batch 13 changed no epic's status and is the most important thing in this document.** It closed
+> thirteen defects found by a person walking the product by hand, several of them inside epics this
+> table already called Closed. See §5.2 — the reconciliation in §4 gains a fourth view because of it.
 > **Produced from source**, not from the previous editions of this table. Every verdict below names
 > the file, route, endpoint or PR that justifies it, and anything that could not be settled from
 > source is marked **Unresolved** rather than guessed.
@@ -21,13 +24,16 @@
 | Screens: missing | **3** — SCR-307, SCR-402, SCR-604 |
 | Screens: refused by decision | **5** — SCR-901, SCR-601, SCR-602, SCR-603, SCR-606 |
 | Screens: unresolved | **1** — SCR-501 |
-| Hand-written application code | **66,976 lines** production · **42,401** test · **161,144** generated |
-| Blocked on somebody else | **7 questions** (§7) |
-| Merged PRs | #79 → #118 in this record; the current batch is #118 |
+| Hand-written application code | **67,616 lines** production · **43,278** test · **161,324** generated |
+| Blocked on somebody else | **6 questions** (§7) — F-8's was answered as D-56 |
+| Merged PRs | #79 → #120 in this record; the current batch is #120 |
+| Walkthrough findings | **13 raised, 12 fixed, 1 answered** (`WALKTHROUGH-FINDINGS.md`) |
 
-**The single most important thing in this document is §5.** Every test suite in this repository was
-green while a clean install could not complete one tender. Five separate defects stood between an
-empty database and one finished award, and not one suite could see any of them.
+**The single most important thing in this document is §5**, and batch 13 doubled it. Every test suite
+in this repository was green while a clean install could not complete one tender (§5.1, batch 12) —
+and then, with those five fixed, while **no tender with more than one line item could be bid on at
+all** (§5.2, batch 13). Both were found by driving the product, neither by reading it, and the second
+was found in a state the first had already certified as working.
 
 ---
 
@@ -143,6 +149,15 @@ somebody could sit down in front of a fresh deployment and do this. Nobody could
 first evidence in this project that the end-to-end journey works from nothing, which is why it is a
 deliverable rather than a test.
 
+**And batch 13 narrowed them again, one day later.** Until `f070d9e`, a proposal could carry a price
+for exactly one line item — the second answered a 500 (§5.2). So M4, "an invited supplier submits a
+guarded, revisable proposal", was true only of **single-line tenders**, and no real ministry tender is
+one line. The walkthrough that certified M4 priced one line, because the tender it authored had one.
+
+That is not a reason to distrust the milestone. It is the reason a milestone should name the case it
+was demonstrated on: **M4 and M6 were demonstrated on a one-line tender until 2026-09-08, and on a
+three-line tender after it.**
+
 ---
 
 ## 4. Reconciling the three views
@@ -169,6 +184,33 @@ tested and unreachable. So the honest rule is:
 > populated data.** Anything else — an epic marked closed, a phase gate passed, an inventory row
 > marked Built — is a claim about the code, not about the product.
 
+### The fourth view, added after batch 13
+
+The three views above all count **surfaces**. None of them counts whether the surface can be *used in
+sequence*, and batch 13 is what that omission costs.
+
+Every one of its twelve defects sat inside an epic marked Closed, in a phase marked Closed, against
+inventory rows marked Built — and the product could not price a second line item, correct a tender,
+renew an expiring document, or let a reviewer look at a decision they had made. Closing them changed
+no verdict anywhere in this document, which is precisely the problem: **the instruments had nothing to
+say either way.**
+
+| View | Answers | Blind to |
+|---|---|---|
+| Epics | is the capability built | whether it works |
+| Phases | did the sequence reach here | whether it can be walked again |
+| Screens | does the surface exist | whether the surface is reachable, or lies |
+| **Walking it** | can a person do the job | nothing — but it costs a person a day, and only covers the path they took |
+
+The two walkthroughs are the only instrument that has ever answered the fourth question, and each
+found defects the others certified as absent. That is an argument for walking the product before
+every release, not for distrusting the other three: an epic table is a plan, and a plan is not a
+demonstration.
+
+**And a walk only covers the path walked.** Batch 12's automated walk found none of batch 13's
+thirteen, because it presses the buttons it was written to press. The person found them by pressing
+the one beside it, mistyping a date, and going back to a screen the script visits once.
+
 Batch 11 adopted that standard for its 34 screens and found eight defects with it. Batch 12 turned
 half of it into a test (`router.test.tsx`, §6). The other half — "renders populated data" — is still
 done by eye, and the walkthrough is how.
@@ -190,7 +232,9 @@ source today:
 
 ---
 
-## 5. The batch-12 finding
+## 5. What driving the product finds that reading it does not
+
+### 5.1 The batch-12 finding
 
 **Every test suite was green while a clean install could not run a tender.**
 
@@ -241,6 +285,42 @@ The five were found in one afternoon of driving the product, by somebody who had
 passing in another window.
 
 ---
+
+### 5.2 The batch-13 finding: the suites were green again, and a multi-line tender was unbiddable
+
+Batch 12 fixed the five blockers above and left every suite green. A person then walked the product
+by hand a second time — same path, same personas, from an empty database — and found **thirteen more
+things**, twelve of them defects. `WALKTHROUGH-FINDINGS.md` carries all thirteen with the evidence.
+
+**The one that matters most:** pricing the second line item of a proposal answered
+`23505 duplicate key value violates unique constraint "PK_proposal_item"`. The patch handler told the
+change tracker about every line in the array, including ones already stored, so saving the second
+issued an INSERT carrying the first's primary key.
+
+It cannot fire on the first line — RFC 7396 replaces an array wholesale, so the client resends what
+it wants kept, and the first write on an empty proposal has nothing to re-add. **Every test in the
+proposal suite priced exactly one line. So did every run of the automated walkthrough.** A defect that
+made any real tender unbiddable sat behind a suite that could not reach it, in an epic this document
+called Closed, one batch after a walkthrough certified the end-to-end journey.
+
+**The other twelve, grouped by what they say about the instruments:**
+
+| Kind | Findings | What the instruments could not see |
+|---|---|---|
+| A capability with no screen | no editor for a Draft tender; items and requirements addable and removable but not correctable | `PUT /rfqs/{code}` and `updateRfqBasics` both existed and nothing called either. Nothing asks whether an exported API function is reachable from a screen |
+| A precondition nothing supplies | the reviewer's document decisions; offering edit and deactivate; adding a contact | Four separate 428s with four different causes. Each guard was correct; each read that should have issued the version either did not, or filed it where the write could not walk to it |
+| An affordance the state forbids | the admin's procurement links; the supplier shell with no supplier guard; sign-in routing an administrator to the evaluator's dashboard | Every one of them gates on a permission, and `system_admin` holds all 104 |
+| A rule that was true and invisible | an approved supplier could change nothing about itself, including renewing a document the product was warning them was expiring | The domain refused it correctly. No screen said so, and no reviewer could reopen them either |
+
+**The pattern worth carrying forward.** Five of the thirteen were the same question — *where does the
+version come from, and does anything actually fetch it* — with four different answers. That is now
+the strongest candidate for a systematic pass: every route declaring `RequireIfMatch`, checked
+against whether any client read supplies its precondition. Four were found by a person pressing
+buttons; nobody knows how many remain.
+
+**What batch 13 did not change: any epic's status.** Every defect above sat inside an epic already
+marked Closed, and closing them changed no verdict in §1. That is the finding, not a footnote — see
+§4, which now carries it.
 
 ## 6. The router guard — a class, not an instance
 
@@ -300,6 +380,18 @@ somebody who owns the policy, and each has been refused rather than invented.
 Plus **OQ-014** (the scope of AV scanning), which is answered *provisionally* by A-11's fail-closed
 default and does not block anything.
 
+**Answered since this list was written:** whether an addendum may carry the revised document, raised
+when a tender was published with the wrong file attached and no route existed to correct it. Ruled
+**no** — D-56. A published tender's attachments stay locked, because bidders price against what they
+downloaded; the remedy is to cancel and re-author, and the screen now says so before the officer
+attaches anything.
+
+**Left open by batch 13, and belonging to the same owners:** whether approving a renewed document
+should automatically reinstate a supplier that an expiry suspended (§5.2's renewal path makes the
+question live for the first time), and whether a platform administrator should read across every
+organization's live procurements — the same question BRULE-086 answers for the Ministry, currently
+resolved by hiding the links rather than widening the grant.
+
 ---
 
 ## 8. What is genuinely left, with sizes
@@ -316,11 +408,16 @@ default and does not block anything.
 | SCR-307 + SCR-402 supplier directory | EPIC-03, 21 | **S** each | `/back-office/search` finds suppliers; neither persona has a directory screen |
 | SCR-501 | EPIC-11 | **S**, after the question | Blocked on #6 above |
 | SCR-901 | EPIC-15 | **M**, after the question | Blocked on #4 above |
-| Arabic review pass | EPIC-27 | — | Blocked on #7 above |
+| Arabic review pass | EPIC-27 | — | Blocked on #7 above. Batch 13 added drafted strings for the tender-details editor, the close-reason prompt and the attachment warning |
+| **A sweep of every `RequireIfMatch` route** | cross-cutting | **M** | The strongest instrument-shaped item on this list. Five of batch 13's thirteen findings were "the guard is right and nothing supplies its precondition", with four different causes. Each was found by a person pressing a button; nobody knows how many remain |
+| **A reachability check for API functions** | cross-cutting | **S** | Batch 12's router test catches a screen nothing links to. Nothing catches a capability no screen exposes — `PUT /rfqs/{code}` sat unused with its client function beside it. Same two-list shape: every export in `api/*.ts` is referenced outside `api/`, or listed as deliberately not surfaced |
 
-**Ranked by what most changes whether the product can be used:** none of them. Every blocker to
-running a tender end to end was closed in batch 12. What remains is either somebody else's
-integration, somebody else's decision, or the verification work P12 exists to do.
+**Ranked by what most changes whether the product can be used:** none of them, with the caveat batch
+13 earned. Batch 12 closed every blocker to running a tender end to end *as the walkthrough walked
+it*; batch 13 then found twelve more by walking it differently, including one that made a multi-line
+tender unbiddable. What remains on this list is somebody else's integration, somebody else's
+decision, or P12's verification work — plus the two cross-cutting sweeps, which exist precisely
+because the last two batches suggest more of the same is sitting in code nobody has clicked.
 
 ---
 
@@ -332,20 +429,23 @@ list. Blank and comment lines are **not** separated; these are physical lines.
 
 | Bucket | Files | Lines | What is in it |
 |---|---:|---:|---|
-| **Production** | 551 | **66,976** | Hand-written application source |
-| **Test** | 268 | **42,401** | Everything under a test directory or named as a test |
-| **Walkthrough** | 6 | 2,632 | The driver, its scripts, and the generated guide |
-| **Generated** | 118 | 161,144 | EF migrations with their Designer and snapshot files, `package-lock.json`, the captured OpenAPI baseline |
-| **Docs** | 49 | 18,305 | Markdown, including `docs/` |
-| **Total** | 992 | **291,458** | 102 binary/asset files not counted |
+| **Production** | 551 | **67,616** | Hand-written application source |
+| **Test** | 269 | **43,278** | Everything under a test directory or named as a test |
+| **Walkthrough** | 9 | 3,121 | The driver, its scripts, the generated guide, and the `.docx` generator |
+| **Generated** | 118 | 161,324 | EF migrations with their Designer and snapshot files, `package-lock.json`, the captured OpenAPI baseline |
+| **Docs** | 51 | 19,181 | Markdown, including `docs/` |
+| **Total** | 998 | **294,520** | 103 binary/asset files not counted |
+
+Batch 13 moved production by **+640** lines and tests by **+877** — more test than product, which is
+what a batch of thirteen fixes with a regression test each looks like.
 
 ### Production, by language
 
 | Language | Files | Lines |
 |---|---:|---:|
-| C# | 366 | 39,184 |
-| TypeScript (TSX) | 94 | 15,176 |
-| TypeScript | 62 | 8,666 |
+| C# | 366 | 39,422 |
+| TypeScript (TSX) | 94 | 15,460 |
+| TypeScript | 62 | 8,775 |
 | JSON | 13 | 1,758 |
 | YAML (CI) | 2 | 1,135 |
 | CSS | 2 | 263 |
@@ -356,9 +456,9 @@ list. Blank and comment lines are **not** separated; these are physical lines.
 
 | Language | Files | Lines |
 |---|---:|---:|
-| C# | 180 | 31,544 |
-| TypeScript (TSX) | 64 | 8,465 |
-| TypeScript | 21 | 2,297 |
+| C# | 181 | 32,094 |
+| TypeScript (TSX) | 64 | 8,698 |
+| TypeScript | 21 | 2,391 |
 
 ### What the generated figure means
 
@@ -367,14 +467,33 @@ are C# under `Migrations/`: 57 migrations, each with a `.Designer.cs` and the mo
 it, every one of which restates the entire model. The remaining 19,851 are `package-lock.json` and
 the captured OpenAPI baseline.
 
-**The honest answer to "how much application code is there" is 66,976 lines**, against 42,401 lines
-of tests — a test-to-production ratio of **0.63:1**. The two largest hand-written files are
+**The honest answer to "how much application code is there" is 67,616 lines**, against 43,278 lines
+of tests — a test-to-production ratio of **0.64:1**. The two largest hand-written files are
 `i18n/config.ts` at 3,444 lines (every string in the product, in both languages) and
 `AppDbContext.cs` at 1,255.
 
 ---
 
 ## 10. What changed in this edition
+
+### Batch 13 (PR #120, 2026-09-08)
+
+**No epic, phase or milestone verdict moved**, and §5.2 explains why that is the finding rather than
+a quiet edition. What changed:
+
+- **§5** became "what driving the product finds that reading it does not", with the batch-12 five as
+  §5.1 and batch 13's thirteen as §5.2.
+- **§4 gained a fourth view.** The three counting views are all blind to whether a surface can be used
+  in sequence; the walk is the only instrument that has ever answered it, and it only covers the path
+  taken.
+- **§3's milestone caveat narrowed again**: M4 and M6 were demonstrated on a one-line tender until
+  2026-09-08, because until then a second line could not be priced.
+- **§7** records D-56 as answered, and adds the two questions batch 13 raised.
+- **§8** gained the two cross-cutting sweeps — every `RequireIfMatch` route against a read that
+  supplies it, and every `api/*.ts` export against a screen that calls it.
+- **§9** recounted: production 67,616 (+640), tests 43,278 (+877).
+
+### Batch 12 (PR #118, 2026-09-07)
 
 Rewritten from source rather than edited, because several statuses were written at different times by
 different batches and had gone stale in the same direction — work landed and the table did not move.
