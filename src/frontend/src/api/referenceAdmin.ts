@@ -68,7 +68,7 @@ export async function setReferenceItemActive(table: ReferenceTable, code: string
   return parseOrThrow(await apiFetch(`/api/v1/admin/reference/${table}/${encodeURIComponent(code)}/${action}`, { method: 'POST' }))
 }
 
-/** BRULE-016. Which categories a document type is required for — recorded, and read by nothing yet. */
+/** BRULE-016. Which categories a document type is required for. Read by every gate since D-59. */
 export interface DocumentTypeCategoryLinks {
   documentTypeCode: string
   /** Empty means no links recorded, which is NOT the same as "required for nothing" — see the endpoint. */

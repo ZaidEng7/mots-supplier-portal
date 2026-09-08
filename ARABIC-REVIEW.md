@@ -625,3 +625,12 @@ register and none is approved. `[reused]` marks a term §7 or an approved block 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
 | `ministry.unlabelledLifecycle` | Suppliers before approval | موردون قبل الاعتماد | [drafted] **Screen copy, deliberately NOT a §7 state label.** `SupplierLifecycleState.None` reached the Ministry's governance screen as the literal word "None". My first attempt authored `status.onboarding.None` — and `StatusChip.test.tsx`'s coverage guard refused it, correctly: §7.1 has no row for that member, and a state label is the document's to write, not mine. So the wording moved to this screen's own caption, which says what the group counts without claiming to name a status. If §7.1 ever gains a row for `None`, the label belongs there and this fallback becomes dead |
+
+### Phase 1 · BRULE-016 goes live (D-59)
+
+One string was rewritten rather than added: `referenceAdmin.categoryLinksExplained` used to explain that
+category links were recorded and not applied, which stopped being true the moment they were.
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `referenceAdmin.categoryLinksExplained` | A category link narrows a document type to suppliers in those categories. A type with no links stays required of every supplier. Changes take effect immediately, including for suppliers already approved. | ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً. | [drafted] **replaces the previous text, which said the links were not yet applied.** Three sentences because three separate facts an administrator cannot infer from the chips: what a link does, what NO link does, and that the change is retroactive. «يقصر … على» for "narrows to" rather than «يحدّد», which reads as "specifies" and loses the restriction |

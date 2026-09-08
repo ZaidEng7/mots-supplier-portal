@@ -81,8 +81,9 @@ public static class ReferenceDataAdminEndpoints
         .RequirePermission(Permissions.ReferenceDataManage)
         .WithName("CreateReferenceItem");
 
-        // BRULE-016. The links are recorded here and read by NOTHING - see DocumentTypeCategory for the two
-        // decisions that come before any gate derives the required set from them. Not on the /{table} group
+        // BRULE-016. The links are recorded here and, since D-59, are what conditions a supplier's required
+        // document set - RequiredDocumentTypeResolver reads them. Recording a link NARROWS a type to the
+        // categories named; a type with no links stays required of everyone. Not on the /{table} group
         // because it is document-types only.
         app.MapGet("/api/v1/admin/document-type-categories", async (
             IGetDocumentTypeCategoriesHandler handler, CancellationToken ct) =>

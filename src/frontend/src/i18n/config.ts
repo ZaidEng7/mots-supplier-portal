@@ -222,7 +222,7 @@ const resources = {
       referenceAdmin: {
         // ── BRULE-016 · ARABIC FOR REVIEW ───────────────────────────────────────
         linksSaved: 'تم تحديث ارتباط التصنيفات',                 // [drafted] BRULE-016
-        categoryLinksExplained: 'ارتباط نوع المستند بالتصنيفات يُسجَّل هنا ولا يُطبَّق بعد: قائمة المستندات المطلوبة ما تزال واحدة لكل الموردين. تطبيقه يغيّر معنى «مكتمل» لكل مورد، ويحتاج قراراً بشأن الموردين المعتمدين سابقاً.', // [drafted]
+        categoryLinksExplained: 'ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً.', // [drafted] BRULE-016 · D-59
         // ── BRULE-023 · ARABIC FOR REVIEW ───────────────────────────────────────
         awardCritical: 'حرج للترسية',                          // [drafted] BRULE-023
         setAwardCritical: 'تحديده كحرج للترسية',                // [drafted]
@@ -1979,7 +1979,7 @@ const resources = {
       },
       referenceAdmin: {
         linksSaved: 'Category links updated',
-        categoryLinksExplained: 'These category links are recorded and not yet applied: the required-document list is still the same for every supplier. Applying them changes what “complete” means for everyone, and needs a decision about suppliers already approved under the flat list.',
+        categoryLinksExplained: 'A category link narrows a document type to suppliers in those categories. A type with no links stays required of every supplier. Changes take effect immediately, including for suppliers already approved.',
         awardCritical: 'Award-critical',
         setAwardCritical: 'Mark award-critical',
         clearAwardCritical: 'Remove award-critical',

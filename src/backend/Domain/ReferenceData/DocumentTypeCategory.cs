@@ -1,28 +1,25 @@
 namespace MotsSupplierPortal.Domain.ReferenceData;
 
 /// <summary>
-/// BRULE-016's missing shape: which categories a document type is required for.
+/// BRULE-016: which categories a document type is required for.
 ///
 /// <para><b>The rule says required documents are conditioned on the supplier's categories, and the schema
 /// could not express that at all.</b> `DocumentType` has no category field and no collection - the condition
 /// was not merely unapplied, it was unrepresentable. This is the representation.</para>
 ///
-/// <para><b>Nothing reads it yet, and that is deliberate.</b> The four sites that derive the required set -
-/// DocumentCompletenessEvaluator (the submit gate, the resubmit gate and the reviewer's approval gate),
-/// GetSupplierHandler, SupplierDashboardHandler and ListSupplierDocumentsHandler - still use the flat
-/// `IsRequired && IsActive` filter. Switching them over changes what "complete" means for every supplier in
-/// the system, and two things have to be decided first:</para>
+/// <para><b>Read since D-59.</b> This shipped in batch 11 recorded-but-unread, because two questions came
+/// before any gate could derive the required set from it: which types attach to which categories, and
+/// whether a category-conditioned set reaches back to suppliers already approved under the flat one. D-59
+/// answers both - on, and retroactive - and records why that is a one-way door on a live registry.</para>
 ///
-/// <para>1. <b>The data.</b> Which document types attach to which categories is a ministry decision, and an
-/// empty link table read as "required for nothing" would silently drop every required document from every
-/// gate - a portal that lets an incomplete application through is worse than one that asks for too much.</para>
+/// <para><b>What a row means.</b> A link NARROWS: a required type with no links is required of every
+/// supplier, and one with links is required only of suppliers holding a named category. Reading an empty
+/// link set as "required for nothing" is the failure that reading had to avoid - it would have emptied the
+/// submit gate, the resubmit gate, the reviewer's approval gate and the completeness figure at once, and a
+/// portal that lets an incomplete application through is worse than one that asks for too much.</para>
 ///
-/// <para>2. <b>Retroactivity.</b> Suppliers already approved under the flat rule were approved against a list
-/// that may not be theirs under a category-conditioned one. Whether the tightening reaches back is a decision
-/// about live suppliers, not a query change - see COMPLETION-INVENTORY.md §4.2 and the question logged there.</para>
-///
-/// <para>So: the shape and its admin surface exist, the links can be recorded, and the derivation stays flat
-/// until somebody with standing answers both questions.</para>
+/// <para>The derivation itself is <c>RequiredDocumentTypeResolver</c>, asked by all four sites rather than
+/// repeated in each.</para>
 /// </summary>
 public sealed class DocumentTypeCategory
 {

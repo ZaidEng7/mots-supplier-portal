@@ -234,9 +234,9 @@ export function ReferenceDataPage() {
                           <span className="ms-2"><Badge tone="info">{t('referenceAdmin.required')}</Badge></span>
                         ) : null}
                         {/*
-                          BRULE-016. The recorded links, per document type, with the deliberate inertness said
-                          out loud beneath the table. Chips rather than a multi-select: the set is three
-                          categories today and a select would hide which ones are on without opening it.
+                          BRULE-016. The links, per document type, with what they now mean said out loud
+                          beneath the table. Chips rather than a multi-select: the set is three categories
+                          today and a select would hide which ones are on without opening it.
                         */}
                         {table === 'document-types' ? (
                           <div className="mt-2 flex flex-wrap gap-1">
@@ -329,9 +329,9 @@ export function ReferenceDataPage() {
         </p>
       ) : null}
 
-      {/* BRULE-016's inertness, stated rather than left to be discovered. An administrator who records these
-          links and sees no change in any supplier's required list would reasonably conclude the screen is
-          broken; the honest version says the links are recorded and not yet applied, and why. */}
+      {/* BRULE-016 is live since D-59, so this line says what a link DOES rather than that it does nothing.
+          The two facts an administrator cannot infer from the chips: a type with no links is required of
+          everyone, and a change here reaches suppliers who are already approved. */}
       {table === 'document-types' ? (
         <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('referenceAdmin.categoryLinksExplained')}

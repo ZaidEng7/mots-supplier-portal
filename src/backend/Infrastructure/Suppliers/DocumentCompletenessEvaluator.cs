@@ -21,22 +21,11 @@ public static class DocumentCompletenessEvaluator
 {
     public static async Task<IReadOnlyList<string>> GetMissingRequiredDocumentTypeCodesAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
     {
-        // BRULE-016: this filter is FLAT on purpose, and the link table now exists beside it.
-        //
-        // The rule conditions required documents on the supplier's categories. `document_type_category` can
-        // record that (batch 11), and nothing derives from it yet, because two questions come first and
-        // neither is a query decision:
-        //
-        //  - An empty link set read as "required for nothing" would silently drop every required document
-        //    from the submit gate, the resubmit gate, the reviewer's approval gate and the dashboard's
-        //    completeness figure. A portal that lets an incomplete application through is worse than one
-        //    that asks for too much.
-        //  - Suppliers already approved under this flat rule were approved against a list that may not be
-        //    theirs under a conditioned one, and whether the tightening reaches back is a decision about
-        //    live suppliers.
-        //
-        // See COMPLETION-INVENTORY.md §4.2, where both are logged.
-        var requiredTypes = await db.DocumentTypes.Where(t => t.IsRequired && t.IsActive).ToListAsync(ct);
+        // BRULE-016, live since D-59: the required set is conditioned on the supplier's categories.
+        // The condition itself lives in RequiredDocumentTypeResolver, which is also what the dashboard,
+        // the profile completeness fraction and the document checklist ask - so what a supplier is told
+        // they need and what this gate refuses them for cannot disagree.
+        var requiredTypes = await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct);
         if (requiredTypes.Count == 0) return [];
 
         var latestBySupplier = await db.SupplierDocuments
@@ -57,7 +46,7 @@ public static class DocumentCompletenessEvaluator
 
     public static async Task<IReadOnlyList<string>> GetBlockingRequiredDocumentTypeCodesAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
     {
-        var requiredTypes = await db.DocumentTypes.Where(t => t.IsRequired && t.IsActive).ToListAsync(ct);
+        var requiredTypes = await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct);
         if (requiredTypes.Count == 0) return [];
 
         var latestBySupplier = await db.SupplierDocuments
@@ -110,7 +99,7 @@ public static class DocumentCompletenessEvaluator
     public static async Task<IReadOnlyList<string>> GetProfileIncompleteDocumentTypeCodesAsync(
         AppDbContext db, Guid supplierId, CancellationToken ct)
     {
-        var requiredTypes = await db.DocumentTypes.Where(t => t.IsRequired && t.IsActive).ToListAsync(ct);
+        var requiredTypes = await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct);
         if (requiredTypes.Count == 0) return [];
 
         var latestBySupplier = await db.SupplierDocuments
