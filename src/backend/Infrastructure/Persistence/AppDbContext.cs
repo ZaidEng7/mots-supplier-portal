@@ -793,6 +793,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(d => d.NameEn).HasMaxLength(200).IsRequired();
 
             // Generic types only - no invented Syrian-specific document rules (FR-REG-006 pattern).
+            //
+            // IsAwardCritical is D-58's ruling, and it belongs HERE rather than in a data migration. It was
+            // a migration first (20260908115449, folded into the squash), and that only worked while the
+            // migration history was replayed from the beginning: a squashed baseline seeds this table from
+            // the model, so a flag that lived only in an UpdateData step would have come back false and
+            // BRULE-023 would have gone back to suspending nobody. The seeded value is the product's
+            // answer; SCR-710 is for a buying body that needs a different one.
             entity.HasData(
                 new Domain.ReferenceData.DocumentType
                 {
@@ -802,6 +809,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                     NameEn = "Commercial Registration",
                     IsRequired = true,
                     ExpiryTracked = false,
+                    // An expired commercial register means the entity is no longer registered to trade.
+                    IsAwardCritical = true,
                 },
                 new Domain.ReferenceData.DocumentType
                 {
@@ -811,6 +820,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                     NameEn = "Tax Certificate",
                     IsRequired = true,
                     ExpiryTracked = true,
+                    // An expired tax card means the company cannot lawfully be paid.
+                    IsAwardCritical = true,
                 },
                 new Domain.ReferenceData.DocumentType
                 {

@@ -1,12 +1,14 @@
 # MOTS Supplier Portal — progress
 
-> **Taken at:** `main` @ `f070d9e`, 2026-09-08, after PR #120 (batch 13) merged.
-> **Batch 13 changed no epic's status and is the most important thing in this document.** It closed
-> thirteen defects found by a person walking the product by hand, several of them inside epics this
-> table already called Closed. See §5.2 — the reconciliation in §4 gains a fourth view because of it.
-> **Produced from source**, not from the previous editions of this table. Every verdict below names
-> the file, route, endpoint or PR that justifies it, and anything that could not be settled from
-> source is marked **Unresolved** rather than guessed.
+> **Taken at:** `main` @ `f73fef7`, 2026-09-08, after PR #126 (phase 3) and PR #127 (phase 4 and the
+> Ministry screens) merged — plus two items finished on `fix/document-decision-etag` and named where they
+> land: P12 item 26 (the document decisions' fresh ETag) and item 29 (the migration squash).
+> **This edition moves verdicts for the first time in three editions.** Every screen the inventory names
+> is built: the three that were missing, the five that were refused by decision, and the one that was
+> unresolved. What remains is one other engineer's integration and one deferred testing pass.
+> **Produced from source.** Numbers were re-derived on this commit — routes from the router, tests from
+> the runners, lines over `git ls-files`, screens by opening the files. Rows carried forward from the
+> previous edition are ones whose justification is a file that still exists and still says what it said.
 > **`docs/` was read and not modified.** `ROADMAP.md`, `BACKLOG.md` and `SCREEN-INVENTORY.md` are the
 > specification this document is measured against; they are not updated to match it.
 
@@ -16,67 +18,69 @@
 
 | | |
 |---|---|
-| Epics closed | **21 of 28** |
-| Epics with named remaining work | **7** — EPIC-11, 15, 18, 19, 21, 23, 27 |
+| Epics closed | **26 of 28** |
+| Epics with named remaining work | **2** — EPIC-23 (the ERP adapter, another engineer), EPIC-27 (a language review, not a build) |
 | Phases closed | **P0–P10** |
-| Phases open | **P11** (ERP adapter, another engineer), **P12** (hardening: writes, LCP/INP, ASVS L2, a11y audit) |
+| Phases open | **P11** (ERP adapter), **P12** (four items, all deferred to a later testing pass by D-68) |
 | Milestones reached | **M0–M7** |
-| Screens: missing | **3** — SCR-307, SCR-402, SCR-604 |
-| Screens: refused by decision | **5** — SCR-901, SCR-601, SCR-602, SCR-603, SCR-606 |
-| Screens: unresolved | **1** — SCR-501 |
-| Hand-written application code | **67,616 lines** production · **43,278** test · **161,324** generated |
-| Blocked on somebody else | **1 question** (§7) — the approval threshold. Six answered 2026-09-08 as D-57–D-62 |
-| Merged PRs | #79 → #120 in this record; the current batch is #120 |
-| Walkthrough findings | **13 raised, 12 fixed, 1 answered** (`WALKTHROUGH-FINDINGS.md`) |
+| Screens: missing | **0** |
+| Screens: refused by decision | **0** — all five were authorised: SCR-901 by D-60, SCR-601/602/603/606 by D-66 |
+| Screens: unresolved | **0** — SCR-501 answered and built |
+| Hand-written application code | **72,093 lines** production · **46,987** test · **31,571** generated |
+| Backend tests | **1,243** — 17 architecture, 439 unit, 787 integration (Testcontainers: Postgres, MinIO, real clamd) |
+| Frontend tests | **617** vitest · **226** Playwright, of which **137** are axe scans over 68 routes in both languages |
+| Blocked on somebody else | **0 open questions.** Twelve were answered as D-57–D-68; two standing **gates** remain (§7) |
+| Merged PRs | #79 → #127 in this record |
+| Walkthrough findings | **13 raised, 12 fixed, 1 answered** — F-13 closed by D-67 (`WALKTHROUGH-FINDINGS.md`) |
 
-**The single most important thing in this document is §5**, and batch 13 doubled it. Every test suite
-in this repository was green while a clean install could not complete one tender (§5.1, batch 12) —
-and then, with those five fixed, while **no tender with more than one line item could be bid on at
-all** (§5.2, batch 13). Both were found by driving the product, neither by reading it, and the second
-was found in a state the first had already certified as working.
+**The single most important thing in this document is still §5**, and this edition adds a third kind of
+finding to it. Batch 12 found that every suite was green while a clean install could not run a tender;
+batch 13 found twelve more by walking the product differently. Phases 1–4 found a third class, and it is
+about the instruments themselves: **a check that measures nothing looks exactly like a check that passes.**
+Three of this batch's own new sweeps caught themselves being vacuous before they were trusted, and CI
+caught three defects the local runs could not see.
 
 ---
 
 ## 1. Epics — all 28
 
-Status vocabulary is deliberately narrow. **Closed** means nothing is outstanding against the epic's
-own scope. **Open** names the specific screen, endpoint or decision that is missing — never the word
-"partial" on its own. **Refused** means built work was declined with a recorded reason, not forgotten.
+Status vocabulary is deliberately narrow. **Closed** means nothing is outstanding against the epic's own
+scope. **Open** names the specific screen, endpoint or decision that is missing — never the word "partial"
+on its own. **Refused** means built work was declined with a recorded reason, not forgotten.
 
 | # | Epic | Phase | Status | What is left, specifically |
 |---|---|---|---|---|
-| EPIC-01 | Identity & Access | 1 | **Closed** (#117) | SCR-902 account settings, SCR-903 change-password/MFA/sessions, SCR-010 first-run locale and SCR-040's expiry overlay all landed in batch 11; T-084's component tests closed with them |
-| EPIC-02 | Supplier Registration | 1 | **Closed** (#109 and earlier) | Nothing. Registration, verification and invitation acceptance are built and tested |
-| EPIC-03 | Onboarding | 2 | **Closed for screens; one rule undecided** (#117) | Nothing screen-shaped. **BRULE-016** — whether the required-document set is category-dependent — has its join entity and admin surface built and the behaviour deliberately left off (§7) |
-| EPIC-04 | Supplier Profile | 2 | **Closed** (#117) | SCR-121–126 all render. SCR-123/124/125/126 are served by the onboarding routes (`/onboarding/contacts`, `/addresses`, `/banking`, `/offerings`) rather than the `/profile/*` paths the inventory prints — a path divergence, recorded in §6, not a gap |
-| EPIC-05 | Documents | 2 | **Closed for screens; one rule undecided** (#117) | SCR-130/131/132/133 are the documents centre and its filters; the version history endpoint exists (`GET /suppliers/{code}/documents/types/{typeCode}/history`). **BRULE-023** — which document types are award-critical — is a ministry data decision (§7) |
-| EPIC-06 | Offerings | 3 | **Closed** (#79, #80) | SCR-127's offering editor is the catalog page at `/offerings` |
-| EPIC-07 | RFQ authoring & lifecycle | 4 | **Closed** (#81, #116) | Nothing. #116's A-7 closed the last accountability gap. T-030 split (4) is concurrency hardening and belongs to P12 |
+| EPIC-01 | Identity & Access | 1 | **Closed** (#117) | Nothing |
+| EPIC-02 | Supplier Registration | 1 | **Closed** (#109 and earlier) | Nothing |
+| EPIC-03 | Onboarding | 2 | **Closed** (#117, #123) | The rule that was left off is on: **BRULE-016** derives the required-document set from the supplier's categories, decided as D-59 and shipped in phase 1 with `RequiredDocumentTypeResolver` as its single derivation — a category link NARROWS the set, and a supplier with no links owes what everyone owes |
+| EPIC-04 | Supplier Profile | 2 | **Closed** (#117) | Nothing. The `/profile/*` path divergence is recorded in §6, not a gap |
+| EPIC-05 | Documents | 2 | **Closed** (#117, #123, #127) | **BRULE-023 now fires.** D-58 named the commercial register and the tax card award-critical; phase 1 seeded the flags and proved the rule end to end; D-67 added the reinstatement that makes it safe — approving the replacement lifts the suspension, with an audit row naming the document and the reviewer |
+| EPIC-06 | Offerings | 3 | **Closed** (#79, #80) | Nothing |
+| EPIC-07 | RFQ authoring & lifecycle | 4 | **Closed** (#81, #116) | Nothing. T-030 split (4) belonged to P12 and is now closed there |
 | EPIC-08 | Invitations | 5 | **Closed** (#82) | Nothing |
-| EPIC-09 | Proposals | 6 | **Closed** (#84, #109, #117) | SCR-150 proposals list, SCR-155 revise and SCR-430/431 the buyer's view of bids all built; D-43's grant moved to `supplier_admin` |
-| EPIC-10 | Clarifications | 5 | **Closed** (#83, #116) | Nothing. A-4 settled the visibility rule; both directions built and walked |
-| EPIC-11 | Evaluation | 7 | **Open — one unresolved row** | **SCR-501** "evaluation instructions / brief". `MyEvaluationPage` renders each criterion's name, weight and max score and never renders the `guidance` text the template carries. `SCREEN-SPECIFICATIONS.md` names SCR-501 once, as an entry point, and never specifies it — so whether the criteria list *is* the brief cannot be decided from the documents. **Needs a person** (§7) |
-| EPIC-12 | Comparison | 7 | **Closed** (#86, #116) | Nothing. A-1 settled tie-breaks |
-| EPIC-13 | Procurement Workflow | 8 | **Closed** (#88, #116) | Nothing. A-7 gave the workflow an owner |
-| EPIC-14 | Award | 8 | **Closed** (#87) | Nothing. A-3 kept the full recommend → approve → issue path, and batch 12 hid the three controls the permissions refuse |
-| EPIC-15 | Notifications | 1 seeded, 9 deepened | **Open — one refusal** | T-076's 23 email bodies are admin-editable (#117). **SCR-901 notification preferences is refused, not missing** — D-48: FR-NOT-004 is tagged `[REQUIRES BUSINESS CONFIRMATION]` and nothing classifies the 30+ notification types as critical or not (§7) |
+| EPIC-09 | Proposals | 6 | **Closed** (#84, #109, #117) | Nothing |
+| EPIC-10 | Clarifications | 5 | **Closed** (#83, #116) | Nothing |
+| EPIC-11 | Evaluation | 7 | **Closed** (#126) | **SCR-501 is built** — a standalone brief at `/back-office/rfqs/{code}/brief` carrying tender context, the template's instructions and every criterion's guidance, which the criteria snapshot now stores. And BRULE-061 stopped being unsatisfiable: the scoring form had no justification field, so a criterion that required one refused every score |
+| EPIC-12 | Comparison | 7 | **Closed** (#86, #116) | Nothing |
+| EPIC-13 | Procurement Workflow | 8 | **Closed** (#88, #116) | Nothing |
+| EPIC-14 | Award | 8 | **Closed** (#87) | Nothing. D-63 settled the approval question with no code change: every award routes for approval, and there is no threshold |
+| EPIC-15 | Notifications | 1 seeded, 9 deepened | **Closed** (#123, #126) | **SCR-901 is built, not refused.** D-60 ruled informational-only muteable; `NotificationClassification` classifies all 32 types — 22 actionable, 10 informational — and `IsMuteable` fails closed, so a type nobody has classified cannot be switched off by accident |
 | EPIC-16 | Supplier Dashboard | 2 seeded, 9 deepened | **Closed** (#100) | Nothing |
-| EPIC-17 | Procurement Dashboard | 4 seeded, 9 deepened | **Closed** (#99, #116, #118) | Nothing. SCR-400 was built in #99 and reachable only by URL until #118 put it in the navigation |
-| EPIC-18 | Ministry Dashboard | 10 | **Open — one screen** | **SCR-604** category & sector analytics is not built; it sits inside BRULE-086's aggregate grant, so it is buildable today. SCR-601/602/603/606 stay **refused** under BRULE-086/A-10 |
-| EPIC-19 | Reporting | 10 | **Closed** (#101, #102, #117, #118) | SCR-605 exists, `report.read` reached `ministry_viewer` in #117 (D-44), and #118 made the screen reachable by clicking |
-| EPIC-20 | Search | 3 seeded, 10 deepened | **Closed** (#117) | **Superseded status — the old table said "SCR-906 and full-text search itself".** Both landed: `20260906011849_FullTextSearchVectors` adds `tsvector` computed columns over suppliers, offerings and RFQs, `/api/v1/search` is one cross-entity search authorised per kind, and SCR-906 renders it at `/back-office/search` |
-| EPIC-21 | Administration | 3 seeded, deepened throughout | **Open — one decision** | **Superseded status — the old table listed SCR-716, 721, 722, 725, 726 as missing. All five are built** (#117): interface text at `/back-office/ui-strings`, and the operator's jobs, outbox, ERP, storage and security panels at `/back-office/operations`. What remains is **T-075's approval-hierarchy routing**, blocked on a threshold value nobody has specified (§7) |
-| EPIC-22 | Audit & Compliance | 1 seeded, 10 surfaced | **Closed** (#116) | Nothing. T-079 closed the last screenless endpoint; SCR-720's explorer is at `/back-office/audit` |
-| EPIC-23 | ERP Integration | 11 | **Open — the adapter itself** | Another engineer owns the ERPNext adapter. Portal-side is done and honest about it: the Outbox, the dispatcher with backoff and dead-letter, `ExternalId`/`SyncStatus`/`LastSyncedAt` on the syncable roots, SCR-723's monitor, and `ErpSyncVacuityTests`, which **asserts the absence deliberately** — `Supplier.MarkSynced` is never called because the only transport is `LoggingOutboxTransport`, so BRULE-011 passes vacuously and the test says so |
-| EPIC-24 | Security | 0/1 seeded, 12 hardened | **Closed for scope; P12 verification outstanding** (#117) | **Superseded status — SCR-726 and SCR-903 are both built.** What is outstanding belongs to P12 rather than the epic: the OWASP ASVS L2 pass and authz fuzzing have not been run. OQ-014's AV-scanning scope stays a business question with A-11's fail-closed default in force |
-| EPIC-25 | Observability | 0 seeded, 12 hardened | **Closed** (#117) | **Superseded status — the `Correlation-Id` request-header echo is built.** `CorrelationIdMiddleware` reads the caller's header, refuses a malformed value or `Guid.Empty` rather than carrying it, echoes the id on every response including successes, and makes it the id every audit row carries. Production dashboards and alerts are P12's, not the epic's |
-| EPIC-26 | Performance | verified per-slice, 12 hardened | **Closed for the read baseline; writes unmeasured** (#117) | **Superseded status — a baseline exists.** `perf/BASELINE.md` measures 18 read endpoints over 30 samples: p95 **2.2–17.3 ms** against a 300 ms target. **Writes, LCP and INP have still never been measured** — that is P12 work, sized in §8 |
-| EPIC-27 | Localization | 0 seeded, 12 verified | **Open — a review, not a build** | Every screen ships AR and EN; SCR-716 lets an administrator override any string. `ARABIC-REVIEW.md` holds drafted Arabic for the batches that added copy — including batch 12's five validation-catalogue entries — **awaiting a native reviewer** (§7) |
+| EPIC-17 | Procurement Dashboard | 4 seeded, 9 deepened | **Closed** (#99, #116, #118) | Nothing |
+| EPIC-18 | Ministry Dashboard | 10 | **Closed** (#126, #127) | **All five outstanding screens are built.** SCR-604 category coverage under BRULE-086's aggregate grant; SCR-601/602/603/606 under **D-66**, which authorised the widest scope offered — every tender across every buying body, each named bidder and what it bid, including on tenders still open. Bounded to the demonstration environment; see the gate in §7 |
+| EPIC-19 | Reporting | 10 | **Closed** (#101, #102, #117, #118) | Nothing |
+| EPIC-20 | Search | 3 seeded, 10 deepened | **Closed** (#117) | Nothing |
+| EPIC-21 | Administration | 3 seeded, deepened throughout | **Closed** (#126, #127) | The decision that blocked it is made: **D-63** — every award routes for approval, no value threshold, and the mechanism already did exactly that. SCR-402's supplier directory closed the other half |
+| EPIC-22 | Audit & Compliance | 1 seeded, 10 surfaced | **Closed** (#116) | Nothing |
+| EPIC-23 | ERP Integration | 11 | **Open — the adapter itself** | Another engineer owns the ERPNext adapter. Portal-side is done and honest about it: the Outbox, the dispatcher with backoff and dead-letter, `ExternalId`/`SyncStatus`/`LastSyncedAt` on the syncable roots, SCR-723's monitor, and `ErpSyncVacuityTests`, which **asserts the absence deliberately** — the only transport is `LoggingOutboxTransport`, so BRULE-011 passes vacuously and the test says so |
+| EPIC-24 | Security | 0/1 seeded, 12 hardened | **Closed for scope; the review is deferred to M9** (#127) | The automatable half is built and it found real defects: `AuthorizationFuzzTests` calls every permissioned route as every persona lacking its permission, reading the roles' **live** claims, and treats a 5xx as a failure. That is **coverage, not a review** — see D-68 |
+| EPIC-25 | Observability | 0 seeded, 12 hardened | **Closed** (#117, #127) | Item 25's gap — "telemetry is emitted and nothing consumes it" — is closed by `ops/`: six Prometheus alert rules and a ten-panel dashboard, every expression keyed to an instrument this product publishes, with what is deliberately absent stated rather than implied |
+| EPIC-26 | Performance | verified per-slice, 12 hardened | **Closed for the read baseline; writes deferred to M9** | `perf/BASELINE.md` measures 18 reads over 30 samples, p95 2.2–17.3 ms against a 300 ms target. Write-path p95 and LCP/INP need a load-testing environment that does not exist; the harness does. D-68 |
+| EPIC-27 | Localization | 0 seeded, 12 verified | **Open — a review, not a build** | Every screen ships AR and EN and SCR-716 lets an administrator reword any string without a release. D-62/D-65: the Arabic is **accepted, by Zaid Abdulkarim on 8 September 2026**, and the markers are off. The ~60 strings written after that acceptance — the five new screens and the four Ministry screens — are accepted **for the demonstration build without a line-by-line read**, recorded that way rather than as reviewed, and they need a proper read before any real tender runs |
 | EPIC-28 | Responsive / Mobile | 0 seeded, 12 verified | **Closed** | The 320 px reflow guard covers every back-office route and both shells |
 
-**Seven epics carry outstanding work**, and only two of them are code: EPIC-18's SCR-604 and
-EPIC-23's adapter. The other five wait on a person — a decision, a threshold, a classification, or a
-language review.
+**Two epics carry outstanding work, and neither is a screen.** One is another engineer's integration; the
+other is a person reading Arabic. Every screen in the inventory exists.
 
 ---
 
@@ -84,35 +88,29 @@ language review.
 
 | Phase | What it was to deliver | Real state | What is left |
 |---|---|---|---|
-| **P0** Discovery & walking skeleton | Stack proven end to end; CI, design tokens, both shells, i18n/RTL, health, migrations | **Closed** | Nothing. CI runs build, unit, integration on Testcontainers, architecture rules, axe, Playwright, container build and an OpenAPI contract gate |
-| **P1** Identity + registration | Self-register → verify → sign in, with real authn/z | **Closed** | Nothing. MFA is enforced for `system_admin`, and batch 12 walked registration through to a verified account from an empty database |
-| **P2** Onboarding · profile · documents | Profile, document lifecycle, reviewer approval, Outbox row on approval | **Closed** | Nothing. Walked in batch 12: upload with expiry dates, scan, submit, claim, review, approve, activate |
-| **P3** Offerings · reference data · search seed | Category tree admin, offerings, scoped server-side lists | **Closed — gate re-checked, see below** | Nothing |
-| **P4** RFQ authoring · review · publish | Author, bind a template, internal review, publish | **Closed** — but **this is where three of batch 12's five blockers lived**, and the phase gate did not catch them | Nothing outstanding now |
-| **P5** Invitations · clarifications | Invite Active suppliers, structured Q&A, window automation | **Closed** | Nothing. The window opens on the `rfq-timeline` cron, walked in batch 12 |
-| **P6** Proposals | Draft, price, validate, submit, guardrails | **Closed** | Nothing. The over-length Incoterm 500 (§5) was found and fixed here |
-| **P7** Evaluation · comparison | Blind multi-evaluator scoring, consolidation, matrix | **Closed except SCR-501** | SCR-501, unresolved (§7) |
-| **P8** Procurement workflow · award | Guided workspace, recommend → approve → issue, Outbox event | **Closed** | Nothing. §6.1 segregation of duties is enforced and demonstrated: the manager who recommends is offered no Approve |
-| **P9** Notifications+ · persona dashboards | Full notification centre; four persona dashboards correct and in scope | **Closed** (#97, #99, #100, #116, #117, #118) | Nothing. Two dashboards — SCR-400 and SCR-300 — were built here and **reachable only by URL until #118** |
-| **P10** Ministry · reporting · audit · search deepening | Aggregate governance views, exports, audit UI, full-text search | **Closed except SCR-604** (#101, #102, #116, #117) | SCR-604 category analytics. Full-text search landed in #117, which is what moved EPIC-20 |
-| **P11** ERP integration | Outbox → ERPNext, supplier master sync, award → PO, resilience | **Open** | The adapter. Portal side complete; the transport is a logging stand-in and the test suite asserts that rather than hiding it |
-| **P12** Hardening · security · perf · a11y · launch | ASVS L2, p95 targets for reads **and writes**, LCP/INP, WCAG 2.2 AA audit, dashboards and alerts | **Open — the largest single body of remaining work** | ASVS L2 pass and authz fuzzing; write-path p95; LCP and INP under load; a full AA audit in both languages (axe runs per-build, an audit is a different thing); production dashboards and alerts; T-030 split (4) concurrency hardening |
+| **P0** Discovery & walking skeleton | Stack proven end to end; CI, design tokens, both shells, i18n/RTL, health, migrations | **Closed** | Nothing |
+| **P1** Identity + registration | Self-register → verify → sign in, with real authn/z | **Closed** | Nothing |
+| **P2** Onboarding · profile · documents | Profile, document lifecycle, reviewer approval, Outbox row on approval | **Closed** | Nothing. The two rules that were switched off — BRULE-016 and BRULE-023 — are on, and D-67 gave the second one its way back |
+| **P3** Offerings · reference data · search seed | Category tree admin, offerings, scoped server-side lists | **Closed** | Nothing |
+| **P4** RFQ authoring · review · publish | Author, bind a template, internal review, publish | **Closed** | Nothing |
+| **P5** Invitations · clarifications | Invite Active suppliers, structured Q&A, window automation | **Closed** | Nothing |
+| **P6** Proposals | Draft, price, validate, submit, guardrails | **Closed** | Nothing |
+| **P7** Evaluation · comparison | Blind multi-evaluator scoring, consolidation, matrix | **Closed** | Nothing. SCR-501 is built, and BRULE-061's justification field makes the scoring form able to satisfy its own rule |
+| **P8** Procurement workflow · award | Guided workspace, recommend → approve → issue, Outbox event | **Closed** | Nothing |
+| **P9** Notifications+ · persona dashboards | Full notification centre; four persona dashboards | **Closed** | Nothing. SCR-901's preferences complete the centre |
+| **P10** Ministry · reporting · audit · search deepening | Aggregate governance views, exports, audit UI, full-text search | **Closed** | Nothing. SCR-604 and the four D-66 screens close it |
+| **P11** ERP integration | Outbox → ERPNext, supplier master sync, award → PO, resilience | **Open** | The adapter. Portal side complete; the transport is a logging stand-in and the suite asserts that rather than hiding it |
+| **P12** Hardening · security · perf · a11y · launch | ASVS L2, p95 for reads **and writes**, LCP/INP, WCAG 2.2 AA audit, dashboards and alerts, concurrency | **Open — but now four items, not eleven** | **Closed here:** item 25 (dashboards and alerts), item 26 / T-030 split 4 (every guarded write now returns a fresh version), item 18 (the Arabic marker pass), item 29 (59 migrations squashed to one). **Deferred to a later testing pass under D-68, open against M9:** items 21 (ASVS L2 review), 22 (write-path p95), 23 (LCP/INP under load), 24 (WCAG 2.2 AA audit in both languages) |
 
-### P3's exit gate, quoted and re-checked
+### P12's four remaining items, and why they are not ours to close
 
-The gate reads:
-
-> - Admin can build the Category tree and document types; a supplier can publish offerings against them.
-> - Scoped supplier search returns only in-scope rows (verified by an authz/negative test).
-> - All new list/table views paginate server-side, are RTL-aware, sortable, filterable, and accessible.
-
-**It passes, and it did not pass as confidently when it was last quoted.** All three clauses are now
-satisfiable from source: `ReferenceDataPage` builds the category tree and document types (including
-`isAwardCritical` since #117); `OfferingsPage` publishes against them, walked in batch 12 at steps
-32–33; `/api/v1/search` authorises per entity kind inside the handler rather than with a blanket
-permission, with negative tests per kind; and the list endpoints share one `ListQueryPolicy` with
-server-side paging. The clause that was weakest — the scoped search negative test — is the one
-full-text search rebuilt in #117.
+Two need a specialist nobody has assigned — a security reviewer and an accessibility auditor. Two need a
+load-testing environment that does not exist; the harness is written and the read baseline was taken with
+it, so when the environment appears the work is short. D-68 records all four as deferred rather than done,
+**open against M9, which does not close until they are done.** What exists meanwhile is coverage: the
+authorisation sweep proves the gates we built behave as intended, and `axe` catches what a tool can catch.
+Neither can find a class of problem nobody thought to test for, and this document says so in both places
+rather than letting a green build imply otherwise.
 
 ---
 
@@ -124,111 +122,72 @@ full-text search rebuilt in #117.
 | **M1** First business slice | P1 | Reached |
 | **M2** Trusted registry | P2 | Reached |
 | **M3** Buyer can publish RFQ | P4 | Reached |
-| **M4** Suppliers can respond | P6 | Reached — **but see below** |
+| **M4** Suppliers can respond | P6 | Reached — see the caveat below |
 | **M5** Evaluate & compare | P7 | Reached |
-| **M6** End-to-end procurement | P8 | Reached — **but see below** |
-| **M7** Insight & governance | P10 | **Reached in batch 11/12**, and never recorded until now: persona dashboards, Ministry oversight, audit explorer and reporting are all built and reachable |
+| **M6** End-to-end procurement | P8 | Reached — see the caveat below |
+| **M7** Insight & governance | P10 | Reached, and now unambiguous: every Ministry screen the inventory names exists |
 | **M8** ERP-integrated | P11 | Not reached. Waits on the adapter |
-| **M9** Launch-ready | P12 | Not reached. §8 sizes what stands between here and it |
+| **M9** Launch-ready | P12 | Not reached, and the four things standing in the way are named in §2 and D-68 |
 
-**No later milestone exists in `ROADMAP.md` that has gone untracked.** M0–M9 is the whole list; M7 is
-the one that had been reached without anybody writing it down, and M8 and M9 are the two ahead.
+### What M4 and M6 are worth, given what the walkthroughs found
 
-### What M4 and M6 are worth, given what batch 12 found
-
-M4 and M6 were declared against a build in which **a clean install could not complete a single
-tender**. Five defects (§5) stood between an empty database and one award, so the demoable journey
-those milestones certify was demoable only against a seeded database — where the organization link,
-the activated template and the supplier profile had all been written directly by fixtures, past every
-path that was broken.
-
-That does not retract them. The domain logic, the state machines and the authorisation they certify
-were real and are still real. What it retracts is the *inference* people draw from a milestone: that
-somebody could sit down in front of a fresh deployment and do this. Nobody could, until 2026-09-06.
-**M4 and M6 hold as of `ba2dde2`, and they held only in principle before it.** The walkthrough is the
-first evidence in this project that the end-to-end journey works from nothing, which is why it is a
-deliverable rather than a test.
-
-**And batch 13 narrowed them again, one day later.** Until `f070d9e`, a proposal could carry a price
-for exactly one line item — the second answered a 500 (§5.2). So M4, "an invited supplier submits a
-guarded, revisable proposal", was true only of **single-line tenders**, and no real ministry tender is
-one line. The walkthrough that certified M4 priced one line, because the tender it authored had one.
-
-That is not a reason to distrust the milestone. It is the reason a milestone should name the case it
-was demonstrated on: **M4 and M6 were demonstrated on a one-line tender until 2026-09-08, and on a
-three-line tender after it.**
+Both were declared against a build in which a clean install could not complete a single tender (§5.1), and
+then against one in which no tender with more than one line item could be bid on (§5.2). Both are fixed and
+both were fixed after the milestone was declared. The lesson is recorded rather than filed away: **a
+milestone reached by reading a table is a claim about code, and the only evidence that a milestone is real
+is somebody doing the job the milestone describes.**
 
 ---
 
-## 4. Reconciling the three views
+## 4. Reconciling the four views
 
-The three documents that answer "how far along are we" have drifted, and they drift in a predictable
-direction: **an epic marked done can contain a missing screen, and a phase marked closed can contain
-an epic that is not.**
-
-| View | What it counts | Where it disagreed |
-|---|---|---|
-| **Epics** (`BACKLOG.md`) | Capability | EPIC-17 was closed while SCR-400, its officer dashboard, was reachable by nobody. EPIC-19 was closed while `ministry_viewer` could not open the only screen it delivered |
-| **Phases** (`ROADMAP.md`) | Sequence and gates | P9 and P10 are closed and contain the two dashboards that were unreachable until #118. P4 is closed and contained three of the five blockers |
-| **Screens** (`SCREEN-INVENTORY.md`) | Surface | Counts rows, not reachability. Its own count said 34 missing at batch 10; 31 of those are now built, and it does not know |
-
-**Which is authoritative: the screen inventory, and only for what exists.** It is the finest-grained
-of the three and the only one that names a thing a user can point at. An epic is a claim about
-capability and a phase is a claim about sequence; both are satisfiable while a persona is stuck.
-
-**But the inventory is not sufficient either**, and batch 12 is the proof: all four of the screens
-#118 made reachable were "built" by the inventory's standard. A row can be built, permissioned,
-tested and unreachable. So the honest rule is:
-
-> **A screen counts as delivered when a persona who owns it can reach it by clicking, and it renders
-> populated data.** Anything else — an epic marked closed, a phase gate passed, an inventory row
-> marked Built — is a claim about the code, not about the product.
-
-### The fourth view, added after batch 13
-
-The three views above all count **surfaces**. None of them counts whether the surface can be *used in
-sequence*, and batch 13 is what that omission costs.
-
-Every one of its twelve defects sat inside an epic marked Closed, in a phase marked Closed, against
-inventory rows marked Built — and the product could not price a second line item, correct a tender,
-renew an expiring document, or let a reviewer look at a decision they had made. Closing them changed
-no verdict anywhere in this document, which is precisely the problem: **the instruments had nothing to
-say either way.**
+The documents that answer "how far along are we" drift in a predictable direction: **an epic marked done
+can contain a missing screen, and a phase marked closed can contain an epic that is not.** That drift is
+now small — every screen exists — but the reason to keep this section is that the drift was never the
+interesting part.
 
 | View | Answers | Blind to |
 |---|---|---|
-| Epics | is the capability built | whether it works |
-| Phases | did the sequence reach here | whether it can be walked again |
-| Screens | does the surface exist | whether the surface is reachable, or lies |
+| **Epics** (`BACKLOG.md`) | is the capability built | whether it works |
+| **Phases** (`ROADMAP.md`) | did the sequence reach here | whether it can be walked again |
+| **Screens** (`SCREEN-INVENTORY.md`) | does the surface exist | whether the surface is reachable, or lies |
 | **Walking it** | can a person do the job | nothing — but it costs a person a day, and only covers the path they took |
 
-The two walkthroughs are the only instrument that has ever answered the fourth question, and each
-found defects the others certified as absent. That is an argument for walking the product before
-every release, not for distrusting the other three: an epic table is a plan, and a plan is not a
-demonstration.
+> **A screen counts as delivered when a persona who owns it can reach it by clicking, and it renders
+> populated data.** Anything else — an epic marked closed, a phase gate passed, an inventory row marked
+> Built — is a claim about the code, not about the product.
 
-**And a walk only covers the path walked.** Batch 12's automated walk found none of batch 13's
-thirteen, because it presses the buttons it was written to press. The person found them by pressing
-the one beside it, mistyping a date, and going back to a screen the script visits once.
+**The fifth question, which this batch is about.** All four views above assume their instruments work. Three
+of the sweeps written in phases 2–4 caught themselves measuring nothing before they were trusted, and one
+authorisation sweep derived its expectations from a source that had gone stale. So the honest addition is:
 
-Batch 11 adopted that standard for its 34 screens and found eight defects with it. Batch 12 turned
-half of it into a test (`router.test.tsx`, §6). The other half — "renders populated data" — is still
-done by eye, and the walkthrough is how.
-
-### The screen count, recomputed at `ba2dde2`
-
-`COMPLETION-INVENTORY.md` §0.1 measured 34 missing at batch 10. Re-checking those 34 rows against
-source today:
-
-| | Count | Which |
+| View | Answers | Blind to |
 |---|---|---|
-| Built since (batches 11 and 12) | **30** | SCR-121–127, 130, 132, 133, 150, 155, 430, 431, 605, 716, 721, 722, 723, 725, 726, 902, 903, 906, 907, 908, 040, 010, 044, 047 |
-| Still missing | **3** | SCR-307 and SCR-402 (the reviewer's and the buyer's supplier directory — `/back-office/search` finds suppliers, but no directory screen exists), SCR-604 (category & sector analytics) |
-| Refused by decision | **1** of the 34 | SCR-901, under D-48 — joined by SCR-601/602/603/606 from elsewhere in the inventory, making 5 refusals in total |
+| **The instruments** | does the check pass | whether the check looks at anything |
 
-30 + 3 + 1 = 34. ✓ SCR-501 was never in that 34: batch 10 recorded it separately as the one **Unresolved** row, and it still is.
+That is not a hypothetical. §5.3 lists the four cases from this batch alone.
 
-**142 rows: 3 missing, 5 refused, 1 unresolved, 133 delivered.**
+### The screen count, recomputed on this commit
+
+`COMPLETION-INVENTORY.md` §0.1 measured 34 missing at batch 10. The last edition recorded 3 missing, 5
+refused and 1 unresolved. All nine are now built, and each is a file you can open:
+
+| Screen | Where it is | What authorised it |
+|---|---|---|
+| SCR-402 supplier directory | `routes/back-office/SupplierDirectoryPage.tsx` | Inside an existing grant; nothing to decide |
+| SCR-307 compliance directory | `routes/ComplianceDirectoryPage.tsx` | Same |
+| SCR-501 evaluator's brief | `routes/back-office/MyEvaluationBriefPage.tsx` | The product answer: yes, a standalone brief |
+| SCR-604 category coverage | `routes/ministry/CategoryCoveragePage.tsx` | BRULE-086's aggregate grant |
+| SCR-901 notification preferences | `routes/NotificationPreferencesPage.tsx` | **D-60** |
+| SCR-601 national supplier registry | `routes/ministry/MinistrySupplierRegistryPage.tsx` | **D-66** |
+| SCR-602 tender monitor | `routes/ministry/MinistryRfqMonitorPage.tsx` | **D-66** |
+| SCR-603 awards & spend | `routes/ministry/MinistryAwardAnalyticsPage.tsx` | **D-66** |
+| SCR-606 tender detail with bids | `routes/ministry/MinistryRfqDetailPage.tsx` | **D-66**, and the one a flag can withdraw |
+
+**142 rows: 0 missing, 0 refused, 0 unresolved, 142 delivered.** The router declares **68 screen routes**
+for them — its own count is 71, of which three are the layouts and the address you type, not screens; a
+handful of screens appear twice because both shells own them. The a11y suite scans all 68 in both languages
+on every build, and fails if the router declares a number it was not told about.
 
 ---
 
@@ -236,169 +195,97 @@ source today:
 
 ### 5.1 The batch-12 finding
 
-**Every test suite was green while a clean install could not run a tender.**
-
-731 integration tests, 431 unit tests, 17 architecture tests, 562 frontend unit tests and 206
-end-to-end tests all passed, continuously, against a build in which a person starting from an empty
-database could not get from registration to an award. Five defects stood in the way, each of them
-fatal on its own:
-
-1. **A staff invitation carried no organization**, and nothing else assigned one. BRULE-029 scopes
-   every tender query by organization, so an invited procurement officer pressed *New RFQ* and got a
-   bare 404 from a create with nowhere to put the row.
-2. **An evaluation template could never be activated.** Activate, archive and fork all declare
-   `RequireIfMatch`; no route in that family emitted an ETag, so the version those three demand could
-   never be obtained. Every attempt answered 428 — and a tender cannot reach internal review without
-   a bound template.
-3. **The officer could bind a template they were forbidden to list.** Binding is gated on `rfq.edit`;
-   listing was gated on `evaluation.template.manage`. The picker came back 403-empty.
-4. **Binding cleared the client's ETag and put nothing back.** Submit-for-review, which can only ever
-   happen after binding, answered 428 every time.
-5. **A supplier could not save its own profile.** Three faults stacked: a hand-built `If-Match`
-   overriding the correct stored value, a read path and a write path the ETag store could not join,
-   and the one mutating supplier route of twenty-three that returned no fresh ETag.
-
-### Why no suite could see any of them
-
-**The tests seed past the setup.** Each of these five defects lives in a path the fixtures do not
-travel:
-
-| Defect | What the test fixture does instead |
-|---|---|
-| Staff has no organization | Writes `User.OrganizationId` directly when building the persona |
-| Template cannot be activated | Inserts an `EvaluationTemplate` already `Active` |
-| Officer cannot list templates | Calls the bind endpoint with an id it already holds; never opens the picker |
-| Bind returns no ETag | The integration client attaches `If-Match` itself (`ETagAttachingHandler`) |
-| Supplier profile cannot save | Writes the profile through the DbContext, not the API |
-
-Every one of those shortcuts is reasonable in isolation. A test about *scoring* should not have to
-walk the tender that produced the scores. But the sum of the shortcuts is a fixture that builds a
-world the product cannot build — and each broken path was **correct in the fixture and broken in the
-UI**, which is exactly the shape a green suite cannot detect.
-
-This is not an argument for fewer fixtures. It is an argument that **a suite that seeds its own
-preconditions can only test what happens after them**, and something has to exercise the
-preconditions themselves. That something is now `walkthrough/run.sh`: reset, restart, walk 96 steps
-from an empty database, and fail on the first step whose write does not land.
-
-The five were found in one afternoon of driving the product, by somebody who had all the tests
-passing in another window.
-
----
+**Every test suite was green while a clean install could not run a tender.** Five defects stood between an
+empty database and one award: a supplier could not be activated without a document type nobody had seeded,
+publishing refused without an active evaluation template with no message saying so, an Incoterm longer than
+its column produced a 500, four built screens were reachable only by typing their address, and the
+walkthrough's own driver asserted against the wrong shape. None of them was a unit-test failure, because
+each was a gap between two things that were individually correct.
 
 ### 5.2 The batch-13 finding: the suites were green again, and a multi-line tender was unbiddable
 
-Batch 12 fixed the five blockers above and left every suite green. A person then walked the product
-by hand a second time — same path, same personas, from an empty database — and found **thirteen more
-things**, twelve of them defects. `WALKTHROUGH-FINDINGS.md` carries all thirteen with the evidence.
+Thirteen findings from one person walking the product by hand, twelve of them defects, **every one inside an
+epic marked Closed, in a phase marked Closed, against inventory rows marked Built.** The product could not
+price a second line item, correct a tender published with the wrong attachment, renew an expiring document,
+or let a reviewer look at a decision they had already made. Five of the thirteen were one question — where
+does the ETag come from, and does anything fetch it — with four different causes.
 
-**The one that matters most:** pricing the second line item of a proposal answered
-`23505 duplicate key value violates unique constraint "PK_proposal_item"`. The patch handler told the
-change tracker about every line in the array, including ones already stored, so saving the second
-issued an INSERT carrying the first's primary key.
+Closing them moved no verdict in this document, which is the finding rather than a quiet edition: **the
+instruments had nothing to say either way.**
 
-It cannot fire on the first line — RFC 7396 replaces an array wholesale, so the client resends what
-it wants kept, and the first write on an empty proposal has nothing to re-add. **Every test in the
-proposal suite priced exactly one line. So did every run of the automated walkthrough.** A defect that
-made any real tender unbiddable sat behind a suite that could not reach it, in an epic this document
-called Closed, one batch after a walkthrough certified the end-to-end journey.
+### 5.3 The phases 1–4 finding: an instrument that measures nothing looks exactly like one that passes
 
-**The other twelve, grouped by what they say about the instruments:**
+This batch wrote sweeps for the two classes batch 13 exposed. Four things happened, and all four are worth
+recording because they are the same shape:
 
-| Kind | Findings | What the instruments could not see |
+- **The precondition sweep found its own denominator empty.** The client-side half globbed `api/*.ts` with
+  `import.meta.glob`, whose keys are relative to the importing file — so the sweep's audience was itself,
+  and `proposals.ts` was silently skipped. Fixed, and the fix is the reason the sweep found anything.
+- **The authorisation fuzz derived expectations from a stale source.** It compared each route's requirement
+  against `Roles.DefaultPermissions` while a test elsewhere permanently grants `report.read` to
+  `procurement_officer`. It now reads the roles' **live** claims, because the question is what the running
+  system permits, not what a constant says it should.
+- **CI found three defects the local runs could not.** Four TypeScript errors that `vitest` cannot see — a
+  missing `aria-live` label on three loading tables, and two callers passing a bare array to a function that
+  takes a filter object, which invalidated nothing at all. The a11y route guard failing at 58 against 68
+  declared routes, which is precisely what it is for. And a duplication ceiling that made four screens share
+  their scaffolding properly instead of by copy.
+- **The migration squash had a live trap.** D-58's award-critical flags lived in a data migration. A squashed
+  baseline seeds from the model, so without moving those flags into `HasData` first, both types would have
+  come back `false`, BRULE-023 would have gone back to suspending nobody, **and every test that proves the
+  rule fires would still have passed**, because they ran against a database seeded the old way.
+
+The pattern across all four: the failure mode of a check is silence, not noise. Every sweep in this
+repository now asserts its own denominator before it asserts its rule.
+
+---
+
+## 6. The instruments, and what each one cannot see
+
+Six checks now exist for classes of defect that used to be found by a person pressing a button. Each is
+listed with what it closes and what it does not, because an instrument trusted past its range is how the
+next defect gets certified as absent.
+
+| Instrument | The class it closes | What it still cannot see |
 |---|---|---|
-| A capability with no screen | no editor for a Draft tender; items and requirements addable and removable but not correctable | `PUT /rfqs/{code}` and `updateRfqBasics` both existed and nothing called either. Nothing asks whether an exported API function is reachable from a screen |
-| A precondition nothing supplies | the reviewer's document decisions; offering edit and deactivate; adding a contact | Four separate 428s with four different causes. Each guard was correct; each read that should have issued the version either did not, or filed it where the write could not walk to it |
-| An affordance the state forbids | the admin's procurement links; the supplier shell with no supplier guard; sign-in routing an administrator to the evaluator's dashboard | Every one of them gates on a permission, and `system_admin` holds all 104 |
-| A rule that was true and invisible | an approved supplier could change nothing about itself, including renewing a document the product was warning them was expiring | The domain refused it correctly. No screen said so, and no reviewer could reopen them either |
+| `router.test.tsx` | A screen built, permissioned, tested and linked from nowhere — six defects before the guard existed | Whether the link is visible to the persona who owns the screen, and whether the screen renders populated data |
+| `IfMatchPreconditionSweepTests` | A guarded write whose precondition no ETag-emitting read can supply, following the SPA's upward-only prefix walk | Whether a particular client actually calls that read |
+| `preconditionCoverage.test.ts` | The client half: every guarded write in the committed contract has a caller that sends a version | Nothing about routes absent from the baseline — which is why a second test asserts the baseline knows every guarded write |
+| `exportReachability.test.ts` | A capability no screen exposes — `PUT /rfqs/{code}` sat unused with its client function beside it | Whether the screen that references it is reachable |
+| `AuthorizationFuzzTests` | Every permissioned route called as every persona lacking its permission, with a 5xx counted as a failure | A class of attack nobody thought to test for. It is coverage, not a review (D-68) |
+| `app-a11y.spec.ts` route denominator | The scan quietly covering fewer routes than the router declares | Whether a screen reader can complete a tender in Arabic (D-68) |
 
-**The pattern worth carrying forward.** Five of the thirteen were the same question — *where does the
-version come from, and does anything actually fetch it* — with four different answers. That is now
-the strongest candidate for a systematic pass: every route declaring `RequireIfMatch`, checked
-against whether any client read supplies its precondition. Four were found by a person pressing
-buttons; nobody knows how many remain.
-
-**What batch 13 did not change: any epic's status.** Every defect above sat inside an epic already
-marked Closed, and closing them changed no verdict in §1. That is the finding, not a footnote — see
-§4, which now carries it.
-
-## 6. The router guard — a class, not an instance
-
-Batch 12's navigation fix was four screens. The guard beside it is the part that matters, because
-**this was the sixth time** a screen had been built, permissioned, tested and left reachable only by
-typing its address.
-
-Every instrument in this repository asked whether a route **resolves**:
-
-- the router's own type-checked route table,
-- the Playwright suite, which navigates by URL,
-- the axe suite, which visits a list of paths,
-- the permission catalogue, which asserts each route's guard,
-- the screen inventory, which records that a row has a route.
-
-**None asked whether anything links to it.** So all four screens passed every check the project had,
-five times over, and the defect kept coming back in a different place.
-
-`router.test.tsx` now collects every `/…` string literal referenced anywhere outside `router.tsx` and
-asserts each declared route appears among them, failing with the screen's name. It is deliberately
-broader than matching `to=`: links here are written three ways — a bare attribute, a template
-carrying a parameter, and a data array rendered as `to={step.path}` — and matching only the attribute
-form produced three false positives on the first run. What matters is whether any component *names*
-the path.
-
-Two exemption lists, both hand-written so a new unreachable route cannot join one by accident:
-
-```
-ENTERED_FROM_EMAIL  /reset-password, /verify-email, /accept-invite, /accept-staff-invite
-NOT_A_SCREEN        /  (the address you type)   /back-office  (a layout, not a screen)
-```
-
-Proved by reverting one link, which made it report `/back-office/review-dashboard` by name.
-
-**What it does not close.** It asserts a path is *named*, not that the link is visible to the persona
-who owns the screen, and not that the screen renders populated data when reached. Those are still
-found by walking. The class it closes is "built and linked by nothing" — which is the class that
-produced six defects.
+Two exemption lists per sweep, hand-written, each entry naming why. The rule is the same everywhere: a
+pattern-matched exemption lets the next instance join it silently, so exemptions are typed out by hand and
+checked in both directions — a route that has gained what it was exempted for fails the sweep as loudly as
+one that never had it.
 
 ---
 
 ## 7. Blocked on a person
 
-> **Six of these were answered on 2026-09-08** and are recorded as **D-57 to D-62** in
-> `DECISIONS-TAKEN.md`. The rows below are kept rather than deleted, each marked with what settled it,
-> because a question's history is what stops it being re-opened by the next sweep. **One remains
-> genuinely open** — the approval threshold — and **two of the six carry conditions** that must be met
-> before the work they unblock is built.
+> **Twelve questions were answered on 2026-09-08** and are recorded as **D-57 to D-68** in
+> `DECISIONS-TAKEN.md`. **No question in this section is open any more.** What remains is two **gates** —
+> conditions on work already built — and one unassigned testing pass.
 
-Nothing here is an engineering task. Each is a value, a classification or a judgement that belongs to
-somebody who owns the policy, and each has been refused rather than invented.
+### The two gates
 
-| # | Question | Who owns it | What it holds up |
-|---|---|---|---|
-| 1 | ~~**What may the Ministry see?**~~ **Answered — D-57: commercial figures.** Conditional: needs written sign-off naming the scope before the four screens are built | MOT Legal | The Ministry dashboard shows no commercial values. BRULE-087 defaults to aggregate-only wherever visibility is undecided, so the product is correct either way — but SCR-601/602/603/606 stay refused until this is answered |
-| 2 | ~~**Which document types are award-critical?**~~ **Answered — D-58: commercial register and tax card.** Safe to switch on only because batch 13 built the renewal path | Ministry | The auto-suspend rule fires on nothing. The flag is settable on SCR-710 since #117 and all three seeded types are still `false`. "Was blocked from participating for a fortnight" is not undone by reactivation, which is why no default was invented |
-| 3 | ~~**Is the required-document set category-dependent?**~~ **Answered — D-59: yes, for everyone.** A one-way door: safe while suppliers are demo data, re-decide if it ships after real approvals | Ministry | The join entity and admin surface ship; the behaviour is off. Switching it on changes what every already-approved supplier was required to have submitted |
-| 4 | ~~**Which notifications may a user switch off?**~~ **Answered — D-60: informational only.** Invitations, clarifications, award outcomes and expiry are never muteable. The per-type classification of all 32 is the remaining work | Ministry | SCR-901. The requirement is tagged `[REQUIRES BUSINESS CONFIRMATION]` and nothing classifies the 30+ notification types. Whether a supplier may mute the message telling them they have won is not a default anyone should pick |
-| 5 | **What is the approval threshold?** (T-075) | Ministry / finance | EPIC-21's approval-hierarchy routing. The mechanism is cheap; the number is not ours |
-| 6 | ~~**Is SCR-501 a separate brief?**~~ **Answered: yes** — a standalone screen carrying tender context, template instructions and every criterion's guidance | Product / UX | One evaluation screen. `SCREEN-SPECIFICATIONS.md` names it once, as an entry point, and never specifies it |
-| 7 | ~~**Arabic review**~~ **Answered — D-62: accepted.** 262 markers in `i18n/config.ts` and 118 in `ARABIC-REVIEW.md` come off in one pass | The reviewer who accepted it | `ARABIC-REVIEW.md` holds every drafted string from batches 9–12, including batch 12's five validation-catalogue entries. All are marked `[drafted]` and none has been reviewed |
+| Gate | What it holds | Who can lift it |
+|---|---|---|
+| **Commercial visibility outside the demonstration** | D-66 authorised the Ministry screens' full disclosure **for the demonstration environment and its seeded data only** — where there is no real bidder, no real bid value and no live competition. The flag defaults to **off** in every environment and is switched on by the **demonstration seeder**, deliberately not by a migration: a migration runs everywhere, so the deployment step that creates the schema in production would have disclosed live bidder values there. Before this system holds a real supplier's bid, enabling it anywhere requires **written sign-off naming a person, a date and the scope** — live tenders or completed only, per-bidder values or awarded totals only | MOT Legal, or the Ministry official answerable for disclosure. Recorded as a gate on **D-57** |
+| **A line-by-line read of the newer Arabic** | The Arabic is accepted and the markers are off. The ~60 strings written after that acceptance — the five new screens and the four Ministry screens — ship **for the demonstration build without a line-by-line read**, and are recorded that way rather than as reviewed. `ARABIC-REVIEW.md` groups them under their own phase headings so the read has a starting point | A native reviewer, before any real tender runs on this system. **D-65** |
 
-**OQ-014 is closed** — D-61 confirms AV scanning as built, and A-11 moves from
-`[recommended — awaiting security]` to settled.
+### The one unassigned pass
 
-**Still open: the approval threshold (T-075).** The mechanism is cheap and the number is not ours.
+ASVS L2, the WCAG 2.2 AA audit in both languages, and the two load-dependent measurements are deferred to a
+later testing pass by **D-68**. They are unassigned, they are open against **M9**, and that milestone does
+not close until they are done.
 
-**Answered since this list was written:** whether an addendum may carry the revised document, raised
-when a tender was published with the wrong file attached and no route existed to correct it. Ruled
-**no** — D-56. A published tender's attachments stay locked, because bidders price against what they
-downloaded; the remedy is to cancel and re-author, and the screen now says so before the officer
-attaches anything.
+### Still genuinely undecided, and small
 
-**Left open by batch 13, and belonging to the same owners:** whether approving a renewed document
-should automatically reinstate a supplier that an expiry suspended (§5.2's renewal path makes the
-question live for the first time), and whether a platform administrator should read across every
-organization's live procurements — the same question BRULE-086 answers for the Ministry, currently
-resolved by hiding the links rather than widening the grant.
+Whether a platform administrator should read across every organization's live procurements — the same
+question BRULE-086 answers for the Ministry. Currently resolved by hiding the links rather than widening the
+grant, which is the conservative default and needs no decision to stay correct.
 
 ---
 
@@ -406,111 +293,100 @@ resolved by hiding the links rather than widening the grant.
 
 | Work | Epic / phase | Size | Note |
 |---|---|---|---|
-| ERPNext adapter and its ACL | EPIC-23 / P11 | **XL** | Another engineer. Portal side is done; `ErpSyncVacuityTests` marks the seam |
-| OWASP ASVS L2 pass + authz fuzzing | EPIC-24 / P12 | **L** | Not started. Per-endpoint negative tests exist; a systematic pass does not |
-| Write-path p95, LCP and INP under load | EPIC-26 / P12 | **M** | `perf/BASELINE.md` covers 18 reads only, and says so |
-| WCAG 2.2 AA audit in both languages | EPIC-27, 28 / P12 | **M** | axe runs per build; an audit is a person in both languages, not a linter |
-| Production dashboards and alerts | EPIC-25 / P12 | **M** | Traces, metrics and logs are emitted; nothing consumes them |
-| T-030 split (4) — concurrency hardening | P12 | **M** | Deliberately re-sized and deferred in batch 9, not forgotten |
-| SCR-604 category & sector analytics | EPIC-18 / P10 | **S** | Inside BRULE-086's aggregate grant; buildable today |
-| SCR-307 + SCR-402 supplier directory | EPIC-03, 21 | **S** each | `/back-office/search` finds suppliers; neither persona has a directory screen |
-| SCR-501 | EPIC-11 | **S**, after the question | Blocked on #6 above |
-| SCR-901 | EPIC-15 | **M**, after the question | Blocked on #4 above |
-| Arabic review pass | EPIC-27 | — | Blocked on #7 above. Batch 13 added drafted strings for the tender-details editor, the close-reason prompt and the attachment warning |
-| **A sweep of every `RequireIfMatch` route** | cross-cutting | **M** | The strongest instrument-shaped item on this list. Five of batch 13's thirteen findings were "the guard is right and nothing supplies its precondition", with four different causes. Each was found by a person pressing a button; nobody knows how many remain |
-| **A reachability check for API functions** | cross-cutting | **S** | Batch 12's router test catches a screen nothing links to. Nothing catches a capability no screen exposes — `PUT /rfqs/{code}` sat unused with its client function beside it. Same two-list shape: every export in `api/*.ts` is referenced outside `api/`, or listed as deliberately not surfaced |
+| ERPNext adapter and its ACL | EPIC-23 / P11 | **XL** | Another engineer. Portal side is done; `ErpSyncVacuityTests` marks the seam and asserts the absence rather than hiding it |
+| OWASP ASVS L2 review | EPIC-24 / P12 item 21 | **L** | Deferred (D-68), open against M9. The automatable half exists and found real defects; the review is a person |
+| WCAG 2.2 AA audit, both languages | EPIC-27, 28 / P12 item 24 | **M** | Deferred (D-68), open against M9. `axe` runs per build; an audit is a person with a screen reader in Arabic |
+| Write-path p95 · LCP and INP under load | EPIC-26 / P12 items 22, 23 | **M** | Deferred (D-68), open against M9. **The blocker is an environment, not the work** — the harness is written and the read baseline was taken with it |
+| Line-by-line read of ~60 Arabic strings | EPIC-27 | **S** | A gate, not a build (§7). Before any real tender |
+| The disclosure sign-off | — | — | A gate, not a build (§7). Before any real bid |
 
-**Ranked by what most changes whether the product can be used:** none of them, with the caveat batch
-13 earned. Batch 12 closed every blocker to running a tender end to end *as the walkthrough walked
-it*; batch 13 then found twelve more by walking it differently, including one that made a multi-line
-tender unbiddable. What remains on this list is somebody else's integration, somebody else's
-decision, or P12's verification work — plus the two cross-cutting sweeps, which exist precisely
-because the last two batches suggest more of the same is sitting in code nobody has clicked.
+**Ranked by what most changes whether the product can be used:** none of them. Every screen exists, every
+rule that was switched off is on, and the two walkthroughs' eighteen findings are closed. What is left is
+one integration owned elsewhere, one testing pass owned by nobody yet, and two conditions that are somebody's
+signature rather than somebody's code.
+
+**What is deliberately not on this list.** The two cross-cutting sweeps the last edition sized are built —
+every `RequireIfMatch` route against a read that can supply it, and every `api/*.ts` export against a screen
+that calls it. Both found defects; both are in §6 with what they cannot see.
 
 ---
 
 ## 9. Line counts
 
-`cloc` and `tokei` are not installed on this machine, so this was counted over `git ls-files` —
-tracked files only, which keeps `node_modules`, build output and scratch files out without an ignore
-list. Blank and comment lines are **not** separated; these are physical lines.
+`cloc` and `tokei` are not installed on this machine, so this was counted over `git ls-files` — tracked files
+only, which keeps `node_modules`, build output and scratch files out without an ignore list. Blank and
+comment lines are **not** separated; these are physical lines.
 
 | Bucket | Files | Lines | What is in it |
 |---|---:|---:|---|
-| **Production** | 551 | **67,616** | Hand-written application source |
-| **Test** | 269 | **43,278** | Everything under a test directory or named as a test |
-| **Walkthrough** | 9 | 3,121 | The driver, its scripts, the generated guide, and the `.docx` generator |
-| **Generated** | 118 | 161,324 | EF migrations with their Designer and snapshot files, `package-lock.json`, the captured OpenAPI baseline |
-| **Docs** | 51 | 19,181 | Markdown, including `docs/` |
-| **Total** | 998 | **294,520** | 103 binary/asset files not counted |
-
-Batch 13 moved production by **+640** lines and tests by **+877** — more test than product, which is
-what a batch of thirteen fixes with a regression test each looks like.
+| **Production** | 569 | **72,093** | Hand-written application source |
+| **Test** | 297 | **46,987** | Everything under a test directory or named as a test |
+| **Walkthrough** | 9 | 3,122 | The driver, its scripts, the generated guide, and the `.docx` generator |
+| **Generated** | 6 | **31,571** | The EF migration baseline with its Designer and snapshot, `package-lock.json`, the captured OpenAPI baseline |
+| **Docs** | 52 | 19,866 | Markdown, including `docs/` |
+| **Total** | 933 | **173,639** | Binary and image files not counted |
 
 ### Production, by language
 
 | Language | Files | Lines |
 |---|---:|---:|
-| C# | 366 | 39,422 |
-| TypeScript (TSX) | 94 | 15,460 |
-| TypeScript | 62 | 8,775 |
-| JSON | 13 | 1,758 |
-| YAML (CI) | 2 | 1,135 |
+| C# | 381 | 41,692 |
+| TypeScript (TSX) | 96 | 16,857 |
+| TypeScript | 62 | 9,319 |
+| JSONC (notification copy) | 2 | 1,480 |
+| YAML (CI) | 3 | 1,265 |
+| JSON | 12 | 458 |
 | CSS | 2 | 263 |
 | Python (perf harness) | 1 | 250 |
-| Other (XML, config, HTML, JS, Docker, assets) | 11 | 544 |
 
 ### Test, by language
 
 | Language | Files | Lines |
 |---|---:|---:|
-| C# | 181 | 32,094 |
-| TypeScript (TSX) | 64 | 8,698 |
-| TypeScript | 21 | 2,391 |
+| C# | 192 | 34,407 |
+| TypeScript (TSX) | 78 | 9,578 |
+| TypeScript | 24 | 2,906 |
 
-### What the generated figure means
+### What the generated figure means, and why it fell by 130,000 lines
 
-**161,144 lines is 55% of the repository and none of it was written by hand.** 141,293 of those lines
-are C# under `Migrations/`: 57 migrations, each with a `.Designer.cs` and the model snapshot beside
-it, every one of which restates the entire model. The remaining 19,851 are `package-lock.json` and
-the captured OpenAPI baseline.
+Last edition it was **161,324 lines — 55% of the repository.** It is now **31,571, about 18%.** Nothing was
+deleted from the product: 59 EF migrations, each carrying a `.Designer.cs` that restates the entire model,
+were squashed into one baseline (P12 item 29). The generated bucket is now three files of C# — the baseline,
+its Designer and the model snapshot — plus `package-lock.json` and the captured OpenAPI contract.
 
-**The honest answer to "how much application code is there" is 67,616 lines**, against 43,278 lines
-of tests — a test-to-production ratio of **0.64:1**. The two largest hand-written files are
-`i18n/config.ts` at 3,444 lines (every string in the product, in both languages) and
-`AppDbContext.cs` at 1,255.
+**The honest answer to "how much application code is there" is 72,093 lines**, against 46,987 lines of tests
+— a test-to-production ratio of **0.65:1**. The two largest hand-written files are `i18n/config.ts` at 3,788
+lines (every string in the product, in both languages) and `AppDbContext.cs` at 1,289.
 
 ---
 
 ## 10. What changed in this edition
 
+### Phases 1–4 and the Ministry screens (PRs #123, #125, #126, #127, 2026-09-08)
+
+**Verdicts moved, for the first time in three editions.**
+
+- **§0/§1/§4: every screen exists.** The three missing, the five refused and the one unresolved are built.
+  Four epics closed — EPIC-11, 15, 18, 21 — and EPIC-03 and EPIC-05 stopped carrying undecided rules.
+- **§2: P12 went from eleven items to four.** Items 18, 25, 26 and 29 closed; 21–24 are deferred by D-68 and
+  open against M9.
+- **§7 has no open questions.** Twelve answers landed as D-57–D-68. The section is now two gates and one
+  unassigned pass, which is a different shape of blocker and is labelled as one.
+- **§4 gained a fifth question and §6 became its own section** — the instruments, six of them, each with what
+  it cannot see. Written because three of this batch's own sweeps caught themselves measuring nothing.
+- **§5.3 is new**: four cases from this batch where a check would have passed while looking at nothing,
+  including a migration squash that would have silently reverted D-58.
+- **§9 recounted, and the generated bucket fell from 161,324 to 31,571** because of the squash. Production
+  72,093 (+4,477 since batch 13), tests 46,987 (+3,709).
+
 ### Batch 13 (PR #120, 2026-09-08)
 
-**No epic, phase or milestone verdict moved**, and §5.2 explains why that is the finding rather than
-a quiet edition. What changed:
-
-- **§5** became "what driving the product finds that reading it does not", with the batch-12 five as
-  §5.1 and batch 13's thirteen as §5.2.
-- **§4 gained a fourth view.** The three counting views are all blind to whether a surface can be used
-  in sequence; the walk is the only instrument that has ever answered it, and it only covers the path
-  taken.
-- **§3's milestone caveat narrowed again**: M4 and M6 were demonstrated on a one-line tender until
-  2026-09-08, because until then a second line could not be priced.
-- **§7** records D-56 as answered, and adds the two questions batch 13 raised.
-- **§8** gained the two cross-cutting sweeps — every `RequireIfMatch` route against a read that
-  supplies it, and every `api/*.ts` export against a screen that calls it.
-- **§9** recounted: production 67,616 (+640), tests 43,278 (+877).
+**No epic, phase or milestone verdict moved**, and §5.2 explains why that was the finding. Thirteen defects
+found by hand, all inside work marked complete; the two cross-cutting sweeps it sized are now built (§6).
 
 ### Batch 12 (PR #118, 2026-09-07)
 
-Rewritten from source rather than edited, because several statuses were written at different times by
-different batches and had gone stale in the same direction — work landed and the table did not move.
-
-**Corrected:** EPIC-20 (search was listed as missing; full-text search and SCR-906 shipped in #117) ·
-EPIC-21 (five admin screens listed as missing; all five shipped) · EPIC-24 (SCR-726 and SCR-903 both
-shipped) · EPIC-25 (the `Correlation-Id` echo shipped) · EPIC-26 (a baseline exists and reads are
-17–136× inside target) · EPIC-01, 04, 05, 09, 19 (all closed by batch 11's 34 screens) · M7 (reached
-and never recorded) · the missing-screen count (34 → 3).
-
-**Added:** the batch-12 finding (§5), the router guard (§6), the milestone caveat (§3), the
-three-view reconciliation (§4), and the line counts (§9).
+Rewritten from source rather than edited, because statuses written by different batches had gone stale in the
+same direction — work landed and the table did not move. Corrected EPIC-20, 21, 24, 25, 26, 01, 04, 05, 09,
+19, recorded M7 as reached, and cut the missing-screen count from 34 to 3. Added the batch-12 finding (§5),
+the router guard (§6), the milestone caveat (§3), the view reconciliation (§4) and the line counts (§9).
