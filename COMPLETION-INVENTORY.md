@@ -502,6 +502,19 @@ requirements across **228** operations (up from 195) is a sweep; a gate that fai
 produces 228 hurried annotations rather than 228 accurate ones. It stays open, and it is now the only part of
 §11 outstanding.
 
+**One of the four closed in phase 2 (2026-09-08): whether an operation needs `If-Match`.** Not as a style gate
+asking 228 authors to annotate, but derived — `RequireIfMatch()` now attaches metadata, and an OpenAPI
+operation transformer turns that into a required `If-Match` header parameter plus 412 and 428 on every guarded
+write, with an `ETag` response header on every read that issues one. So the annotation cannot drift from the
+behaviour: both come from the same filter. The remaining three (permission, error `type`s, pagination mode)
+are still prose, and still a sweep.
+
+That also made the precondition checkable from outside the server, which is the point: the SPA's
+`preconditionCoverage.test.ts` reads the committed contract to learn which of its own writes need a version,
+and `IfMatchPreconditionSweepTests` fails if a guarded route is missing from the baseline, so the client check
+cannot go quiet. The baseline is refreshed with `UPDATE_OPENAPI_BASELINE=1 dotnet test` rather than by curling
+a running API - see §5.3.
+
 **Found while building it:** `/openapi/v1.json` had never been reachable. `MapOpenApi()` declares no
 authorization, so NFR-SEC-004's deny-by-default `FallbackPolicy` answered 401 — the document was generated
 and served to nobody, including the two consumers §11 names for it (SPA type generation, the ERP ACL
@@ -712,3 +725,38 @@ The sharpest of the thirteen, for the same reason §5.1's five were sharp:
 **Five of the thirteen were one question with four answers** — where does the version come from, and
 does anything fetch it. That is now the strongest candidate for a systematic pass, and it is logged in
 `MOTS-PROGRESS.md` §8 rather than as another individual finding.
+
+### 5.3 What the two sweeps counted — phase 2
+
+§5.2's last paragraph named the systematic pass; this is its result. Two checks, both in CI, and the
+numbers are the deliverable: before this, nobody knew how many of either existed.
+
+| Sweep | Denominator | Named | Where it runs |
+|---|---|---|---|
+| **§8.1 preconditions — server side.** Every route demanding `If-Match`, against an ETag-emitting GET at its own path or a prefix of it | **68** guarded writes, **11** ETag-emitting reads | **0.** Every guarded write has a read above it in the path tree | `IfMatchPreconditionSweepTests` (integration) |
+| **§8.1 preconditions — client side.** Every guarded write the SPA actually calls, against a read the SPA actually performs | **67** of the 68 guarded writes are called from `api/*.ts` (193 readable call sites), and only **7** of the 11 ETag-emitting reads are ever fetched | **9**, all of them pre-existing workarounds, now named in one place with the batch that added each | `api/preconditionCoverage.test.ts` (vitest) |
+| **Capability reachability.** Every `api/*.ts` export referenced outside the api layer by something that is not a test | **222** exports | **9**, all api-layer plumbing. No unsurfaced endpoint wrapper remains — `updateRfqBasics` was the last, surfaced in batch 13 | `api/exportReachability.test.ts` (vitest) |
+
+**The server-side sweep finding nothing is itself the finding.** All five of batch 13's precondition
+defects were client-side: the route existed, a read existed, and the SPA either read a different path,
+read nothing, or built the header by hand. A check on the endpoint table alone would have passed on the
+day every one of them was live — which is why the client check is the one with teeth, and why it needed
+the contract to carry the precondition (§3.4) before it could be written at all.
+
+**The nine client exemptions are the useful artefact.** Each is a place where one resource is addressed at
+two paths and a `*From` helper files the ETag under both: proposals (D-47), the supplier profile, the
+evaluation templates, and the reviewer's supplier view (F-4). They were four separate discoveries across
+three batches, each fixed locally, and nothing recorded that they were the same shape. A tenth will now
+fail a test rather than a click.
+
+**The scanner's own blind spot is asserted, not assumed.** The first version read 183 call sites and quietly
+skipped `proposals.ts` entirely, because every path in that module is built from a `base()` helper rather
+than written as a literal - so the five proposal writes the sweep exists to cover were checked by nothing,
+and it reported a total. It now resolves those helpers, and any call site whose path it cannot read fails the
+test unless the module makes no writes at all. That is the seventh instance of the same failure mode this
+document keeps recording, and the first one caught while writing the instrument rather than afterwards.
+
+**What neither sweep can do**, stated so nobody reads more into the zero than it carries: these check that
+a version is *obtainable*, not that the screen in front of a user has obtained it. A write whose page never
+calls the read will still answer 428, and only driving the product finds that — which is what §5.1 and §5.2
+are.
