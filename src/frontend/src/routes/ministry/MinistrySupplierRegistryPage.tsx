@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Badge, FilterBar, FilterField, Input, ListCard, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, FilterBar, FilterField, ListCard, PageHeading, SearchField, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
 import { listMinistrySuppliers } from '../../api/governance'
 import { nextPageParam } from '../../api/listEnvelope'
 import { formatCurrency, formatDate, formatNumber } from '../../lib/datetime'
@@ -54,40 +54,24 @@ export function MinistrySupplierRegistryPage() {
             ]}
           />
         </FilterField>
-        <FilterField label={t('ministrySuppliers.search')} htmlFor="ministry-supplier-search">
-          <Input
-            id="ministry-supplier-search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('ministrySuppliers.searchPlaceholder')}
-          />
-        </FilterField>
+        <SearchField
+          id="ministry-supplier-search"
+          label={t('ministrySuppliers.search')}
+          placeholder={t('ministrySuppliers.searchPlaceholder')}
+          value={search}
+          onChange={setSearch}
+        />
       </FilterBar>
 
       <ListCard
         title={t('ministrySuppliers.title')}
-        isPending={query.isPending}
-        isError={query.isError}
+        query={query}
         isEmpty={suppliers.length === 0}
-        loadingLabel={t('common.loading')}
-        errorText={t('ministrySuppliers.loadFailed')}
-        emptyText={t('ministrySuppliers.empty')}
         skeletonRows={6}
-        hasNextPage={query.hasNextPage}
-        isFetchingNextPage={query.isFetchingNextPage}
-        onLoadMore={() => query.fetchNextPage()}
-        loadMoreLabel={t('ministrySuppliers.loadMore')}
+        labels={{ loading: t('common.loading'), error: t('ministrySuppliers.loadFailed'), empty: t('ministrySuppliers.empty'), loadMore: t('ministrySuppliers.loadMore') }}
       >
         <Table caption={t('ministrySuppliers.title')}>
-        <TableHead>
-          <TableHeaderCell>{t('ministrySuppliers.fields.supplier')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministrySuppliers.fields.categories')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministrySuppliers.fields.onboarding')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministrySuppliers.fields.standing')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministrySuppliers.fields.bids')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministrySuppliers.fields.won')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministrySuppliers.fields.registered')}</TableHeaderCell>
-        </TableHead>
+        <TableHead labels={[t('ministrySuppliers.fields.supplier'), t('ministrySuppliers.fields.categories'), t('ministrySuppliers.fields.onboarding'), t('ministrySuppliers.fields.standing'), t('ministrySuppliers.fields.bids'), t('ministrySuppliers.fields.won'), t('ministrySuppliers.fields.registered')]} />
         <TableBody>
           {suppliers.map((supplier) => (
             <TableRow key={supplier.supplierCode}>

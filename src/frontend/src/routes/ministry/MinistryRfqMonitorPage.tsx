@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { FilterBar, FilterField, Input, ListCard, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { FilterBar, FilterField, ListCard, PageHeading, SearchField, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
 import { listMinistryRfqs } from '../../api/governance'
 import { nextPageParam } from '../../api/listEnvelope'
 import { formatCurrency, formatDate } from '../../lib/datetime'
@@ -52,39 +52,24 @@ export function MinistryRfqMonitorPage() {
             ]}
           />
         </FilterField>
-        <FilterField label={t('ministryRfqs.search')} htmlFor="ministry-rfq-search">
-          <Input
-            id="ministry-rfq-search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('ministryRfqs.searchPlaceholder')}
-          />
-        </FilterField>
+        <SearchField
+          id="ministry-rfq-search"
+          label={t('ministryRfqs.search')}
+          placeholder={t('ministryRfqs.searchPlaceholder')}
+          value={search}
+          onChange={setSearch}
+        />
       </FilterBar>
 
       <ListCard
         title={t('ministryRfqs.title')}
-        isPending={query.isPending}
-        isError={query.isError}
+        query={query}
         isEmpty={rfqs.length === 0}
-        loadingLabel={t('common.loading')}
-        errorText={t('ministryRfqs.loadFailed')}
-        emptyText={t('ministryRfqs.empty')}
         skeletonRows={6}
-        hasNextPage={query.hasNextPage}
-        isFetchingNextPage={query.isFetchingNextPage}
-        onLoadMore={() => query.fetchNextPage()}
-        loadMoreLabel={t('ministryRfqs.loadMore')}
+        labels={{ loading: t('common.loading'), error: t('ministryRfqs.loadFailed'), empty: t('ministryRfqs.empty'), loadMore: t('ministryRfqs.loadMore') }}
       >
         <Table caption={t('ministryRfqs.title')}>
-        <TableHead>
-          <TableHeaderCell>{t('ministryRfqs.fields.tender')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministryRfqs.fields.organization')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministryRfqs.fields.state')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministryRfqs.fields.bids')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministryRfqs.fields.closes')}</TableHeaderCell>
-          <TableHeaderCell>{t('ministryRfqs.fields.awarded')}</TableHeaderCell>
-        </TableHead>
+        <TableHead labels={[t('ministryRfqs.fields.tender'), t('ministryRfqs.fields.organization'), t('ministryRfqs.fields.state'), t('ministryRfqs.fields.bids'), t('ministryRfqs.fields.closes'), t('ministryRfqs.fields.awarded')]} />
         <TableBody>
           {rfqs.map((rfq) => (
             <TableRow key={rfq.referenceCode}>

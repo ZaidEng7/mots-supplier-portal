@@ -404,6 +404,32 @@ export async function mockBackend(page: Page) {
       ],
     } })
 
+    // Phase 4 / D-66. Commercial values are WITHHELD in these fixtures - the flag is off outside the
+    // demonstration seeder, so the shape the scan renders is the one a fresh environment serves, and the
+    // withheld branch is the one most worth having under axe: it is the branch that says why a number is
+    // missing rather than showing a zero.
+    if (p === '/api/v1/ministry/rfqs') return route.fulfill({ json: listPage([
+      { referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ', state: 'SubmissionOpen', organizationNameAr: 'وزارة النقل', organizationNameEn: 'Ministry of Transport', publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z', invitedSuppliers: 3, submittedProposals: 2, awardedValue: null, currencyCode: 'SYP' },
+    ]) })
+    if (p === `/api/v1/ministry/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: {
+      summary: { referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ', state: 'SubmissionOpen', organizationNameAr: 'وزارة النقل', organizationNameEn: 'Ministry of Transport', publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z', invitedSuppliers: 3, submittedProposals: 1, awardedValue: null, currencyCode: 'SYP' },
+      descriptionAr: 'وصف', descriptionEn: 'A11y description',
+      items: [{ titleAr: 'وجبات', titleEn: 'Meals', categoryCode: 'general', quantity: 500, unitOfMeasureCode: 'unit' }],
+      bids: [{ proposalCode: PROPOSAL_REFERENCE_CODE, supplierCode: REFERENCE_CODE, supplierDisplayNameAr: SUPPLIER_PROFILE.displayNameAr, supplierDisplayNameEn: SUPPLIER_PROFILE.displayNameEn, state: 'UnderReview', submittedAt: '2026-09-05T10:00:00Z', totalValue: null, isAwarded: false }],
+      commercialValuesVisible: false,
+    } })
+    if (p === '/api/v1/ministry/suppliers') return route.fulfill({ json: listPage([
+      { supplierCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'Approved', lifecycleState: 'Active', categoryCodes: ['general'], submittedProposals: 2, awardsWon: 1, awardedValue: null, registeredAt: '2026-01-01T00:00:00Z' },
+    ]) })
+    if (p === '/api/v1/ministry/awards') return route.fulfill({ json: {
+      totalAwards: 3,
+      totalAwardedValue: null,
+      byMonth: [{ key: '2026-08', awards: 2, value: null }],
+      byCategory: [{ key: 'general', awards: 3, value: null }],
+      byOrganization: [{ key: 'Ministry of Transport', awards: 3, value: null }],
+      commercialValuesVisible: false,
+    } })
+
     // §12-A/Part D: an unmatched GET now FAILS LOUDLY instead of returning `{}`.
     //
     // The generic fallback existed so mutation endpoints no render triggers could not crash a
