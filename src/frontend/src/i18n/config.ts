@@ -846,6 +846,7 @@ const resources = {
         },
         closeSubmission: 'إغلاق باب التقديم',
         manualCloseReason: 'إغلاق يدوي من قبل موظف المشتريات',
+        closeReasonPrompt: 'سبب إغلاق باب العروض مبكراً — يُسجَّل في سجل التدقيق:',   // [drafted]
         returnForEditsTitle: 'إعادة للتعديل',
         returnForEdits: 'إعادة للتعديل',
         cancelTitle: 'إلغاء الطلب',
@@ -2533,6 +2534,7 @@ const resources = {
         },
         closeSubmission: 'Close submission window',
         manualCloseReason: 'Manually closed by procurement officer',
+        closeReasonPrompt: 'Why are you closing bidding early? This is recorded in the audit trail:',
         returnForEditsTitle: 'Return for edits',
         returnForEdits: 'Return for edits',
         cancelTitle: 'Cancel RFQ',

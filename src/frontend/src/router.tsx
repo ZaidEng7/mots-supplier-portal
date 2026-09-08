@@ -237,11 +237,23 @@ const supplierLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'supplier-layout',
   beforeLoad: async () => ensureAuthenticated('/dashboard'),
-  component: () => (
-    <SupplierShell>
-      <Outlet />
-    </SupplierShell>
-  ),
+  // The mirror of the back-office guard below, which has refused suppliers since it was written.
+  //
+  // This side had only ensureAuthenticated - authenticated, not "is a supplier" - so any signed-in
+  // account could land in the supplier shell, and every screen in it then asked /suppliers/me/... and
+  // got a 404. Seen for real: a system_admin signing in with a stale `?redirect=/dashboard` from a
+  // previous session landed on a supplier dashboard that could never load.
+  component: () => {
+    const claims = useAuthStore.getState().claims
+    if (!claims?.supplierId) {
+      return <ErrorBoundaryScreen code="403" />
+    }
+    return (
+      <SupplierShell>
+        <Outlet />
+      </SupplierShell>
+    )
+  },
 })
 
 const supplierDashboardRoute = createRoute({

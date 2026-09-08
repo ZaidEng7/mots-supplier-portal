@@ -28,11 +28,13 @@ describe('BackOfficeShell navigation', () => {
     useAuthStore.setState({ accessToken: null, claims: null, status: 'idle', expired: false, lastEmail: null })
   })
 
-  function signInWith(permissions: string[]) {
+  // `null` rather than `undefined` for "no buying body": passing undefined to a parameter that has a
+  // default gets the default, so the first version of this helper silently gave every caller org-1.
+  function signInWith(permissions: string[], organizationId: string | null = 'org-1') {
     useAuthStore.setState({
       accessToken: 'token',
       status: 'authenticated',
-      claims: { userId: 'u-1', email: 'staff@example.test', permissions },
+      claims: { userId: 'u-1', email: 'staff@example.test', permissions, organizationId: organizationId ?? undefined },
     })
   }
 
@@ -74,6 +76,31 @@ describe('BackOfficeShell navigation', () => {
     expect(hrefs()).toContain('/back-office/account')
     expect(hrefs()).toContain('/back-office/help')
     expect(hrefs()).toContain('/back-office/search')
+  })
+
+  it('hides the procurement destinations from an account that belongs to no buying body', () => {
+    // A system_admin holds every permission and belongs to no organization, and BRULE-029 scopes every
+    // procurement query by organization - so these screens answer 404 for them. The links were offered
+    // anyway, and "Couldn't load the dashboard - Try again" invites a retry that cannot succeed.
+    signInWith(['rfq.read', 'offering.search', 'evaluation.template.manage', 'audit.read'], null)
+
+    renderPage(<BackOfficeShell><div /></BackOfficeShell>)
+
+    expect(hrefs()).not.toContain('/back-office/procurement')
+    expect(hrefs()).not.toContain('/back-office/rfqs')
+    expect(hrefs()).not.toContain('/back-office/offerings')
+    expect(hrefs()).not.toContain('/back-office/evaluation-templates')
+    // The control: what this persona CAN reach is untouched.
+    expect(hrefs()).toContain('/back-office/audit')
+  })
+
+  it('still shows them to staff who are in one', () => {
+    signInWith(['rfq.read', 'offering.search', 'evaluation.template.manage'])
+
+    renderPage(<BackOfficeShell><div /></BackOfficeShell>)
+
+    expect(hrefs()).toContain('/back-office/procurement')
+    expect(hrefs()).toContain('/back-office/rfqs')
   })
 
   it('renders the page it wraps, so anything inside it is reachable at all', () => {

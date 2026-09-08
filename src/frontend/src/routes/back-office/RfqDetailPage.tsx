@@ -237,8 +237,14 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
+  // The officer's own words, not a constant.
+  //
+  // The aggregate refuses an early close without a reason, because closing bidding before the
+  // advertised deadline is a decision bidders can challenge and the answer has to be on the record.
+  // This sent a fixed translated string, so every early close in the system carried the same sentence
+  // and the audit trail said nothing about why - satisfying the rule while defeating it.
   const closeMutation = useMutation({
-    mutationFn: () => closeRfqSubmission(referenceCode, t('rfq.manualCloseReason')),
+    mutationFn: (reason: string) => closeRfqSubmission(referenceCode, reason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.closed') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
@@ -393,7 +399,16 @@ export function RfqDetailPage() {
             <Button isLoading={publishMutation.isPending} onClick={() => publishMutation.mutate()}>{t('rfq.publish')}</Button>
           ) : null}
           {isSubmissionOpen ? (
-            <Button variant="secondary" isLoading={closeMutation.isPending} onClick={() => closeMutation.mutate()}>{t('rfq.closeSubmission')}</Button>
+            <Button
+              variant="secondary"
+              isLoading={closeMutation.isPending}
+              onClick={() => {
+                const reason = window.prompt(t('rfq.closeReasonPrompt'))?.trim()
+                if (reason) closeMutation.mutate(reason)
+              }}
+            >
+              {t('rfq.closeSubmission')}
+            </Button>
           ) : null}
         </div>
       </div>
