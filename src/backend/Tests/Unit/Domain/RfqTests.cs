@@ -45,6 +45,79 @@ public class RfqTests
         CreateDraftRfq().State.Should().Be(RfqState.Draft);
     }
 
+    /// <summary>
+    /// The three refusals UpdateItem owes, none of which an integration test reaches: an unknown id,
+    /// an empty title, and a non-positive quantity. They are the same guards AddItem has, and a
+    /// correction that accepted what a create refuses would let a tender reach a state authoring
+    /// could never have produced.
+    /// </summary>
+    [Fact]
+    public void UpdateItem_enforces_the_same_guards_as_adding_one()
+    {
+        var rfq = CreateDraftRfq();
+        var item = rfq.AddItem("بند", "Item", null, null, "catering", 10m, "unit", isUnitPrice: true, isOptional: false);
+
+        var unknownId = () => rfq.UpdateItem(Guid.NewGuid(), "بند", "Item", null, null, "catering", 5m, "unit", true, false);
+        var emptyTitle = () => rfq.UpdateItem(item.Id, "بند", "  ", null, null, "catering", 5m, "unit", true, false);
+        var zeroQuantity = () => rfq.UpdateItem(item.Id, "بند", "Item", null, null, "catering", 0m, "unit", true, false);
+
+        unknownId.Should().Throw<DomainException>().WithMessage("*not found*");
+        emptyTitle.Should().Throw<DomainException>().WithMessage("*title*");
+        zeroQuantity.Should().Throw<DomainException>().WithMessage("*positive*");
+    }
+
+    [Fact]
+    public void UpdateItem_changes_the_values_and_leaves_the_line_number_alone()
+    {
+        var rfq = CreateDraftRfq();
+        rfq.AddItem("أول", "First", null, null, "catering", 1m, "unit", isUnitPrice: false, isOptional: false);
+        var second = rfq.AddItem("ثان", "Mistyped", null, null, "catering", 1m, "unit", isUnitPrice: false, isOptional: false);
+        var lineNo = second.LineNo;
+
+        rfq.UpdateItem(second.Id, "وجبة", "Hot lunch", null, null, "catering", 180000m, "unit", isUnitPrice: true, isOptional: false);
+
+        second.TitleEn.Should().Be("Hot lunch");
+        second.Quantity.Should().Be(180000m);
+        second.IsUnitPrice.Should().BeTrue();
+        second.LineNo.Should().Be(lineNo, "a correction is the same line, not a new one");
+        rfq.Items.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void UpdateItem_is_rejected_once_the_rfq_leaves_draft()
+    {
+        var rfq = CreateReadyToSubmitRfq();
+        var item = rfq.Items[0];
+        rfq.SubmitForReview();
+
+        var act = () => rfq.UpdateItem(item.Id, "بند", "Changed", null, null, "catering", 5m, "unit", true, false);
+
+        act.Should().Throw<DomainException>().WithMessage("*Draft*");
+    }
+
+    [Fact]
+    public void UpdateRequirement_enforces_its_own_guards_and_changes_the_text()
+    {
+        var rfq = CreateDraftRfq();
+        var requirement = rfq.AddRequirement("شرط", "Requirement", isMandatory: true, documentTypeCode: null);
+
+        var unknownId = () => rfq.UpdateRequirement(Guid.NewGuid(), "شرط", "Text", true, null);
+        var emptyText = () => rfq.UpdateRequirement(requirement.Id, "شرط", "   ", true, null);
+        // A-2: an envelope expectation on a requirement that asks for no document has nothing to
+        // attach to - the same refusal AddRequirement makes.
+        var envelopeWithoutDocument = () => rfq.UpdateRequirement(
+            requirement.Id, "شرط", "Text", true, null, ProposalDocumentEnvelope.Technical);
+
+        unknownId.Should().Throw<DomainException>().WithMessage("*not found*");
+        emptyText.Should().Throw<DomainException>().WithMessage("*text*");
+        envelopeWithoutDocument.Should().Throw<DomainException>().WithMessage("*envelope*");
+
+        rfq.UpdateRequirement(requirement.Id, "شرط معدل", "Corrected text", isMandatory: false, documentTypeCode: null);
+
+        requirement.TextEn.Should().Be("Corrected text");
+        requirement.IsMandatory.Should().BeFalse();
+    }
+
     [Fact]
     public void AddItem_is_rejected_once_the_rfq_leaves_draft()
     {

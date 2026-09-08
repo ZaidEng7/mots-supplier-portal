@@ -749,14 +749,14 @@ export function RfqDetailPage() {
               {isDraft ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
             </TableHead>
             <TableBody>
-              {rfq.requirements.map((req) => (
+              {rfq.requirements.map((req, index) => (
                 editingRequirementId === req.id ? (
                   <TableRow key={req.id}>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        <Input aria-label={t('rfq.fields.textEn')} value={editRequirement.textEn}
+                        <Input aria-label={`${t('rfq.fields.textEn')} — ${index + 1}`} value={editRequirement.textEn}
                           onChange={(e) => setEditRequirement((p) => ({ ...p, textEn: e.target.value }))} />
-                        <Input aria-label={t('rfq.fields.textAr')} value={editRequirement.textAr}
+                        <Input aria-label={`${t('rfq.fields.textAr')} — ${index + 1}`} value={editRequirement.textAr}
                           onChange={(e) => setEditRequirement((p) => ({ ...p, textAr: e.target.value }))} />
                       </div>
                     </TableCell>

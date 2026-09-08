@@ -314,6 +314,99 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
     /// widen it past the state bidders start reading from. UpdateItem calls EnsureDraftEditable for
     /// the same reason AddItem does.
     /// </summary>
+    /// <summary>
+    /// The reference-data guards on the correction path, which the add path has had since it was
+    /// written. A correction can change the category or the unit, and one into a code that does not
+    /// exist is the same defect as a create into one - so it earns the same refusal rather than a
+    /// 500 from a foreign key.
+    /// </summary>
+    [Fact]
+    public async Task Correcting_an_item_into_an_unknown_category_or_unit_is_refused()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Correction Reference RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var itemId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var badCategory = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items/{itemId}", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "no-such-category", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = false, isOptional = false,
+        });
+        var badUnit = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items/{itemId}", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "no-such-unit", isUnitPrice = false, isOptional = false,
+        });
+
+        // The same status and the same machine code the ADD path answers with - asserted rather than
+        // assumed, because a correction refused differently from a create is a second vocabulary for
+        // one rule.
+        badCategory.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await badCategory.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("code").GetString().Should().Be("INVALID_CATEGORY");
+        badUnit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await badUnit.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("code").GetString().Should().Be("INVALID_UNIT_OF_MEASURE");
+    }
+
+    /// <summary>A requirement correction refused by the aggregate, surfaced rather than swallowed:
+    /// an empty text is the same refusal adding one earns.</summary>
+    [Fact]
+    public async Task Correcting_a_requirement_to_empty_text_is_refused()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Requirement Correction RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements", new
+        { textAr = "شرط", textEn = "Requirement", isMandatory = true, documentTypeCode = (string?)null });
+        var requirementId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("requirements").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var refused = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements/{requirementId}", new
+        { textAr = "شرط", textEn = "   ", isMandatory = true, documentTypeCode = (string?)null });
+
+        refused.StatusCode.Should().NotBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>The correction that works, on a requirement, through the endpoint rather than the
+    /// aggregate - the buyer-visible half of the same fix.</summary>
+    [Fact]
+    public async Task A_requirement_can_be_corrected_in_place()
+    {
+        var (officer, _, _) = await ScopedClientsAsync();
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Requirement Edit RFQ"));
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString();
+
+        var added = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements", new
+        { textAr = "شرط", textEn = "Mistyped requirement", isMandatory = true, documentTypeCode = (string?)null });
+        var requirementId = (await added.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("requirements").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var corrected = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/requirements/{requirementId}", new
+        {
+            textAr = "صف خطة سلسلة التبريد", textEn = "Describe your cold-chain plan",
+            isMandatory = false, documentTypeCode = (string?)null,
+        });
+
+        corrected.StatusCode.Should().Be(HttpStatusCode.OK, await corrected.Content.ReadAsStringAsync());
+        var body = await corrected.Content.ReadFromJsonAsync<JsonElement>();
+        var requirement = body.GetProperty("requirements").EnumerateArray().Single();
+        requirement.GetProperty("textEn").GetString().Should().Be("Describe your cold-chain plan");
+        requirement.GetProperty("isMandatory").GetBoolean().Should().BeFalse();
+    }
+
     [Fact]
     public async Task An_item_cannot_be_corrected_once_the_tender_has_left_draft()
     {

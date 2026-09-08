@@ -140,6 +140,101 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText(/attachments cannot be added, replaced or removed/i)).toBeInTheDocument()
   })
 
+  it('Draft: a requirement can be corrected, and an edit can be abandoned', async () => {
+    const requirement = { id: 'req-1', textAr: 'شرط', textEn: 'Cold chain plan', isMandatory: true, documentTypeCode: null, expectedEnvelope: null }
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(
+      { ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', { requirements: [requirement] }) },
+      recorded,
+    )
+
+    renderPage(<RfqDetailPage />)
+
+    // Abandoning first: the row must go back to reading, having written nothing.
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('Text (English) — 1')).not.toBeInTheDocument()
+    expect(recorded.filter((r) => r.method === 'PUT')).toHaveLength(0)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const text = screen.getByLabelText('Text (English) — 1')
+    await userEvent.clear(text)
+    await userEvent.type(text, 'Cold chain plan for twelve sites')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Requirement updated')).toBeInTheDocument()
+    const write = recorded.find((r) => r.method === 'PUT' && r.url.includes('/requirements/req-1'))
+    expect(write).toBeTruthy()
+    expect(JSON.parse(String(write!.body)).textEn).toBe('Cold chain plan for twelve sites')
+  })
+
+  it('Draft: a refused correction is reported rather than swallowed', async () => {
+    // The error arm of the same mutation. A save that fails silently is how somebody leaves a tender
+    // believing a quantity was corrected when it was not.
+    const item = {
+      id: 'item-1', lineNo: 1, titleAr: 'وجبة', titleEn: 'Hot lunch', specificationAr: null, specificationEn: null,
+      categoryCode: 'consulting', quantity: 1000, unitOfMeasureCode: 'each', isUnitPrice: true, isOptional: false,
+    }
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/items/item-1': { __status: 409, detail: 'Cannot edit RFQ content from state Published' },
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', { items: [item] }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText(/Cannot edit RFQ content|could not be saved/i)).toBeInTheDocument()
+  })
+
+  it('SubmissionOpen: closing early asks the officer why, and sends what they typed', async () => {
+    // F-9: the screen used to send a fixed translated string, so every early close in the system
+    // carried the same sentence and the audit trail said nothing about why.
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('  Only bidder has submitted  ')
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(
+      {
+        ...REFERENCE_ROUTES,
+        '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
+        '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
+      },
+      recorded,
+    )
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Close submission window' }))
+
+    expect(prompt).toHaveBeenCalled()
+    const write = recorded.find((r) => r.url.includes('/close'))
+    expect(JSON.parse(String(write!.body)).reason).toBe('Only bidder has submitted')
+    prompt.mockRestore()
+  })
+
+  it('SubmissionOpen: dismissing the reason prompt closes nothing', async () => {
+    // The control. A cancelled prompt must not send an empty reason - the aggregate would refuse it,
+    // and a refusal the officer did not ask for reads as a broken button.
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null)
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(
+      {
+        ...REFERENCE_ROUTES,
+        '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
+        '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
+      },
+      recorded,
+    )
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Close submission window' }))
+
+    expect(recorded.some((r) => r.url.includes('/close'))).toBe(false)
+    prompt.mockRestore()
+  })
+
   it('Published: an existing item is shown but item-edit controls are gone (state-gated editing)', async () => {
     restore = mockFetch({
       ...REFERENCE_ROUTES,
