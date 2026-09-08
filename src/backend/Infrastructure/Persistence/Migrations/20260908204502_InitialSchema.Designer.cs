@@ -13,8 +13,8 @@ using NpgsqlTypes;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260906024503_DocumentTypeCategoryLinks")]
-    partial class DocumentTypeCategoryLinks
+    [Migration("20260908204502_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -804,6 +804,14 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EvaluationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("GuidanceAr")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("GuidanceEn")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<decimal>("MaxScore")
                         .HasPrecision(6, 2)
                         .HasColumnType("numeric(6,2)");
@@ -1225,6 +1233,31 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.HasIndex("RecipientUserId", "ReadAt");
 
                     b.ToTable("notification", "shared");
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Notifications.NotificationPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NotificationType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "NotificationType")
+                        .IsUnique();
+
+                    b.ToTable("notification_preference", "shared");
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.Notifications.NotificationTemplate", b =>
@@ -1798,7 +1831,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Code = "commercial_registration",
                             ExpiryTracked = false,
                             IsActive = true,
-                            IsAwardCritical = false,
+                            IsAwardCritical = true,
                             IsRequired = true,
                             NameAr = "السجل التجاري",
                             NameEn = "Commercial Registration"
@@ -1809,7 +1842,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Code = "tax_certificate",
                             ExpiryTracked = true,
                             IsActive = true,
-                            IsAwardCritical = false,
+                            IsAwardCritical = true,
                             IsRequired = true,
                             NameAr = "الشهادة الضريبية",
                             NameEn = "Tax Certificate"
@@ -3118,6 +3151,15 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.HasOne("MotsSupplierPortal.Domain.Identity.AppUser", null)
                         .WithMany()
                         .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MotsSupplierPortal.Domain.Notifications.NotificationPreference", b =>
+                {
+                    b.HasOne("MotsSupplierPortal.Domain.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

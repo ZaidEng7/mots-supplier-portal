@@ -1828,7 +1828,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Code = "commercial_registration",
                             ExpiryTracked = false,
                             IsActive = true,
-                            IsAwardCritical = false,
+                            IsAwardCritical = true,
                             IsRequired = true,
                             NameAr = "السجل التجاري",
                             NameEn = "Commercial Registration"
@@ -1839,7 +1839,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Code = "tax_certificate",
                             ExpiryTracked = true,
                             IsActive = true,
-                            IsAwardCritical = false,
+                            IsAwardCritical = true,
                             IsRequired = true,
                             NameAr = "الشهادة الضريبية",
                             NameEn = "Tax Certificate"
