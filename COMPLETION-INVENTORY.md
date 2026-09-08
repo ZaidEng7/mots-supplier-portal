@@ -11,7 +11,11 @@
 
 ## 0. The headline numbers
 
-> **Superseded in part, 2026-09-07 (`ba2dde2`, after PR #118).** The count below was taken at batch 10
+> **Superseded in part, 2026-09-07 (`ba2dde2`, after PR #118), and read §5.2 before trusting any
+> verdict in this file.** Batch 13 closed twelve defects that all sat inside epics this document calls
+> Closed, and moved no verdict in it - because it counts surfaces, not whether they can be used in
+> sequence.
+> The count below was taken at batch 10
 > and is kept because the working is what makes it checkable. **Re-checked against source today, 30 of
 > those 34 rows are built** — batch 11 shipped them and batch 12 made four of them reachable. What is
 > left of the 34 is three missing screens (**SCR-307**, **SCR-402**, **SCR-604**) and one refusal
@@ -654,3 +658,29 @@ distinct faults, sixteen.
 
 **On the numbering.** These continue from D-55 in `DECISIONS-TAKEN.md` Part B rather than from D-49
 here, so that one sequence covers both files and no id means two things.
+
+### 5.2 The second walkthrough — thirteen findings, batch 13
+
+§5.1's sixteen were found by driving the product from an empty database with a script. These thirteen
+were found by a **person** driving it the same way, one act at a time, the day after batch 12 merged —
+against a build in which every suite was green and §5.1's five blockers were fixed.
+
+They are recorded in full in **`WALKTHROUGH-FINDINGS.md`**, each naming what was clicked and what the
+API log said, rather than duplicated here. What belongs in this file is what they say about it:
+
+**Every one of them sat inside an epic §3 calls Closed.** Twelve were defects and are fixed; one was a
+question and is answered as D-56. None of them moved a verdict in §3, §1 or §0 — which is the finding.
+This document counts surfaces and capabilities. It has never counted whether they can be used in
+sequence, and nothing else in the repository does either.
+
+The sharpest of the thirteen, for the same reason §5.1's five were sharp:
+
+| | |
+|---|---|
+| **Only the first line item of a proposal could be priced** | `23505 duplicate key` on the second. It cannot fire on the first line, and every test in the proposal suite - and every run of `walkthrough/run.sh` - priced exactly one. **Any tender with more than one line was unbiddable**, in EPIC-09, which this file calls Closed |
+| **An approved supplier could change nothing about itself** | One guard covered every child collection and stopped at approval, so contacts, representatives, addresses and document renewals were all frozen - while expiry is tracked, a job expires documents, and BRULE-023 suspends the supplier for it. §4.1's auto-suspend has never fired only because no seeded type is award-critical |
+| **A tender could not be corrected at all** | No screen edited a Draft; items and requirements had Add and Remove with nothing between them. `PUT /rfqs/{code}` and `updateRfqBasics` both existed, called by nothing |
+
+**Five of the thirteen were one question with four answers** — where does the version come from, and
+does anything fetch it. That is now the strongest candidate for a systematic pass, and it is logged in
+`MOTS-PROGRESS.md` §8 rather than as another individual finding.
