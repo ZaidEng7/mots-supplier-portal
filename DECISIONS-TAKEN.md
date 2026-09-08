@@ -767,7 +767,7 @@ Each says plainly below what still has to happen before it is safe to treat as s
 
 ---
 
-### D-57 — The Ministry may see commercial figures `[relayed — needs written sign-off]`
+### D-57 — The Ministry may see commercial figures `[relayed — demonstration only, gated for real data]`
 
 | | |
 |---|---|
@@ -775,8 +775,10 @@ Each says plainly below what still has to happen before it is safe to treat as s
 | **What was decided** | The Ministry may see commercial figures. The four refused screens become buildable, and the aggregate-only default no longer applies to this persona. |
 | **Why** | Relayed as the owner's answer: a supervising ministry that cannot see what is being spent cannot supervise spending. Recorded as their reasoning rather than reconstructed as ours. |
 | **What it costs if wrong** | More than any other ruling in this file. Every other entry here can be reversed by changing a flag or a seed row; this one, once the screens exist and people have read them, cannot un-disclose what was disclosed. Commercial values in a live tender are the information a bidder's competitors would most like, and `ministry_viewer` is a role held by people outside the buying body. |
-| **What must happen before it is built** | **Written sign-off from someone senior enough to own a disclosure decision in a government tender.** Not a chat message and not this row: a name, a date, and the scope they are approving - whether it covers live tenders or only completed ones, and whether it includes per-bidder values or only awarded totals. The engineering is one permission and four screens; the accountability is the part that needs a signature. |
-| **Who should confirm it** | MOT Legal, and the Ministry official who will be answerable for it. |
+| **What has since happened** | The four screens were built at the widest scope offered - all tenders across buying bodies, each named bidder and what it bid, including tenders still open for submissions - **approved by Zaid Abdulkarim on 8 September 2026 FOR THE DEMONSTRATION ENVIRONMENT AND ITS SEEDED DATA ONLY.** That approval is safe on its own terms: the demonstration data contains no real bidder, no real bid value and no live competition, so nothing confidential is disclosed by it. It does not extend past that data, and D-66 records the ruling in full. |
+| **THE GATE — a condition, not a note** | The commercial-visibility flag **defaults to off in every environment.** It is switched on by the DEMONSTRATION SEEDER (`DevDataSeeder`), behind the existing `DevSeed:Enabled` setting and the seeder's own refusal to run outside Development - deliberately **not** by a migration, which would have run in production as part of the same deployment that creates the schema. Before this system holds a real supplier's bid, enabling the flag anywhere requires **written sign-off from MOT Legal or the Ministry official answerable for disclosure, naming a person, a date, and the scope: live tenders or completed only, and per-bidder values or awarded totals only.** Until that signature exists, the flag stays off outside the demonstration, and a build that turns it on elsewhere is a defect against this row. |
+| **Why the mechanism is part of the ruling** | Because this is the one decision in the file that cannot be reversed after the fact. A flag can be switched back; a disclosed bid value cannot be un-disclosed. So the boundary is enforced by where the switch lives rather than by anybody remembering it. |
+| **Who should confirm it for real data** | MOT Legal, and the Ministry official who will be answerable for it. |
 
 ---
 
