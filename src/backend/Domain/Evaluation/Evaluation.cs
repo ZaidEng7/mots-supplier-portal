@@ -3,9 +3,13 @@ using MotsSupplierPortal.Domain.Suppliers;
 
 namespace MotsSupplierPortal.Domain.Evaluation;
 
+/// <param name="GuidanceAr">SCR-501: how to score this criterion, as the template author wrote it. Optional
+/// with a default so the existing callers and tests that do not care about the brief are unchanged - but the
+/// one caller that binds a real template MUST pass it, which is asserted in EvaluationEndpointsTests.</param>
 public sealed record CriterionSnapshotInput(
     string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold,
-    ScoringType ScoringType, bool RequiresJustification = false);
+    ScoringType ScoringType, bool RequiresJustification = false,
+    string? GuidanceAr = null, string? GuidanceEn = null);
 
 /// <summary>The scoring instance for one RFQ's Submitted proposals (docs/architecture/
 /// DOMAIN-MODEL.md §5.7), using the RFQ's already-snapshotted EvaluationTemplate. Its own
@@ -82,6 +86,10 @@ public sealed class Evaluation : IVersionedAggregate
                 Threshold = c.Threshold,
                 ScoringType = c.ScoringType,
                 RequiresJustification = c.RequiresJustification,
+                // SCR-501. Copied here because an evaluator must see the instruction in force when the RFQ
+                // bound the template, not whatever it says now - the same argument as the weights above.
+                GuidanceAr = c.GuidanceAr,
+                GuidanceEn = c.GuidanceEn,
             });
         }
         return evaluation;

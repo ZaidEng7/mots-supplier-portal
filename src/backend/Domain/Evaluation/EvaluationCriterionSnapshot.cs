@@ -27,5 +27,22 @@ public sealed class EvaluationCriterionSnapshot
     /// template is later edited - the same reason weights are frozen here.</summary>
     public bool RequiresJustification { get; init; }
 
+    /// <summary>
+    /// SCR-501: how to score this criterion, as the template author wrote it.
+    ///
+    /// <para><b>It was dropped on the way in.</b> `Criterion` has carried guidance since EPIC-07 and this
+    /// snapshot did not copy it, so the text existed on the template and reached no evaluator - which is
+    /// why `MyEvaluationPage` rendered name, weight and max and nothing else, and why SCR-501 had no
+    /// content to render. T-102 recorded the screen as unresolved; the missing half was here.</para>
+    ///
+    /// <para>Snapshotted rather than read live from the template, for the same reason the weights are: an
+    /// evaluator scoring a tender must see the instruction that was in force when the RFQ bound the
+    /// template, not one an administrator reworded afterwards.</para>
+    /// </summary>
+    public string? GuidanceAr { get; init; }
+
+    /// <inheritdoc cref="GuidanceAr"/>
+    public string? GuidanceEn { get; init; }
+
     public bool IsFinancial => Dimension == CriterionDimension.Commercial;
 }

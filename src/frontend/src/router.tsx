@@ -69,6 +69,8 @@ const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/Evaluati
 const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
 const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
 const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
+// SCR-501.
+const MyEvaluationBriefRoute = lazy(() => import('./routes/back-office/MyEvaluationBriefPage').then((m) => ({ default: m.MyEvaluationBriefRoute })))
 const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
 const ReceivedProposalsPage = lazy(() => import('./routes/back-office/ReceivedProposalsPage').then((m) => ({ default: m.ReceivedProposalsPage })))
 const AwardPage = lazy(() => import('./routes/back-office/AwardPage').then((m) => ({ default: m.AwardPage })))
@@ -655,6 +657,15 @@ const myEvaluationRoute = createRoute({
   component: MyEvaluationPage,
 })
 
+// SCR-501. Beside the scoring screen rather than inside it: an evaluator reads the brief before they
+// start and returns to it when a criterion is ambiguous, and folding it into the form would put a wall of
+// instruction in front of the score fields every time.
+const myEvaluationBriefRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs/$referenceCode/brief',
+  component: MyEvaluationBriefRoute,
+})
+
 const comparisonRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/rfqs/$referenceCode/comparison',
@@ -693,7 +704,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

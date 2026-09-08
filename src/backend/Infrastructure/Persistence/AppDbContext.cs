@@ -1187,6 +1187,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(c => c.Weight).HasPrecision(5, 2);
             entity.Property(c => c.MaxScore).HasPrecision(6, 2);
             entity.Property(c => c.Threshold).HasPrecision(6, 2);
+            // SCR-501. The same 1000 as Criterion.Guidance on the template this is copied from: a shorter
+            // column here would truncate an instruction the author was allowed to write.
+            entity.Property(c => c.GuidanceAr).HasMaxLength(1000);
+            entity.Property(c => c.GuidanceEn).HasMaxLength(1000);
             entity.Ignore(c => c.IsFinancial);
             entity.HasIndex(c => c.EvaluationId);
         });

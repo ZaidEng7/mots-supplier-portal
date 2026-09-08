@@ -777,6 +777,28 @@ const resources = {
           deactivateFailed: 'تعذر إلغاء تفعيل الخدمة',
         },
       },
+      // ── SCR-501 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      // The evaluator's brief. «كراسة» is the word a procurement file uses for the instruction
+      // document itself, which is what this screen is - not «ملخص», which would read as a summary
+      // somebody wrote about the tender.
+      evaluationBrief: {
+        title: 'كراسة التقييم',                                // [drafted] SCR-501
+        toScoring: 'الانتقال إلى التقييم',                      // [drafted]
+        tender: 'موضوع الطلب',                                 // [drafted]
+        howToScore: 'معايير التقييم وطريقة احتسابها',            // [drafted]
+        totalWeight: 'مجموع الأوزان: {{total}}',                // [drafted]
+        mandatory: 'إلزامي',                                    // [reused]
+        justificationRequired: 'يلزم تبرير',                    // [drafted] BRULE-061
+        noDescription: 'لا يوجد وصف مسجّل لهذا الطلب',           // [drafted]
+        noGuidance: 'لم تُسجَّل تعليمات لهذا المعيار',             // [drafted] says NOT RECORDED, not "none"
+        noThreshold: 'لا حد أدنى',                              // [drafted]
+        error: 'تعذّر تحميل الكراسة',                            // [drafted]
+        dimension: { Technical: 'فني', Commercial: 'تجاري' },    // [reused] §7's own pair
+        fields: {
+          criterion: 'المعيار', dimension: 'البُعد', weight: 'الوزن',
+          max: 'الدرجة العليا', threshold: 'الحد الأدنى', guidance: 'تعليمات التقييم',
+        },
+      },
       // ── SCR-402 / SCR-307 · ARABIC FOR REVIEW ───────────────────────────────
       // Two directories over one registry. «دليل الموردين» for the buyer's browse and «سجل الموردين»
       // for the reviewer's audit view: a دليل is something you look a supplier up in, a سجل is the
@@ -817,44 +839,6 @@ const resources = {
         fields: {
           name: 'المورد', onboarding: 'حالة الطلب', lifecycle: 'حالة التعامل',
           documents: 'المستندات', registered: 'تاريخ التسجيل',
-        },
-      },
-      supplierDirectory: {
-        title: 'Supplier Directory',
-        subtitle: 'Browse approved suppliers and their categories before sending invitations.',
-        filterCategory: 'Category',
-        filterState: 'Status',
-        filterAll: 'All',
-        search: 'Search',
-        searchPlaceholder: 'Search by name or code…',
-        empty: 'No suppliers match',
-        error: 'Could not load the directory',
-        noCategories: 'No categories recorded',
-        loadMore: 'Load more',
-        fields: {
-          name: 'Supplier', code: 'Code', categories: 'Categories',
-          offerings: 'Offerings', location: 'City', state: 'Status',
-        },
-      },
-      complianceDirectory: {
-        title: 'Supplier Register',
-        subtitle: 'Every supplier and the state of their documents, including already-approved files.',
-        filterState: 'Application status',
-        filterHealth: 'Document health',
-        filterAll: 'All',
-        healthAttention: 'Needs attention',
-        healthOk: 'Healthy',
-        search: 'Search',
-        searchPlaceholder: 'Search by name or code…',
-        empty: 'No suppliers match',
-        error: 'Could not load the register',
-        expired: 'Expired: {{count}}',
-        expiring: 'Expiring: {{count}}',
-        rejected: 'Rejected: {{count}}',
-        loadMore: 'Load more',
-        fields: {
-          name: 'Supplier', onboarding: 'Application', lifecycle: 'Standing',
-          documents: 'Documents', registered: 'Registered',
         },
       },
       offeringSearch: {
@@ -2559,6 +2543,62 @@ const resources = {
           invalidCurrency: 'Unknown currency',
           saveFailed: 'Could not save the offering',
           deactivateFailed: 'Could not deactivate the offering',
+        },
+      },
+      evaluationBrief: {
+        title: 'Evaluation Brief',
+        toScoring: 'Go to scoring',
+        tender: 'What is being bought',
+        howToScore: 'Criteria and how they are scored',
+        totalWeight: 'Weights total: {{total}}',
+        mandatory: 'Mandatory',
+        justificationRequired: 'Justification required',
+        noDescription: 'No description was recorded for this tender',
+        noGuidance: 'No guidance was recorded for this criterion',
+        noThreshold: 'No minimum',
+        error: 'Could not load the brief',
+        dimension: { Technical: 'Technical', Commercial: 'Commercial' },
+        fields: {
+          criterion: 'Criterion', dimension: 'Dimension', weight: 'Weight',
+          max: 'Max score', threshold: 'Minimum', guidance: 'How to score it',
+        },
+      },
+      supplierDirectory: {
+        title: 'Supplier Directory',
+        subtitle: 'Browse approved suppliers and their categories before sending invitations.',
+        filterCategory: 'Category',
+        filterState: 'Status',
+        filterAll: 'All',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        error: 'Could not load the directory',
+        noCategories: 'No categories recorded',
+        loadMore: 'Load more',
+        fields: {
+          name: 'Supplier', code: 'Code', categories: 'Categories',
+          offerings: 'Offerings', location: 'City', state: 'Status',
+        },
+      },
+      complianceDirectory: {
+        title: 'Supplier Register',
+        subtitle: 'Every supplier and the state of their documents, including already-approved files.',
+        filterState: 'Application status',
+        filterHealth: 'Document health',
+        filterAll: 'All',
+        healthAttention: 'Needs attention',
+        healthOk: 'Healthy',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        error: 'Could not load the register',
+        expired: 'Expired: {{count}}',
+        expiring: 'Expiring: {{count}}',
+        rejected: 'Rejected: {{count}}',
+        loadMore: 'Load more',
+        fields: {
+          name: 'Supplier', onboarding: 'Application', lifecycle: 'Standing',
+          documents: 'Documents', registered: 'Registered',
         },
       },
       offeringSearch: {

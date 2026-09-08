@@ -40,7 +40,7 @@ internal static class EvaluationDtoMapper
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
         new(c.Id, c.NameAr, c.NameEn, c.Dimension, c.Weight, c.MaxScore, c.Threshold, c.ScoringType, c.IsFinancial,
-            c.RequiresJustification);
+            c.RequiresJustification, c.GuidanceAr, c.GuidanceEn);
 
     /// <summary>
     /// T-067: the evaluator's workspace, with the bids and the specification on it.
@@ -235,7 +235,12 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         string ScoringType,
         // Defaults to false for an RFQ whose snapshot predates the field - the same reason Criterion's
         // own flag defaults false rather than being backfilled from a rule nobody had stated yet.
-        bool RequiresJustification = false);
+        bool RequiresJustification = false,
+        // SCR-501. Null for a tender whose snapshot predates the field, which is the honest answer: the
+        // guidance was not recorded when that RFQ bound its template, and inventing it now from the
+        // template's current text would show an evaluator an instruction this tender never carried.
+        string? GuidanceAr = null,
+        string? GuidanceEn = null);
 
     public async Task<EvaluationMutationResult> HandleAsync(OpenEvaluationCommand command, CancellationToken ct)
     {
@@ -290,7 +295,7 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         var criteriaJson = JsonSerializer.Deserialize<List<CriterionSnapshotJson>>(rfq.EvaluationTemplateSnapshotJson)!;
         var criteriaInputs = criteriaJson.Select(c => new CriterionSnapshotInput(
             c.NameAr, c.NameEn, Enum.Parse<CriterionDimension>(c.Dimension), c.Weight, c.MaxScore, c.Threshold,
-            Enum.Parse<ScoringType>(c.ScoringType), c.RequiresJustification)).ToList();
+            Enum.Parse<ScoringType>(c.ScoringType), c.RequiresJustification, c.GuidanceAr, c.GuidanceEn)).ToList();
 
         var evaluation = EvaluationAggregate.Create(rfq.Id, criteriaInputs);
         db.Evaluations.Add(evaluation);

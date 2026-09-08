@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { Badge, Button, Card, Input, SkeletonList, StatusChip, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
@@ -151,7 +151,18 @@ export function MyEvaluationPage() {
         <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('evaluation.my.title')} — {referenceCode}
         </h1>
-        <StatusChip machine="evaluation" value={evaluation.state} />
+        <div className="flex items-center gap-3">
+          {/* SCR-501. The brief carries the one thing this screen cannot show without becoming a wall of
+              text: each criterion's scoring guidance, as the template author wrote it. */}
+          <Link
+            to="/back-office/rfqs/$referenceCode/brief"
+            params={{ referenceCode }}
+            className="text-[length:var(--text-body-sm)]"
+          >
+            {t('evaluationBrief.title')}
+          </Link>
+          <StatusChip machine="evaluation" value={evaluation.state} />
+        </div>
       </div>
 
       {/*

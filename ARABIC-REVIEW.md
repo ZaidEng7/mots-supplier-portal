@@ -657,3 +657,26 @@ word twice. A «دليل» is something you look a supplier up in; a «سجل» 
 | `complianceDirectory.healthOk` | Healthy | سليمة | [drafted] same agreement |
 | `complianceDirectory.expired` / `expiring` / `rejected` | Expired / Expiring / Rejected: {{count}} | منتهٍ / ينتهي قريباً / مرفوض: {{count}} | [reused] §7.2's own three document labels, with a count appended |
 | `complianceDirectory.fields.lifecycle` | Standing | حالة التعامل | [drafted] the post-approval lifecycle, which §7.1 groups with onboarding but the screen shows in its own column |
+
+### Phase 3 · SCR-501, the evaluator's brief
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `evaluationBrief.title` | Evaluation Brief | كراسة التقييم | [drafted] «كراسة» is what a procurement file calls the instruction document itself; «ملخص» would read as a summary somebody wrote about the tender |
+| `evaluationBrief.toScoring` | Go to scoring | الانتقال إلى التقييم | [drafted] |
+| `evaluationBrief.tender` | What is being bought | موضوع الطلب | [drafted] |
+| `evaluationBrief.howToScore` | Criteria and how they are scored | معايير التقييم وطريقة احتسابها | [drafted] |
+| `evaluationBrief.totalWeight` | Weights total: {{total}} | مجموع الأوزان: {{total}} | [drafted] |
+| `evaluationBrief.justificationRequired` | Justification required | يلزم تبرير | [drafted] BRULE-061 |
+| `evaluationBrief.noGuidance` | No guidance was recorded for this criterion | لم تُسجَّل تعليمات لهذا المعيار | [drafted] **says NOT RECORDED, deliberately** — a tender that bound its template before the field existed has none, and "no guidance" would read as the author having decided there should be none |
+| `evaluationBrief.noDescription` | No description was recorded for this tender | لا يوجد وصف مسجّل لهذا الطلب | [drafted] same shape |
+| `evaluationBrief.noThreshold` | No minimum | لا حد أدنى | [drafted] |
+| `evaluationBrief.error` | Could not load the brief | تعذّر تحميل الكراسة | [drafted] |
+| `evaluationBrief.fields.guidance` | How to score it | تعليمات التقييم | [drafted] the column the whole screen exists for |
+| `evaluationBrief.dimension.*` | Technical / Commercial | فني / تجاري | [reused] §7's own pair |
+
+**One correction logged while adding these.** The `supplierDirectory`, `complianceDirectory` and
+`evaluationBrief` English blocks were first inserted into the **Arabic** resource object by mistake. Because
+a later duplicate key wins in a JavaScript object literal, the Arabic UI would have rendered English for all
+three screens while every test passed — the English lookups were resolving through the fallback. Moved into
+the `en` resource before commit; worth recording because the failure mode is silent in both directions.
