@@ -163,7 +163,10 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierApprove)
         .RequireIfMatch()
-        .WithName("ApproveApplication");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ApproveApplication");
 
         group.MapPost("/{referenceCode}/reject", async (
             string referenceCode,
@@ -186,7 +189,10 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierReject)
         .RequireIfMatch()
-        .WithName("RejectApplication");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("RejectApplication");
 
         // FR-ONB-009 post-approval lifecycle (MSP-63). Suspended and Deactivated were unreachable
         // enum values until now - declared, persisted, and with no way to reach them.
@@ -246,7 +252,10 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierRequestInfo)
         .RequireIfMatch()
-        .WithName("RequestApplicationInfo");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("RequestApplicationInfo");
 
         app.MapGet("/api/v1/suppliers/me/active-annotation", async (
             IGetOwnActiveAnnotationHandler handler,
@@ -275,6 +284,9 @@ public static class ReviewEndpoints
         .RequirePermission(Permissions.SupplierEdit)
         .WithTags("Suppliers")
         .RequireIfMatch()
-        .WithName("ResubmitApplication");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ResubmitApplication");
     }
 }

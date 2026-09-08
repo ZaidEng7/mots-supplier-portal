@@ -54,6 +54,9 @@ public static class AdminEndpoints
         // refusing rather than resolving in favour of whoever saved second.
         .RequireIfMatch()
         .WithETag()
-        .WithName("UpdateFieldConfig");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("UpdateFieldConfig");
     }
 }

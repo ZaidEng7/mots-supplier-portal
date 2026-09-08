@@ -336,7 +336,10 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
-        .WithName("UpdateRfqBasics");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("UpdateRfqBasics");
 
         group.MapPost("/{referenceCode}/items", async (
             string referenceCode,
@@ -573,7 +576,10 @@ public static class RfqEndpoints
         .RequireAuthorization()
         .RequireIfMatch()
         .WithETag()
-        .WithName("ChangeSubmissionDeadline");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ChangeSubmissionDeadline");
 
         // The body is OPTIONAL (`SubmitForReviewRequest?`), so every existing caller that posted
         // nothing keeps working - naming an approver is an addition to this transition, not a new
@@ -584,7 +590,10 @@ public static class RfqEndpoints
                 new SubmitRfqForReviewCommand(referenceCode, request?.AssignedApproverUserId), ct)))
         .RequirePermission(Permissions.RfqSubmitReview)
         .RequireIfMatch()
-        .WithName("SubmitRfqForReview");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("SubmitRfqForReview");
 
         // T-082 / SCR-430: the bids received against this RFQ.
         //
@@ -638,7 +647,10 @@ public static class RfqEndpoints
         // Ownership is a field on the aggregate, so moving it is a write that must not overwrite a
         // concurrent one - §8.1, the same guard every other RFQ mutation carries.
         .RequireIfMatch()
-        .WithName("ReassignRfq");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ReassignRfq");
 
         group.MapPost("/{referenceCode}/return", async (
             string referenceCode,
@@ -654,14 +666,20 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqReview)
         .RequireIfMatch()
-        .WithName("ReturnRfqForEdits");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ReturnRfqForEdits");
 
         group.MapPost("/{referenceCode}/approve", async (
             string referenceCode, IApproveRfqHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ApproveRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqApprove)
         .RequireIfMatch()
-        .WithName("ApproveRfq");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ApproveRfq");
 
         group.MapPost("/{referenceCode}/publish", async (
             string referenceCode, IPublishRfqHandler handler, CancellationToken ct) =>
@@ -669,14 +687,20 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.RfqPublish)
         .RequireIfMatch()
         .RequireIdempotencyKey()
-        .WithName("PublishRfq");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("PublishRfq");
 
         group.MapPost("/{referenceCode}/close", async (
             string referenceCode, CloseSubmissionRequest request, ICloseRfqSubmissionHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new CloseRfqSubmissionCommand(referenceCode, request.Reason), ct)))
         .RequirePermission(Permissions.RfqClose)
         .RequireIfMatch()
-        .WithName("CloseRfqSubmission");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("CloseRfqSubmission");
 
         // T3-36. §3.1's two clarification transitions. Named POST sub-resources, per §3's rule of
         // thumb: "if an operation moves an aggregate through its state machine, it is a named
@@ -722,7 +746,10 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqCancel)
         .RequireIfMatch()
-        .WithName("CancelRfq");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("CancelRfq");
 
         group.MapPost("/{referenceCode}/invitations", async (
             string referenceCode, InviteSupplierRequest request, IInviteSupplierHandler handler, CancellationToken ct) =>

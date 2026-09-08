@@ -181,7 +181,10 @@ public static class EvaluationEndpoints
             MapMutation(await handler.HandleAsync(new ConsolidateEvaluationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.EvaluationConsolidate)
         .RequireIfMatch()
-        .WithName("ConsolidateEvaluation");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ConsolidateEvaluation");
 
         // A-1/BRULE-069: a person breaks a tie the rules could not. Same permission as consolidating,
         // because it is the same act - producing the order - and a separate permission would be one
@@ -206,7 +209,10 @@ public static class EvaluationEndpoints
             MapMutation(await handler.HandleAsync(new FinalizeEvaluationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.EvaluationFinalize)
         .RequireIfMatch()
-        .WithName("FinalizeEvaluation");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("FinalizeEvaluation");
 
         group.MapPost("/reopen", async (
             string referenceCode, ReopenEvaluationRequest request, IValidator<ReopenEvaluationRequest> validator,
@@ -219,7 +225,10 @@ public static class EvaluationEndpoints
         })
         .RequirePermission(Permissions.EvaluationReopen)
         .RequireIfMatch()
-        .WithName("ReopenEvaluation");
+                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
+        // transition on this aggregate has a precondition to send without waiting for a re-read.
+        .WithFreshETag()
+.WithName("ReopenEvaluation");
 
         // SCR-500 / FR-DSH-004 / T3-02. The evaluator's own assignments, across RFQs.
         //

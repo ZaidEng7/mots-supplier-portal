@@ -1,0 +1,130 @@
+# Prometheus alerting rules for the MOTS Supplier Portal.
+#
+# WHY THIS FILE EXISTS
+#
+# The application emits traces, metrics and logs, and until now nothing consumed them: `/metrics` served a
+# Prometheus exposition that no Prometheus scraped, and no rule turned any of it into a page. That is the gap
+# P12 item 25 names — "traces, metrics and logs are emitted and nothing consumes them" — and half of closing
+# it is deciding what is worth waking somebody for. That decision is here, in the repository, rather than in
+# a monitoring UI where it cannot be reviewed alongside the code that produces the numbers.
+#
+# EVERY RULE BELOW IS KEYED TO AN INSTRUMENT THAT EXISTS TODAY
+#
+#   http_server_request_duration_seconds  — ASP.NET Core's own instrumentation (histogram, tagged by route
+#                                            and http_response_status_code)
+#   mots_rate_limit_rejections_total      — AppMetrics.RateLimitRejections
+#   mots_outbox_backlog                   — OutboxBacklogGauge
+#   up / probe of /health/ready            — the readiness endpoint's own HTTP status
+#
+# Nothing here references a metric this application does not publish. A rule over an absent series is worse
+# than no rule: it never fires, and it reads on a dashboard exactly like one that never needed to.
+#
+# WHAT IS DELIBERATELY NOT HERE
+#
+#   * Write-path latency SLOs. perf/BASELINE.md covers 18 READS and says so; there is no measured write-path
+#     p95 to alert against yet (P12 item 22), and inventing a threshold would be asserting a target nobody
+#     has measured.
+#   * Business alerts — tenders closing with no bids, suppliers suspended by BRULE-023. Those are somebody's
+#     morning report, not a page at 3am, and the Ministry's governance screens already answer them.
+#   * Anything about the ERP adapter. The transport is a logging stand-in (ErpSyncVacuityTests asserts the
+#     absence deliberately), so an alert on sync failure would be monitoring a stub.
+
+groups:
+  - name: mots-portal-availability
+    interval: 30s
+    rules:
+      - alert: MotsPortalDown
+        # `up` is the scrape itself. If Prometheus cannot reach the process, nothing else in this file can
+        # fire — which is why this is first and why its `for` is short.
+        expr: up{job="mots-portal"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The portal is not answering scrapes"
+          description: >-
+            Prometheus has not been able to scrape {{ $labels.instance }} for two minutes. Check the process,
+            then /health/live (is it running) and /health/ready (can it reach Postgres, MinIO and clamd).
+
+      - alert: MotsPortalNotReady
+        # Distinct from the alert above on purpose: a process that is UP and NOT READY is one whose
+        # dependencies are broken — Postgres, object storage, or the virus scanner. The split exists in
+        # OBSERVABILITY-ARCHITECTURE.md §5 and the alerts follow it rather than collapsing both into "down".
+        expr: probe_http_status_code{instance=~".*/health/ready"} != 200
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Readiness has been failing for five minutes"
+          description: >-
+            /health/ready returns the per-check breakdown. A failing clamd check means uploads are being
+            refused (fail-closed, by design — A-11/D-61), not that scanning is being skipped.
+
+  - name: mots-portal-errors
+    interval: 30s
+    rules:
+      - alert: MotsPortalServerErrors
+        # 5xx as a RATIO, not a count: a fixed count fires on a busy afternoon and stays silent through a
+        # quiet night in which everything is broken.
+        expr: |
+          (
+            sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 0.001)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 2% of requests are failing with a 5xx"
+          description: >-
+            §7 requires that a 500 never carries a stack trace, SQL or an internal message, so the response
+            body will not say why. The correlation id will: every problem+json carries one, and the structured
+            logs are indexed by it.
+
+      - alert: MotsPortalPreconditionRefusals
+        # 428 IF_MATCH_REQUIRED is not a user error — it is a client that failed to send a header the
+        # transport is supposed to attach. Batch 13 found five separate causes of it, every one invisible
+        # until somebody pressed a button. A sustained rate means a sixth.
+        expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code="428"}[15m])) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Writes are being refused for a missing If-Match"
+          description: >-
+            A 428 means the SPA sent a guarded write with no precondition. See
+            src/frontend/src/api/preconditionCoverage.test.ts and IfMatchPreconditionSweepTests — a route
+            appearing here that both sweeps pass is a screen that never performed the read.
+
+  - name: mots-portal-background-work
+    interval: 1m
+    rules:
+      - alert: MotsOutboxBacklogGrowing
+        # The gauge is a count of Pending rows. Alerting on the VALUE alone would fire during any legitimate
+        # burst; what matters is a backlog that is not draining, which is the dispatcher being stuck.
+        expr: min_over_time(mots_outbox_backlog[30m]) > 50
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The notification outbox is not draining"
+          description: >-
+            At least 50 messages have been Pending for the whole window. Nothing has been lost — the outbox
+            commits with the state change that asked for it — but nobody is being notified. SCR-722 shows the
+            rows; `integration.retry` replays one.
+
+      - alert: MotsRateLimitRejectionsSpike
+        # Security-relevant rather than operational: somebody is being throttled at scale. Warning, not
+        # critical, because the limiter working is the system defending itself.
+        expr: sum(rate(mots_rate_limit_rejections_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained rate-limit rejections"
+          description: >-
+            Tagged by surface (login, register, ...) and layer (per-ip, per-target). A spike on `login`
+            per-target is somebody being attacked; per-ip is usually one misbehaving client. Note that a
+            rate-limited login answers 429 and NOT "invalid email or password" — D-62 in
+            COMPLETION-INVENTORY §5.1 records why that distinction matters to the user.
