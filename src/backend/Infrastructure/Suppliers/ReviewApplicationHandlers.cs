@@ -35,6 +35,9 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
         ["Submitted"] = SupplierOnboardingState.Submitted,
         ["UnderReview"] = SupplierOnboardingState.UnderReview,
         ["InfoRequested"] = SupplierOnboardingState.InfoRequested,
+        // Decided, and reachable only by asking for them - the default set below is unchanged.
+        ["Approved"] = SupplierOnboardingState.Approved,
+        ["Rejected"] = SupplierOnboardingState.Rejected,
     };
 
     public async Task<ListEnvelope<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, bool withCount, string? state, string? assignedTo, CancellationToken ct)

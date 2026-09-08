@@ -150,17 +150,35 @@ public sealed class FilterValueRejectionTests(PostgresApiFixture fixture)
     }
 
     /// <summary>
-    /// The subtle one, and the reason Enum.TryParse alone would not have been enough here: Approved
+    /// The subtle one, and the reason Enum.TryParse alone would not be enough here: ProfileInProgress
     /// IS a real SupplierOnboardingState member, but it is NOT one the review queue filters by. A
     /// whole-enum check would accept it and then fall through to the default three-state set -
-    /// widening, which is the exact defect being closed.
+    /// widening, which is the exact defect this guard closes.
+    ///
+    /// <para><b>This used to assert the same of Approved, and no longer does.</b> F-6 made Approved
+    /// and Rejected filterable on purpose: a decided application dropped out of every list the moment
+    /// it was decided, so a reviewer could not reach a decision they had made. The vocabulary grew by
+    /// two deliberate members; the property being protected - a real enum member that is not in the
+    /// vocabulary must be REFUSED rather than silently widening - is unchanged, and is asserted here
+    /// against a member that is still outside it.</para>
     /// </summary>
     [Fact]
     public async Task Review_queue_rejects_a_real_enum_member_that_is_not_a_queue_filter()
     {
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
 
-        await AssertRejectedAsync(await reviewer.GetAsync("/api/v1/review/queue?state=Approved"), "state");
+        await AssertRejectedAsync(await reviewer.GetAsync("/api/v1/review/queue?state=ProfileInProgress"), "state");
+    }
+
+    /// <summary>The two members the vocabulary deliberately gained, asserted so that removing them
+    /// again is a decision somebody has to make rather than a regression nobody notices.</summary>
+    [Fact]
+    public async Task Review_queue_accepts_the_two_decided_states()
+    {
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, organizationId: null);
+
+        (await reviewer.GetAsync("/api/v1/review/queue?state=Approved")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await reviewer.GetAsync("/api/v1/review/queue?state=Rejected")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

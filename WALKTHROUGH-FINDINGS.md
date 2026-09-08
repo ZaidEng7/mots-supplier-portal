@@ -1,8 +1,9 @@
 # Findings from the manual walkthrough — 2026-09-07
 
-> **Nine of thirteen are fixed** as of 2026-09-08, each with a regression test proved load-bearing by
-> reverting the fix. What remains: **F-6** (a reviewer cannot reopen an application they decided) and
-> **F-8** (a published tender's attachments, which is a rule question before a build).
+> **Twelve of thirteen are fixed** as of 2026-09-08, each with a regression test proved load-bearing by
+> reverting the fix. What remains is **F-8** alone - a published tender's attachments - which is a
+> rule question before it is a build: whether an addendum may carry the revised document is a
+> procurement decision, not an engineering one.
 
 Found by a person driving the product from an empty database, one act at a time, on `main` at
 `ba2dde2`. Every entry names what was clicked, what the API log said, and whether it is fixed here or
@@ -99,7 +100,11 @@ Two symptoms, one cause each, both seen during the walk:
    *authenticated*, not *is a supplier*.
 
 ### F-6 — A reviewer cannot reopen an application they have already approved
-**Open.** Sized **S**.
+**Fixed** — `Approved` and `Rejected` are filterable on the review queue, so a decided application is
+reachable by choosing a state rather than by typing a reference code. The queue's DEFAULT is
+unchanged and asserted: it still answers "what needs a decision", because putting decided work back
+in front of a reviewer is the opposite of the fix. The option that used to read "All" now reads
+"Awaiting a decision", which is what it always did.
 
 The review queue lists only reviewable states, so an approved supplier drops out of it and there is
 no "decided" list. The detail page still loads by URL and still offers the document controls — which

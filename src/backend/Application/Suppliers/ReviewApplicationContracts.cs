@@ -32,8 +32,16 @@ public sealed record ReviewQueueItemDto(
 /// </summary>
 public static class ReviewQueueFilterValues
 {
+    /// <summary>
+    /// <para><b>Approved and Rejected are filterable, and the queue's DEFAULT still is not.</b> The
+    /// queue answers "what needs me", so it keeps the three reviewable states when no filter is given.
+    /// But a decided application dropped out of every list the moment it was decided, and there was no
+    /// other list carrying it - a reviewer who wanted to look back at their own decision had no route
+    /// to it except typing the supplier's reference code into the address bar. Asking for a decided
+    /// state is now a filter on the same queue rather than a screen of its own.</para>
+    /// </summary>
     public static readonly IReadOnlySet<string> States =
-        new HashSet<string>(StringComparer.Ordinal) { "Submitted", "UnderReview", "InfoRequested" };
+        new HashSet<string>(StringComparer.Ordinal) { "Submitted", "UnderReview", "InfoRequested", "Approved", "Rejected" };
 
     /// <summary>
     /// The literal <c>?assignedTo=</c> values. Anything else must be a reviewer's own id; a value

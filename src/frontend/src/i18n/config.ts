@@ -1288,7 +1288,9 @@ const resources = {
         actions: 'إجراءات',
         filterState: 'الحالة',
         filterAssignee: 'المسؤول',
-        filterAll: 'الكل',
+        // "All" said something untrue: this option is the queue's default, which is the three states
+        // awaiting a decision. Approved and Rejected are now filterable and were never in "all".
+        filterAll: 'بانتظار قرار',                              // [drafted]
         claim: 'تولي المراجعة',
         claimed: 'تم تولي المراجعة',
         claimFailed: 'تعذر تولي المراجعة',
@@ -2963,7 +2965,7 @@ const resources = {
         actions: 'Actions',
         filterState: 'State',
         filterAssignee: 'Assignee',
-        filterAll: 'All',
+        filterAll: 'Awaiting a decision',
         claim: 'Claim',
         claimed: 'Claimed',
         claimFailed: 'Could not claim',
