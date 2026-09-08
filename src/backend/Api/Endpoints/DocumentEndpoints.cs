@@ -259,6 +259,7 @@ public static class DocumentEndpoints
             string documentCode,
             ISupplierCodeScope codeScope,
             IApproveDocumentHandler handler,
+            HttpContext http,
             CancellationToken ct) =>
         {
             if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, documentCode, ct)) return Results.NotFound();
@@ -266,7 +267,7 @@ public static class DocumentEndpoints
             var result = await handler.HandleAsync(documentCode, ct);
             return result switch
             {
-                ReviewDocumentResult.Success s => Results.Ok(s.Document),
+                ReviewDocumentResult.Success s => OkWithFreshSupplierETag(http, s),
                 ReviewDocumentResult.NotFoundOrForbidden => Results.NotFound(),
                 ReviewDocumentResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
                 _ => Results.Problem(),
@@ -278,6 +279,9 @@ public static class DocumentEndpoints
         // second decision would overwrite the first with no trace on screen. The precondition comes from
         // GET /review/{referenceCode}, which now issues it.
         .RequireIfMatch()
+        // P12 item 26's last two routes. See OkWithFreshSupplierETag: the version is the SUPPLIER's, and it
+        // goes on the header rather than into the body, which stays the document §3 describes.
+        .WithMetadata(EmitsETagMetadata.Instance)
         .WithTags("Documents")
         .WithName("ApproveDocument");
 
@@ -292,6 +296,7 @@ public static class DocumentEndpoints
             ISupplierCodeScope codeScope,
             RejectDocumentRequest request,
             IRejectDocumentHandler handler,
+            HttpContext http,
             CancellationToken ct) =>
         {
             if (!await codeScope.DocumentBelongsToSupplierAsync(supplierCode, documentCode, ct)) return Results.NotFound();
@@ -299,16 +304,38 @@ public static class DocumentEndpoints
             var result = await handler.HandleAsync(documentCode, request.Reason, ct);
             return result switch
             {
-                ReviewDocumentResult.Success s => Results.Ok(s.Document),
+                ReviewDocumentResult.Success s => OkWithFreshSupplierETag(http, s),
                 ReviewDocumentResult.NotFoundOrForbidden => Results.NotFound(),
                 ReviewDocumentResult.InvalidState i => Results.Conflict(new { error = i.Reason }),
                 _ => Results.Problem(),
             };
         })
         .RequirePermission(Permissions.DocumentReview)
-        // T-030 split (4); same reasoning as approve above.
+        // T-030 split (4); same reasoning as approve above, and the same fresh ETag.
         .RequireIfMatch()
+        .WithMetadata(EmitsETagMetadata.Instance)
         .WithTags("Documents")
         .WithName("RejectDocument");
+    }
+
+    /// <summary>
+    /// P12 item 26's last two routes: the document decision answers with the DOCUMENT and an <c>ETag</c>
+    /// carrying the SUPPLIER's new version.
+    ///
+    /// <para><b>Why not <c>WithFreshETag()</c>.</b> That filter reflects over the response body for a
+    /// <c>RowVersion</c> property, and the body here is a child - a document has no version of its own.
+    /// Putting the supplier's version into the document DTO to satisfy the filter would ship a field whose
+    /// name lies about what it describes, and §3 documents this response as the document.</para>
+    ///
+    /// <para><b>Why the supplier's version is the right one anyway.</b> <c>RequireIfMatch</c> on these
+    /// routes guards the Supplier aggregate, and the precondition's source is
+    /// <c>GET /review/{referenceCode}</c>, whose ETag is that same root version. So a reviewer deciding a
+    /// second document now has the value the next <c>If-Match</c> needs, instead of a 428 that only a
+    /// re-read could clear.</para>
+    /// </summary>
+    private static IResult OkWithFreshSupplierETag(HttpContext http, ReviewDocumentResult.Success success)
+    {
+        http.SetETag(success.SupplierRowVersion);
+        return Results.Ok(success.Document);
     }
 }

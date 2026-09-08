@@ -9628,7 +9628,15 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"
@@ -9684,7 +9692,15 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "412": {
             "description": "ETAG_MISMATCH"

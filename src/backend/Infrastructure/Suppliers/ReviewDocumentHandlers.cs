@@ -39,9 +39,15 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
 
         await auditLogger.LogAsync("SupplierDocument", document.Id, "document_approved", scope.UserId, referenceCode: document.ReferenceCode, ct: ct);
         await ReinstateIfTheSuspensionIsOverAsync(db, auditLogger, document, scope.UserId.Value, ct);
+
+        // P12 item 26: the supplier root is loaded so its NEW version can be read after the save, not
+        // because this handler edits it. Saving a child marks the root Modified and advances its version
+        // (AppDbContext.BumpTouchedVersionedRoots), and the value is only readable from a tracked entity -
+        // so without this line the endpoint would have nothing to put on the ETag.
+        var supplier = await db.Suppliers.FirstAsync(s => s.Id == document.SupplierId, ct);
         await db.SaveChangesAsync(ct);
 
-        return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
+        return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document), supplier.RowVersion);
     }
 
     /// <summary>
@@ -146,6 +152,9 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
         }
 
         await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", scope.UserId, referenceCode: document.ReferenceCode, reason: reason, ct: ct);
+
+        // See the approve handler: tracked so the bumped version can be read back for the ETag.
+        var supplier = await db.Suppliers.FirstAsync(s => s.Id == document.SupplierId, ct);
         await db.SaveChangesAsync(ct);
 
         var userId = await db.Users.Where(u => u.SupplierId == document.SupplierId)
@@ -157,6 +166,6 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
             backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentRejectedEmailAsync(userId.Value, document.Id, CancellationToken.None));
         }
 
-        return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document));
+        return new ReviewDocumentResult.Success(UploadDocumentHandler.ToDto(document), supplier.RowVersion);
     }
 }

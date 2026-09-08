@@ -230,21 +230,16 @@ public sealed class IfMatchPreconditionSweepTests(PostgresApiFixture fixture)
 
     /// <summary>
     /// Guarded writes whose response body carries no version, so there is nothing for a fresh ETag to be made
-    /// from. Each entry says what the route returns instead - that is what a fix would have to change.
+    /// from. Each entry would say what the route returns instead - that is what a fix would have to change.
     ///
-    /// <para>P12 item 26's remaining work, in one place. Every one of these is a second-edit 428 waiting for a
-    /// user who does two things in a row without a re-read in between; the SPA hides it today by refetching
-    /// after a mutation, which is a screen-by-screen habit rather than a property of the transport.</para>
+    /// <para><b>Empty, and that is the point of leaving it here.</b> P12 item 26 closed its last two entries -
+    /// the document approve/reject pair - by putting the SUPPLIER's version on the ETag header rather than
+    /// into the document body, which is what <c>RequireIfMatch</c> on those routes guards anyway. The
+    /// dictionary stays so the next guarded write that cannot answer with a version has to be written down
+    /// here, with its reason, instead of quietly failing the sweep above.</para>
     /// </summary>
     private static readonly Dictionary<string, string> NoVersionOnTheResponse = new(StringComparer.Ordinal)
     {
-        ["POST /api/v1/suppliers/{supplierCode}/documents/{documentCode}/approve"] =
-            "Returns SupplierDocumentDto, which carries no version at all - the filter looks for a RowVersion "
-            + "property and would do nothing here. Closing this means putting the SUPPLIER's version on a "
-            + "document response, which is a contract change and a decision about what that DTO is for. The "
-            + "reviewer's screen refetches after each decision, which is why the gap has not been felt.",
-        ["POST /api/v1/suppliers/{supplierCode}/documents/{documentCode}/reject"] =
-            "The same DTO and the same argument as the approve above.",
     };
 
     private static IReadOnlyList<string> Methods(RouteEndpoint endpoint) =>
