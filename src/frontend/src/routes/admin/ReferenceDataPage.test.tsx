@@ -265,15 +265,16 @@ describe('ReferenceDataPage document types (BRULE-023, BRULE-016)', () => {
     expect(JSON.parse(put!.body)).toEqual({ categoryCodes: ['IT'] })
   })
 
-  it('says the links are recorded and not yet applied', async () => {
-    // BRULE-016 is deliberately inert. An administrator who records links and sees no change in any
-    // supplier's required documents would reasonably conclude the screen is broken.
+  it('says what a category link does, including that it reaches approved suppliers', async () => {
+    // BRULE-016 is live since D-59. The two consequences an administrator cannot see from the chips are
+    // that an unlinked type stays required of everyone, and that a change here applies to suppliers who
+    // are already approved - which is the one that costs something if it is a surprise.
     restore = mockFetch(fixtures())
 
     renderPage(<ReferenceDataPage />)
     await openDocumentTypes()
 
-    expect(await screen.findByText(/not yet|recorded|لم تُطبَّق/i)).toBeInTheDocument()
+    expect(await screen.findByText(/already approved|narrows|يقصر/i)).toBeInTheDocument()
   })
 
   it('offers no award-critical control on a table that has no such flag', async () => {

@@ -39,8 +39,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-    /// <summary>BRULE-016: which categories a document type is required for. Written by the admin surface,
-    /// read by nothing yet - see DocumentTypeCategory.</summary>
+    /// <summary>BRULE-016: which categories a document type is required for. Written by the admin surface and
+    /// read by RequiredDocumentTypeResolver since D-59.</summary>
     public DbSet<Domain.ReferenceData.DocumentTypeCategory> DocumentTypeCategories => Set<Domain.ReferenceData.DocumentTypeCategory>();
 
     /// <summary>T-076: administrator rewordings of the transactional emails.</summary>
@@ -628,8 +628,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // SCR-716. Same shape and the same reasoning as notification_template below: an absent row means
         // the shipped string, so nothing is seeded and a fresh database behaves exactly as the bundle does.
-        // BRULE-016's join table. Present and unread on purpose - see DocumentTypeCategory's own comment for
-        // the two decisions that have to come before anything derives the required set from it.
+        // BRULE-016's join table, read since D-59 by RequiredDocumentTypeResolver.
         modelBuilder.Entity<Domain.ReferenceData.DocumentTypeCategory>(entity =>
         {
             entity.ToTable("document_type_category", "reference");

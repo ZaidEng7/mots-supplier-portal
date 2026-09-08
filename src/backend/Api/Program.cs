@@ -447,7 +447,8 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IEmailCopySource
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListEmailTemplatesHandler, MotsSupplierPortal.Infrastructure.Email.ListEmailTemplatesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.UpsertEmailTemplateHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteEmailTemplateHandler, MotsSupplierPortal.Infrastructure.Email.DeleteEmailTemplateHandler>();
-// BRULE-016: the link surface. Written by an administrator, read by nothing yet - deliberately.
+// BRULE-016: the link surface. Written by an administrator and, since D-59, read by every gate that
+// derives a supplier's required documents - see RequiredDocumentTypeResolver.
 builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.IGetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.GetDocumentTypeCategoriesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.ISetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.SetDocumentTypeCategoriesHandler>();
 // The evaluator picker's own read - see ListEvaluatorCandidatesHandler for why it exists.

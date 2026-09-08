@@ -25,12 +25,21 @@ public sealed class AwardCriticalFlagTests(PostgresApiFixture fixture)
 {
     private Task<HttpClient> AdminAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
+    /// <summary>
+    /// The decision half, now made. This test was written asserting that NOTHING was award-critical, so
+    /// that marking a type would have to be acknowledged here rather than slipped in - the consequence
+    /// being a suspended supplier. This edit is that acknowledgement.
+    ///
+    /// <para>D-58 marks the commercial register and the tax card: both are what make a company legally
+    /// able to hold a contract, and an expired one means it cannot lawfully be awarded or paid. Chamber
+    /// membership stays off - it evidences standing rather than capacity. Migration
+    /// 20260908115449_AwardCriticalDocumentTypes carries the values; the end-to-end consequence is
+    /// proved in <see cref="AwardCriticalBlocksBiddingTests"/>, which was the condition D-58 shipped
+    /// with, because until it existed the rule had never run against a real value.</para>
+    /// </summary>
     [Fact]
-    public async Task Every_shipped_document_type_is_still_not_award_critical()
+    public async Task Only_the_document_types_D58_names_are_award_critical()
     {
-        // The decision half, asserted as unmade. If a later batch marks a type, this test is where the change
-        // has to be acknowledged rather than slipped in - which is the point, because the consequence is a
-        // suspended supplier.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -38,8 +47,10 @@ public sealed class AwardCriticalFlagTests(PostgresApiFixture fixture)
             .Select(t => new { t.Code, t.IsAwardCritical }).ToListAsync();
 
         flags.Should().NotBeEmpty("the reference data must be seeded for this assertion to mean anything");
-        flags.Should().OnlyContain(t => !t.IsAwardCritical,
-            "which types are award-critical is a ministry decision, and BRULE-023 stays dormant until it is made");
+        flags.Where(t => t.IsAwardCritical).Select(t => t.Code)
+            .Should().BeEquivalentTo(["commercial_registration", "tax_certificate"],
+                "marking a type suspends live suppliers, so which ones are marked is a decision with a " +
+                "record - D-58 - and not a default anybody may widen in passing");
     }
 
     [Fact]
@@ -51,8 +62,12 @@ public sealed class AwardCriticalFlagTests(PostgresApiFixture fixture)
         documentTypes.EnumerateArray().Should().NotBeEmpty();
         foreach (var item in documentTypes.EnumerateArray())
         {
-            item.GetProperty("isAwardCritical").ValueKind.Should().Be(JsonValueKind.False,
-                "the flag has to be readable, and false is a different fact from absent");
+            // True or False, never Null: the point of this assertion is that a table which HAS the flag
+            // reports it as a boolean either way. Which rows are true is D-58's business, asserted in
+            // Only_the_document_types_D58_names_are_award_critical.
+            item.GetProperty("isAwardCritical").ValueKind.Should()
+                .BeOneOf([JsonValueKind.False, JsonValueKind.True],
+                    "the flag has to be readable, and a boolean is a different fact from absent");
         }
 
         // Null elsewhere, not false: "this table has no such flag" and "this row has it off" are different

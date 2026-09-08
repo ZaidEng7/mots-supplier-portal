@@ -7,12 +7,14 @@ using MotsSupplierPortal.Domain.Identity;
 namespace MotsSupplierPortal.Tests.Integration;
 
 /// <summary>
-/// BRULE-016's code half: the shape that makes the rule expressible, and its admin surface.
+/// BRULE-016: the shape that makes the rule expressible, its admin surface, and - since D-59 - what a
+/// recorded link now does.
 ///
-/// <para><b>The derivation is deliberately NOT switched on, and these tests assert that too.</b> Recording a
-/// link must change nothing about any supplier's required documents until two decisions are made - which types
-/// attach to which categories, and whether a tightening reaches suppliers already approved under the flat
-/// list. See COMPLETION-INVENTORY.md §4.2.</para>
+/// <para><b>This suite used to assert the opposite.</b> Its fourth test proved that recording a link changed
+/// nothing, because the derivation shipped deliberately off pending two decisions: which types attach to
+/// which categories, and whether a category-conditioned set reaches suppliers already approved under the flat
+/// one. D-59 answers both - on, and retroactive - so that test is now the behaviour test, and it is where the
+/// switch had to be acknowledged rather than slipped in.</para>
 /// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class DocumentTypeCategoryLinkTests(PostgresApiFixture fixture)
@@ -83,39 +85,65 @@ public sealed class DocumentTypeCategoryLinkTests(PostgresApiFixture fixture)
         (await LinksForAsync(admin, type)).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// What a link does, now that something reads it: it NARROWS a required type to the categories named.
+    ///
+    /// <para>Both directions in one test, deliberately. A test that only proved the narrowing would pass
+    /// just as happily if the resolver returned nothing at all - and "no documents are required of anybody"
+    /// is the failure mode this rule was held back for, because it empties the submit gate, the resubmit
+    /// gate, the reviewer's approval gate and the completeness figure at once, silently.</para>
+    /// </summary>
     [Fact]
-    public async Task Recording_a_link_changes_no_suppliers_required_documents()
+    public async Task A_link_narrows_a_required_type_to_the_categories_named()
     {
-        // The assertion that keeps this half honest. The rule is expressible now and NOT applied, and the
-        // difference has to be provable - otherwise "we built the shape" is indistinguishable from "we changed
-        // what complete means for every supplier in the system".
         var admin = await AdminAsync();
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Links{Guid.NewGuid():N}"[..12]);
         var supplierCode = await supplier.OwnSupplierCodeAsync();
 
-        async Task<List<(string Name, bool Required)>> RequiredSetAsync()
+        async Task<List<string>> RequiredCodesAsync()
         {
             var documents = await supplier.GetFromJsonAsync<JsonElement>($"/api/v1/suppliers/{supplierCode}/documents");
             return documents.EnumerateArray()
-                .Select(d => (d.GetProperty("nameEn").GetString()!, d.GetProperty("isRequired").GetBoolean()))
-                .OrderBy(x => x.Item1, StringComparer.Ordinal)
+                .Where(d => d.GetProperty("isRequired").GetBoolean())
+                .Select(d => d.GetProperty("code").GetString()!)
+                .OrderBy(c => c, StringComparer.Ordinal)
                 .ToList();
         }
 
-        var before = await RequiredSetAsync();
-        before.Should().NotBeEmpty("the reference data must be seeded for this comparison to mean anything");
+        var linked = await supplier.PostAsJsonAsync("/api/v1/suppliers/me/category-links",
+            new { categoryCode = "catering" });
+        linked.StatusCode.Should().Be(HttpStatusCode.OK, await linked.Content.ReadAsStringAsync());
 
-        // Link a REQUIRED type to a category this supplier does not have. Under the rule as written this
-        // document should stop being required for them; the point of this test is that it does not, yet.
-        await admin.PutAsJsonAsync("/api/v1/admin/document-type-categories/commercial_registration",
-            new { categoryCodes = new[] { "transport" } });
+        var before = await RequiredCodesAsync();
+        before.Should().Contain("commercial_registration",
+            "an unlinked required type is required of everyone - that is what keeps an empty link table safe");
 
-        var after = await RequiredSetAsync();
-        after.Should().BeEquivalentTo(before,
-            "the links are recorded and not derived from - switching that on needs the two decisions in §4.2");
+        try
+        {
+            // Linked to a category this caterer does not hold: no longer theirs to provide.
+            await admin.PutAsJsonAsync("/api/v1/admin/document-type-categories/commercial_registration",
+                new { categoryCodes = new[] { "transport" } });
 
-        await admin.PutAsJsonAsync("/api/v1/admin/document-type-categories/commercial_registration",
-            new { categoryCodes = Array.Empty<string>() });
+            (await RequiredCodesAsync()).Should().NotContain("commercial_registration",
+                "BRULE-016: a construction supplier and a caterer are not asked for the same paperwork");
+
+            // Linked to a category they DO hold: required again. Same link table, opposite answer - which
+            // is what distinguishes a working condition from a resolver that has simply stopped returning
+            // anything.
+            await admin.PutAsJsonAsync("/api/v1/admin/document-type-categories/commercial_registration",
+                new { categoryCodes = new[] { "transport", "catering" } });
+
+            (await RequiredCodesAsync()).Should().Contain("commercial_registration");
+        }
+        finally
+        {
+            await admin.PutAsJsonAsync("/api/v1/admin/document-type-categories/commercial_registration",
+                new { categoryCodes = Array.Empty<string>() });
+        }
+
+        (await RequiredCodesAsync()).Should().BeEquivalentTo(before,
+            "clearing the links restores the unconditioned set, so the decision is undoable while it is " +
+            "still only a decision");
     }
 
     [Fact]
