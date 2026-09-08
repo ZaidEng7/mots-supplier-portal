@@ -237,6 +237,47 @@ A dialog whose height is driven by a repeatable row needs a max height and its o
 with the action row pinned. It is worth checking every other dialog with a repeater in it at the same
 time rather than fixing this one: the same shape is likely wherever "add another row" exists.
 
+### F-13 — An approved supplier cannot renew an expiring document, and nobody can reopen them
+**Open.** Sized **M**. The most consequential finding of the walk, and a policy question sits inside it.
+
+Reproduced on the supplier's own Documents screen, with two documents showing **Expiring soon**:
+setting a new expiry date and choosing a file answers
+
+    Cannot upload documents from state 'Approved'.
+
+`UploadDocumentHandler:37` permits uploads only from `EmailVerified`, `ProfileInProgress` and
+`InfoRequested`. And there is no way back: `Supplier.RequestInfo()` requires `UnderReview`, so a
+reviewer cannot return an approved supplier to an editable state either.
+
+**The trap closes completely.** The system tracks expiry dates. A daily job moves a document to
+`Expired`. BRULE-023 then auto-suspends the supplier when an award-critical document expires. The
+supplier's own screen offers them an expiry field and a file picker to put it right — and refuses the
+upload. Neither they nor a reviewer can act. The only remedy is a database edit.
+
+Nobody has met this in anger only because no seeded document type is award-critical yet (§4.1), so
+the auto-suspend has never fired. The renewal refusal is live today regardless.
+
+**The design to build, proposed by the person who hit it, and it fits what already exists.** A
+renewal should ride the DOCUMENT lifecycle, not the supplier's: documents already have their own
+states (`Uploaded → UnderReview → Approved/Rejected`), their own version chain, and per-document
+Approve/Reject on the reviewer's screen. So:
+
+1. **The guard is the build.** Allow upload from `Approved`/`Active`, with the new version landing
+   `UnderReview` while the currently approved version stays in force until the replacement is
+   approved — the supplier keeps trading on a valid certificate while the renewal is checked.
+2. **A reviewer surface for renewals.** F-6 again, from the other side: the queue lists suppliers in
+   reviewable states, and an approved supplier's renewed document has nowhere to appear. What is
+   needed is a list of pending DOCUMENTS, not pending applications.
+3. **The notification.** Templates and the outbox already exist; this is one event type.
+
+**The policy question, which is the ministry's and not ours:** if the old document has already
+expired and the auto-suspend has fired, does approving the renewal reinstate the supplier
+automatically, or does a person do that? Auto-reinstating is convenient and quietly reverses a
+suspension nobody re-examined.
+
+**And the screen should not offer what the state forbids** — the expiry field and file input are
+rendered on a row whose upload cannot succeed. Same shape as F-10.
+
 ## Also confirmed, already known
 
 **D-66 — the offering category checkbox does not re-tick until the profile is re-read.** Recorded in
