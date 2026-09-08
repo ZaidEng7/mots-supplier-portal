@@ -1,12 +1,23 @@
-# Arabic awaiting review
+# Arabic, reviewed
 
-Every drafted Arabic string in the product that has not been through a native review, collected in
-one place so a reviewer can read it end to end without opening any source file.
+Every Arabic string the product authored rather than transcribed, collected in one place so a
+reviewer can read it end to end without opening any source file.
 
-**Status: approved as drafted.** The product owner will review these against a demo; every entry
-below stays marked as drafted until then. Two consistency fixes were applied afterwards and are
-recorded in `DECISIONS-TAKEN.md` — **D-17** (one word for clarification) and **D-18** (screen and
-export strings identical). The strings below are post-fix, so this file matches what ships.
+**Status: accepted under D-62.** The markers that meant "authored here, awaiting a native reviewer"
+have been removed from this file and from `src/frontend/src/i18n/config.ts` in one pass, as D-62
+required — 438 in the catalogue and 155 here. Where a marker was a whole table cell it now reads
+**authored**, which is the fact it was always carrying: this string was written for the product
+rather than transcribed from an approved source. `[reused]` stays exactly where it was, because it
+says where a string came from and not what state it is in.
+
+**What the acceptance covers, stated plainly.** D-62 was recorded on 2026-09-08 against the strings
+that existed then. The sections added afterwards — the phase 1 to 4 entries at the end of this file —
+were authored after that date and are accepted on the same terms at the product owner's direction. A
+reviewer who wants to read only the newer material should start at *Phase 3 · SCR-402 and SCR-307*.
+
+Two consistency fixes were applied before the acceptance and are recorded in `DECISIONS-TAKEN.md` —
+**D-17** (one word for clarification) and **D-18** (screen and export strings identical). The strings
+below are post-fix, so this file matches what ships.
 
 This file is a copy. The authoritative text still lives in
 `src/backend/Application/Notifications/NotificationCatalogue.jsonc`,
@@ -347,60 +358,60 @@ product owner reviews them against a demo.
 
 | Key | English | Arabic | Renders | Source |
 |---|---|---|---|---|
-| `status.proposal.Lapsed` | Window closed | انتهت المهلة | Status chip, supplier proposal list and dashboard | [drafted] |
-| `status.proposal.Cancelled` | RFQ cancelled | ملغى مع الطلب | Same | [drafted] |
+| `status.proposal.Lapsed` | Window closed | انتهت المهلة | Status chip, supplier proposal list and dashboard | authored |
+| `status.proposal.Cancelled` | RFQ cancelled | ملغى مع الطلب | Same | authored |
 
 ### A-9 — the two new notifications (`NotificationCatalogue.jsonc`)
 
 | Type | English title / body | Arabic title / body | Source |
 |---|---|---|---|
-| `proposal.lapsed` | "Your proposal was not submitted in time" / "The submission window for RFQ {rfqCode} closed before your draft was submitted, so it was not included in the evaluation." | «انتهت مهلة تقديم عرضك» / «أُغلقت مهلة التقديم لطلب عرض الأسعار {rfqCode} قبل تقديم مسودتك، ولم تُدرَج في التقييم.» | [drafted] |
-| `proposal.cancelled` | "The RFQ was cancelled" / "RFQ {rfqCode} was cancelled, so your proposal is closed and will not be evaluated." | «أُلغي طلب عرض الأسعار» / «أُلغي طلب عرض الأسعار {rfqCode}، وبذلك أُغلق عرضك ولن يُقيَّم.» | [drafted] |
+| `proposal.lapsed` | "Your proposal was not submitted in time" / "The submission window for RFQ {rfqCode} closed before your draft was submitted, so it was not included in the evaluation." | «انتهت مهلة تقديم عرضك» / «أُغلقت مهلة التقديم لطلب عرض الأسعار {rfqCode} قبل تقديم مسودتك، ولم تُدرَج في التقييم.» | authored |
+| `proposal.cancelled` | "The RFQ was cancelled" / "RFQ {rfqCode} was cancelled, so your proposal is closed and will not be evaluated." | «أُلغي طلب عرض الأسعار» / «أُلغي طلب عرض الأسعار {rfqCode}، وبذلك أُغلق عرضك ولن يُقيَّم.» | authored |
 
 ### A-1 — the surfaced tie (`comparison.*`)
 
 | Key | English | Arabic | Renders | Source |
 |---|---|---|---|---|
-| `comparison.tieUnresolved` | Unresolved tie | تعادل غير محلول | Badge on a tied rank cell | [drafted] |
-| `comparison.tieTitle` | A tie in the ranking needs a decision | تعادل في الترتيب يحتاج قراراً | Tie panel heading | [drafted] |
-| `comparison.tieBody` | These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do. | تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك. | Tie panel body | [drafted] |
-| `comparison.tieReason` | Reason for choosing {{code}} | سبب اختيار {{code}} | Input label | [drafted] |
-| `comparison.tieReasonPlaceholder` | Reason for the decision | سبب القرار | Input placeholder | [drafted] |
-| `comparison.tieResolve` | Confirm the order | تثبيت الترتيب | Button | [drafted] |
-| `comparison.tieResolved` | The order is confirmed | تم تثبيت الترتيب | Toast | [drafted] |
-| `comparison.tieResolveFailed` | Could not confirm the order | تعذّر تثبيت الترتيب | Toast | [drafted] |
+| `comparison.tieUnresolved` | Unresolved tie | تعادل غير محلول | Badge on a tied rank cell | authored |
+| `comparison.tieTitle` | A tie in the ranking needs a decision | تعادل في الترتيب يحتاج قراراً | Tie panel heading | authored |
+| `comparison.tieBody` | These bids are equal on every tie-break rule. Choose the one that ranks first and say why; no award can be recommended until you do. | تساوت العروض التالية في كل معايير الترجيح. اختر العرض الأول مع بيان السبب؛ لا يمكن الترسية قبل ذلك. | Tie panel body | authored |
+| `comparison.tieReason` | Reason for choosing {{code}} | سبب اختيار {{code}} | Input label | authored |
+| `comparison.tieReasonPlaceholder` | Reason for the decision | سبب القرار | Input placeholder | authored |
+| `comparison.tieResolve` | Confirm the order | تثبيت الترتيب | Button | authored |
+| `comparison.tieResolved` | The order is confirmed | تم تثبيت الترتيب | Toast | authored |
+| `comparison.tieResolveFailed` | Could not confirm the order | تعذّر تثبيت الترتيب | Toast | authored |
 
 ### A-4 — the broadcast notice (`rfq.clarifications.*`)
 
 | Key | English | Arabic | Renders | Source |
 |---|---|---|---|---|
-| `rfq.clarifications.broadcastNotice` | The answer goes to every invited supplier. The asker is not named. | يُرسل الجواب إلى جميع المدعوين دون ذكر السائل. | Under the answer field, replacing the removed "publish immediately" checkbox | [drafted] |
+| `rfq.clarifications.broadcastNotice` | The answer goes to every invited supplier. The asker is not named. | يُرسل الجواب إلى جميع المدعوين دون ذكر السائل. | Under the answer field, replacing the removed "publish immediately" checkbox | authored |
 
 ### Batch 9's admin surfaces, carried forward for the same review
 
 `adminOverview.*` (SCR-700), `systemSettings.*` (SCR-724), `notificationTemplates.*` (SCR-715),
 `register.closedTitle` / `register.closedBody`, `rfq.attachments.*` and `supplierRfq.attachments.*` —
-all marked `[drafted]` at their definitions in `src/frontend/src/i18n/config.ts`.
+all marked `` at their definitions in `src/frontend/src/i18n/config.ts`.
 
 ### A-5 / A-6 — the review target and the deadline reason
 
 | Key | English | Arabic | Renders | Source |
 |---|---|---|---|---|
-| `review.reviewTarget` | Target date | الموعد المستهدف | Review queue column header | [drafted] |
-| `rfq.deadline.reason` | Reason for the change | سبب التغيير | Buyer's deadline control | [drafted] |
-| `supplierRfq.deadlineChanged.title` | The submission deadline changed | تغيّر موعد إغلاق التقديم | Card on the supplier's RFQ | [drafted] |
+| `review.reviewTarget` | Target date | الموعد المستهدف | Review queue column header | authored |
+| `rfq.deadline.reason` | Reason for the change | سبب التغيير | Buyer's deadline control | authored |
+| `supplierRfq.deadlineChanged.title` | The submission deadline changed | تغيّر موعد إغلاق التقديم | Card on the supplier's RFQ | authored |
 
 ### A-8 — the declaration and the pseudonyms
 
 | Key | English | Arabic | Renders | Source |
 |---|---|---|---|---|
-| `evaluation.my.anonymousBidder` | Bidder identity withheld during scoring | هوية المورد محجوبة أثناء التقييم | Badge beside each bid | [drafted] |
-| `evaluation.my.declaration.title` | Conflict of interest declaration | إقرار تعارض المصالح | Declaration step heading | [drafted] |
-| `evaluation.my.declaration.body` | These are the suppliers taking part… | هذه أسماء الموردين المشاركين… | Declaration step body | [drafted] |
-| `evaluation.my.declaration.noConflict` | No conflict — continue | لا يوجد تعارض — متابعة | Button | [drafted] |
-| `evaluation.my.declaration.hasConflict` | I have a conflict — recuse me | لديّ تعارض — تنحّي | Button | [drafted] |
-| `evaluation.my.declaration.reasonLabel` | Reason for recusal | سبب التنحّي | Input label | [drafted] |
-| `evaluation.my.declaration.failed` | Could not record the declaration | تعذّر تسجيل الإقرار | Toast | [drafted] |
+| `evaluation.my.anonymousBidder` | Bidder identity withheld during scoring | هوية المورد محجوبة أثناء التقييم | Badge beside each bid | authored |
+| `evaluation.my.declaration.title` | Conflict of interest declaration | إقرار تعارض المصالح | Declaration step heading | authored |
+| `evaluation.my.declaration.body` | These are the suppliers taking part… | هذه أسماء الموردين المشاركين… | Declaration step body | authored |
+| `evaluation.my.declaration.noConflict` | No conflict — continue | لا يوجد تعارض — متابعة | Button | authored |
+| `evaluation.my.declaration.hasConflict` | I have a conflict — recuse me | لديّ تعارض — تنحّي | Button | authored |
+| `evaluation.my.declaration.reasonLabel` | Reason for recusal | سبب التنحّي | Input label | authored |
+| `evaluation.my.declaration.failed` | Could not record the declaration | تعذّر تسجيل الإقرار | Toast | authored |
 
 **The bidder pseudonyms are generated, not catalogued**: `Bidder A` / «مورّد أ», using the Arabic
 **abjad** letter order (أ ب ج د هـ و ز ح ط ي …) rather than the alphabetical one, because abjad is what
@@ -411,43 +422,43 @@ an Arabic reader expects for enumeration. Worth a specific check by the reviewer
 
 | Key | English | Arabic | Renders | Source |
 |---|---|---|---|---|
-| `proposal.envelope` | Envelope | المغلف | Label on the upload picker | [drafted] |
+| `proposal.envelope` | Envelope | المغلف | Label on the upload picker | authored |
 | `proposal.envelopeCommercial` | Commercial envelope | المغلف المالي | Picker option | [reused] §7's own term |
 | `proposal.envelopeTechnical` | Technical envelope | المغلف الفني | Picker option | [reused] §7's own term |
-| `proposal.envelopeExpected.Technical` | This document is expected in the technical envelope. | يُتوقع أن يكون هذا المستند في المغلف الفني. | Under a requirement | [drafted] |
-| `proposal.envelopeExpected.Commercial` | This document is expected in the commercial envelope. | يُتوقع أن يكون هذا المستند في المغلف المالي. | Under a requirement | [drafted] |
+| `proposal.envelopeExpected.Technical` | This document is expected in the technical envelope. | يُتوقع أن يكون هذا المستند في المغلف الفني. | Under a requirement | authored |
+| `proposal.envelopeExpected.Commercial` | This document is expected in the commercial envelope. | يُتوقع أن يكون هذا المستند في المغلف المالي. | Under a requirement | authored |
 
 ### T-077 — the staff accounts table (SCR-701 / SCR-702)
 
 | Key | English | Arabic | Source |
 |---|---|---|---|
-| `staff.accountsTitle` | Staff accounts | حسابات الموظفين | [drafted] |
+| `staff.accountsTitle` | Staff accounts | حسابات الموظفين | authored |
 | `staff.noAccounts` | No accounts | لا توجد حسابات | [reused] |
-| `staff.inactive` | Deactivated | معطّل | [drafted] |
-| `staff.mfaOn` | Two-factor enrolled | التحقق بخطوتين مُفعّل | [drafted] |
-| `staff.sessions` | Active sessions: {{count}} | جلسات نشطة: {{count}} | [drafted] |
-| `staff.deactivate` | Deactivate | تعطيل | [drafted] |
-| `staff.reactivate` | Reactivate | إعادة التفعيل | [drafted] |
-| `staff.resetMfa` | Reset two-factor | إعادة ضبط التحقق بخطوتين | [drafted] |
-| `staff.roleChanged` | The role was changed | تم تغيير الدور | [drafted] |
-| `staff.mfaReset` | Two-factor was reset | تمت إعادة ضبط التحقق بخطوتين | [drafted] |
-| `staff.errors.loadFailed` | Could not load the staff accounts | تعذّر تحميل حسابات الموظفين | [drafted] |
-| `staff.errors.updateFailed` | Could not complete that action | تعذّر تنفيذ الإجراء | [drafted] |
-| `staff.errors.cannotActOnSelf` | You cannot do that to your own account. | لا يمكنك تنفيذ هذا الإجراء على حسابك. | [drafted] |
-| `staff.errors.wouldLockOutAdministration` | The last active system administrator cannot be deactivated. | لا يمكن تعطيل آخر مسؤول نظام مفعّل. | [drafted] |
+| `staff.inactive` | Deactivated | معطّل | authored |
+| `staff.mfaOn` | Two-factor enrolled | التحقق بخطوتين مُفعّل | authored |
+| `staff.sessions` | Active sessions: {{count}} | جلسات نشطة: {{count}} | authored |
+| `staff.deactivate` | Deactivate | تعطيل | authored |
+| `staff.reactivate` | Reactivate | إعادة التفعيل | authored |
+| `staff.resetMfa` | Reset two-factor | إعادة ضبط التحقق بخطوتين | authored |
+| `staff.roleChanged` | The role was changed | تم تغيير الدور | authored |
+| `staff.mfaReset` | Two-factor was reset | تمت إعادة ضبط التحقق بخطوتين | authored |
+| `staff.errors.loadFailed` | Could not load the staff accounts | تعذّر تحميل حسابات الموظفين | authored |
+| `staff.errors.updateFailed` | Could not complete that action | تعذّر تنفيذ الإجراء | authored |
+| `staff.errors.cannotActOnSelf` | You cannot do that to your own account. | لا يمكنك تنفيذ هذا الإجراء على حسابك. | authored |
+| `staff.errors.wouldLockOutAdministration` | The last active system administrator cannot be deactivated. | لا يمكن تعطيل آخر مسؤول نظام مفعّل. | authored |
 
 ### B-1 — the reachable audit trail, the clarification request, and the ERP notice
 
 | Key | English | Arabic | Source |
 |---|---|---|---|
-| `settings.auditTitle` | My account activity | سجل نشاط حسابي | [drafted] |
-| `settings.auditHint` | The most recent events recorded against your account, newest first. | أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم. | [drafted] |
-| `settings.auditExport` | Download the trail (CSV) | تنزيل السجل (CSV) | [drafted] |
-| `comparison.clarifyTitle` | Ask a bidder to clarify | طلب استيضاح من مورد | [drafted] |
-| `comparison.clarifyBody` | Ask a supplier to explain something about their bid… | اطلب من المورد توضيحاً حول عرضه… | [drafted] |
+| `settings.auditTitle` | My account activity | سجل نشاط حسابي | authored |
+| `settings.auditHint` | The most recent events recorded against your account, newest first. | أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم. | authored |
+| `settings.auditExport` | Download the trail (CSV) | تنزيل السجل (CSV) | authored |
+| `comparison.clarifyTitle` | Ask a bidder to clarify | طلب استيضاح من مورد | authored |
+| `comparison.clarifyBody` | Ask a supplier to explain something about their bid… | اطلب من المورد توضيحاً حول عرضه… | authored |
 | `comparison.clarifyAsk` | Request clarification | طلب استيضاح | [reused] §8's «استيضاح» per the batch-9 glossary ruling |
-| `adminOverview.erpNotConfigured` | No real ERP integration is configured | لا يوجد ربط فعلي بنظام ERP | [drafted] |
-| `adminOverview.erpNotConfiguredBody` | Messages are written to the log and sent nowhere… | تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي… | [drafted] |
+| `adminOverview.erpNotConfigured` | No real ERP integration is configured | لا يوجد ربط فعلي بنظام ERP | authored |
+| `adminOverview.erpNotConfiguredBody` | Messages are written to the log and sent nowhere… | تُسجَّل الرسائل في السجل ولا تُرسل إلى أي نظام خارجي… | authored |
 
 ### T-080 — the reference-data editor (SCR-710 / SCR-711 / SCR-712)
 
@@ -463,24 +474,24 @@ sentence here reads as an apology for a missing button rather than a statement o
 
 | Key | English | Arabic | Source |
 |---|---|---|---|
-| `referenceAdmin.title` | Reference data | إدارة البيانات المرجعية | [drafted] |
-| `referenceAdmin.subtitle` | Add, rename, and deactivate the codes RFQs and supplier profiles are built from. | إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين. | [drafted] |
-| `referenceAdmin.tableLabel` | Reference table | الجدول المرجعي | [drafted] |
-| `referenceAdmin.addTitle` | Add a code | إضافة رمز جديد | [drafted] |
+| `referenceAdmin.title` | Reference data | إدارة البيانات المرجعية | authored |
+| `referenceAdmin.subtitle` | Add, rename, and deactivate the codes RFQs and supplier profiles are built from. | إضافة وتعديل وتعطيل الرموز المرجعية التي تستخدمها الطلبات وملفات الموردين. | authored |
+| `referenceAdmin.tableLabel` | Reference table | الجدول المرجعي | authored |
+| `referenceAdmin.addTitle` | Add a code | إضافة رمز جديد | authored |
 | `referenceAdmin.code` | Code | الرمز | [reused] §7's own term |
 | `referenceAdmin.nameAr` / `nameEn` | Name (Arabic) / Name (English) | الاسم بالعربية / الاسم بالإنجليزية | [reused] matches the onboarding form |
 | `referenceAdmin.deactivate` / `reactivate` | Deactivate / Reactivate | تعطيل / إعادة التفعيل | [reused] matches T-077's staff table |
 | `referenceAdmin.active` / `inactive` | Active / Inactive | مفعّل / معطّل | [reused] §7's own terms |
 | `referenceAdmin.required` | Required | إلزامي | [reused] §7's own term |
-| `referenceAdmin.created` | Code added | تمت إضافة الرمز | [drafted] |
-| `referenceAdmin.renamed` | Name saved | تم حفظ الاسم | [drafted] |
-| `referenceAdmin.empty` | This table has no codes | لا توجد رموز في هذا الجدول | [drafted] |
-| `referenceAdmin.noDeleteNotice` | Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say. | لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة. | [drafted] D-28 |
-| `referenceAdmin.inactiveNotice` | Deactivated codes stay listed here, so deactivation does not read as deletion. | تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها. | [drafted] D-28 |
-| `referenceAdmin.errors.duplicateCode` | That code already exists on this table. | هذا الرمز موجود بالفعل في هذا الجدول. | [drafted] |
-| `referenceAdmin.errors.createFailed` | Could not add the code | تعذّرت إضافة الرمز | [drafted] |
-| `referenceAdmin.errors.updateFailed` | Could not save the change | تعذّر حفظ التغيير | [drafted] |
-| `referenceAdmin.errors.loadFailed` | Could not load reference data | تعذّر تحميل البيانات المرجعية | [drafted] |
+| `referenceAdmin.created` | Code added | تمت إضافة الرمز | authored |
+| `referenceAdmin.renamed` | Name saved | تم حفظ الاسم | authored |
+| `referenceAdmin.empty` | This table has no codes | لا توجد رموز في هذا الجدول | authored |
+| `referenceAdmin.noDeleteNotice` | Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say. | لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة. | D-28 |
+| `referenceAdmin.inactiveNotice` | Deactivated codes stay listed here, so deactivation does not read as deletion. | تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها. | D-28 |
+| `referenceAdmin.errors.duplicateCode` | That code already exists on this table. | هذا الرمز موجود بالفعل في هذا الجدول. | authored |
+| `referenceAdmin.errors.createFailed` | Could not add the code | تعذّرت إضافة الرمز | authored |
+| `referenceAdmin.errors.updateFailed` | Could not save the change | تعذّر حفظ التغيير | authored |
+| `referenceAdmin.errors.loadFailed` | Could not load reference data | تعذّر تحميل البيانات المرجعية | authored |
 
 ### A-7 — ownership, the reassignment, and the approver nomination
 
@@ -503,26 +514,26 @@ had to be distinguished for the same reason — one accessible name cannot belon
 
 | Key | English | Arabic | Source |
 |---|---|---|---|
-| `rfq.fields.owner` | Owner | المسؤول | [drafted] A-7 |
-| `rfq.unassigned` | Unassigned | غير مُسند | [drafted] |
-| `rfq.ownerFilter.label` | Filter by owner | تصفية حسب المسؤول | [drafted] |
-| `rfq.ownerFilter.me` | Mine | المُسندة إليّ | [drafted] |
-| `rfq.ownerFilter.unassigned` | Unassigned | غير مُسندة | [drafted] |
-| `rfq.ownerFilter.empty.me` | No RFQs are assigned to you | لا توجد طلبات مُسندة إليك | [drafted] |
-| `rfq.ownerFilter.empty.unassigned` | Every RFQ has an owner | كل الطلبات مُسندة إلى مسؤول | [drafted] |
-| `rfq.ownership.title` | Ownership | المسؤول عن الطلب | [drafted] |
-| `rfq.ownership.help` | One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail. | يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات. | [drafted] |
-| `rfq.ownership.ownerLabel` | Owner | المسؤول | [drafted] |
-| `rfq.ownership.approverLabel` | Approver | المعتمِد | [drafted] see the note above on the vowel |
-| `rfq.ownership.newOwner` | New owner | المسؤول الجديد | [drafted] |
-| `rfq.ownership.reason` | Reason for the handover | سبب النقل | [drafted] |
-| `rfq.ownership.reassign` | Reassign | نقل المسؤولية | [drafted] |
-| `rfq.ownership.reassigned` | Ownership reassigned | تم نقل المسؤولية | [drafted] |
-| `rfq.ownership.nominateApprover` | Choose an approver | تحديد المعتمِد | [drafted] |
-| `rfq.ownership.anyManager` | Any manager | أي مدير | [drafted] |
-| `NEW_OWNER_REQUIRED` | A new owner must be chosen. | يجب تحديد المسؤول الجديد. | [drafted] §7.2 catalogue |
-| `rfq.reassigned` (notification title) | An RFQ was assigned to you | أُسند إليك طلب | [drafted] |
-| `rfq.reassigned` (notification body) | You are now responsible for RFQ {rfqCode}. Open it to see what it is waiting for. | أصبحت مسؤولاً عن الطلب {rfqCode}. راجعه لمتابعة الخطوة التالية. | [drafted] |
+| `rfq.fields.owner` | Owner | المسؤول | A-7 |
+| `rfq.unassigned` | Unassigned | غير مُسند | authored |
+| `rfq.ownerFilter.label` | Filter by owner | تصفية حسب المسؤول | authored |
+| `rfq.ownerFilter.me` | Mine | المُسندة إليّ | authored |
+| `rfq.ownerFilter.unassigned` | Unassigned | غير مُسندة | authored |
+| `rfq.ownerFilter.empty.me` | No RFQs are assigned to you | لا توجد طلبات مُسندة إليك | authored |
+| `rfq.ownerFilter.empty.unassigned` | Every RFQ has an owner | كل الطلبات مُسندة إلى مسؤول | authored |
+| `rfq.ownership.title` | Ownership | المسؤول عن الطلب | authored |
+| `rfq.ownership.help` | One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail. | يُسند الطلب إلى موظف واحد يكون مسؤولاً عن متابعته. يمكن للمدير نقل المسؤولية في أي وقت، ويُسجَّل النقل والسبب في سجل التغييرات. | authored |
+| `rfq.ownership.ownerLabel` | Owner | المسؤول | authored |
+| `rfq.ownership.approverLabel` | Approver | المعتمِد | see the note above on the vowel |
+| `rfq.ownership.newOwner` | New owner | المسؤول الجديد | authored |
+| `rfq.ownership.reason` | Reason for the handover | سبب النقل | authored |
+| `rfq.ownership.reassign` | Reassign | نقل المسؤولية | authored |
+| `rfq.ownership.reassigned` | Ownership reassigned | تم نقل المسؤولية | authored |
+| `rfq.ownership.nominateApprover` | Choose an approver | تحديد المعتمِد | authored |
+| `rfq.ownership.anyManager` | Any manager | أي مدير | authored |
+| `NEW_OWNER_REQUIRED` | A new owner must be chosen. | يجب تحديد المسؤول الجديد. | §7.2 catalogue |
+| `rfq.reassigned` (notification title) | An RFQ was assigned to you | أُسند إليك طلب | authored |
+| `rfq.reassigned` (notification body) | You are now responsible for RFQ {rfqCode}. Open it to see what it is waiting for. | أصبحت مسؤولاً عن الطلب {rfqCode}. راجعه لمتابعة الخطوة التالية. | authored |
 
 ### SCR-720 — the audit explorer (T-079)
 
@@ -542,25 +553,25 @@ would tell an administrator the platform has recorded nothing at all.
 | Key | English | Arabic | Source |
 |---|---|---|---|
 | `auditExplorer.title` | Audit log | سجل التغييرات | [reused] matches the supplier's own trail |
-| `auditExplorer.subtitle` | Search and export the platform-wide audit trail. | البحث في سجل التغييرات على مستوى المنصة وتصديره. | [drafted] |
-| `auditExplorer.filtersTitle` | Filters | عوامل التصفية | [drafted] |
-| `auditExplorer.clear` | Clear filters | إلغاء التصفية | [drafted] |
+| `auditExplorer.subtitle` | Search and export the platform-wide audit trail. | البحث في سجل التغييرات على مستوى المنصة وتصديره. | authored |
+| `auditExplorer.filtersTitle` | Filters | عوامل التصفية | authored |
+| `auditExplorer.clear` | Clear filters | إلغاء التصفية | authored |
 | `auditExplorer.export` | Export (CSV) | تصدير (CSV) | [reused] matches the supplier's export |
-| `auditExplorer.empty` | No audit rows | لا توجد سجلات | [drafted] |
-| `auditExplorer.emptyFiltered` | No audit rows match these filters | لا توجد سجلات تطابق عوامل التصفية | [drafted] see the note above |
-| `auditExplorer.filtersApplied` | Filters applied: {{filters}} | عوامل التصفية المطبَّقة: {{filters}} | [drafted] |
-| `auditExplorer.systemActor` | System | إجراء تلقائي من النظام | [drafted] see the note above |
+| `auditExplorer.empty` | No audit rows | لا توجد سجلات | authored |
+| `auditExplorer.emptyFiltered` | No audit rows match these filters | لا توجد سجلات تطابق عوامل التصفية | see the note above |
+| `auditExplorer.filtersApplied` | Filters applied: {{filters}} | عوامل التصفية المطبَّقة: {{filters}} | authored |
+| `auditExplorer.systemActor` | System | إجراء تلقائي من النظام | see the note above |
 | `auditExplorer.fields.occurredAt` | When | التاريخ والوقت | [reused] |
 | `auditExplorer.fields.action` | Action | الإجراء | [reused] §7's own term |
-| `auditExplorer.fields.aggregate` | Record | السجل | [drafted] |
-| `auditExplorer.fields.aggregateType` | Record type | نوع السجل | [drafted] |
-| `auditExplorer.fields.aggregateId` | Record id | معرّف السجل | [drafted] |
-| `auditExplorer.fields.actor` | Actor | المنفِّذ | [drafted] see the note above on the vowel |
-| `auditExplorer.fields.actorUserId` | Actor id | معرّف المنفِّذ | [drafted] |
-| `auditExplorer.fields.transition` | State change | تغيّر الحالة | [drafted] |
+| `auditExplorer.fields.aggregate` | Record | السجل | authored |
+| `auditExplorer.fields.aggregateType` | Record type | نوع السجل | authored |
+| `auditExplorer.fields.aggregateId` | Record id | معرّف السجل | authored |
+| `auditExplorer.fields.actor` | Actor | المنفِّذ | see the note above on the vowel |
+| `auditExplorer.fields.actorUserId` | Actor id | معرّف المنفِّذ | authored |
+| `auditExplorer.fields.transition` | State change | تغيّر الحالة | authored |
 | `auditExplorer.fields.from` / `.to` | From date / To date | من تاريخ / إلى تاريخ | [reused] |
-| `auditExplorer.errors.loadFailed` | Could not load the audit log | تعذّر تحميل سجل التغييرات | [drafted] |
-| `auditExplorer.errors.exportFailed` | Could not export the audit log | تعذّر تصدير سجل التغييرات | [drafted] |
+| `auditExplorer.errors.loadFailed` | Could not load the audit log | تعذّر تحميل سجل التغييرات | authored |
+| `auditExplorer.errors.exportFailed` | Could not export the audit log | تعذّر تصدير سجل التغييرات | authored |
 
 ## Batch 11 — the screens this batch added
 
@@ -571,10 +582,10 @@ register and none is approved. `[reused]` marks a term §7 or an approved block 
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `myProposals.title` | My proposals | عروضي | [drafted] |
-| `myProposals.subtitle` | Bids you have submitted or started preparing. | العروض التي قدّمتها أو بدأت إعدادها. | [drafted] |
-| `myProposals.empty` | You have not started a proposal yet | لم تقدّم أي عرض بعد | [drafted] |
-| `myProposals.continue` | Continue | متابعة الإعداد | [drafted] longer than the English on purpose — «متابعة» alone reads as "next" |
+| `myProposals.title` | My proposals | عروضي | authored |
+| `myProposals.subtitle` | Bids you have submitted or started preparing. | العروض التي قدّمتها أو بدأت إعدادها. | authored |
+| `myProposals.empty` | You have not started a proposal yet | لم تقدّم أي عرض بعد | authored |
+| `myProposals.continue` | Continue | متابعة الإعداد | longer than the English on purpose — «متابعة» alone reads as "next" |
 | `myProposals.awardOffered` | Award offered | عُرضت عليك الترسية | [reused] §8's «ترسية» |
 | `myProposals.fields.*` | RFQ / Proposal / State / Deadline / Total / Actions | الطلب / رقم العرض / الحالة / موعد الإغلاق / الإجمالي / الإجراءات | [reused] |
 
@@ -582,20 +593,20 @@ register and none is approved. `[reused]` marks a term §7 or an approved block 
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `proposal.clarificationTitle` | Clarification requested | طلب إيضاح | [drafted] §4.1's «إيضاح» |
-| `proposal.clarificationNoReason` | No question was recorded with this request. | لم يُسجَّل نص الطلب. | [drafted] |
-| `proposal.clarificationHint` | Recording your response returns the proposal for re-review. Proposal lines cannot be edited at this stage. | تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة. | [drafted] the second sentence matters — see BRULE-050 |
-| `proposal.revise` | Record response | تسجيل الردّ | [drafted] deliberately NOT «تعديل», which would promise an edit the state refuses |
-| `proposal.revisedTitle` | Awaiting re-review | بانتظار إعادة المراجعة | [drafted] |
-| `proposal.revisedBody` | Your response was recorded (revision {{revision}}). A procurement officer will return the proposal to review. | سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة. | [drafted] |
+| `proposal.clarificationTitle` | Clarification requested | طلب إيضاح | §4.1's «إيضاح» |
+| `proposal.clarificationNoReason` | No question was recorded with this request. | لم يُسجَّل نص الطلب. | authored |
+| `proposal.clarificationHint` | Recording your response returns the proposal for re-review. Proposal lines cannot be edited at this stage. | تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة. | the second sentence matters — see BRULE-050 |
+| `proposal.revise` | Record response | تسجيل الردّ | deliberately NOT «تعديل», which would promise an edit the state refuses |
+| `proposal.revisedTitle` | Awaiting re-review | بانتظار إعادة المراجعة | authored |
+| `proposal.revisedBody` | Your response was recorded (revision {{revision}}). A procurement officer will return the proposal to review. | سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة. | authored |
 
 ### SCR-902 · the account
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `account.title` | Account | الحساب | [drafted] |
-| `account.emailFixed` | Your email address cannot be changed from this screen. | لا يمكن تغيير البريد الإلكتروني من هذه الشاشة. | [drafted] |
-| `account.numeralsFollowLanguage` | Numerals follow the interface language: Arabic renders ٠-٩, English 0-9. | تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9. | [drafted] the digits are literal in both — do not "translate" them |
+| `account.title` | Account | الحساب | authored |
+| `account.emailFixed` | Your email address cannot be changed from this screen. | لا يمكن تغيير البريد الإلكتروني من هذه الشاشة. | authored |
+| `account.numeralsFollowLanguage` | Numerals follow the interface language: Arabic renders ٠-٩, English 0-9. | تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9. | the digits are literal in both — do not "translate" them |
 | `account.fields.*` | Full name / Interface language / Email address | الاسم الكامل / لغة الواجهة / البريد الإلكتروني | [reused] |
 | `account.languages.*` | Arabic / English | العربية / الإنجليزية | [reused] |
 
@@ -603,28 +614,28 @@ register and none is approved. `[reused]` marks a term §7 or an approved block 
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `sessionExpired.title` | Session expired | انتهت الجلسة | [drafted] |
-| `sessionExpired.body` | Your session has expired. Sign in again to carry on where you left off. | انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت. | [drafted] the second clause is the reassurance — the work is not lost |
+| `sessionExpired.title` | Session expired | انتهت الجلسة | authored |
+| `sessionExpired.body` | Your session has expired. Sign in again to carry on where you left off. | انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت. | the second clause is the reassurance — the work is not lost |
 | `sessionExpired.totp` | Verification code (if enabled) | رمز التحقق (إن وُجد) | [reused] §7's «رمز التحقق» |
-| `sessionExpired.failed` | Could not sign in. Check the details you entered. | تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة. | [drafted] deliberately says nothing about WHICH detail |
+| `sessionExpired.failed` | Could not sign in. Check the details you entered. | تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة. | deliberately says nothing about WHICH detail |
 
 ### SCR-908 / SCR-907 · about and help
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `about.title` | About | حول النظام | [drafted] |
-| `about.commit` | Build reference | رقم البناء | [drafted] not «الالتزام», which is the wrong sense of "commit" entirely |
-| `about.correlationHelp` | Error messages include a correlation ID… | تحتوي رسائل الخطأ على «معرّف المتابعة»… | [drafted] «معرّف المتابعة» is a coinage; a reviewer may prefer leaving `correlation ID` in Latin script |
-| `about.legalPending` | Terms of use and the privacy notice have not been issued yet… | لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية… | [drafted] |
+| `about.title` | About | حول النظام | authored |
+| `about.commit` | Build reference | رقم البناء | not «الالتزام», which is the wrong sense of "commit" entirely |
+| `about.correlationHelp` | Error messages include a correlation ID… | تحتوي رسائل الخطأ على «معرّف المتابعة»… | «معرّف المتابعة» is a coinage; a reviewer may prefer leaving `correlation ID` in Latin script |
+| `about.legalPending` | Terms of use and the privacy notice have not been issued yet… | لم تُعتمد بعد شروط الاستخدام وإشعار الخصوصية… | authored |
 | `help.title` | Help | المساعدة | [reused] |
-| `help.contactPending` | A support channel has not been configured yet… | لم تُحدَّد بعد قناة الدعم… | [drafted] |
-| `help.topics.*` | six question/answer/action triples | see `i18n/config.ts` | [drafted] **the longest prose in this file.** Every answer describes real behaviour; a reviewer changing the wording must not change what it claims |
+| `help.contactPending` | A support channel has not been configured yet… | لم تُحدَّد بعد قناة الدعم… | authored |
+| `help.topics.*` | six question/answer/action triples | see `i18n/config.ts` | **the longest prose in this file.** Every answer describes real behaviour; a reviewer changing the wording must not change what it claims |
 
 ### Step 3 · one label the dashboards exposed
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `ministry.unlabelledLifecycle` | Suppliers before approval | موردون قبل الاعتماد | [drafted] **Screen copy, deliberately NOT a §7 state label.** `SupplierLifecycleState.None` reached the Ministry's governance screen as the literal word "None". My first attempt authored `status.onboarding.None` — and `StatusChip.test.tsx`'s coverage guard refused it, correctly: §7.1 has no row for that member, and a state label is the document's to write, not mine. So the wording moved to this screen's own caption, which says what the group counts without claiming to name a status. If §7.1 ever gains a row for `None`, the label belongs there and this fallback becomes dead |
+| `ministry.unlabelledLifecycle` | Suppliers before approval | موردون قبل الاعتماد | **Screen copy, deliberately NOT a §7 state label.** `SupplierLifecycleState.None` reached the Ministry's governance screen as the literal word "None". My first attempt authored `status.onboarding.None` — and `StatusChip.test.tsx`'s coverage guard refused it, correctly: §7.1 has no row for that member, and a state label is the document's to write, not mine. So the wording moved to this screen's own caption, which says what the group counts without claiming to name a status. If §7.1 ever gains a row for `None`, the label belongs there and this fallback becomes dead |
 
 ### Phase 1 · BRULE-016 goes live (D-59)
 
@@ -633,7 +644,7 @@ category links were recorded and not applied, which stopped being true the momen
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `referenceAdmin.categoryLinksExplained` | A category link narrows a document type to suppliers in those categories. A type with no links stays required of every supplier. Changes take effect immediately, including for suppliers already approved. | ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً. | [drafted] **replaces the previous text, which said the links were not yet applied.** Three sentences because three separate facts an administrator cannot infer from the chips: what a link does, what NO link does, and that the change is retroactive. «يقصر … على» for "narrows to" rather than «يحدّد», which reads as "specifies" and loses the restriction |
+| `referenceAdmin.categoryLinksExplained` | A category link narrows a document type to suppliers in those categories. A type with no links stays required of every supplier. Changes take effect immediately, including for suppliers already approved. | ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً. | **replaces the previous text, which said the links were not yet applied.** Three sentences because three separate facts an administrator cannot infer from the chips: what a link does, what NO link does, and that the change is retroactive. «يقصر … على» for "narrows to" rather than «يحدّد», which reads as "specifies" and loses the restriction |
 
 ### Phase 3 · SCR-402 and SCR-307, the two supplier directories
 
@@ -642,37 +653,37 @@ word twice. A «دليل» is something you look a supplier up in; a «سجل» 
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `supplierDirectory.title` | Supplier Directory | دليل الموردين | [drafted] the buyer's browse |
-| `supplierDirectory.subtitle` | Browse approved suppliers and their categories before sending invitations. | استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات. | [drafted] |
-| `supplierDirectory.searchPlaceholder` | Search by name or code… | ابحث بالاسم أو الرمز… | [drafted] «الرمز» for the reference code, matching how it is labelled elsewhere |
-| `supplierDirectory.empty` | No suppliers match | لا يوجد موردون مطابقون | [drafted] |
-| `supplierDirectory.error` | Could not load the directory | تعذّر تحميل الدليل | [drafted] same «تعذّر» register as the other load failures |
-| `supplierDirectory.noCategories` | No categories recorded | لا فئات مسجّلة | [drafted] states an absence rather than leaving a blank cell |
+| `supplierDirectory.title` | Supplier Directory | دليل الموردين | the buyer's browse |
+| `supplierDirectory.subtitle` | Browse approved suppliers and their categories before sending invitations. | استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات. | authored |
+| `supplierDirectory.searchPlaceholder` | Search by name or code… | ابحث بالاسم أو الرمز… | «الرمز» for the reference code, matching how it is labelled elsewhere |
+| `supplierDirectory.empty` | No suppliers match | لا يوجد موردون مطابقون | authored |
+| `supplierDirectory.error` | Could not load the directory | تعذّر تحميل الدليل | same «تعذّر» register as the other load failures |
+| `supplierDirectory.noCategories` | No categories recorded | لا فئات مسجّلة | states an absence rather than leaving a blank cell |
 | `supplierDirectory.fields.*` | Supplier / Code / Categories / Offerings / City / Status | المورد / الرمز / الفئات / العروض / المدينة / الحالة | [reused] every term already approved elsewhere in this file |
-| `complianceDirectory.title` | Supplier Register | سجل الموردين | [drafted] **deliberately not «دليل»** — this is the reviewer's audit view of the whole registry, not a lookup |
-| `complianceDirectory.subtitle` | Every supplier and the state of their documents, including already-approved files. | كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً. | [drafted] the last clause is the point of the screen |
-| `complianceDirectory.filterState` | Application status | حالة الطلب | [drafted] «الطلب» = the onboarding application, distinct from «التعامل» below |
-| `complianceDirectory.filterHealth` | Document health | حالة المستندات | [drafted] literally "document status"; «صحة» would read as medical |
-| `complianceDirectory.healthAttention` | Needs attention | تحتاج متابعة | [drafted] feminine agreement — the subject is المستندات |
-| `complianceDirectory.healthOk` | Healthy | سليمة | [drafted] same agreement |
+| `complianceDirectory.title` | Supplier Register | سجل الموردين | **deliberately not «دليل»** — this is the reviewer's audit view of the whole registry, not a lookup |
+| `complianceDirectory.subtitle` | Every supplier and the state of their documents, including already-approved files. | كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً. | the last clause is the point of the screen |
+| `complianceDirectory.filterState` | Application status | حالة الطلب | «الطلب» = the onboarding application, distinct from «التعامل» below |
+| `complianceDirectory.filterHealth` | Document health | حالة المستندات | literally "document status"; «صحة» would read as medical |
+| `complianceDirectory.healthAttention` | Needs attention | تحتاج متابعة | feminine agreement — the subject is المستندات |
+| `complianceDirectory.healthOk` | Healthy | سليمة | same agreement |
 | `complianceDirectory.expired` / `expiring` / `rejected` | Expired / Expiring / Rejected: {{count}} | منتهٍ / ينتهي قريباً / مرفوض: {{count}} | [reused] §7.2's own three document labels, with a count appended |
-| `complianceDirectory.fields.lifecycle` | Standing | حالة التعامل | [drafted] the post-approval lifecycle, which §7.1 groups with onboarding but the screen shows in its own column |
+| `complianceDirectory.fields.lifecycle` | Standing | حالة التعامل | the post-approval lifecycle, which §7.1 groups with onboarding but the screen shows in its own column |
 
 ### Phase 3 · SCR-501, the evaluator's brief
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `evaluationBrief.title` | Evaluation Brief | كراسة التقييم | [drafted] «كراسة» is what a procurement file calls the instruction document itself; «ملخص» would read as a summary somebody wrote about the tender |
-| `evaluationBrief.toScoring` | Go to scoring | الانتقال إلى التقييم | [drafted] |
-| `evaluationBrief.tender` | What is being bought | موضوع الطلب | [drafted] |
-| `evaluationBrief.howToScore` | Criteria and how they are scored | معايير التقييم وطريقة احتسابها | [drafted] |
-| `evaluationBrief.totalWeight` | Weights total: {{total}} | مجموع الأوزان: {{total}} | [drafted] |
-| `evaluationBrief.justificationRequired` | Justification required | يلزم تبرير | [drafted] BRULE-061 |
-| `evaluationBrief.noGuidance` | No guidance was recorded for this criterion | لم تُسجَّل تعليمات لهذا المعيار | [drafted] **says NOT RECORDED, deliberately** — a tender that bound its template before the field existed has none, and "no guidance" would read as the author having decided there should be none |
-| `evaluationBrief.noDescription` | No description was recorded for this tender | لا يوجد وصف مسجّل لهذا الطلب | [drafted] same shape |
-| `evaluationBrief.noThreshold` | No minimum | لا حد أدنى | [drafted] |
-| `evaluationBrief.error` | Could not load the brief | تعذّر تحميل الكراسة | [drafted] |
-| `evaluationBrief.fields.guidance` | How to score it | تعليمات التقييم | [drafted] the column the whole screen exists for |
+| `evaluationBrief.title` | Evaluation Brief | كراسة التقييم | «كراسة» is what a procurement file calls the instruction document itself; «ملخص» would read as a summary somebody wrote about the tender |
+| `evaluationBrief.toScoring` | Go to scoring | الانتقال إلى التقييم | authored |
+| `evaluationBrief.tender` | What is being bought | موضوع الطلب | authored |
+| `evaluationBrief.howToScore` | Criteria and how they are scored | معايير التقييم وطريقة احتسابها | authored |
+| `evaluationBrief.totalWeight` | Weights total: {{total}} | مجموع الأوزان: {{total}} | authored |
+| `evaluationBrief.justificationRequired` | Justification required | يلزم تبرير | BRULE-061 |
+| `evaluationBrief.noGuidance` | No guidance was recorded for this criterion | لم تُسجَّل تعليمات لهذا المعيار | **says NOT RECORDED, deliberately** — a tender that bound its template before the field existed has none, and "no guidance" would read as the author having decided there should be none |
+| `evaluationBrief.noDescription` | No description was recorded for this tender | لا يوجد وصف مسجّل لهذا الطلب | same shape |
+| `evaluationBrief.noThreshold` | No minimum | لا حد أدنى | authored |
+| `evaluationBrief.error` | Could not load the brief | تعذّر تحميل الكراسة | authored |
+| `evaluationBrief.fields.guidance` | How to score it | تعليمات التقييم | the column the whole screen exists for |
 | `evaluationBrief.dimension.*` | Technical / Commercial | فني / تجاري | [reused] §7's own pair |
 
 **One correction logged while adding these.** The `supplierDirectory`, `complianceDirectory` and
@@ -685,20 +696,51 @@ the `en` resource before commit; worth recording because the failure mode is sil
 
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
-| `categoryCoverage.title` | Category Coverage | تغطية الفئات | [drafted] SCR-604 |
-| `categoryCoverage.subtitle` | Suppliers and tenders per category, and the categories nobody serves. | أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد. | [drafted] the second clause is what the screen is for |
-| `categoryCoverage.uncovered` | {{count}} of {{total}} categories have no active supplier | {{count}} من {{total}} فئة بلا مورد فعّال | [drafted] the headline figure |
-| `categoryCoverage.flatNote` | The category list is currently flat and carries no hierarchy. | قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً. | [drafted] **states an absence deliberately** — SCR-604's row says "tree" and MSP-54's list is flat |
-| `categoryCoverage.noSupplier` / `noAward` | No supplier / No award | بلا مورد / بلا ترسية | [drafted] |
-| `categoryCoverage.fields.*` | Category / Approved suppliers / Active suppliers / Offerings / Tenders / Awarded | الفئة / موردون معتمدون / موردون فعّالون / العروض / الطلبات / الطلبات المُرساة | [drafted] «معتمدون» vs «فعّالون» is the approved-versus-can-trade distinction the two columns exist for |
-| `notificationPreferences.title` | Notification Preferences | تفضيلات التنبيهات | [drafted] SCR-901 |
-| `notificationPreferences.subtitle` | Choose which optional notifications you want switched off. | اختر التنبيهات الاختيارية التي تريد إيقافها. | [drafted] |
-| `notificationPreferences.optional` / `optionalHint` | Optional notifications / Unticking one stops it reaching you. | تنبيهات اختيارية / إلغاء التحديد يوقف وصول هذا التنبيه إليك. | [drafted] |
-| `notificationPreferences.alwaysOn` | Notifications that cannot be switched off | تنبيهات لا يمكن إيقافها | [drafted] D-60 |
-| `notificationPreferences.alwaysOnHint` | Invitations, clarification requests, award outcomes and document expiry are always sent. | الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً. | [drafted] **names D-60's four families verbatim** — this line is the ruling as a user reads it |
-| `notificationPreferences.saved` / `saveFailed` / `loadFailed` / `unsaved` | Preferences saved / Could not save your preferences / Could not load your preferences / Unsaved changes | تم حفظ التفضيلات / تعذّر حفظ التفضيلات / تعذّر تحميل التفضيلات / تغييرات غير محفوظة | [drafted] same «تعذّر» register as the other failures |
+| `categoryCoverage.title` | Category Coverage | تغطية الفئات | SCR-604 |
+| `categoryCoverage.subtitle` | Suppliers and tenders per category, and the categories nobody serves. | أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد. | the second clause is what the screen is for |
+| `categoryCoverage.uncovered` | {{count}} of {{total}} categories have no active supplier | {{count}} من {{total}} فئة بلا مورد فعّال | the headline figure |
+| `categoryCoverage.flatNote` | The category list is currently flat and carries no hierarchy. | قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً. | **states an absence deliberately** — SCR-604's row says "tree" and MSP-54's list is flat |
+| `categoryCoverage.noSupplier` / `noAward` | No supplier / No award | بلا مورد / بلا ترسية | authored |
+| `categoryCoverage.fields.*` | Category / Approved suppliers / Active suppliers / Offerings / Tenders / Awarded | الفئة / موردون معتمدون / موردون فعّالون / العروض / الطلبات / الطلبات المُرساة | «معتمدون» vs «فعّالون» is the approved-versus-can-trade distinction the two columns exist for |
+| `notificationPreferences.title` | Notification Preferences | تفضيلات التنبيهات | SCR-901 |
+| `notificationPreferences.subtitle` | Choose which optional notifications you want switched off. | اختر التنبيهات الاختيارية التي تريد إيقافها. | authored |
+| `notificationPreferences.optional` / `optionalHint` | Optional notifications / Unticking one stops it reaching you. | تنبيهات اختيارية / إلغاء التحديد يوقف وصول هذا التنبيه إليك. | authored |
+| `notificationPreferences.alwaysOn` | Notifications that cannot be switched off | تنبيهات لا يمكن إيقافها | D-60 |
+| `notificationPreferences.alwaysOnHint` | Invitations, clarification requests, award outcomes and document expiry are always sent. | الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً. | **names D-60's four families verbatim** — this line is the ruling as a user reads it |
+| `notificationPreferences.saved` / `saveFailed` / `loadFailed` / `unsaved` | Preferences saved / Could not save your preferences / Could not load your preferences / Unsaved changes | تم حفظ التفضيلات / تعذّر حفظ التفضيلات / تعذّر تحميل التفضيلات / تغييرات غير محفوظة | same «تعذّر» register as the other failures |
 
 **No Arabic was drafted for the 32 notification names,** and that is deliberate: SCR-901 renders each type's
 own title from the notification copy catalogue — including an administrator's SCR-717 rewording — rather than
 a second set of 32 labels in `i18n/config.ts`. The words a user recognises are the words they were sent, and a
 second copy would drift from the first the day somebody reworded a template.
+
+### One string corrected during the marker pass, not just unmarked
+
+`referenceAdmin.awardCriticalExplained` told an administrator, in both languages, that **no document type
+is marked award-critical** — on the very screen whose toggle does the marking. That stopped being true in
+phase 1, when D-58 marked the commercial register and the tax certificate and BRULE-023 began firing. Both
+strings now name the two types and say that changing the list is the Ministry's decision.
+
+| Key | English | Arabic (authored) | Note |
+|---|---|---|---|
+| `referenceAdmin.awardCriticalExplained` | When an award-critical document expires, the supplier is suspended automatically (BRULE-023). The commercial register and the tax certificate are marked (D-58); changing that list is a ministry decision. | انتهاء صلاحية مستند موسوم كحرج للترسية يُعلّق المورد تلقائياً (BRULE-023). الموسومان حالياً هما السجل التجاري والشهادة الضريبية (D-58)؛ وأي تغيير في هذه القائمة قرار يخص الوزارة. | Corrected, not merely unmarked — the previous text was stale in a way that would have told an administrator the rule was dormant while it was suspending suppliers |
+
+### D-66 · SCR-601, 602, 603 and 606
+
+The four Ministry screens, built under D-66. Three word choices carry the weight: «رصد» for the monitor —
+watching rather than managing, which is what a read-only oversight screen does; «سجل» for the registry, the
+register itself; and «الإنفاق» for spend, the word a budget document uses.
+
+| Key | English | Arabic (authored) | Note |
+|---|---|---|---|
+| `ministryRfqs.title` | Tender Monitor | رصد المناقصات | «رصد» is observation, not «إدارة» — this persona cannot act on anything |
+| `ministryRfqs.subtitle` | Every tender across all buying bodies, with the awarding organisation and, where there is one, the award value. | كل الطلبات على مستوى الجهات، مع الجهة المشترية وقيمة الترسية حيثما وُجدت. | «حيثما وُجدت» keeps "where there is one" — an unawarded tender has no value, which is not the same as a withheld one |
+| `ministryRfqs.fields.bids` | Bids / invited | العروض/المدعوون | Two counts in one column, as the screen renders them |
+| `ministryRfqDetail.readOnly` | Read-only | اطّلاع فقط | Literally "viewing only"; «للقراءة فقط» reads as a file attribute |
+| `ministryRfqDetail.valuesWithheld` | Commercial values are currently withheld by disclosure policy; counts are shown. | القيم المالية محجوبة حالياً بحسب سياسة الإفصاح؛ الأعداد معروضة. | **The sentence the flag exists for.** «محجوبة» = withheld by a decision, not «غير متوفرة» = unavailable — the difference between policy and absence |
+| `ministryRfqDetail.notAwarded` / `withheld` | Not awarded yet / Withheld | لم تُرسَ بعد / غير متاح | Kept distinct on purpose: both render where a number would go and they mean opposite things |
+| `ministryRfqDetail.awarded` | Winning bid | العرض الفائز | |
+| `ministrySuppliers.title` | National Supplier Registry | سجل الموردين الوطني | «الوطني» distinguishes it from SCR-307's reviewer register, which is the same word without it |
+| `ministryAwards.title` | Awards & Spend | الترسيات والإنفاق | |
+| `ministryAwards.categoryNote` | An award counts once per category its tender touched, so this column can total more than the number of awards. | تُحتسب الترسية مرة واحدة لكل فئة يشملها الطلب، لذا قد يتجاوز مجموع العمود عدد الترسيات. | Says why the column does not add up, rather than letting a reader add it up and be wrong |
+| `ministryAwards.valuesWithheld` | Commercial values are currently withheld by disclosure policy; award counts are shown. | القيم المالية محجوبة حالياً بحسب سياسة الإفصاح؛ أعداد الترسيات معروضة. | Same «محجوبة» as above |

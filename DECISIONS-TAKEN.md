@@ -841,3 +841,62 @@ Each says plainly below what still has to happen before it is safe to treat as s
 | **What it costs if wrong** | Wording in the product that a native speaker would not have chosen. Recoverable at any time, and cheaply - SCR-716 lets an administrator reword any string in the product without a release, which is the surface this ruling leans on. |
 | **How it should be done** | **One pass, not incrementally.** Removing markers file-by-file across two files and 380 sites is how half of them are missed, and a half-marked catalogue is worse than a fully-marked one: it stops meaning "awaiting review" and starts meaning nothing. |
 | **Who should confirm it** | The reviewer who accepted it, named in the commit that removes the markers. |
+
+---
+
+## Part D — the four answers of 2026-09-08 (phase 4)
+
+Four questions put to the product owner while phase 4 was in progress, answered the same day. Two of them
+change what ships and one of them is recorded here as a **departure from a condition this file itself set**,
+which is the reason Part D exists rather than an edit to Part C.
+
+---
+
+### D-63 — Every award routes for approval; there is no value threshold
+
+| | |
+|---|---|
+| **What was undecided** | P12 item 17. `BUSINESS-PROCESSES.md` §6.1 routes an award for approval and no document states above what value approval is required, so the routing shipped with no threshold and the number sat on the blocked list. |
+| **What was decided** | No threshold. Every award recommendation routes to a manager before it can be executed. |
+| **Why** | Relayed as the owner's answer. It never under-routes, it needs no number nobody has agreed, and the segregation of duties §6.1 asks for holds at every value rather than above one. |
+| **What it costs if wrong** | A manager in the loop on trivial awards, which is friction rather than risk - and it is reversible by adding a threshold later without unwinding anything, because the routing already exists and a threshold only narrows it. |
+| **What this changes in the code** | Nothing. The mechanism has always routed every award; what was missing was the ruling that it should. Item 17 closes without a commit. |
+| **Who should confirm it** | The Ministry, if a threshold is ever wanted. |
+
+---
+
+### D-64 — RFQ transitions keep requiring `If-Match`
+
+| | |
+|---|---|
+| **What was undecided** | D-54 logged it and did not answer it: 14 RFQ transitions demanded a precondition while carrying no fresh version back, and 12 child writes did both. The question was whether a transition should require a precondition at all. |
+| **What was decided** | Yes. A transition stays guarded. |
+| **Why** | Two officers acting on a tender one of them has already moved is precisely the lost update the guard exists for: without it the second click succeeds against a view that was stale, and the audit row names an actor who was looking at something else. |
+| **What this changes in the code** | The other half of D-54, which was the actual defect: **28 guarded writes returned no new version**, so a second transition on the same aggregate had nothing to send and answered 428. They now emit a fresh ETag. Two remain and are named in `IfMatchPreconditionSweepTests` - the document approve/reject pair, whose DTO carries no version at all, and closing that is a contract change. |
+| **Who should confirm it** | Settled. D-54 moves from logged-and-unanswered to answered. |
+
+---
+
+### D-65 — The Arabic markers come off, including the strings drafted after D-62 `[relayed — the reviewer is not named here]`
+
+| | |
+|---|---|
+| **What was undecided** | D-62 accepted the Arabic and set two conditions on removing the `[drafted]` markers: **one pass, not incrementally**, and **the reviewer named in the commit that removes them**. Phases 1 to 4 then drafted roughly sixty more strings, which that reviewer had not seen. |
+| **What was decided** | Accept those too, and take every marker off in one pass. |
+| **Why** | Relayed as the owner's answer: a half-marked catalogue is worse than a fully-marked one, which is D-62's own argument, and holding the pass for sixty strings would have left the file in exactly that state. |
+| **What was NOT satisfied, and is recorded rather than glossed** | **D-62 requires the accepting reviewer named in the commit, and no name was given.** The pass was made at the product owner's direction and the commit says so; it does not name a native reviewer, because there is not one to name. Anyone auditing the Arabic later should read this row before treating the absence of markers as evidence of a native review. |
+| **What it costs if wrong** | Wording a native speaker would not have chosen, now with nothing in the source flagging which strings were never read by one. Recoverable through SCR-716, which lets an administrator reword any string without a release - and `ARABIC-REVIEW.md` still lists every authored string, so the material for a later review is intact. |
+| **Who should confirm it** | A native reviewer, on `ARABIC-REVIEW.md`, whenever one is available. |
+
+---
+
+### D-66 — The four Ministry screens are built without the written sign-off `[relayed — sign-off outstanding]`
+
+| | |
+|---|---|
+| **What was undecided** | D-57 relayed that the Ministry may see commercial figures and attached a condition in its own words: *"Written sign-off from someone senior enough to own a disclosure decision in a government tender. Not a chat message and not this row: a name, a date, and the scope they are approving."* No such sign-off exists. |
+| **What was decided** | Build SCR-601, SCR-602, SCR-603 and SCR-606 and switch the commercial-visibility flag on, without waiting for it. |
+| **Why** | Relayed as the owner's answer when the question was put with the alternative stated. |
+| **What it costs if wrong, and why this row is worded this way** | D-57 already says it: this is the one ruling in the file that cannot be reversed by changing a flag. Commercial values in a live tender are what a bidder's competitors would most like to have, `ministry_viewer` is held by people outside the buying body, and what has been read cannot be un-read. The flag can be switched off; the disclosure cannot. |
+| **What must still happen** | The sign-off. It is now a record of a decision already acted on rather than a precondition, and it should name the same three things D-57 asked for: a person, a date, and the scope - live tenders or completed only, per-bidder values or awarded totals only. |
+| **Who should confirm it** | MOT Legal, and the Ministry official who will be answerable for it. |

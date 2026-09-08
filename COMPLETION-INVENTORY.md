@@ -769,3 +769,34 @@ document keeps recording, and the first one caught while writing the instrument 
 a version is *obtainable*, not that the screen in front of a user has obtained it. A write whose page never
 calls the read will still answer 428, and only driving the product finds that — which is what §5.1 and §5.2
 are.
+
+### 5.4 P12, and what a sweep can and cannot close — phase 4
+
+Phase 4's list mixes two kinds of item, and the distinction is worth stating because it decides which of them
+this batch could touch at all: some are checks a program can run, and some are judgements a person has to
+make. Nothing here turns the second kind into the first.
+
+| Item | State after this batch |
+|---|---|
+| **21 · ASVS L2 + authorisation fuzzing** | **The fuzzing half is built.** `AuthorizationFuzzTests` sends real requests to every permissioned route as every persona that lacks its permission - 7 personas over 100+ routes - and requires a refusal. It treats a **5xx as a failure too**, because a route that throws for a caller it was about to refuse has done work before its gate. The ASVS L2 review itself is still a review |
+| **22 · Write-path p95** | **Still open, and now stated on the dashboard rather than implied.** `perf/BASELINE.md` covers 18 reads; the Grafana latency panel is filtered to `GET` and labelled as reads, because a write threshold nobody has measured is an assertion, not a target |
+| **23 · LCP and INP under load** | **Still open.** Needs a browser under real traffic; a panel with no series behind it is worse than an empty space, so none was added |
+| **24 · WCAG 2.2 AA audit** | **Still open.** `axe` runs per build; an audit is a person with a screen reader |
+| **25 · Dashboards and alerts** | **Closed.** `ops/` carries six Prometheus alert rules and a ten-panel Grafana dashboard, every expression keyed to an instrument that exists today - ASP.NET Core's `http_server_request_duration_seconds`, `mots_rate_limit_rejections_total`, `mots_outbox_backlog`. A rule over an absent series never fires and reads exactly like one that never needed to, which is why nothing here references a metric this product does not publish |
+| **26 · T-030 split (4)** | **Closed for everything that could carry a version, and measured for the rest.** 28 guarded writes demanded a precondition and returned no new version, so a second transition on the same aggregate had nothing to send - a 428 the SPA hides today by refetching per screen. They now emit one. **Two remain and are named in the sweep**: the document approve/reject pair, whose DTO carries no version at all |
+| **18 · Drop the `[drafted]` markers** | **Not done, on D-62's own terms** - see below |
+| **17 · Approval threshold** | Blocked: the number is not ours |
+| **28 · ETag on transitions** | The mechanical half is answered by item 26 above: every transition whose response carries a version now emits it. D-54's policy question - whether a transition should REQUIRE a precondition at all - is untouched |
+| **29 · Squash 57 migrations** | Deliberately not attempted in the same batch as behaviour changes. It is hygiene, it is a one-way door on any deployed database, and it wants a batch where nothing else is moving |
+
+**Why item 18 was not done.** D-62 accepted the Arabic and authorised removing the markers, and it attached two
+conditions this batch cannot satisfy. It requires **one pass, not incrementally** - and roughly sixty strings
+were drafted after D-62 was recorded, by phases 1 to 3, which that reviewer has not seen; removing their
+markers would assert a review that did not happen. It also requires **the reviewer named in the commit that
+removes them**, and that name is not ours to write. The markers therefore stay, with the count now at 305 in
+`i18n/config.ts` and 155 in `ARABIC-REVIEW.md`.
+
+**What the authorisation sweep found: nothing.** Every permissioned route refused every persona that lacks its
+permission, no route answered an anonymous caller with anything but 401, and none threw. That is the honest
+result and it is worth recording as a number rather than a feeling - the previous state of this question was
+two hand-found holes in `EndpointAuthorizationGapTests` and no way to know whether there were more.
