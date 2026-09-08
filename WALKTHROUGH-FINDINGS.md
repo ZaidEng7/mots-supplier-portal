@@ -168,6 +168,34 @@ missing.
 Same family as F-7 in miniature: a control that supplies an input the domain demands rather than
 asking the person who has the answer.
 
+### F-10 — The admin is offered procurement screens that cannot load for them
+**Open.** Sized **S** to build, but it is a decision first.
+
+`system_admin` opens the Procurement dashboard from their own navigation and gets "Couldn't load the
+dashboard — Try again". Reproduced against the API:
+
+    GET /api/v1/procurement/dashboard   as officer@mots.local -> 200
+                                        as admin@mots.local   -> 404 RESOURCE_NOT_FOUND
+
+BRULE-029 scopes every procurement query by the caller's buying body, and the bootstrap admin belongs
+to no organization — deliberately, exactly as `ministry_viewer` does. So the query finds nothing. The
+LINK is there because the navigation gates on permission, and `system_admin` holds all 104.
+
+Third location of the shape F-5 describes: an affordance offered on a permission the persona holds,
+to something the persona's data scope has no place in.
+
+**Two answers, and choosing between them is not an engineering call:**
+
+1. **Hide it.** Gate the procurement links on holding an organization as well as the permission —
+   consistent with how the Ministry viewer is already treated, and cheap.
+2. **Widen it.** Let a platform administrator read across organizations. That is a policy question
+   about what an administrator may see of live procurements, and it is the same question BRULE-086
+   answers for the Ministry. It should not be answered by accident here.
+
+**The message makes it worse either way.** "Try again" invites a retry that can never succeed: this
+is not a transient failure, and nothing about the screen says so. Same class as F-9 — a message that
+describes the wrong thing to the person reading it.
+
 ## Also confirmed, already known
 
 **D-66 — the offering category checkbox does not re-tick until the profile is re-read.** Recorded in
