@@ -147,15 +147,6 @@ public sealed class AwardCriticalSuspensionTests(PostgresApiFixture fixture)
         return (supplierId, documentId);
     }
 
-    private async Task SetAwardCriticalAsync(string code, bool value)
-    {
-        using var scope = fixture.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        await db.Database.ExecuteSqlAsync(
-            $"UPDATE reference.document_type SET \"IsAwardCritical\" = {value} WHERE \"Code\" = {code}");
-    }
-
     private async Task RunExpiryJobAsync()
     {
         using var scope = fixture.Services.CreateScope();
@@ -166,36 +157,31 @@ public sealed class AwardCriticalSuspensionTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_expired_award_critical_document_suspends_the_supplier_and_says_why()
     {
-        await SetAwardCriticalAsync(TaxCertificate, true);
-        try
-        {
-            var (supplierId, _) = await SeedActiveSupplierWithExpiredDocumentAsync(TaxCertificate);
+        // tax_certificate carries the flag as seeded data since D-58, so this no longer sets it and
+        // must not clear it afterwards - the toggle that used to wrap this test would have left the
+        // shipped value off for whatever ran next.
+        var (supplierId, _) = await SeedActiveSupplierWithExpiredDocumentAsync(TaxCertificate);
 
-            await RunExpiryJobAsync();
+        await RunExpiryJobAsync();
 
-            using var scope = fixture.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var state = await db.Suppliers.Where(s => s.Id == supplierId)
-                .Select(s => s.LifecycleState).SingleAsync();
+        var state = await db.Suppliers.Where(s => s.Id == supplierId)
+            .Select(s => s.LifecycleState).SingleAsync();
 
-            state.Should().Be(SupplierLifecycleState.Suspended);
+        state.Should().Be(SupplierLifecycleState.Suspended);
 
-            var audit = await db.AuditLogs
-                .Where(a => a.AggregateId == supplierId && a.Action == "supplier_auto_suspended")
-                .SingleAsync();
+        var audit = await db.AuditLogs
+            .Where(a => a.AggregateId == supplierId && a.Action == "supplier_auto_suspended")
+            .SingleAsync();
 
-            audit.Reason.Should().Contain(TaxCertificate,
-                "the supplier's support conversation starts from this row - 'suspended' alone " +
-                "leaves whoever answers the phone with nothing");
-            audit.Reason.Should().Contain("BRULE-023");
-            audit.FromState.Should().Be(nameof(SupplierLifecycleState.Active));
-            audit.ToState.Should().Be(nameof(SupplierLifecycleState.Suspended));
-        }
-        finally
-        {
-            await SetAwardCriticalAsync(TaxCertificate, false);
-        }
+        audit.Reason.Should().Contain(TaxCertificate,
+            "the supplier's support conversation starts from this row - 'suspended' alone " +
+            "leaves whoever answers the phone with nothing");
+        audit.Reason.Should().Contain("BRULE-023");
+        audit.FromState.Should().Be(nameof(SupplierLifecycleState.Active));
+        audit.ToState.Should().Be(nameof(SupplierLifecycleState.Suspended));
     }
 
     [Fact]
@@ -225,21 +211,25 @@ public sealed class AwardCriticalSuspensionTests(PostgresApiFixture fixture)
         auditRows.Should().Be(0);
     }
 
+    /// <summary>
+    /// What the flag is NOT set on. This test used to assert that nothing was award-critical at all,
+    /// because the decision was outstanding and flagging a type on a guess suspends real suppliers -
+    /// which reactivation does not undo. D-58 has since made the decision, so what is worth pinning
+    /// here is the narrow half: the type the negative test above depends on is still off, and that is
+    /// what keeps that test capable of failing.
+    /// </summary>
     [Fact]
-    public async Task Nothing_is_award_critical_by_default()
+    public async Task The_type_the_negative_case_relies_on_is_not_award_critical()
     {
-        // BRULE-023 ships dormant: which types are award-critical is [REQUIRES BUSINESS
-        // CONFIRMATION], and flagging one on a guess suspends real suppliers, which reactivation
-        // does not undo. This asserts the shipped state so nobody quietly picks a default later
-        // without the Ministry's answer - see docs/product/BLOCKED-DECISIONS.md.
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var flagged = await db.DocumentTypes.Where(t => t.IsAwardCritical)
-            .Select(t => t.Code).ToListAsync();
+        var isCritical = await db.DocumentTypes.Where(t => t.Code == ChamberMembership)
+            .Select(t => t.IsAwardCritical).SingleAsync();
 
-        flagged.Should().BeEmpty(
-            "the mechanism is complete and the decision is not ours; the Ministry's answer is a " +
-            "data change, not a deployment");
+        isCritical.Should().BeFalse(
+            "if chamber membership were ever marked, An_expired_document_that_is_not_award_critical_" +
+            "suspends_nobody would be asserting nothing at all, and the too-broad predicate it exists " +
+            "to catch would pass unnoticed");
     }
 }
