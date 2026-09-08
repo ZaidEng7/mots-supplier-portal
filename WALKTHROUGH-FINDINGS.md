@@ -149,6 +149,25 @@ Whether an addendum may carry an attachment is a procurement decision, not a cod
 is yes, the build is small: an attachment collection on `Addendum`, reusing the existing upload and
 scan path.
 
+### F-9 — Closing a tender early records a canned reason instead of the officer's
+**Open.** Sized **S**. One field, and both the endpoint and the aggregate already take the value.
+
+`Rfq.CloseSubmissionWindow` refuses an early close without a reason — the rule exists because
+closing bidding before the advertised deadline is a decision bidders can challenge, and the answer
+has to be on the record. `RfqDetailPage.tsx:241` satisfies it with a constant:
+
+```ts
+mutationFn: () => closeRfqSubmission(referenceCode, t('rfq.manualCloseReason'))
+```
+
+So the officer is never asked, and every early close in the system carries the same sentence. The
+audit trail says a human closed it early and nothing about why, which is the half the rule was
+written for. `closeRfqSubmission(referenceCode, reason)` already takes the string; only the prompt is
+missing.
+
+Same family as F-7 in miniature: a control that supplies an input the domain demands rather than
+asking the person who has the answer.
+
 ## Also confirmed, already known
 
 **D-66 — the offering category checkbox does not re-tick until the profile is re-read.** Recorded in
