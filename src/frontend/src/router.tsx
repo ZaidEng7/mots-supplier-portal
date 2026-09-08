@@ -57,6 +57,10 @@ const ReviewDashboardPage = lazy(() => import('./routes/back-office/ReviewDashbo
 const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
 const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
 const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
+// SCR-307 and SCR-402, the two directories. Lazy like every other back-office screen: neither is on the
+// path a reviewer or an officer takes on sign-in, so neither belongs in the first bundle.
+const ComplianceDirectoryPage = lazy(() => import('./routes/ComplianceDirectoryPage').then((m) => ({ default: m.ComplianceDirectoryPage })))
+const SupplierDirectoryPage = lazy(() => import('./routes/back-office/SupplierDirectoryPage').then((m) => ({ default: m.SupplierDirectoryPage })))
 const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })))
 const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
 const RolesPage = lazy(() => import('./routes/back-office/RolesPage').then((m) => ({ default: m.RolesPage })))
@@ -582,10 +586,25 @@ const reviewQueueRoute = createRoute({
   component: ReviewQueuePage,
 })
 
+// SCR-307. A static segment under the same parent as '/review/$referenceCode': TanStack matches the
+// literal before the parameter, so 'suppliers' is not read as a supplier reference code.
+const complianceDirectoryRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/review/suppliers',
+  component: ComplianceDirectoryPage,
+})
+
 const reviewApplicationRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/review/$referenceCode',
   component: ReviewApplicationPage,
+})
+
+// SCR-402.
+const supplierDirectoryRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/suppliers',
+  component: SupplierDirectoryPage,
 })
 
 const organizationsRoute = createRoute({
@@ -674,7 +693,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, reviewApplicationRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

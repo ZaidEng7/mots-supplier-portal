@@ -191,8 +191,22 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         db.Suppliers.AddRange(s1, s2, s3, s4, s5);
         await db.SaveChangesAsync();
 
+        // Scoped to a reviewer of this test's own invention, and that is not decoration.
+        //
+        // This test asserted that page one of the WHOLE queue was exactly s1 and s2 - true only while no
+        // other suite leaves a Submitted or UnderReview supplier behind, which is a property of the run
+        // rather than of the code under test. SCR-307's tests seeded one and broke this, in the suite, at
+        // the end of an eight-minute run, with a failure message about the queue's ordering. The property
+        // being tested - a row leaving the queue must not shift a later row out of view - is unchanged by
+        // filtering to this test's own rows.
+        var reviewerId = Guid.CreateVersion7();
+        var ownIds = new[] { s1.Id, s2.Id, s3.Id, s4.Id, s5.Id };
+        await db.Suppliers.Where(s => ownIds.Contains(s.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(s => s.AssignedReviewerId, reviewerId));
+        var assignedTo = reviewerId.ToString();
+
         // Page 1, size 2: expect s1, s2 (oldest-first order), with a cursor for continuation.
-        var page1 = await handler.HandleAsync(null, 2, withCount: false, null, null, CancellationToken.None);
+        var page1 = await handler.HandleAsync(null, 2, withCount: false, null, assignedTo, CancellationToken.None);
         page1.Data.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s1.ReferenceCode, s2.ReferenceCode]);
         page1.Pagination.HasMore.Should().BeTrue();
         page1.Pagination.NextCursor.Should().NotBeNull();
@@ -212,7 +226,7 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
             await mutDb.SaveChangesAsync();
         }
 
-        var page2 = await handler.HandleAsync(page1.Pagination.NextCursor, 2, withCount: false, null, null, CancellationToken.None);
+        var page2 = await handler.HandleAsync(page1.Pagination.NextCursor, 2, withCount: false, null, assignedTo, CancellationToken.None);
 
         // s3 must be present - this is the row a position-based page 2 would have dropped.
         page2.Data.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s3.ReferenceCode, s4.ReferenceCode],

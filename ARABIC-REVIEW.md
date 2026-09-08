@@ -634,3 +634,26 @@ category links were recorded and not applied, which stopped being true the momen
 | Key | English | Arabic (drafted) | Note |
 |---|---|---|---|
 | `referenceAdmin.categoryLinksExplained` | A category link narrows a document type to suppliers in those categories. A type with no links stays required of every supplier. Changes take effect immediately, including for suppliers already approved. | ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً. | [drafted] **replaces the previous text, which said the links were not yet applied.** Three sentences because three separate facts an administrator cannot infer from the chips: what a link does, what NO link does, and that the change is retroactive. «يقصر … على» for "narrows to" rather than «يحدّد», which reads as "specifies" and loses the restriction |
+
+### Phase 3 · SCR-402 and SCR-307, the two supplier directories
+
+Two screens over one registry, which is why the two titles had to be different words rather than the same
+word twice. A «دليل» is something you look a supplier up in; a «سجل» is the register itself.
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `supplierDirectory.title` | Supplier Directory | دليل الموردين | [drafted] the buyer's browse |
+| `supplierDirectory.subtitle` | Browse approved suppliers and their categories before sending invitations. | استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات. | [drafted] |
+| `supplierDirectory.searchPlaceholder` | Search by name or code… | ابحث بالاسم أو الرمز… | [drafted] «الرمز» for the reference code, matching how it is labelled elsewhere |
+| `supplierDirectory.empty` | No suppliers match | لا يوجد موردون مطابقون | [drafted] |
+| `supplierDirectory.error` | Could not load the directory | تعذّر تحميل الدليل | [drafted] same «تعذّر» register as the other load failures |
+| `supplierDirectory.noCategories` | No categories recorded | لا فئات مسجّلة | [drafted] states an absence rather than leaving a blank cell |
+| `supplierDirectory.fields.*` | Supplier / Code / Categories / Offerings / City / Status | المورد / الرمز / الفئات / العروض / المدينة / الحالة | [reused] every term already approved elsewhere in this file |
+| `complianceDirectory.title` | Supplier Register | سجل الموردين | [drafted] **deliberately not «دليل»** — this is the reviewer's audit view of the whole registry, not a lookup |
+| `complianceDirectory.subtitle` | Every supplier and the state of their documents, including already-approved files. | كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً. | [drafted] the last clause is the point of the screen |
+| `complianceDirectory.filterState` | Application status | حالة الطلب | [drafted] «الطلب» = the onboarding application, distinct from «التعامل» below |
+| `complianceDirectory.filterHealth` | Document health | حالة المستندات | [drafted] literally "document status"; «صحة» would read as medical |
+| `complianceDirectory.healthAttention` | Needs attention | تحتاج متابعة | [drafted] feminine agreement — the subject is المستندات |
+| `complianceDirectory.healthOk` | Healthy | سليمة | [drafted] same agreement |
+| `complianceDirectory.expired` / `expiring` / `rejected` | Expired / Expiring / Rejected: {{count}} | منتهٍ / ينتهي قريباً / مرفوض: {{count}} | [reused] §7.2's own three document labels, with a count appended |
+| `complianceDirectory.fields.lifecycle` | Standing | حالة التعامل | [drafted] the post-approval lifecycle, which §7.1 groups with onboarding but the screen shows in its own column |

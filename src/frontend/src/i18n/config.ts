@@ -777,6 +777,86 @@ const resources = {
           deactivateFailed: 'تعذر إلغاء تفعيل الخدمة',
         },
       },
+      // ── SCR-402 / SCR-307 · ARABIC FOR REVIEW ───────────────────────────────
+      // Two directories over one registry. «دليل الموردين» for the buyer's browse and «سجل الموردين»
+      // for the reviewer's audit view: a دليل is something you look a supplier up in, a سجل is the
+      // register itself, which is the distinction between the two screens.
+      supplierDirectory: {
+        title: 'دليل الموردين',                               // [drafted] SCR-402
+        subtitle: 'استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات.', // [drafted]
+        filterCategory: 'الفئة',                              // [reused]
+        filterState: 'الحالة',                                // [reused] §7's own term
+        filterAll: 'الكل',                                    // [reused]
+        search: 'بحث',                                        // [reused]
+        searchPlaceholder: 'ابحث بالاسم أو الرمز…',            // [drafted]
+        empty: 'لا يوجد موردون مطابقون',                      // [drafted]
+        error: 'تعذّر تحميل الدليل',                           // [drafted]
+        noCategories: 'لا فئات مسجّلة',                        // [drafted]
+        loadMore: 'عرض المزيد',                                // [reused]
+        fields: {
+          name: 'المورد', code: 'الرمز', categories: 'الفئات',
+          offerings: 'العروض', location: 'المدينة', state: 'الحالة',
+        },
+      },
+      complianceDirectory: {
+        title: 'سجل الموردين',                                 // [drafted] SCR-307
+        subtitle: 'كل الموردين وحالة مستنداتهم، بما في ذلك الملفات المعتمدة سابقاً.', // [drafted]
+        filterState: 'حالة الطلب',                             // [drafted]
+        filterHealth: 'حالة المستندات',                        // [drafted]
+        filterAll: 'الكل',                                     // [reused]
+        healthAttention: 'تحتاج متابعة',                       // [drafted]
+        healthOk: 'سليمة',                                     // [drafted]
+        search: 'بحث',                                         // [reused]
+        searchPlaceholder: 'ابحث بالاسم أو الرمز…',             // [reused] same control as SCR-402
+        empty: 'لا يوجد موردون مطابقون',                       // [reused]
+        error: 'تعذّر تحميل السجل',                             // [drafted]
+        expired: 'منتهٍ: {{count}}',                           // [reused] §7.2's «منتهٍ»
+        expiring: 'ينتهي قريباً: {{count}}',                    // [reused] §7.2's own label
+        rejected: 'مرفوض: {{count}}',                          // [reused] §7.2's own label
+        loadMore: 'عرض المزيد',                                // [reused]
+        fields: {
+          name: 'المورد', onboarding: 'حالة الطلب', lifecycle: 'حالة التعامل',
+          documents: 'المستندات', registered: 'تاريخ التسجيل',
+        },
+      },
+      supplierDirectory: {
+        title: 'Supplier Directory',
+        subtitle: 'Browse approved suppliers and their categories before sending invitations.',
+        filterCategory: 'Category',
+        filterState: 'Status',
+        filterAll: 'All',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        error: 'Could not load the directory',
+        noCategories: 'No categories recorded',
+        loadMore: 'Load more',
+        fields: {
+          name: 'Supplier', code: 'Code', categories: 'Categories',
+          offerings: 'Offerings', location: 'City', state: 'Status',
+        },
+      },
+      complianceDirectory: {
+        title: 'Supplier Register',
+        subtitle: 'Every supplier and the state of their documents, including already-approved files.',
+        filterState: 'Application status',
+        filterHealth: 'Document health',
+        filterAll: 'All',
+        healthAttention: 'Needs attention',
+        healthOk: 'Healthy',
+        search: 'Search',
+        searchPlaceholder: 'Search by name or code…',
+        empty: 'No suppliers match',
+        error: 'Could not load the register',
+        expired: 'Expired: {{count}}',
+        expiring: 'Expiring: {{count}}',
+        rejected: 'Rejected: {{count}}',
+        loadMore: 'Load more',
+        fields: {
+          name: 'Supplier', onboarding: 'Application', lifecycle: 'Standing',
+          documents: 'Documents', registered: 'Registered',
+        },
+      },
       offeringSearch: {
         title: 'البحث عن الخدمات المعروضة',
         subtitle: 'ابحث في خدمات الموردين النشطين لأغراض دعوات طلب العروض.',

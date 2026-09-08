@@ -75,6 +75,10 @@ export function BackOfficeShell({ children }: Props) {
   // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
   // offering.search regardless of what this link's visibility does.
   const canSearchOfferings = can('offering.search') && inABuyingBody
+  // SCR-402: same hide-never-gate rule. Its own permission rather than offering.search, because the two
+  // answer different questions - one searches catalogue entries, the other lists companies - and a
+  // supplier with no catalogue was invisible to the officer choosing whom to invite.
+  const canBrowseSuppliers = can('supplier.directory.read') && inABuyingBody
   // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.read/rfq.edit/etc on
   // every actual RFQ endpoint regardless of what this link's visibility does.
   //
@@ -200,6 +204,13 @@ export function BackOfficeShell({ children }: Props) {
                 {t('review.title')}
               </Link>
             ) : null}
+            {/* SCR-307. The whole registry, not the queue: everything that happens to a supplier AFTER
+                their application is decided happened on no screen until this one. */}
+            {canReviewSuppliers ? (
+              <Link to="/back-office/review/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('complianceDirectory.title')}
+              </Link>
+            ) : null}
             {/* SCR-300. The reviewer's dashboard - oldest waiting case, queue age, expiring-document
                 watchlist. Beside the queue it summarises, because that is the pair a reviewer works. */}
             {canReviewSuppliers ? (
@@ -232,6 +243,13 @@ export function BackOfficeShell({ children }: Props) {
             {canSearchOfferings ? (
               <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('offeringSearch.title')}
+              </Link>
+            ) : null}
+            {/* SCR-402. Beside the offering search on purpose: an officer looking for a supplier starts
+                from one or the other, and before this only the catalogue had a link. */}
+            {canBrowseSuppliers ? (
+              <Link to="/back-office/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('supplierDirectory.title')}
               </Link>
             ) : null}
             {/* SCR-400. The procurement officer's actual home screen - tenders by state, approvals

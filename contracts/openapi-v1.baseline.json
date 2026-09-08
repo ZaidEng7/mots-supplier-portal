@@ -4382,6 +4382,68 @@
         ]
       }
     },
+    "/api/v1/review/suppliers": {
+      "get": {
+        "operationId": "ListComplianceDirectory",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "onboardingState",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "documentHealth",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Review"
+        ]
+      }
+    },
     "/api/v1/review/{referenceCode}": {
       "get": {
         "operationId": "GetReviewerSupplierView",
@@ -7371,6 +7433,68 @@
         ]
       }
     },
+    "/api/v1/supplier-directory": {
+      "get": {
+        "operationId": "ListSupplierDirectory",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "withCount",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lifecycleState",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ]
+      }
+    },
     "/api/v1/supplier-users/accept-invite": {
       "post": {
         "operationId": "AcceptSupplierUserInvite",
@@ -9307,6 +9431,9 @@
       "name": "Suppliers"
     },
     {
+      "name": "Review"
+    },
+    {
       "name": "Staff"
     },
     {
@@ -9335,9 +9462,6 @@
     },
     {
       "name": "Mfa"
-    },
-    {
-      "name": "Review"
     },
     {
       "name": "Organizations"

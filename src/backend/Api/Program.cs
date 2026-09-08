@@ -488,6 +488,10 @@ builder.Services.AddScoped<IRejectDocumentHandler, RejectDocumentHandler>();
 builder.Services.AddScoped<DocumentScanJob>();
 builder.Services.AddScoped<DocumentExpiryJob>();
 builder.Services.AddScoped<IListReviewQueueHandler, ListReviewQueueHandler>();
+// SCR-402 and SCR-307: the two directory reads across the whole registry - see
+// SupplierDirectoryEndpoints for why they are two endpoints and not one shaped by the caller's role.
+builder.Services.AddScoped<IListSupplierDirectoryHandler, MotsSupplierPortal.Infrastructure.Suppliers.ListSupplierDirectoryHandler>();
+builder.Services.AddScoped<IListComplianceDirectoryHandler, MotsSupplierPortal.Infrastructure.Suppliers.ListComplianceDirectoryHandler>();
 builder.Services.AddScoped<IClaimReviewItemHandler, ClaimReviewItemHandler>();
 builder.Services.AddScoped<IUnassignReviewItemHandler, UnassignReviewItemHandler>();
 builder.Services.AddScoped<IGetReviewerSupplierViewHandler, GetReviewerSupplierViewHandler>();
@@ -1014,6 +1018,7 @@ app.MapAuditEndpoints();
 app.MapAdminEndpoints();
 app.MapDocumentEndpoints();
 app.MapReviewEndpoints();
+app.MapSupplierDirectoryEndpoints();
 app.MapOrganizationEndpoints();
 app.MapStaffEndpoints();
 app.MapRoleEndpoints();
