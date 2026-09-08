@@ -58,12 +58,18 @@ by `ErpSyncVacuityTests`. An alert on ERP sync failure would be monitoring a stu
 ## What still needs a person
 
 Alerts and a dashboard are the mechanism. Three P12 items remain, and each needs a human rather than a
-config file:
+config file. **All three are deferred to a later testing pass under D-68** — they are unassigned, they are
+not in this phase, and they stay open against **M9 (launch-readiness), which does not close until they are
+done**:
 
 - **OWASP ASVS L2 review** (item 21). Its automatable half now exists — `AuthorizationFuzzTests` sends real
   requests as every persona that lacks each route's permission and requires a refusal, and treats a 5xx as a
-  failure because work before the gate is both a leak and a denial-of-service surface. The review itself is
-  still a review.
-- **WCAG 2.2 AA audit, both languages** (item 24). `axe` runs on every build; an audit is a person with a
-  screen reader.
-- **A load test to fill in items 22 and 23.** Once one exists, the write-path panel and its alert belong here.
+  failure because work before the gate is both a leak and a denial-of-service surface. That is **coverage,
+  not a review**: it proves the gates we built behave as we intended, and it cannot find a class of attack
+  nobody thought to test for.
+- **WCAG 2.2 AA audit, both languages** (item 24). `axe` runs on every build and catches what a tool can
+  catch; it cannot tell you whether a screen reader can complete a tender in Arabic. Same distinction —
+  coverage, not a review.
+- **A load test to fill in items 22 and 23.** The blocker is an environment, not the work: the harness is
+  written and the read-path baseline was taken with it, so once a load-testing environment exists the
+  write-path panel and its alert belong here.

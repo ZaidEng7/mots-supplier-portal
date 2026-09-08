@@ -884,9 +884,10 @@ which is the reason Part D exists rather than an edit to Part C.
 | **What was undecided** | D-62 accepted the Arabic and set two conditions on removing the `[drafted]` markers: **one pass, not incrementally**, and **the reviewer named in the commit that removes them**. Phases 1 to 4 then drafted roughly sixty more strings, which that reviewer had not seen. |
 | **What was decided** | Accept those too, and take every marker off in one pass. |
 | **Why** | Relayed as the owner's answer: a half-marked catalogue is worse than a fully-marked one, which is D-62's own argument, and holding the pass for sixty strings would have left the file in exactly that state. |
-| **What was NOT satisfied, and is recorded rather than glossed** | **D-62 requires the accepting reviewer named in the commit, and no name was given.** The pass was made at the product owner's direction and the commit says so; it does not name a native reviewer, because there is not one to name. Anyone auditing the Arabic later should read this row before treating the absence of markers as evidence of a native review. |
-| **What it costs if wrong** | Wording a native speaker would not have chosen, now with nothing in the source flagging which strings were never read by one. Recoverable through SCR-716, which lets an administrator reword any string without a release - and `ARABIC-REVIEW.md` still lists every authored string, so the material for a later review is intact. |
-| **Who should confirm it** | A native reviewer, on `ARABIC-REVIEW.md`, whenever one is available. |
+| **Who accepted it** | **Zaid Abdulkarim, 8 September 2026**, recorded as the accepting reviewer and named in the commit that removes the markers - which is what D-62 asked for. |
+| **Two tiers, and the difference is deliberate** | The strings that existed when D-62 was recorded are **reviewed and accepted**. The roughly sixty added afterwards by phases 1 to 4 - the five new screens and the four Ministry screens - are **accepted for the demonstration build without a line-by-line read**. They ship; they are not marked as reviewed, and this row is the record of which is which. |
+| **What must still happen** | A proper read of the newer sections **before any real tender runs on this system**. `ARABIC-REVIEW.md` lists them under their own phase headings so a reviewer can start there rather than re-reading the whole catalogue. |
+| **What it costs if wrong** | Wording a native speaker would not have chosen, in copy that now carries no marker saying so. Recoverable through SCR-716, which lets an administrator reword any string in the product without a release. |
 
 ---
 
@@ -898,5 +899,33 @@ which is the reason Part D exists rather than an edit to Part C.
 | **What was decided** | Build SCR-601, SCR-602, SCR-603 and SCR-606 and switch the commercial-visibility flag on, without waiting for it. |
 | **Why** | Relayed as the owner's answer when the question was put with the alternative stated. |
 | **What it costs if wrong, and why this row is worded this way** | D-57 already says it: this is the one ruling in the file that cannot be reversed by changing a flag. Commercial values in a live tender are what a bidder's competitors would most like to have, `ministry_viewer` is held by people outside the buying body, and what has been read cannot be un-read. The flag can be switched off; the disclosure cannot. |
-| **What must still happen** | The sign-off. It is now a record of a decision already acted on rather than a precondition, and it should name the same three things D-57 asked for: a person, a date, and the scope - live tenders or completed only, per-bidder values or awarded totals only. |
-| **Who should confirm it** | MOT Legal, and the Ministry official who will be answerable for it. |
+| **Approved by, and bounded** | **Zaid Abdulkarim, 8 September 2026 - for the demonstration environment and its seeded data only.** Scope approved: the full view - all tenders across buying bodies, each named bidder and the value they bid, including on tenders still open for submissions. |
+| **Why that boundary makes the approval safe** | There are no real bidders, no real bid values and no live competition in the demonstration data, so nothing confidential is disclosed by it. The approval says so explicitly, and does not extend past it. |
+| **The gate, which is a gate and not a note** | The flag is **off by default in every environment**, and it is switched on by the DEMONSTRATION SEEDER rather than by a migration. It was a migration first and that was wrong: a migration runs everywhere, so the same deployment step that creates the schema in production would have switched the disclosure on there too. Before this system holds a real supplier's bid, enabling it requires **written sign-off from MOT Legal or the Ministry official answerable for disclosure, naming a person, a date, and the scope** - live tenders or completed only, per-bidder values or awarded totals only. See D-57, where the same condition is recorded against the original ruling. |
+| **Who should confirm it for real data** | MOT Legal, and the Ministry official who will be answerable for it. |
+
+---
+
+### D-67 — Approving the replacement reinstates the supplier automatically
+
+| | |
+|---|---|
+| **What was undecided** | BRULE-023 suspends a supplier automatically when an award-critical document expires. Whether approving the replacement should lift that suspension, or whether a person should confirm it, was logged as open in `WALKTHROUGH-FINDINGS.md` F-13 and was nobody's to decide here. |
+| **What was decided** | Automatic, with an audit row and a notification to the supplier. |
+| **Why, and the correction the answer carried** | The question had been framed as "automatic reinstatement reverses a suspension nobody re-examined". That framing is wrong, and the ruling says so: somebody did re-examine it - the supplier uploaded a replacement and a **reviewer approved it**, and that approval is the human check. Requiring a second person to confirm afterwards adds no information and introduces the worse failure - a supplier who has fixed the problem sitting suspended and locked out of tenders until somebody happens to notice. A suspension that is automatic and rule-based should be reversed the same way once the rule's condition is objectively gone. |
+| **What "objectively gone" means, narrowly** | No award-critical document type on that supplier is left with an expired latest version. Not "this document is fine": a supplier suspended by two expiries is not reinstated by fixing one, and there is a test that pins exactly that. |
+| **What it will not do** | It reactivates only a suspension BRULE-023 imposed, decided from the audit trail. A supplier suspended by a PERSON for a reason of their own stays suspended - reinstating them would be a document decision overturning a human one, and there is a test for that too. |
+| **What it costs if wrong** | A supplier returning to eligibility a little sooner than a second reviewer would have allowed. The audit row names the replacement document and the approving reviewer, so the decision is attributable, and a person can suspend again. |
+| **Who should confirm it** | Settled. F-13's open question closes. |
+
+---
+
+### D-68 — ASVS L2, the WCAG audit and load testing are deferred to a later pass
+
+| | |
+|---|---|
+| **What was undecided** | P12 items 21, 22, 23 and 24 - the security review, the accessibility audit, and the two measurements that need load. |
+| **What was decided** | All four are deferred to a later testing pass, by people who are not this team and not in this phase. **They stay open against M9 (launch-readiness), and that milestone does not close until they are done.** |
+| **Why** | The ASVS L2 review and the WCAG 2.2 AA audit in both languages each need a person with the right specialism, and neither is assigned. Write-path p95 and LCP/INP need a load-testing environment that does not exist yet; when it does, the work is short, because the harness is written and the read-path baseline was taken with it. |
+| **What is in place meanwhile, and what it is not** | Every permissioned route is now called as every persona that lacks its permission, and a refusal is required - a server error counts as a failure. That sweep is new and it found real defects. **It is coverage, not a review:** it proves the gates we built behave as intended and cannot find a class of attack nobody thought to test for. The same holds for accessibility - `axe` runs on every build and catches what a tool can catch; it cannot tell you whether a screen reader can complete a tender in Arabic. The monitoring dashboard states that only read paths are measured rather than implying a full baseline exists. |
+| **Who should confirm it** | Whoever owns the later testing pass, against M9. |

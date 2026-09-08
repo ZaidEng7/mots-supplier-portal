@@ -778,23 +778,27 @@ make. Nothing here turns the second kind into the first.
 
 | Item | State after this batch |
 |---|---|
-| **21 · ASVS L2 + authorisation fuzzing** | **The fuzzing half is built.** `AuthorizationFuzzTests` sends real requests to every permissioned route as every persona that lacks its permission - 7 personas over 100+ routes - and requires a refusal. It treats a **5xx as a failure too**, because a route that throws for a caller it was about to refuse has done work before its gate. The ASVS L2 review itself is still a review |
-| **22 · Write-path p95** | **Still open, and now stated on the dashboard rather than implied.** `perf/BASELINE.md` covers 18 reads; the Grafana latency panel is filtered to `GET` and labelled as reads, because a write threshold nobody has measured is an assertion, not a target |
-| **23 · LCP and INP under load** | **Still open.** Needs a browser under real traffic; a panel with no series behind it is worse than an empty space, so none was added |
-| **24 · WCAG 2.2 AA audit** | **Still open.** `axe` runs per build; an audit is a person with a screen reader |
+| **21 · ASVS L2 + authorisation fuzzing** | **The fuzzing half is built; the review is deferred under D-68.** `AuthorizationFuzzTests` sends real requests to every permissioned route as every persona that lacks its permission - 7 personas over 100+ routes - and requires a refusal. It treats a **5xx as a failure too**, because a route that throws for a caller it was about to refuse has done work before its gate. That is **coverage, not a review**: it proves the gates we built behave as intended and cannot find a class of attack nobody thought to test for. Open against M9 |
+| **22 · Write-path p95** | **Deferred under D-68, and now stated on the dashboard rather than implied.** `perf/BASELINE.md` covers 18 reads; the Grafana latency panel is filtered to `GET` and labelled as reads, because a write threshold nobody has measured is an assertion, not a target. The blocker is a load-testing environment, not the work - the harness is written. Open against M9 |
+| **23 · LCP and INP under load** | **Deferred under D-68.** Needs a browser under real traffic; a panel with no series behind it is worse than an empty space, so none was added. Same missing environment as item 22. Open against M9 |
+| **24 · WCAG 2.2 AA audit** | **Deferred under D-68.** `axe` runs per build and catches what a tool can catch; it cannot tell you whether a screen reader can complete a tender in Arabic. Coverage, not a review. Open against M9 |
 | **25 · Dashboards and alerts** | **Closed.** `ops/` carries six Prometheus alert rules and a ten-panel Grafana dashboard, every expression keyed to an instrument that exists today - ASP.NET Core's `http_server_request_duration_seconds`, `mots_rate_limit_rejections_total`, `mots_outbox_backlog`. A rule over an absent series never fires and reads exactly like one that never needed to, which is why nothing here references a metric this product does not publish |
 | **26 · T-030 split (4)** | **Closed for everything that could carry a version, and measured for the rest.** 28 guarded writes demanded a precondition and returned no new version, so a second transition on the same aggregate had nothing to send - a 428 the SPA hides today by refetching per screen. They now emit one. **Two remain and are named in the sweep**: the document approve/reject pair, whose DTO carries no version at all |
-| **18 · Drop the `[drafted]` markers** | **Not done, on D-62's own terms** - see below |
+| **18 · Drop the `[drafted]` markers** | **Done.** 438 removed from `i18n/config.ts` and 155 from `ARABIC-REVIEW.md` in one pass, with the accepting reviewer named in the commit as D-62 required - see below |
 | **17 · Approval threshold** | Blocked: the number is not ours |
 | **28 · ETag on transitions** | The mechanical half is answered by item 26 above: every transition whose response carries a version now emits it. D-54's policy question - whether a transition should REQUIRE a precondition at all - is untouched |
 | **29 · Squash 57 migrations** | Deliberately not attempted in the same batch as behaviour changes. It is hygiene, it is a one-way door on any deployed database, and it wants a batch where nothing else is moving |
 
-**Why item 18 was not done.** D-62 accepted the Arabic and authorised removing the markers, and it attached two
-conditions this batch cannot satisfy. It requires **one pass, not incrementally** - and roughly sixty strings
-were drafted after D-62 was recorded, by phases 1 to 3, which that reviewer has not seen; removing their
-markers would assert a review that did not happen. It also requires **the reviewer named in the commit that
-removes them**, and that name is not ours to write. The markers therefore stay, with the count now at 305 in
-`i18n/config.ts` and 155 in `ARABIC-REVIEW.md`.
+**How item 18 was closed, and on what terms.** D-62 attached two conditions: one pass rather than
+incrementally, and **the accepting reviewer named in the commit that removes the markers**. Both are now
+satisfied - the pass removed 438 markers from `i18n/config.ts` and 155 from `ARABIC-REVIEW.md` together, and
+**Zaid Abdulkarim, 8 September 2026** is recorded as the accepting reviewer.
+
+The acceptance is **two-tiered on purpose**, and D-65 records the split. The strings that existed when D-62
+was written are reviewed and accepted. The roughly sixty added afterwards by phases 1 to 4 - the five new
+screens and the four Ministry screens - are **accepted for the demonstration build without a line-by-line
+read**, not recorded as reviewed, and they get a proper read before any real tender runs on this system.
+`ARABIC-REVIEW.md` groups them under their own phase headings so that read has somewhere to start.
 
 **What the authorisation sweep found: nothing.** Every permissioned route refused every persona that lacks its
 permission, no route answered an anonymous caller with anything but 401, and none threw. That is the honest

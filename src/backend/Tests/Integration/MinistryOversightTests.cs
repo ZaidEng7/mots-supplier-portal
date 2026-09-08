@@ -40,14 +40,19 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task The_commercial_visibility_flag_ships_on()
+    public async Task The_commercial_visibility_flag_is_off_unless_the_demonstration_data_is_seeded()
     {
-        // D-6 seeded it OFF and the seeded default is unchanged - a fresh database still withholds. Migration
-        // 20260908181402 is one deployment's decision, applied after the seed, and this asserts the state the
-        // product actually ships in rather than the state its seed describes.
-        (await CommercialValuesOnAsync()).Should().BeTrue(
-            "D-66 switched it on; if this is ever false again, every value assertion below is measuring the "
-            + "wrong thing and would pass for the wrong reason");
+        // The gate D-57 asks for, asserted where it can be: this fixture runs with DevSeed disabled, which is
+        // every environment that is not the demonstration one, and the flag must be OFF there.
+        //
+        // It was a migration first and that was wrong - a migration runs everywhere, so the step that creates
+        // the schema in production would have switched the disclosure on there too. The approval it rests on
+        // is bounded to demonstration data, and a mechanism that ignores the boundary makes the approval mean
+        // something it does not say. The switch now lives in DevDataSeeder, behind the same gate as the demo
+        // accounts, and that seeder refuses to run outside Development.
+        (await CommercialValuesOnAsync()).Should().BeFalse(
+            "D-6/BRULE-087's default is withhold, and enabling it anywhere real needs the written sign-off "
+            + "D-57 names - a person, a date and the scope");
     }
 
     [Fact]
@@ -55,8 +60,15 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     {
         // The disclosure, stated as a test. Under the narrower scope D-57 offered, this list would be empty
         // until the tender was decided.
+        //
+        // The flag is turned on here rather than assumed: it ships OFF everywhere except the demonstration
+        // seed, so a test that relied on the shipped state would be asserting the demo environment's
+        // configuration rather than this screen's behaviour.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "MinistryLive");
+        await SetCommercialValuesAsync(true);
 
+        try
+        {
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
         var detail = await ministry.GetFromJsonAsync<JsonElement>($"{Rfqs}/{seeded.RfqCode}");
 
@@ -75,6 +87,11 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
         // The tender's own row carries the buying body by name, which no aggregate read ever did.
         detail.GetProperty("summary").GetProperty("organizationNameEn").GetString()
             .Should().NotBeNullOrWhiteSpace();
+        }
+        finally
+        {
+            await SetCommercialValuesAsync(false);
+        }
     }
 
     [Fact]
@@ -156,12 +173,20 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
         supplier.TryGetProperty("awardedValue", out var awardedValue).Should().BeTrue();
         awardedValue.ValueKind.Should().NotBe(JsonValueKind.Undefined);
 
-        var analytics = await ministry.GetFromJsonAsync<JsonElement>(Awards);
-        analytics.GetProperty("commercialValuesVisible").GetBoolean().Should().BeTrue();
-        analytics.GetProperty("totalAwards").GetInt32().Should().BeGreaterThanOrEqualTo(0);
-        // The count is an aggregate BRULE-086 always granted; the value is what the flag governs, and with
-        // the flag on it must be a number rather than null.
-        analytics.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Number);
+        await SetCommercialValuesAsync(true);
+        try
+        {
+            var analytics = await ministry.GetFromJsonAsync<JsonElement>(Awards);
+            analytics.GetProperty("commercialValuesVisible").GetBoolean().Should().BeTrue();
+            analytics.GetProperty("totalAwards").GetInt32().Should().BeGreaterThanOrEqualTo(0);
+            // The count is an aggregate BRULE-086 always granted; the value is what the flag governs, and
+            // with the flag on it must be a number rather than null.
+            analytics.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Number);
+        }
+        finally
+        {
+            await SetCommercialValuesAsync(false);
+        }
     }
 
     [Fact]
@@ -190,14 +215,12 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     [Fact]
     public async Task With_the_flag_off_the_values_are_null_and_the_counts_remain()
     {
-        // The flag is still the control D-6 built it to be: switching it off stops new disclosure without
-        // taking the oversight away. Restored in a finally, because leaving it off would quietly weaken every
-        // other test in this file.
+        // The flag is still the control D-6 built it to be: with it off the oversight remains and the money
+        // does not. This is the state the product ships in outside the demonstration seed, so nothing here
+        // has to switch anything - it asserts the default.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "MinistryFlagOff");
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
 
-        await SetCommercialValuesAsync(false);
-        try
         {
             var detail = await ministry.GetFromJsonAsync<JsonElement>($"{Rfqs}/{seeded.RfqCode}");
 
@@ -213,10 +236,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
             analytics.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Null);
             analytics.GetProperty("totalAwards").GetInt32().Should().BeGreaterThanOrEqualTo(0,
                 "the counts survive: they are the aggregate grant BRULE-086 gave outright");
-        }
-        finally
-        {
-            await SetCommercialValuesAsync(true);
         }
     }
 

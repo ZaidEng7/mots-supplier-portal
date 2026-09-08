@@ -3,17 +3,21 @@
 Every Arabic string the product authored rather than transcribed, collected in one place so a
 reviewer can read it end to end without opening any source file.
 
-**Status: accepted under D-62.** The markers that meant "authored here, awaiting a native reviewer"
-have been removed from this file and from `src/frontend/src/i18n/config.ts` in one pass, as D-62
-required — 438 in the catalogue and 155 here. Where a marker was a whole table cell it now reads
-**authored**, which is the fact it was always carrying: this string was written for the product
-rather than transcribed from an approved source. `[reused]` stays exactly where it was, because it
-says where a string came from and not what state it is in.
+**Status: accepted under D-62 by Zaid Abdulkarim, 8 September 2026** — recorded here as the
+accepting reviewer, which is what D-62 asked for and what was missing until now. The markers that
+meant "authored here, awaiting a native reviewer" have been removed from this file and from
+`src/frontend/src/i18n/config.ts` in one pass — 438 in the catalogue and 155 here. Where a marker was
+a whole table cell it now reads **authored**, which is the fact it was always carrying: this string
+was written for the product rather than transcribed from an approved source. `[reused]` stays exactly
+where it was, because it says where a string came from and not what state it is in.
 
-**What the acceptance covers, stated plainly.** D-62 was recorded on 2026-09-08 against the strings
-that existed then. The sections added afterwards — the phase 1 to 4 entries at the end of this file —
-were authored after that date and are accepted on the same terms at the product owner's direction. A
-reviewer who wants to read only the newer material should start at *Phase 3 · SCR-402 and SCR-307*.
+**The acceptance has two tiers, and the difference matters.** D-62 was recorded on 2026-09-08 against
+the strings that existed then, and those are **reviewed and accepted**. The roughly sixty strings
+added afterwards — the phase 1 to 4 sections at the end of this file, covering the five new screens
+and the four Ministry screens — are **accepted for the demonstration build without a line-by-line
+read**. They ship on those terms; they are not recorded as reviewed. A proper read of them is
+required before any real tender runs on this system, and a reviewer doing it should start at
+*Phase 3 · SCR-402 and SCR-307* and read to the end of the file. See D-65.
 
 Two consistency fixes were applied before the acceptance and are recorded in `DECISIONS-TAKEN.md` —
 **D-17** (one word for clarification) and **D-18** (screen and export strings identical). The strings

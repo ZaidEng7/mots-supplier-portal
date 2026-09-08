@@ -81,6 +81,13 @@ public static class NotificationTypes
     /// <summary>§4.1: "ClarificationRequested -&gt; Revised ... In-app to committee".</summary>
     public const string ProposalRevised = "proposal.revised";
 
+    /// <summary>
+    /// D-67: participation restored after an automatic suspension, because the replacement document was
+    /// approved. Not in BUSINESS-PROCESSES' transition tables - the suspension it reverses is BRULE-023's,
+    /// which those tables do not describe either.
+    /// </summary>
+    public const string SupplierReinstated = "supplier.reinstated";
+
     /// <summary>Both directions of the catalogue gate compare against this set.</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -99,5 +106,6 @@ public static class NotificationTypes
         RfqDeadlineShortened,
         ProposalClarificationRequested,
         ProposalRevised,
+        SupplierReinstated,
     };
 }

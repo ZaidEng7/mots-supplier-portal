@@ -8,6 +8,7 @@ using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
@@ -92,6 +93,41 @@ public static class DevDataSeeder
         var demoSupplierId = await SeedSuppliersAsync(db);
         await SeedUsersAsync(userManager, password, organizationId, demoSupplierId);
         await SeedTendersAsync(db, organizationId, demoSupplierId);
+        await EnableCommercialVisibilityAsync(db);
+    }
+
+    /// <summary>
+    /// D-66/D-57: the Ministry's commercial visibility, on for the DEMONSTRATION data and nowhere else.
+    ///
+    /// <para><b>Why this lives in the seeder rather than in a migration.</b> It was a migration first, and
+    /// that was wrong: a migration runs in every environment, so the same deployment step that creates the
+    /// schema in production would have switched the disclosure on there too. The approval it rests on is
+    /// explicitly bounded - "demonstration data only, there are no real bidders and no real bid values" -
+    /// and a mechanism that ignores the boundary makes the approval mean something it does not say.</para>
+    ///
+    /// <para>So the switch now lives where the demonstration data itself lives: behind the same
+    /// <c>DevSeed:Enabled</c> gate, in a seeder that refuses to run outside Development. In every other
+    /// environment the flag keeps its seeded value, which is OFF (D-6/BRULE-087), and turning it on there
+    /// requires the written sign-off D-57 names - a person, a date, and the scope - recorded before the
+    /// row is changed.</para>
+    /// </summary>
+    private static async Task EnableCommercialVisibilityAsync(AppDbContext db)
+    {
+        var updated = await db.SupplierFieldConfigs
+            .Where(c => c.Category == FieldConfigCategory.GovernanceVisibility && c.FieldCode == "commercialValues")
+            .ExecuteUpdateAsync(p => p.SetProperty(c => c.IsEnabled, true));
+
+        if (updated == 0)
+        {
+            db.SupplierFieldConfigs.Add(new SupplierFieldConfig
+            {
+                Id = Guid.CreateVersion7(),
+                Category = FieldConfigCategory.GovernanceVisibility,
+                FieldCode = "commercialValues",
+                IsEnabled = true,
+            });
+            await db.SaveChangesAsync();
+        }
     }
 
     /// <summary>
