@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button } from './Button'
 import { Card } from './Card'
+import { Input } from './Input'
 import { SkeletonTable } from './Skeleton'
 
 /**
@@ -55,6 +56,28 @@ export function FilterField({ label, htmlFor, children }: { label: string; htmlF
   )
 }
 
+/**
+ * The free-text filter every list screen has, as one element.
+ *
+ * <p>It always carries a real `<label for>`: an unlabelled search box is the most common accessibility
+ * defect in a table toolbar, and a placeholder is not a label - it disappears the moment somebody types.</p>
+ */
+export function SearchField({
+  id, label, placeholder, value, onChange,
+}: {
+  id: string
+  label: string
+  placeholder?: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <FilterField label={label} htmlFor={id}>
+      <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+    </FilterField>
+  )
+}
+
 /** The row of filters above a list. */
 export function FilterBar({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap gap-4">{children}</div>
@@ -105,6 +128,27 @@ export function LoadMore({
 }
 
 /**
+ * The parts of a `useInfiniteQuery` a list card needs. Structural rather than the library's own type: it
+ * keeps this file independent of React Query, and it lets a screen with a plain `useQuery` pass the two
+ * fields it does have.
+ */
+export interface PagedQueryLike {
+  isPending: boolean
+  isError: boolean
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  fetchNextPage?: () => unknown
+}
+
+/** The words a list card says in each of its four states. */
+export interface ListCardLabels {
+  loading: string
+  error: string
+  empty: string
+  loadMore?: string
+}
+
+/**
  * A card holding one paged list: its title, the four body states, and the next-page button.
  *
  * <p>Two screens wrote this scaffolding out identically and a third was about to. The parts that differ
@@ -113,41 +157,33 @@ export function LoadMore({
  * next-page button is the specific defect MSP-84 recorded, where a list silently ended at twenty rows.</p>
  */
 export function ListCard({
-  title, isPending, isError, isEmpty, loadingLabel, errorText, emptyText, skeletonRows,
-  hasNextPage = false, isFetchingNextPage = false, onLoadMore, loadMoreLabel, children,
+  title, query, isEmpty, labels, skeletonRows, children,
 }: {
   title: string
-  isPending: boolean
-  isError: boolean
+  query: PagedQueryLike
   isEmpty: boolean
-  loadingLabel: string
-  errorText: string
-  emptyText: string
+  labels: ListCardLabels
   skeletonRows?: number
-  hasNextPage?: boolean
-  isFetchingNextPage?: boolean
-  onLoadMore?: () => void
-  loadMoreLabel?: string
   children: ReactNode
 }) {
   return (
     <Card title={title}>
       <ListState
-        isPending={isPending}
-        isError={isError}
+        isPending={query.isPending}
+        isError={query.isError}
         isEmpty={isEmpty}
-        loadingLabel={loadingLabel}
-        errorText={errorText}
-        emptyText={emptyText}
+        loadingLabel={labels.loading}
+        errorText={labels.error}
+        emptyText={labels.empty}
         skeletonRows={skeletonRows}
       >
         {children}
-        {onLoadMore && loadMoreLabel ? (
+        {query.fetchNextPage && labels.loadMore ? (
           <LoadMore
-            hasNextPage={hasNextPage}
-            isFetching={isFetchingNextPage}
-            onClick={onLoadMore}
-            label={loadMoreLabel}
+            hasNextPage={query.hasNextPage ?? false}
+            isFetching={query.isFetchingNextPage ?? false}
+            onClick={() => query.fetchNextPage?.()}
+            label={labels.loadMore}
           />
         ) : null}
       </ListState>

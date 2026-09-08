@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, FilterBar, FilterField, Input, ListCard, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import { Badge, FilterBar, FilterField, ListCard, PageHeading, SearchField, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableRow } from '../components/ui'
 import { listComplianceDirectory, type ComplianceSupplier } from '../api/supplierDirectory'
 import { nextPageParam } from '../api/listEnvelope'
 import { formatDate } from '../lib/datetime'
@@ -72,37 +72,23 @@ export function ComplianceDirectoryPage() {
             ]}
           />
         </FilterField>
-        <FilterField label={t('complianceDirectory.search')} htmlFor="compliance-directory-search">
-          <Input
-            id="compliance-directory-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('complianceDirectory.searchPlaceholder')}
-          />
-        </FilterField>
+        <SearchField
+          id="compliance-directory-search"
+          label={t('complianceDirectory.search')}
+          placeholder={t('complianceDirectory.searchPlaceholder')}
+          value={search}
+          onChange={setSearch}
+        />
       </FilterBar>
 
       <ListCard
         title={t('complianceDirectory.title')}
-        isPending={directoryQuery.isPending}
-        isError={directoryQuery.isError}
+        query={directoryQuery}
         isEmpty={suppliers.length === 0}
-        loadingLabel={t('common.loading')}
-        errorText={t('complianceDirectory.error')}
-        emptyText={t('complianceDirectory.empty')}
-        hasNextPage={directoryQuery.hasNextPage}
-        isFetchingNextPage={directoryQuery.isFetchingNextPage}
-        onLoadMore={() => directoryQuery.fetchNextPage()}
-        loadMoreLabel={t('complianceDirectory.loadMore')}
+        labels={{ loading: t('common.loading'), error: t('complianceDirectory.error'), empty: t('complianceDirectory.empty'), loadMore: t('complianceDirectory.loadMore') }}
       >
         <Table caption={t('complianceDirectory.title')}>
-          <TableHead>
-            <TableHeaderCell>{t('complianceDirectory.fields.name')}</TableHeaderCell>
-            <TableHeaderCell>{t('complianceDirectory.fields.onboarding')}</TableHeaderCell>
-            <TableHeaderCell>{t('complianceDirectory.fields.lifecycle')}</TableHeaderCell>
-            <TableHeaderCell>{t('complianceDirectory.fields.documents')}</TableHeaderCell>
-            <TableHeaderCell>{t('complianceDirectory.fields.registered')}</TableHeaderCell>
-          </TableHead>
+          <TableHead labels={[t('complianceDirectory.fields.name'), t('complianceDirectory.fields.onboarding'), t('complianceDirectory.fields.lifecycle'), t('complianceDirectory.fields.documents'), t('complianceDirectory.fields.registered')]} />
           <TableBody>
             {suppliers.map((s) => (
               <TableRow key={s.supplierCode}>

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Card, PageHeading, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Button, Card, PageHeading, SkeletonTable, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
 import { formatNumber } from '../../lib/datetime'
 import { getCategoryCoverage } from '../../api/governance'
 
@@ -66,14 +66,7 @@ export function CategoryCoveragePage() {
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('categoryCoverage.empty')}</p>
         ) : (
           <Table caption={t('categoryCoverage.title')}>
-            <TableHead>
-              <TableHeaderCell>{t('categoryCoverage.fields.category')}</TableHeaderCell>
-              <TableHeaderCell>{t('categoryCoverage.fields.approved')}</TableHeaderCell>
-              <TableHeaderCell>{t('categoryCoverage.fields.active')}</TableHeaderCell>
-              <TableHeaderCell>{t('categoryCoverage.fields.offerings')}</TableHeaderCell>
-              <TableHeaderCell>{t('categoryCoverage.fields.tenders')}</TableHeaderCell>
-              <TableHeaderCell>{t('categoryCoverage.fields.awarded')}</TableHeaderCell>
-            </TableHead>
+            <TableHead labels={[t('categoryCoverage.fields.category'), t('categoryCoverage.fields.approved'), t('categoryCoverage.fields.active'), t('categoryCoverage.fields.offerings'), t('categoryCoverage.fields.tenders'), t('categoryCoverage.fields.awarded')]} />
             <TableBody>
               {categories.map((category) => (
                 <TableRow key={category.categoryCode}>

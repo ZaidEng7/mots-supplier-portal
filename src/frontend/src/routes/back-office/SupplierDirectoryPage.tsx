@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { Badge, FilterBar, FilterField, Input, ListCard, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, FilterBar, FilterField, ListCard, PageHeading, SearchField, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
 import { listSupplierDirectory } from '../../api/supplierDirectory'
 import { nextPageParam } from '../../api/listEnvelope'
 import { fetchCategories } from '../../api/reference'
@@ -81,38 +81,23 @@ export function SupplierDirectoryPage() {
             ]}
           />
         </FilterField>
-        <FilterField label={t('supplierDirectory.search')} htmlFor="supplier-directory-search">
-          <Input
-            id="supplier-directory-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('supplierDirectory.searchPlaceholder')}
-          />
-        </FilterField>
+        <SearchField
+          id="supplier-directory-search"
+          label={t('supplierDirectory.search')}
+          placeholder={t('supplierDirectory.searchPlaceholder')}
+          value={search}
+          onChange={setSearch}
+        />
       </FilterBar>
 
       <ListCard
         title={t('supplierDirectory.title')}
-        isPending={directoryQuery.isPending}
-        isError={directoryQuery.isError}
+        query={directoryQuery}
         isEmpty={suppliers.length === 0}
-        loadingLabel={t('common.loading')}
-        errorText={t('supplierDirectory.error')}
-        emptyText={t('supplierDirectory.empty')}
-        hasNextPage={directoryQuery.hasNextPage}
-        isFetchingNextPage={directoryQuery.isFetchingNextPage}
-        onLoadMore={() => directoryQuery.fetchNextPage()}
-        loadMoreLabel={t('supplierDirectory.loadMore')}
+        labels={{ loading: t('common.loading'), error: t('supplierDirectory.error'), empty: t('supplierDirectory.empty'), loadMore: t('supplierDirectory.loadMore') }}
       >
         <Table caption={t('supplierDirectory.title')}>
-          <TableHead>
-            <TableHeaderCell>{t('supplierDirectory.fields.name')}</TableHeaderCell>
-            <TableHeaderCell>{t('supplierDirectory.fields.code')}</TableHeaderCell>
-            <TableHeaderCell>{t('supplierDirectory.fields.categories')}</TableHeaderCell>
-            <TableHeaderCell>{t('supplierDirectory.fields.offerings')}</TableHeaderCell>
-            <TableHeaderCell>{t('supplierDirectory.fields.location')}</TableHeaderCell>
-            <TableHeaderCell>{t('supplierDirectory.fields.state')}</TableHeaderCell>
-          </TableHead>
+          <TableHead labels={[t('supplierDirectory.fields.name'), t('supplierDirectory.fields.code'), t('supplierDirectory.fields.categories'), t('supplierDirectory.fields.offerings'), t('supplierDirectory.fields.location'), t('supplierDirectory.fields.state')]} />
           <TableBody>
             {suppliers.map((s) => (
               <TableRow key={s.supplierCode}>

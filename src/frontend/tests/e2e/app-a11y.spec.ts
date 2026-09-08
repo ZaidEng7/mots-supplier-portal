@@ -140,7 +140,15 @@ test('the route denominator is what the router actually declares, not what this 
   //
   // This guard fired on all twelve at once, which is what it is for: the a11y scan below would otherwise
   // have kept covering 46 of 58 pages and stayed green while twelve new screens went unexamined.
-  expect(routes.length).toBe(58)
+  //
+  // 64 (phase 3): six routes for five screens, and it fired again on all six.
+  //   /suppliers                        SCR-402, the buyer's supplier directory
+  //   /review/suppliers                 SCR-307, the reviewer's compliance directory
+  //   /rfqs/$referenceCode/brief        SCR-501, what an evaluator is asked to score against
+  //   /ministry/categories              SCR-604, category coverage
+  //   /settings/notifications  and  /account/notifications
+  //                                     SCR-901, one screen in each shell, as SCR-907 and SCR-900 are
+  expect(routes.length).toBe(64)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
@@ -160,7 +168,7 @@ for (const route of routes) {
       if (route.name === 'reviewApplicationRoute') {
         target = target.replace('$referenceCode', REFERENCE_CODE)
       }
-      if (route.name === 'rfqDetailRoute' || route.name === 'supplierRfqDetailRoute' || route.name === 'supplierProposalRoute' || route.name === 'myEvaluationRoute' || route.name === 'comparisonRoute' || route.name === 'awardRoute') {
+      if (route.name === 'rfqDetailRoute' || route.name === 'supplierRfqDetailRoute' || route.name === 'supplierProposalRoute' || route.name === 'myEvaluationRoute' || route.name === 'myEvaluationBriefRoute' || route.name === 'comparisonRoute' || route.name === 'awardRoute') {
         target = target.replace('$referenceCode', RFQ_REFERENCE_CODE)
       }
 

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Card, Skeleton, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Card, Skeleton, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
 import { getMyEvaluation } from '../../api/evaluations'
 
 /**
@@ -85,14 +85,7 @@ export function MyEvaluationBriefPage({ referenceCode }: { referenceCode: string
         </p>
 
         <Table caption={t('evaluationBrief.howToScore')}>
-          <TableHead>
-            <TableHeaderCell>{t('evaluationBrief.fields.criterion')}</TableHeaderCell>
-            <TableHeaderCell>{t('evaluationBrief.fields.dimension')}</TableHeaderCell>
-            <TableHeaderCell>{t('evaluationBrief.fields.weight')}</TableHeaderCell>
-            <TableHeaderCell>{t('evaluationBrief.fields.max')}</TableHeaderCell>
-            <TableHeaderCell>{t('evaluationBrief.fields.threshold')}</TableHeaderCell>
-            <TableHeaderCell>{t('evaluationBrief.fields.guidance')}</TableHeaderCell>
-          </TableHead>
+          <TableHead labels={[t('evaluationBrief.fields.criterion'), t('evaluationBrief.fields.dimension'), t('evaluationBrief.fields.weight'), t('evaluationBrief.fields.max'), t('evaluationBrief.fields.threshold'), t('evaluationBrief.fields.guidance')]} />
           <TableBody>
             {evaluation.criteria.map((criterion) => {
               const guidance = isArabic ? criterion.guidanceAr : criterion.guidanceEn

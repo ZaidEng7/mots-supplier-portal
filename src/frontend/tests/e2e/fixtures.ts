@@ -382,6 +382,28 @@ export async function mockBackend(page: Page) {
     if (p === `/api/v1/rfqs/${RFQ_REFERENCE_CODE}/proposals`) return route.fulfill({ json: PROPOSAL_FIXTURE })
     if (p === `/api/v1/proposals/${PROPOSAL_REFERENCE_CODE}`) return route.fulfill({ json: PROPOSAL_FIXTURE })
 
+    // Phase 3's five screens. Each of these would otherwise hit the loud 500 below - which is what the
+    // fallback is for, and what told this file the screens existed.
+    if (p === '/api/v1/supplier-directory') return route.fulfill({ json: listPage([
+      { supplierCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, lifecycleState: 'Active', categoryCodes: ['general'], offeringCount: 2, city: 'Damascus', regionCode: 'DM' },
+    ]) })
+    if (p === '/api/v1/review/suppliers') return route.fulfill({ json: listPage([
+      { supplierCode: REFERENCE_CODE, displayNameAr: SUPPLIER_PROFILE.displayNameAr, displayNameEn: SUPPLIER_PROFILE.displayNameEn, onboardingState: 'Approved', lifecycleState: 'Active', createdAt: '2026-01-01T00:00:00Z', expiredDocumentCount: 0, expiringDocumentCount: 1, rejectedDocumentCount: 0 },
+    ]) })
+    if (p === '/api/v1/ministry/categories') return route.fulfill({ json: {
+      categories: [
+        { categoryCode: 'general', nameAr: 'عام', nameEn: 'General', approvedSuppliers: 4, activeSuppliers: 3, activeOfferings: 6, tenders: 2, awardedTenders: 1 },
+      ],
+      categoriesWithNoActiveSupplier: 0,
+      categoriesAreFlat: true,
+    } })
+    if (p === '/api/v1/notifications/preferences') return route.fulfill({ json: {
+      types: [
+        { type: 'supplier.approved', muteable: false, muted: false, titleAr: 'تم اعتماد التسجيل', titleEn: 'Registration approved' },
+        { type: 'rfq.published', muteable: true, muted: false, titleAr: 'طلب عرض جديد', titleEn: 'A new tender' },
+      ],
+    } })
+
     // §12-A/Part D: an unmatched GET now FAILS LOUDLY instead of returning `{}`.
     //
     // The generic fallback existed so mutation endpoints no render triggers could not crash a
