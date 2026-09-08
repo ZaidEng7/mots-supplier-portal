@@ -1,4 +1,5 @@
 import { apiFetch } from './auth'
+import type { ListEnvelope } from './listEnvelope'
 
 export interface GovernanceCount {
   key: string
@@ -55,4 +56,118 @@ export async function getCategoryCoverage(): Promise<CategoryCoverageOverview> {
   const response = await apiFetch('/api/v1/ministry/categories')
   if (!response.ok) throw new Error('category_coverage_unavailable')
   return (await response.json()) as CategoryCoverageOverview
+}
+
+/**
+ * SCR-601/602/603/606, under D-66.
+ *
+ * <p><b>These four reads carry what every other governance read deliberately does not:</b> named tenders,
+ * named suppliers, named bidders and their numbers — including on a tender that is still open. D-57 relayed
+ * that the Ministry may see commercial figures and required written sign-off first; D-66 records that they
+ * shipped without it, at the product owner's direction, at the widest scope offered.</p>
+ *
+ * <p>Every money field is nullable and is populated only while `GovernanceVisibility.commercialValues` is on.
+ * Null is not zero — "policy withholds this" and "nothing was bid" are different facts, and each screen says
+ * which one it is showing.</p>
+ */
+export interface MinistryRfqRow {
+  referenceCode: string
+  titleAr: string
+  titleEn: string
+  state: string
+  organizationNameAr: string
+  organizationNameEn: string
+  publishedAt: string | null
+  submissionClosesAt: string | null
+  invitedSuppliers: number
+  submittedProposals: number
+  awardedValue: number | null
+  currencyCode: string | null
+}
+
+export interface MinistrySupplierRow {
+  supplierCode: string
+  displayNameAr: string
+  displayNameEn: string
+  onboardingState: string
+  lifecycleState: string
+  categoryCodes: string[]
+  registeredAt: string
+  submittedProposals: number
+  awardsWon: number
+  awardedValue: number | null
+}
+
+export interface MinistrySpendBucket {
+  key: string
+  awards: number
+  value: number | null
+}
+
+export interface MinistryAwardAnalytics {
+  totalAwards: number
+  totalAwardedValue: number | null
+  byMonth: MinistrySpendBucket[]
+  byCategory: MinistrySpendBucket[]
+  byOrganization: MinistrySpendBucket[]
+  commercialValuesVisible: boolean
+}
+
+/** One bid, named. Under a narrower scope this would have been a pseudonym until the award. */
+export interface MinistryBid {
+  proposalCode: string
+  supplierCode: string
+  supplierDisplayNameAr: string
+  supplierDisplayNameEn: string
+  state: string
+  submittedAt: string | null
+  totalValue: number | null
+  isAwarded: boolean
+}
+
+export interface MinistryRfqDetail {
+  summary: MinistryRfqRow
+  descriptionAr: string | null
+  descriptionEn: string | null
+  items: { titleAr: string, titleEn: string, categoryCode: string, quantity: number, unitOfMeasureCode: string }[]
+  bids: MinistryBid[]
+  commercialValuesVisible: boolean
+}
+
+async function ministryRead<T>(path: string): Promise<T> {
+  const response = await apiFetch(path)
+  if (!response.ok) throw new Error('ministry_read_unavailable')
+  return (await response.json()) as T
+}
+
+export function listMinistryRfqs(
+  cursor?: string | null,
+  filters?: { state?: string | null, q?: string | null },
+): Promise<ListEnvelope<MinistryRfqRow>> {
+  const params = new URLSearchParams()
+  if (cursor) params.set('cursor', cursor)
+  if (filters?.state) params.set('state', filters.state)
+  if (filters?.q) params.set('q', filters.q)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  return ministryRead(`/api/v1/ministry/rfqs${qs}`)
+}
+
+export function listMinistrySuppliers(
+  cursor?: string | null,
+  filters?: { lifecycleState?: string | null, q?: string | null },
+): Promise<ListEnvelope<MinistrySupplierRow>> {
+  const params = new URLSearchParams()
+  if (cursor) params.set('cursor', cursor)
+  if (filters?.lifecycleState) params.set('lifecycleState', filters.lifecycleState)
+  if (filters?.q) params.set('q', filters.q)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  return ministryRead(`/api/v1/ministry/suppliers${qs}`)
+}
+
+export function getMinistryAwardAnalytics(): Promise<MinistryAwardAnalytics> {
+  return ministryRead('/api/v1/ministry/awards')
+}
+
+export function getMinistryRfqDetail(referenceCode: string): Promise<MinistryRfqDetail> {
+  return ministryRead(`/api/v1/ministry/rfqs/${encodeURIComponent(referenceCode)}`)
 }

@@ -386,6 +386,12 @@ builder.Services.AddScoped<IGetDocumentHistoryHandler, GetDocumentHistoryHandler
 builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetGovernanceOverviewHandler, MotsSupplierPortal.Infrastructure.Governance.GetGovernanceOverviewHandler>();
 // SCR-604: the same aggregate-only grant, one screen further - see GetCategoryCoverageHandler.
 builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetCategoryCoverageHandler, MotsSupplierPortal.Infrastructure.Governance.GetCategoryCoverageHandler>();
+// SCR-601/602/603/606 under D-66: the four Ministry screens that BRULE-087's aggregate-only default refused,
+// built before the sign-off D-57 asked for and at the widest scope offered. See MinistryOversightContracts.
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IListMinistryRfqsHandler, MotsSupplierPortal.Infrastructure.Governance.ListMinistryRfqsHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IListMinistrySuppliersHandler, MotsSupplierPortal.Infrastructure.Governance.ListMinistrySuppliersHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetMinistryAwardAnalyticsHandler, MotsSupplierPortal.Infrastructure.Governance.GetMinistryAwardAnalyticsHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetMinistryRfqDetailHandler, MotsSupplierPortal.Infrastructure.Governance.GetMinistryRfqDetailHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
 builder.Services.AddScoped<IReferenceDataAdminHandler, ReferenceDataAdminHandler>();
 builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();

@@ -143,6 +143,23 @@ export function BackOfficeShell({ children }: Props) {
                 {t('categoryCoverage.title')}
               </Link>
             ) : null}
+            {/* SCR-602, SCR-601 and SCR-603, under D-66. These three carry named tenders, named suppliers and
+                - while the commercial-visibility flag is on - the money, which is what D-57 was about. */}
+            {canViewGovernance ? (
+              <Link to="/back-office/ministry/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('ministryRfqs.title')}
+              </Link>
+            ) : null}
+            {canViewGovernance ? (
+              <Link to="/back-office/ministry/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('ministrySuppliers.title')}
+              </Link>
+            ) : null}
+            {canViewGovernance ? (
+              <Link to="/back-office/ministry/awards" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('ministryAwards.title')}
+              </Link>
+            ) : null}
             {canManageStaff ? (
               <Link to="/back-office/notification-templates" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('notificationTemplates.title')}

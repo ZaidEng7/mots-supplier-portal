@@ -16,6 +16,12 @@ import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 // SCR-604, eager like the overview it sits beside: both are small, and ministry_viewer's whole product is
 // these two screens.
 import { CategoryCoveragePage } from './routes/ministry/CategoryCoveragePage'
+// SCR-601/602/603/606 under D-66. Lazy, unlike the two small ministry screens above: these carry tables and
+// a detail view, and a ministry_viewer opening the overview should not pay for all four.
+const MinistryRfqMonitorPage = lazy(() => import('./routes/ministry/MinistryRfqMonitorPage').then((m) => ({ default: m.MinistryRfqMonitorPage })))
+const MinistryRfqDetailRoute = lazy(() => import('./routes/ministry/MinistryRfqDetailPage').then((m) => ({ default: m.MinistryRfqDetailRoute })))
+const MinistrySupplierRegistryPage = lazy(() => import('./routes/ministry/MinistrySupplierRegistryPage').then((m) => ({ default: m.MinistrySupplierRegistryPage })))
+const MinistryAwardAnalyticsPage = lazy(() => import('./routes/ministry/MinistryAwardAnalyticsPage').then((m) => ({ default: m.MinistryAwardAnalyticsPage })))
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
@@ -411,6 +417,35 @@ const categoryCoverageRoute = createRoute({
   component: CategoryCoveragePage,
 })
 
+// SCR-602. Declared before the detail route it parents, for the same reason the compliance directory is:
+// a literal segment must not be read as a reference code.
+const ministryRfqMonitorRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry/rfqs',
+  component: MinistryRfqMonitorPage,
+})
+
+// SCR-606.
+const ministryRfqDetailRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry/rfqs/$referenceCode',
+  component: MinistryRfqDetailRoute,
+})
+
+// SCR-601.
+const ministrySupplierRegistryRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry/suppliers',
+  component: MinistrySupplierRegistryPage,
+})
+
+// SCR-603.
+const ministryAwardAnalyticsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry/awards',
+  component: MinistryAwardAnalyticsPage,
+})
+
 // SCR-700, `/back-office/admin`, system_admin, P1 (FR-DSH-006). The specification writes SCR-700's
 // path as `/admin`; this app keeps every staff screen under `/back-office`, so the prefix disagreement
 // is the same one already reported for SCR-400/500 and reports - noted, not silently resolved.
@@ -731,7 +766,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, ministryRfqMonitorRoute, ministryRfqDetailRoute, ministrySupplierRegistryRoute, ministryAwardAnalyticsRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })
