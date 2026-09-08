@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Card, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Button, Card, PageHeading, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { formatNumber } from '../../lib/datetime'
 import { getCategoryCoverage } from '../../api/governance'
 
@@ -41,14 +41,7 @@ export function CategoryCoveragePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('categoryCoverage.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('categoryCoverage.subtitle')}
-        </p>
-      </div>
+      <PageHeading title={t('categoryCoverage.title')} subtitle={t('categoryCoverage.subtitle')} />
 
       {/* The headline is the gap, not the total: "how many categories has nobody registered for" is the
           question this screen answers, and it is the one figure a reader would otherwise count by eye. */}

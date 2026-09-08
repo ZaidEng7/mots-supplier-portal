@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Select, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import { Badge, FilterBar, FilterField, Input, ListCard, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
 import { listComplianceDirectory, type ComplianceSupplier } from '../api/supplierDirectory'
 import { nextPageParam } from '../api/listEnvelope'
 import { formatDate } from '../lib/datetime'
@@ -45,20 +45,10 @@ export function ComplianceDirectoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('complianceDirectory.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('complianceDirectory.subtitle')}
-        </p>
-      </div>
+      <PageHeading title={t('complianceDirectory.title')} subtitle={t('complianceDirectory.subtitle')} />
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('complianceDirectory.filterState')}
-          </span>
+      <FilterBar>
+        <FilterField label={t('complianceDirectory.filterState')}>
           <Select
             value={onboardingState}
             onValueChange={setOnboardingState}
@@ -69,11 +59,8 @@ export function ComplianceDirectoryPage() {
                 .map((state) => ({ value: state, label: t(`status.onboarding.${state}`) })),
             ]}
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('complianceDirectory.filterHealth')}
-          </span>
+        </FilterField>
+        <FilterField label={t('complianceDirectory.filterHealth')}>
           <Select
             value={documentHealth}
             onValueChange={setDocumentHealth}
@@ -84,77 +71,64 @@ export function ComplianceDirectoryPage() {
               { value: 'ok', label: t('complianceDirectory.healthOk') },
             ]}
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[length:var(--text-caption)]" htmlFor="compliance-directory-search" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('complianceDirectory.search')}
-          </label>
+        </FilterField>
+        <FilterField label={t('complianceDirectory.search')} htmlFor="compliance-directory-search">
           <Input
             id="compliance-directory-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('complianceDirectory.searchPlaceholder')}
           />
-        </div>
-      </div>
+        </FilterField>
+      </FilterBar>
 
-      <Card title={t('complianceDirectory.title')}>
-        {directoryQuery.isPending ? (
-          <SkeletonTable label={t('common.loading')} rows={5} />
-        ) : directoryQuery.isError ? (
-          <p style={{ color: 'var(--color-danger)' }}>{t('complianceDirectory.error')}</p>
-        ) : suppliers.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('complianceDirectory.empty')}</p>
-        ) : (
-          <>
-            <Table caption={t('complianceDirectory.title')}>
-              <TableHead>
-                <TableHeaderCell>{t('complianceDirectory.fields.name')}</TableHeaderCell>
-                <TableHeaderCell>{t('complianceDirectory.fields.onboarding')}</TableHeaderCell>
-                <TableHeaderCell>{t('complianceDirectory.fields.lifecycle')}</TableHeaderCell>
-                <TableHeaderCell>{t('complianceDirectory.fields.documents')}</TableHeaderCell>
-                <TableHeaderCell>{t('complianceDirectory.fields.registered')}</TableHeaderCell>
-              </TableHead>
-              <TableBody>
-                {suppliers.map((s) => (
-                  <TableRow key={s.supplierCode}>
-                    <TableCell>
-                      {/* The row is the route to the case. Without this the reviewer's only way into an
-                          approved supplier was to type the code into the address bar - F-6 again. */}
-                      <Link to="/back-office/review/$referenceCode" params={{ referenceCode: s.supplierCode }}>
-                        {isArabic ? s.displayNameAr : s.displayNameEn}
-                      </Link>
-                      <div className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                        {s.supplierCode}
-                      </div>
-                    </TableCell>
-                    <TableCell><StatusChip machine="onboarding" value={s.onboardingState} /></TableCell>
-                    <TableCell>
-                      {s.lifecycleState === 'None'
-                        ? <span style={{ color: 'var(--color-text-secondary)' }}>—</span>
-                        : <StatusChip machine="onboarding" value={s.lifecycleState} />}
-                    </TableCell>
-                    <TableCell><DocumentHealth supplier={s} /></TableCell>
-                    <TableCell>{formatDate(s.createdAt, isArabic ? 'ar' : 'en-GB')}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            {directoryQuery.hasNextPage ? (
-              <div className="mt-4">
-                <Button
-                  variant="secondary"
-                  onClick={() => directoryQuery.fetchNextPage()}
-                  disabled={directoryQuery.isFetchingNextPage}
-                >
-                  {t('complianceDirectory.loadMore')}
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </Card>
+      <ListCard
+        title={t('complianceDirectory.title')}
+        isPending={directoryQuery.isPending}
+        isError={directoryQuery.isError}
+        isEmpty={suppliers.length === 0}
+        loadingLabel={t('common.loading')}
+        errorText={t('complianceDirectory.error')}
+        emptyText={t('complianceDirectory.empty')}
+        hasNextPage={directoryQuery.hasNextPage}
+        isFetchingNextPage={directoryQuery.isFetchingNextPage}
+        onLoadMore={() => directoryQuery.fetchNextPage()}
+        loadMoreLabel={t('complianceDirectory.loadMore')}
+      >
+        <Table caption={t('complianceDirectory.title')}>
+          <TableHead>
+            <TableHeaderCell>{t('complianceDirectory.fields.name')}</TableHeaderCell>
+            <TableHeaderCell>{t('complianceDirectory.fields.onboarding')}</TableHeaderCell>
+            <TableHeaderCell>{t('complianceDirectory.fields.lifecycle')}</TableHeaderCell>
+            <TableHeaderCell>{t('complianceDirectory.fields.documents')}</TableHeaderCell>
+            <TableHeaderCell>{t('complianceDirectory.fields.registered')}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {suppliers.map((s) => (
+              <TableRow key={s.supplierCode}>
+                <TableCell>
+                  {/* The row is the route to the case. Without this the reviewer's only way into an
+                      approved supplier was to type the code into the address bar - F-6 again. */}
+                  <Link to="/back-office/review/$referenceCode" params={{ referenceCode: s.supplierCode }}>
+                    {isArabic ? s.displayNameAr : s.displayNameEn}
+                  </Link>
+                  <div className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+                    {s.supplierCode}
+                  </div>
+                </TableCell>
+                <TableCell><StatusChip machine="onboarding" value={s.onboardingState} /></TableCell>
+                <TableCell>
+                  {s.lifecycleState === 'None'
+                    ? <span style={{ color: 'var(--color-text-secondary)' }}>—</span>
+                    : <StatusChip machine="onboarding" value={s.lifecycleState} />}
+                </TableCell>
+                <TableCell><DocumentHealth supplier={s} /></TableCell>
+                <TableCell>{formatDate(s.createdAt, isArabic ? 'ar' : 'en-GB')}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ListCard>
     </div>
   )
 }

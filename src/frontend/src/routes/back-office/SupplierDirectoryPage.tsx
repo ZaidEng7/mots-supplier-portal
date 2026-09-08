@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, Select, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, FilterBar, FilterField, Input, ListCard, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { listSupplierDirectory } from '../../api/supplierDirectory'
 import { nextPageParam } from '../../api/listEnvelope'
 import { fetchCategories } from '../../api/reference'
@@ -53,20 +53,10 @@ export function SupplierDirectoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('supplierDirectory.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('supplierDirectory.subtitle')}
-        </p>
-      </div>
+      <PageHeading title={t('supplierDirectory.title')} subtitle={t('supplierDirectory.subtitle')} />
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('supplierDirectory.filterCategory')}
-          </span>
+      <FilterBar>
+        <FilterField label={t('supplierDirectory.filterCategory')}>
           <Select
             value={category}
             onValueChange={setCategory}
@@ -76,11 +66,8 @@ export function SupplierDirectoryPage() {
               ...categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn })),
             ]}
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('supplierDirectory.filterState')}
-          </span>
+        </FilterField>
+        <FilterField label={t('supplierDirectory.filterState')}>
           <Select
             value={lifecycleState}
             onValueChange={setLifecycleState}
@@ -93,74 +80,61 @@ export function SupplierDirectoryPage() {
               { value: 'Suspended', label: t('status.onboarding.Suspended') },
             ]}
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[length:var(--text-caption)]" htmlFor="supplier-directory-search" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('supplierDirectory.search')}
-          </label>
+        </FilterField>
+        <FilterField label={t('supplierDirectory.search')} htmlFor="supplier-directory-search">
           <Input
             id="supplier-directory-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('supplierDirectory.searchPlaceholder')}
           />
-        </div>
-      </div>
+        </FilterField>
+      </FilterBar>
 
-      <Card title={t('supplierDirectory.title')}>
-        {directoryQuery.isPending ? (
-          <SkeletonTable label={t('common.loading')} rows={5} />
-        ) : directoryQuery.isError ? (
-          <p style={{ color: 'var(--color-danger)' }}>{t('supplierDirectory.error')}</p>
-        ) : suppliers.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierDirectory.empty')}</p>
-        ) : (
-          <>
-            <Table caption={t('supplierDirectory.title')}>
-              <TableHead>
-                <TableHeaderCell>{t('supplierDirectory.fields.name')}</TableHeaderCell>
-                <TableHeaderCell>{t('supplierDirectory.fields.code')}</TableHeaderCell>
-                <TableHeaderCell>{t('supplierDirectory.fields.categories')}</TableHeaderCell>
-                <TableHeaderCell>{t('supplierDirectory.fields.offerings')}</TableHeaderCell>
-                <TableHeaderCell>{t('supplierDirectory.fields.location')}</TableHeaderCell>
-                <TableHeaderCell>{t('supplierDirectory.fields.state')}</TableHeaderCell>
-              </TableHead>
-              <TableBody>
-                {suppliers.map((s) => (
-                  <TableRow key={s.supplierCode}>
-                    <TableCell>{isArabic ? s.displayNameAr : s.displayNameEn}</TableCell>
-                    <TableCell>{s.supplierCode}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {s.categoryCodes.length === 0
-                          ? <span style={{ color: 'var(--color-text-secondary)' }}>{t('supplierDirectory.noCategories')}</span>
-                          : s.categoryCodes.map((code) => (
-                              <Badge key={code} tone="info">{categoryLabel(code)}</Badge>
-                            ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>{s.offeringCount}</TableCell>
-                    <TableCell>{s.city ?? '—'}</TableCell>
-                    <TableCell><StatusChip machine="onboarding" value={s.lifecycleState} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            {directoryQuery.hasNextPage ? (
-              <div className="mt-4">
-                <Button
-                  variant="secondary"
-                  onClick={() => directoryQuery.fetchNextPage()}
-                  disabled={directoryQuery.isFetchingNextPage}
-                >
-                  {t('supplierDirectory.loadMore')}
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </Card>
+      <ListCard
+        title={t('supplierDirectory.title')}
+        isPending={directoryQuery.isPending}
+        isError={directoryQuery.isError}
+        isEmpty={suppliers.length === 0}
+        loadingLabel={t('common.loading')}
+        errorText={t('supplierDirectory.error')}
+        emptyText={t('supplierDirectory.empty')}
+        hasNextPage={directoryQuery.hasNextPage}
+        isFetchingNextPage={directoryQuery.isFetchingNextPage}
+        onLoadMore={() => directoryQuery.fetchNextPage()}
+        loadMoreLabel={t('supplierDirectory.loadMore')}
+      >
+        <Table caption={t('supplierDirectory.title')}>
+          <TableHead>
+            <TableHeaderCell>{t('supplierDirectory.fields.name')}</TableHeaderCell>
+            <TableHeaderCell>{t('supplierDirectory.fields.code')}</TableHeaderCell>
+            <TableHeaderCell>{t('supplierDirectory.fields.categories')}</TableHeaderCell>
+            <TableHeaderCell>{t('supplierDirectory.fields.offerings')}</TableHeaderCell>
+            <TableHeaderCell>{t('supplierDirectory.fields.location')}</TableHeaderCell>
+            <TableHeaderCell>{t('supplierDirectory.fields.state')}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {suppliers.map((s) => (
+              <TableRow key={s.supplierCode}>
+                <TableCell>{isArabic ? s.displayNameAr : s.displayNameEn}</TableCell>
+                <TableCell>{s.supplierCode}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {s.categoryCodes.length === 0
+                      ? <span style={{ color: 'var(--color-text-secondary)' }}>{t('supplierDirectory.noCategories')}</span>
+                      : s.categoryCodes.map((code) => (
+                          <Badge key={code} tone="info">{categoryLabel(code)}</Badge>
+                        ))}
+                  </div>
+                </TableCell>
+                <TableCell>{s.offeringCount}</TableCell>
+                <TableCell>{s.city ?? '—'}</TableCell>
+                <TableCell><StatusChip machine="onboarding" value={s.lifecycleState} /></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ListCard>
     </div>
   )
 }
