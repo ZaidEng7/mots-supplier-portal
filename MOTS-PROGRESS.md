@@ -25,7 +25,7 @@
 | Screens: refused by decision | **5** — SCR-901, SCR-601, SCR-602, SCR-603, SCR-606 |
 | Screens: unresolved | **1** — SCR-501 |
 | Hand-written application code | **67,616 lines** production · **43,278** test · **161,324** generated |
-| Blocked on somebody else | **6 questions** (§7) — F-8's was answered as D-56 |
+| Blocked on somebody else | **1 question** (§7) — the approval threshold. Six answered 2026-09-08 as D-57–D-62 |
 | Merged PRs | #79 → #120 in this record; the current batch is #120 |
 | Walkthrough findings | **13 raised, 12 fixed, 1 answered** (`WALKTHROUGH-FINDINGS.md`) |
 
@@ -364,21 +364,29 @@ produced six defects.
 
 ## 7. Blocked on a person
 
+> **Six of these were answered on 2026-09-08** and are recorded as **D-57 to D-62** in
+> `DECISIONS-TAKEN.md`. The rows below are kept rather than deleted, each marked with what settled it,
+> because a question's history is what stops it being re-opened by the next sweep. **One remains
+> genuinely open** — the approval threshold — and **two of the six carry conditions** that must be met
+> before the work they unblock is built.
+
 Nothing here is an engineering task. Each is a value, a classification or a judgement that belongs to
 somebody who owns the policy, and each has been refused rather than invented.
 
 | # | Question | Who owns it | What it holds up |
 |---|---|---|---|
-| 1 | **What may the Ministry see?** Commercial figures, or aggregates only | MOT Legal | The Ministry dashboard shows no commercial values. BRULE-087 defaults to aggregate-only wherever visibility is undecided, so the product is correct either way — but SCR-601/602/603/606 stay refused until this is answered |
-| 2 | **Which document types are award-critical?** (BRULE-023) | Ministry — a procurement-risk judgement | The auto-suspend rule fires on nothing. The flag is settable on SCR-710 since #117 and all three seeded types are still `false`. "Was blocked from participating for a fortnight" is not undone by reactivation, which is why no default was invented |
-| 3 | **Is the required-document set category-dependent?** (BRULE-016) | Ministry | The join entity and admin surface ship; the behaviour is off. Switching it on changes what every already-approved supplier was required to have submitted |
-| 4 | **Which notifications may a user switch off, and does it differ by role?** (FR-NOT-004, D-48) | Ministry | SCR-901. The requirement is tagged `[REQUIRES BUSINESS CONFIRMATION]` and nothing classifies the 30+ notification types. Whether a supplier may mute the message telling them they have won is not a default anyone should pick |
+| 1 | ~~**What may the Ministry see?**~~ **Answered — D-57: commercial figures.** Conditional: needs written sign-off naming the scope before the four screens are built | MOT Legal | The Ministry dashboard shows no commercial values. BRULE-087 defaults to aggregate-only wherever visibility is undecided, so the product is correct either way — but SCR-601/602/603/606 stay refused until this is answered |
+| 2 | ~~**Which document types are award-critical?**~~ **Answered — D-58: commercial register and tax card.** Safe to switch on only because batch 13 built the renewal path | Ministry | The auto-suspend rule fires on nothing. The flag is settable on SCR-710 since #117 and all three seeded types are still `false`. "Was blocked from participating for a fortnight" is not undone by reactivation, which is why no default was invented |
+| 3 | ~~**Is the required-document set category-dependent?**~~ **Answered — D-59: yes, for everyone.** A one-way door: safe while suppliers are demo data, re-decide if it ships after real approvals | Ministry | The join entity and admin surface ship; the behaviour is off. Switching it on changes what every already-approved supplier was required to have submitted |
+| 4 | ~~**Which notifications may a user switch off?**~~ **Answered — D-60: informational only.** Invitations, clarifications, award outcomes and expiry are never muteable. The per-type classification of all 32 is the remaining work | Ministry | SCR-901. The requirement is tagged `[REQUIRES BUSINESS CONFIRMATION]` and nothing classifies the 30+ notification types. Whether a supplier may mute the message telling them they have won is not a default anyone should pick |
 | 5 | **What is the approval threshold?** (T-075) | Ministry / finance | EPIC-21's approval-hierarchy routing. The mechanism is cheap; the number is not ours |
-| 6 | **Is SCR-501 a separate brief, or is the criteria list the brief?** | Product / UX | One evaluation screen. `SCREEN-SPECIFICATIONS.md` names it once, as an entry point, and never specifies it |
-| 7 | **Arabic review** | A native Arabic reviewer | `ARABIC-REVIEW.md` holds every drafted string from batches 9–12, including batch 12's five validation-catalogue entries. All are marked `[drafted]` and none has been reviewed |
+| 6 | ~~**Is SCR-501 a separate brief?**~~ **Answered: yes** — a standalone screen carrying tender context, template instructions and every criterion's guidance | Product / UX | One evaluation screen. `SCREEN-SPECIFICATIONS.md` names it once, as an entry point, and never specifies it |
+| 7 | ~~**Arabic review**~~ **Answered — D-62: accepted.** 262 markers in `i18n/config.ts` and 118 in `ARABIC-REVIEW.md` come off in one pass | The reviewer who accepted it | `ARABIC-REVIEW.md` holds every drafted string from batches 9–12, including batch 12's five validation-catalogue entries. All are marked `[drafted]` and none has been reviewed |
 
-Plus **OQ-014** (the scope of AV scanning), which is answered *provisionally* by A-11's fail-closed
-default and does not block anything.
+**OQ-014 is closed** — D-61 confirms AV scanning as built, and A-11 moves from
+`[recommended — awaiting security]` to settled.
+
+**Still open: the approval threshold (T-075).** The mechanism is cheap and the number is not ours.
 
 **Answered since this list was written:** whether an addendum may carry the revised document, raised
 when a tender was published with the wrong file attached and no route existed to correct it. Ruled

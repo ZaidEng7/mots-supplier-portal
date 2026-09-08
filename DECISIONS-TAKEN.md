@@ -751,3 +751,93 @@ between D-42 and D-50 is deliberate and is what this paragraph is for.
 | **What it costs if wrong** | The build is small and mostly exists: an attachment collection on `Addendum`, reusing the upload, scan and download path tender attachments already use, plus the addendum's existing notification to every invitee. The hard part is not the code — it is deciding whether a superseded file stays downloadable, and it should, for exactly the reason above. |
 | **What was built instead** | The rule is now stated where the decision is made. The Attachments card on a Draft tender says that attachments cannot be added, replaced or removed once it leaves Draft, that an addendum cannot carry a file, and that correcting one afterwards means cancelling the tender. The rule was already true and entirely invisible: an officer attaching a file had no way to know they were making a permanent decision, which is how the wrong file reached a published tender in the first place. |
 | **Who should confirm it** | The ministry, if a buying body ever needs to reissue a specification mid-tender. Until then this is the safe default and the recoverable failure. |
+
+---
+
+## Part C — the six answers, 2026-09-08
+
+Six questions this file, `MOTS-PROGRESS.md` §7 and `COMPLETION-INVENTORY.md` §4 had all been carrying
+as open. Answered by the product owner on 2026-09-08 and transcribed here the same day, before any of
+them is built against — which is the whole point of the file and the lesson of Part B, where six
+rulings sat in commit messages until somebody had to reconstruct them.
+
+**Two of these are recorded as relayed, not as ratified.** D-57 widens what a supervising ministry may
+see in a live tender, and D-59 changes what every already-approved supplier was required to submit.
+Each says plainly below what still has to happen before it is safe to treat as settled.
+
+---
+
+### D-57 — The Ministry may see commercial figures `[relayed — needs written sign-off]`
+
+| | |
+|---|---|
+| **What was undecided** | OQ-001, and the oldest open question in the project. BRULE-086 grants the Ministry aggregate, cross-organization access; BRULE-087 defaults to aggregate-only wherever visibility is undecided. Four screens - SCR-601, 602, 603 and 606 - were refused under that default rather than built, and the Ministry dashboard shows counts and states with no bid values, no supplier names against values, and no drill-down. |
+| **What was decided** | The Ministry may see commercial figures. The four refused screens become buildable, and the aggregate-only default no longer applies to this persona. |
+| **Why** | Relayed as the owner's answer: a supervising ministry that cannot see what is being spent cannot supervise spending. Recorded as their reasoning rather than reconstructed as ours. |
+| **What it costs if wrong** | More than any other ruling in this file. Every other entry here can be reversed by changing a flag or a seed row; this one, once the screens exist and people have read them, cannot un-disclose what was disclosed. Commercial values in a live tender are the information a bidder's competitors would most like, and `ministry_viewer` is a role held by people outside the buying body. |
+| **What must happen before it is built** | **Written sign-off from someone senior enough to own a disclosure decision in a government tender.** Not a chat message and not this row: a name, a date, and the scope they are approving - whether it covers live tenders or only completed ones, and whether it includes per-bidder values or only awarded totals. The engineering is one permission and four screens; the accountability is the part that needs a signature. |
+| **Who should confirm it** | MOT Legal, and the Ministry official who will be answerable for it. |
+
+---
+
+### D-58 — Award-critical documents are the commercial register and the tax card
+
+| | |
+|---|---|
+| **What was undecided** | BRULE-023 suspends a supplier when an award-critical document expires. `DocumentType.IsAwardCritical` has existed since batch 9, no seeded type has ever set it, and §4.1 of `COMPLETION-INVENTORY.md` recorded the rule as one that "suspends nobody". Which types are award-critical is a procurement-risk judgement, and no default was invented. |
+| **What was decided** | Two: **commercial registration** and **tax certificate**. The chamber-of-commerce membership is not award-critical. |
+| **Why** | Both are the documents that make a company legally able to hold a contract at all - an expired commercial register means the entity is no longer registered to trade, and an expired tax card means it cannot be paid lawfully. Chamber membership is evidence of standing rather than of legal capacity, so its expiry is a compliance flag rather than a bar. |
+| **What it costs if wrong** | An over-broad list suspends suppliers who are still legally able to trade, and "was blocked from participating for a fortnight" is not undone by reactivation. An under-broad list awards a contract to a company that cannot lawfully hold it. Reversing either direction is one toggle on SCR-710 - the cost is in the tenders that ran meanwhile. |
+| **What this now makes live** | The auto-suspend fires for the first time. It must not ship without a test that an expired commercial register blocks a bid, because the rule has never once run against a real value. |
+| **Ordering note** | This could not safely have been switched on before 2026-09-08. Until batch 13, an approved supplier could not upload a replacement document and no reviewer could reopen them, so a suspended supplier had no route back except a database edit. The renewal path exists now; the flag is safe because of it. |
+| **Who should confirm it** | The Ministry. |
+
+---
+
+### D-59 — The required-document set is category-dependent, for everyone `[relayed — one-way door]`
+
+| | |
+|---|---|
+| **What was undecided** | BRULE-016, tagged `[REQUIRES BUSINESS CONFIRMATION]` since discovery. The join entity and the admin surface shipped in batch 11 with the behaviour deliberately off, because switching it on changes what every already-approved supplier was required to have submitted. |
+| **What was decided** | On, and applied to all suppliers rather than only to new registrations. |
+| **Why** | Relayed as the owner's answer: a catering supplier and a construction supplier should not be asked for the same paperwork, and a rule that applies only to new registrations leaves the registry permanently inconsistent about what approval meant. |
+| **What it costs if wrong, and why it is a one-way door** | **It is safe today only because every supplier in the system is demonstration data.** Applied to a live registry, it retroactively changes the basis on which existing suppliers were approved: a company approved under the flat set may become non-compliant overnight against a set nobody asked them for. That is not reversible by toggling the flag back - the approvals in between were made under a rule that was briefly different. **If this has not shipped before real suppliers are approved, it must be re-decided rather than assumed.** |
+| **Who should confirm it** | The Ministry, and again if the answer arrives after the first real supplier is approved. |
+
+---
+
+### D-60 — Notification preferences cover informational types only
+
+| | |
+|---|---|
+| **What was undecided** | FR-NOT-004 - "opt-out of non-critical only" - tagged `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`, with nothing in `BUSINESS-PROCESSES.md` classifying the 32 members of `NotificationTypes`. SCR-901 was refused on that basis as D-48/D-52, because partitioning a tender's notifications into muteable and not is a procurement-fairness judgement wearing the clothes of a preferences screen. |
+| **What was decided** | A user may opt out of **informational** notifications and not of **actionable** ones. Four families are never muteable: **invitations, clarification requests, award outcomes, and document expiry.** |
+| **Why** | Each of the four is a message whose non-arrival costs the recipient something they cannot recover: a tender they were invited to and did not bid on, a question they were asked and did not answer, an award they were given and did not accept in time, and a certificate that expired while they were not looking. An informational notification tells someone what happened; an actionable one tells them what they must do. |
+| **What it costs if wrong** | A type classified informational that should have been actionable produces exactly the failure above for whoever muted it. The classification is data rather than code, so a correction is a row - but it does not retroactively deliver the message somebody missed. |
+| **What remains** | The per-type classification of all 32 is the implementation task, and it is where this ruling can still go wrong. The four families above are the constraint it must satisfy, not the whole answer. |
+| **Who should confirm it** | The Ministry, on the finished classification rather than on this principle. |
+
+---
+
+### D-61 — OQ-014 closes: AV scanning as built is correct
+
+| | |
+|---|---|
+| **What was undecided** | OQ-014 - whether antivirus and content scanning of uploaded documents is mandatory before a reviewer can open them. A-11 recorded the built behaviour as `[recommended — awaiting security]`: everything scanned, fail-closed, pre-scanner rows `PendingScan` and scanned on first access, an infected file answering the same 404 as a missing one. |
+| **What was decided** | Confirmed. The behaviour stands as built, and OQ-014 is closed. |
+| **Why** | The confirmation is the decision: A-11 was a defensible default awaiting an owner, and now has one. Fail-closed remains the right posture - the scanner folding its own unavailability into "infected" is why a stopped `clamd` refuses uploads rather than storing unscanned files. |
+| **What it costs if wrong** | Nothing is unbuilt by this ruling; it removes an open question rather than authorising work. |
+| **Who should confirm it** | Confirmed by security. A-11 moves from `[recommended — awaiting security]` to settled. |
+
+---
+
+### D-62 — The Arabic is accepted
+
+| | |
+|---|---|
+| **What was undecided** | Every Arabic string written by this work carries a `[drafted]` marker, meaning: written to §7's style by someone who is not a native reviewer, and awaiting one. There are **262 markers in `i18n/config.ts`** and **118 in `ARABIC-REVIEW.md`**. |
+| **What was decided** | Accepted. The markers come off. |
+| **Why** | Relayed as the owner's answer after review of the drafted copy. |
+| **What it costs if wrong** | Wording in the product that a native speaker would not have chosen. Recoverable at any time, and cheaply - SCR-716 lets an administrator reword any string in the product without a release, which is the surface this ruling leans on. |
+| **How it should be done** | **One pass, not incrementally.** Removing markers file-by-file across two files and 380 sites is how half of them are missed, and a half-marked catalogue is worse than a fully-marked one: it stops meaning "awaiting review" and starts meaning nothing. |
+| **Who should confirm it** | The reviewer who accepted it, named in the commit that removes the markers. |

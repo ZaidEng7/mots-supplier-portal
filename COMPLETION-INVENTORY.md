@@ -511,6 +511,15 @@ client). Nothing could have noticed, because nothing fetched it.
 
 ## 4. Two live rules that silently do nothing
 
+> **Both were answered on 2026-09-08 and neither is switched on yet.** BRULE-023's award-critical types
+> are the commercial register and the tax card (**D-58**); BRULE-016 is on for everyone (**D-59**). The
+> analysis below stands as the record of why each was left off, and each becomes wrong the day the
+> corresponding flag is set - which is the work, not this file's job to pre-empt.
+>
+> **D-58 could not safely have been switched on before batch 13.** Until then an approved supplier
+> could not upload a replacement document and no reviewer could reopen them, so the auto-suspend this
+> ruling activates had no recovery path at all.
+
 Both are built. Both are tested. Neither has any effect, and neither is visible from any screen.
 Confirmed against the code below.
 
