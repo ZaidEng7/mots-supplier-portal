@@ -52,7 +52,12 @@ public static class ConcurrencyEndpoints
             http.Items[ExpectedVersionKey] = expected;
 
             return await next(context);
-        });
+        })
+        // Declared as metadata as well as behaviour, so the endpoint table itself can be asked which
+        // routes demand a precondition. A filter alone is invisible to anything that does not send a
+        // request, and five of batch 13's thirteen findings were writes whose precondition no read could
+        // supply - see IfMatchPreconditionSweepTests, which reads this marker.
+        .WithMetadata(RequiresIfMatchMetadata.Instance);
 
     /// <summary>Where the validated expected version is published for the persistence layer.</summary>
     public const string ExpectedVersionKey = "MotsSupplierPortal.ExpectedRowVersion";
@@ -84,7 +89,9 @@ public static class ConcurrencyEndpoints
             }
 
             return result;
-        });
+        })
+        // Marked so the sweep can tell which reads can actually hand a client its precondition.
+        .WithMetadata(EmitsETagMetadata.Instance);
 
     /// <summary>
     /// T-030 split (3): puts the NEW version on a mutation's own response.
@@ -110,7 +117,9 @@ public static class ConcurrencyEndpoints
             }
 
             return result;
-        });
+        })
+        // Same marker: a mutation's fresh ETag is a precondition source for the NEXT write on that path.
+        .WithMetadata(EmitsETagMetadata.Instance);
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> VersionProperties = new();
 
@@ -168,4 +177,33 @@ public static class ConcurrencyEndpoints
     {
         public Task ExecuteAsync(HttpContext httpContext) => ProblemResponse.WriteAsync(httpContext, Body);
     }
+}
+
+/// <summary>
+/// "This route refuses a write without If-Match." Present on every endpoint that calls
+/// <see cref="ConcurrencyEndpoints.RequireIfMatch"/>.
+///
+/// <para>It exists so the requirement is <b>enumerable</b>. §8.1's contract has two halves and they are
+/// declared in different places: a write demands a version, and some read has to have issued one for the
+/// path the client will write to. Batch 13 found five separate writes where the second half was missing,
+/// each with a different cause, and every one of them was invisible until somebody pressed the button -
+/// the endpoint compiled, the filter ran, and the only symptom was a 428 in a browser. A marker on the
+/// endpoint table turns "did anyone check?" into a test.</para>
+/// </summary>
+public sealed class RequiresIfMatchMetadata
+{
+    public static readonly RequiresIfMatchMetadata Instance = new();
+
+    private RequiresIfMatchMetadata() { }
+}
+
+/// <summary>
+/// "This route sends an ETag." Present on every endpoint that calls
+/// <see cref="ConcurrencyEndpoints.WithETag"/> or <see cref="ConcurrencyEndpoints.WithFreshETag"/>.
+/// </summary>
+public sealed class EmitsETagMetadata
+{
+    public static readonly EmitsETagMetadata Instance = new();
+
+    private EmitsETagMetadata() { }
 }

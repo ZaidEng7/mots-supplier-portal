@@ -97,8 +97,11 @@ public static class EvaluationTemplateEndpoints
         })
         // Added in batch 12. Every route below returns EvaluationTemplateDto, whose RowVersion carries the
         // comment "the version this read saw, emitted as the ETag and sent back as If-Match" - and nothing
-        // emitted it. Meanwhile activate, archive and fork all declare RequireIfMatch, and the list GET
-        // carries no ETag either, so a client could never obtain the version those three demand.
+        // emitted it. Meanwhile activate and archive declare RequireIfMatch, and the list GET carries no
+        // ETag either, so a client could never obtain the version those two demand. (Fork does not require
+        // one: it reads an existing template and writes a NEW one, so there is no version of the fork to
+        // assert. The comment said "activate, archive and fork" until phase 2's sweep enumerated the routes
+        // that actually carry the marker.)
         //
         // The effect was that activating a template through the interface was impossible: it answered 428
         // every time. Found by walking a tender from an empty database, where a template has to be created

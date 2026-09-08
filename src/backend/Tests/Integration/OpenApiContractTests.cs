@@ -175,6 +175,61 @@ public sealed class OpenApiContractTests(PostgresApiFixture fixture)
         return required;
     }
 
+    /// <summary>
+    /// Refreshes the committed baseline from the document this build produces, when asked to.
+    ///
+    /// <para><c>UPDATE_OPENAPI_BASELINE=1 dotnet test --filter OpenApiContractTests</c>, the same idiom
+    /// <c>PERMISSIONS.md</c> already uses for the generated permission catalogue. `contracts/README.md` used
+    /// to say "with the API running in Development, curl it" - true, and it meant refreshing the contract
+    /// needed a database, a port and a shell pipeline, so it was done rarely and the baseline drifted behind
+    /// additive changes. The fixture already has the database.</para>
+    ///
+    /// <para>Writes nothing unless the variable is set: a gate that quietly rewrites what it is comparing
+    /// against is not a gate.</para>
+    /// </summary>
+    [Fact]
+    public async Task The_baseline_can_be_refreshed_from_this_build()
+    {
+        if (Environment.GetEnvironmentVariable("UPDATE_OPENAPI_BASELINE") != "1") return;
+
+        var current = await CurrentDocumentAsync();
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+
+        // Sorted keys, matching contracts/README.md's own pipeline: without it the diff is a key-order
+        // shuffle and the gate reports noise, which is how a gate stops being read.
+        await File.WriteAllTextAsync(BaselinePath(), JsonSerializer.Serialize(Sorted(current), options) + "\n");
+    }
+
+    private static JsonNode? Sorted(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject o:
+            {
+                var sorted = new JsonObject();
+                foreach (var (key, value) in o.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+                {
+                    sorted[key] = Sorted(value?.DeepClone());
+                }
+                return sorted;
+            }
+
+            case JsonArray a:
+            {
+                var items = new JsonArray();
+                foreach (var item in a) items.Add(Sorted(item?.DeepClone()));
+                return items;
+            }
+
+            default:
+                return node?.DeepClone();
+        }
+    }
+
     [Fact]
     public async Task The_wire_contract_has_not_broken_against_the_committed_baseline()
     {
