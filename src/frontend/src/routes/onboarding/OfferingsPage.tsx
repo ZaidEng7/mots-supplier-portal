@@ -41,7 +41,7 @@ export function OfferingsPage() {
     mutationFn: ({ code, linked }: { code: string; linked: boolean }) => (linked ? unlinkCategory(code) : linkCategory(code)),
     onSuccess: (data) => {
       onProfile(data)
-      invalidateQuietly(queryClient, ['own-supplier'])
+      invalidateQuietly(queryClient, { queryKey: ['own-supplier'] })
     },
     onError: () => notify({ kind: 'danger', title: t('offerings.toggleFailed') }),
   })
