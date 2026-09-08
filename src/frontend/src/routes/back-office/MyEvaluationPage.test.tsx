@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest } from '../../test/renderPage'
 import type { MyEvaluation } from '../../api/evaluations'
 
 vi.mock('@tanstack/react-router', async () => {
@@ -105,6 +105,56 @@ describe('MyEvaluationPage', () => {
     await userEvent.click(saveButtons[1])
 
     expect(await screen.findByText('Score saved')).toBeInTheDocument()
+  })
+
+  it('BRULE-061: a criterion requiring justification cannot be saved until one is written', async () => {
+    // The defect this closes: the flag was on the wire since EPIC-07 and the scoring form sent
+    // commentAr/commentEn as null unconditionally, so scoring such a criterion answered a domain
+    // refusal the evaluator had no field to satisfy. The rule is enforced server-side either way -
+    // what is asserted here is that the screen states it before the score is thrown away.
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
+      '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture({
+        criteria: [
+          { id: 'crit-tech', nameAr: 'جودة', nameEn: 'Quality', dimension: 'Technical', weight: 100, maxScore: 100, threshold: 60, scoringType: 'Numeric', isFinancial: false, requiresJustification: true },
+        ],
+      }),
+    })
+
+    renderPage(<MyEvaluationPage />)
+
+    await userEvent.type(await screen.findByLabelText('Score: Quality'), '75')
+    expect(screen.getByRole('button', { name: 'Save score' })).toBeDisabled()
+    expect(screen.getByText('This criterion requires a justification before the score can be saved.')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByLabelText('Justification: Quality'), 'Met every stated requirement.')
+    expect(screen.getByRole('button', { name: 'Save score' })).toBeEnabled()
+  })
+
+  it('sends the justification in ONE language - the evaluator\'s own', async () => {
+    // BRULE-061 accepts either language and requires no translation, and this harness runs in English,
+    // so commentEn carries the text and commentAr stays null. Asserted on the REQUEST rather than on
+    // the screen: which field the words land in is the part a later refactor could silently change.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
+      '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture({
+        criteria: [
+          { id: 'crit-tech', nameAr: 'جودة', nameEn: 'Quality', dimension: 'Technical', weight: 100, maxScore: 100, threshold: 60, scoringType: 'Numeric', isFinancial: false, requiresJustification: true },
+        ],
+      }),
+    }, recorded)
+
+    renderPage(<MyEvaluationPage />)
+
+    await userEvent.type(await screen.findByLabelText('Score: Quality'), '75')
+    await userEvent.type(screen.getByLabelText('Justification: Quality'), 'Cheapest compliant bid.')
+    await userEvent.click(screen.getByRole('button', { name: 'Save score' }))
+
+    expect(await screen.findByText('Score saved')).toBeInTheDocument()
+    const scored = recorded.find((request) => request.method === 'POST' && request.url.includes('/scores'))
+    expect(scored).toBeDefined()
+    expect(JSON.parse(scored!.body)).toMatchObject({ commentEn: 'Cheapest compliant bid.', commentAr: null })
   })
 
   it('submitted: shows the already-submitted message instead of a submit button', async () => {

@@ -748,3 +748,20 @@ register itself; and «الإنفاق» for spend, the word a budget document us
 | `ministryAwards.title` | Awards & Spend | الترسيات والإنفاق | |
 | `ministryAwards.categoryNote` | An award counts once per category its tender touched, so this column can total more than the number of awards. | تُحتسب الترسية مرة واحدة لكل فئة يشملها الطلب، لذا قد يتجاوز مجموع العمود عدد الترسيات. | Says why the column does not add up, rather than letting a reader add it up and be wrong |
 | `ministryAwards.valuesWithheld` | Commercial values are currently withheld by disclosure policy; award counts are shown. | القيم المالية محجوبة حالياً بحسب سياسة الإفصاح؛ أعداد الترسيات معروضة. | Same «محجوبة» as above |
+
+### BRULE-061 · the justification field on the scoring form
+
+Five strings for the comment a criterion can require. «تبرير» is the word a procurement file uses for the
+reason behind a decision; «تعليق» would read as a remark rather than as evidence.
+
+| Key | English | Arabic (authored) | Note |
+|---|---|---|---|
+| `evaluation.my.justification` | Justification | التبرير | The field's accessible name, composed with the criterion's own name |
+| `evaluation.my.justificationRequired` | Justification required | التبرير مطلوب | Badge beside a criterion that carries the flag |
+| `evaluation.my.justificationPlaceholder` | Optional justification | تبرير اختياري | |
+| `evaluation.my.justificationPlaceholderRequired` | Say why you gave this score | اكتب تبريرك لهذه الدرجة | Imperative, addressed to the evaluator, as UX-WRITING §10 asks of an instruction |
+| `evaluation.my.justificationMissing` | This criterion requires a justification before the score can be saved. | هذا المعيار يتطلب تبريراً قبل حفظ الدرجة. | States the rule and its consequence in one line - what is blocked, and what unblocks it |
+
+Two keys were REMOVED in the same pass: `evaluation.my.commentAr` and `evaluation.my.commentEn`, which
+labelled a two-language comment pair no screen ever rendered. BRULE-061 takes either language and asks
+for no translation, so the pair was never the right shape.
