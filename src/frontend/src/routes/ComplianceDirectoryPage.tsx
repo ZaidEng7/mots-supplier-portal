@@ -100,7 +100,7 @@ export function ComplianceDirectoryPage() {
 
       <Card title={t('complianceDirectory.title')}>
         {directoryQuery.isPending ? (
-          <SkeletonTable rows={5} />
+          <SkeletonTable label={t('common.loading')} rows={5} />
         ) : directoryQuery.isError ? (
           <p style={{ color: 'var(--color-danger)' }}>{t('complianceDirectory.error')}</p>
         ) : suppliers.length === 0 ? (

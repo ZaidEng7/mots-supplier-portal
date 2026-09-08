@@ -40,7 +40,7 @@ export function NotificationPreferencesPage() {
     mutationFn: (mutedTypes: string[]) => setNotificationPreferences(mutedTypes),
     onSuccess: () => {
       setPending(null)
-      invalidateQuietly(queryClient, ['notification-preferences'])
+      invalidateQuietly(queryClient, { queryKey: ['notification-preferences'] })
       notify({ kind: 'success', title: t('notificationPreferences.saved') })
     },
     onError: () => notify({ kind: 'danger', title: t('notificationPreferences.saveFailed') }),

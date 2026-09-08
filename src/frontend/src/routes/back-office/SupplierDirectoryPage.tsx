@@ -109,7 +109,7 @@ export function SupplierDirectoryPage() {
 
       <Card title={t('supplierDirectory.title')}>
         {directoryQuery.isPending ? (
-          <SkeletonTable rows={5} />
+          <SkeletonTable label={t('common.loading')} rows={5} />
         ) : directoryQuery.isError ? (
           <p style={{ color: 'var(--color-danger)' }}>{t('supplierDirectory.error')}</p>
         ) : suppliers.length === 0 ? (

@@ -26,7 +26,7 @@ export function CategoryCoveragePage() {
 
   const query = useQuery({ queryKey: ['ministry-categories'], queryFn: getCategoryCoverage })
 
-  if (query.isPending) return <SkeletonTable rows={6} />
+  if (query.isPending) return <SkeletonTable label={t('common.loading')} rows={6} />
 
   if (query.isError || !query.data) {
     return (
