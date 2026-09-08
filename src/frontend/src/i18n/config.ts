@@ -777,6 +777,36 @@ const resources = {
           deactivateFailed: 'تعذر إلغاء تفعيل الخدمة',
         },
       },
+      // ── SCR-901 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      notificationPreferences: {
+        title: 'تفضيلات التنبيهات',                              // [drafted] SCR-901
+        subtitle: 'اختر التنبيهات الاختيارية التي تريد إيقافها.',   // [drafted]
+        optional: 'تنبيهات اختيارية',                            // [drafted]
+        optionalHint: 'إلغاء التحديد يوقف وصول هذا التنبيه إليك.',  // [drafted]
+        alwaysOn: 'تنبيهات لا يمكن إيقافها',                      // [drafted] D-60
+        alwaysOnHint: 'الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً.', // [drafted] names D-60's four families
+        save: 'حفظ',                                            // [reused]
+        saved: 'تم حفظ التفضيلات',                               // [drafted]
+        saveFailed: 'تعذّر حفظ التفضيلات',                        // [drafted]
+        loadFailed: 'تعذّر تحميل التفضيلات',                      // [drafted]
+        unsaved: 'تغييرات غير محفوظة',                           // [drafted]
+      },
+      // ── SCR-604 · ARABIC FOR REVIEW ─────────────────────────────────────────
+      categoryCoverage: {
+        title: 'تغطية الفئات',                                  // [drafted] SCR-604
+        subtitle: 'أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد.', // [drafted]
+        summary: 'الخلاصة',                                     // [drafted]
+        uncovered: '{{count}} من {{total}} فئة بلا مورد فعّال',    // [drafted] the headline figure
+        flatNote: 'قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً.', // [drafted] states the absence of a tree
+        noSupplier: 'بلا مورد',                                 // [drafted]
+        noAward: 'بلا ترسية',                                   // [drafted]
+        empty: 'لا توجد فئات مفعّلة',                            // [drafted]
+        loadFailed: 'تعذّر تحميل تغطية الفئات',                   // [drafted]
+        fields: {
+          category: 'الفئة', approved: 'موردون معتمدون', active: 'موردون فعّالون',
+          offerings: 'العروض', tenders: 'الطلبات', awarded: 'الطلبات المُرساة',
+        },
+      },
       // ── SCR-501 · ARABIC FOR REVIEW ─────────────────────────────────────────
       // The evaluator's brief. «كراسة» is the word a procurement file uses for the instruction
       // document itself, which is what this screen is - not «ملخص», which would read as a summary
@@ -2543,6 +2573,34 @@ const resources = {
           invalidCurrency: 'Unknown currency',
           saveFailed: 'Could not save the offering',
           deactivateFailed: 'Could not deactivate the offering',
+        },
+      },
+      notificationPreferences: {
+        title: 'Notification Preferences',
+        subtitle: 'Choose which optional notifications you want switched off.',
+        optional: 'Optional notifications',
+        optionalHint: 'Unticking one stops it reaching you.',
+        alwaysOn: 'Notifications that cannot be switched off',
+        alwaysOnHint: 'Invitations, clarification requests, award outcomes and document expiry are always sent.',
+        save: 'Save',
+        saved: 'Preferences saved',
+        saveFailed: 'Could not save your preferences',
+        loadFailed: 'Could not load your preferences',
+        unsaved: 'Unsaved changes',
+      },
+      categoryCoverage: {
+        title: 'Category Coverage',
+        subtitle: 'Suppliers and tenders per category, and the categories nobody serves.',
+        summary: 'Summary',
+        uncovered: '{{count}} of {{total}} categories have no active supplier',
+        flatNote: 'The category list is currently flat and carries no hierarchy.',
+        noSupplier: 'No supplier',
+        noAward: 'No award',
+        empty: 'No active categories',
+        loadFailed: 'Could not load category coverage',
+        fields: {
+          category: 'Category', approved: 'Approved suppliers', active: 'Active suppliers',
+          offerings: 'Offerings', tenders: 'Tenders', awarded: 'Awarded',
         },
       },
       evaluationBrief: {

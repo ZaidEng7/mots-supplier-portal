@@ -23,5 +23,16 @@ public static class GovernanceEndpoints
         .RequirePermission(Permissions.GovernanceRead)
         .WithTags("Ministry")
         .WithName("GetGovernanceOverview");
+
+        // SCR-604: category and sector coverage. Squarely inside BRULE-086's aggregate grant - every figure
+        // is a count, so this is one of the two Ministry screens that were never refused under BRULE-087 and
+        // were absent anyway (T-100). It does not touch the commercial-visibility question D-57 is waiting on
+        // a signature for, because no figure here is commercial.
+        app.MapGet("/api/v1/ministry/categories", async (
+            IGetCategoryCoverageHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(ct)))
+        .RequirePermission(Permissions.GovernanceRead)
+        .WithTags("Ministry")
+        .WithName("GetCategoryCoverage");
     }
 }

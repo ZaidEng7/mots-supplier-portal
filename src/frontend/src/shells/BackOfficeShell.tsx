@@ -136,6 +136,13 @@ export function BackOfficeShell({ children }: Props) {
                 {t('ministry.title')}
               </Link>
             ) : null}
+            {/* SCR-604. The second of the Ministry's two non-refused screens, and the one that answers a
+                question the overview cannot: which categories has nobody registered for. */}
+            {canViewGovernance ? (
+              <Link to="/back-office/ministry/categories" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+                {t('categoryCoverage.title')}
+              </Link>
+            ) : null}
             {canManageStaff ? (
               <Link to="/back-office/notification-templates" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
                 {t('notificationTemplates.title')}
@@ -195,6 +202,11 @@ export function BackOfficeShell({ children }: Props) {
             {/* SCR-902: every back-office persona's own account, password, MFA and sessions. */}
             <Link to="/back-office/account" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
               {t('nav.account')}
+            </Link>
+            {/* SCR-901. Beside the account link because that is where a user goes looking for "what does this
+                system send me", and the answer includes the four families they cannot switch off. */}
+            <Link to="/back-office/account/notifications" className="text-[length:var(--text-body-sm)]" style={{ color: '#F4F1EC' }}>
+              {t('notificationPreferences.title')}
             </Link>
             {/* Gated on supplier.review, which it always should have been. An evaluator holds
                 evaluation.score, evaluation.submit and rfq.clarify and nothing else, and this link was offered

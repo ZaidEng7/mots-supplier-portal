@@ -1307,6 +1307,24 @@
         ],
         "type": "object"
       },
+      "SetNotificationPreferencesRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "mutedTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "mutedTypes"
+        ],
+        "type": "object"
+      },
       "SubmitForReviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3362,6 +3380,19 @@
         ]
       }
     },
+    "/api/v1/ministry/categories": {
+      "get": {
+        "operationId": "GetCategoryCoverage",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Ministry"
+        ]
+      }
+    },
     "/api/v1/ministry/overview": {
       "get": {
         "operationId": "GetGovernanceOverview",
@@ -3428,6 +3459,40 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/preferences": {
+      "get": {
+        "operationId": "GetNotificationPreferences",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "put": {
+        "operationId": "SetNotificationPreferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNotificationPreferencesRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"

@@ -680,3 +680,25 @@ word twice. A «دليل» is something you look a supplier up in; a «سجل» 
 a later duplicate key wins in a JavaScript object literal, the Arabic UI would have rendered English for all
 three screens while every test passed — the English lookups were resolving through the fallback. Moved into
 the `en` resource before commit; worth recording because the failure mode is silent in both directions.
+
+### Phase 3 · SCR-604 and SCR-901
+
+| Key | English | Arabic (drafted) | Note |
+|---|---|---|---|
+| `categoryCoverage.title` | Category Coverage | تغطية الفئات | [drafted] SCR-604 |
+| `categoryCoverage.subtitle` | Suppliers and tenders per category, and the categories nobody serves. | أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد. | [drafted] the second clause is what the screen is for |
+| `categoryCoverage.uncovered` | {{count}} of {{total}} categories have no active supplier | {{count}} من {{total}} فئة بلا مورد فعّال | [drafted] the headline figure |
+| `categoryCoverage.flatNote` | The category list is currently flat and carries no hierarchy. | قائمة الفئات مسطّحة حالياً ولا تتضمّن تصنيفاً هرمياً. | [drafted] **states an absence deliberately** — SCR-604's row says "tree" and MSP-54's list is flat |
+| `categoryCoverage.noSupplier` / `noAward` | No supplier / No award | بلا مورد / بلا ترسية | [drafted] |
+| `categoryCoverage.fields.*` | Category / Approved suppliers / Active suppliers / Offerings / Tenders / Awarded | الفئة / موردون معتمدون / موردون فعّالون / العروض / الطلبات / الطلبات المُرساة | [drafted] «معتمدون» vs «فعّالون» is the approved-versus-can-trade distinction the two columns exist for |
+| `notificationPreferences.title` | Notification Preferences | تفضيلات التنبيهات | [drafted] SCR-901 |
+| `notificationPreferences.subtitle` | Choose which optional notifications you want switched off. | اختر التنبيهات الاختيارية التي تريد إيقافها. | [drafted] |
+| `notificationPreferences.optional` / `optionalHint` | Optional notifications / Unticking one stops it reaching you. | تنبيهات اختيارية / إلغاء التحديد يوقف وصول هذا التنبيه إليك. | [drafted] |
+| `notificationPreferences.alwaysOn` | Notifications that cannot be switched off | تنبيهات لا يمكن إيقافها | [drafted] D-60 |
+| `notificationPreferences.alwaysOnHint` | Invitations, clarification requests, award outcomes and document expiry are always sent. | الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً. | [drafted] **names D-60's four families verbatim** — this line is the ruling as a user reads it |
+| `notificationPreferences.saved` / `saveFailed` / `loadFailed` / `unsaved` | Preferences saved / Could not save your preferences / Could not load your preferences / Unsaved changes | تم حفظ التفضيلات / تعذّر حفظ التفضيلات / تعذّر تحميل التفضيلات / تغييرات غير محفوظة | [drafted] same «تعذّر» register as the other failures |
+
+**No Arabic was drafted for the 32 notification names,** and that is deliberate: SCR-901 renders each type's
+own title from the notification copy catalogue — including an administrator's SCR-717 rewording — rather than
+a second set of 32 labels in `i18n/config.ts`. The words a user recognises are the words they were sent, and a
+second copy would drift from the first the day somebody reworded a template.

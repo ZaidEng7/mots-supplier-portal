@@ -13,6 +13,9 @@ import { EmailTemplatesPage } from './routes/admin/EmailTemplatesPage'
 import { SearchPage } from './routes/SearchPage'
 import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
 import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
+// SCR-604, eager like the overview it sits beside: both are small, and ministry_viewer's whole product is
+// these two screens.
+import { CategoryCoveragePage } from './routes/ministry/CategoryCoveragePage'
 import { ReportsPage } from './routes/back-office/ReportsPage'
 import { lazy, Suspense } from 'react'
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
@@ -49,6 +52,8 @@ const OfferingsPage = lazy(() => import('./routes/onboarding/OfferingsPage').the
 const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: m.TeamPage })))
 const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').then((m) => ({ default: m.OfferingCatalogPage })))
 const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+// SCR-901.
+const NotificationPreferencesPage = lazy(() => import('./routes/NotificationPreferencesPage').then((m) => ({ default: m.NotificationPreferencesPage })))
 const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const EvaluationDashboardPage = lazy(() => import('./routes/EvaluationDashboardPage').then((m) => ({ default: m.EvaluationDashboardPage })))
 const ProcurementDashboardPage = lazy(() => import('./routes/back-office/ProcurementDashboardPage').then((m) => ({ default: m.ProcurementDashboardPage })))
@@ -399,6 +404,13 @@ const ministryOverviewRoute = createRoute({
   component: MinistryOverviewPage,
 })
 
+// SCR-604, under the same layout as the overview it belongs beside.
+const categoryCoverageRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/ministry/categories',
+  component: CategoryCoveragePage,
+})
+
 // SCR-700, `/back-office/admin`, system_admin, P1 (FR-DSH-006). The specification writes SCR-700's
 // path as `/admin`; this app keeps every staff screen under `/back-office`, so the prefix disagreement
 // is the same one already reported for SCR-400/500 and reports - noted, not silently resolved.
@@ -482,6 +494,21 @@ const settingsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/settings',
   component: SettingsPage,
+})
+
+// SCR-901, under BOTH shells. The inventory lists it for "all authenticated", and a supplier reads it for the
+// same reason staff do - they receive invitations and award offers, and this is the screen that says which of
+// those they cannot switch off.
+const notificationPreferencesRoute = createRoute({
+  getParentRoute: () => supplierLayoutRoute,
+  path: '/settings/notifications',
+  component: NotificationPreferencesPage,
+})
+
+const backOfficeNotificationPreferencesRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/account/notifications',
+  component: NotificationPreferencesPage,
 })
 
 // SCR-902 is "all authenticated", and until now the settings screen existed only under the supplier
@@ -689,7 +716,7 @@ const routeTree = rootRoute.addChildren([
   acceptTeamInviteRoute,
   acceptStaffInviteRoute,
   evaluatorLayoutRoute.addChildren([evaluationDashboardRoute]),
-  supplierLayoutRoute.addChildren([profileRoute, documentsRoute, myProposalsRoute, helpRoute, 
+  supplierLayoutRoute.addChildren([profileRoute, notificationPreferencesRoute, documentsRoute, myProposalsRoute, helpRoute, 
     supplierDashboardRoute,
     onboardingRoute,
     onboardingContactsRoute,
@@ -704,7 +731,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })
