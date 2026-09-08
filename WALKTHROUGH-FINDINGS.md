@@ -1,9 +1,9 @@
 # Findings from the manual walkthrough — 2026-09-07
 
-> **Twelve of thirteen are fixed** as of 2026-09-08, each with a regression test proved load-bearing by
-> reverting the fix. What remains is **F-8** alone - a published tender's attachments - which is a
-> rule question before it is a build: whether an addendum may carry the revised document is a
-> procurement decision, not an engineering one.
+> **All thirteen are closed** as of 2026-09-08, each with a regression test proved load-bearing by
+> reverting the fix. Twelve were defects and are fixed; **F-8 was a question and is answered** - see
+> D-56 in `DECISIONS-TAKEN.md`, which rules that an addendum announces a change without carrying a
+> document, and records what was built instead.
 
 Found by a person driving the product from an empty database, one act at a time, on `main` at
 `ba2dde2`. Every entry names what was clicked, what the API log said, and whether it is fixed here or
@@ -140,7 +140,14 @@ children having none. Whoever builds one should build both, and the API side is 
 be in the same state.
 
 ### F-8 — A published tender's attachments cannot be corrected by any route
-**Open.** Sized **M**, and this one is a rule question before it is a build.
+**Answered, and the answer is no** — see D-56. An addendum announces a change and does not carry a
+document; a published tender's attachments stay locked, and the remedy for a wrong one is to cancel
+the tender and author it again. Bidders price against what they downloaded, and that lock is what
+stops a file being swapped underneath them.
+
+**What was built is the warning.** The rule was true and invisible: an officer attaching a file had
+no way to know they were making a permanent decision, which is how the wrong file reached a published
+tender during the walk. The Attachments card on a Draft tender now says so.
 
 The wrong file was attached to a tender during the walk — a supplier registration certificate where
 the specification should have been. By the time it was noticed the tender was `SubmissionOpen`, and

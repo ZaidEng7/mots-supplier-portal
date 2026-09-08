@@ -805,6 +805,23 @@ export function RfqDetailPage() {
       </Card>
 
       <Card title={t('rfq.attachments.title')}>
+        {/*
+          * F-8, and the warning is the whole fix.
+          *
+          * Attachments are Draft-only by design: bidders price against what they downloaded, and a
+          * file swapped underneath them is what that lock prevents. The ruling (D-56) is that an
+          * addendum announces a change and does not carry a document, so there is NO route to correct
+          * a published tender's attachments - the tender has to be cancelled and authored again.
+          *
+          * That is defensible and it is invisible. An officer attaching the wrong file has no way to
+          * know, at the moment they attach it, that they are making a permanent decision. Saying so
+          * here is what turns a trap into a rule.
+          */}
+        {isDraft ? (
+          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('rfq.attachments.permanentWarning')}
+          </p>
+        ) : null}
         {rfq.attachments.length > 0 ? (
           <ul className="flex flex-col gap-2">
             {rfq.attachments.map((attachment) => (

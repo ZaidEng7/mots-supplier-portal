@@ -128,6 +128,18 @@ describe('RfqDetailPage', () => {
     expect(JSON.parse(String(write!.body)).submissionOpensAt).toContain('2026-10-01')
   })
 
+  it('Draft: says that attachments become permanent, because there is no route back', async () => {
+    // F-8/D-56: attachments are Draft-only by design and an addendum carries no file, so a published
+    // tender with the wrong document attached can only be corrected by cancelling it. That is a
+    // defensible rule and an invisible one - an officer attaching the wrong file has no way to know
+    // they are making a permanent decision. The warning is the fix.
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText(/attachments cannot be added, replaced or removed/i)).toBeInTheDocument()
+  })
+
   it('Published: an existing item is shown but item-edit controls are gone (state-gated editing)', async () => {
     restore = mockFetch({
       ...REFERENCE_ROUTES,

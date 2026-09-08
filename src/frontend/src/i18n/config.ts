@@ -868,6 +868,7 @@ const resources = {
         actions: 'إجراءات',
         noItems: 'لا توجد بنود بعد',
         attachments: {
+          permanentWarning: 'تحقق من الملفات قبل إرسال المناقصة للمراجعة: لا يمكن إضافة المرفقات أو استبدالها أو حذفها بعد مغادرة حالة المسودة، ولا يحمل الملحق ملفاً. التصحيح بعد ذلك يتطلب إلغاء المناقصة وإعادة إنشائها.',   // [drafted]
           title: 'مرفقات الطلب',                            // [§7-style drafted]
           none: 'لا توجد مرفقات',                           // [reused] §4's empty-state pattern
           add: 'إضافة مرفق',                                // [§7-style drafted]
@@ -2568,6 +2569,7 @@ const resources = {
         actions: 'Actions',
         noItems: 'No items yet',
         attachments: {
+          permanentWarning: 'Check these files before sending the tender for review: attachments cannot be added, replaced or removed once it leaves Draft, and an addendum cannot carry a file. Correcting one after that means cancelling the tender and authoring it again.',
           title: 'RFQ attachments',
           none: 'No attachments',
           add: 'Add an attachment',
