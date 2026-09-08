@@ -1,5 +1,9 @@
 # Findings from the manual walkthrough — 2026-09-07
 
+> **Nine of thirteen are fixed** as of 2026-09-08, each with a regression test proved load-bearing by
+> reverting the fix. What remains: **F-6** (a reviewer cannot reopen an application they decided) and
+> **F-8** (a published tender's attachments, which is a rule question before a build).
+
 Found by a person driving the product from an empty database, one act at a time, on `main` at
 `ba2dde2`. Every entry names what was clicked, what the API log said, and whether it is fixed here or
 left for later. Nothing in this file is inferred: each was reproduced on screen first.
@@ -52,7 +56,10 @@ its data. Logged here rather than smuggled into a transport fix.
 ## Left for later
 
 ### F-4 — There is no way to edit a Draft tender through the interface
-**Open.** Sized **S**, and the highest value of the three open items.
+**Fixed** — the tender detail screen now has a Tender details editor, Draft only, calling the `PUT`
+and the client function that already existed. The submission window is a `datetime-local` pair
+converted through local wall time rather than a sliced ISO string, because slicing puts UTC into a
+control the browser reads as local and shifts every deadline by the offset, silently.
 
 An officer created a tender with the submission window opening five minutes in the *past* — the
 easiest mistake to make on that form, since both dates are typed by hand. `Draft` is documented as
@@ -76,7 +83,8 @@ with it would say how many more of these exist; right now nobody knows, and that
 interesting part.
 
 ### F-5 — Sign-in sends the wrong personas to the wrong shell
-**Open.** Sized **S**.
+**Fixed** — the evaluator check now asks whether the account is ONLY an evaluator, and the supplier
+shell refuses a non-supplier exactly as the back-office shell has always refused suppliers.
 
 Two symptoms, one cause each, both seen during the walk:
 
@@ -102,7 +110,11 @@ Not the same as the batch-12 class: the screen is linked, it is the *list* that 
 router guard would not catch it, and did not.
 
 ### F-7 — Nothing on a tender can be corrected, only removed and re-added
-**Open.** Sized **S**, and it is F-4's sibling rather than a separate idea.
+**Fixed for items and requirements** — `UpdateItem` and `UpdateRequirement` on the aggregate, `PUT`
+routes beside the existing add and delete, and an inline row editor on the screen. The line number is
+deliberately untouched by a correction, so the tender does not reorder underneath whoever is reading
+it. **Attachments are still add-or-delete**, and for a published tender that is F-8, which is a rule
+question rather than a build.
 
 Every editable collection on the tender detail screen offers **Remove** and nothing else. Items,
 requirements and attachments are all add-or-delete: a line item with the wrong quantity, a
@@ -150,7 +162,7 @@ is yes, the build is small: an attachment collection on `Addendum`, reusing the 
 scan path.
 
 ### F-9 — Closing a tender early records a canned reason instead of the officer's
-**Open.** Sized **S**. One field, and both the endpoint and the aggregate already take the value.
+**Fixed** — the officer is asked, and what they type is what the audit trail records.
 
 `Rfq.CloseSubmissionWindow` refuses an early close without a reason — the rule exists because
 closing bidding before the advertised deadline is a decision bidders can challenge, and the answer
@@ -169,7 +181,10 @@ Same family as F-7 in miniature: a control that supplies an input the domain dem
 asking the person who has the answer.
 
 ### F-10 — The admin is offered procurement screens that cannot load for them
-**Open.** Sized **S** to build, but it is a decision first.
+**Fixed by hiding**, which is the reversible half: the procurement links now require an organization as
+well as the permission, matching how `ministry_viewer` is already treated. Whether an administrator
+SHOULD read across every organization's live procurements is still the open policy question, and it is
+BRULE-086's question rather than a nav gate's.
 
 `system_admin` opens the Procurement dashboard from their own navigation and gets "Couldn't load the
 dashboard — Try again". Reproduced against the API:
@@ -197,7 +212,10 @@ is not a transient failure, and nothing about the screen says so. Same class as 
 describes the wrong thing to the person reading it.
 
 ### F-11 — Adding a contact answers 428, on a page whose other writes work
-**Open.** Sized **M** — the cause is not yet pinned, and that is the honest state of it.
+**Fixed, and it was never an ETag problem.** Sending a valid `If-Match` by hand revealed the answer
+underneath: `409 Cannot edit profile from state 'Approved'`. The 428 was the first gate, not the
+cause. This is F-13, and the fix is the same one - see there. Neither candidate mechanism written
+below was right, which is why they were written as candidates.
 
 On `/onboarding/contacts`, **Add contact** answers 428: "This resource requires the ETag of the
 version you are editing, sent as If-Match". Representatives on the same screen had saved fine.
@@ -225,7 +243,8 @@ properly rather than fixing the symptom: this is the fifth 428 of the day, and t
 each had a different cause.
 
 ### F-12 — The offering dialog grows past the screen and takes its buttons with it
-**Open.** Sized **S**.
+**Fixed in the shared Dialog** rather than on that page: capped height, the body scrolls, the title and
+close button stay put. Any dialog with a repeater in it had the same shape.
 
 Add four or five rows to **Additional attributes** on an offering and the dialog outgrows the
 viewport. There is no internal scroll, so the fields keep pushing downward and Save and Cancel go off
@@ -238,7 +257,11 @@ with the action row pinned. It is worth checking every other dialog with a repea
 time rather than fixing this one: the same shape is likely wherever "add another row" exists.
 
 ### F-13 — An approved supplier cannot renew an expiring document, and nobody can reopen them
-**Open.** Sized **M**. The most consequential finding of the walk, and a policy question sits inside it.
+**Fixed**, with the classification decided by the product owner: contact-shaped data is maintainable
+while live, legal identity and bank details keep the re-review behaviour they already had through
+`EnsureEditableForComplianceField`, and a document renewal rides the document lifecycle. The policy
+question inside it - whether approving a renewal auto-reinstates a supplier the expiry suspended - is
+still open and still nobody's to answer here.
 
 Reproduced on the supplier's own Documents screen, with two documents showing **Expiring soon**:
 setting a new expiry date and choosing a file answers

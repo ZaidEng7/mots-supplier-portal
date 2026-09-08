@@ -156,11 +156,21 @@ public sealed record AddRfqItemCommand(
 
 public sealed record RemoveRfqItemCommand(string ReferenceCode, Guid ItemId);
 
+/// <summary>Corrects a line already on the tender. Same shape as the add, plus the line's id - a
+/// correction is the same values in a different state, not a different operation.</summary>
+public sealed record UpdateRfqItemCommand(
+    string ReferenceCode, Guid ItemId, string TitleAr, string TitleEn, string? SpecificationAr, string? SpecificationEn,
+    string CategoryCode, decimal Quantity, string UnitOfMeasureCode, bool IsUnitPrice, bool IsOptional);
+
 public sealed record AddRequirementCommand(
     string ReferenceCode, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
     MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed record RemoveRequirementCommand(string ReferenceCode, Guid RequirementId);
+
+public sealed record UpdateRequirementCommand(
+    string ReferenceCode, Guid RequirementId, string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
+    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed record AddRfqAttachmentCommand(string ReferenceCode, string StorageKey, string OriginalFileName, string ContentType, string? Caption);
 
@@ -315,12 +325,14 @@ public interface IChangeSubmissionDeadlineHandler
 public interface IManageRfqItemHandler
 {
     Task<RfqMutationResult> AddAsync(AddRfqItemCommand command, CancellationToken ct);
+    Task<RfqMutationResult> UpdateAsync(UpdateRfqItemCommand command, CancellationToken ct);
     Task<RfqMutationResult> RemoveAsync(RemoveRfqItemCommand command, CancellationToken ct);
 }
 
 public interface IManageRequirementHandler
 {
     Task<RfqMutationResult> AddAsync(AddRequirementCommand command, CancellationToken ct);
+    Task<RfqMutationResult> UpdateAsync(UpdateRequirementCommand command, CancellationToken ct);
     Task<RfqMutationResult> RemoveAsync(RemoveRequirementCommand command, CancellationToken ct);
 }
 

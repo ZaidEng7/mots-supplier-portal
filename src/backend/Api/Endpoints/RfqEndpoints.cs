@@ -388,6 +388,30 @@ public static class RfqEndpoints
         .WithFreshETag()
         .WithName("AddRfqItem");
 
+        // PUT rather than a second POST: correcting a line is the same line with better values, and
+        // the aggregate had Add and Remove with nothing between them - so a mistyped quantity could
+        // only be fixed by deleting the line, which renumbers every line after it.
+        group.MapPut("/{referenceCode}/items/{itemId:guid}", async (
+            string referenceCode,
+            Guid itemId,
+            RfqItemRequest request,
+            IValidator<RfqItemRequest> validator,
+            IManageRfqItemHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            var result = await handler.UpdateAsync(new UpdateRfqItemCommand(
+                referenceCode, itemId, request.TitleAr, request.TitleEn, request.SpecificationAr, request.SpecificationEn,
+                request.CategoryCode, request.Quantity, request.UnitOfMeasureCode, request.IsUnitPrice, request.IsOptional), ct);
+            return MapMutation(result);
+        })
+        .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
+        .WithName("UpdateRfqItem");
+
         group.MapDelete("/{referenceCode}/items/{itemId:guid}", async (
             string referenceCode, Guid itemId, IManageRfqItemHandler handler, CancellationToken ct) =>
             MapMutation(await handler.RemoveAsync(new RemoveRfqItemCommand(referenceCode, itemId), ct)))
@@ -414,6 +438,27 @@ public static class RfqEndpoints
         .RequireIfMatch()
         .WithFreshETag()
         .WithName("AddRequirement");
+
+        group.MapPut("/{referenceCode}/requirements/{requirementId:guid}", async (
+            string referenceCode,
+            Guid requirementId,
+            RequirementRequest request,
+            IValidator<RequirementRequest> validator,
+            IManageRequirementHandler handler,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(request, ct);
+            if (!validation.IsValid) return ValidationProblems.From(validation);
+
+            var result = await handler.UpdateAsync(new UpdateRequirementCommand(
+                referenceCode, requirementId, request.TextAr, request.TextEn, request.IsMandatory,
+                request.DocumentTypeCode, request.ExpectedEnvelope), ct);
+            return MapMutation(result);
+        })
+        .RequirePermission(Permissions.RfqEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
+        .WithName("UpdateRequirement");
 
         group.MapDelete("/{referenceCode}/requirements/{requirementId:guid}", async (
             string referenceCode, Guid requirementId, IManageRequirementHandler handler, CancellationToken ct) =>

@@ -821,6 +821,16 @@ const resources = {
         cancel: 'إلغاء',
         created: 'تم إنشاء الطلب',
         itemAdded: 'تمت إضافة البند',
+        itemUpdated: 'تم تعديل البند',                          // [drafted]
+        requirementUpdated: 'تم تعديل المتطلب',                 // [drafted]
+        edit: 'تعديل',                                          // [drafted]
+        cancelEdit: 'إلغاء',                                    // [drafted]
+        detailsSaved: 'تم حفظ بيانات المناقصة',                 // [drafted]
+        details: {
+          title: 'بيانات المناقصة',                             // [drafted]
+          help: 'العنوان والعملة ونافذة تقديم العروض. قابلة للتعديل ما دامت المناقصة مسودة.',   // [drafted]
+          edit: 'تعديل البيانات',                               // [drafted]
+        },
         requirementAdded: 'تمت إضافة المتطلب',
         templateBound: 'تم ربط قالب التقييم',
         submitted: 'تم إرسال الطلب للمراجعة',
@@ -2512,6 +2522,16 @@ const resources = {
         cancel: 'Cancel',
         created: 'RFQ created',
         itemAdded: 'Item added',
+        itemUpdated: 'Item updated',
+        requirementUpdated: 'Requirement updated',
+        edit: 'Edit',
+        cancelEdit: 'Cancel',
+        detailsSaved: 'Tender details saved',
+        details: {
+          title: 'Tender details',
+          help: 'Title, currency and the submission window. Editable while the tender is a draft.',
+          edit: 'Edit details',
+        },
         requirementAdded: 'Requirement added',
         templateBound: 'Evaluation template bound',
         submitted: 'RFQ submitted for review',

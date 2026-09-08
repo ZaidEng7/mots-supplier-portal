@@ -250,6 +250,38 @@ public sealed class Rfq : IVersionedAggregate
         return item;
     }
 
+    /// <summary>
+    /// Corrects a line already on the tender, in Draft, without changing its line number.
+    ///
+    /// <para><b>Why this exists.</b> The aggregate had Add and Remove and nothing between them, so a
+    /// mistyped quantity could only be fixed by deleting the line and typing it again - and deleting
+    /// renumbers everything after it. An officer who meant to add one line and added three had no way
+    /// to correct any of them.</para>
+    ///
+    /// <para>LineNo is deliberately untouched: this is the same line with better values, and a
+    /// correction that reorders the tender would move every reference to "item 2" underneath the
+    /// person reading it.</para>
+    /// </summary>
+    public void UpdateItem(Guid itemId, string titleAr, string titleEn, string? specificationAr, string? specificationEn,
+        string categoryCode, decimal quantity, string unitOfMeasureCode, bool isUnitPrice, bool isOptional)
+    {
+        EnsureDraftEditable();
+        if (string.IsNullOrWhiteSpace(titleAr)) throw new DomainException("Item title (Arabic) is required.");
+        if (string.IsNullOrWhiteSpace(titleEn)) throw new DomainException("Item title (English) is required.");
+        if (quantity <= 0) throw new DomainException("Item quantity must be positive.");
+
+        var item = _items.FirstOrDefault(i => i.Id == itemId) ?? throw new DomainException("RFQ item not found.");
+        item.TitleAr = titleAr;
+        item.TitleEn = titleEn;
+        item.SpecificationAr = specificationAr;
+        item.SpecificationEn = specificationEn;
+        item.CategoryCode = categoryCode;
+        item.Quantity = quantity;
+        item.UnitOfMeasureCode = unitOfMeasureCode;
+        item.IsUnitPrice = isUnitPrice;
+        item.IsOptional = isOptional;
+    }
+
     public void RemoveItem(Guid itemId)
     {
         EnsureDraftEditable();
@@ -289,6 +321,29 @@ public sealed class Rfq : IVersionedAggregate
         };
         _requirements.Add(requirement);
         return requirement;
+    }
+
+    /// <summary>Corrects a requirement already on the tender, in Draft. Same reasoning as
+    /// <see cref="UpdateItem"/>: the aggregate had Add and Remove and nothing between them, so a typo
+    /// in the text a bidder answers could only be fixed by deleting the requirement.</summary>
+    public void UpdateRequirement(Guid requirementId, string textAr, string textEn, bool isMandatory,
+        string? documentTypeCode, ProposalDocumentEnvelope? expectedEnvelope = null)
+    {
+        EnsureDraftEditable();
+        if (string.IsNullOrWhiteSpace(textAr)) throw new DomainException("Requirement text (Arabic) is required.");
+        if (string.IsNullOrWhiteSpace(textEn)) throw new DomainException("Requirement text (English) is required.");
+        if (expectedEnvelope is not null && string.IsNullOrWhiteSpace(documentTypeCode))
+        {
+            throw new DomainException("An expected envelope only applies to a requirement that asks for a document.");
+        }
+
+        var requirement = _requirements.FirstOrDefault(r => r.Id == requirementId)
+            ?? throw new DomainException("Requirement not found.");
+        requirement.TextAr = textAr;
+        requirement.TextEn = textEn;
+        requirement.IsMandatory = isMandatory;
+        requirement.DocumentTypeCode = documentTypeCode;
+        requirement.ExpectedEnvelope = expectedEnvelope;
     }
 
     public void RemoveRequirement(Guid requirementId)

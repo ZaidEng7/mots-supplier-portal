@@ -79,6 +79,55 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText('Item added')).toBeInTheDocument()
   })
 
+  it('Draft: a line item can be corrected in place rather than deleted and retyped', async () => {
+    // F-7: the aggregate had Add and Remove and nothing between them, so a mistyped quantity meant
+    // deleting the line - which renumbers every line after it - and typing it again.
+    const item = {
+      id: 'item-1', lineNo: 1, titleAr: 'وجبة', titleEn: 'Hot lunch', specificationAr: null, specificationEn: null,
+      categoryCode: 'consulting', quantity: 1000, unitOfMeasureCode: 'each', isUnitPrice: true, isOptional: false,
+    }
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(
+      { ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', { items: [item] }) },
+      recorded,
+    )
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const quantity = screen.getByLabelText('Quantity — 1')
+    await userEvent.clear(quantity)
+    await userEvent.type(quantity, '180000')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Item updated')).toBeInTheDocument()
+    const write = recorded.find((r) => r.method === 'PUT' && r.url.includes('/items/item-1'))
+    expect(write, 'the correction goes to the item, not to a delete-then-add pair').toBeTruthy()
+    expect(JSON.parse(String(write!.body)).quantity).toBe(180000)
+  })
+
+  it('Draft: the tender\'s own dates can be edited, which is what Draft means', async () => {
+    // F-6: PUT /rfqs/{code} and updateRfqBasics both existed and nothing called either. An officer who
+    // typed the submission window wrongly had to cancel the tender and author it again.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(
+      { ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') },
+      recorded,
+    )
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit details' }))
+    const opens = screen.getByLabelText('Submission opens')
+    await userEvent.type(opens, '2026-10-01T09:00')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Tender details saved')).toBeInTheDocument()
+    const write = recorded.find((r) => r.method === 'PUT' && r.url.endsWith('/api/v1/rfqs/RFQ-2026-000001'))
+    expect(write, 'the tender basics are written through the endpoint that already existed').toBeTruthy()
+    expect(JSON.parse(String(write!.body)).submissionOpensAt).toContain('2026-10-01')
+  })
+
   it('Published: an existing item is shown but item-edit controls are gone (state-gated editing)', async () => {
     restore = mockFetch({
       ...REFERENCE_ROUTES,
