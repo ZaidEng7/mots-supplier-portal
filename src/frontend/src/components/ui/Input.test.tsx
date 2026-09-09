@@ -30,3 +30,54 @@ describe('Input invalid state', () => {
     expect(input.style.borderColor).toBe('var(--color-border-input)')
   })
 })
+
+/**
+ * DESIGN-SYSTEM.md §6.2 requires a disabled and a read-only state, and this component paints its own
+ * background and colour inline — which beats the browser's own disabled rendering. So `disabled` was set
+ * on every field of a submitted onboarding application and changed nothing anybody could see.
+ */
+describe('Input disabled and read-only states', () => {
+  it('a disabled field looks disabled, not merely behaves so', () => {
+    render(<Input disabled aria-label="probe" defaultValue="locked" />)
+    const input = screen.getByLabelText('probe')
+
+    expect(input).toBeDisabled()
+    expect(input.style.color).toBe('var(--color-text-disabled)')
+    expect(input.style.backgroundColor).toBe('var(--color-bg-sunken)')
+    expect(input.className).toContain('cursor-not-allowed')
+  })
+
+  it('an enabled field is not styled as disabled', () => {
+    // The control: if the assertions above matched every input, they would pass forever.
+    render(<Input aria-label="probe" defaultValue="editable" />)
+    const input = screen.getByLabelText('probe')
+
+    expect(input).toBeEnabled()
+    expect(input.style.color).toBe('var(--color-text-primary)')
+    expect(input.style.backgroundColor).toBe('var(--color-bg-surface)')
+    expect(input.className).not.toContain('cursor-not-allowed')
+  })
+
+  it('read-only drops the border rather than dimming the value, per §6.2', () => {
+    render(<Input readOnly aria-label="probe" defaultValue="a value you may read" />)
+    const input = screen.getByLabelText('probe')
+
+    expect(input).toHaveAttribute('readonly')
+    expect(input.style.border).toBe('1px solid transparent')
+    // The value is still the primary colour: read-only means "not editable here", not "inactive".
+    expect(input.style.color).toBe('var(--color-text-primary)')
+  })
+
+  it('a disabled field takes no focus ring, and a read-only one returns to no border after blur', async () => {
+    const { rerender } = render(<Input readOnly aria-label="probe" />)
+    const input = screen.getByLabelText('probe')
+
+    await userEvent.click(input)
+    await userEvent.tab()
+    expect(input.style.borderColor).toBe('transparent')
+
+    rerender(<Input disabled aria-label="probe" />)
+    expect(input.style.boxShadow).not.toBe('var(--focus-ring)')
+  })
+})
+

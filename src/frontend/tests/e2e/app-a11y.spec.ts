@@ -189,6 +189,14 @@ for (const route of routes) {
       // the 404/500 screen, not the page under test - a pass there proves nothing about NFR-A11Y.
       await expect(page.getByText(/^(404|500)$/)).toHaveCount(0);
 
+      // The SECOND false-clean guard, and the one this suite needed most: assert the page is actually
+      // in the locale it claims to be scanning. `?lng=ar` was silently overwritten on every
+      // authenticated route by the account language the fixture returned, so both of each route's two
+      // scans ran against the English, LTR interface - roughly 60 of 68 routes - while this file
+      // reported 137 scans "in both languages". A design audit found it; nothing here could have.
+      await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr')
+      await expect(page.locator('html')).toHaveAttribute('lang', locale)
+
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
         .analyze()

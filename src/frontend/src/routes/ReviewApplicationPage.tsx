@@ -274,7 +274,12 @@ export function ReviewApplicationPage() {
           {PROFILE_DISPLAY_FIELDS.map((f) => (
             <div key={f}>
               <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                {t(`onboarding.fields.${f}`)}
+                {/* `profile.fields.*`, not `onboarding.fields.*`: these are PROFILE_DISPLAY_FIELDS, the
+                    model's own field names, and ProfilePage labels the identical list from that
+                    namespace. Reading them from the wizard's namespace is what printed the raw key
+                    `onboarding.fields.defaultCurrency` on this screen - the wizard calls that field
+                    `currencyCode`, so one of the five had no label in either language. */}
+                {t(`profile.fields.${f}`)}
               </dt>
               <dd style={{ color: 'var(--color-text-primary)' }}>{profileDisplayValue(supplier, f)}</dd>
             </div>
@@ -301,7 +306,7 @@ export function ReviewApplicationPage() {
                 {LEGAL_INFO_FIELDS.map((f) => (
                   <div key={f}>
                     <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                      {t(`onboarding.fields.${f}`)}
+                      {t(`profile.fields.${f}`)}
                     </dt>
                     <dd style={{ color: 'var(--color-text-primary)' }}>{legalInfoValue(legalInfo, f)}</dd>
                   </div>

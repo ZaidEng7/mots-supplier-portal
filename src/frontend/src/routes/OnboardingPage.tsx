@@ -567,6 +567,7 @@ export function OnboardingPage() {
                 value={supplierType}
                 onValueChange={(v) => legalForm.setValue('supplierType', v as (typeof SUPPLIER_TYPES)[number])}
                 options={SUPPLIER_TYPES.map((v) => ({ value: v, label: t(`onboarding.supplierTypes.${v}`) }))}
+                disabled={!fieldEditable('legalInfo')}
               />
             )}
           </Field>
@@ -611,6 +612,7 @@ export function OnboardingPage() {
                 onValueChange={(v) => profileForm.setValue('currencyCode', v)}
                 options={currencyOptions}
                 placeholder={t('onboarding.fields.currencyCode')}
+                disabled={!fieldEditable('currencyCode')}
               />
             )}
           </Field>

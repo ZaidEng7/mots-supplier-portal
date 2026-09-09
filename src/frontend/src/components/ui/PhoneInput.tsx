@@ -37,6 +37,9 @@ export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInpu
           onValueChange={(code) => onChange(composePhone(code, localNumber))}
           options={options}
           placeholder={t('phone.countryCode')}
+          // The dialling code is half of one value: disabling the number and leaving this operable let
+          // a read-only form change +963 to +962 with nothing to save it.
+          disabled={disabled}
           aria-invalid={aria['aria-invalid']}
         />
       </div>
