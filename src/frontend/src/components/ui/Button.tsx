@@ -18,9 +18,9 @@ const variantStyle: Record<Variant, { bg: string; bgHover: string; fg: string; b
 }
 
 const sizeStyle: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-[length:var(--text-body-sm)]',
+  sm: 'px-3 py-2 text-[length:var(--text-body-sm)]',
   md: 'px-4 py-2 text-[length:var(--text-body)]',
-  lg: 'px-5 py-2.5 text-[length:var(--text-body-lg)]',
+  lg: 'px-5 py-3 text-[length:var(--text-body-lg)]',
 }
 
 /** Reusable button primitive — token-driven, focus-visible ring, disabled/loading states. */

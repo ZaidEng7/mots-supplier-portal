@@ -127,73 +127,73 @@ export function BackOfficeShell({ children }: Props) {
           <nav className="flex flex-wrap gap-x-4 gap-y-2">
             {/* FEAT-19.1/19.2. Permissioned correctly in batch 11 and still unreachable until now. */}
             {canReadReports ? (
-              <Link to="/back-office/reports" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/reports" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('reports.title')}
               </Link>
             ) : null}
             {canViewGovernance ? (
-              <Link to="/back-office/ministry" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/ministry" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('ministry.title')}
               </Link>
             ) : null}
             {/* SCR-604. The second of the Ministry's two non-refused screens, and the one that answers a
                 question the overview cannot: which categories has nobody registered for. */}
             {canViewGovernance ? (
-              <Link to="/back-office/ministry/categories" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/ministry/categories" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('categoryCoverage.title')}
               </Link>
             ) : null}
             {/* SCR-602, SCR-601 and SCR-603, under D-66. These three carry named tenders, named suppliers and
                 - while the commercial-visibility flag is on - the money, which is what D-57 was about. */}
             {canViewGovernance ? (
-              <Link to="/back-office/ministry/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/ministry/rfqs" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('ministryRfqs.title')}
               </Link>
             ) : null}
             {canViewGovernance ? (
-              <Link to="/back-office/ministry/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/ministry/suppliers" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('ministrySuppliers.title')}
               </Link>
             ) : null}
             {canViewGovernance ? (
-              <Link to="/back-office/ministry/awards" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/ministry/awards" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('ministryAwards.title')}
               </Link>
             ) : null}
             {canManageStaff ? (
-              <Link to="/back-office/notification-templates" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/notification-templates" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('notificationTemplates.title')}
               </Link>
             ) : null}
             {canManageReferenceData ? (
-              <Link to="/back-office/reference" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/reference" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('referenceAdmin.title')}
               </Link>
             ) : null}
             {canReadAudit ? (
-              <Link to="/back-office/audit" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/audit" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('auditExplorer.title')}
               </Link>
             ) : null}
             {canManageStaff ? (
-              <Link to="/back-office/settings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/settings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('systemSettings.title')}
               </Link>
             ) : null}
             {canManageStaff ? (
-              <Link to="/back-office/admin" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/admin" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('adminOverview.title')}
               </Link>
             ) : null}
             {/* T-076. */}
             {canManageStaff ? (
-              <Link to="/back-office/email-templates" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/email-templates" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('emailTemplates.title')}
               </Link>
             ) : null}
             {/* SCR-716. */}
             {canManageStaff ? (
-              <Link to="/back-office/ui-strings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/ui-strings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('uiStrings.title')}
               </Link>
             ) : null}
@@ -201,83 +201,83 @@ export function BackOfficeShell({ children }: Props) {
                 stand-in for system_admin, and the endpoints behind the page require the same
                 permission, so a visible link that 403s is not possible here. */}
             {canManageStaff ? (
-              <Link to="/back-office/operations" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/operations" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('operations.title')}
               </Link>
             ) : null}
-            <Link to="/back-office/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+            <Link to="/back-office/dashboard" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
               {t('nav.dashboard')}
             </Link>
             {/* SCR-906. Ungated, like the route: the server decides what each persona can find. */}
-            <Link to="/back-office/search" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+            <Link to="/back-office/search" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
               {t('search.title')}
             </Link>
             {/* SCR-907. */}
-            <Link to="/back-office/help" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+            <Link to="/back-office/help" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
               {t('help.title')}
             </Link>
             {/* SCR-902: every back-office persona's own account, password, MFA and sessions. */}
-            <Link to="/back-office/account" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+            <Link to="/back-office/account" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
               {t('nav.account')}
             </Link>
             {/* SCR-901. Beside the account link because that is where a user goes looking for "what does this
                 system send me", and the answer includes the four families they cannot switch off. */}
-            <Link to="/back-office/account/notifications" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+            <Link to="/back-office/account/notifications" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
               {t('notificationPreferences.title')}
             </Link>
             {/* Gated on supplier.review, which it always should have been. An evaluator holds
                 evaluation.score, evaluation.submit and rfq.clarify and nothing else, and this link was offered
                 to them - a 403 they could not explain, on the only "work" link their nav had. */}
             {canReviewSuppliers ? (
-              <Link to="/back-office/review" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/review" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('review.title')}
               </Link>
             ) : null}
             {/* SCR-307. The whole registry, not the queue: everything that happens to a supplier AFTER
                 their application is decided happened on no screen until this one. */}
             {canReviewSuppliers ? (
-              <Link to="/back-office/review/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/review/suppliers" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('complianceDirectory.title')}
               </Link>
             ) : null}
             {/* SCR-300. The reviewer's dashboard - oldest waiting case, queue age, expiring-document
                 watchlist. Beside the queue it summarises, because that is the pair a reviewer works. */}
             {canReviewSuppliers ? (
-              <Link to="/back-office/review-dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/review-dashboard" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('reviewDashboard.title')}
               </Link>
             ) : null}
             {/* And the link an evaluator actually needs. Their dashboard lives under a different layout
                 (/evaluation, not /back-office/...), which is why it was missing from this nav entirely. */}
             {canScoreEvaluations ? (
-              <Link to="/evaluation" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/evaluation" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('evaluationDashboard.title')}
               </Link>
             ) : null}
             {canManageOrganizations ? (
-              <Link to="/back-office/organizations" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/organizations" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('organizations.title')}
               </Link>
             ) : null}
             {canManageStaff ? (
-              <Link to="/back-office/staff" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/staff" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('staff.title')}
               </Link>
             ) : null}
             {canManageRoles ? (
-              <Link to="/back-office/roles" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/roles" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('roleManagement.title')}
               </Link>
             ) : null}
             {canSearchOfferings ? (
-              <Link to="/back-office/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/offerings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('offeringSearch.title')}
               </Link>
             ) : null}
             {/* SCR-402. Beside the offering search on purpose: an officer looking for a supplier starts
                 from one or the other, and before this only the catalogue had a link. */}
             {canBrowseSuppliers ? (
-              <Link to="/back-office/suppliers" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/suppliers" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('supplierDirectory.title')}
               </Link>
             ) : null}
@@ -285,17 +285,17 @@ export function BackOfficeShell({ children }: Props) {
                 waiting, deadlines. Gated on rfq.read for the same reason the RFQ link below is: a
                 manager reads this dashboard without authoring anything. */}
             {canViewRfqs ? (
-              <Link to="/back-office/procurement" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/procurement" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('procurementDashboard.title')}
               </Link>
             ) : null}
             {canViewRfqs ? (
-              <Link to="/back-office/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/rfqs" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('rfq.title')}
               </Link>
             ) : null}
             {canManageEvaluationTemplates ? (
-              <Link to="/back-office/evaluation-templates" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-chrome-text)' }}>
+              <Link to="/back-office/evaluation-templates" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
                 {t('evaluationTemplates.title')}
               </Link>
             ) : null}
