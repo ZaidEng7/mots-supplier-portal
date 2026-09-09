@@ -8,6 +8,9 @@ const resources = {
       appName: 'بوابة الموردين',
       nav: {
         skipToContent: 'تخطَّ إلى المحتوى',
+        groupBidding: 'المناقصات',
+        groupCompany: 'شركتي',
+        groupAccount: 'الحساب',
  home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
@@ -1980,6 +1983,9 @@ const resources = {
       appName: 'Supplier Portal',
       nav: {
         skipToContent: 'Skip to content',
+        groupBidding: 'Bidding',
+        groupCompany: 'Your company',
+        groupAccount: 'Account',
  home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete profile', profile: 'Company profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'Tenders' },
       supplierDashboard: {
         title: 'Supplier dashboard',
