@@ -812,3 +812,16 @@ went with the shared error component: `account.errors.loadFailed`, `account.retr
 `profile.errors.loadFailed`, `profile.retry`, `documents.errors.loadFailed`, `documents.retry`,
 `notifications.loadFailed`, `notifications.retry`, `supplierDashboard.loadFailed`,
 `supplierDashboard.retry`.
+
+### Plan 6B · the cancel warning
+
+Ships on D-65's terms: **accepted for the demonstration build without a line-by-line read**.
+
+| Key | English | Arabic (authored) | Why it exists |
+|---|---|---|---|
+| `rfq.cancelWarning` | Cancelling is final. Invited suppliers are told the tender is cancelled, and it cannot be reopened. | الإلغاء نهائي. يُبلَّغ الموردون المدعوون بإلغاء الطلب، ولا يمكن إعادة فتحه. | §D1: cancelling a live tender was an inline reason field beside the lowest-emphasis button in the system, with nothing saying the action was irreversible |
+
+**This entry is also how the key-parity gap was found.** The edit that added it wrote the Arabic and
+failed silently on the English, and because `config.ts` sets `fallbackLng: 'ar'`, the English cancel
+dialog rendered the Arabic sentence with every test still green. `src/frontend/src/i18n/keyParity.test.ts`
+now compares the two key sets in both directions.

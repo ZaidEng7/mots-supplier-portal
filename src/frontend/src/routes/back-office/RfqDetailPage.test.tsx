@@ -317,17 +317,26 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText(toastText)).toBeInTheDocument()
   })
 
-  it('cancel requires a reason before it can be submitted, then shows a success toast', async () => {
+  it('cancel asks before it acts, warns that it is final, and still requires a reason', async () => {
+    // §D1: this was an inline reason field beside a `ghost` button - the lowest-emphasis variant in the
+    // system - for an action that tells every invited supplier their tender is gone. It now gets the
+    // same treatment the supplier's proposal withdrawal got: danger variant, a dialog, and a warning.
+    // The mandatory reason is unchanged, because the reason is the audit record.
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 
     renderPage(<RfqDetailPage />)
 
-    const cancelButton = await screen.findByRole('button', { name: 'Cancel RFQ' })
-    expect(cancelButton).toBeDisabled()
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel RFQ' }))
 
-    await userEvent.type(screen.getByLabelText('Reason'), 'Budget withdrawn')
-    await waitFor(() => expect(cancelButton).toBeEnabled())
-    await userEvent.click(cancelButton)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/final/i)).toBeInTheDocument()
+
+    const confirm = within(dialog).getByRole('button', { name: 'Cancel RFQ' })
+    expect(confirm).toBeDisabled()
+
+    await userEvent.type(within(dialog).getByLabelText('Reason'), 'Budget withdrawn')
+    await waitFor(() => expect(confirm).toBeEnabled())
+    await userEvent.click(confirm)
 
     expect(await screen.findByText('RFQ cancelled')).toBeInTheDocument()
   })

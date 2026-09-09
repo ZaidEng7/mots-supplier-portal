@@ -23,6 +23,7 @@ import {
 import { getWorkspace } from '../../api/workspace'
 import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
+import { CancelSection } from './rfq/sections/CancelSection'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -66,7 +67,6 @@ export function RfqDetailPage() {
   const [reqMandatory, setReqMandatory] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [returnComments, setReturnComments] = useState('')
-  const [cancelReason, setCancelReason] = useState('')
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string }>>({})
   // Which row is being corrected, and the values being typed into it. Null means "nobody is editing".
   //
@@ -366,8 +366,10 @@ export function RfqDetailPage() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelRfq(referenceCode, cancelReason),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }); setCancelReason('') },
+    // The reason comes from the section's dialog rather than from state up here: it is that section's
+    // own working value and nothing else reads it.
+    mutationFn: (reason: string) => cancelRfq(referenceCode, reason),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
@@ -1267,14 +1269,7 @@ export function RfqDetailPage() {
       ) : null}
 
       {canCancel ? (
-        <Card title={t('rfq.cancelTitle')}>
-          <div className="flex gap-2">
-            <Input aria-label={t('rfq.fields.reason')} placeholder={t('rfq.fields.reason')} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
-            <Button variant="ghost" isLoading={cancelMutation.isPending} disabled={!cancelReason} onClick={() => cancelMutation.mutate()}>
-              {t('rfq.cancelRfq')}
-            </Button>
-          </div>
-        </Card>
+        <CancelSection onCancel={(reason) => cancelMutation.mutate(reason)} isPending={cancelMutation.isPending} />
       ) : null}
     </div>
   )
