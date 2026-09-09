@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from './Button'
 import { Card } from './Card'
 import { Input } from './Input'
-import { SkeletonTable } from './Skeleton'
+import { SkeletonList, SkeletonTable } from './Skeleton'
 import { errorDetail } from '../../api/problem'
 
 /**
@@ -120,7 +120,7 @@ export function FilterBar({ children }: Readonly<{ children: ReactNode }>) {
  * reader the second when the first is true.</p>
  */
 export function ListState({
-  isPending, isError, isEmpty, loadingLabel, errorText, emptyText, error, skeletonRows = 5, children,
+  isPending, isError, isEmpty, loadingLabel, errorText, emptyText, error, onRetry, skeleton = 'table', skeletonRows = 5, children,
 }: Readonly<{
   isPending: boolean
   isError: boolean
@@ -131,14 +131,22 @@ export function ListState({
   /** The thrown value, so a failure can say what the server said. Optional: a caller that does not
    * hold it still gets `errorText`. */
   error?: unknown
+  /** Offered as the way out of the failure. Optional, because not every caller holds a refetch. */
+  onRetry?: () => void
+  /** What the content is shaped like, so the placeholder is shaped like it too. A table skeleton over a
+   * card list is a promise the screen does not keep, which is the whole point of a skeleton. */
+  skeleton?: 'table' | 'list'
   skeletonRows?: number
   children: ReactNode
 }>) {
-  if (isPending) return <SkeletonTable label={loadingLabel} rows={skeletonRows} />
-  if (isError) {
-    const detail = errorDetail(error)
-    return <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? errorText}</p>
+  if (isPending) {
+    return skeleton === 'list'
+      ? <SkeletonList label={loadingLabel} rows={skeletonRows} />
+      : <SkeletonTable label={loadingLabel} rows={skeletonRows} />
   }
+  // Delegates rather than rendering its own paragraph. QueryError carries role="alert" and the retry
+  // control; a second, quieter error presentation here meant that adopting ListState LOST both.
+  if (isError) return <QueryError error={error} errorText={errorText} onRetry={onRetry} />
   if (isEmpty) return <p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>
   return <>{children}</>
 }
@@ -155,7 +163,12 @@ export function ListState({
  * on every screen, and eighteen variants would be eighteen more strings to translate and keep aligned.
  * `onRetry` is optional because not every caller holds a refetch worth offering.</p>
  */
-export function QueryError({ error, onRetry }: Readonly<{ error?: unknown; onRetry?: () => void }>) {
+export function QueryError({ error, errorText, onRetry }: Readonly<{
+  error?: unknown
+  /** A caller's own fallback wording. Without one this uses the shared `common.loadFailed`. */
+  errorText?: string
+  onRetry?: () => void
+}>) {
   const { t } = useTranslation()
   // The audit's §C5: a reader learned THAT a screen failed and never WHY. The why was already on the
   // error - every api module builds its message from the server's RFC 9457 `detail` - and the read
@@ -164,7 +177,7 @@ export function QueryError({ error, onRetry }: Readonly<{ error?: unknown; onRet
   const detail = errorDetail(error)
   return (
     <div role="alert" className="flex flex-col items-start gap-2">
-      <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? t('common.loadFailed')}</p>
+      <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? errorText ?? t('common.loadFailed')}</p>
       {onRetry ? (
         <Button size="sm" variant="secondary" onClick={onRetry}>
           {t('common.retry')}
