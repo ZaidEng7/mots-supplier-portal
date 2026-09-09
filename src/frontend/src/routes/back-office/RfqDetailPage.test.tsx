@@ -417,6 +417,35 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText('Published to all')).toBeInTheDocument()
   })
 
+  it('does NOT show the Publish button for an answer that already went to everyone', async () => {
+    // The other half of the test above, and the one the design audit's §C2.3 assumed was missing. It
+    // read the guard - `answer && visibility === 'PrivateToAsker'` - noticed that answering now sets
+    // both fields at once, and concluded the control describes a state the domain cannot produce.
+    //
+    // What it describes is a LEGACY state. A-4 (DECISIONS-TAKEN.md:441) made answering publish to every
+    // invitee, on the ground that equal information to all bidders is the fundamental fairness principle
+    // in tendering, and it kept the visibility enum and this route on purpose: a deployment that
+    // answered privately before A-4 still holds those rows, and dropping the route would leave those
+    // threads permanently unshareable. The backend has the matching integration test.
+    //
+    // So the control is correct, and this pins the part that was only ever true by inspection: it never
+    // appears on a clarification answered under A-4.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
+        clarifications: [
+          { id: 'cl-1', askedBySupplierId: 'sup-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Asker Co', question: 'Q?', answer: 'A.', visibility: 'PublishedToAll', askedAt: '2026-08-01T00:00:00Z', answeredAt: '2026-08-02T00:00:00Z' },
+        ],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    // The thread renders, so a missing button is a decision rather than an empty screen.
+    expect(await screen.findByText(/Asker Co: Q\?/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Publish to all' })).not.toBeInTheDocument()
+  })
+
   it('Published: shows the addendum form, and issuing one shows a success toast', async () => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
 

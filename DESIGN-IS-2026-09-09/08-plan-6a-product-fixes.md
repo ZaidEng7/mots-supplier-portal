@@ -484,9 +484,12 @@ requirement being unmet, is the `ASM-044` reading — the side A-4 decided again
    `[recommended — awaiting procurement]` and names MOT procurement as its confirmer. A design pass is not
    where that gets decided, and the owner's approval was given on my framing, not on A-4's.
 
-**What can be done without a decision, if the Ministry wants the screen tidier:** hide the publish control
-for clarifications that are already `PublishedToAll`, which is every new one, so it appears only on the
-legacy rows it is actually for. That removes the confusing affordance without changing who sees what.
+**What was done instead, with A-4 left standing (the owner's decision):** nothing, because the interface
+was already correct. The guard is `c.answer && c.visibility === 'PrivateToAsker'`, so the control renders
+only on an answered private row — precisely the legacy case — and never on a clarification answered under
+A-4. That was true by inspection and by nothing else, so it is now pinned by a test asserting the
+*negative*: a `PublishedToAll` thread renders, and its publish button does not. Mutating the guard to
+`c.answer` alone turns it red.
 
 **If MOT procurement does reverse A-4,** the work is the plan as originally written — a `publishToAll`
 parameter defaulting to publish at every layer, and a branched notification fan-out with the published
