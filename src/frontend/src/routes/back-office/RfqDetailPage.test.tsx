@@ -275,6 +275,64 @@ describe('RfqDetailPage', () => {
     expect(select.getAttribute('aria-describedby')).toBe(hint.getAttribute('id'))
   })
 
+  it('groups the screen, so the reading order is a decision rather than the DOM order', async () => {
+    // §D1 measured eleven cards of identical visual weight, seven of them empty, in DOM order, with
+    // nothing on the screen larger, closer or louder than anything else. Grouping is the fix, and these
+    // are landmarks rather than styled divs: a named region is what lets a screen-reader user jump
+    // between them, which is the same affordance the visual grouping gives a sighted reader.
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+
+    // Wait for the page itself first. `findAllByRole` resolves on the first match, and the toast
+    // region is mounted by the shell before any data arrives - so querying straight away returns
+    // ['Notifications (F8)'] and proves nothing about this screen.
+    await screen.findByRole('region', { name: 'The tender' })
+
+    // Named by their own visible heading (aria-labelledby), not by a duplicate aria-label: one source
+    // for the name a sighted reader sees and the one a screen reader announces.
+    //
+    // Decisions is ABSENT here, and that is the assertion. A draft tender has no approvals and no
+    // evaluation, so a Decisions heading would label an empty space - which is exactly the kind of
+    // thing this whole pass has been removing. The next test covers the case where it is present.
+    const groups = screen.getAllByRole('region').filter((g) => g.tagName === 'SECTION')
+    expect(groups.map((g) => g.getAttribute('aria-labelledby'))).toEqual([
+      'rfq-group-tender', 'rfq-group-suppliers', 'rfq-group-managing',
+    ])
+    expect(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent)).toEqual([
+      'The tender', 'Suppliers', 'Managing this tender',
+    ])
+    expect(screen.queryByText('Decisions')).not.toBeInTheDocument()
+  })
+
+  it('shows the Decisions group once there is a decision to show', async () => {
+    // The denominator for the test above. A guard that hides a group unconditionally would pass that
+    // one and be wrong; this proves the group appears when its contents do.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('InternalReview', {
+        approvals: [{ stepNo: 1, approverUserId: null, decision: 'Approved' as const, comment: null, decidedAt: '2026-08-02T00:00:00Z' }],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByRole('region', { name: 'Decisions' })
+  })
+
+  it('puts every destructive control after the tender it would destroy', async () => {
+    // The ordering claim, asserted rather than described. An officer reading top to bottom meets the
+    // line items before they meet the button that cancels the whole tender.
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+
+    const tender = await screen.findByRole('region', { name: 'The tender' })
+    const cancel = screen.getByRole('button', { name: 'Cancel RFQ' })
+
+    expect(tender.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('Published: an existing item is shown but item-edit controls are gone (state-gated editing)', async () => {
     restore = mockFetch({
       ...REFERENCE_ROUTES,
@@ -317,17 +375,26 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText(toastText)).toBeInTheDocument()
   })
 
-  it('cancel requires a reason before it can be submitted, then shows a success toast', async () => {
+  it('cancel asks before it acts, warns that it is final, and still requires a reason', async () => {
+    // §D1: this was an inline reason field beside a `ghost` button - the lowest-emphasis variant in the
+    // system - for an action that tells every invited supplier their tender is gone. It now gets the
+    // same treatment the supplier's proposal withdrawal got: danger variant, a dialog, and a warning.
+    // The mandatory reason is unchanged, because the reason is the audit record.
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 
     renderPage(<RfqDetailPage />)
 
-    const cancelButton = await screen.findByRole('button', { name: 'Cancel RFQ' })
-    expect(cancelButton).toBeDisabled()
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel RFQ' }))
 
-    await userEvent.type(screen.getByLabelText('Reason'), 'Budget withdrawn')
-    await waitFor(() => expect(cancelButton).toBeEnabled())
-    await userEvent.click(cancelButton)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/final/i)).toBeInTheDocument()
+
+    const confirm = within(dialog).getByRole('button', { name: 'Cancel RFQ' })
+    expect(confirm).toBeDisabled()
+
+    await userEvent.type(within(dialog).getByLabelText('Reason'), 'Budget withdrawn')
+    await waitFor(() => expect(confirm).toBeEnabled())
+    await userEvent.click(confirm)
 
     expect(await screen.findByText('RFQ cancelled')).toBeInTheDocument()
   })

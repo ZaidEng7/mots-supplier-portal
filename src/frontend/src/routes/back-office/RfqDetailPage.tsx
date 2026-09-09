@@ -23,6 +23,7 @@ import {
 import { getWorkspace } from '../../api/workspace'
 import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
+import { CancelSection } from './rfq/sections/CancelSection'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -66,7 +67,6 @@ export function RfqDetailPage() {
   const [reqMandatory, setReqMandatory] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [returnComments, setReturnComments] = useState('')
-  const [cancelReason, setCancelReason] = useState('')
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string }>>({})
   // Which row is being corrected, and the values being typed into it. Null means "nobody is editing".
   //
@@ -366,8 +366,10 @@ export function RfqDetailPage() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelRfq(referenceCode, cancelReason),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }); setCancelReason('') },
+    // The reason comes from the section's dialog rather than from state up here: it is that section's
+    // own working value and nothing else reads it.
+    mutationFn: (reason: string) => cancelRfq(referenceCode, reason),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
@@ -507,775 +509,834 @@ export function RfqDetailPage() {
         </div>
       </div>
 
-      {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people
-          do, not when a tender does. Hide-never-gate as everywhere else - the endpoint re-enforces
-          rfq.reassign, which officers do not hold, so an officer sees this card and gets a 403 rather
-          than being told the control does not exist. */}
-      {canCancel ? (
-        <Card title={t('rfq.ownership.title')}>
-          <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.ownership.help')}
-          </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <Select
-              aria-label={t('rfq.ownership.newOwner')}
-              placeholder={t('rfq.ownership.newOwner')}
-              value={newOwnerDraft}
-              onValueChange={setNewOwnerDraft}
-              options={(assigneesQuery.data?.owners ?? []).map((o) => ({ value: o.userId, label: o.fullName }))}
-            />
-            {/* Mandatory. The audit row is the whole point of this operation, and a row saying only
-                that ownership moved answers nothing a month later. */}
-            <Input
-              aria-label={t('rfq.ownership.reason')}
-              placeholder={t('rfq.ownership.reason')}
-              value={reassignReason}
-              onChange={(e) => setReassignReason(e.target.value)}
-            />
-            <Button
-              variant="secondary"
-              isLoading={reassignMutation.isPending}
-              disabled={!newOwnerDraft || !reassignReason}
-              onClick={() => reassignMutation.mutate()}
+
+      {/* One column on a narrow screen, two from the layout breakpoint up. The rail is FIRST in the
+          DOM, so a screen reader and a 320px viewport both meet "what happens next" before the body,
+          and grid placement moves it to the inline-end side on a wide one. That is why this is a grid
+          rather than a flex row: source order and visual order are allowed to differ. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1">
+          {workspaceQuery.data ? (
+            <Card title={t('workspace.title')}>
+              {workspaceQuery.data.isCancelled ? (
+                <Badge tone="danger">{t('workspace.cancelledBanner')}</Badge>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {/* Labelled visibly, not only for a screen reader. Sitting unlabelled at the top of
+                      the rail, a lone stage chip reads as THE tender's state - and §D1 caught exactly
+                      that, with the header saying Published while this said Draft. They are two
+                      different facts from two different queries: one is the state, this is the journey.
+                      The label is what makes them different on screen rather than only in the data. */}
+                  <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t('workspace.stages')}
+                  </p>
+                  <div className="flex flex-wrap gap-2" aria-label={t('workspace.stages')}>
+                    {workspaceQuery.data.stages.map((stage) => (
+                      <span key={stage.key} className="inline-flex items-center gap-1">
+                        {stage.isCompleted ? <span aria-hidden="true">✓</span> : null}
+                        <StatusChip machine="rfq" value={stage.key} tone={stage.isCurrent ? 'brand' : stage.isCompleted ? 'success' : 'neutral'} />
+                      </span>
+                    ))}
+                  </div>
+                  {workspaceQuery.data.nextActions.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {workspaceQuery.data.nextActions.map((action) => (
+                        <div key={action.action} className="flex items-center gap-2 flex-wrap">
+                          <Badge tone={action.permitted ? 'success' : 'warning'}>
+                            {isArabic ? action.labelAr : action.labelEn}
+                          </Badge>
+                          {!action.permitted ? (
+                            <span style={{ color: 'var(--color-text-secondary)' }}>
+                              {isArabic ? action.blockedReasonAr : action.blockedReasonEn}
+                            </span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--color-text-secondary)' }}>{t('workspace.noNextAction')}</span>
+                  )}
+                </div>
+              )}
+            </Card>
+          ) : null}
+
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
+          <section aria-labelledby="rfq-group-tender" className="flex flex-col gap-4">
+            <h2
+              id="rfq-group-tender"
+              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
+              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
             >
-              {t('rfq.ownership.reassign')}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
+              {t('rfq.groups.tender')}
+            </h2>
+          {isDraft ? (
+            <Card title={t('rfq.details.title')}>
+              <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                {t('rfq.details.help')}
+              </p>
+              <Button variant="secondary" onClick={() => {
+                setDetails({
+                  titleAr: rfq.titleAr,
+                  titleEn: rfq.titleEn,
+                  currencyCode: rfq.currencyCode,
+                  submissionOpensAt: toLocalInput(rfq.submissionOpensAt),
+                  submissionClosesAt: toLocalInput(rfq.submissionClosesAt),
+                })
+                setDetailsOpen(true)
+              }}>{t('rfq.details.edit')}</Button>
 
-      {/*
-        * F-4: the tender's own fields, editable while Draft - which is what Draft is documented to mean.
-        *
-        * `PUT /api/v1/rfqs/{code}` and `updateRfqBasics` both existed and nothing called either, so an
-        * officer who typed the submission window wrongly at creation had two options: cancel the tender
-        * and author it again, or ask an engineer to issue the PUT. Both happened during the walkthrough.
-        *
-        * Draft only, and that is the domain's rule rather than this screen's: UpdateBasics calls
-        * EnsureDraftEditable, because bidders price against what they were shown.
-        */}
-      {isDraft ? (
-        <Card title={t('rfq.details.title')}>
-          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.details.help')}
-          </p>
-          <Button variant="secondary" onClick={() => {
-            setDetails({
-              titleAr: rfq.titleAr,
-              titleEn: rfq.titleEn,
-              currencyCode: rfq.currencyCode,
-              submissionOpensAt: toLocalInput(rfq.submissionOpensAt),
-              submissionClosesAt: toLocalInput(rfq.submissionClosesAt),
-            })
-            setDetailsOpen(true)
-          }}>{t('rfq.details.edit')}</Button>
+              <Dialog open={detailsOpen} onOpenChange={setDetailsOpen} title={t('rfq.details.title')}>
+                <div className="flex flex-col gap-3">
+                  <Field label={t('rfq.fields.titleEn')}>
+                    {(inputProps) => (
+                      <Input {...inputProps} value={details.titleEn} onChange={(e) => setDetails((p) => ({ ...p, titleEn: e.target.value }))} />
+                    )}
+                  </Field>
+                  <Field label={t('rfq.fields.titleAr')}>
+                    {(inputProps) => (
+                      <Input {...inputProps} value={details.titleAr} onChange={(e) => setDetails((p) => ({ ...p, titleAr: e.target.value }))} />
+                    )}
+                  </Field>
+                  <Field label={t('rfq.fields.currency')}>
+                    {(inputProps) => (
+                      <Input {...inputProps} value={details.currencyCode} onChange={(e) => setDetails((p) => ({ ...p, currencyCode: e.target.value }))} />
+                    )}
+                  </Field>
+                  <Field label={t('rfq.fields.submissionOpensAt')}>
+                    {(inputProps) => (
+                      <Input {...inputProps} type="datetime-local" value={details.submissionOpensAt}
+                        onChange={(e) => setDetails((p) => ({ ...p, submissionOpensAt: e.target.value }))} />
+                    )}
+                  </Field>
+                  <Field label={t('rfq.fields.submissionClosesAt')}>
+                    {(inputProps) => (
+                      <Input {...inputProps} type="datetime-local" value={details.submissionClosesAt}
+                        onChange={(e) => setDetails((p) => ({ ...p, submissionClosesAt: e.target.value }))} />
+                    )}
+                  </Field>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <Button variant="ghost" onClick={() => setDetailsOpen(false)}>{t('rfq.cancelEdit')}</Button>
+                    <Button isLoading={detailsMutation.isPending} onClick={() => detailsMutation.mutate()}>{t('rfq.save')}</Button>
+                  </div>
+                </div>
+              </Dialog>
+            </Card>
+          ) : null}
 
-          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen} title={t('rfq.details.title')}>
-            <div className="flex flex-col gap-3">
-              <Field label={t('rfq.fields.titleEn')}>
-                {(inputProps) => (
-                  <Input {...inputProps} value={details.titleEn} onChange={(e) => setDetails((p) => ({ ...p, titleEn: e.target.value }))} />
-                )}
-              </Field>
-              <Field label={t('rfq.fields.titleAr')}>
-                {(inputProps) => (
-                  <Input {...inputProps} value={details.titleAr} onChange={(e) => setDetails((p) => ({ ...p, titleAr: e.target.value }))} />
-                )}
-              </Field>
-              <Field label={t('rfq.fields.currency')}>
-                {(inputProps) => (
-                  <Input {...inputProps} value={details.currencyCode} onChange={(e) => setDetails((p) => ({ ...p, currencyCode: e.target.value }))} />
-                )}
-              </Field>
-              <Field label={t('rfq.fields.submissionOpensAt')}>
-                {(inputProps) => (
-                  <Input {...inputProps} type="datetime-local" value={details.submissionOpensAt}
-                    onChange={(e) => setDetails((p) => ({ ...p, submissionOpensAt: e.target.value }))} />
-                )}
-              </Field>
-              <Field label={t('rfq.fields.submissionClosesAt')}>
-                {(inputProps) => (
-                  <Input {...inputProps} type="datetime-local" value={details.submissionClosesAt}
-                    onChange={(e) => setDetails((p) => ({ ...p, submissionClosesAt: e.target.value }))} />
-                )}
-              </Field>
-              <div className="mt-2 flex justify-end gap-2">
-                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>{t('rfq.cancelEdit')}</Button>
-                <Button isLoading={detailsMutation.isPending} onClick={() => detailsMutation.mutate()}>{t('rfq.save')}</Button>
+          <Card title={t('rfq.fields.items')}>
+            {rfq.items.length > 0 ? (
+              <Table caption={t('rfq.fields.items')}>
+                <TableHead>
+                  <TableHeaderCell>#</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.fields.category')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.fields.quantity')}</TableHeaderCell>
+                  {isDraft ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
+                </TableHead>
+                <TableBody>
+                  {rfq.items.map((item) => (
+                    editingItemId === item.id ? (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.lineNo}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Input aria-label={`${t('rfq.fields.titleEn')} — ${item.lineNo}`} value={editItem.titleEn}
+                              onChange={(e) => setEditItem((p) => ({ ...p, titleEn: e.target.value }))} />
+                            <Input aria-label={`${t('rfq.fields.titleAr')} — ${item.lineNo}`} value={editItem.titleAr}
+                              onChange={(e) => setEditItem((p) => ({ ...p, titleAr: e.target.value }))} />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Select value={editItem.categoryCode} onValueChange={(v) => setEditItem((p) => ({ ...p, categoryCode: v }))}
+                            placeholder={t('rfq.fields.category')}
+                            options={categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))} />
+                        </TableCell>
+                        <TableCell>
+                          <Input type="number" aria-label={`${t('rfq.fields.quantity')} — ${item.lineNo}`} value={editItem.quantity}
+                            onChange={(e) => setEditItem((p) => ({ ...p, quantity: e.target.value }))} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button size="sm" isLoading={updateItemMutation.isPending} onClick={() => updateItemMutation.mutate()}>{t('rfq.save')}</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingItemId(null)}>{t('rfq.cancelEdit')}</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.lineNo}</TableCell>
+                        <TableCell>{isArabic ? item.titleAr : item.titleEn}</TableCell>
+                        <TableCell>{item.categoryCode}</TableCell>
+                        <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
+                        {isDraft ? (
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                setEditingItemId(item.id)
+                                setEditItem({
+                                  titleAr: item.titleAr, titleEn: item.titleEn, categoryCode: item.categoryCode,
+                                  unitOfMeasureCode: item.unitOfMeasureCode, quantity: String(item.quantity),
+                                })
+                              }}>{t('rfq.edit')}</Button>
+                              <Button size="sm" variant="ghost" onClick={() => removeItemMutation.mutate(item.id)}>{t('rfq.remove')}</Button>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                    )
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noItems')}</p>
+            )}
+            {isDraft ? (
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <Input aria-label={t('rfq.fields.titleEn')} placeholder={t('rfq.fields.titleEn')} value={itemTitleEn} onChange={(e) => setItemTitleEn(e.target.value)} />
+                <Input aria-label={t('rfq.fields.titleAr')} placeholder={t('rfq.fields.titleAr')} value={itemTitleAr} onChange={(e) => setItemTitleAr(e.target.value)} />
+                <Select value={itemCategory} onValueChange={setItemCategory} placeholder={t('rfq.fields.category')}
+                  options={categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))} />
+                <Select value={itemUom} onValueChange={setItemUom} placeholder={t('rfq.fields.unit')}
+                  options={units.map((u) => ({ value: u.code, label: isArabic ? u.nameAr : u.nameEn }))} />
+                <Input type="number" aria-label={t('rfq.fields.quantity')} placeholder={t('rfq.fields.quantity')} value={itemQty} onChange={(e) => setItemQty(e.target.value)} className="w-24" />
+                <Button size="sm" isLoading={addItemMutation.isPending} onClick={() => addItemMutation.mutate()}>{t('rfq.addItem')}</Button>
               </div>
-            </div>
-          </Dialog>
-        </Card>
-      ) : null}
+            ) : null}
+          </Card>
 
-      {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
-          domain accepts. Same gate as the addendum control above, and for the same reason. */}
-      {canIssueAddendum ? (
-        <Card title={t('rfq.deadline.title')}>
-          <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.deadline.help')}
-          </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <Input
-              type="datetime-local"
-              aria-label={t('rfq.deadline.newDeadline')}
-              value={deadlineDraft}
-              onChange={(e) => setDeadlineDraft(e.target.value)}
-            />
-            {/* A-6: mandatory. A deadline moved with no stated basis is what the ruling exists to
-                prevent, and the supplier reads this on their own view of the RFQ. */}
-            <Input
-              aria-label={t('rfq.deadline.reason')}
-              placeholder={t('rfq.deadline.reason')}
-              value={deadlineReason}
-              onChange={(e) => setDeadlineReason(e.target.value)}
-            />
-            <Button
-              variant="secondary"
-              isLoading={deadlineMutation.isPending}
-              disabled={!deadlineDraft || !deadlineReason}
-              onClick={() => deadlineMutation.mutate({ deadline: deadlineDraft, reason: deadlineReason })}
-            >
-              {t('rfq.deadline.apply')}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      {workspaceQuery.data ? (
-        <Card title={t('workspace.title')}>
-          {workspaceQuery.data.isCancelled ? (
-            <Badge tone="danger">{t('workspace.cancelledBanner')}</Badge>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-2" aria-label={t('workspace.stages')}>
-                {workspaceQuery.data.stages.map((stage) => (
-                  <span key={stage.key} className="inline-flex items-center gap-1">
-                    {stage.isCompleted ? <span aria-hidden="true">✓</span> : null}
-                    <StatusChip machine="rfq" value={stage.key} tone={stage.isCurrent ? 'brand' : stage.isCompleted ? 'success' : 'neutral'} />
-                  </span>
-                ))}
+          <Card title={t('rfq.fields.requirements')}>
+            {rfq.requirements.length > 0 ? (
+              <Table caption={t('rfq.fields.requirements')}>
+                <TableHead>
+                  <TableHeaderCell>{t('rfq.fields.text')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.fields.mandatory')}</TableHeaderCell>
+                  {isDraft ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
+                </TableHead>
+                <TableBody>
+                  {rfq.requirements.map((req, index) => (
+                    editingRequirementId === req.id ? (
+                      <TableRow key={req.id}>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Input aria-label={`${t('rfq.fields.textEn')} — ${index + 1}`} value={editRequirement.textEn}
+                              onChange={(e) => setEditRequirement((p) => ({ ...p, textEn: e.target.value }))} />
+                            <Input aria-label={`${t('rfq.fields.textAr')} — ${index + 1}`} value={editRequirement.textAr}
+                              onChange={(e) => setEditRequirement((p) => ({ ...p, textAr: e.target.value }))} />
+                          </div>
+                        </TableCell>
+                        <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button size="sm" isLoading={updateRequirementMutation.isPending} onClick={() => updateRequirementMutation.mutate()}>{t('rfq.save')}</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingRequirementId(null)}>{t('rfq.cancelEdit')}</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      <TableRow key={req.id}>
+                        <TableCell>{isArabic ? req.textAr : req.textEn}</TableCell>
+                        <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
+                        {isDraft ? (
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                setEditingRequirementId(req.id)
+                                setEditRequirement({ textAr: req.textAr, textEn: req.textEn, isMandatory: req.isMandatory })
+                              }}>{t('rfq.edit')}</Button>
+                              <Button size="sm" variant="ghost" onClick={() => removeRequirementMutation.mutate(req.id)}>{t('rfq.remove')}</Button>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                    )
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noRequirements')}</p>
+            )}
+            {isDraft ? (
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <Input aria-label={t('rfq.fields.textEn')} placeholder={t('rfq.fields.textEn')} value={reqTextEn} onChange={(e) => setReqTextEn(e.target.value)} />
+                <Input aria-label={t('rfq.fields.textAr')} placeholder={t('rfq.fields.textAr')} value={reqTextAr} onChange={(e) => setReqTextAr(e.target.value)} />
+                <label className="flex items-center gap-1 text-[length:var(--text-body-sm)]">
+                  <input type="checkbox" checked={reqMandatory} onChange={(e) => setReqMandatory(e.target.checked)} />
+                  {t('rfq.fields.mandatory')}
+                </label>
+                <Button size="sm" isLoading={addRequirementMutation.isPending} onClick={() => addRequirementMutation.mutate()}>{t('rfq.addRequirement')}</Button>
               </div>
-              {workspaceQuery.data.nextActions.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {workspaceQuery.data.nextActions.map((action) => (
-                    <div key={action.action} className="flex items-center gap-2 flex-wrap">
-                      <Badge tone={action.permitted ? 'success' : 'warning'}>
-                        {isArabic ? action.labelAr : action.labelEn}
-                      </Badge>
-                      {!action.permitted ? (
-                        <span style={{ color: 'var(--color-text-secondary)' }}>
-                          {isArabic ? action.blockedReasonAr : action.blockedReasonEn}
+            ) : null}
+          </Card>
+
+          <Card title={t('rfq.attachments.title')}>
+            {/*
+              * F-8, and the warning is the whole fix.
+              *
+              * Attachments are Draft-only by design: bidders price against what they downloaded, and a
+              * file swapped underneath them is what that lock prevents. The ruling (D-56) is that an
+              * addendum announces a change and does not carry a document, so there is NO route to correct
+              * a published tender's attachments - the tender has to be cancelled and authored again.
+              *
+              * That is defensible and it is invisible. An officer attaching the wrong file has no way to
+              * know, at the moment they attach it, that they are making a permanent decision. Saying so
+              * here is what turns a trap into a rule.
+              */}
+            {isDraft ? (
+              <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                {t('rfq.attachments.permanentWarning')}
+              </p>
+            ) : null}
+            {rfq.attachments.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {rfq.attachments.map((attachment) => (
+                  <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate">{attachment.originalFileName}</span>
+                      {attachment.caption ? (
+                        <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                          {attachment.caption}
                         </span>
                       ) : null}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <span style={{ color: 'var(--color-text-secondary)' }}>{t('workspace.noNextAction')}</span>
-              )}
-            </div>
-          )}
-        </Card>
-      ) : null}
-
-      {isInternalReview ? (
-        <Card title={t('rfq.returnForEditsTitle')}>
-          <div className="flex gap-2">
-            <Input aria-label={t('rfq.fields.comments')} placeholder={t('rfq.fields.comments')} value={returnComments} onChange={(e) => setReturnComments(e.target.value)} />
-            <Button variant="ghost" isLoading={returnMutation.isPending} onClick={() => returnMutation.mutate()}>{t('rfq.returnForEdits')}</Button>
-          </div>
-        </Card>
-      ) : null}
-
-      <Card title={t('rfq.fields.items')}>
-        {rfq.items.length > 0 ? (
-          <Table caption={t('rfq.fields.items')}>
-            <TableHead>
-              <TableHeaderCell>#</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.category')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.quantity')}</TableHeaderCell>
-              {isDraft ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
-            </TableHead>
-            <TableBody>
-              {rfq.items.map((item) => (
-                editingItemId === item.id ? (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.lineNo}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <Input aria-label={`${t('rfq.fields.titleEn')} — ${item.lineNo}`} value={editItem.titleEn}
-                          onChange={(e) => setEditItem((p) => ({ ...p, titleEn: e.target.value }))} />
-                        <Input aria-label={`${t('rfq.fields.titleAr')} — ${item.lineNo}`} value={editItem.titleAr}
-                          onChange={(e) => setEditItem((p) => ({ ...p, titleAr: e.target.value }))} />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Select value={editItem.categoryCode} onValueChange={(v) => setEditItem((p) => ({ ...p, categoryCode: v }))}
-                        placeholder={t('rfq.fields.category')}
-                        options={categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))} />
-                    </TableCell>
-                    <TableCell>
-                      <Input type="number" aria-label={`${t('rfq.fields.quantity')} — ${item.lineNo}`} value={editItem.quantity}
-                        onChange={(e) => setEditItem((p) => ({ ...p, quantity: e.target.value }))} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button size="sm" isLoading={updateItemMutation.isPending} onClick={() => updateItemMutation.mutate()}>{t('rfq.save')}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingItemId(null)}>{t('rfq.cancelEdit')}</Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.lineNo}</TableCell>
-                    <TableCell>{isArabic ? item.titleAr : item.titleEn}</TableCell>
-                    <TableCell>{item.categoryCode}</TableCell>
-                    <TableCell>{formatNumber(item.quantity, locale, 0)}</TableCell>
-                    {isDraft ? (
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => {
-                            setEditingItemId(item.id)
-                            setEditItem({
-                              titleAr: item.titleAr, titleEn: item.titleEn, categoryCode: item.categoryCode,
-                              unitOfMeasureCode: item.unitOfMeasureCode, quantity: String(item.quantity),
-                            })
-                          }}>{t('rfq.edit')}</Button>
-                          <Button size="sm" variant="ghost" onClick={() => removeItemMutation.mutate(item.id)}>{t('rfq.remove')}</Button>
-                        </div>
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                )
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noItems')}</p>
-        )}
-        {isDraft ? (
-          <div className="mt-4 flex flex-wrap items-end gap-2">
-            <Input aria-label={t('rfq.fields.titleEn')} placeholder={t('rfq.fields.titleEn')} value={itemTitleEn} onChange={(e) => setItemTitleEn(e.target.value)} />
-            <Input aria-label={t('rfq.fields.titleAr')} placeholder={t('rfq.fields.titleAr')} value={itemTitleAr} onChange={(e) => setItemTitleAr(e.target.value)} />
-            <Select value={itemCategory} onValueChange={setItemCategory} placeholder={t('rfq.fields.category')}
-              options={categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))} />
-            <Select value={itemUom} onValueChange={setItemUom} placeholder={t('rfq.fields.unit')}
-              options={units.map((u) => ({ value: u.code, label: isArabic ? u.nameAr : u.nameEn }))} />
-            <Input type="number" aria-label={t('rfq.fields.quantity')} placeholder={t('rfq.fields.quantity')} value={itemQty} onChange={(e) => setItemQty(e.target.value)} className="w-24" />
-            <Button size="sm" isLoading={addItemMutation.isPending} onClick={() => addItemMutation.mutate()}>{t('rfq.addItem')}</Button>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card title={t('rfq.fields.requirements')}>
-        {rfq.requirements.length > 0 ? (
-          <Table caption={t('rfq.fields.requirements')}>
-            <TableHead>
-              <TableHeaderCell>{t('rfq.fields.text')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.mandatory')}</TableHeaderCell>
-              {isDraft ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
-            </TableHead>
-            <TableBody>
-              {rfq.requirements.map((req, index) => (
-                editingRequirementId === req.id ? (
-                  <TableRow key={req.id}>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <Input aria-label={`${t('rfq.fields.textEn')} — ${index + 1}`} value={editRequirement.textEn}
-                          onChange={(e) => setEditRequirement((p) => ({ ...p, textEn: e.target.value }))} />
-                        <Input aria-label={`${t('rfq.fields.textAr')} — ${index + 1}`} value={editRequirement.textAr}
-                          onChange={(e) => setEditRequirement((p) => ({ ...p, textAr: e.target.value }))} />
-                      </div>
-                    </TableCell>
-                    <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button size="sm" isLoading={updateRequirementMutation.isPending} onClick={() => updateRequirementMutation.mutate()}>{t('rfq.save')}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingRequirementId(null)}>{t('rfq.cancelEdit')}</Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <TableRow key={req.id}>
-                    <TableCell>{isArabic ? req.textAr : req.textEn}</TableCell>
-                    <TableCell>{req.isMandatory ? t('rfq.yes') : t('rfq.no')}</TableCell>
-                    {isDraft ? (
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => {
-                            setEditingRequirementId(req.id)
-                            setEditRequirement({ textAr: req.textAr, textEn: req.textEn, isMandatory: req.isMandatory })
-                          }}>{t('rfq.edit')}</Button>
-                          <Button size="sm" variant="ghost" onClick={() => removeRequirementMutation.mutate(req.id)}>{t('rfq.remove')}</Button>
-                        </div>
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                )
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noRequirements')}</p>
-        )}
-        {isDraft ? (
-          <div className="mt-4 flex flex-wrap items-end gap-2">
-            <Input aria-label={t('rfq.fields.textEn')} placeholder={t('rfq.fields.textEn')} value={reqTextEn} onChange={(e) => setReqTextEn(e.target.value)} />
-            <Input aria-label={t('rfq.fields.textAr')} placeholder={t('rfq.fields.textAr')} value={reqTextAr} onChange={(e) => setReqTextAr(e.target.value)} />
-            <label className="flex items-center gap-1 text-[length:var(--text-body-sm)]">
-              <input type="checkbox" checked={reqMandatory} onChange={(e) => setReqMandatory(e.target.checked)} />
-              {t('rfq.fields.mandatory')}
-            </label>
-            <Button size="sm" isLoading={addRequirementMutation.isPending} onClick={() => addRequirementMutation.mutate()}>{t('rfq.addRequirement')}</Button>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card title={t('rfq.attachments.title')}>
-        {/*
-          * F-8, and the warning is the whole fix.
-          *
-          * Attachments are Draft-only by design: bidders price against what they downloaded, and a
-          * file swapped underneath them is what that lock prevents. The ruling (D-56) is that an
-          * addendum announces a change and does not carry a document, so there is NO route to correct
-          * a published tender's attachments - the tender has to be cancelled and authored again.
-          *
-          * That is defensible and it is invisible. An officer attaching the wrong file has no way to
-          * know, at the moment they attach it, that they are making a permanent decision. Saying so
-          * here is what turns a trap into a rule.
-          */}
-        {isDraft ? (
-          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.attachments.permanentWarning')}
-          </p>
-        ) : null}
-        {rfq.attachments.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {rfq.attachments.map((attachment) => (
-              <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate">{attachment.originalFileName}</span>
-                  {attachment.caption ? (
-                    <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                      {attachment.caption}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    isLoading={downloadAttachmentMutation.isPending && downloadAttachmentMutation.variables === attachment.id}
-                    onClick={() => downloadAttachmentMutation.mutate(attachment.id)}
-                  >
-                    {t('rfq.attachments.download')}
-                  </Button>
-                  {/* Removal is Draft-only, like every other structural edit on this page: an
-                      attachment a supplier has already been invited to read must not vanish. */}
-                  {isDraft ? (
-                    <Button size="sm" variant="ghost" onClick={() => removeAttachmentMutation.mutate(attachment.id)}>
-                      {t('rfq.remove')}
-                    </Button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.attachments.none')}</p>
-        )}
-        {isDraft ? (
-          <div className="mt-4">
-            <label className="flex flex-col gap-1 text-[length:var(--text-body-sm)]">
-              {t('rfq.attachments.add')}
-              <input
-                type="file"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) addAttachmentMutation.mutate(file)
-                  // Cleared so re-picking the same file fires change again - otherwise a failed
-                  // upload cannot be retried without choosing a different file.
-                  event.target.value = ''
-                }}
-              />
-            </label>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card title={t('rfq.fields.evaluationTemplate')}>
-        {rfq.evaluationTemplateId ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.boundTemplate', { id: rfq.evaluationTemplateId, version: rfq.evaluationTemplateVersion })}
-          </p>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noTemplateBound')}</p>
-        )}
-        {isDraft ? (
-          <div className="mt-4 flex items-end gap-2">
-            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} placeholder={t('rfq.fields.evaluationTemplate')}
-              options={activeTemplates.map((tpl) => ({ value: tpl.id, label: `${tpl.nameEn} (v${tpl.version})` }))} />
-            <Button size="sm" isLoading={bindTemplateMutation.isPending} disabled={!selectedTemplateId} onClick={() => bindTemplateMutation.mutate()}>
-              {t('rfq.bindTemplate')}
-            </Button>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card title={t('rfq.invitations.title')}>
-        {rfq.invitations.length > 0 ? (
-          <Table caption={t('rfq.invitations.title')}>
-            <TableHead>
-              <TableHeaderCell>{t('rfq.invitations.fields.supplier')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.invitations.fields.status')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.invitations.fields.invitedAt')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.invitations.fields.viewedAt')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.invitations.fields.declineReason')}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {rfq.invitations.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell>{isArabic ? inv.supplierDisplayNameAr : inv.supplierDisplayNameEn}</TableCell>
-                  <TableCell>
-                    <StatusChip machine="invitation" value={inv.status} />
-                  </TableCell>
-                  <TableCell>{formatDate(inv.invitedAt, i18n.language)}</TableCell>
-                  <TableCell>{inv.viewedAt ? formatDate(inv.viewedAt, i18n.language) : '—'}</TableCell>
-                  <TableCell>{inv.declineReason ?? '—'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.invitations.none')}</p>
-        )}
-        {canInvite && uninvitedCandidates.length > 0 ? (
-          <div className="mt-4">
-            <p className="mb-2 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-              {t('rfq.invitations.candidatesTitle')}
-            </p>
-            <ul className="flex flex-col gap-2">
-              {uninvitedCandidates.map((c) => (
-                <li key={c.supplierId} className="flex items-center justify-between gap-2">
-                  <span>{isArabic ? c.displayNameAr : c.displayNameEn} ({t('rfq.invitations.matchCount', { count: c.matchCount })})</span>
-                  <Button size="sm" isLoading={inviteMutation.isPending} onClick={() => inviteMutation.mutate(c.supplierId)}>
-                    {t('rfq.invitations.invite')}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card title={t('rfq.clarifications.title')}>
-        {rfq.clarifications.length > 0 ? (
-          <ul className="flex flex-col gap-4">
-            {rfq.clarifications.map((c) => {
-              const draft = draftFor(c.id)
-              return (
-                <li key={c.id} className="border-b pb-4 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-[var(--fw-medium)]">{isArabic ? c.askedBySupplierNameAr : c.askedBySupplierNameEn}: {c.question}</p>
-                    <Badge tone={c.visibility === 'PublishedToAll' ? 'success' : 'info'}>
-                      {c.visibility === 'PublishedToAll' ? t('rfq.clarifications.published') : t('rfq.clarifications.private')}
-                    </Badge>
-                  </div>
-                  {c.answer ? (
-                    <p className="mt-1" style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.answerLabel')}: {c.answer}</p>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-end gap-2">
-                      <Input aria-label={t('rfq.clarifications.answerLabel')} placeholder={t('rfq.clarifications.answerLabel')}
-                        value={draft.text} onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, text: e.target.value } }))} />
-                      <p className="w-full text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                        {t('rfq.clarifications.broadcastNotice')}
-                      </p>
-                      {/* A-4: no publish checkbox. Answering broadcasts to every invitee with the
-                          asker anonymised, so the officer is told that rather than asked it - an
-                          option whose only fair setting is "yes" is not a choice. */}
-                      <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
-                        onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text })}>
-                        {t('rfq.clarifications.answer')}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        isLoading={downloadAttachmentMutation.isPending && downloadAttachmentMutation.variables === attachment.id}
+                        onClick={() => downloadAttachmentMutation.mutate(attachment.id)}
+                      >
+                        {t('rfq.attachments.download')}
                       </Button>
+                      {/* Removal is Draft-only, like every other structural edit on this page: an
+                          attachment a supplier has already been invited to read must not vanish. */}
+                      {isDraft ? (
+                        <Button size="sm" variant="ghost" onClick={() => removeAttachmentMutation.mutate(attachment.id)}>
+                          {t('rfq.remove')}
+                        </Button>
+                      ) : null}
                     </div>
-                  )}
-                  {c.answer && c.visibility === 'PrivateToAsker' ? (
-                    <Button size="sm" variant="secondary" className="mt-2" isLoading={publishClarificationMutation.isPending}
-                      onClick={() => publishClarificationMutation.mutate(c.id)}>
-                      {t('rfq.clarifications.publish')}
-                    </Button>
-                  ) : null}
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.none')}</p>
-        )}
-      </Card>
-
-      <Card title={t('rfq.addenda.title')}>
-        {rfq.addenda.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {rfq.addenda.map((a) => (
-              <li key={a.id}>
-                <p className="font-[var(--fw-medium)]">{isArabic ? a.titleAr : a.titleEn}</p>
-                <p style={{ color: 'var(--color-text-secondary)' }}>{isArabic ? a.descriptionAr : a.descriptionEn}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.addenda.none')}</p>
-        )}
-        {canIssueAddendum ? (
-          <form className="mt-4 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); addendumMutation.mutate() }}>
-            <div className="flex flex-wrap gap-2">
-              <Input aria-label={t('rfq.fields.titleEn')} placeholder={t('rfq.fields.titleEn')} value={addendumTitleEn} onChange={(e) => setAddendumTitleEn(e.target.value)} />
-              <Input aria-label={t('rfq.fields.titleAr')} placeholder={t('rfq.fields.titleAr')} value={addendumTitleAr} onChange={(e) => setAddendumTitleAr(e.target.value)} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Input aria-label={t('rfq.addenda.descriptionEn')} placeholder={t('rfq.addenda.descriptionEn')} value={addendumDescEn} onChange={(e) => setAddendumDescEn(e.target.value)} />
-              <Input aria-label={t('rfq.addenda.descriptionAr')} placeholder={t('rfq.addenda.descriptionAr')} value={addendumDescAr} onChange={(e) => setAddendumDescAr(e.target.value)} />
-            </div>
-            <Button type="submit" size="sm" className="self-start" isLoading={addendumMutation.isPending}
-              disabled={!addendumTitleAr || !addendumTitleEn || !addendumDescAr || !addendumDescEn}>
-              {t('rfq.addenda.issue')}
-            </Button>
-          </form>
-        ) : null}
-      </Card>
-
-      {rfq.approvals.length > 0 ? (
-        <Card title={t('rfq.fields.approvals')}>
-          <Table caption={t('rfq.fields.approvals')}>
-            <TableHead>
-              <TableHeaderCell>{t('rfq.fields.step')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.decision')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.comments')}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {rfq.approvals.map((a) => (
-                <TableRow key={a.stepNo}>
-                  <TableCell>{a.stepNo}</TableCell>
-                  <TableCell>{a.decision ? <StatusChip machine="award" value={a.decision} /> : <Badge tone="info">{t('rfq.pending')}</Badge>}</TableCell>
-                  <TableCell>{a.comment ?? '—'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      ) : null}
-
-      {evaluationEligible ? (
-        <Card title={t('evaluation.title')}>
-          <div className="mb-4 flex gap-2">
-            {/* T-082: the bids themselves, readable from SubmissionClosed onward - before the
-                comparison matrix exists and without needing an opened evaluation. */}
-            <a href={`/back-office/rfqs/${referenceCode}/proposals`}>
-              <Button size="sm" variant="secondary">{t('receivedProposals.title')}</Button>
-            </a>
-            <a href={`/back-office/rfqs/${referenceCode}/comparison`}>
-              <Button size="sm" variant="secondary">{t('comparison.title')}</Button>
-            </a>
-            {evaluation?.state === 'Finalized' || ['AwardApproval', 'Awarded', 'Completed'].includes(rfq.state) ? (
-              <a href={`/back-office/rfqs/${referenceCode}/award`}>
-                <Button size="sm" variant="secondary">{t('award.title')}</Button>
-              </a>
-            ) : null}
-          </div>
-          {!evaluation ? (
-            rfq.state === 'SubmissionClosed' ? (
-              <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
-                {t('evaluation.open')}
-              </Button>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.notOpened')}</p>
-            )
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <StatusChip machine="evaluation" value={evaluation.state} />
-                {evaluation.state !== 'NotStarted' ? (
-                  <a href={`/back-office/rfqs/${referenceCode}/my-evaluation`}>
-                    <Button size="sm" variant="secondary">{t('evaluation.my.title')}</Button>
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.attachments.none')}</p>
+            )}
+            {isDraft ? (
+              <div className="mt-4">
+                <label className="flex flex-col gap-1 text-[length:var(--text-body-sm)]">
+                  {t('rfq.attachments.add')}
+                  <input
+                    type="file"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (file) addAttachmentMutation.mutate(file)
+                      // Cleared so re-picking the same file fires change again - otherwise a failed
+                      // upload cannot be retried without choosing a different file.
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+            ) : null}
+          </Card>
+
+          <Card title={t('rfq.fields.evaluationTemplate')}>
+            {rfq.evaluationTemplateId ? (
+              <p style={{ color: 'var(--color-text-secondary)' }}>
+                {t('rfq.boundTemplate', { id: rfq.evaluationTemplateId, version: rfq.evaluationTemplateVersion })}
+              </p>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.noTemplateBound')}</p>
+            )}
+            {isDraft ? (
+              <div className="mt-4 flex items-end gap-2">
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} placeholder={t('rfq.fields.evaluationTemplate')}
+                  options={activeTemplates.map((tpl) => ({ value: tpl.id, label: `${tpl.nameEn} (v${tpl.version})` }))} />
+                <Button size="sm" isLoading={bindTemplateMutation.isPending} disabled={!selectedTemplateId} onClick={() => bindTemplateMutation.mutate()}>
+                  {t('rfq.bindTemplate')}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
+
+          </section>
+
+          <section aria-labelledby="rfq-group-suppliers" className="flex flex-col gap-4">
+            <h2
+              id="rfq-group-suppliers"
+              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
+              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
+            >
+              {t('rfq.groups.suppliers')}
+            </h2>
+          <Card title={t('rfq.invitations.title')}>
+            {rfq.invitations.length > 0 ? (
+              <Table caption={t('rfq.invitations.title')}>
+                <TableHead>
+                  <TableHeaderCell>{t('rfq.invitations.fields.supplier')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.invitations.fields.status')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.invitations.fields.invitedAt')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.invitations.fields.viewedAt')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.invitations.fields.declineReason')}</TableHeaderCell>
+                </TableHead>
+                <TableBody>
+                  {rfq.invitations.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell>{isArabic ? inv.supplierDisplayNameAr : inv.supplierDisplayNameEn}</TableCell>
+                      <TableCell>
+                        <StatusChip machine="invitation" value={inv.status} />
+                      </TableCell>
+                      <TableCell>{formatDate(inv.invitedAt, i18n.language)}</TableCell>
+                      <TableCell>{inv.viewedAt ? formatDate(inv.viewedAt, i18n.language) : '—'}</TableCell>
+                      <TableCell>{inv.declineReason ?? '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.invitations.none')}</p>
+            )}
+            {canInvite && uninvitedCandidates.length > 0 ? (
+              <div className="mt-4">
+                <p className="mb-2 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+                  {t('rfq.invitations.candidatesTitle')}
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {uninvitedCandidates.map((c) => (
+                    <li key={c.supplierId} className="flex items-center justify-between gap-2">
+                      <span>{isArabic ? c.displayNameAr : c.displayNameEn} ({t('rfq.invitations.matchCount', { count: c.matchCount })})</span>
+                      <Button size="sm" isLoading={inviteMutation.isPending} onClick={() => inviteMutation.mutate(c.supplierId)}>
+                        {t('rfq.invitations.invite')}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </Card>
+
+          <Card title={t('rfq.clarifications.title')}>
+            {rfq.clarifications.length > 0 ? (
+              <ul className="flex flex-col gap-4">
+                {rfq.clarifications.map((c) => {
+                  const draft = draftFor(c.id)
+                  return (
+                    <li key={c.id} className="border-b pb-4 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-[var(--fw-medium)]">{isArabic ? c.askedBySupplierNameAr : c.askedBySupplierNameEn}: {c.question}</p>
+                        <Badge tone={c.visibility === 'PublishedToAll' ? 'success' : 'info'}>
+                          {c.visibility === 'PublishedToAll' ? t('rfq.clarifications.published') : t('rfq.clarifications.private')}
+                        </Badge>
+                      </div>
+                      {c.answer ? (
+                        <p className="mt-1" style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.answerLabel')}: {c.answer}</p>
+                      ) : (
+                        <div className="mt-2 flex flex-wrap items-end gap-2">
+                          <Input aria-label={t('rfq.clarifications.answerLabel')} placeholder={t('rfq.clarifications.answerLabel')}
+                            value={draft.text} onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, text: e.target.value } }))} />
+                          <p className="w-full text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                            {t('rfq.clarifications.broadcastNotice')}
+                          </p>
+                          {/* A-4: no publish checkbox. Answering broadcasts to every invitee with the
+                              asker anonymised, so the officer is told that rather than asked it - an
+                              option whose only fair setting is "yes" is not a choice. */}
+                          <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
+                            onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text })}>
+                            {t('rfq.clarifications.answer')}
+                          </Button>
+                        </div>
+                      )}
+                      {c.answer && c.visibility === 'PrivateToAsker' ? (
+                        <Button size="sm" variant="secondary" className="mt-2" isLoading={publishClarificationMutation.isPending}
+                          onClick={() => publishClarificationMutation.mutate(c.id)}>
+                          {t('rfq.clarifications.publish')}
+                        </Button>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.none')}</p>
+            )}
+          </Card>
+
+          </section>
+
+          {/* Guarded, unlike the other three. Both of this group's members are conditional, so without
+              this the screen renders the heading "Decisions" over nothing at all - a label describing an
+              empty space, which is the failure this whole pass has been about. The other three each hold
+              at least one unconditional card and cannot be empty. */}
+          {rfq.approvals.length > 0 || evaluationEligible ? (
+          <section aria-labelledby="rfq-group-decisions" className="flex flex-col gap-4">
+            <h2
+              id="rfq-group-decisions"
+              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
+              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
+            >
+              {t('rfq.groups.decisions')}
+            </h2>
+          {rfq.approvals.length > 0 ? (
+            <Card title={t('rfq.fields.approvals')}>
+              <Table caption={t('rfq.fields.approvals')}>
+                <TableHead>
+                  <TableHeaderCell>{t('rfq.fields.step')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.fields.decision')}</TableHeaderCell>
+                  <TableHeaderCell>{t('rfq.fields.comments')}</TableHeaderCell>
+                </TableHead>
+                <TableBody>
+                  {rfq.approvals.map((a) => (
+                    <TableRow key={a.stepNo}>
+                      <TableCell>{a.stepNo}</TableCell>
+                      <TableCell>{a.decision ? <StatusChip machine="award" value={a.decision} /> : <Badge tone="info">{t('rfq.pending')}</Badge>}</TableCell>
+                      <TableCell>{a.comment ?? '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          ) : null}
+
+          {evaluationEligible ? (
+            <Card title={t('evaluation.title')}>
+              <div className="mb-4 flex gap-2">
+                {/* T-082: the bids themselves, readable from SubmissionClosed onward - before the
+                    comparison matrix exists and without needing an opened evaluation. */}
+                <a href={`/back-office/rfqs/${referenceCode}/proposals`}>
+                  <Button size="sm" variant="secondary">{t('receivedProposals.title')}</Button>
+                </a>
+                <a href={`/back-office/rfqs/${referenceCode}/comparison`}>
+                  <Button size="sm" variant="secondary">{t('comparison.title')}</Button>
+                </a>
+                {evaluation?.state === 'Finalized' || ['AwardApproval', 'Awarded', 'Completed'].includes(rfq.state) ? (
+                  <a href={`/back-office/rfqs/${referenceCode}/award`}>
+                    <Button size="sm" variant="secondary">{t('award.title')}</Button>
                   </a>
                 ) : null}
               </div>
-
-              <div>
-                <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.criteria')}</p>
-                <Table caption={t('evaluation.criteria')}>
-                  <TableHead>
-                    <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
-                    <TableHeaderCell>{t('evaluation.dimension')}</TableHeaderCell>
-                    <TableHeaderCell>{t('evaluation.weight')}</TableHeaderCell>
-                    <TableHeaderCell>{t('evaluation.threshold')}</TableHeaderCell>
-                    <TableHeaderCell>{t('evaluation.envelope')}</TableHeaderCell>
-                  </TableHead>
-                  <TableBody>
-                    {evaluation.criteria.map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell>{isArabic ? c.nameAr : c.nameEn}</TableCell>
-                        <TableCell>{c.dimension}</TableCell>
-                        <TableCell>{formatNumber(c.weight, locale, 0)}</TableCell>
-                        <TableCell>{c.threshold ?? '—'}</TableCell>
-                        <TableCell>
-                          <Badge tone={c.isFinancial ? 'warning' : 'info'}>
-                            {c.isFinancial ? t('evaluation.financialEnvelope') : t('evaluation.technicalEnvelope')}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div>
-                <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.assignments')}</p>
-                {evaluation.assignments.length > 0 ? (
-                  <Table caption={t('evaluation.assignments')}>
-                    <TableHead>
-                      <TableHeaderCell>{t('evaluation.evaluator')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.submittedAt')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.recusedAt')}</TableHeaderCell>
-                      {evaluation.state !== 'Finalized' ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
-                    </TableHead>
-                    <TableBody>
-                      {evaluation.assignments.map((a) => (
-                        <TableRow key={a.evaluatorUserId}>
-                          {/* The name, with the id only as a fallback - an assignment whose user row has gone
-                              should still be visible rather than blank. */}
-                          <TableCell>{a.evaluatorName ?? a.evaluatorUserId}</TableCell>
-                          <TableCell>{a.submittedAt ? formatDateTime(a.submittedAt, i18n.language) : '—'}</TableCell>
-                          <TableCell>{a.recusedAt ? t('evaluation.recusedWithReason', { reason: a.recusalReason }) : '—'}</TableCell>
-                          {evaluation.state !== 'Finalized' ? (
-                            <TableCell>
-                              {!a.recusedAt && !a.submittedAt ? (
-                                <Button size="sm" variant="ghost" onClick={() => setRecuseTargetId(a.evaluatorUserId)}>
-                                  {t('evaluation.recuse')}
-                                </Button>
-                              ) : null}
-                            </TableCell>
-                          ) : null}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {!evaluation ? (
+                rfq.state === 'SubmissionClosed' ? (
+                  <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
+                    {t('evaluation.open')}
+                  </Button>
                 ) : (
-                  <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.noAssignments')}</p>
-                )}
+                  <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.notOpened')}</p>
+                )
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <StatusChip machine="evaluation" value={evaluation.state} />
+                    {evaluation.state !== 'NotStarted' ? (
+                      <a href={`/back-office/rfqs/${referenceCode}/my-evaluation`}>
+                        <Button size="sm" variant="secondary">{t('evaluation.my.title')}</Button>
+                      </a>
+                    ) : null}
+                  </div>
 
-                {evaluation.state !== 'Finalized' && evaluation.state !== 'Consolidated' ? (
-                  <div className="mt-4 flex flex-wrap items-end gap-2">
-                    {/*
-                      A picker, not a free-text GUID box. This was an Input asking a manager to type
-                      01a07461-fa48-7721-abe2-018baaa84d11, and the only staff list in the product needs
-                      admin.users.manage - which a procurement_manager does not hold. The assign step was
-                      unusable without database access; found by walking the tender in the browser.
-                    */}
-                    <div className="min-w-[16rem]">
-                      <Select
-                        value={evaluatorUserId}
-                        onValueChange={setEvaluatorUserId}
-                        placeholder={t('evaluation.chooseEvaluator')}
-                        options={(evaluatorCandidatesQuery.data ?? [])
-                          .filter((c) => !evaluation.assignments.some((a) => a.evaluatorUserId === c.userId))
-                          .map((c) => ({ value: c.userId, label: `${c.fullName} · ${c.email}` }))}
-                      />
+                  <div>
+                    <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.criteria')}</p>
+                    <Table caption={t('evaluation.criteria')}>
+                      <TableHead>
+                        <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
+                        <TableHeaderCell>{t('evaluation.dimension')}</TableHeaderCell>
+                        <TableHeaderCell>{t('evaluation.weight')}</TableHeaderCell>
+                        <TableHeaderCell>{t('evaluation.threshold')}</TableHeaderCell>
+                        <TableHeaderCell>{t('evaluation.envelope')}</TableHeaderCell>
+                      </TableHead>
+                      <TableBody>
+                        {evaluation.criteria.map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell>{isArabic ? c.nameAr : c.nameEn}</TableCell>
+                            <TableCell>{c.dimension}</TableCell>
+                            <TableCell>{formatNumber(c.weight, locale, 0)}</TableCell>
+                            <TableCell>{c.threshold ?? '—'}</TableCell>
+                            <TableCell>
+                              <Badge tone={c.isFinancial ? 'warning' : 'info'}>
+                                {c.isFinancial ? t('evaluation.financialEnvelope') : t('evaluation.technicalEnvelope')}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.assignments')}</p>
+                    {evaluation.assignments.length > 0 ? (
+                      <Table caption={t('evaluation.assignments')}>
+                        <TableHead>
+                          <TableHeaderCell>{t('evaluation.evaluator')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.submittedAt')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.recusedAt')}</TableHeaderCell>
+                          {evaluation.state !== 'Finalized' ? <TableHeaderCell>{t('rfq.actions')}</TableHeaderCell> : null}
+                        </TableHead>
+                        <TableBody>
+                          {evaluation.assignments.map((a) => (
+                            <TableRow key={a.evaluatorUserId}>
+                              {/* The name, with the id only as a fallback - an assignment whose user row has gone
+                                  should still be visible rather than blank. */}
+                              <TableCell>{a.evaluatorName ?? a.evaluatorUserId}</TableCell>
+                              <TableCell>{a.submittedAt ? formatDateTime(a.submittedAt, i18n.language) : '—'}</TableCell>
+                              <TableCell>{a.recusedAt ? t('evaluation.recusedWithReason', { reason: a.recusalReason }) : '—'}</TableCell>
+                              {evaluation.state !== 'Finalized' ? (
+                                <TableCell>
+                                  {!a.recusedAt && !a.submittedAt ? (
+                                    <Button size="sm" variant="ghost" onClick={() => setRecuseTargetId(a.evaluatorUserId)}>
+                                      {t('evaluation.recuse')}
+                                    </Button>
+                                  ) : null}
+                                </TableCell>
+                              ) : null}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.noAssignments')}</p>
+                    )}
+
+                    {evaluation.state !== 'Finalized' && evaluation.state !== 'Consolidated' ? (
+                      <div className="mt-4 flex flex-wrap items-end gap-2">
+                        {/*
+                          A picker, not a free-text GUID box. This was an Input asking a manager to type
+                          01a07461-fa48-7721-abe2-018baaa84d11, and the only staff list in the product needs
+                          admin.users.manage - which a procurement_manager does not hold. The assign step was
+                          unusable without database access; found by walking the tender in the browser.
+                        */}
+                        <div className="min-w-[16rem]">
+                          <Select
+                            value={evaluatorUserId}
+                            onValueChange={setEvaluatorUserId}
+                            placeholder={t('evaluation.chooseEvaluator')}
+                            options={(evaluatorCandidatesQuery.data ?? [])
+                              .filter((c) => !evaluation.assignments.some((a) => a.evaluatorUserId === c.userId))
+                              .map((c) => ({ value: c.userId, label: `${c.fullName} · ${c.email}` }))}
+                          />
+                        </div>
+                        <Button size="sm" isLoading={assignEvaluatorsMutation.isPending} disabled={!evaluatorUserId}
+                          onClick={() => assignEvaluatorsMutation.mutate()}>
+                          {t('evaluation.assign')}
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    {recuseTargetId ? (
+                      <div className="mt-2 flex flex-wrap items-end gap-2">
+                        <Input aria-label={t('evaluation.recuseReason')} placeholder={t('evaluation.recuseReason')}
+                          value={recuseReason} onChange={(e) => setRecuseReason(e.target.value)} />
+                        <Button size="sm" variant="ghost" isLoading={recuseEvaluatorMutation.isPending} disabled={!recuseReason}
+                          onClick={() => recuseEvaluatorMutation.mutate()}>
+                          {t('evaluation.confirmRecuse')}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {evaluation.results.length > 0 ? (
+                    <div>
+                      <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.results')}</p>
+                      <Table caption={t('evaluation.results')}>
+                        <TableHead>
+                          <TableHeaderCell>{t('evaluation.rank')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.proposal')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.qualified')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.technicalScore')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.financialScore')}</TableHeaderCell>
+                          <TableHeaderCell>{t('evaluation.total')}</TableHeaderCell>
+                        </TableHead>
+                        <TableBody>
+                          {[...evaluation.results].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)).map((r) => (
+                            <TableRow key={r.proposalId}>
+                              <TableCell>{r.rank ?? '—'}</TableCell>
+                              {/* §3's reference code, with the internal id only as a fallback. This cell was the
+                                  GUID - on the screen where a tender is decided. */}
+                              <TableCell>{r.proposalReferenceCode ?? r.proposalId}</TableCell>
+                              <TableCell>
+                                <Badge tone={r.technicallyQualified ? 'success' : 'danger'}>
+                                  {r.technicallyQualified ? t('evaluation.qualifiedYes') : t('evaluation.qualifiedNo')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{formatNumber(r.technicalWeightedScore, locale)}</TableCell>
+                              <TableCell>{r.financialWeightedScore !== null ? formatNumber(r.financialWeightedScore, locale) : '—'}</TableCell>
+                              <TableCell>{formatNumber(r.weightedTotal, locale)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
-                    <Button size="sm" isLoading={assignEvaluatorsMutation.isPending} disabled={!evaluatorUserId}
-                      onClick={() => assignEvaluatorsMutation.mutate()}>
-                      {t('evaluation.assign')}
-                    </Button>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-2">
+                    {evaluation.state === 'EvaluatorSubmitted' ? (
+                      <Button isLoading={consolidateMutation.isPending} onClick={() => consolidateMutation.mutate()}>
+                        {t('evaluation.consolidate')}
+                      </Button>
+                    ) : null}
+                    {evaluation.state === 'Consolidated' && canFinalizeEvaluation ? (
+                      <Button isLoading={finalizeMutation.isPending} onClick={() => finalizeMutation.mutate()}>
+                        {t('evaluation.finalize')}
+                      </Button>
+                    ) : null}
                   </div>
-                ) : null}
 
-                {recuseTargetId ? (
-                  <div className="mt-2 flex flex-wrap items-end gap-2">
-                    <Input aria-label={t('evaluation.recuseReason')} placeholder={t('evaluation.recuseReason')}
-                      value={recuseReason} onChange={(e) => setRecuseReason(e.target.value)} />
-                    <Button size="sm" variant="ghost" isLoading={recuseEvaluatorMutation.isPending} disabled={!recuseReason}
-                      onClick={() => recuseEvaluatorMutation.mutate()}>
-                      {t('evaluation.confirmRecuse')}
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-
-              {evaluation.results.length > 0 ? (
-                <div>
-                  <p className="mb-2 font-[var(--fw-medium)]">{t('evaluation.results')}</p>
-                  <Table caption={t('evaluation.results')}>
-                    <TableHead>
-                      <TableHeaderCell>{t('evaluation.rank')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.proposal')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.qualified')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.technicalScore')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.financialScore')}</TableHeaderCell>
-                      <TableHeaderCell>{t('evaluation.total')}</TableHeaderCell>
-                    </TableHead>
-                    <TableBody>
-                      {[...evaluation.results].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)).map((r) => (
-                        <TableRow key={r.proposalId}>
-                          <TableCell>{r.rank ?? '—'}</TableCell>
-                          {/* §3's reference code, with the internal id only as a fallback. This cell was the
-                              GUID - on the screen where a tender is decided. */}
-                          <TableCell>{r.proposalReferenceCode ?? r.proposalId}</TableCell>
-                          <TableCell>
-                            <Badge tone={r.technicallyQualified ? 'success' : 'danger'}>
-                              {r.technicallyQualified ? t('evaluation.qualifiedYes') : t('evaluation.qualifiedNo')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{formatNumber(r.technicalWeightedScore, locale)}</TableCell>
-                          <TableCell>{r.financialWeightedScore !== null ? formatNumber(r.financialWeightedScore, locale) : '—'}</TableCell>
-                          <TableCell>{formatNumber(r.weightedTotal, locale)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  {evaluation.state === 'Consolidated' && canReopenEvaluation ? (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <Input aria-label={t('evaluation.reopenReason')} placeholder={t('evaluation.reopenReason')}
+                        value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
+                      <Button size="sm" variant="ghost" isLoading={reopenEvaluationMutation.isPending} disabled={!reopenReason}
+                        onClick={() => reopenEvaluationMutation.mutate()}>
+                        {t('evaluation.reopen')}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+              )}
+            </Card>
+          ) : null}
 
-              <div className="flex flex-wrap gap-2">
-                {evaluation.state === 'EvaluatorSubmitted' ? (
-                  <Button isLoading={consolidateMutation.isPending} onClick={() => consolidateMutation.mutate()}>
-                    {t('evaluation.consolidate')}
-                  </Button>
-                ) : null}
-                {evaluation.state === 'Consolidated' && canFinalizeEvaluation ? (
-                  <Button isLoading={finalizeMutation.isPending} onClick={() => finalizeMutation.mutate()}>
-                    {t('evaluation.finalize')}
-                  </Button>
-                ) : null}
+          </section>
+          ) : null}
+
+          <section aria-labelledby="rfq-group-managing" className="flex flex-col gap-4">
+            <h2
+              id="rfq-group-managing"
+              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
+              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
+            >
+              {t('rfq.groups.managing')}
+            </h2>
+          {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people
+              do, not when a tender does. Hide-never-gate as everywhere else - the endpoint re-enforces
+              rfq.reassign, which officers do not hold, so an officer sees this card and gets a 403 rather
+              than being told the control does not exist. */}
+          {canCancel ? (
+            <Card title={t('rfq.ownership.title')}>
+              <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                {t('rfq.ownership.help')}
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <Select
+                  aria-label={t('rfq.ownership.newOwner')}
+                  placeholder={t('rfq.ownership.newOwner')}
+                  value={newOwnerDraft}
+                  onValueChange={setNewOwnerDraft}
+                  options={(assigneesQuery.data?.owners ?? []).map((o) => ({ value: o.userId, label: o.fullName }))}
+                />
+                {/* Mandatory. The audit row is the whole point of this operation, and a row saying only
+                    that ownership moved answers nothing a month later. */}
+                <Input
+                  aria-label={t('rfq.ownership.reason')}
+                  placeholder={t('rfq.ownership.reason')}
+                  value={reassignReason}
+                  onChange={(e) => setReassignReason(e.target.value)}
+                />
+                <Button
+                  variant="secondary"
+                  isLoading={reassignMutation.isPending}
+                  disabled={!newOwnerDraft || !reassignReason}
+                  onClick={() => reassignMutation.mutate()}
+                >
+                  {t('rfq.ownership.reassign')}
+                </Button>
               </div>
+            </Card>
+          ) : null}
 
-              {evaluation.state === 'Consolidated' && canReopenEvaluation ? (
-                <div className="flex flex-wrap items-end gap-2">
-                  <Input aria-label={t('evaluation.reopenReason')} placeholder={t('evaluation.reopenReason')}
-                    value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
-                  <Button size="sm" variant="ghost" isLoading={reopenEvaluationMutation.isPending} disabled={!reopenReason}
-                    onClick={() => reopenEvaluationMutation.mutate()}>
-                    {t('evaluation.reopen')}
-                  </Button>
+          {/*
+            * F-4: the tender's own fields, editable while Draft - which is what Draft is documented to mean.
+            *
+            * `PUT /api/v1/rfqs/{code}` and `updateRfqBasics` both existed and nothing called either, so an
+            * officer who typed the submission window wrongly at creation had two options: cancel the tender
+            * and author it again, or ask an engineer to issue the PUT. Both happened during the walkthrough.
+            *
+            * Draft only, and that is the domain's rule rather than this screen's: UpdateBasics calls
+            * EnsureDraftEditable, because bidders price against what they were shown.
+            */}
+          {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
+              domain accepts. Same gate as the addendum control above, and for the same reason. */}
+          {canIssueAddendum ? (
+            <Card title={t('rfq.deadline.title')}>
+              <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                {t('rfq.deadline.help')}
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <Input
+                  type="datetime-local"
+                  aria-label={t('rfq.deadline.newDeadline')}
+                  value={deadlineDraft}
+                  onChange={(e) => setDeadlineDraft(e.target.value)}
+                />
+                {/* A-6: mandatory. A deadline moved with no stated basis is what the ruling exists to
+                    prevent, and the supplier reads this on their own view of the RFQ. */}
+                <Input
+                  aria-label={t('rfq.deadline.reason')}
+                  placeholder={t('rfq.deadline.reason')}
+                  value={deadlineReason}
+                  onChange={(e) => setDeadlineReason(e.target.value)}
+                />
+                <Button
+                  variant="secondary"
+                  isLoading={deadlineMutation.isPending}
+                  disabled={!deadlineDraft || !deadlineReason}
+                  onClick={() => deadlineMutation.mutate({ deadline: deadlineDraft, reason: deadlineReason })}
+                >
+                  {t('rfq.deadline.apply')}
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {isInternalReview ? (
+            <Card title={t('rfq.returnForEditsTitle')}>
+              <div className="flex gap-2">
+                <Input aria-label={t('rfq.fields.comments')} placeholder={t('rfq.fields.comments')} value={returnComments} onChange={(e) => setReturnComments(e.target.value)} />
+                <Button variant="ghost" isLoading={returnMutation.isPending} onClick={() => returnMutation.mutate()}>{t('rfq.returnForEdits')}</Button>
+              </div>
+            </Card>
+          ) : null}
+
+          <Card title={t('rfq.addenda.title')}>
+            {rfq.addenda.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {rfq.addenda.map((a) => (
+                  <li key={a.id}>
+                    <p className="font-[var(--fw-medium)]">{isArabic ? a.titleAr : a.titleEn}</p>
+                    <p style={{ color: 'var(--color-text-secondary)' }}>{isArabic ? a.descriptionAr : a.descriptionEn}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.addenda.none')}</p>
+            )}
+            {canIssueAddendum ? (
+              <form className="mt-4 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); addendumMutation.mutate() }}>
+                <div className="flex flex-wrap gap-2">
+                  <Input aria-label={t('rfq.fields.titleEn')} placeholder={t('rfq.fields.titleEn')} value={addendumTitleEn} onChange={(e) => setAddendumTitleEn(e.target.value)} />
+                  <Input aria-label={t('rfq.fields.titleAr')} placeholder={t('rfq.fields.titleAr')} value={addendumTitleAr} onChange={(e) => setAddendumTitleAr(e.target.value)} />
                 </div>
-              ) : null}
-            </div>
-          )}
-        </Card>
-      ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Input aria-label={t('rfq.addenda.descriptionEn')} placeholder={t('rfq.addenda.descriptionEn')} value={addendumDescEn} onChange={(e) => setAddendumDescEn(e.target.value)} />
+                  <Input aria-label={t('rfq.addenda.descriptionAr')} placeholder={t('rfq.addenda.descriptionAr')} value={addendumDescAr} onChange={(e) => setAddendumDescAr(e.target.value)} />
+                </div>
+                <Button type="submit" size="sm" className="self-start" isLoading={addendumMutation.isPending}
+                  disabled={!addendumTitleAr || !addendumTitleEn || !addendumDescAr || !addendumDescEn}>
+                  {t('rfq.addenda.issue')}
+                </Button>
+              </form>
+            ) : null}
+          </Card>
 
-      {canCancel ? (
-        <Card title={t('rfq.cancelTitle')}>
-          <div className="flex gap-2">
-            <Input aria-label={t('rfq.fields.reason')} placeholder={t('rfq.fields.reason')} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
-            <Button variant="ghost" isLoading={cancelMutation.isPending} disabled={!cancelReason} onClick={() => cancelMutation.mutate()}>
-              {t('rfq.cancelRfq')}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
+          {canCancel ? (
+            <CancelSection onCancel={(reason) => cancelMutation.mutate(reason)} isPending={cancelMutation.isPending} />
+          ) : null}
+          </section>
+
+        </div>
+      </div>
     </div>
   )
 }
