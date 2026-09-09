@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import {Badge, Button, Card, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import {Badge, Button, Card, ListCard, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { listReceivedProposals, getReceivedProposal } from '../../api/buyerProposals'
 import type { BuyerProposalDetail, BuyerProposalListItem } from '../../api/buyerProposals'
@@ -214,26 +214,19 @@ export function ReceivedProposalsPage() {
             </Card>
 
             {selected ? (
-              <Card
+              <ListCard
                 title={t('receivedProposals.detailTitle')}
                 action={<Button size="sm" variant="ghost" onClick={() => setSelected(null)}>{t('receivedProposals.close')}</Button>}
+                // A 200 carrying no body is a failed load, not an empty one - kept exactly as it was.
+                query={{ ...detailQuery, isPending: detailQuery.isLoading, isError: detailQuery.isError || !detailQuery.data }}
+                isEmpty={false}
+                labels={{ loading: t('common.loading'), error: t('receivedProposals.errors.detailFailed'), empty: t('receivedProposals.empty') }}
+                skeletonRows={3}
               >
-                <ListState
-                  isPending={detailQuery.isLoading}
-                  isError={detailQuery.isError || !detailQuery.data}
-                  error={detailQuery.error}
-                  onRetry={() => void detailQuery.refetch()}
-                  isEmpty={false}
-                  loadingLabel={t('common.loading')}
-                  errorText={t('receivedProposals.errors.detailFailed')}
-                  emptyText={t('receivedProposals.empty')}
-                  skeletonRows={3}
-                >
-                  {detailQuery.data ? (
-                    <ProposalDetailBody detail={detailQuery.data} isArabic={isArabic} locale={locale} />
-                  ) : null}
-                </ListState>
-              </Card>
+                {detailQuery.data ? (
+                  <ProposalDetailBody detail={detailQuery.data} isArabic={isArabic} locale={locale} />
+                ) : null}
+              </ListCard>
             ) : null}
           </div>
         )}

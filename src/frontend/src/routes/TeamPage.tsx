@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, LoadMore, PageHeading, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { useToast } from '../components/ui'
 import { listTeam, inviteTeamMember, disableTeamMember } from '../api/team'
 import { SupplierApiError } from '../api/supplier'
@@ -115,13 +115,12 @@ export function TeamPage() {
             </TableBody>
           </Table>
         )}
-        {teamQuery.hasNextPage ? (
-          <div className="mt-3">
-            <Button variant="secondary" isLoading={teamQuery.isFetchingNextPage} onClick={() => teamQuery.fetchNextPage()}>
-              {t('team.loadMore')}
-            </Button>
-          </div>
-        ) : null}
+        <LoadMore
+          hasNextPage={teamQuery.hasNextPage}
+          isFetching={teamQuery.isFetchingNextPage}
+          onClick={() => teamQuery.fetchNextPage()}
+          label={t('team.loadMore')}
+        />
       </Card>
 
       <Dialog open={inviteOpen} onOpenChange={(o) => { setInviteOpen(o); if (!o) reset() }} title={t('team.inviteTitle')} description={t('team.inviteDescription')}>

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { QueryError } from './ListScreen'
+import userEvent from '@testing-library/user-event'
+import { ListCard, QueryError } from './ListScreen'
 import { RfqApiError } from '../../api/rfqs'
 
 /**
@@ -50,5 +51,84 @@ describe('QueryError shows the server explanation when there is one', () => {
     render(<QueryError />)
 
     expect(screen.getByText('common.loadFailed')).toBeInTheDocument()
+  })
+})
+
+/**
+ * What `ListCard` must carry before a screen can stop keeping its own `Card`.
+ *
+ * <p>Adoption stalled at four screens, and the reason was the component: a screen that offered a retry,
+ * chose a skeleton shape, put a filter beside the title, or printed a standing note under the table had
+ * to keep its own `Card` to keep any of those. Each is asserted here because each is why some screen was
+ * not adopting.</p>
+ */
+describe('ListCard carries what the screens kept their own Card for', () => {
+  const labels = { loading: 'loading', error: 'failed', empty: 'nothing here' }
+  const failed = { isPending: false, isError: true, error: new RfqApiError(500, {}) }
+
+  it('offers the way out of a failure when the query can refetch', async () => {
+    const refetch = vi.fn()
+    render(
+      <ListCard title="Tenders" query={{ ...failed, refetch }} isEmpty={false} labels={labels}>
+        <p>rows</p>
+      </ListCard>,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The denominator. A card that always drew a retry button would pass the test above and lie on every
+   * screen holding a query it cannot re-run.
+   */
+  it('offers no retry when the query cannot be refetched', () => {
+    render(
+      <ListCard title="Tenders" query={failed} isEmpty={false} labels={labels}>
+        <p>rows</p>
+      </ListCard>,
+    )
+
+    expect(screen.queryByRole('button', { name: 'common.retry' })).toBeNull()
+  })
+
+  it('shows a control beside the title and a note beneath the list', () => {
+    render(
+      <ListCard
+        title="Tenders"
+        action={<button type="button">Mine only</button>}
+        footer={<p>Inactive rows are hidden.</p>}
+        query={{ isPending: false, isError: false }}
+        isEmpty={false}
+        labels={labels}
+      >
+        <p>rows</p>
+      </ListCard>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Mine only' })).toBeInTheDocument()
+    expect(screen.getByText('Inactive rows are hidden.')).toBeInTheDocument()
+  })
+
+  /**
+   * The note is about the table, not about the rows, so it outlives them - which is the whole reason it
+   * is a prop rather than the last child.
+   */
+  it('keeps the note when there are no rows to put it under', () => {
+    render(
+      <ListCard
+        title="Tenders"
+        footer={<p>Inactive rows are hidden.</p>}
+        query={{ isPending: false, isError: false }}
+        isEmpty
+        labels={labels}
+      >
+        <p>rows</p>
+      </ListCard>,
+    )
+
+    expect(screen.getByText('nothing here')).toBeInTheDocument()
+    expect(screen.queryByText('rows')).toBeNull()
+    expect(screen.getByText('Inactive rows are hidden.')).toBeInTheDocument()
   })
 })

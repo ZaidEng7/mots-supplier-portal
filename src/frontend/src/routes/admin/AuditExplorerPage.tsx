@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import {Button, Card, Field, Input, ListState, PageHeading, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Button, Card, Field, Input, ListCard, PageHeading, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import { AuditApiError, downloadAuditLog, searchAuditLog, type AuditSearchFilters } from '../../api/audit'
 
@@ -125,55 +125,42 @@ export function AuditExplorerPage() {
 
           `error && !refusedField` is kept exactly as it was. A refused FIELD is not a failed request -
           the query succeeded and the server declined one column - so it must not render as one. */}
-      <Card title={t('auditExplorer.resultsTitle')}>
-        <ListState
-          isPending={query.isLoading}
-          isError={!!error && !refusedField}
-          error={error}
-          onRetry={() => void query.refetch()}
-          isEmpty={rows.length === 0}
-          loadingLabel={t('common.loading')}
-          errorText={t('auditExplorer.errors.loadFailed')}
-          emptyText={Object.values(applied).some(Boolean) ? t('auditExplorer.emptyFiltered') : t('auditExplorer.empty')}
-        >
-          <>
-              <Table caption={t('auditExplorer.resultsTitle')}>
-                <TableHead>
-                  <TableHeaderCell>{t('auditExplorer.fields.occurredAt')}</TableHeaderCell>
-                  <TableHeaderCell>{t('auditExplorer.fields.action')}</TableHeaderCell>
-                  <TableHeaderCell>{t('auditExplorer.fields.aggregate')}</TableHeaderCell>
-                  <TableHeaderCell>{t('auditExplorer.fields.transition')}</TableHeaderCell>
-                  <TableHeaderCell>{t('auditExplorer.fields.actor')}</TableHeaderCell>
-                </TableHead>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{formatDateTime(row.occurredAt, locale)}</TableCell>
-                      <TableCell><code>{row.action}</code></TableCell>
-                      <TableCell>{row.aggregateType} · <code>{row.aggregateId}</code></TableCell>
-                      {/* An em dash for a row that is not a transition - most audit actions are not,
-                          and a blank cell reads as data the trail failed to record. */}
-                      <TableCell>{row.fromState || row.toState ? `${row.fromState ?? '—'} → ${row.toState ?? '—'}` : '—'}</TableCell>
-                      {/* A system actor has no label. Said in words rather than left empty, because
-                          "who did this" is the first question asked of an audit row. */}
-                      <TableCell>{row.actorLabel ?? t('auditExplorer.systemActor')}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {query.hasNextPage ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  isLoading={query.isFetchingNextPage}
-                  onClick={() => void query.fetchNextPage()}
-                >
-                  {t('auditExplorer.loadMore')}
-                </Button>
-            ) : null}
-          </>
-        </ListState>
-      </Card>
+      <ListCard
+        title={t('auditExplorer.resultsTitle')}
+        query={{ ...query, isPending: query.isLoading, isError: !!error && !refusedField, error }}
+        isEmpty={rows.length === 0}
+        labels={{
+          loading: t('common.loading'),
+          error: t('auditExplorer.errors.loadFailed'),
+          empty: Object.values(applied).some(Boolean) ? t('auditExplorer.emptyFiltered') : t('auditExplorer.empty'),
+          loadMore: t('auditExplorer.loadMore'),
+        }}
+      >
+        <Table caption={t('auditExplorer.resultsTitle')}>
+          <TableHead>
+            <TableHeaderCell>{t('auditExplorer.fields.occurredAt')}</TableHeaderCell>
+            <TableHeaderCell>{t('auditExplorer.fields.action')}</TableHeaderCell>
+            <TableHeaderCell>{t('auditExplorer.fields.aggregate')}</TableHeaderCell>
+            <TableHeaderCell>{t('auditExplorer.fields.transition')}</TableHeaderCell>
+            <TableHeaderCell>{t('auditExplorer.fields.actor')}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell>{formatDateTime(row.occurredAt, locale)}</TableCell>
+                <TableCell><code>{row.action}</code></TableCell>
+                <TableCell>{row.aggregateType} · <code>{row.aggregateId}</code></TableCell>
+                {/* An em dash for a row that is not a transition - most audit actions are not,
+                    and a blank cell reads as data the trail failed to record. */}
+                <TableCell>{row.fromState || row.toState ? `${row.fromState ?? '—'} → ${row.toState ?? '—'}` : '—'}</TableCell>
+                {/* A system actor has no label. Said in words rather than left empty, because
+                    "who did this" is the first question asked of an audit row. */}
+                <TableCell>{row.actorLabel ?? t('auditExplorer.systemActor')}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ListCard>
     </div>
   )
 }

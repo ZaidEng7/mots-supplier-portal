@@ -2,7 +2,7 @@ import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import {Badge, Card, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import {Badge, FilterBar, FilterField, ListCard, PageHeading, SearchField, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
 import { localisedName } from '../../lib/localised'
@@ -36,33 +36,33 @@ export function OfferingSearchPage() {
         <PageHeading title={t('offeringSearch.title')} subtitle={t('offeringSearch.subtitle')} />
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>{t('offeringSearch.filterCategory')}</span>
+      <FilterBar>
+        <FilterField label={t('offeringSearch.filterCategory')}>
           <Select
             value={categoryCode}
             onValueChange={setCategoryCode}
             placeholder={t('offeringSearch.filterCategory')}
             options={[{ value: 'all', label: t('offeringSearch.filterAll') }, ...categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))]}
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>{t('offeringSearch.searchPlaceholder')}</span>
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('offeringSearch.searchPlaceholder')} />
-        </div>
-      </div>
+        </FilterField>
+        {/* The search box had a caption reading "Search by name…" - the placeholder, said twice, and
+            attached to nothing. `SearchField` gives it a real `<label for>` and keeps the placeholder
+            as the example it always was. */}
+        <SearchField
+          id="offering-search"
+          label={t('offeringSearch.filterSearch')}
+          placeholder={t('offeringSearch.searchPlaceholder')}
+          value={query}
+          onChange={setQuery}
+        />
+      </FilterBar>
 
-      <Card title={t('offeringSearch.title')}>
-        <ListState
-          isPending={resultsQuery.isPending}
-          isError={resultsQuery.isError}
-          error={resultsQuery.error}
-          onRetry={() => void resultsQuery.refetch()}
-          isEmpty={results.length === 0}
-          loadingLabel={t('common.loading')}
-          errorText={t('common.loadFailed')}
-          emptyText={t('offeringSearch.empty')}
-        >
+      <ListCard
+        title={t('offeringSearch.title')}
+        query={resultsQuery}
+        isEmpty={results.length === 0}
+        labels={{ loading: t('common.loading'), error: t('common.loadFailed'), empty: t('offeringSearch.empty') }}
+      >
           <Table caption={t('offeringSearch.title')}>
             <TableHead>
               <TableHeaderCell>{t('offeringSearch.fields.name')}</TableHeaderCell>
@@ -95,8 +95,7 @@ export function OfferingSearchPage() {
               ))}
             </TableBody>
           </Table>
-        </ListState>
-      </Card>
+      </ListCard>
     </div>
   )
 }

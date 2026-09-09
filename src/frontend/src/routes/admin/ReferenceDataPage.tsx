@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {Badge, Button, Card, Field, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Field, Input, ListCard, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { SupplierApiError } from '../../api/supplier'
 import {
   REFERENCE_TABLES, listReferenceItems, createReferenceItem, updateReferenceItem, setReferenceItemActive,
@@ -191,17 +191,17 @@ export function ReferenceDataPage() {
       {/* The card is outside the state, not inside it. Loading used to render a bare skeleton with no
           card around it and failure rendered a DIFFERENT card with a different title, so the screen
           changed shape three times on its way to showing a table. */}
-      <Card title={t(`adminOverview.tables.${table}`)}>
-        <ListState
-          isPending={itemsQuery.isLoading}
-          isError={itemsQuery.isError}
-          error={itemsQuery.error}
-          onRetry={() => void itemsQuery.refetch()}
-          isEmpty={(itemsQuery.data ?? []).length === 0}
-          loadingLabel={t('common.loading')}
-          errorText={t('referenceAdmin.errors.loadFailed')}
-          emptyText={t('referenceAdmin.empty')}
-        >
+      <ListCard
+        title={t(`adminOverview.tables.${table}`)}
+        query={{ ...itemsQuery, isPending: itemsQuery.isLoading }}
+        isEmpty={(itemsQuery.data ?? []).length === 0}
+        labels={{ loading: t('common.loading'), error: t('referenceAdmin.errors.loadFailed'), empty: t('referenceAdmin.empty') }}
+        footer={
+          <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('referenceAdmin.inactiveNotice')}
+          </p>
+        }
+      >
           <Table caption={t(`adminOverview.tables.${table}`)}>
               <TableHead>
                 <TableHeaderCell>{t('referenceAdmin.code')}</TableHeaderCell>
@@ -319,11 +319,7 @@ export function ReferenceDataPage() {
                 })}
               </TableBody>
           </Table>
-        </ListState>
-        <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('referenceAdmin.inactiveNotice')}
-        </p>
-      </Card>
+      </ListCard>
       {/* BRULE-023's consequence, stated once and near the control rather than in a tooltip: this is the
           only flag on this screen whose effect is to suspend a live supplier, and it fires from a scheduled
           job days or months later, which is exactly when nobody remembers setting it. */}
