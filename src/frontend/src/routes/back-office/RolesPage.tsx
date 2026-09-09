@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, QueryError, SkeletonList, useToast } from '../../components/ui'
+import {Card, PageHeading, QueryError, SkeletonList, useToast} from '../../components/ui'
 import { listRoles, updateRolePermissions, type Role, type RolesResponse } from '../../api/roles'
 import { SupplierApiError } from '../../api/supplier'
 
@@ -78,12 +78,7 @@ export function RolesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('roleManagement.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('roleManagement.subtitle')}
-        </p>
+        <PageHeading title={t('roleManagement.title')} subtitle={t('roleManagement.subtitle')} />
       </div>
 
       {roles.map((role) => (

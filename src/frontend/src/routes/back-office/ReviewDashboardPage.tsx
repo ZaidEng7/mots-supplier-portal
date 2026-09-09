@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { StatusChip } from '../../components/ui/StatusChip'
 import { SkeletonGrid, SkeletonList } from '../../components/ui/Skeleton'
 import { formatNumber } from '../../lib/datetime'
+import { PageHeading } from '../../components/ui/ListScreen'
 
 /**
  * SCR-300 — the onboarding review dashboard. `/review`, P0, FR-DSH-002.
@@ -29,7 +30,7 @@ export function ReviewDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-[length:var(--text-h1)]">{t('reviewDashboard.title')}</h1>
+        <PageHeading title={t('reviewDashboard.title')} />
         <Link to="/back-office/review">{t('reviewDashboard.openQueue')}</Link>
       </div>
 

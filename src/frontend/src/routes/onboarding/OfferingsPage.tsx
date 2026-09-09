@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, QueryError, SkeletonList, useToast } from '../../components/ui'
+import {Card, PageHeading, QueryError, SkeletonList, useToast} from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, type SupplierProfile } from '../../api/supplier'
 import { linkCategory, unlinkCategory } from '../../api/categoryLinks'
@@ -61,12 +61,7 @@ export function OfferingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('offerings.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('offerings.subtitle')}
-        </p>
+        <PageHeading title={t('offerings.title')} subtitle={t('offerings.subtitle')} />
       </div>
 
       <OnboardingStepNav />

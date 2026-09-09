@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import {
-  Button, Card, Field, Input, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Button, Card, Field, Input, PageHeading, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import { AuditApiError, downloadAuditLog, searchAuditLog, type AuditSearchFilters } from '../../api/audit'
 
@@ -70,10 +67,7 @@ export function AuditExplorerPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('auditExplorer.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('auditExplorer.subtitle')}</p>
+        <PageHeading title={t('auditExplorer.title')} subtitle={t('auditExplorer.subtitle')} />
       </div>
 
       <Card title={t('auditExplorer.filtersTitle')}>

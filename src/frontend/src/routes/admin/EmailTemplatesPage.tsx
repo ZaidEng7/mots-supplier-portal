@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Field, Input, SkeletonList, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, useToast} from '../../components/ui'
 import {
   listEmailTemplates, upsertEmailTemplate, deleteEmailTemplate,
   EmailTemplateError, type EmailTemplateRow,
@@ -82,10 +80,7 @@ export function EmailTemplatesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('emailTemplates.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('emailTemplates.subtitle')}</p>
+        <PageHeading title={t('emailTemplates.title')} subtitle={t('emailTemplates.subtitle')} />
       </div>
 
       {templatesQuery.isLoading ? <SkeletonList label={t('common.loading')} /> : null}

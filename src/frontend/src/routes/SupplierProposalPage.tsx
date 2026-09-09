@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { getPublicSettings } from '../api/systemSettings'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Button, Card, Input, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import {Button, Card, Input, PageHeading, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import {
@@ -178,9 +178,7 @@ export function SupplierProposalPage() {
   if (!proposal) {
     return (
       <div className="flex flex-col gap-4">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('proposal.title')} — {rfq.rfqCode}
-        </h1>
+        <PageHeading title={`${t('proposal.title')} — ${rfq.rfqCode}`} />
         <Button isLoading={startMutation.isPending} onClick={() => startMutation.mutate()} className="self-start">
           {t('proposal.start')}
         </Button>
@@ -198,17 +196,13 @@ export function SupplierProposalPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('proposal.title')} — {rfq.rfqCode}
-          </h1>
-          <StatusChip machine="proposal" value={proposal.state} />
-        </div>
-        {isDraft ? (
+      <PageHeading
+        title={`${t('proposal.title')} — ${rfq.rfqCode}`}
+        meta={<StatusChip machine="proposal" value={proposal.state} />}
+        actions={isDraft ? (
           <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('proposal.submit')}</Button>
         ) : null}
-      </div>
+      />
 
       <Card title={t('proposal.pricing')}>
         <Table caption={t('proposal.pricing')}>

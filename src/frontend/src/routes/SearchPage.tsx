@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Card, Field, Input, SkeletonList } from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList} from '../components/ui'
 import { search, type SearchHit } from '../api/search'
 
 /**
@@ -45,10 +45,7 @@ export function SearchPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('search.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('search.subtitle')}</p>
+        <PageHeading title={t('search.title')} subtitle={t('search.subtitle')} />
       </div>
 
       <Card title={t('search.formTitle')}>

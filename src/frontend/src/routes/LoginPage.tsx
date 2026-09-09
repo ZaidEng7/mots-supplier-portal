@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { Button, Field, Input } from '../components/ui'
+import { AuthHeading, Button, Field, Input } from '../components/ui'
 import { ApiError, login } from '../api/auth'
 import { useAuthStore } from '../lib/authStore'
 
@@ -142,9 +142,7 @@ export function LoginPage() {
       >
         {pendingCreds ? (
           <>
-            <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-              {t('auth.mfaTitle')}
-            </h1>
+            <AuthHeading title={t('auth.mfaTitle')} />
             <form
               className="flex flex-col gap-4"
               onSubmit={(e) => {
@@ -190,9 +188,7 @@ export function LoginPage() {
           </>
         ) : (
           <>
-            <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-              {t('auth.loginTitle')}
-            </h1>
+            <AuthHeading title={t('auth.loginTitle')} />
             <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
               <Field label={t('auth.email')} error={errors.email?.message} required>
                 {(inputProps) => <Input type="email" autoComplete="email" {...inputProps} {...register('email')} />}

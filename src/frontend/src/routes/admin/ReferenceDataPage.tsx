@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Field, Input, Select, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { SupplierApiError } from '../../api/supplier'
 import {
   REFERENCE_TABLES, listReferenceItems, createReferenceItem, updateReferenceItem, setReferenceItemActive,
@@ -140,10 +137,7 @@ export function ReferenceDataPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('referenceAdmin.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('referenceAdmin.subtitle')}</p>
+        <PageHeading title={t('referenceAdmin.title')} subtitle={t('referenceAdmin.subtitle')} />
       </div>
 
       <div className="max-w-xs">

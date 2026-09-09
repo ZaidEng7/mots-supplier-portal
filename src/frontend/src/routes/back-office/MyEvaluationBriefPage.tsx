@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Card, Skeleton, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
+import {Badge, Card, PageHeading, Skeleton, Table, TableBody, TableCell, TableHead, TableRow} from '../../components/ui'
 import { getMyEvaluation } from '../../api/evaluations'
 
 /**
@@ -42,9 +42,7 @@ export function MyEvaluationBriefPage({ referenceCode }: { referenceCode: string
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('evaluationBrief.title')}
-        </h1>
+        <PageHeading title={t('evaluationBrief.title')} />
         <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {isArabic ? evaluation.rfqTitleAr : evaluation.rfqTitleEn} · {evaluation.rfqReferenceCode}
         </p>

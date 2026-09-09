@@ -1,10 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, SkeletonTable, StatusChip,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow,
-} from '../components/ui'
+import {Badge, Button, Card, PageHeading, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { formatDateTime, formatNumber } from '../lib/datetime'
 import { listMyProposals } from '../api/proposals'
 
@@ -41,10 +38,7 @@ export function MyProposalsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('myProposals.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('myProposals.subtitle')}</p>
+        <PageHeading title={t('myProposals.title')} subtitle={t('myProposals.subtitle')} />
       </div>
 
       <Card title={t('myProposals.listTitle')}>

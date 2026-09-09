@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Select, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import {
   getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
@@ -81,10 +78,7 @@ export function OperationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('operations.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('operations.subtitle')}</p>
+        <PageHeading title={t('operations.title')} subtitle={t('operations.subtitle')} />
       </div>
 
       <Card title={t('operations.jobsTitle')}>

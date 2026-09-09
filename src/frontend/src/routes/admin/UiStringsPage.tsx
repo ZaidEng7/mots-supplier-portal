@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import i18n from '../../i18n/config'
-import {
-  Badge, Button, Card, Field, Input, Select, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { listUiStringOverrides, upsertUiStringOverride, deleteUiStringOverride } from '../../api/uiStrings'
 
 /**
@@ -88,10 +85,7 @@ export function UiStringsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('uiStrings.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('uiStrings.subtitle')}</p>
+        <PageHeading title={t('uiStrings.title')} subtitle={t('uiStrings.subtitle')} />
       </div>
 
       <Card title={t('uiStrings.editTitle')}>

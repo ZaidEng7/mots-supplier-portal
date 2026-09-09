@@ -4,10 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Dialog, Field, Input, Select, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import {
   inviteStaff, listStaff, setStaffActive, changeStaffRole, resetStaffMfa,
   type Staff, type StaffAccount,
@@ -122,12 +119,7 @@ export function StaffPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('staff.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('staff.subtitle')}
-        </p>
+        <PageHeading title={t('staff.title')} subtitle={t('staff.subtitle')} />
       </div>
 
       <Card title={t('staff.inviteTitle')} action={<Button size="sm" onClick={() => setDialogOpen(true)}>{t('staff.invite')}</Button>}>

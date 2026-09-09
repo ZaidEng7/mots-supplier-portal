@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { getMeta } from '../api/meta'
+import { PageHeading } from '../components/ui/ListScreen'
 
 /**
  * SCR-908 — what this build is, and what to quote when reporting a problem.
@@ -17,9 +18,7 @@ export function AboutPage() {
 
   return (
     <main className="mx-auto flex max-w-[42rem] flex-col gap-6 p-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('about.title')}
-      </h1>
+      <PageHeading title={t('about.title')} />
 
       <section className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>

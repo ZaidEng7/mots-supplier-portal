@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, QueryError, SkeletonList, StatusChip, useToast } from '../../components/ui'
+import {Badge, Button, Card, Input, PageHeading, QueryError, SkeletonList, StatusChip, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
 import {
@@ -169,9 +169,7 @@ export function MyEvaluationPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('evaluation.my.title')} — {referenceCode}
-        </h1>
+        <PageHeading title={`${t('evaluation.my.title')} — ${referenceCode}`} />
         <div className="flex items-center gap-3">
           {/* SCR-501. The brief carries the one thing this screen cannot show without becoming a wall of
               text: each criterion's scoring guidance, as the template author wrote it. */}

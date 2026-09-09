@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../lib/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, QueryError, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
+import {Badge, Button, Card, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
@@ -118,9 +118,7 @@ export function AwardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('award.title')} — {referenceCode}
-      </h1>
+      <PageHeading title={`${t('award.title')} — ${referenceCode}`} />
 
       {award ? (
         <Card title={t('award.status')}>

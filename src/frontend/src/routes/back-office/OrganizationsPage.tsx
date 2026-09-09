@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, PageHeading, PhoneInput, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   addOrgUnit,
@@ -248,12 +248,7 @@ export function OrganizationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('organizations.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('organizations.subtitle')}
-        </p>
+        <PageHeading title={t('organizations.title')} subtitle={t('organizations.subtitle')} />
       </div>
 
       <Card title={t('organizations.listTitle')} action={<Button size="sm" onClick={() => setCreateOpen(true)}>{t('organizations.createTitle')}</Button>}>
