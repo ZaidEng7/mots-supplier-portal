@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Dialog, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import {Badge, Button, Card, Dialog, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import {
   getReviewerSupplierView,
   pickUpApplication,
@@ -264,10 +264,7 @@ export function ReviewApplicationPage() {
         ) : null}
       </div>
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('review.profile')}
-        </h2>
+      <Card title={t('review.profile')}>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {PROFILE_DISPLAY_FIELDS.map((f) => (
             <div key={f}>
@@ -283,12 +280,9 @@ export function ReviewApplicationPage() {
             </div>
           ))}
         </dl>
-      </div>
+      </Card>
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('review.legalInfo')}
-        </h2>
+      <Card title={t('review.legalInfo')}>
         {/* Task #33 / MSP-77: legalInfo is nullable on the DTO (a supplier who hasn't reached that
             step yet) and, when present, is an object - rendering it directly is the exact crash
             MSP-77 fixed by deleting this section. Guarding on null here and reading every field
@@ -315,12 +309,9 @@ export function ReviewApplicationPage() {
         ) : (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('contacts.empty')}</p>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('review.addresses')}
-        </h2>
+      <Card title={t('review.addresses')}>
         {supplier.addresses.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('addresses.empty')}</p>
         ) : (
@@ -343,12 +334,9 @@ export function ReviewApplicationPage() {
             </TableBody>
           </Table>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('review.representatives')}
-        </h2>
+      <Card title={t('review.representatives')}>
         {supplier.representatives.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('contacts.empty')}</p>
         ) : (
@@ -399,12 +387,9 @@ export function ReviewApplicationPage() {
             </TableBody>
           </Table>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('review.documents')}
-        </h2>
+      <Card title={t('review.documents')}>
         <ul className="flex flex-col gap-2">
           {documents.map((doc) => (
             <li key={doc.documentTypeId} className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3" style={{ border: '1px solid var(--color-border)' }}>
@@ -442,13 +427,10 @@ export function ReviewApplicationPage() {
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
 
       {annotationHistory.length > 0 ? (
-        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-          <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('review.annotationHistory')}
-          </h2>
+        <Card title={t('review.annotationHistory')}>
           <ul className="flex flex-col gap-3">
             {annotationHistory.map((a) => (
               <li key={a.id} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -460,7 +442,7 @@ export function ReviewApplicationPage() {
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       ) : null}
 
       {/* Keyed by action so React REMOUNTS on each open. Without this the dialog keeps its previous

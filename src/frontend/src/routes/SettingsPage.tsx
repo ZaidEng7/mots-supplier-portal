@@ -7,7 +7,7 @@ import { changePassword, getAccount, updateAccount, ApiError } from '../api/auth
 import { useAuthStore } from '../lib/authStore'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Field, Input, PageHeading, QueryError, SkeletonList, useToast} from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, QueryError, SkeletonList, useToast} from '../components/ui'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -164,10 +164,7 @@ function ChangePasswordSection() {
   })
 
   return (
-    <section className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-      <h2 className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('settings.passwordTitle')}
-      </h2>
+    <Card title={t('settings.passwordTitle')}>
       <p className="mb-4 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
         {t('settings.passwordHint')}
       </p>
@@ -198,7 +195,7 @@ function ChangePasswordSection() {
       <p className="mt-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
         {t('settings.passwordRevokesOthers')}
       </p>
-    </section>
+    </Card>
   )
 }
 
@@ -354,28 +351,19 @@ export function SettingsPage() {
     <div className="flex flex-col gap-6">
       <PageHeading title={t('settings.title')} />
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('account.title')}
-        </h2>
+      <Card title={t('account.title')}>
         <AccountSection />
-      </div>
+      </Card>
 
       <ChangePasswordSection />
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('settings.mfaTitle')}
-        </h2>
+      <Card title={t('settings.mfaTitle')}>
         <MfaSection />
-      </div>
+      </Card>
 
-      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('settings.sessionsTitle')}
-        </h2>
+      <Card title={t('settings.sessionsTitle')}>
         <SessionsSection />
-      </div>
+      </Card>
 
       {/*
         B-1/FR-AUD-003. `GET /suppliers/me/audit` and its CSV export have existed since EPIC-01 and
@@ -390,12 +378,9 @@ export function SettingsPage() {
         rather than as a section that does not apply to them.
       */}
       {isSupplier ? (
-        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-          <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('settings.auditTitle')}
-          </h2>
+        <Card title={t('settings.auditTitle')}>
           <AuditTrailSection />
-        </div>
+        </Card>
       ) : null}
     </div>
   )

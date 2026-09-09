@@ -592,106 +592,96 @@ export function OnboardingPage() {
         <LogoUploader profile={profile} canEdit={!isReadOnly} onProfile={onProfile} />
       </Card>
 
-      <form
-        className="flex flex-col gap-4 rounded-[var(--radius-lg)] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-        onSubmit={legalForm.handleSubmit((values) => saveLegalMutation.mutate(values))}
-      >
-        <h2 className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.legalTitle')}
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label={t('onboarding.fields.legalNameAr')} error={legalForm.formState.errors.legalNameAr ? t('onboarding.errors.legalNameArRequired') : undefined} required>
-            {(p) => <Input dir="rtl" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('legalNameAr')} />}
-          </Field>
-          <Field label={t('onboarding.fields.legalNameEn')} error={legalForm.formState.errors.legalNameEn ? t('onboarding.errors.legalNameEnRequired') : undefined} required>
-            {(p) => <Input dir="ltr" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('legalNameEn')} />}
-          </Field>
-          <Field label={t('onboarding.fields.registrationNumber')}>
-            {(p) => <Input disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('registrationNumber')} />}
-          </Field>
-          <Field label={t('onboarding.fields.taxId')}>
-            {(p) => <Input disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('taxId')} />}
-          </Field>
-          <Field label={t('onboarding.fields.supplierType')} required>
-            {(p) => (
-              <Select
-                id={p.id}
-                value={supplierType}
-                onValueChange={(v) => legalForm.setValue('supplierType', v as (typeof SUPPLIER_TYPES)[number])}
-                options={SUPPLIER_TYPES.map((v) => ({ value: v, label: t(`onboarding.supplierTypes.${v}`) }))}
-                disabled={!fieldEditable('legalInfo')}
-              />
-            )}
-          </Field>
-          <Field label={t('onboarding.fields.establishedOn')}>
-            {(p) => <Input type="date" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('establishedOn')} />}
-          </Field>
-        </div>
-        {!isReadOnly ? (
-          <div>
-            <Button type="submit" variant="secondary" isLoading={saveLegalMutation.isPending}>
-              {t('onboarding.save')}
-            </Button>
+      <Card title={t('onboarding.legalTitle')}>
+        <form className="flex flex-col gap-4" onSubmit={legalForm.handleSubmit((values) => saveLegalMutation.mutate(values))}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label={t('onboarding.fields.legalNameAr')} error={legalForm.formState.errors.legalNameAr ? t('onboarding.errors.legalNameArRequired') : undefined} required>
+              {(p) => <Input dir="rtl" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('legalNameAr')} />}
+            </Field>
+            <Field label={t('onboarding.fields.legalNameEn')} error={legalForm.formState.errors.legalNameEn ? t('onboarding.errors.legalNameEnRequired') : undefined} required>
+              {(p) => <Input dir="ltr" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('legalNameEn')} />}
+            </Field>
+            <Field label={t('onboarding.fields.registrationNumber')}>
+              {(p) => <Input disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('registrationNumber')} />}
+            </Field>
+            <Field label={t('onboarding.fields.taxId')}>
+              {(p) => <Input disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('taxId')} />}
+            </Field>
+            <Field label={t('onboarding.fields.supplierType')} required>
+              {(p) => (
+                <Select
+                  id={p.id}
+                  value={supplierType}
+                  onValueChange={(v) => legalForm.setValue('supplierType', v as (typeof SUPPLIER_TYPES)[number])}
+                  options={SUPPLIER_TYPES.map((v) => ({ value: v, label: t(`onboarding.supplierTypes.${v}`) }))}
+                  disabled={!fieldEditable('legalInfo')}
+                />
+              )}
+            </Field>
+            <Field label={t('onboarding.fields.establishedOn')}>
+              {(p) => <Input type="date" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('establishedOn')} />}
+            </Field>
           </div>
-        ) : null}
-      </form>
+          {!isReadOnly ? (
+            <div>
+              <Button type="submit" variant="secondary" isLoading={saveLegalMutation.isPending}>
+                {t('onboarding.saveLegal')}
+              </Button>
+            </div>
+          ) : null}
+        </form>
+      </Card>
 
-      <form
-        className="flex flex-col gap-4 rounded-[var(--radius-lg)] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-        onSubmit={profileForm.handleSubmit((values) => saveProfileMutation.mutate(values))}
-      >
-        <h2 className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.profileTitle')}
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label={t('onboarding.fields.description')}>
-            {(p) => <Input disabled={!fieldEditable('description')} {...p} {...profileForm.register('description')} />}
-          </Field>
-          <Field label={t('onboarding.fields.website')}>
-            {(p) => <Input disabled={!fieldEditable('website')} {...p} {...profileForm.register('website')} />}
-          </Field>
-          <Field label={t('onboarding.fields.supplierGroup')}>
-            {(p) => <Input disabled={!fieldEditable('supplierGroup')} {...p} {...profileForm.register('supplierGroup')} />}
-          </Field>
-          <Field label={t('onboarding.fields.currencyCode')} required>
-            {(p) => (
-              <Select
-                id={p.id}
-                aria-describedby={p['aria-describedby']}
-                aria-invalid={p['aria-invalid']}
-                value={currencyCode || undefined}
-                onValueChange={(v) => profileForm.setValue('currencyCode', v)}
-                options={currencyOptions}
-                placeholder={t('onboarding.fields.currencyCode')}
-                disabled={!fieldEditable('currencyCode')}
-              />
-            )}
-          </Field>
-          <Field label={t('onboarding.fields.primaryContactPhone')} required>
-            {(p) => (
-              <PhoneInput
-                {...p}
-                disabled={!fieldEditable('primaryContactPhone')}
-                value={primaryContactPhone ?? ''}
-                onChange={(v) => profileForm.setValue('primaryContactPhone', v, { shouldValidate: true })}
-              />
-            )}
-          </Field>
-        </div>
-        {!isReadOnly ? (
-          <div>
-            <Button type="submit" variant="secondary" isLoading={saveProfileMutation.isPending}>
-              {t('onboarding.save')}
-            </Button>
+      <Card title={t('onboarding.profileTitle')}>
+        <form className="flex flex-col gap-4" onSubmit={profileForm.handleSubmit((values) => saveProfileMutation.mutate(values))}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label={t('onboarding.fields.description')}>
+              {(p) => <Input disabled={!fieldEditable('description')} {...p} {...profileForm.register('description')} />}
+            </Field>
+            <Field label={t('onboarding.fields.website')}>
+              {(p) => <Input disabled={!fieldEditable('website')} {...p} {...profileForm.register('website')} />}
+            </Field>
+            <Field label={t('onboarding.fields.supplierGroup')}>
+              {(p) => <Input disabled={!fieldEditable('supplierGroup')} {...p} {...profileForm.register('supplierGroup')} />}
+            </Field>
+            <Field label={t('onboarding.fields.currencyCode')} required>
+              {(p) => (
+                <Select
+                  id={p.id}
+                  aria-describedby={p['aria-describedby']}
+                  aria-invalid={p['aria-invalid']}
+                  value={currencyCode || undefined}
+                  onValueChange={(v) => profileForm.setValue('currencyCode', v)}
+                  options={currencyOptions}
+                  placeholder={t('onboarding.fields.currencyCode')}
+                  disabled={!fieldEditable('currencyCode')}
+                />
+              )}
+            </Field>
+            <Field label={t('onboarding.fields.primaryContactPhone')} required>
+              {(p) => (
+                <PhoneInput
+                  {...p}
+                  disabled={!fieldEditable('primaryContactPhone')}
+                  value={primaryContactPhone ?? ''}
+                  onChange={(v) => profileForm.setValue('primaryContactPhone', v, { shouldValidate: true })}
+                />
+              )}
+            </Field>
           </div>
-        ) : (
-          <output className="block" style={{ color: 'var(--success-600)' }}>
-            {t('onboarding.readOnlyNotice')}
-          </output>
-        )}
-      </form>
+          {!isReadOnly ? (
+            <div>
+              <Button type="submit" variant="secondary" isLoading={saveProfileMutation.isPending}>
+                {t('onboarding.saveProfile')}
+              </Button>
+            </div>
+          ) : (
+            <output className="block" style={{ color: 'var(--success-600)' }}>
+              {t('onboarding.readOnlyNotice')}
+            </output>
+          )}
+        </form>
+      </Card>
 
       <Card title={t('onboarding.termsTitle')}>
         {/* Two independent facts, not one refined twice: whether the terms have been accepted, and

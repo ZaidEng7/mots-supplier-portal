@@ -19,7 +19,7 @@ export function OnboardingStepNav() {
   return (
     <nav
       aria-label={t('onboarding.stepNavLabel')}
-      className="flex flex-wrap gap-1.5 overflow-x-auto rounded-[var(--radius-lg)] p-1.5"
+      className="flex flex-wrap gap-2 overflow-x-auto rounded-[var(--radius-lg)] p-2"
       style={{ backgroundColor: 'var(--color-bg-sunken)' }}
     >
       {STEPS.map((step) => {
@@ -28,7 +28,7 @@ export function OnboardingStepNav() {
           <Link
             key={step.path}
             to={step.path}
-            className="whitespace-nowrap rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)] transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)]"
+            className="whitespace-nowrap rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body-sm)] font-[var(--fw-medium)] transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)]"
             style={{
               backgroundColor: active ? 'var(--color-bg-surface)' : 'transparent',
               color: active ? 'var(--color-text-brand)' : 'var(--color-text-secondary)',

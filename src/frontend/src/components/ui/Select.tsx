@@ -75,7 +75,7 @@ export function Select({ id, value, onValueChange, options, placeholder, disable
               <RadixSelect.Item
                 key={opt.value}
                 value={opt.value}
-                className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-[length:var(--text-body)] outline-none data-[highlighted]:outline-none"
+                className="flex cursor-pointer items-center justify-between rounded px-2 py-2 text-[length:var(--text-body)] outline-none data-[highlighted]:outline-none"
                 style={{ color: 'var(--color-text-primary)' }}
                 onPointerEnter={(e) => {
                   e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'

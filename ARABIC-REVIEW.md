@@ -862,3 +862,16 @@ Ship on D-65's terms: **accepted for the demonstration build without a line-by-l
 
 No plural forms, deliberately. A count would need Arabic's six plural categories to say "3 things left",
 and the list itself already shows how many there are.
+
+### Phase 6D · the two onboarding save buttons
+
+Ship on D-65's terms: **accepted for the demonstration build without a line-by-line read**.
+
+| Key | English | Arabic (authored) |
+|---|---|---|
+| `onboarding.saveLegal` | Save legal information | حفظ المعلومات النظامية |
+| `onboarding.saveProfile` | Save profile | حفظ الملف |
+
+Both forms on this screen submitted with a button reading only «حفظ» / "Save". Visually the card each sits
+in disambiguates them; for a screen-reader user tabbing through, two identical "Save" buttons on one
+screen do not.

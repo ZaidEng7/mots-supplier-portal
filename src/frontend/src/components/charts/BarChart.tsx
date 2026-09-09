@@ -76,6 +76,9 @@ export function BarChart({ data, valueLabel, height = 220 }: {
           <Tooltip
             cursor={{ fill: 'var(--color-bg-sunken)' }}
             contentStyle={{
+              // recharts' default tooltip pads itself 10px, which is off the 4px grid the rest of the
+              // product sits on. Set here rather than left to the library.
+              padding: 'var(--space-2) var(--space-3)',
               background: 'var(--color-bg-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',

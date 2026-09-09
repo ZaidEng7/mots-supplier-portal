@@ -33,7 +33,7 @@ export function Badge({ tone = 'neutral', children }: BadgeProps) {
   const t = toneStyle[tone]
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[length:var(--text-caption)] font-[var(--fw-medium)]"
+      className="inline-flex items-center rounded-full px-2 py-1 text-[length:var(--text-caption)] font-[var(--fw-medium)]"
       style={{ backgroundColor: t.bg, color: t.fg }}
     >
       {children}

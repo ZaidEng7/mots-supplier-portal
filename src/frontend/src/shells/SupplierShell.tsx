@@ -46,43 +46,43 @@ export function SupplierShell({ children }: Props) {
             {t('appName')}
           </span>
           <nav className="hidden gap-4 md:flex">
-            <Link to="/dashboard" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/dashboard" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.dashboard')}
             </Link>
-            <Link to="/onboarding" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/onboarding" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.onboarding')}
             </Link>
             {/* SCR-121: the supplier's own profile, which had no surface at all until now. */}
-            <Link to="/profile" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/profile" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.profile')}
             </Link>
             {/* SCR-130: documents existed only inside the onboarding wizard. */}
-            <Link to="/documents" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/documents" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.documents')}
             </Link>
             {/* SCR-907. */}
-            <Link to="/help" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/help" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('help.title')}
             </Link>
             {/* SCR-150: "what have I bid on" had no answer short of opening every invitation. */}
-            <Link to="/proposals" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/proposals" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.proposals')}
             </Link>
-            <Link to="/offerings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/offerings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.offerings')}
             </Link>
-            <Link to="/team" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/team" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.team')}
             </Link>
-            <Link to="/rfqs" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/rfqs" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.rfqs')}
             </Link>
-            <Link to="/settings" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/settings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('nav.settings')}
             </Link>
             {/* SCR-901, for the supplier too: they receive invitations and award offers, and this screen is
                 where they learn which of those arrive whatever their preferences say. */}
-            <Link to="/settings/notifications" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            <Link to="/settings/notifications" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('notificationPreferences.title')}
             </Link>
           </nav>

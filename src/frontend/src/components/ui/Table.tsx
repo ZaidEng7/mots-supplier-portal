@@ -52,7 +52,7 @@ export function TableHeaderCell({
   return (
     <th
       scope={scope}
-      className={`px-4 py-2.5 text-start font-[var(--fw-semibold)] ${className}`}
+      className={`px-4 py-2 text-start font-[var(--fw-semibold)] ${className}`}
       style={{
         color: 'var(--color-text-secondary)',
         backgroundColor: 'var(--color-bg-sunken)',
@@ -82,7 +82,7 @@ export function TableCell({
 }: { children: ReactNode; sticky?: boolean; highlight?: boolean; className?: string; style?: CSSProperties }) {
   return (
     <td
-      className={`px-4 py-2.5 ${className}`}
+      className={`px-4 py-2 ${className}`}
       style={{
         color: 'var(--color-text-primary)',
         backgroundColor: rowBackground(highlight, sticky),
