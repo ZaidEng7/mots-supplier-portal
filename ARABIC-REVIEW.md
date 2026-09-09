@@ -765,3 +765,15 @@ reason behind a decision; «تعليق» would read as a remark rather than as e
 Two keys were REMOVED in the same pass: `evaluation.my.commentAr` and `evaluation.my.commentEn`, which
 labelled a two-language comment pair no screen ever rendered. BRULE-061 takes either language and asks
 for no translation, so the pair was never the right shape.
+
+### The design-token pass · one shared failure string
+
+Eighteen screens rendered their EMPTY state when a fetch failed. The fix is one component and one string
+rather than eighteen variants, so this section is short on purpose: the words a person needs when a screen
+cannot load are the same on every screen, and eighteen wordings would be eighteen things to keep aligned.
+
+| Key | English | Arabic | Note |
+|---|---|---|---|
+| `common.loadFailed` | We could not load this. Try again. | تعذّر تحميل هذه البيانات. حاول مرة أخرى. | Authored. «تعذّر» is "could not", impersonal, rather than «فشل» (failed), which reads as a fault the reader caused. Two short sentences, matching §10's shape: what happened, then what to do |
+| `common.retry` | Try again | إعادة المحاولة | **[reused]** - the same string this catalogue already carries in five places for the same action |
+

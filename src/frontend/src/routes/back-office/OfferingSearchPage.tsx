@@ -2,7 +2,7 @@ import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Card, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Card, Input, QueryError, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
 
@@ -57,7 +57,11 @@ export function OfferingSearchPage() {
       </div>
 
       <Card title={t('offeringSearch.title')}>
-        {results.length === 0 ? (
+        {resultsQuery.isPending ? (
+          <SkeletonTable label={t('common.loading')} />
+        ) : resultsQuery.isError ? (
+          <QueryError onRetry={() => void resultsQuery.refetch()} />
+        ) : results.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('offeringSearch.empty')}</p>
         ) : (
           <Table caption={t('offeringSearch.title')}>

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../lib/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
+import { Badge, Button, Card, Input, QueryError, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
@@ -102,6 +102,12 @@ export function AwardPage() {
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('award.retryQueued') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('award.errors.actionFailed')) }),
   })
+
+  if (awardQuery.isError || evaluationQuery.isError) {
+    // An award screen that renders "no recommendation yet" because the fetch failed is the worst
+    // version of this defect in the product: it invites the officer to start the process again.
+    return <QueryError onRetry={() => { void awardQuery.refetch(); void evaluationQuery.refetch() }} />
+  }
 
   if (awardQuery.isLoading || evaluationQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />

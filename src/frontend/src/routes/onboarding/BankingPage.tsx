@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
 import { useToast } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type BankAccount, type SupplierProfile } from '../../api/supplier'
@@ -207,6 +207,10 @@ export function BankingPage() {
   if (profileQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
+  // The wizard step cannot be filled in from a profile that failed to load, and the
+  // form below would otherwise render as though the supplier simply had none.
+  if (profileQuery.isError) return <QueryError onRetry={() => void profileQuery.refetch()} />
+
 
   const accounts = profile?.bankAccounts ?? []
   const currencyOptions = (currenciesQuery.data ?? []).map((c) => ({ value: c.code, label: c.code }))

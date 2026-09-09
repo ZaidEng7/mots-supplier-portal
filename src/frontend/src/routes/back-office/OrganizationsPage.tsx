@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   addOrgUnit,
@@ -197,6 +197,8 @@ function SupplierLinksSection() {
           <div className="flex flex-col gap-3">
             {linksQuery.isLoading ? (
               <SkeletonList label={t('common.loading')} />
+            ) : linksQuery.isError ? (
+              <QueryError onRetry={() => void linksQuery.refetch()} />
             ) : linksQuery.data && linksQuery.data.length > 0 ? (
               <ul className="flex flex-col gap-2">
                 {linksQuery.data.map((link) => (

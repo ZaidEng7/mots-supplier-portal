@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '../lib/datetime'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import { Badge, Button, QueryError, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
 import { listReviewQueue, claimReviewItem, unassignReviewItem, type ReviewQueueItem } from '../api/review'
 import { useAuthStore } from '../lib/authStore'
 import { invalidateQuietly } from '../lib/queryClient'
@@ -119,7 +119,11 @@ export function ReviewQueuePage() {
         </div>
       </div>
 
-      {items.length === 0 && !queueQuery.isLoading ? (
+      {queueQuery.isError ? (
+        // Before this, a failed queue fetch rendered "nothing waiting for you" - the one thing a
+        // reviewer must not be told wrongly.
+        <QueryError onRetry={() => void queueQuery.refetch()} />
+      ) : items.length === 0 && !queueQuery.isLoading ? (
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('review.noItems')}</p>
       ) : (
         <Table>

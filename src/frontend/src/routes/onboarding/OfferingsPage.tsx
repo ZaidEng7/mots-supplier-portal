@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, SkeletonList, useToast } from '../../components/ui'
+import { Card, QueryError, SkeletonList, useToast } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, type SupplierProfile } from '../../api/supplier'
 import { linkCategory, unlinkCategory } from '../../api/categoryLinks'
@@ -45,6 +45,10 @@ export function OfferingsPage() {
     },
     onError: () => notify({ kind: 'danger', title: t('offerings.toggleFailed') }),
   })
+
+  if (profileQuery.isError || categoriesQuery.isError) {
+    return <QueryError onRetry={() => { void profileQuery.refetch(); void categoriesQuery.refetch() }} />
+  }
 
   if (profileQuery.isLoading || categoriesQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
