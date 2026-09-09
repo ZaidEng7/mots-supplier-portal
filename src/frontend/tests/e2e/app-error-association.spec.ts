@@ -225,3 +225,35 @@ test.describe('Revert-to-red proof: a broken association must fail this check', 
     }).rejects.toThrow()
   })
 })
+
+/**
+ * The required marker, said to assistive technology as well as drawn.
+ *
+ * <p>`Field` renders an asterisk beside a required label and marks it `aria-hidden` — correctly, because
+ * a reader announcing "asterisk" is noise. What was missing is the fact the asterisk stands for. Nothing
+ * told assistive technology the field was required, so a screen-reader user met the requirement for the
+ * first time as a validation error after submitting a form they could not have known was incomplete.</p>
+ *
+ * <p>Checked on the registration form because it has the most required fields in the product, and in
+ * Arabic as well as English because `required` is a prop, not a string, and a locale-specific failure
+ * here would mean something worse than a translation bug.</p>
+ */
+for (const locale of ['en', 'ar'] as const) {
+  test(`required fields say so to assistive technology, not only with an asterisk [${locale}]`, async ({ page }) => {
+    await mockBackend(page)
+    await page.goto(`/register?lng=${locale}`, { waitUntil: 'networkidle' })
+
+    const required = page.locator('[aria-required="true"]')
+    const count = await required.count()
+
+    // The denominator. Registration has seven required fields; a check that found none would pass every
+    // assertion below by measuring nothing.
+    expect(count).toBeGreaterThanOrEqual(5)
+
+    // Every one of them is a real control, not a decoration that happened to carry the attribute.
+    for (let index = 0; index < count; index += 1) {
+      const role = await required.nth(index).evaluate((node) => node.tagName.toLowerCase())
+      expect(['input', 'select', 'textarea', 'button']).toContain(role)
+    }
+  })
+}
