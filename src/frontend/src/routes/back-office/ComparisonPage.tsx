@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Input, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import {Badge, Button, Input, PageHeading, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { getComparison, resolveEvaluationTie } from '../../api/comparison'
 import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
@@ -116,12 +116,10 @@ export function ComparisonPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('comparison.title')} — {isArabic ? comparison.rfqTitleAr : comparison.rfqTitleEn}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('comparison.proposalCount', { count: proposals.length })}
-        </p>
+        <PageHeading
+          title={`${t('comparison.title')} — ${isArabic ? comparison.rfqTitleAr : comparison.rfqTitleEn}`}
+          subtitle={t('comparison.proposalCount', { count: proposals.length })}
+        />
         {!consolidatedOrLater ? (
           <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('comparison.awaitingConsolidation')}

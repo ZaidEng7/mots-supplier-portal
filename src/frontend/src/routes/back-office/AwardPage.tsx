@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../lib/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, QueryError, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
+import {Badge, Button, Card, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
+import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-14.1..14.6/FR-AWD-001..007. Every action here hides only, never gates - the server
  * re-enforces its own guard (state, segregation of duties, supplier-active) regardless of what
@@ -35,6 +36,8 @@ function erpSyncLabelKey(status: ErpSyncStatus): string | null {
   return status === 'NotRequested' ? null : ERP_SYNC_LABEL_KEYS[status]
 }
 
+const ERP_TONES = { Synced: 'success', Failed: 'danger' } as const
+
 export function AwardPage() {
   const canApproveAward = useAuthStore((state) => state.claims?.permissions.includes('award.approve') ?? false)
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode/award' })
@@ -55,7 +58,7 @@ export function AwardPage() {
 
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['award', referenceCode] })
   const errorMessage = (err: unknown, fallback: string) =>
-    err instanceof AwardApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof AwardApiError ? err.message : fallback
+    apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
 
   const recommendMutation = useMutation({
     mutationFn: () => recommendAward(referenceCode, { winningProposalId, justificationAr, justificationEn }),
@@ -118,9 +121,7 @@ export function AwardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('award.title')} — {referenceCode}
-      </h1>
+      <PageHeading title={`${t('award.title')} — ${referenceCode}`} />
 
       {award ? (
         <Card title={t('award.status')}>
@@ -174,7 +175,7 @@ export function AwardPage() {
             {award.state === 'Awarded' ? (
               <div className="flex flex-col gap-2">
                 {erpSyncLabelKey(award.erpSyncStatus) ? (
-                  <Badge tone={award.erpSyncStatus === 'Synced' ? 'success' : award.erpSyncStatus === 'Failed' ? 'danger' : 'info'}>
+                  <Badge tone={toneFor(award.erpSyncStatus, ERP_TONES)}>
                     {t('award.erpStatus')}: {t(erpSyncLabelKey(award.erpSyncStatus)!)}
                   </Badge>
                 ) : null}

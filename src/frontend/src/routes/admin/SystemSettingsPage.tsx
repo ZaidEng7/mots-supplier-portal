@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Field, Input, Select, SkeletonList, useToast } from '../../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, Select, SkeletonList, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import { getSystemSettings, updateSystemSetting, type SystemSetting } from '../../api/systemSettings'
 
@@ -19,6 +19,19 @@ import { getSystemSettings, updateSystemSetting, type SystemSetting } from '../.
  * renders the right control without keeping a second copy of the catalogue that could disagree with
  * the one that validates.</p>
  */
+/**
+ * The help text under a setting's control. A list of integers needs a format hint; a bounded integer
+ * needs its bounds; everything else needs nothing, and an unbounded one must NOT be given a range hint
+ * with `null` in it.
+ */
+function hintFor(setting: SystemSetting, t: (key: string, opts?: Record<string, unknown>) => string): string | undefined {
+  if (setting.kind === 'IntegerList') return t('systemSettings.hints.integerList')
+  if (setting.minimum !== null && setting.maximum !== null) {
+    return t('systemSettings.hints.range', { min: setting.minimum, max: setting.maximum })
+  }
+  return undefined
+}
+
 export function SystemSettingsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -75,10 +88,7 @@ export function SystemSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('systemSettings.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('systemSettings.subtitle')}</p>
+        <PageHeading title={t('systemSettings.title')} subtitle={t('systemSettings.subtitle')} />
       </div>
 
       {query.data.map((setting) => {
@@ -111,13 +121,7 @@ export function SystemSettingsPage() {
                 <Field
                   label={t('systemSettings.value')}
                   error={error}
-                  hint={
-                    setting.kind === 'IntegerList'
-                      ? t('systemSettings.hints.integerList')
-                      : setting.minimum !== null && setting.maximum !== null
-                        ? t('systemSettings.hints.range', { min: setting.minimum, max: setting.maximum })
-                        : undefined
-                  }
+                  hint={hintFor(setting, t)}
                 >
                   {(inputProps) => (
                     <Input

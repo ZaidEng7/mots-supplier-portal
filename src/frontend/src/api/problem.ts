@@ -99,3 +99,21 @@ export class ProblemError extends Error {
     this.isProblemError = hasProblemProse(problem)
   }
 }
+
+/**
+ * The message to show when a mutation is refused.
+ *
+ * <p>Five screens wrote this by hand, identically: the concurrency conflict first because it is the one
+ * refusal a reader can act on by reloading, then the server's own explanation, then the caller's
+ * fallback. Written as a chain of ternaries in each, which reads as a decision procedure when it is a
+ * priority order.</p>
+ *
+ * <p>`isConcurrencyConflict` is read structurally rather than through a class, because each API module
+ * has its own error type and they differ only in the name.</p>
+ */
+export function apiErrorMessage(err: unknown, fallback: string, concurrencyText: string): string {
+  if (err !== null && typeof err === 'object' && (err as { isConcurrencyConflict?: unknown }).isConcurrencyConflict === true) {
+    return concurrencyText
+  }
+  return errorDetail(err) ?? fallback
+}

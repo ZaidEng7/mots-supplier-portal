@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, QueryError, SkeletonList, useToast } from '../../components/ui'
+import {Card, PageHeading, QueryError, SkeletonList, useToast} from '../../components/ui'
 import { listRoles, updateRolePermissions, type Role, type RolesResponse } from '../../api/roles'
 import { SupplierApiError } from '../../api/supplier'
 
@@ -29,6 +29,22 @@ const PERMISSION_LABELS: Record<string, { ar: string; en: string }> = {
   'offering.search': { ar: 'البحث عن الخدمات المعروضة', en: 'Search offerings' },
 }
 
+/** The two refusals the server names, and the string each maps to. */
+const ROLE_ERROR_KEYS: Record<string, string> = {
+  would_lock_out_role_management: 'roleManagement.errors.wouldLockOutRoleManagement',
+  invalid_permission: 'roleManagement.errors.invalidPermission',
+}
+
+/**
+ * A permission's human label, or the raw permission when the catalogue has no label for it. The raw
+ * string is a deliberate fallback: an administrator granting an unlabelled permission should still see
+ * which one it is.
+ */
+function permissionLabel(label: { ar: string; en: string } | undefined, isArabic: boolean, permission: string): string {
+  if (!label) return permission
+  return isArabic ? label.ar : label.en
+}
+
 export function RolesPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -51,12 +67,10 @@ export function RolesPage() {
       )
     },
     onError: (err) => {
-      const message =
-        err instanceof SupplierApiError && err.message === 'would_lock_out_role_management'
-          ? t('roleManagement.errors.wouldLockOutRoleManagement')
-          : err instanceof SupplierApiError && err.message === 'invalid_permission'
-            ? t('roleManagement.errors.invalidPermission')
-            : t('roleManagement.errors.updateFailed')
+      // The server names its two refusals with machine-stable codes, so the mapping is a table.
+      const code = err instanceof SupplierApiError ? err.message : undefined
+      const messageKey = ROLE_ERROR_KEYS[code ?? ''] ?? 'roleManagement.errors.updateFailed'
+      const message = t(messageKey)
       notify({ kind: 'danger', title: message })
     },
   })
@@ -78,12 +92,7 @@ export function RolesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('roleManagement.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('roleManagement.subtitle')}
-        </p>
+        <PageHeading title={t('roleManagement.title')} subtitle={t('roleManagement.subtitle')} />
       </div>
 
       {roles.map((role) => (
@@ -104,7 +113,7 @@ export function RolesPage() {
                       disabled={updateMutation.isPending}
                       onChange={() => toggle(role, permission)}
                     />
-                    <span style={{ color: 'var(--color-text-primary)' }}>{label ? (isArabic ? label.ar : label.en) : permission}</span>
+                    <span style={{ color: 'var(--color-text-primary)' }}>{permissionLabel(label, isArabic, permission)}</span>
                   </label>
                 </li>
               )

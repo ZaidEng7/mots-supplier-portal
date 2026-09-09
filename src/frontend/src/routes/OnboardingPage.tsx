@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Field, Input, PhoneInput, QueryError, Select, StatusChip } from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, PhoneInput, QueryError, Select, StatusChip} from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -162,6 +162,13 @@ function DocumentGroup({
   )
 }
 
+/** What the chip beside a document type should say, or nothing when there is nothing to say. */
+function documentChipValue(state: string | null | undefined, isRequired: boolean, isBlocking: boolean): string | null {
+  if (state) return state
+  if (isRequired) return isBlocking ? 'Missing' : 'Required'
+  return null
+}
+
 function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
   doc: DocumentTypeStatus
   canEdit: boolean
@@ -228,10 +235,12 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
             - An OPTIONAL type with no upload gets no chip at all. Calling it "Required" would be
               false, and SCR-106 is explicit that "optional docs never block"; the "(optional)"
               marker beside the name already says what it is. */}
-        {state ? (
-          <StatusChip machine="document" value={state} />
-        ) : doc.isRequired ? (
-          <StatusChip machine="document" value={isBlocking ? 'Missing' : 'Required'} />
+        {/* A document that has been uploaded shows the state the reviewer put it in. One that has not
+            shows whether it is still required - and `Missing` only once a submit attempt has named it,
+            which is what `isBlocking` carries. An optional document with nothing uploaded shows
+            nothing, because there is nothing to say about it. */}
+        {documentChipValue(state, doc.isRequired, isBlocking) ? (
+          <StatusChip machine="document" value={documentChipValue(state, doc.isRequired, isBlocking)!} />
         ) : null}
         {doc.latestDocument?.expiryDate && (state === 'Approved' || state === 'ExpiringSoon') ? (
           <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
@@ -498,9 +507,7 @@ export function OnboardingPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.title')}
-        </h1>
+        <PageHeading title={t('onboarding.title')} />
         <StatusChip machine="onboarding" value={profile.onboardingState} />
       </div>
 
@@ -634,13 +641,16 @@ export function OnboardingPage() {
             </Button>
           </div>
         ) : (
-          <p role="status" style={{ color: 'var(--success-600)' }}>
+          <output className="block" style={{ color: 'var(--success-600)' }}>
             {t('onboarding.readOnlyNotice')}
-          </p>
+          </output>
         )}
       </form>
 
       <Card title={t('onboarding.termsTitle')}>
+        {/* Two independent facts, not one refined twice: whether the terms have been accepted, and
+            whether this supplier can still act. An accepted application shows when and which version;
+            an editable one that has not accepted shows the checkbox; a read-only one shows neither. */}
         {profile.termsAcceptedAt ? (
           <p style={{ color: 'var(--success-600)' }}>
             {t('onboarding.termsAcceptedNotice', {
@@ -648,7 +658,8 @@ export function OnboardingPage() {
               version: profile.termsAcceptedVersion,
             })}
           </p>
-        ) : isReadOnly ? null : (
+        ) : null}
+        {!profile.termsAcceptedAt && !isReadOnly ? (
           <div className="flex flex-col gap-3">
             <label className="flex items-start gap-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
               <input type="checkbox" checked={termsChecked} onChange={(e) => setTermsChecked(e.target.checked)} className="mt-1" />
@@ -666,7 +677,7 @@ export function OnboardingPage() {
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </Card>
 
       {/*

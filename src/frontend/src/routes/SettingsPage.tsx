@@ -7,7 +7,7 @@ import { changePassword, getAccount, updateAccount, ApiError } from '../api/auth
 import { useAuthStore } from '../lib/authStore'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Field, Input, SkeletonList, useToast, QueryError } from '../components/ui'
+import {Badge, Button, Field, Input, PageHeading, QueryError, SkeletonList, useToast} from '../components/ui'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -352,9 +352,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('settings.title')}
-      </h1>
+      <PageHeading title={t('settings.title')} />
 
       <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>

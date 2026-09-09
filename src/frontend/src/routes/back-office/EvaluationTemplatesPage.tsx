@@ -2,7 +2,7 @@ import { formatNumber } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   listEvaluationTemplates, createEvaluationTemplate, addCriterion, activateEvaluationTemplate,
@@ -17,6 +17,8 @@ const SCORING_TYPES: ScoringType[] = ['Numeric', 'Scale', 'Boolean', 'Formula']
  * a real, Active template to exist. Weight-sum-must-equal-100 and immutable-once-referenced are
  * both domain invariants (EvaluationTemplate.cs); this page surfaces the exact refusal message the
  * domain raises rather than re-deriving validation client-side. */
+const TEMPLATE_TONES = { Active: 'success', Archived: 'neutral', Draft: 'info' } as const
+
 export function EvaluationTemplatesPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -103,30 +105,29 @@ export function EvaluationTemplatesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('evaluationTemplates.title')}
-          </h1>
-          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('evaluationTemplates.subtitle')}
-          </p>
+          <PageHeading title={t('evaluationTemplates.title')} subtitle={t('evaluationTemplates.subtitle')} />
         </div>
         <Button onClick={() => setCreateOpen(true)}>{t('evaluationTemplates.add')}</Button>
       </div>
 
-      {templatesQuery.isPending ? (
-        <SkeletonList label={t('common.loading')} />
-      ) : templatesQuery.isError ? (
-        <QueryError error={templatesQuery.error} onRetry={() => void templatesQuery.refetch()} />
-      ) : templates.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluationTemplates.empty')}</p>
-      ) : (
-        templates.map((template: EvaluationTemplate) => {
+      <ListState
+        isPending={templatesQuery.isPending}
+        isError={templatesQuery.isError}
+        error={templatesQuery.error}
+        onRetry={() => void templatesQuery.refetch()}
+        isEmpty={templates.length === 0}
+        loadingLabel={t('common.loading')}
+        errorText={t('common.loadFailed')}
+        emptyText={t('evaluationTemplates.empty')}
+        skeleton="list"
+      >
+        {templates.map((template: EvaluationTemplate) => {
           const weightTotal = template.criteria.reduce((sum, c) => sum + c.weight, 0)
           const draft = draftFor(template.id)
           return (
             <Card key={template.id} title={`${template.nameEn} (v${template.version})`}>
               <div className="mb-3 flex items-center gap-2">
-                <Badge tone={template.status === 'Active' ? 'success' : template.status === 'Archived' ? 'neutral' : 'info'}>
+                <Badge tone={toneFor(template.status, TEMPLATE_TONES)}>
                   {template.status}
                 </Badge>
                 {template.isReferenced ? <Badge tone="warning">{t('evaluationTemplates.referenced')}</Badge> : null}
@@ -197,8 +198,8 @@ export function EvaluationTemplatesPage() {
               </div>
             </Card>
           )
-        })
-      )}
+        })}
+      </ListState>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen} title={t('evaluationTemplates.createTitle')}>
         <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); createMutation.mutate() }} noValidate>

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '../lib/datetime'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, QueryError, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import {Badge, Button, ListState, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { listReviewQueue, claimReviewItem, unassignReviewItem, type ReviewQueueItem } from '../api/review'
 import { useAuthStore } from '../lib/authStore'
 import { invalidateQuietly } from '../lib/queryClient'
@@ -87,9 +87,7 @@ export function ReviewQueuePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('review.queue')}
-      </h1>
+      <PageHeading title={t('review.queue')} />
 
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-col gap-1">
@@ -119,13 +117,19 @@ export function ReviewQueuePage() {
         </div>
       </div>
 
-      {queueQuery.isError ? (
-        // Before this, a failed queue fetch rendered "nothing waiting for you" - the one thing a
-        // reviewer must not be told wrongly.
-        <QueryError error={queueQuery.error} onRetry={() => void queueQuery.refetch()} />
-      ) : items.length === 0 && !queueQuery.isLoading ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('review.noItems')}</p>
-      ) : (
+      {/* Before ListState owned this, a failed queue fetch rendered "nothing waiting for you" - the one
+          thing a reviewer must not be told wrongly, because they act on it by going away. */}
+      <ListState
+        isPending={queueQuery.isLoading}
+        isError={queueQuery.isError}
+        error={queueQuery.error}
+        onRetry={() => void queueQuery.refetch()}
+        isEmpty={items.length === 0}
+        loadingLabel={t('common.loading')}
+        errorText={t('common.loadFailed')}
+        emptyText={t('review.noItems')}
+      >
+        {(
         <Table>
           <TableHead>
             <TableHeaderCell>{isArabic ? 'الاسم' : 'Name'}</TableHeaderCell>
@@ -190,7 +194,8 @@ export function ReviewQueuePage() {
             })}
           </TableBody>
         </Table>
-      )}
+        )}
+      </ListState>
       {queueQuery.hasNextPage ? (
         <Button
           variant="secondary"

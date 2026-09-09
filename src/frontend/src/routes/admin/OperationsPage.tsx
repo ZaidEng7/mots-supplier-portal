@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Select, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import {
   getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
@@ -30,6 +27,10 @@ import { retryAwardErpSync } from '../../api/awards'
  * this" indistinguishable from "a deployment dropped it" — the exact fault the missing-job row exists
  * to surface. The global switch stays the supported way to stop schedules.</p>
  */
+const JOB_TONES = { Succeeded: 'success', Failed: 'danger' } as const
+const SYNC_TONES = { Sent: 'success', Failed: 'danger' } as const
+const ERP_TONES = { Synced: 'success', Failed: 'danger' } as const
+
 export function OperationsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -81,10 +82,7 @@ export function OperationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('operations.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('operations.subtitle')}</p>
+        <PageHeading title={t('operations.title')} subtitle={t('operations.subtitle')} />
       </div>
 
       <Card title={t('operations.jobsTitle')}>
@@ -94,10 +92,10 @@ export function OperationsPage() {
           the reader to skip it.
         */}
         {jobsQuery.data && !jobsQuery.data.recurringEnabled ? (
-          <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
+          <output className="block mb-3 rounded-[var(--radius-md)] p-3"
             style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger-fg)' }}>
             {t('operations.recurringDisabled')}
-          </p>
+          </output>
         ) : null}
 
         {jobsQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
@@ -134,7 +132,7 @@ export function OperationsPage() {
                     {job.lastExecution ? formatDateTime(job.lastExecution, locale) : t('operations.never')}
                     {job.lastState ? (
                       <span className="ms-2">
-                        <Badge tone={job.lastState === 'Succeeded' ? 'success' : job.lastState === 'Failed' ? 'danger' : 'neutral'}>
+                        <Badge tone={toneFor(job.lastState, JOB_TONES)}>
                           {job.lastState}
                         </Badge>
                       </span>
@@ -230,7 +228,7 @@ export function OperationsPage() {
                     ) : null}
                   </TableCell>
                   <TableCell>
-                    <Badge tone={message.syncStatus === 'Failed' ? 'danger' : message.syncStatus === 'Sent' ? 'success' : 'neutral'}>
+                    <Badge tone={toneFor(message.syncStatus, SYNC_TONES)}>
                       {message.syncStatus}
                     </Badge>
                   </TableCell>
@@ -263,10 +261,10 @@ export function OperationsPage() {
           line would be an instrument asserting something untrue.
         */}
         {erpQuery.data && !erpQuery.data.transportConfigured ? (
-          <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
+          <output className="block mb-3 rounded-[var(--radius-md)] p-3"
             style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
             {t('operations.erpNotConfigured')}
-          </p>
+          </output>
         ) : null}
 
         {erpQuery.data ? (
@@ -308,7 +306,7 @@ export function OperationsPage() {
                 <TableRow key={row.rfqReferenceCode}>
                   <TableCell><span className="font-mono text-[length:var(--text-body-sm)]">{row.rfqReferenceCode}</span></TableCell>
                   <TableCell>
-                    <Badge tone={row.erpSyncStatus === 'Failed' ? 'danger' : row.erpSyncStatus === 'Synced' ? 'success' : 'neutral'}>
+                    <Badge tone={toneFor(row.erpSyncStatus, ERP_TONES)}>
                       {row.erpSyncStatus}
                     </Badge>
                   </TableCell>

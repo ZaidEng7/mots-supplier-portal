@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import {
-  Button, Card, Field, Input, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Button, Card, Field, Input, ListState, PageHeading, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import { AuditApiError, downloadAuditLog, searchAuditLog, type AuditSearchFilters } from '../../api/audit'
 
@@ -70,10 +67,7 @@ export function AuditExplorerPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('auditExplorer.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('auditExplorer.subtitle')}</p>
+        <PageHeading title={t('auditExplorer.title')} subtitle={t('auditExplorer.subtitle')} />
       </div>
 
       <Card title={t('auditExplorer.filtersTitle')}>
@@ -126,21 +120,23 @@ export function AuditExplorerPage() {
         ) : null}
       </Card>
 
-      {query.isLoading ? (
-        <SkeletonTable label={t('common.loading')} />
-      ) : error && !refusedField ? (
-        <Card title={t('auditExplorer.title')}>
-          <p>{t('auditExplorer.errors.loadFailed')}</p>
-          <Button size="sm" variant="ghost" onClick={() => void query.refetch()}>{t('auditExplorer.retry')}</Button>
-        </Card>
-      ) : (
-        <Card title={t('auditExplorer.resultsTitle')}>
-          {rows.length === 0 ? (
-            <p style={{ color: 'var(--color-text-secondary)' }}>
-              {Object.values(applied).some(Boolean) ? t('auditExplorer.emptyFiltered') : t('auditExplorer.empty')}
-            </p>
-          ) : (
-            <>
+      {/* The card is outside the state, not inside it: loading used to render a bare skeleton and failure
+          a card with a DIFFERENT title, so the screen changed shape twice on its way to a table.
+
+          `error && !refusedField` is kept exactly as it was. A refused FIELD is not a failed request -
+          the query succeeded and the server declined one column - so it must not render as one. */}
+      <Card title={t('auditExplorer.resultsTitle')}>
+        <ListState
+          isPending={query.isLoading}
+          isError={!!error && !refusedField}
+          error={error}
+          onRetry={() => void query.refetch()}
+          isEmpty={rows.length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('auditExplorer.errors.loadFailed')}
+          emptyText={Object.values(applied).some(Boolean) ? t('auditExplorer.emptyFiltered') : t('auditExplorer.empty')}
+        >
+          <>
               <Table caption={t('auditExplorer.resultsTitle')}>
                 <TableHead>
                   <TableHeaderCell>{t('auditExplorer.fields.occurredAt')}</TableHeaderCell>
@@ -174,11 +170,10 @@ export function AuditExplorerPage() {
                 >
                   {t('auditExplorer.loadMore')}
                 </Button>
-              ) : null}
-            </>
-          )}
-        </Card>
-      )}
+            ) : null}
+          </>
+        </ListState>
+      </Card>
     </div>
   )
 }

@@ -20,6 +20,17 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  * not now" — sunken fill, muted text, a not-allowed cursor; <b>read-only</b> is "this is the value, it is
  * simply not editable here" — no fill, no border, per §6.2's "read-only (no border, muted)".</p>
  */
+/**
+ * The field's own surface. Three states, named once: a disabled field is sunken, a read-only one has no
+ * surface of its own because it is text that happens to sit in a form, and an editable one is a surface
+ * you can type into.
+ */
+function backgroundFor(disabled: boolean | undefined, readOnly: boolean | undefined): string {
+  if (disabled) return 'var(--color-bg-sunken)'
+  if (readOnly) return 'transparent'
+  return 'var(--color-bg-surface)'
+}
+
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { invalid = false, className = '', style, onFocus, onBlur, disabled, readOnly, ...rest },
   ref,
@@ -37,7 +48,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         // The resting border is a custom property so the stylesheet can raise it on hover: an inline
         // style beats a class, which is why this component had no hover state for its whole life.
         ['--input-border' as string]: readOnly && !disabled ? 'transparent' : borderColor,
-        backgroundColor: disabled ? 'var(--color-bg-sunken)' : readOnly ? 'transparent' : 'var(--color-bg-surface)',
+        backgroundColor: backgroundFor(disabled, readOnly),
         color: disabled ? 'var(--color-text-disabled)' : 'var(--color-text-primary)',
         border: '1px solid var(--input-border)',
         ...style,

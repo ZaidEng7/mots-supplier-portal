@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Field, Input, Select, SkeletonTable,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../../components/ui'
+import {Badge, Button, Card, Field, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { SupplierApiError } from '../../api/supplier'
 import {
   REFERENCE_TABLES, listReferenceItems, createReferenceItem, updateReferenceItem, setReferenceItemActive,
@@ -26,6 +23,16 @@ import {
  * would leave that RFQ describing nothing, and renaming a code would silently change what a historical
  * award was for. Deactivation hides a code from new selections and leaves every existing row readable.</p>
  */
+/**
+ * A duplicate code is a refusal this screen can word itself. An invalid reference item is one only the
+ * server can explain, so its own message wins. Everything else falls back to the caller's wording.
+ */
+function messageFor(code: string | undefined, raised: unknown, fallback: string, duplicateText: string): string {
+  if (code === 'DUPLICATE_RESOURCE') return duplicateText
+  if (code === 'INVALID_REFERENCE_ITEM' && raised instanceof SupplierApiError) return raised.message
+  return fallback
+}
+
 export function ReferenceDataPage() {
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -53,11 +60,10 @@ export function ReferenceDataPage() {
   // so it goes to the toast. Doing both put the same sentence on screen twice.
   const onError = (raised: unknown, fallback: string, surface: 'field' | 'toast') => {
     const code = raised instanceof SupplierApiError ? (raised.code ?? '') : ''
-    const message =
-      code === 'DUPLICATE_RESOURCE' ? t('referenceAdmin.errors.duplicateCode')
-        : code === 'INVALID_REFERENCE_ITEM'
-          ? (raised instanceof SupplierApiError ? raised.message : fallback)
-          : fallback
+    // Two distinct refusals, each with its own answer, and everything else falling back. Written as
+    // statements rather than a chain because the middle case defers to the SERVER's wording - the
+    // reference item is invalid for a reason only the server knows.
+    const message = messageFor(code, raised, fallback, t('referenceAdmin.errors.duplicateCode'))
     if (surface === 'field') setError(message)
     else notify({ kind: 'danger', title: message })
   }
@@ -140,10 +146,7 @@ export function ReferenceDataPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('referenceAdmin.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('referenceAdmin.subtitle')}</p>
+        <PageHeading title={t('referenceAdmin.title')} subtitle={t('referenceAdmin.subtitle')} />
       </div>
 
       <div className="max-w-xs">
@@ -185,19 +188,21 @@ export function ReferenceDataPage() {
         </p>
       </Card>
 
-      {itemsQuery.isLoading ? (
-        <SkeletonTable label={t('common.loading')} />
-      ) : itemsQuery.isError ? (
-        <Card title={t('referenceAdmin.title')}>
-          <p>{t('referenceAdmin.errors.loadFailed')}</p>
-          <Button size="sm" variant="ghost" onClick={() => void itemsQuery.refetch()}>{t('referenceAdmin.retry')}</Button>
-        </Card>
-      ) : (
-        <Card title={t(`adminOverview.tables.${table}`)}>
-          {(itemsQuery.data ?? []).length === 0 ? (
-            <p style={{ color: 'var(--color-text-secondary)' }}>{t('referenceAdmin.empty')}</p>
-          ) : (
-            <Table caption={t(`adminOverview.tables.${table}`)}>
+      {/* The card is outside the state, not inside it. Loading used to render a bare skeleton with no
+          card around it and failure rendered a DIFFERENT card with a different title, so the screen
+          changed shape three times on its way to showing a table. */}
+      <Card title={t(`adminOverview.tables.${table}`)}>
+        <ListState
+          isPending={itemsQuery.isLoading}
+          isError={itemsQuery.isError}
+          error={itemsQuery.error}
+          onRetry={() => void itemsQuery.refetch()}
+          isEmpty={(itemsQuery.data ?? []).length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('referenceAdmin.errors.loadFailed')}
+          emptyText={t('referenceAdmin.empty')}
+        >
+          <Table caption={t(`adminOverview.tables.${table}`)}>
               <TableHead>
                 <TableHeaderCell>{t('referenceAdmin.code')}</TableHeaderCell>
                 <TableHeaderCell>{t('referenceAdmin.name')}</TableHeaderCell>
@@ -313,13 +318,12 @@ export function ReferenceDataPage() {
                   )
                 })}
               </TableBody>
-            </Table>
-          )}
-          <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('referenceAdmin.inactiveNotice')}
-          </p>
-        </Card>
-      )}
+          </Table>
+        </ListState>
+        <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('referenceAdmin.inactiveNotice')}
+        </p>
+      </Card>
       {/* BRULE-023's consequence, stated once and near the control rather than in a tooltip: this is the
           only flag on this screen whose effect is to suspend a live supplier, and it fires from a scheduled
           job days or months later, which is exactly when nobody remembers setting it. */}

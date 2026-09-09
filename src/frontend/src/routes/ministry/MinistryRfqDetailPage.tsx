@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Card, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import {Badge, Card, PageHeading, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { getMinistryRfqDetail } from '../../api/governance'
 import { formatCurrency, formatDate, formatNumber } from '../../lib/datetime'
 
@@ -46,9 +46,7 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
         <Link to="/back-office/ministry/rfqs" className="text-[length:var(--text-body-sm)]">
           {t('ministryRfqDetail.backToMonitor')}
         </Link>
-        <h1 className="mt-2 text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {isArabic ? summary.titleAr : summary.titleEn}
-        </h1>
+        <PageHeading title={isArabic ? summary.titleAr : summary.titleEn} />
         <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {summary.referenceCode} · {isArabic ? summary.organizationNameAr : summary.organizationNameEn}
         </p>
@@ -62,10 +60,10 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
       </div>
 
       {!commercialValuesVisible ? (
-        <p role="status" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
+        <output className="block rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
            style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
           {t('ministryRfqDetail.valuesWithheld')}
-        </p>
+        </output>
       ) : null}
 
       <Card title={t('ministryRfqDetail.tender')}>
@@ -96,9 +94,13 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
               {t('ministryRfqs.fields.awarded')}
             </dt>
             <dd>
-              {summary.awardedValue === null
-                ? (commercialValuesVisible ? t('ministryRfqDetail.notAwarded') : t('ministryRfqDetail.withheld'))
-                : formatCurrency(summary.awardedValue, summary.currencyCode, locale)}
+              {/* No value has two different meanings, and confusing them would be the worst thing this
+                  screen could do: either nothing has been awarded, or the figure exists and disclosure
+                  policy withholds it. */}
+              {(() => {
+                if (summary.awardedValue !== null) return formatCurrency(summary.awardedValue, summary.currencyCode, locale)
+                return commercialValuesVisible ? t('ministryRfqDetail.notAwarded') : t('ministryRfqDetail.withheld')
+              })()}
             </dd>
           </div>
         </dl>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Card, Dialog, Field, Input, QueryError, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import {Button, Card, Dialog, Field, Input, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -56,12 +56,7 @@ export function RfqListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('rfq.title')}
-          </h1>
-          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.subtitle')}
-          </p>
+          <PageHeading title={t('rfq.title')} subtitle={t('rfq.subtitle')} />
         </div>
         <Button onClick={() => setCreateOpen(true)}>{t('rfq.add')}</Button>
       </div>
@@ -69,7 +64,12 @@ export function RfqListPage() {
       <Card
         title={t('rfq.listTitle')}
         action={
-          <div role="group" aria-label={t('rfq.ownerFilter.label')} className="flex flex-wrap gap-2">
+          <fieldset className="m-0 flex flex-wrap gap-2 border-0 p-0">
+            {/* <fieldset>, not <div role="group">: the native element carries the same grouping
+                semantics without asserting a role, and its <legend> is the accessible name rather than
+                an aria-label duplicating one. The classes strip the border and padding a fieldset
+                brings by default. */}
+            <legend className="sr-only">{t('rfq.ownerFilter.label')}</legend>
             {(['all', 'me', 'unassigned'] as const).map((value) => (
               <Button
                 key={value}
@@ -81,18 +81,19 @@ export function RfqListPage() {
                 {t(`rfq.ownerFilter.${value}`)}
               </Button>
             ))}
-          </div>
+          </fieldset>
         }
       >
-        {rfqsQuery.isPending ? (
-          <SkeletonTable label={t('common.loading')} />
-        ) : rfqsQuery.isError ? (
-          <QueryError error={rfqsQuery.error} onRetry={() => void rfqsQuery.refetch()} />
-        ) : rfqs.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            {owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
-          </p>
-        ) : (
+        <ListState
+          isPending={rfqsQuery.isPending}
+          isError={rfqsQuery.isError}
+          error={rfqsQuery.error}
+          isEmpty={rfqs.length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('common.loadFailed')}
+          onRetry={() => void rfqsQuery.refetch()}
+          emptyText={owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
+        >
           <Table caption={t('rfq.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
@@ -117,7 +118,7 @@ export function RfqListPage() {
               ))}
             </TableBody>
           </Table>
-        )}
+        </ListState>
         {rfqsQuery.hasNextPage ? (
           <Button
             variant="secondary"

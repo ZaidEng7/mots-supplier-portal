@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Card, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import {Button, Card, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { nextPageParam } from '../api/listEnvelope'
 import { listInvitedRfqs } from '../api/supplierRfqs'
 
@@ -28,12 +28,7 @@ export function SupplierRfqListPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('supplierRfq.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('supplierRfq.subtitle')}
-        </p>
+        <PageHeading title={t('supplierRfq.title')} subtitle={t('supplierRfq.subtitle')} />
       </div>
 
       <Card title={t('supplierRfq.listTitle')}>
@@ -42,15 +37,18 @@ export function SupplierRfqListPage() {
             permanently on a fetch failure - because a pending query and a genuinely empty list
             rendered the same copy. UX-PRINCIPLES.md §DoD: "All states designed: empty, loading
             (skeleton), error, success". */}
-        {rfqsQuery.isPending ? (
-          <SkeletonList label={t('common.loading')} rows={3} />
-        ) : rfqsQuery.isError ? (
-          // The third state this chain was missing: a failed fetch used to fall through to "no
-          // invitations", which is a different fact and one the reader would have acted on.
-          <QueryError error={rfqsQuery.error} onRetry={() => void rfqsQuery.refetch()} />
-        ) : rfqs.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.empty')}</p>
-        ) : (
+        <ListState
+          isPending={rfqsQuery.isPending}
+          isError={rfqsQuery.isError}
+          error={rfqsQuery.error}
+          onRetry={() => void rfqsQuery.refetch()}
+          isEmpty={rfqs.length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('common.loadFailed')}
+          emptyText={t('supplierRfq.empty')}
+          skeleton="list"
+          skeletonRows={3}
+        >
           <Table caption={t('supplierRfq.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
@@ -71,7 +69,7 @@ export function SupplierRfqListPage() {
               ))}
             </TableBody>
           </Table>
-        )}
+        </ListState>
         {rfqsQuery.hasNextPage ? (
           <Button
             variant="secondary"

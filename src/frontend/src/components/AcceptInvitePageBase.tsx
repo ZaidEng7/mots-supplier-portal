@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useSearch } from '@tanstack/react-router'
-import { Button, Field, Input } from './ui'
+import { AuthHeading, Button, Field, Input } from './ui'
 
 const schema = z.object({ password: z.string().min(12) })
 type FormValues = z.infer<typeof schema>
@@ -57,9 +57,7 @@ export function AcceptInvitePageBase({
   return (
     <main id="main" className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
       <div className="w-full max-w-sm rounded-[var(--radius-lg)] p-8" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-        <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {title}
-        </h1>
+        <AuthHeading title={title} />
         {status === 'success' ? (
           <div className="flex flex-col gap-4">
             <p role="status" style={{ color: 'var(--success-600)' }}>

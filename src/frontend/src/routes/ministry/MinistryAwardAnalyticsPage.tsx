@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Card, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import {Card, PageHeading, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { getMinistryAwardAnalytics, type MinistrySpendBucket } from '../../api/governance'
 import { formatCurrency, formatNumber } from '../../lib/datetime'
 
@@ -71,19 +71,14 @@ export function MinistryAwardAnalyticsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('ministryAwards.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('ministryAwards.subtitle')}
-        </p>
+        <PageHeading title={t('ministryAwards.title')} subtitle={t('ministryAwards.subtitle')} />
       </div>
 
       {!commercialValuesVisible ? (
-        <p role="status" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
+        <output className="block rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
            style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
           {t('ministryAwards.valuesWithheld')}
-        </p>
+        </output>
       ) : null}
 
       <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">

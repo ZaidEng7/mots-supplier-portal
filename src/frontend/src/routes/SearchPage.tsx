@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, Card, Field, Input, SkeletonList } from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, toneFor} from '../components/ui'
 import { search, type SearchHit } from '../api/search'
 
 /**
@@ -19,6 +19,8 @@ import { search, type SearchHit } from '../api/search'
  * <p><b>Submitted, not live.</b> A keystroke-per-request search over three tables is a load test aimed at
  * the database, and a person typing a reference code does not want results for its first three characters.</p>
  */
+const KIND_TONES = { rfq: 'brand', supplier: 'info' } as const
+
 export function SearchPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -45,10 +47,7 @@ export function SearchPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('search.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('search.subtitle')}</p>
+        <PageHeading title={t('search.title')} subtitle={t('search.subtitle')} />
       </div>
 
       <Card title={t('search.formTitle')}>
@@ -85,10 +84,10 @@ export function SearchPage() {
           </p>
 
           {resultsQuery.data.truncated ? (
-            <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
+            <output className="block mb-3 rounded-[var(--radius-md)] p-3"
               style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
               {t('search.truncated')}
-            </p>
+            </output>
           ) : null}
 
           {resultsQuery.data.hits.length === 0 ? (
@@ -112,7 +111,7 @@ export function SearchPage() {
                     style={{ border: '1px solid var(--color-border)' }}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={hit.kind === 'rfq' ? 'brand' : hit.kind === 'supplier' ? 'info' : 'neutral'}>
+                      <Badge tone={toneFor(hit.kind, KIND_TONES)}>
                         {t(`search.kinds.${hit.kind}`, { defaultValue: hit.kind })}
                       </Badge>
                       {to ? (

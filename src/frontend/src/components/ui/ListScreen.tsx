@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from './Button'
 import { Card } from './Card'
 import { Input } from './Input'
-import { SkeletonTable } from './Skeleton'
+import { SkeletonList, SkeletonTable } from './Skeleton'
 import { errorDetail } from '../../api/problem'
 
 /**
@@ -19,17 +19,44 @@ import { errorDetail } from '../../api/problem'
  */
 
 /** Screen title and its one-line explanation of what the reader is looking at. */
-export function PageHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeading({ title, subtitle, actions, meta }: Readonly<{
+  title: string
+  subtitle?: string
+  /** The primary action for this screen, beside the title rather than adrift below it. */
+  actions?: ReactNode
+  /** A status chip, a reference code, an owner - the facts that identify this particular record. */
+  meta?: ReactNode
+}>) {
   return (
-    <div>
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {title}
-      </h1>
-      {subtitle ? (
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {subtitle}
-        </p>
-      ) : null}
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        {/*
+          `--text-h1`, not `--text-h2`. The audit measured `<h1>` rendering at THREE different sizes
+          across the product for one job - the h1 token on 5 screens, h2 on 45 and h3 on 7 - and this
+          component was itself one of the wrong ones, so the six screens already using it were being
+          made consistent with each other and inconsistent with the scale.
+
+          RECONCILIATION.md's shared rule: page title is `--text-h1`, one size, once per page. Never a
+          smaller heading for the page's own name.
+        */}
+        {/*
+          `break-words` is not decoration. A page title is not always prose: the back-office dashboard
+          greets you with your own email address, and a supplier's legal name can be one long token in
+          either script. At 24px those fit a 320px viewport and at 30px they do not - the reflow guard
+          caught this the moment the size changed, with the document scrolling sideways by 47px.
+          Breaking inside a word is the right answer for a heading that may contain data.
+        */}
+        <h1 className="break-words text-[length:var(--text-h1)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="mt-1 break-words text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {subtitle}
+          </p>
+        ) : null}
+        {meta ? <div className="mt-2 flex flex-wrap items-center gap-2">{meta}</div> : null}
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   )
 }
@@ -41,7 +68,7 @@ export function PageHeading({ title, subtitle }: { title: string; subtitle?: str
  * a text input, say - and a plain `<span>` otherwise. A `<label for>` pointing at nothing is worse than no
  * label, because a screen reader announces the association and then lands the user nowhere.</p>
  */
-export function FilterField({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+export function FilterField({ label, htmlFor, children }: Readonly<{ label: string; htmlFor?: string; children: ReactNode }>) {
   return (
     <div className="flex flex-col gap-1">
       {htmlFor ? (
@@ -66,13 +93,13 @@ export function FilterField({ label, htmlFor, children }: { label: string; htmlF
  */
 export function SearchField({
   id, label, placeholder, value, onChange,
-}: {
+}: Readonly<{
   id: string
   label: string
   placeholder?: string
   value: string
   onChange: (value: string) => void
-}) {
+}>) {
   return (
     <FilterField label={label} htmlFor={id}>
       <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
@@ -81,7 +108,7 @@ export function SearchField({
 }
 
 /** The row of filters above a list. */
-export function FilterBar({ children }: { children: ReactNode }) {
+export function FilterBar({ children }: Readonly<{ children: ReactNode }>) {
   return <div className="flex flex-wrap gap-4">{children}</div>
 }
 
@@ -93,8 +120,8 @@ export function FilterBar({ children }: { children: ReactNode }) {
  * reader the second when the first is true.</p>
  */
 export function ListState({
-  isPending, isError, isEmpty, loadingLabel, errorText, emptyText, error, skeletonRows = 5, children,
-}: {
+  isPending, isError, isEmpty, loadingLabel, errorText, emptyText, error, onRetry, skeleton = 'table', skeletonRows = 5, children,
+}: Readonly<{
   isPending: boolean
   isError: boolean
   isEmpty: boolean
@@ -104,14 +131,22 @@ export function ListState({
   /** The thrown value, so a failure can say what the server said. Optional: a caller that does not
    * hold it still gets `errorText`. */
   error?: unknown
+  /** Offered as the way out of the failure. Optional, because not every caller holds a refetch. */
+  onRetry?: () => void
+  /** What the content is shaped like, so the placeholder is shaped like it too. A table skeleton over a
+   * card list is a promise the screen does not keep, which is the whole point of a skeleton. */
+  skeleton?: 'table' | 'list'
   skeletonRows?: number
   children: ReactNode
-}) {
-  if (isPending) return <SkeletonTable label={loadingLabel} rows={skeletonRows} />
-  if (isError) {
-    const detail = errorDetail(error)
-    return <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? errorText}</p>
+}>) {
+  if (isPending) {
+    return skeleton === 'list'
+      ? <SkeletonList label={loadingLabel} rows={skeletonRows} />
+      : <SkeletonTable label={loadingLabel} rows={skeletonRows} />
   }
+  // Delegates rather than rendering its own paragraph. QueryError carries role="alert" and the retry
+  // control; a second, quieter error presentation here meant that adopting ListState LOST both.
+  if (isError) return <QueryError error={error} errorText={errorText} onRetry={onRetry} />
   if (isEmpty) return <p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>
   return <>{children}</>
 }
@@ -128,7 +163,12 @@ export function ListState({
  * on every screen, and eighteen variants would be eighteen more strings to translate and keep aligned.
  * `onRetry` is optional because not every caller holds a refetch worth offering.</p>
  */
-export function QueryError({ error, onRetry }: { error?: unknown; onRetry?: () => void }) {
+export function QueryError({ error, errorText, onRetry }: Readonly<{
+  error?: unknown
+  /** A caller's own fallback wording. Without one this uses the shared `common.loadFailed`. */
+  errorText?: string
+  onRetry?: () => void
+}>) {
   const { t } = useTranslation()
   // The audit's §C5: a reader learned THAT a screen failed and never WHY. The why was already on the
   // error - every api module builds its message from the server's RFC 9457 `detail` - and the read
@@ -137,7 +177,7 @@ export function QueryError({ error, onRetry }: { error?: unknown; onRetry?: () =
   const detail = errorDetail(error)
   return (
     <div role="alert" className="flex flex-col items-start gap-2">
-      <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? t('common.loadFailed')}</p>
+      <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? errorText ?? t('common.loadFailed')}</p>
       {onRetry ? (
         <Button size="sm" variant="secondary" onClick={onRetry}>
           {t('common.retry')}
@@ -150,12 +190,12 @@ export function QueryError({ error, onRetry }: { error?: unknown; onRetry?: () =
 /** The next page of a keyset-paged list. Renders nothing when there is no next page. */
 export function LoadMore({
   hasNextPage, isFetching, onClick, label,
-}: {
+}: Readonly<{
   hasNextPage: boolean
   isFetching: boolean
   onClick: () => void
   label: string
-}) {
+}>) {
   if (!hasNextPage) return null
   return (
     <div className="mt-4">
@@ -200,14 +240,14 @@ export interface ListCardLabels {
  */
 export function ListCard({
   title, query, isEmpty, labels, skeletonRows, children,
-}: {
+}: Readonly<{
   title: string
   query: PagedQueryLike
   isEmpty: boolean
   labels: ListCardLabels
   skeletonRows?: number
   children: ReactNode
-}) {
+}>) {
   return (
     <Card title={title}>
       <ListState

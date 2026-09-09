@@ -2,9 +2,10 @@ import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Card, Input, QueryError, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import {Badge, Card, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
+import { localisedName } from '../../lib/localised'
 
 /** FEAT-06.3/FR-OFF-004/FR-SRCH-001: procurement staff searching offerings across all suppliers
  * for RFQ invitation candidates. Results are already lifecycle-filtered server-side (FEAT-06.4) -
@@ -26,18 +27,13 @@ export function OfferingSearchPage() {
 
   const categoryLabel = (code: string) => {
     const c = categories.find((c) => c.code === code)
-    return c ? (isArabic ? c.nameAr : c.nameEn) : code
+    return localisedName(c, isArabic, code)
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('offeringSearch.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('offeringSearch.subtitle')}
-        </p>
+        <PageHeading title={t('offeringSearch.title')} subtitle={t('offeringSearch.subtitle')} />
       </div>
 
       <div className="flex flex-wrap gap-4">
@@ -57,13 +53,16 @@ export function OfferingSearchPage() {
       </div>
 
       <Card title={t('offeringSearch.title')}>
-        {resultsQuery.isPending ? (
-          <SkeletonTable label={t('common.loading')} />
-        ) : resultsQuery.isError ? (
-          <QueryError error={resultsQuery.error} onRetry={() => void resultsQuery.refetch()} />
-        ) : results.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('offeringSearch.empty')}</p>
-        ) : (
+        <ListState
+          isPending={resultsQuery.isPending}
+          isError={resultsQuery.isError}
+          error={resultsQuery.error}
+          onRetry={() => void resultsQuery.refetch()}
+          isEmpty={results.length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('common.loadFailed')}
+          emptyText={t('offeringSearch.empty')}
+        >
           <Table caption={t('offeringSearch.title')}>
             <TableHead>
               <TableHeaderCell>{t('offeringSearch.fields.name')}</TableHeaderCell>
@@ -96,7 +95,7 @@ export function OfferingSearchPage() {
               ))}
             </TableBody>
           </Table>
-        )}
+        </ListState>
       </Card>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
+import { PageHeading } from '../components/ui/ListScreen'
 
 /**
  * SCR-907 — help, written from what the software actually does.
@@ -28,10 +29,7 @@ export function HelpPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('help.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('help.subtitle')}</p>
+        <PageHeading title={t('help.title')} subtitle={t('help.subtitle')} />
       </div>
 
       <section className="flex flex-col gap-3">

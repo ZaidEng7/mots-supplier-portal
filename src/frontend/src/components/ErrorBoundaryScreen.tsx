@@ -6,7 +6,10 @@ interface Props {
 
 export function ErrorBoundaryScreen({ code }: Props) {
   const { t } = useTranslation()
-  const messageKey = code === '404' ? 'notFound' : code === '403' ? 'forbidden' : 'serverError'
+  // A lookup rather than a chain of ternaries: the mapping is the point, and a table shows it at a
+  // glance while a chain makes the reader evaluate conditions to find it.
+  const MESSAGE_KEYS: Record<string, string> = { '404': 'notFound', '403': 'forbidden' }
+  const messageKey = MESSAGE_KEYS[code] ?? 'serverError'
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 py-24 text-center">

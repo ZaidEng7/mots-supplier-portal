@@ -4,6 +4,16 @@ import type { CSSProperties, ReactNode } from 'react'
  * a sticky <thead> only stays put while scrolling if the scroll container is this element, not the
  * page), used by the comparison matrix's irreducibly-wide/tall grid; every other caller omits it and
  * gets the original horizontal-only container unchanged. */
+/**
+ * A row's background. `highlight` wins over `sticky` deliberately: a row flagged for attention keeps its
+ * warning surface even when it is also the pinned one, because the flag is why it is pinned.
+ */
+function rowBackground(highlight: boolean | undefined, sticky: boolean | undefined): string | undefined {
+  if (highlight) return 'var(--color-warning-bg)'
+  if (sticky) return 'var(--color-bg-surface)'
+  return undefined
+}
+
 export function Table({ children, caption, maxHeight }: { children: ReactNode; caption?: string; maxHeight?: string }) {
   return (
     <div
@@ -72,7 +82,7 @@ export function TableCell({
       className={`px-4 py-2.5 ${className}`}
       style={{
         color: 'var(--color-text-primary)',
-        backgroundColor: highlight ? 'var(--color-warning-bg)' : sticky ? 'var(--color-bg-surface)' : undefined,
+        backgroundColor: rowBackground(highlight, sticky),
         fontWeight: highlight ? 'var(--fw-semibold)' : undefined,
         ...(sticky ? { position: 'sticky', insetInlineStart: 0, zIndex: 1 } : {}),
         ...style,

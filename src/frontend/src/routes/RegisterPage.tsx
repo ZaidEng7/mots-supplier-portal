@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
-import { Button, Field, Input, PhoneInput } from '../components/ui'
+import { AuthHeading, Button, Field, Input, PhoneInput } from '../components/ui'
 import { ApiError, registerSupplier } from '../api/auth'
 import { useQuery } from '@tanstack/react-query'
 import { getPublicSettings } from '../api/systemSettings'
@@ -101,9 +101,7 @@ export function RegisterPage() {
           className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
         >
-          <h1 className="mb-3 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('register.closedTitle')}
-          </h1>
+          <AuthHeading title={t('register.closedTitle')} />
           <p className="mb-4" style={{ color: 'var(--color-text-secondary)' }}>
             {t('register.closedBody')}
           </p>
@@ -122,9 +120,7 @@ export function RegisterPage() {
           className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
         >
-          <h1 className="mb-3 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('register.successTitle')}
-          </h1>
+          <AuthHeading title={t('register.successTitle')} />
           <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             {t('register.checkEmail')}
           </p>
@@ -147,9 +143,7 @@ export function RegisterPage() {
         className="w-full max-w-lg rounded-[var(--radius-lg)] p-8"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
       >
-        <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('register.title')}
-        </h1>
+        <AuthHeading title={t('register.title')} />
         <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t('register.displayNameAr')} error={errors.displayNameAr?.message ? t(errors.displayNameAr.message) : undefined} required>

@@ -1,6 +1,18 @@
 import type { ReactNode } from 'react'
 
-type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'brand'
+export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'brand'
+
+/**
+ * The tone for a state, from a table rather than from a chain of comparisons.
+ *
+ * <p>Six screens wrote the same shape by hand - `x === 'Failed' ? 'danger' : x === 'Sent' ? 'success' :
+ * 'neutral'` - which reads as a decision procedure when it is a lookup. A table shows the whole mapping
+ * at a glance, and an unmapped state falls to the neutral default rather than to whichever branch
+ * happened to be last.</p>
+ */
+export function toneFor(state: string | null | undefined, map: Readonly<Record<string, Tone>>): Tone {
+  return (state && map[state]) || 'neutral'
+}
 
 const toneStyle: Record<Tone, { bg: string; fg: string }> = {
   neutral: { bg: 'var(--color-bg-sunken)', fg: 'var(--color-text-secondary)' },
