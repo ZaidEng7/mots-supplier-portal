@@ -1,4 +1,4 @@
-import { hasCode, hasProblemProse, problemMessage, type ProblemDetails } from './problem'
+import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 
@@ -177,23 +177,15 @@ export interface RequirementPayload {
 /** Backend returns { error, message } for domain-invariant refusals (RfqMutationResult.InvalidState)
  * and a bare { error } for reference-data validation - same shape/reasoning as
  * EvaluationTemplateApiError. */
-export class RfqApiError extends Error {
-  status: number
+export class RfqApiError extends ProblemError {
   /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict. §8.1 (T3-34) moved this from the API's own
    * { error: "concurrency_conflict" } 409 to the documented 412 ETAG_MISMATCH - a lost update is a
    * failed precondition, not one of §7.1's three conflicts. Every caller still checks the one flag
    * rather than string-matching a message. */
   isConcurrencyConflict: boolean
-  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
-   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
-   * "Request failed: <status>", which is developer text and must not reach a reader. */
-  isProblemError: boolean
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.isProblemError = hasProblemProse(b)
-    this.status = status
-    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
+    super(status, body)
+    this.isConcurrencyConflict = status === 412 && hasCode(body as ProblemDetails | null, 'ETAG_MISMATCH')
   }
 }
 

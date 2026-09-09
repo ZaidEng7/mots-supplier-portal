@@ -6,7 +6,6 @@ import { getSupplierDashboard, type ActionRequired } from '../api/supplierDashbo
 import { unreadNotificationCount } from '../api/notifications'
 import { Card } from '../components/ui/Card'
 import { QueryError } from '../components/ui/ListScreen'
-import { Button } from '../components/ui/Button'
 import { StatusChip } from '../components/ui/StatusChip'
 import { SkeletonGrid, SkeletonList } from '../components/ui/Skeleton'
 import { formatDate, formatDeadline, formatNumber } from '../lib/datetime'

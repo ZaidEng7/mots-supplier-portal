@@ -1,4 +1,4 @@
-import { hasProblemProse, problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 
 export interface SupplierDocument {
@@ -34,22 +34,10 @@ export interface DocumentTypeStatus {
   latestDocument: SupplierDocument | null
 }
 
-export class DocumentApiError extends Error {
-  status: number
-  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
-   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
-   * "Request failed: <status>", which is developer text and must not reach a reader. */
-  isProblemError: boolean
-  constructor(status: number, body: unknown) {
-    // `message` is the human-readable explanation (e.g. why an expiry date was rejected);
-    // `error` is just the short machine code. Preferring the code left every validation
-    // failure showing the same opaque string ("invalid_expiry") regardless of which of several
-    // distinct rules actually failed.
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.isProblemError = hasProblemProse(b)
-    this.status = status
-  }
+export class DocumentApiError extends ProblemError {
+  // ProblemError prefers the human-readable explanation (e.g. why an expiry date was rejected) over
+  // the short machine code. Preferring the code left every validation failure showing the same opaque
+  // string ("invalid_expiry") regardless of which of several distinct rules actually failed.
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {

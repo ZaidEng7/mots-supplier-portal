@@ -61,6 +61,17 @@ const REFERENCE_ROUTES = {
  * one declared base route serves reads and every write for a given test. */
 describe('RfqDetailPage', () => {
   let restore: () => void
+
+  /** The routes an early-close test needs. Three tests drive this one dialog - the reason reaching the
+   *  wire, cancelling, and a whitespace-only reason - and they differ only in what they then do. */
+  const mockSubmissionOpen = (recorded?: RecordedRequest[]) => mockFetch(
+    {
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
+    },
+    recorded,
+  )
   afterEach(() => restore?.())
 
   it('Draft: shows editable item/requirement/template-bind controls, and adding an item succeeds', async () => {
@@ -197,14 +208,7 @@ describe('RfqDetailPage', () => {
     // rather than by window.prompt - which rendered a browser chrome dialog in a product where nothing
     // else does, and which said nothing at all when it was dismissed.
     const recorded: RecordedRequest[] = []
-    restore = mockFetch(
-      {
-        ...REFERENCE_ROUTES,
-        '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
-        '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
-      },
-      recorded,
-    )
+    restore = mockSubmissionOpen(recorded)
 
     renderPage(<RfqDetailPage />)
 
@@ -223,14 +227,7 @@ describe('RfqDetailPage', () => {
     // refusal the officer did not ask for reads as a broken button. What window.prompt could not do is
     // the second half: show the officer that nothing happened. A dialog that closes is that feedback.
     const recorded: RecordedRequest[] = []
-    restore = mockFetch(
-      {
-        ...REFERENCE_ROUTES,
-        '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
-        '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
-      },
-      recorded,
-    )
+    restore = mockSubmissionOpen(recorded)
 
     renderPage(<RfqDetailPage />)
 
@@ -246,11 +243,7 @@ describe('RfqDetailPage', () => {
     // The old prompt accepted it, trimmed it to nothing and then silently fired nothing. The dialog
     // refuses the input instead, which is the difference between a button that does nothing and a
     // button that says why it is not ready.
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
-    })
+    restore = mockSubmissionOpen()
 
     renderPage(<RfqDetailPage />)
 

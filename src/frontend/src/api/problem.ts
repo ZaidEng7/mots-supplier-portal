@@ -70,3 +70,32 @@ export function errorDetail(err: unknown): string | null {
   const message = (err as { message?: unknown }).message
   return typeof message === 'string' && message.trim() !== '' ? message : null
 }
+
+/**
+ * The shape every API module's error type shares: the server's message, the status, and whether that
+ * message is the server's own prose.
+ *
+ * <p>Eighteen modules each declared their own class with an identical constructor - the same cast, the
+ * same `problemMessage` call, the same two assignments - differing only in the name and in whatever
+ * extra field that module needed. Sonar's duplication gate is what said so out loud, when adding one
+ * more line to each of them pushed new-code duplication to 4.7% against a 3% ceiling.</p>
+ *
+ * <p>The separate classes are kept rather than collapsed into one, because `instanceof` is how callers
+ * tell "the tender API refused this" from "the documents API refused this", and several add a field of
+ * their own on top - `isConcurrencyConflict`, a validation `field`. They now differ only in what makes
+ * them different.</p>
+ */
+export class ProblemError extends Error {
+  readonly status: number
+  /** Read by {@link errorDetail}: this message is the server's own prose, not a bug's. False when the
+   * problem document carried no `title` and no `detail`, because {@link problemMessage} then falls back
+   * to "Request failed: <status>", which is developer text and must not reach a reader. */
+  readonly isProblemError: boolean
+
+  constructor(status: number, body: unknown) {
+    const problem = body as ProblemDetails | null
+    super(problemMessage(problem, `Request failed: ${status}`))
+    this.status = status
+    this.isProblemError = hasProblemProse(problem)
+  }
+}

@@ -1,5 +1,5 @@
 import { apiFetch } from './auth'
-import { hasProblemProse, problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 
 /** SCR-120's KPI row (SCREEN-SPECIFICATIONS.md §1). */
 export interface SupplierKpis {
@@ -62,16 +62,9 @@ export interface SupplierDashboard {
   erpDegraded: boolean
 }
 
-export class SupplierDashboardApiError extends Error {
-  status: number
-  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
-   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
-   * "Request failed: <status>", which is developer text and must not reach a reader. */
-  isProblemError: boolean
+export class SupplierDashboardApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    super(problemMessage(body as ProblemDetails | null, `Request failed: ${status}`))
-    this.isProblemError = hasProblemProse(body as ProblemDetails | null)
-    this.status = status
+    super(status, body)
   }
 }
 

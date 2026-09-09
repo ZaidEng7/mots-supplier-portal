@@ -1,4 +1,4 @@
-import { hasProblemProse, problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 import { rememberETag } from './etags'
 
@@ -6,17 +6,9 @@ import { rememberETag } from './etags'
  * EvaluationTemplate invariant refusal (EvaluationTemplateMutationResult.InvalidState) - unlike
  * SupplierApiError's `.error`-only convention, the precise message is the useful part here since
  * these are dynamic domain-exception texts, not a small enum of known codes. */
-export class EvaluationTemplateApiError extends Error {
-  status: number
-  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
-   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
-   * "Request failed: <status>", which is developer text and must not reach a reader. */
-  isProblemError: boolean
+export class EvaluationTemplateApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.isProblemError = hasProblemProse(b)
-    this.status = status
+    super(status, body)
   }
 }
 
