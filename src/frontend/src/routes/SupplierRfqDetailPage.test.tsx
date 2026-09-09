@@ -70,7 +70,7 @@ describe('SupplierRfqDetailPage', () => {
 
     renderPage(<SupplierRfqDetailPage />)
 
-    expect(await screen.findByText('RFQ not found')).toBeInTheDocument()
+    expect(await screen.findByText('Tender not found')).toBeInTheDocument()
   })
 
   it('shows a PublishedToAll clarification without any asker-identity field, and asking a new question shows a success toast', async () => {

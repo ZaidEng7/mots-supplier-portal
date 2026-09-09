@@ -777,3 +777,20 @@ cannot load are the same on every screen, and eighteen wordings would be eightee
 | `common.loadFailed` | We could not load this. Try again. | تعذّر تحميل هذه البيانات. حاول مرة أخرى. | Authored. «تعذّر» is "could not", impersonal, rather than «فشل» (failed), which reads as a fault the reader caused. Two short sentences, matching §10's shape: what happened, then what to do |
 | `common.retry` | Try again | إعادة المحاولة | **[reused]** - the same string this catalogue already carries in five places for the same action |
 
+
+### The copy pass (Phase 5 of the redesign sequence) · three Arabic strings
+
+The audit's §C4 listed 23 jargon items and §C2 five label-to-behaviour mismatches. **Most of them turned
+out to be English-only defects**: on `threshold`, `incoterm`, `consolidate`, `recuse`, `evaluatorUserId`
+and the supplier's own name for a tender, the Arabic already said the plain thing and the English carried
+the acronym, the Latin term or a self-contradiction. Those were fixed on the English side alone, so they
+add nothing to this file.
+
+Three strings did need Arabic, and they ship on D-65's terms: **accepted for the demonstration build
+without a line-by-line read**, not reviewed.
+
+| Key | English | Arabic (authored) | Why it changed |
+|---|---|---|---|
+| `rfq.boundTemplate` | Evaluation template attached (version {{version}}) | قالب التقييم مرتبط (الإصدار {{version}}) | Both languages rendered a raw GUID to the reader through `{{id}}`. The identifier is gone from the sentence; the interpolation is simply no longer used |
+| `proposal.clarificationHint` | Your response goes to the procurement officer, who decides whether to return the proposal to review. Proposal lines cannot be edited at this stage. | يُرسَل ردّك إلى موظف المشتريات، وهو من يقرّر إعادة العرض إلى المراجعة. لا يمكن تعديل بنود العرض في هذه المرحلة. | The old string said recording a response returns the proposal for re-review. It does not: the call sets `Revised`, and returning it to review is the officer's own separate action. The sibling string two lines down already said this correctly, so the screen contradicted itself |
+| `notificationPreferences.alwaysOnHint` | Invitations, clarification requests and award outcomes are always sent and are not listed below. Document expiry reminders are always sent too, by email. | الدعوات وطلبات الاستيضاح ونتائج الترسية تُرسل دائماً ولا تظهر في القائمة أدناه. وتنبيهات انتهاء المستندات تُرسل دائماً أيضاً، بالبريد الإلكتروني. | All four families really are always sent, so the old line was true. What it did not say is that document expiry has no notification type behind it — it is an email reminder — so a reader looked for it in the list directly below the hint and could not find it |

@@ -36,7 +36,11 @@ export function NotificationBell({ to = '/notifications' }: { to?: string }) {
   return (
     <Link
       to={to}
-      className="relative inline-flex items-center"
+      // WCAG 2.5.8 Target Size (Minimum), which axe checks under `wcag22aa`. The icon is 18px; the
+      // link is padded out to a 24x24 target so the thing you click is bigger than the thing you see.
+      // The emoji this replaced happened to render larger in the reader's system font, so the target
+      // was adequate by accident and stopped being adequate the moment it became a real icon.
+      className="relative inline-flex min-h-6 min-w-6 items-center justify-center"
       aria-label={count > 0
         ? t('notifications.bellWithCount', { count })
         : t('notifications.bell')}
