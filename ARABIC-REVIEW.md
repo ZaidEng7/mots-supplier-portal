@@ -848,3 +848,17 @@ Ships on D-65's terms: **accepted for the demonstration build without a line-by-
 | Key | English | Arabic (authored) | Why it exists |
 |---|---|---|---|
 | `charts.nothingToPlot` | No figures available to chart. The table below carries what there is. | لا توجد أرقام قابلة للرسم. الجدول أدناه يعرض المتاح منها. | D-57 withholds commercial values outside a demonstration environment. A chart of nothing but withheld months must say so rather than draw bars of height zero, which would assert that nothing was awarded |
+
+### Phase 6D · the onboarding submit gate
+
+Ship on D-65's terms: **accepted for the demonstration build without a line-by-line read**.
+
+| Key | English | Arabic (authored) |
+|---|---|---|
+| `onboarding.gateTitle` | Before you can submit | قبل أن ترسل طلبك |
+| `onboarding.gateReady` | Ready to submit | الطلب جاهز للإرسال |
+| `onboarding.gateHelp` | You can submit as soon as these are done. Everything else you have entered is saved. | يمكنك الإرسال بمجرد اكتمال هذه العناصر. وكل ما أدخلته غير ذلك محفوظ. |
+| `onboarding.gateBlocked` | Available once the items above are done. | يصبح الإرسال متاحاً بعد اكتمال العناصر أعلاه. |
+
+No plural forms, deliberately. A count would need Arabic's six plural categories to say "3 things left",
+and the list itself already shows how many there are.
