@@ -170,3 +170,65 @@ describe('required-vs-missing document chips', () => {
     expect(screen.queryByText('Missing')).toBeNull()
   })
 })
+
+/**
+ * The gate: what a supplier reads before they can submit.
+ *
+ * <p>This card used to list every requirement with a badge on each, so a supplier read eight rows to
+ * find the two that were not done - and the button those rows were about sat 200 lines below, disabled,
+ * with nothing on the screen saying why. Nothing asserted any of it.</p>
+ */
+describe('the submit gate', () => {
+  let restore: () => void
+  afterEach(() => {
+    restore?.()
+    ;(supplier as { missingProfileFields: string[] }).missingProfileFields = []
+  })
+
+  it('lists only what is outstanding, and says why submit is unavailable', async () => {
+    restore = mockApi([])
+    ;(supplier as { missingProfileFields: string[] }).missingProfileFields = ['legalInfo', 'termsAccepted']
+
+    renderPage(<OnboardingPage />)
+
+    expect(await screen.findByText('Before you can submit')).toBeInTheDocument()
+    expect(screen.getByText('Available once the items above are done.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit application' })).toBeDisabled()
+
+    // Two outstanding items and no more. Before this the card listed all eight requirements with a
+    // badge on each, so the two that mattered were two rows among eight. Nothing else on this screen
+    // renders "Missing" until a submit has been attempted, which is why a page-level count is safe here
+    // and is asserted rather than assumed - the sibling tests above cover the post-submit case.
+    expect(screen.getAllByText('Missing')).toHaveLength(2)
+  })
+
+  it('does not offer to submit an application that is already with a reviewer', async () => {
+    // The gate is about an action. Saying "Ready to submit" above an application that has already BEEN
+    // submitted invites one that no longer exists - which is what the first version of this card did,
+    // caught in a screenshot rather than by a test, so here is the test.
+    restore = mockApi([])
+    ;(supplier as { onboardingState: string }).onboardingState = 'Submitted'
+
+    renderPage(<OnboardingPage />)
+
+    await screen.findByText('Legal information')
+    expect(screen.queryByText('Ready to submit')).not.toBeInTheDocument()
+    expect(screen.queryByText('Before you can submit')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Submit application' })).not.toBeInTheDocument()
+
+    ;(supplier as { onboardingState: string }).onboardingState = 'ProfileInProgress'
+  })
+
+  it('says it is ready, and enables submit, once nothing is outstanding', async () => {
+    // The denominator for the test above: a gate that always said "before you can submit" would pass
+    // that one and be useless.
+    restore = mockApi([])
+    ;(supplier as { missingProfileFields: string[] }).missingProfileFields = []
+
+    renderPage(<OnboardingPage />)
+
+    expect(await screen.findByText('Ready to submit')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit application' })).toBeEnabled()
+    expect(screen.queryByText('Available once the items above are done.')).not.toBeInTheDocument()
+  })
+})

@@ -475,6 +475,22 @@ export function OnboardingPage() {
   const missing = new Set(profile?.missingProfileFields ?? [])
   const state = profile?.onboardingState
   const isInfoRequested = state === 'InfoRequested'
+
+  /**
+   * What is still standing between this supplier and a submitted application, in the order they will
+   * meet it. Derived from the same two sources the checklist used - the server's `missingProfileFields`
+   * and the terms flag - so this cannot disagree with the badge on a section further down.
+   */
+  const outstanding = [
+    ...REQUIRED_FIELDS.filter((field) => missing.has(field)).map((field) => ({
+      key: field,
+      label: t(`onboarding.fields.${field}`),
+      flagged: isInfoRequested && flaggedFields.has(field),
+    })),
+    ...(missing.has('termsAccepted')
+      ? [{ key: 'termsAccepted', label: t('onboarding.termsLabel'), flagged: false }]
+      : []),
+  ]
   const isEditableState = state === 'EmailVerified' || state === 'ProfileInProgress' || isInfoRequested
   const isReadOnly = !isEditableState
   const annotation = annotationQuery.data
@@ -506,10 +522,7 @@ export function OnboardingPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <PageHeading title={t('onboarding.title')} />
-        <StatusChip machine="onboarding" value={profile.onboardingState} />
-      </div>
+      <PageHeading title={t('onboarding.title')} meta={<StatusChip machine="onboarding" value={profile.onboardingState} />} />
 
       <OnboardingStepNav />
 
@@ -522,25 +535,58 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      <Card title={t('onboarding.checklist')}>
-        <ul className="flex flex-col gap-1.5">
-          {REQUIRED_FIELDS.map((field) => (
-            <li key={field} className="flex items-center gap-2 text-[length:var(--text-body-sm)]">
-              <Badge tone={missing.has(field) ? 'warning' : 'success'}>
-                {missing.has(field) ? t('onboarding.missing') : t('onboarding.complete')}
-              </Badge>
-              <span style={{ color: 'var(--color-text-secondary)' }}>{t(`onboarding.fields.${field}`)}</span>
-              {isInfoRequested && flaggedFields.has(field) ? <Badge tone="danger">{t('onboarding.flagged')}</Badge> : null}
-            </li>
-          ))}
-          <li className="flex items-center gap-2 text-[length:var(--text-body-sm)]">
-            <Badge tone={missing.has('termsAccepted') ? 'warning' : 'success'}>
-              {missing.has('termsAccepted') ? t('onboarding.missing') : t('onboarding.complete')}
-            </Badge>
-            <span style={{ color: 'var(--color-text-secondary)' }}>{t('onboarding.termsLabel')}</span>
-          </li>
-        </ul>
+      {/*
+        The gate. It used to be a checklist of every requirement with a badge on each, so a supplier read
+        eight rows to find the two that were not done - and the button those rows were about sat 200 lines
+        below, disabled, with nothing saying why.
+
+        This lists ONLY what is outstanding, says everything else is saved, and carries the submit it
+        gates. When nothing is outstanding it says that instead, which is the one moment on this screen
+        worth being unambiguous about.
+      */}
+      {/* Not rendered once the application is with a reviewer. A gate saying "Ready to submit" above an
+          application that has already BEEN submitted is worse than no gate: it invites an action that no
+          longer exists, and the read-only notice further down already says what state this is in. */}
+      {!isReadOnly ? (
+      <Card title={outstanding.length === 0 ? t('onboarding.gateReady') : t('onboarding.gateTitle')}>
+        {outstanding.length > 0 ? (
+          <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('onboarding.gateHelp')}
+          </p>
+        ) : null}
+        {outstanding.length > 0 ? (
+          <ul className="mb-4 flex flex-col gap-1.5">
+            {outstanding.map((item) => (
+              <li key={item.key} className="flex items-center gap-2">
+                <Badge tone="warning">{t('onboarding.missing')}</Badge>
+                <span style={{ color: 'var(--color-text-primary)' }}>{item.label}</span>
+                {item.flagged ? <Badge tone="danger">{t('onboarding.flagged')}</Badge> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {isInfoRequested ? (
+            <Button isLoading={resubmitMutation.isPending} onClick={() => resubmitMutation.mutate()}>
+              {t('onboarding.resubmit')}
+            </Button>
+          ) : (
+            <Button
+              isLoading={submitMutation.isPending}
+              disabled={missing.size > 0}
+              onClick={() => submitMutation.mutate()}
+            >
+              {t('onboarding.submit')}
+            </Button>
+          )}
+          {!isInfoRequested && missing.size > 0 ? (
+            <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('onboarding.gateBlocked')}
+            </span>
+          ) : null}
+        </div>
       </Card>
+      ) : null}
 
       <Card title={t('onboarding.logoTitle')}>
         <LogoUploader profile={profile} canEdit={!isReadOnly} onProfile={onProfile} />
@@ -744,23 +790,6 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      {!isReadOnly ? (
-        <div className="flex gap-3">
-          {isInfoRequested ? (
-            <Button isLoading={resubmitMutation.isPending} onClick={() => resubmitMutation.mutate()}>
-              {t('onboarding.resubmit')}
-            </Button>
-          ) : (
-            <Button
-              isLoading={submitMutation.isPending}
-              disabled={missing.size > 0}
-              onClick={() => submitMutation.mutate()}
-            >
-              {t('onboarding.submit')}
-            </Button>
-          )}
-        </div>
-      ) : null}
     </div>
   )
 }
