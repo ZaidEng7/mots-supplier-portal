@@ -430,6 +430,22 @@ export function OnboardingPage() {
   // disagree with it.
   const [submitBlockers, setSubmitBlockers] = useState<string[]>([])
 
+  /**
+   * Focus follows the announcement. `role="alert"` announces to a screen reader; it does not move the
+   * keyboard caret, so the supplier who pressed Submit is left standing at the button with the
+   * explanation elsewhere on the page. Focusing the summary puts the link to each blocking row one Tab
+   * away.
+   *
+   * <p>Declared here rather than beside the summary because the loading and error branches below return
+   * early, and a hook after them is a hook that sometimes does not run. Keyed on the server's list, so a
+   * second failed submit naming a different document re-focuses; when the 422 named only profile fields
+   * no summary is rendered and the optional call is a no-op.</p>
+   */
+  const blockerSummaryRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (submitBlockers.length > 0) blockerSummaryRef.current?.focus()
+  }, [submitBlockers])
+
   const submitMutation = useMutation({
     mutationFn: () => submitApplication(supplierCode),
     onSuccess: (data) => {
@@ -532,6 +548,46 @@ export function OnboardingPage() {
             {t('onboarding.infoRequestedTitle')}
           </h2>
           <p style={{ color: 'var(--color-text-primary)' }}>{annotation.reason}</p>
+        </div>
+      ) : null}
+
+      {/*
+        ACCESSIBILITY.md §7, error summary: *"a focusable summary region (`role="alert"` or moved
+        focus) listing each error as a link jumping to its field - essential for long onboarding
+        forms and SR users."* The chip escalation alone is a colour and a word inside a long list;
+        a screen-reader user would have to walk every row to find what is blocking them. This
+        region is the announcement, and each entry jumps to the row it names.
+
+        SCREEN-SPECIFICATIONS §2 (SCR-106) adds *"Errors are per-card, `aria-live`"* - the per-card
+        half is the chip; this is the summary §7 additionally requires at submit.
+
+        It sits ABOVE the gate rather than below the documents, and that is the whole point of it.
+        It used to render after the entire document list: its links pointed backwards, and a keyboard
+        user who pressed Submit had to Shift+Tab past every document control to reach the sentence
+        explaining why. Now it precedes both the button that produced it and the rows it names.
+      */}
+      {blockingDocuments.length > 0 ? (
+        <div
+          ref={blockerSummaryRef}
+          tabIndex={-1}
+          role="alert"
+          className="rounded-[var(--radius-sm)] p-3"
+          style={{ border: '1px solid var(--color-danger-fg)', color: 'var(--color-danger-fg)' }}
+        >
+          <p className="font-[var(--fw-semibold)]">{t('onboarding.submitBlockedTitle')}</p>
+          <p className="text-[length:var(--text-body-sm)]">{t('onboarding.submitBlockedIntro')}</p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {blockingDocuments.map((doc) => (
+              <li key={doc.documentTypeId}>
+                <a
+                  href={`#${documentAnchorId(doc.code)}`}
+                  style={{ color: 'var(--color-danger-fg)', textDecoration: 'underline' }}
+                >
+                  {isArabic ? doc.nameAr : doc.nameEn}
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -746,40 +802,6 @@ export function OnboardingPage() {
           />
         </div>
       </Card>
-
-      {/*
-        ACCESSIBILITY.md §7, error summary: *"a focusable summary region (`role="alert"` or moved
-        focus) listing each error as a link jumping to its field - essential for long onboarding
-        forms and SR users."* The chip escalation alone is a colour and a word inside a long list;
-        a screen-reader user would have to walk every row to find what is blocking them. This
-        region is the announcement, and each entry jumps to the row it names.
-
-        SCREEN-SPECIFICATIONS §2 (SCR-106) adds *"Errors are per-card, `aria-live`"* - the per-card
-        half is the chip; this is the summary §7 additionally requires at submit.
-      */}
-      {blockingDocuments.length > 0 ? (
-        <div
-          role="alert"
-          className="rounded-[var(--radius-sm)] p-3"
-          style={{ border: '1px solid var(--color-danger-fg)', color: 'var(--color-danger-fg)' }}
-        >
-          <p className="font-[var(--fw-semibold)]">{t('onboarding.submitBlockedTitle')}</p>
-          <p className="text-[length:var(--text-body-sm)]">{t('onboarding.submitBlockedIntro')}</p>
-          <ul className="mt-1 flex flex-col gap-1">
-            {blockingDocuments.map((doc) => (
-              <li key={doc.documentTypeId}>
-                <a
-                  href={`#${documentAnchorId(doc.code)}`}
-                  style={{ color: 'var(--color-danger-fg)', textDecoration: 'underline' }}
-                >
-                  {isArabic ? doc.nameAr : doc.nameEn}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
     </div>
   )
 }
