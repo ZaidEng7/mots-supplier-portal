@@ -556,6 +556,10 @@ const resources = {
       },
       onboarding: {
         title: 'استكمال بيانات المورد',
+        gateTitle: 'قبل أن ترسل طلبك',
+        gateReady: 'الطلب جاهز للإرسال',
+        gateHelp: 'يمكنك الإرسال بمجرد اكتمال هذه العناصر. وكل ما أدخلته غير ذلك محفوظ.',
+        gateBlocked: 'يصبح الإرسال متاحاً بعد اكتمال العناصر أعلاه.',
         checklist: 'قائمة المتطلبات',
         // `onboarding.missing` is gone: the label now lives in status.document.Missing, so the
         // document chip has exactly one source like every other machine.
@@ -2430,6 +2434,10 @@ const resources = {
       },
       onboarding: {
         title: 'Complete Your Supplier Profile',
+        gateTitle: 'Before you can submit',
+        gateReady: 'Ready to submit',
+        gateHelp: 'You can submit as soon as these are done. Everything else you have entered is saved.',
+        gateBlocked: 'Available once the items above are done.',
         checklist: 'Requirements checklist',
         submitBlockedTitle: 'Your application cannot be submitted yet',
         submitBlockedIntro: 'These required documents are missing:',
