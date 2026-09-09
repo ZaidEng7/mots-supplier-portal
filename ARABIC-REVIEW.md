@@ -825,3 +825,18 @@ Ships on D-65's terms: **accepted for the demonstration build without a line-by-
 failed silently on the English, and because `config.ts` sets `fallbackLng: 'ar'`, the English cancel
 dialog rendered the Arabic sentence with every test still green. `src/frontend/src/i18n/keyParity.test.ts`
 now compares the two key sets in both directions.
+
+### Plan 6B · the four group names
+
+Ship on D-65's terms: **accepted for the demonstration build without a line-by-line read**.
+
+| Key | English | Arabic (authored) |
+|---|---|---|
+| `rfq.groups.tender` | The tender | الطلب |
+| `rfq.groups.suppliers` | Suppliers | الموردون |
+| `rfq.groups.decisions` | Decisions | القرارات |
+| `rfq.groups.managing` | Managing this tender | إدارة الطلب |
+
+They name the four regions the buyer's tender screen is now divided into. «الطلب» rather than «المناقصة»
+because the rest of this screen's Arabic already calls the thing الطلب, and one screen using two words for
+one object is the defect the copy pass spent its time removing.

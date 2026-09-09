@@ -67,5 +67,8 @@ export default defineConfig({
     // non-empty error element and aria-invalid is set - axe does not check that an
     // aria-describedby id target exists or holds the visible error text.
     chromeProject('app-error-association', 'app-error-association.spec.ts'),
+    // A capture driver rather than a test: it writes the screenshots a design change is evidenced by.
+    // Every test in it skips unless CAPTURE=1, so a normal run pays only the cost of skipping.
+    chromeProject('capture', 'capture-*.spec.ts'),
   ],
 })
