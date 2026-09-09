@@ -2,7 +2,7 @@ import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import {Badge, Card, Input, PageHeading, QueryError, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import {Badge, Card, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
 import { localisedName } from '../../lib/localised'
@@ -53,13 +53,16 @@ export function OfferingSearchPage() {
       </div>
 
       <Card title={t('offeringSearch.title')}>
-        {resultsQuery.isPending ? (
-          <SkeletonTable label={t('common.loading')} />
-        ) : resultsQuery.isError ? (
-          <QueryError error={resultsQuery.error} onRetry={() => void resultsQuery.refetch()} />
-        ) : results.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('offeringSearch.empty')}</p>
-        ) : (
+        <ListState
+          isPending={resultsQuery.isPending}
+          isError={resultsQuery.isError}
+          error={resultsQuery.error}
+          onRetry={() => void resultsQuery.refetch()}
+          isEmpty={results.length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('common.loadFailed')}
+          emptyText={t('offeringSearch.empty')}
+        >
           <Table caption={t('offeringSearch.title')}>
             <TableHead>
               <TableHeaderCell>{t('offeringSearch.fields.name')}</TableHeaderCell>
@@ -92,7 +95,7 @@ export function OfferingSearchPage() {
               ))}
             </TableBody>
           </Table>
-        )}
+        </ListState>
       </Card>
     </div>
   )

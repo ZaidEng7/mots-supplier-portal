@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {Badge, Button, Card, Field, Input, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import {Badge, Button, Card, Field, Input, ListState, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { formatDate, formatDateTime } from '../lib/datetime'
 import { getOwnSupplier } from '../api/supplier'
 import {
@@ -209,14 +209,19 @@ export function DocumentsPage() {
           title={t('documents.historyTitle')}
           action={<Button size="sm" variant="ghost" onClick={() => setExpanded(null)}>{t('documents.close')}</Button>}
         >
-          {history.isLoading ? (
-            <SkeletonList label={t('common.loading')} rows={3} />
-          ) : history.isError || !history.data ? (
-            <p>{t('documents.errors.historyFailed')}</p>
-          ) : history.data.length === 0 ? (
+          <ListState
+            isPending={history.isLoading}
+            isError={history.isError || !history.data}
+            error={history.error}
+            onRetry={() => void history.refetch()}
             // A real answer, and a different one from "no such type".
-            <p style={{ color: 'var(--color-text-secondary)' }}>{t('documents.noHistory')}</p>
-          ) : (
+            isEmpty={(history.data ?? []).length === 0}
+            loadingLabel={t('common.loading')}
+            errorText={t('documents.errors.historyFailed')}
+            emptyText={t('documents.noHistory')}
+            skeleton="list"
+            skeletonRows={3}
+          >
             <Table caption={t('documents.historyTitle')}>
               <TableHead>
                 <TableHeaderCell>{t('documents.fields.version')}</TableHeaderCell>
@@ -226,7 +231,7 @@ export function DocumentsPage() {
                 <TableHeaderCell>{t('documents.fields.reason')}</TableHeaderCell>
               </TableHead>
               <TableBody>
-                {history.data.map((v) => (
+                {(history.data ?? []).map((v) => (
                   <TableRow key={v.documentId}>
                     <TableCell>{v.version}</TableCell>
                     <TableCell><StatusChip machine="document" value={v.state} /></TableCell>
@@ -237,7 +242,7 @@ export function DocumentsPage() {
                 ))}
               </TableBody>
             </Table>
-          )}
+          </ListState>
         </Card>
       ) : null}
     </div>

@@ -2,7 +2,7 @@ import { formatNumber } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   listEvaluationTemplates, createEvaluationTemplate, addCriterion, activateEvaluationTemplate,
@@ -110,14 +110,18 @@ export function EvaluationTemplatesPage() {
         <Button onClick={() => setCreateOpen(true)}>{t('evaluationTemplates.add')}</Button>
       </div>
 
-      {templatesQuery.isPending ? (
-        <SkeletonList label={t('common.loading')} />
-      ) : templatesQuery.isError ? (
-        <QueryError error={templatesQuery.error} onRetry={() => void templatesQuery.refetch()} />
-      ) : templates.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluationTemplates.empty')}</p>
-      ) : (
-        templates.map((template: EvaluationTemplate) => {
+      <ListState
+        isPending={templatesQuery.isPending}
+        isError={templatesQuery.isError}
+        error={templatesQuery.error}
+        onRetry={() => void templatesQuery.refetch()}
+        isEmpty={templates.length === 0}
+        loadingLabel={t('common.loading')}
+        errorText={t('common.loadFailed')}
+        emptyText={t('evaluationTemplates.empty')}
+        skeleton="list"
+      >
+        {templates.map((template: EvaluationTemplate) => {
           const weightTotal = template.criteria.reduce((sum, c) => sum + c.weight, 0)
           const draft = draftFor(template.id)
           return (
@@ -194,8 +198,8 @@ export function EvaluationTemplatesPage() {
               </div>
             </Card>
           )
-        })
-      )}
+        })}
+      </ListState>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen} title={t('evaluationTemplates.createTitle')}>
         <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); createMutation.mutate() }} noValidate>

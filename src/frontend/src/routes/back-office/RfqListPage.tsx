@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {Button, Card, Dialog, Field, Input, PageHeading, QueryError, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Button, Card, Dialog, Field, Input, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -84,15 +84,16 @@ export function RfqListPage() {
           </fieldset>
         }
       >
-        {rfqsQuery.isPending ? (
-          <SkeletonTable label={t('common.loading')} />
-        ) : rfqsQuery.isError ? (
-          <QueryError error={rfqsQuery.error} onRetry={() => void rfqsQuery.refetch()} />
-        ) : rfqs.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            {owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
-          </p>
-        ) : (
+        <ListState
+          isPending={rfqsQuery.isPending}
+          isError={rfqsQuery.isError}
+          error={rfqsQuery.error}
+          isEmpty={rfqs.length === 0}
+          loadingLabel={t('common.loading')}
+          errorText={t('common.loadFailed')}
+          onRetry={() => void rfqsQuery.refetch()}
+          emptyText={owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
+        >
           <Table caption={t('rfq.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
@@ -117,7 +118,7 @@ export function RfqListPage() {
               ))}
             </TableBody>
           </Table>
-        )}
+        </ListState>
         {rfqsQuery.hasNextPage ? (
           <Button
             variant="secondary"
