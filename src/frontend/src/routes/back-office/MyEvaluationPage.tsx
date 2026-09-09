@@ -153,7 +153,7 @@ export function MyEvaluationPage() {
   }
   // A failed fetch is not an empty result: without this the screen below renders its
   // empty state and tells the reader there is nothing here.
-  if (evaluationQuery.isError) return <QueryError onRetry={() => void evaluationQuery.refetch()} />
+  if (evaluationQuery.isError) return <QueryError error={evaluationQuery.error} onRetry={() => void evaluationQuery.refetch()} />
 
 
   if (!evaluation) {

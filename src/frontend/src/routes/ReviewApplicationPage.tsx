@@ -194,7 +194,7 @@ export function ReviewApplicationPage() {
   if (viewQuery.isLoading) return <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
   // "Not found" and "we could not load it" were one branch, and they are not the same answer: the
   // first says this application does not exist, the second says the reviewer should try again.
-  if (viewQuery.isError) return <QueryError onRetry={() => void viewQuery.refetch()} />
+  if (viewQuery.isError) return <QueryError error={viewQuery.error} onRetry={() => void viewQuery.refetch()} />
   const view = viewQuery.data
   if (!view) return <p style={{ color: 'var(--color-text-secondary)' }}>{t('errors.notFound')}</p>
 

@@ -47,7 +47,7 @@ export function SupplierRfqListPage() {
         ) : rfqsQuery.isError ? (
           // The third state this chain was missing: a failed fetch used to fall through to "no
           // invitations", which is a different fact and one the reader would have acted on.
-          <QueryError onRetry={() => void rfqsQuery.refetch()} />
+          <QueryError error={rfqsQuery.error} onRetry={() => void rfqsQuery.refetch()} />
         ) : rfqs.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.empty')}</p>
         ) : (

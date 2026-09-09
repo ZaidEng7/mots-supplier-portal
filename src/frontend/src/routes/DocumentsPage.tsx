@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge, Button, Card, Field, Input, SkeletonList, StatusChip,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast,
-} from '../components/ui'
+  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast, QueryError } from '../components/ui'
 import { formatDate, formatDateTime } from '../lib/datetime'
 import { getOwnSupplier } from '../api/supplier'
 import {
@@ -88,8 +87,7 @@ export function DocumentsPage() {
   if (documents.isError || !documents.data) {
     return (
       <Card title={t('documents.title')}>
-        <p>{t('documents.errors.loadFailed')}</p>
-        <Button size="sm" variant="ghost" onClick={() => void documents.refetch()}>{t('documents.retry')}</Button>
+        <QueryError error={documents.error} onRetry={() => void documents.refetch()} />
       </Card>
     )
   }

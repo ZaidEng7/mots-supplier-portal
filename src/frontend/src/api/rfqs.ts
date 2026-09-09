@@ -1,4 +1,4 @@
-import { hasCode, problemMessage, type ProblemDetails } from './problem'
+import { hasCode, hasProblemProse, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 
@@ -184,9 +184,14 @@ export class RfqApiError extends Error {
    * failed precondition, not one of §7.1's three conflicts. Every caller still checks the one flag
    * rather than string-matching a message. */
   isConcurrencyConflict: boolean
+  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
+   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
+   * "Request failed: <status>", which is developer text and must not reach a reader. */
+  isProblemError: boolean
   constructor(status: number, body: unknown) {
     const b = body as ProblemDetails | null
     super(problemMessage(b, `Request failed: ${status}`))
+    this.isProblemError = hasProblemProse(b)
     this.status = status
     this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
   }

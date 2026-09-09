@@ -140,7 +140,7 @@ export function ContactsPage() {
   }
   // The wizard step cannot be filled in from a profile that failed to load, and the
   // form below would otherwise render as though the supplier simply had none.
-  if (profileQuery.isError) return <QueryError onRetry={() => void profileQuery.refetch()} />
+  if (profileQuery.isError) return <QueryError error={profileQuery.error} onRetry={() => void profileQuery.refetch()} />
 
 
   const representatives = profile?.representatives ?? []

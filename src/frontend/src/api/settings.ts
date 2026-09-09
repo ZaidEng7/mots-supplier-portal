@@ -1,4 +1,4 @@
-import { problemMessage, type ProblemDetails } from './problem'
+import { hasProblemProse, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 
@@ -14,9 +14,14 @@ export interface ConfirmMfaResponse {
 
 export class SettingsApiError extends Error {
   status: number
+  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
+   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
+   * "Request failed: <status>", which is developer text and must not reach a reader. */
+  isProblemError: boolean
   constructor(status: number, body: unknown) {
     const b = body as ProblemDetails | null
     super(problemMessage(b, `Request failed: ${status}`))
+    this.isProblemError = hasProblemProse(b)
     this.status = status
   }
 }

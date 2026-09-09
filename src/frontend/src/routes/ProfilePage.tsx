@@ -3,8 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
   Badge, Button, Card, SkeletonList, StatusChip,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow,
-} from '../components/ui'
+  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, QueryError } from '../components/ui'
 import { getOwnSupplier } from '../api/supplier'
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue, LEGAL_INFO_FIELDS, legalInfoValue } from './profileDisplayFields'
 
@@ -37,8 +36,7 @@ export function ProfilePage() {
   if (query.isError || !query.data) {
     return (
       <Card title={t('profile.title')}>
-        <p>{t('profile.errors.loadFailed')}</p>
-        <Button size="sm" variant="ghost" onClick={() => void query.refetch()}>{t('profile.retry')}</Button>
+        <QueryError error={query.error} onRetry={() => void query.refetch()} />
       </Card>
     )
   }

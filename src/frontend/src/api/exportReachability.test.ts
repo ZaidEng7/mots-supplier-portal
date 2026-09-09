@@ -28,6 +28,7 @@ const USED_ONLY_INSIDE_THE_API_LAYER: Record<string, string> = {
   clearETags: 'Called on sign-out, and by tests that need an empty store. In-memory per tab, so nothing else should be clearing it.',
   problemMessage: 'RFC 9457 rendering, used by the api modules own error classes.',
   hasCode: 'Problem-code predicate used by the api layer error types.',
+  hasProblemProse: 'Predicate used by the api layer error types, beside hasCode and for the same reason: it answers whether a problem document carried prose a reader should see, which is what sets isProblemError on every one of them. A shared predicate is not a capability, and inlining it into nineteen constructors to satisfy this check would be the wrong trade.',
   getOffering: 'Added in batch 13 so updateOffering and deactivateOffering re-read before they write — the fix for an editor that patched an item it had never read. It is the read half of those two writes rather than a capability of its own.',
 }
 

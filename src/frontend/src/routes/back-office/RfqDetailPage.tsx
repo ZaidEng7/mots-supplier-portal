@@ -414,7 +414,7 @@ export function RfqDetailPage() {
 
   // A tender that failed to load is not a tender that does not exist, and the branch below says
   // "not found" for both.
-  if (rfqQuery.isError) return <QueryError onRetry={() => void rfqQuery.refetch()} />
+  if (rfqQuery.isError) return <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
 
   if (rfqQuery.isLoading || !rfq) {
     return <SkeletonList label={t('common.loading')} />

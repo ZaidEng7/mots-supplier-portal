@@ -238,7 +238,7 @@ export function OfferingCatalogPage() {
   }
 
   if (offeringsQuery.isError) {
-    return <QueryError onRetry={() => void offeringsQuery.refetch()} />
+    return <QueryError error={offeringsQuery.error} onRetry={() => void offeringsQuery.refetch()} />
   }
 
   if (offeringsQuery.isLoading || categoriesQuery.isLoading || unitsQuery.isLoading) {

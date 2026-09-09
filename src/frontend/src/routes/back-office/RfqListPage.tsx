@@ -87,7 +87,7 @@ export function RfqListPage() {
         {rfqsQuery.isPending ? (
           <SkeletonTable label={t('common.loading')} />
         ) : rfqsQuery.isError ? (
-          <QueryError onRetry={() => void rfqsQuery.refetch()} />
+          <QueryError error={rfqsQuery.error} onRetry={() => void rfqsQuery.refetch()} />
         ) : rfqs.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>
             {owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}

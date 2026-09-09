@@ -1,6 +1,6 @@
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
-import { problemMessage, type ProblemDetails } from './problem'
+import { hasProblemProse, problemMessage, type ProblemDetails } from './problem'
 
 /**
  * SCR-402 and SCR-307: the two reads across the supplier registry.
@@ -13,8 +13,13 @@ import { problemMessage, type ProblemDetails } from './problem'
 
 export class SupplierDirectoryApiError extends Error {
   status: number
+  /** Read by `errorDetail`: this message is the server's own prose, not a bug's. False when the
+   * problem document carried no `title` and no `detail`, because `problemMessage` then falls back to
+   * "Request failed: <status>", which is developer text and must not reach a reader. */
+  isProblemError: boolean
   constructor(status: number, body: unknown) {
     super(problemMessage(body as ProblemDetails | null, `Request failed: ${status}`))
+    this.isProblemError = hasProblemProse(body as ProblemDetails | null)
     this.status = status
   }
 }

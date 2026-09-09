@@ -7,7 +7,7 @@ import { changePassword, getAccount, updateAccount, ApiError } from '../api/auth
 import { useAuthStore } from '../lib/authStore'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Field, Input, SkeletonList, useToast } from '../components/ui'
+import { Badge, Button, Field, Input, SkeletonList, useToast, QueryError } from '../components/ui'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -68,8 +68,7 @@ function AccountSection() {
   if (accountQuery.isError) {
     return (
       <div className="flex flex-col gap-2">
-        <p>{t('account.errors.loadFailed')}</p>
-        <Button variant="ghost" onClick={() => void accountQuery.refetch()}>{t('account.retry')}</Button>
+        <QueryError error={accountQuery.error} onRetry={() => void accountQuery.refetch()} />
       </div>
     )
   }

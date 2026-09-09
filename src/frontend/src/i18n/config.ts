@@ -63,8 +63,6 @@ const resources = {
         erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.',  // §9's sync tone
         emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
         emptyBody: 'ستظهر هنا دعوات طلبات عروض الأسعار عند دعوتكم للمشاركة.',
-        loadFailed: 'تعذر تحميل هذا القسم',  // per-widget, not per-page
-        retry: 'إعادة المحاولة',                    // [reused]
       },
       // FEAT-19.1/19.2 report screen. AUTHORED, not transcribed: no document specifies this
       // screen at all, so every string here is an invention and none of it is a §7 label set. The
@@ -412,8 +410,6 @@ const resources = {
         markAllRead: 'تعليم الكل كمقروء',
         markRead: 'تعليم كمقروء',
         open: 'فتح',
-        loadFailed: 'تعذر تحميل الإشعارات',
-        retry: 'إعادة المحاولة',
         bell: 'الإشعارات',
         bellWithCount: 'الإشعارات، {{count}} غير مقروء',
       },
@@ -1630,7 +1626,6 @@ const resources = {
         title: 'ملف المورد',                                 // [reused] §7's own term
         edit: 'تعديل',                                       // [reused]
         manage: 'إدارة',                                     // [reused]
-        retry: 'إعادة المحاولة',                              // [reused]
         incompleteTitle: 'الملف غير مكتمل',
         incompleteBody: 'العناصر التالية مطلوبة قبل تقديم الطلب:',
         companyTitle: 'بيانات الشركة',                        // [reused]
@@ -1654,7 +1649,6 @@ const resources = {
           legalInfo: 'البيانات القانونية', address: 'العنوان', categoryLink: 'الفئات',
           termsAccepted: 'الموافقة على الشروط',
         },
-        errors: { loadFailed: 'تعذّر تحميل ملف المورد' },
       },
       // ── SCR-130..133 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
       // §7 has no documents-centre strings. Authored in §7's register, accepted under D-62,
@@ -1679,14 +1673,12 @@ const resources = {
         noHistory: 'لم يُرفع أي إصدار بعد',
         close: 'إغلاق',                                         // [reused]
         uploaded: 'تم رفع المستند',                              // [reused] matches onboarding
-        retry: 'إعادة المحاولة',                                // [reused]
         fields: {
           type: 'نوع المستند', required: 'الإلزامية', state: 'الحالة', expiry: 'تاريخ الانتهاء',
           actions: 'الإجراءات', version: 'الإصدار', fileName: 'اسم الملف',
           uploadedAt: 'تاريخ الرفع', reason: 'سبب الرفض',
         },
         errors: {
-          loadFailed: 'تعذّر تحميل المستندات',
           uploadFailed: 'تعذّر رفع المستند',                     // [reused]
           downloadFailed: 'تعذّر تنزيل المستند',
           historyFailed: 'تعذّر تحميل سجل الإصدارات',
@@ -1714,13 +1706,12 @@ const resources = {
       account: {
         title: 'الحساب',  // SCR-902
         save: 'حفظ',                                          // [reused]
-        retry: 'إعادة المحاولة',                               // [reused]
         saved: 'تم حفظ التغييرات',                             // [reused]
         emailFixed: 'لا يمكن تغيير البريد الإلكتروني من هذه الشاشة.',
         numeralsFollowLanguage: 'تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9.',
         fields: { fullName: 'الاسم الكامل', language: 'لغة الواجهة', email: 'البريد الإلكتروني' },
         languages: { ar: 'العربية', en: 'الإنجليزية' },
-        errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' },
+        errors: { saveFailed: 'تعذّر حفظ التغييرات' },
       },
       // ── SCR-040 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       sessionExpired: {
@@ -2009,8 +2000,6 @@ const resources = {
         erpDegraded: 'Purchase-order sync is paused. This does not affect your proposal.',
         emptyTitle: 'No invitations yet',
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
-        loadFailed: "Couldn't load this section",
-        retry: 'Try again',
       },
       notificationTemplates: {
         title: 'Notification templates',
@@ -2322,8 +2311,6 @@ const resources = {
         markAllRead: 'Mark all as read',
         markRead: 'Mark as read',
         open: 'Open',
-        loadFailed: "Couldn't load notifications",
-        retry: 'Try again',
         bell: 'Notifications',
         bellWithCount: 'Notifications, {{count}} unread',
       },
@@ -3455,7 +3442,6 @@ const resources = {
         title: 'Company profile',
         edit: 'Edit',
         manage: 'Manage',
-        retry: 'Try again',
         incompleteTitle: 'Profile incomplete',
         incompleteBody: 'These items are required before the application can be submitted:',
         companyTitle: 'Company details',
@@ -3479,7 +3465,6 @@ const resources = {
           legalInfo: 'Legal information', address: 'Address', categoryLink: 'Categories',
           termsAccepted: 'Terms accepted',
         },
-        errors: { loadFailed: 'Could not load the profile' },
       },
       documents: {
         title: 'Documents',
@@ -3501,14 +3486,12 @@ const resources = {
         noHistory: 'No versions uploaded yet',
         close: 'Close',
         uploaded: 'Document uploaded',
-        retry: 'Try again',
         fields: {
           type: 'Document type', required: 'Required', state: 'State', expiry: 'Expires',
           actions: 'Actions', version: 'Version', fileName: 'File name',
           uploadedAt: 'Uploaded', reason: 'Rejection reason',
         },
         errors: {
-          loadFailed: 'Could not load your documents',
           uploadFailed: 'Could not upload the document',
           downloadFailed: 'Could not download the document',
           historyFailed: 'Could not load the version history',
@@ -3532,13 +3515,12 @@ const resources = {
       account: {
         title: 'Account',
         save: 'Save',
-        retry: 'Try again',
         saved: 'Changes saved',
         emailFixed: 'Your email address cannot be changed from this screen.',
         numeralsFollowLanguage: 'Numerals follow the interface language: Arabic renders ٠-٩, English 0-9.',
         fields: { fullName: 'Full name', language: 'Interface language', email: 'Email address' },
         languages: { ar: 'Arabic', en: 'English' },
-        errors: { loadFailed: 'Could not load your account', saveFailed: 'Could not save your changes' },
+        errors: { saveFailed: 'Could not save your changes' },
       },
       sessionExpired: {
         title: 'Session expired',

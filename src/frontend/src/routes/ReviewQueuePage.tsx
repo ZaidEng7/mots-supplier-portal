@@ -122,7 +122,7 @@ export function ReviewQueuePage() {
       {queueQuery.isError ? (
         // Before this, a failed queue fetch rendered "nothing waiting for you" - the one thing a
         // reviewer must not be told wrongly.
-        <QueryError onRetry={() => void queueQuery.refetch()} />
+        <QueryError error={queueQuery.error} onRetry={() => void queueQuery.refetch()} />
       ) : items.length === 0 && !queueQuery.isLoading ? (
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('review.noItems')}</p>
       ) : (

@@ -47,7 +47,7 @@ export function OfferingsPage() {
   })
 
   if (profileQuery.isError || categoriesQuery.isError) {
-    return <QueryError onRetry={() => { void profileQuery.refetch(); void categoriesQuery.refetch() }} />
+    return <QueryError error={profileQuery.error} onRetry={() => { void profileQuery.refetch(); void categoriesQuery.refetch() }} />
   }
 
   if (profileQuery.isLoading || categoriesQuery.isLoading) {

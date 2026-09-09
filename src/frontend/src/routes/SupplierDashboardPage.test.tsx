@@ -122,7 +122,10 @@ describe('SupplierDashboardPage (SCR-120)', () => {
 
     renderPage(<SupplierDashboardPage />)
 
-    expect(await screen.findByText("Couldn't load this section")).toBeInTheDocument()
+    // The widget now renders the shared QueryError, so the wording is `common.loadFailed` rather than a
+    // per-widget copy of the same sentence. What this test is about is unchanged: the panel says it
+    // failed and the three below it still stand.
+    expect(await screen.findByText('We could not load this. Try again.')).toBeInTheDocument()
 
     // The three that must still be standing.
     expect(screen.getByText('Open invitations')).toBeInTheDocument()

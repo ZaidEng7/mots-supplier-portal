@@ -60,7 +60,7 @@ export function OfferingSearchPage() {
         {resultsQuery.isPending ? (
           <SkeletonTable label={t('common.loading')} />
         ) : resultsQuery.isError ? (
-          <QueryError onRetry={() => void resultsQuery.refetch()} />
+          <QueryError error={resultsQuery.error} onRetry={() => void resultsQuery.refetch()} />
         ) : results.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('offeringSearch.empty')}</p>
         ) : (
