@@ -27,7 +27,7 @@
 | Screens: unresolved | **0** — SCR-501 answered and built |
 | Hand-written application code | **72,272 lines** production · **47,298** test · **31,571** generated |
 | Backend tests | **1,243** — 17 architecture, 439 unit, 787 integration (Testcontainers: Postgres, MinIO, real clamd) |
-| Frontend tests | **630** vitest · **226** Playwright, of which **137** are axe scans over 68 routes in both languages |
+| Frontend tests | **640** vitest · **226** Playwright, of which **137** are axe scans over 68 routes in both languages — genuinely both, since 2026-09-09 (see §5.4) |
 | Blocked on somebody else | **0 open questions.** Twelve were answered as D-57–D-68; two standing **gates** remain (§7) |
 | Merged PRs | #79 → #127 in this record |
 | Walkthrough findings | **13 raised, 12 fixed, 1 answered** — F-13 closed by D-67 (`WALKTHROUGH-FINDINGS.md`) |
@@ -275,7 +275,7 @@ next defect gets certified as absent.
 | `preconditionCoverage.test.ts` | The client half: every guarded write in the committed contract has a caller that sends a version | Nothing about routes absent from the baseline — which is why a second test asserts the baseline knows every guarded write |
 | `exportReachability.test.ts` | A capability no screen exposes — `PUT /rfqs/{code}` sat unused with its client function beside it | Whether the screen that references it is reachable |
 | `AuthorizationFuzzTests` | Every permissioned route called as every persona lacking its permission, with a 5xx counted as a failure | A class of attack nobody thought to test for. It is coverage, not a review (D-68) |
-| `app-a11y.spec.ts` route denominator | The scan quietly covering fewer routes than the router declares | Whether a screen reader can complete a tender in Arabic (D-68) |
+| `app-a11y.spec.ts` route denominator **and locale guard** | The scan covering fewer routes than the router declares, and — since 2026-09-09 — the scan claiming a locale it is not actually in | Whether a screen reader can complete a tender in Arabic (D-68) |
 | `tokenConformance.test.ts` | A `var(--x)` that resolves to nothing, a literal colour, a Tailwind utility where the scale has a token, a z-index off the one scale | Whether the token chosen is the RIGHT one - `--radius-lg` on a control that wanted `--radius-md` passes |
 | `asyncStateCoverage.test.ts` | A fetching screen with no way to say the fetch failed, which renders its empty state instead | Whether the failure copy is any good, or renders at all - it reads source, which is why two page tests render the failure for real |
 

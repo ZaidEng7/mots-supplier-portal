@@ -250,9 +250,22 @@ export async function mockBackend(page: Page) {
     ] })
     if (p === '/api/v1/search') return route.fulfill({ json: { query: 'demo', hits: [], truncated: false } })
     if (p === '/api/v1/meta') return route.fulfill({ json: { version: '1.0.0', commit: null, maintenance: null } })
-    if (p === '/api/v1/auth/me') return route.fulfill({ json: {
-      fullName: 'A11y Scan User', email: 'scan@example.com', language: 'en', languageChosen: true,
-    } })
+    if (p === '/api/v1/auth/me') {
+      // The account's language FOLLOWS the page's ?lng=, and that is the whole point of this branch.
+      //
+      // With a hardcoded 'en' here, `router.tsx`'s applyStoredLanguage() fetched this account on load and
+      // called changeLanguage('en'), overwriting whatever ?lng=ar had set. Every authenticated route in
+      // the a11y suite therefore ran BOTH of its two scans against the English, LTR interface - roughly
+      // 60 of 68 routes - while the suite reported "137 scans in both languages". The Arabic UI of an
+      // Arabic-first product had never been scanned behind sign-in. Proved by reading
+      // document.documentElement.dir under this harness: 'ltr' on every authenticated route with
+      // ?lng=ar, and 'rtl' on /login, which is unauthenticated and so never reaches this branch.
+      const requested = new URL(page.url()).searchParams.get('lng')
+      const language = requested === 'ar' ? 'ar' : 'en'
+      return route.fulfill({ json: {
+        fullName: 'A11y Scan User', email: 'scan@example.com', language, languageChosen: true,
+      } })
+    }
     if (p === '/api/v1/proposals') return route.fulfill({ json: [] })
     // SCR-600 and SCR-700. Without these two the pages fall through to the catch-all `{}`, render
     // their error card, and the a11y scan silently covers a failure state instead of the screen.

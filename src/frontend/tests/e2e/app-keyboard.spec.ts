@@ -89,12 +89,19 @@ test.describe('Toast: reachable and dismissible by keyboard (Radix)', () => {
   })
 })
 
-test.describe('Select: fully operable by keyboard alone (Radix, OnboardingPage supplier-type field)', () => {
+/**
+ * Retargeted 2026-09-09 from the onboarding wizard's "Entity type" field to the review queue's state
+ * filter. The wizard field is now genuinely DISABLED in the state these fixtures render — a submitted
+ * application — because `Select` gained the `disabled` prop it never had, so the control that had been
+ * proving "keyboard operable" was a control nobody should be able to operate. A keyboard test must drive
+ * an enabled control or it proves nothing; the review queue's filter is enabled in the same fixtures.
+ */
+test.describe('Select: fully operable by keyboard alone (Radix, the review queue state filter)', () => {
   test('opens on Enter, moves through options with Arrow keys, and commits on Enter', async ({ page }) => {
     await mockBackend(page)
-    await page.goto('/onboarding?lng=en', { waitUntil: 'networkidle' })
+    await page.goto('/back-office/review?lng=en', { waitUntil: 'networkidle' })
 
-    const trigger = page.getByRole('combobox', { name: 'Entity type' })
+    const trigger = page.getByRole('combobox', { name: 'State' })
     await trigger.focus()
     await page.keyboard.press('Enter')
 
@@ -115,9 +122,9 @@ test.describe('Select: fully operable by keyboard alone (Radix, OnboardingPage s
 
   test('Escape closes the listbox without changing the selection', async ({ page }) => {
     await mockBackend(page)
-    await page.goto('/onboarding?lng=en', { waitUntil: 'networkidle' })
+    await page.goto('/back-office/review?lng=en', { waitUntil: 'networkidle' })
 
-    const trigger = page.getByRole('combobox', { name: 'Entity type' })
+    const trigger = page.getByRole('combobox', { name: 'State' })
     const before = await trigger.textContent()
 
     await trigger.focus()

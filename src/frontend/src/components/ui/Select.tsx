@@ -12,6 +12,14 @@ interface SelectProps {
   onValueChange: (value: string) => void
   options: SelectOption[]
   placeholder?: string
+  /**
+   * Refuses the control and says so.
+   *
+   * <p>This prop did not exist, which is why a submitted onboarding application still offered three
+   * working comboboxes — entity type, currency and country code — on a form whose Save buttons had been
+   * removed. A person could change them and had nothing to commit them with.</p>
+   */
+  disabled?: boolean
   'aria-describedby'?: string
   'aria-invalid'?: boolean
 }
@@ -19,21 +27,23 @@ interface SelectProps {
 /** Accessible select built on Radix — keyboard nav, typeahead, and screen-reader semantics for free.
  * Radix's placeholder text is visual only and does not contribute an accessible name, so the
  * trigger needs an explicit aria-label (falls back to the placeholder when no Field label wraps it). */
-export function Select({ id, value, onValueChange, options, placeholder, ...aria }: SelectProps) {
+export function Select({ id, value, onValueChange, options, placeholder, disabled = false, ...aria }: SelectProps) {
   return (
     // Radix's hidden native <select> (mounted for form/autofill semantics) can emit a spurious
     // "" change once while the Portal content is still mounting, which would otherwise clobber a
     // just-restored controlled value - ignore empty emissions since none of our option sets
     // include a blank value to legitimately select.
-    <RadixSelect.Root value={value} onValueChange={(v) => v && onValueChange(v)}>
+    <RadixSelect.Root value={value} onValueChange={(v) => v && onValueChange(v)} disabled={disabled}>
       <RadixSelect.Trigger
         id={id}
         aria-label={placeholder}
         {...aria}
-        className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none"
+        className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none ${disabled ? 'cursor-not-allowed' : ''}`}
         style={{
-          backgroundColor: 'var(--color-bg-surface)',
-          color: 'var(--color-text-primary)',
+          // Same two-state treatment as Input, for the same reason: this trigger paints itself, so the
+          // browser's own disabled rendering never shows through.
+          backgroundColor: disabled ? 'var(--color-bg-sunken)' : 'var(--color-bg-surface)',
+          color: disabled ? 'var(--color-text-disabled)' : 'var(--color-text-primary)',
           border: '1px solid var(--color-border-input)',
         }}
       >
