@@ -187,7 +187,13 @@ export function QueryError({ error, errorText, onRetry }: Readonly<{
   )
 }
 
-/** The next page of a keyset-paged list. Renders nothing when there is no next page. */
+/**
+ * The next page of a keyset-paged list. Renders nothing when there is no next page.
+ *
+ * <p>`isLoading` rather than `disabled`: six screens wrote this button by hand and every one of them
+ * showed a spinner while the page was in flight, because a control that only greys out looks broken on a
+ * slow connection. The shared version keeps the behaviour the hand-written ones had.</p>
+ */
 export function LoadMore({
   hasNextPage, isFetching, onClick, label,
 }: Readonly<{
@@ -199,7 +205,7 @@ export function LoadMore({
   if (!hasNextPage) return null
   return (
     <div className="mt-4">
-      <Button variant="secondary" onClick={onClick} disabled={isFetching}>
+      <Button variant="secondary" isLoading={isFetching} onClick={onClick}>
         {label}
       </Button>
     </div>
@@ -220,6 +226,9 @@ export interface PagedQueryLike {
   hasNextPage?: boolean
   isFetchingNextPage?: boolean
   fetchNextPage?: () => unknown
+  /** React Query's own `refetch`, so a failed card offers the way out of the failure rather than only
+   * naming it. Optional for the same structural reason as the rest of this interface. */
+  refetch?: () => unknown
 }
 
 /** The words a list card says in each of its four states. */
@@ -239,17 +248,29 @@ export interface ListCardLabels {
  * next-page button is the specific defect MSP-84 recorded, where a list silently ended at twenty rows.</p>
  */
 export function ListCard({
-  title, query, isEmpty, labels, skeletonRows, children,
+  title, action, query, isEmpty, labels, skeleton, skeletonRows, footer, children,
 }: Readonly<{
   title: string
+  /** A control that belongs to the whole list rather than to a row - a filter, an "add" button - shown
+   * beside the title. Passed straight to `Card`, so a screen adopting this component does not have to
+   * keep its own `Card` just to keep its header control. */
+  action?: ReactNode
   query: PagedQueryLike
   isEmpty: boolean
   labels: ListCardLabels
+  /** Which shape the placeholder takes while the first page loads. A card holding rows of text rather
+   * than a table asks for `'list'`, the same choice `ListState` offers. */
+  skeleton?: 'table' | 'list'
   skeletonRows?: number
+  /** A note that belongs to the card rather than to the rows, shown below the list in every state. The
+   * children are inside `ListState` and therefore only exist once the list does; a standing rule about
+   * the table - "inactive rows are hidden" - is not a fact about the rows and must not vanish with
+   * them. */
+  footer?: ReactNode
   children: ReactNode
 }>) {
   return (
-    <Card title={title}>
+    <Card title={title} action={action}>
       <ListState
         isPending={query.isPending}
         isError={query.isError}
@@ -258,6 +279,8 @@ export function ListCard({
         errorText={labels.error}
         emptyText={labels.empty}
         error={query.error}
+        onRetry={query.refetch ? () => void query.refetch?.() : undefined}
+        skeleton={skeleton}
         skeletonRows={skeletonRows}
       >
         {children}
@@ -270,6 +293,7 @@ export function ListCard({
           />
         ) : null}
       </ListState>
+      {footer}
     </Card>
   )
 }

@@ -154,6 +154,48 @@ describe('required-vs-missing document chips', () => {
   })
 
   /**
+   * Original audit §F6: *"the `role="alert"` blocker list renders AFTER the whole document list, its
+   * links point backwards, and nothing moves focus to it. A keyboard user who presses Submit must
+   * Shift+Tab back past every document control to reach the explanation."*
+   *
+   * <p>Document order is the assertion, not styling: `compareDocumentPosition` is what a keyboard and
+   * a screen reader both walk. The summary must precede the button that produced it AND the rows it
+   * links to - move the block back to the bottom of the page and both halves fail.</p>
+   */
+  it('places the summary ahead of the submit button and the documents it names', async () => {
+    restore = mockApi(['commercial_registration'])
+
+    renderPage(<OnboardingPage />)
+    const submit = await screen.findByRole('button', { name: 'Submit application' })
+    await userEvent.click(submit)
+
+    const alert = await screen.findByRole('alert')
+    const documentsHeading = screen.getByRole('heading', { name: 'Required documents' })
+
+    const precedes = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+    expect(precedes(alert, submit)).toBe(true)
+    expect(precedes(alert, documentsHeading)).toBe(true)
+    expect(precedes(alert, document.getElementById('document-row-commercial_registration')!)).toBe(true)
+  })
+
+  /**
+   * The other half of ACCESSIBILITY.md §7: *"a focusable summary region (`role="alert"` **or moved
+   * focus**)"*. `role="alert"` announces; it does not move the caret. Without this the supplier is
+   * left standing on Submit, and the links in the summary are only reachable by hunting for them.
+   */
+  it('moves focus to the summary so its links are the next thing in the tab order', async () => {
+    restore = mockApi(['commercial_registration'])
+
+    renderPage(<OnboardingPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit application' }))
+
+    const alert = await screen.findByRole('alert')
+    await waitFor(() => expect(document.activeElement).toBe(alert))
+  })
+
+  /**
    * The server's 422 mixes missing PROFILE fields into the same array as document type codes. A
    * profile field must not surface as a missing document, and must not escalate a chip.
    */

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '../lib/datetime'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {Badge, Button, ListState, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import {Badge, Button, FilterBar, FilterField, ListState, LoadMore, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { listReviewQueue, claimReviewItem, unassignReviewItem, type ReviewQueueItem } from '../api/review'
 import { useAuthStore } from '../lib/authStore'
 import { invalidateQuietly } from '../lib/queryClient'
@@ -89,9 +89,8 @@ export function ReviewQueuePage() {
     <div className="flex flex-col gap-6">
       <PageHeading title={t('review.queue')} />
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>{t('review.filterState')}</span>
+      <FilterBar>
+        <FilterField label={t('review.filterState')}>
           <Select
             value={stateFilter}
             onValueChange={setStateFilter}
@@ -101,9 +100,8 @@ export function ReviewQueuePage() {
               ...STATE_OPTIONS.map((s) => ({ value: s, label: s })),
             ]}
           />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>{t('review.filterAssignee')}</span>
+        </FilterField>
+        <FilterField label={t('review.filterAssignee')}>
           <Select
             value={assigneeFilter}
             onValueChange={setAssigneeFilter}
@@ -114,8 +112,8 @@ export function ReviewQueuePage() {
               { value: 'unassigned', label: t('review.unassignedLabel') },
             ]}
           />
-        </div>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       {/* Before ListState owned this, a failed queue fetch rendered "nothing waiting for you" - the one
           thing a reviewer must not be told wrongly, because they act on it by going away. */}
@@ -196,15 +194,12 @@ export function ReviewQueuePage() {
         </Table>
         )}
       </ListState>
-      {queueQuery.hasNextPage ? (
-        <Button
-          variant="secondary"
-          isLoading={queueQuery.isFetchingNextPage}
-          onClick={() => queueQuery.fetchNextPage()}
-        >
-          {t('review.loadMore')}
-        </Button>
-      ) : null}
+      <LoadMore
+        hasNextPage={queueQuery.hasNextPage}
+        isFetching={queueQuery.isFetchingNextPage}
+        onClick={() => queueQuery.fetchNextPage()}
+        label={t('review.loadMore')}
+      />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {Button, Card, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
+import {ListCard, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { nextPageParam } from '../api/listEnvelope'
 import { listInvitedRfqs } from '../api/supplierRfqs'
 
@@ -31,55 +31,46 @@ export function SupplierRfqListPage() {
         <PageHeading title={t('supplierRfq.title')} subtitle={t('supplierRfq.subtitle')} />
       </div>
 
-      <Card title={t('supplierRfq.listTitle')}>
-        {/* T2-32: loading and empty are distinct states. Before this, `rfqsQuery.data ?? []` meant
-            an invited supplier was told "no RFQs" for the whole duration of the fetch - and
-            permanently on a fetch failure - because a pending query and a genuinely empty list
-            rendered the same copy. UX-PRINCIPLES.md §DoD: "All states designed: empty, loading
-            (skeleton), error, success". */}
-        <ListState
-          isPending={rfqsQuery.isPending}
-          isError={rfqsQuery.isError}
-          error={rfqsQuery.error}
-          onRetry={() => void rfqsQuery.refetch()}
-          isEmpty={rfqs.length === 0}
-          loadingLabel={t('common.loading')}
-          errorText={t('common.loadFailed')}
-          emptyText={t('supplierRfq.empty')}
-          skeleton="list"
-          skeletonRows={3}
-        >
-          <Table caption={t('supplierRfq.listTitle')}>
-            <TableHead>
-              <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
-              <TableHeaderCell>{t('supplierRfq.myStatus')}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {rfqs.map((rfq) => (
-                <TableRow key={rfq.rfqCode}>
-                  <TableCell>
-                    <Link to="/rfqs/$referenceCode" params={{ referenceCode: rfq.rfqCode }} style={{ color: 'var(--color-text-brand)' }}>
-                      {rfq.rfqCode}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{isArabic ? rfq.titleAr : rfq.titleEn}</TableCell>
-                  <TableCell><StatusChip machine="invitation" value={rfq.invitationStatus} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </ListState>
-        {rfqsQuery.hasNextPage ? (
-          <Button
-            variant="secondary"
-            isLoading={rfqsQuery.isFetchingNextPage}
-            onClick={() => rfqsQuery.fetchNextPage()}
-          >
-            {t('supplierRfq.loadMore')}
-          </Button>
-        ) : null}
-      </Card>
+      {/* T2-32: loading and empty are distinct states. Before this, `rfqsQuery.data ?? []` meant
+          an invited supplier was told "no RFQs" for the whole duration of the fetch - and
+          permanently on a fetch failure - because a pending query and a genuinely empty list
+          rendered the same copy. UX-PRINCIPLES.md §DoD: "All states designed: empty, loading
+          (skeleton), error, success". The card, those four states and the next page are one
+          component now; this screen supplies the table and the words. */}
+      <ListCard
+        title={t('supplierRfq.listTitle')}
+        query={rfqsQuery}
+        isEmpty={rfqs.length === 0}
+        skeleton="list"
+        skeletonRows={3}
+        labels={{
+          loading: t('common.loading'),
+          error: t('common.loadFailed'),
+          empty: t('supplierRfq.empty'),
+          loadMore: t('supplierRfq.loadMore'),
+        }}
+      >
+        <Table caption={t('supplierRfq.listTitle')}>
+          <TableHead>
+            <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
+            <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
+            <TableHeaderCell>{t('supplierRfq.myStatus')}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {rfqs.map((rfq) => (
+              <TableRow key={rfq.rfqCode}>
+                <TableCell>
+                  <Link to="/rfqs/$referenceCode" params={{ referenceCode: rfq.rfqCode }} style={{ color: 'var(--color-text-brand)' }}>
+                    {rfq.rfqCode}
+                  </Link>
+                </TableCell>
+                <TableCell>{isArabic ? rfq.titleAr : rfq.titleEn}</TableCell>
+                <TableCell><StatusChip machine="invitation" value={rfq.invitationStatus} /></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ListCard>
     </div>
   )
 }

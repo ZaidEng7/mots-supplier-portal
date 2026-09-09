@@ -8,7 +8,17 @@ import type { Workspace } from '../../api/workspace'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  return {
+    ...actual,
+    useParams: () => ({ referenceCode: 'RFQ-2026-000001' }),
+    // A real anchor with the resolved href, rather than `Link: 'a'`. The screen's exits to the bids, the
+    // comparison and the award are links now, and a stub that threw their destination away would let a
+    // wrong route pass unnoticed - which is the whole reason they stopped being raw hrefs.
+    Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: React.ReactNode }) => {
+      const href = Object.entries(params ?? {}).reduce((path, [key, value]) => path.replace(`$${key}`, value), to)
+      return <a href={href} {...rest}>{children}</a>
+    },
+  }
 })
 
 const { RfqDetailPage } = await import('./RfqDetailPage')
@@ -1044,7 +1054,10 @@ describe('RfqDetailPage evaluation panel (T-082)', () => {
 
     renderPage(<RfqDetailPage />)
 
-    const link = (await screen.findByRole('button', { name: /received proposals|العروض الواردة/i })).closest('a')
+    // A link, not a button inside one. It used to be `<a href><Button/></a>`: invalid markup, and a bare
+    // href that reloaded the whole application on a screen whose point is moving between bids.
+    const link = await screen.findByRole('link', { name: /received proposals|العروض الواردة/i })
     expect(link).toHaveAttribute('href', '/back-office/rfqs/RFQ-2026-000001/proposals')
+    expect(link.querySelector('button'), 'a button inside a link is invalid markup').toBeNull()
   })
 })

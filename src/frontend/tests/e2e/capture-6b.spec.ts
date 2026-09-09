@@ -65,3 +65,11 @@ test('capture supplier onboarding en', async ({ page }) => {
   await page.goto('/onboarding?lng=en', { waitUntil: 'networkidle' })
   await page.screenshot({ path: `${OUT}/onboarding-en.png`, fullPage: true })
 })
+
+test('capture the grouped supplier navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 400 })
+  await mockBackend(page)
+  await page.goto('/rfqs?lng=en')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await page.screenshot({ path: `${OUT}/supplier-nav-en.png` })
+})

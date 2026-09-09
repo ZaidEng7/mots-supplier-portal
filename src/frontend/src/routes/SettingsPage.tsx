@@ -7,7 +7,7 @@ import { changePassword, getAccount, updateAccount, ApiError } from '../api/auth
 import { useAuthStore } from '../lib/authStore'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Card, Field, Input, PageHeading, QueryError, SkeletonList, useToast} from '../components/ui'
+import {Badge, Button, Card, Field, Input, LoadMore, PageHeading, QueryError, SkeletonList, useToast} from '../components/ui'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -324,11 +324,12 @@ function SessionsSection() {
           </li>
         ))}
       </ul>
-      {sessionsQuery.hasNextPage ? (
-        <Button variant="secondary" isLoading={sessionsQuery.isFetchingNextPage} onClick={() => sessionsQuery.fetchNextPage()}>
-          {t('settings.loadMoreSessions')}
-        </Button>
-      ) : null}
+      <LoadMore
+        hasNextPage={sessionsQuery.hasNextPage}
+        isFetching={sessionsQuery.isFetchingNextPage}
+        onClick={() => sessionsQuery.fetchNextPage()}
+        label={t('settings.loadMoreSessions')}
+      />
       <Button
         variant="secondary"
         isLoading={revokeAllMutation.isPending}

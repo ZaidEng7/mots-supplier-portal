@@ -21,6 +21,7 @@ import {
 import { getWorkspace } from '../../api/workspace'
 import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
+import { ButtonLink } from '../../components/ButtonLink'
 import { CancelSection } from './rfq/sections/CancelSection'
 import { apiErrorMessage } from '../../api/problem'
 
@@ -1011,16 +1012,19 @@ export function RfqDetailPage() {
               <div className="mb-4 flex gap-2">
                 {/* T-082: the bids themselves, readable from SubmissionClosed onward - before the
                     comparison matrix exists and without needing an opened evaluation. */}
-                <a href={`/back-office/rfqs/${referenceCode}/proposals`}>
-                  <Button size="sm" variant="secondary">{t('receivedProposals.title')}</Button>
-                </a>
-                <a href={`/back-office/rfqs/${referenceCode}/comparison`}>
-                  <Button size="sm" variant="secondary">{t('comparison.title')}</Button>
-                </a>
+                {/* Links, not buttons wrapped in hrefs. These are the buyer's exits to the bids, the
+                    comparison and the award - the three places they move between constantly - and a bare
+                    href reloaded the whole application each time. */}
+                <ButtonLink to="/back-office/rfqs/$referenceCode/proposals" params={{ referenceCode }}>
+                  {t('receivedProposals.title')}
+                </ButtonLink>
+                <ButtonLink to="/back-office/rfqs/$referenceCode/comparison" params={{ referenceCode }}>
+                  {t('comparison.title')}
+                </ButtonLink>
                 {evaluation?.state === 'Finalized' || ['AwardApproval', 'Awarded', 'Completed'].includes(rfq.state) ? (
-                  <a href={`/back-office/rfqs/${referenceCode}/award`}>
-                    <Button size="sm" variant="secondary">{t('award.title')}</Button>
-                  </a>
+                  <ButtonLink to="/back-office/rfqs/$referenceCode/award" params={{ referenceCode }}>
+                    {t('award.title')}
+                  </ButtonLink>
                 ) : null}
               </div>
               {/* Three states, said separately. No evaluation and submissions closed means one can be
@@ -1039,9 +1043,9 @@ export function RfqDetailPage() {
                   <div className="flex items-center justify-between">
                     <StatusChip machine="evaluation" value={evaluation.state} />
                     {evaluation.state !== 'NotStarted' ? (
-                      <a href={`/back-office/rfqs/${referenceCode}/my-evaluation`}>
-                        <Button size="sm" variant="secondary">{t('evaluation.my.title')}</Button>
-                      </a>
+                      <ButtonLink to="/back-office/rfqs/$referenceCode/my-evaluation" params={{ referenceCode }}>
+                        {t('evaluation.my.title')}
+                      </ButtonLink>
                     ) : null}
                   </div>
 

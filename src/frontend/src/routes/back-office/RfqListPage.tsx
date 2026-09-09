@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {Button, Card, Dialog, Field, Input, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Button, Dialog, Field, Input, ListCard, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -61,8 +61,16 @@ export function RfqListPage() {
         <Button onClick={() => setCreateOpen(true)}>{t('rfq.add')}</Button>
       </div>
 
-      <Card
+      <ListCard
         title={t('rfq.listTitle')}
+        query={rfqsQuery}
+        isEmpty={rfqs.length === 0}
+        labels={{
+          loading: t('common.loading'),
+          error: t('common.loadFailed'),
+          empty: owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`),
+          loadMore: t('rfq.loadMore'),
+        }}
         action={
           <fieldset className="m-0 flex flex-wrap gap-2 border-0 p-0">
             {/* <fieldset>, not <div role="group">: the native element carries the same grouping
@@ -84,51 +92,31 @@ export function RfqListPage() {
           </fieldset>
         }
       >
-        <ListState
-          isPending={rfqsQuery.isPending}
-          isError={rfqsQuery.isError}
-          error={rfqsQuery.error}
-          isEmpty={rfqs.length === 0}
-          loadingLabel={t('common.loading')}
-          errorText={t('common.loadFailed')}
-          onRetry={() => void rfqsQuery.refetch()}
-          emptyText={owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
-        >
-          <Table caption={t('rfq.listTitle')}>
-            <TableHead>
-              <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.state')}</TableHeaderCell>
-              <TableHeaderCell>{t('rfq.fields.owner')}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {rfqs.map((rfq) => (
-                <TableRow key={rfq.referenceCode}>
-                  <TableCell>
-                    <Link to="/back-office/rfqs/$referenceCode" params={{ referenceCode: rfq.referenceCode }} style={{ color: 'var(--color-text-brand)' }}>
-                      {rfq.referenceCode}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{rfq.titleEn}</TableCell>
-                  <TableCell><StatusChip machine="rfq" value={rfq.state} /></TableCell>
-                  {/* "Unassigned" in words, not an empty cell: an unowned RFQ is a row somebody
-                      should claim, and a blank reads as missing data rather than as an invitation. */}
-                  <TableCell>{rfq.ownerName ?? t('rfq.unassigned')}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </ListState>
-        {rfqsQuery.hasNextPage ? (
-          <Button
-            variant="secondary"
-            isLoading={rfqsQuery.isFetchingNextPage}
-            onClick={() => rfqsQuery.fetchNextPage()}
-          >
-            {t('rfq.loadMore')}
-          </Button>
-        ) : null}
-      </Card>
+        <Table caption={t('rfq.listTitle')}>
+          <TableHead>
+            <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
+            <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
+            <TableHeaderCell>{t('rfq.fields.state')}</TableHeaderCell>
+            <TableHeaderCell>{t('rfq.fields.owner')}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {rfqs.map((rfq) => (
+              <TableRow key={rfq.referenceCode}>
+                <TableCell>
+                  <Link to="/back-office/rfqs/$referenceCode" params={{ referenceCode: rfq.referenceCode }} style={{ color: 'var(--color-text-brand)' }}>
+                    {rfq.referenceCode}
+                  </Link>
+                </TableCell>
+                <TableCell>{rfq.titleEn}</TableCell>
+                <TableCell><StatusChip machine="rfq" value={rfq.state} /></TableCell>
+                {/* "Unassigned" in words, not an empty cell: an unowned RFQ is a row somebody
+                    should claim, and a blank reads as missing data rather than as an invitation. */}
+                <TableCell>{rfq.ownerName ?? t('rfq.unassigned')}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ListCard>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen} title={t('rfq.createTitle')}>
         <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); createMutation.mutate() }} noValidate>

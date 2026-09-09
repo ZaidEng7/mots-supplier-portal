@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {Badge, Button, Card, Field, Input, ListState, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import {Badge, Button, Card, Field, Input, ListCard, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { formatDate, formatDateTime } from '../lib/datetime'
 import { getOwnSupplier } from '../api/supplier'
 import {
@@ -205,45 +205,39 @@ export function DocumentsPage() {
       {/* SCR-132. A panel rather than a route, for the same reason SCR-431 is: a supplier checking
           why a document was rejected is comparing it to the current one. */}
       {expanded ? (
-        <Card
+        <ListCard
           title={t('documents.historyTitle')}
           action={<Button size="sm" variant="ghost" onClick={() => setExpanded(null)}>{t('documents.close')}</Button>}
+          // A plain `useQuery`, described in the structural shape the card reads. `isError` keeps the
+          // `|| !history.data` it always had: a 200 with no body is a failed load, not an empty history.
+          query={{ ...history, isPending: history.isLoading, isError: history.isError || !history.data }}
+          // A real answer, and a different one from "no such type".
+          isEmpty={(history.data ?? []).length === 0}
+          labels={{ loading: t('common.loading'), error: t('documents.errors.historyFailed'), empty: t('documents.noHistory') }}
+          skeleton="list"
+          skeletonRows={3}
         >
-          <ListState
-            isPending={history.isLoading}
-            isError={history.isError || !history.data}
-            error={history.error}
-            onRetry={() => void history.refetch()}
-            // A real answer, and a different one from "no such type".
-            isEmpty={(history.data ?? []).length === 0}
-            loadingLabel={t('common.loading')}
-            errorText={t('documents.errors.historyFailed')}
-            emptyText={t('documents.noHistory')}
-            skeleton="list"
-            skeletonRows={3}
-          >
-            <Table caption={t('documents.historyTitle')}>
-              <TableHead>
-                <TableHeaderCell>{t('documents.fields.version')}</TableHeaderCell>
-                <TableHeaderCell>{t('documents.fields.state')}</TableHeaderCell>
-                <TableHeaderCell>{t('documents.fields.fileName')}</TableHeaderCell>
-                <TableHeaderCell>{t('documents.fields.uploadedAt')}</TableHeaderCell>
-                <TableHeaderCell>{t('documents.fields.reason')}</TableHeaderCell>
-              </TableHead>
-              <TableBody>
-                {(history.data ?? []).map((v) => (
-                  <TableRow key={v.documentId}>
-                    <TableCell>{v.version}</TableCell>
-                    <TableCell><StatusChip machine="document" value={v.state} /></TableCell>
-                    <TableCell>{v.originalFileName}</TableCell>
-                    <TableCell>{formatDateTime(v.uploadedAt, locale)}</TableCell>
-                    <TableCell>{v.rejectReason ?? '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ListState>
-        </Card>
+          <Table caption={t('documents.historyTitle')}>
+            <TableHead>
+              <TableHeaderCell>{t('documents.fields.version')}</TableHeaderCell>
+              <TableHeaderCell>{t('documents.fields.state')}</TableHeaderCell>
+              <TableHeaderCell>{t('documents.fields.fileName')}</TableHeaderCell>
+              <TableHeaderCell>{t('documents.fields.uploadedAt')}</TableHeaderCell>
+              <TableHeaderCell>{t('documents.fields.reason')}</TableHeaderCell>
+            </TableHead>
+            <TableBody>
+              {(history.data ?? []).map((v) => (
+                <TableRow key={v.documentId}>
+                  <TableCell>{v.version}</TableCell>
+                  <TableCell><StatusChip machine="document" value={v.state} /></TableCell>
+                  <TableCell>{v.originalFileName}</TableCell>
+                  <TableCell>{formatDateTime(v.uploadedAt, locale)}</TableCell>
+                  <TableCell>{v.rejectReason ?? '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ListCard>
       ) : null}
     </div>
   )
