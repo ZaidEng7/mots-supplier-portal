@@ -794,3 +794,21 @@ without a line-by-line read**, not reviewed.
 | `rfq.boundTemplate` | Evaluation template attached (version {{version}}) | قالب التقييم مرتبط (الإصدار {{version}}) | Both languages rendered a raw GUID to the reader through `{{id}}`. The identifier is gone from the sentence; the interpolation is simply no longer used |
 | `proposal.clarificationHint` | Your response goes to the procurement officer, who decides whether to return the proposal to review. Proposal lines cannot be edited at this stage. | يُرسَل ردّك إلى موظف المشتريات، وهو من يقرّر إعادة العرض إلى المراجعة. لا يمكن تعديل بنود العرض في هذه المرحلة. | The old string said recording a response returns the proposal for re-review. It does not: the call sets `Revised`, and returning it to review is the officer's own separate action. The sibling string two lines down already said this correctly, so the screen contradicted itself |
 | `notificationPreferences.alwaysOnHint` | Invitations, clarification requests and award outcomes are always sent and are not listed below. Document expiry reminders are always sent too, by email. | الدعوات وطلبات الاستيضاح ونتائج الترسية تُرسل دائماً ولا تظهر في القائمة أدناه. وتنبيهات انتهاء المستندات تُرسل دائماً أيضاً، بالبريد الإلكتروني. | All four families really are always sent, so the old line was true. What it did not say is that document expiry has no notification type behind it — it is an email reminder — so a reader looked for it in the list directly below the hint and could not find it |
+
+### Plan 6A · the product fixes · two Arabic strings
+
+Both ship on D-65's terms: **accepted for the demonstration build without a line-by-line read**.
+
+| Key | English | Arabic (authored) | Why it exists |
+|---|---|---|---|
+| `proposal.withdrawWarning` | Withdrawing is final. You cannot re-enter this tender, and a withdrawn proposal cannot be restored. | السحب نهائي. لا يمكنك العودة إلى هذه المناقصة، ولا يمكن استرجاع العرض بعد سحبه. | `Withdrawn` is terminal in the domain and the control was the lowest-emphasis variant in the system, with nothing anywhere saying so |
+| `rfq.ownership.approverHint` | Applied when you submit for review. Leave blank to let any manager approve. | يُطبَّق عند الإرسال للمراجعة. اتركه فارغاً ليتمكن أي مدير من الاعتماد. | The approver select is committed by the button beside it, not by itself. The placeholder already said what blank means; nothing said which button applies the choice |
+
+Four keys were **removed** in the same pass, in both languages: `rfq.manualCloseReason` (the fixed sentence
+every early close used to send, which satisfied the audit rule while defeating it, replaced by a typed
+reason), `proposal.withdrawReasonPlaceholder` (the inline field is now a dialog), and
+`evaluation.evaluatorUserId` (it labelled a free-text GUID box that had already become a picker). Ten more
+went with the shared error component: `account.errors.loadFailed`, `account.retry`,
+`profile.errors.loadFailed`, `profile.retry`, `documents.errors.loadFailed`, `documents.retry`,
+`notifications.loadFailed`, `notifications.retry`, `supplierDashboard.loadFailed`,
+`supplierDashboard.retry`.

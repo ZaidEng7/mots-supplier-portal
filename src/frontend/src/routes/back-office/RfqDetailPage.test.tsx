@@ -192,7 +192,10 @@ describe('RfqDetailPage', () => {
   it('SubmissionOpen: closing early asks the officer why, and sends what they typed', async () => {
     // F-9: the screen used to send a fixed translated string, so every early close in the system
     // carried the same sentence and the audit trail said nothing about why.
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('  Only bidder has submitted  ')
+    //
+    // The reason is now collected by the same themed dialog every other reason on this product uses,
+    // rather than by window.prompt - which rendered a browser chrome dialog in a product where nothing
+    // else does, and which said nothing at all when it was dismissed.
     const recorded: RecordedRequest[] = []
     restore = mockFetch(
       {
@@ -207,16 +210,18 @@ describe('RfqDetailPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Close submission window' }))
 
-    expect(prompt).toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Reason'), '  Only bidder has submitted  ')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Close submission window' }))
+
     const write = recorded.find((r) => r.url.includes('/close'))
     expect(JSON.parse(String(write!.body)).reason).toBe('Only bidder has submitted')
-    prompt.mockRestore()
   })
 
-  it('SubmissionOpen: dismissing the reason prompt closes nothing', async () => {
-    // The control. A cancelled prompt must not send an empty reason - the aggregate would refuse it,
-    // and a refusal the officer did not ask for reads as a broken button.
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null)
+  it('SubmissionOpen: dismissing the reason dialog closes nothing, visibly', async () => {
+    // The control. Cancelling must not send an empty reason - the aggregate would refuse it, and a
+    // refusal the officer did not ask for reads as a broken button. What window.prompt could not do is
+    // the second half: show the officer that nothing happened. A dialog that closes is that feedback.
     const recorded: RecordedRequest[] = []
     restore = mockFetch(
       {
@@ -230,9 +235,51 @@ describe('RfqDetailPage', () => {
     renderPage(<RfqDetailPage />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Close submission window' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(recorded.some((r) => r.url.includes('/close'))).toBe(false)
-    prompt.mockRestore()
+  })
+
+  it('SubmissionOpen: a whitespace-only reason cannot be submitted at all', async () => {
+    // The old prompt accepted it, trimmed it to nothing and then silently fired nothing. The dialog
+    // refuses the input instead, which is the difference between a button that does nothing and a
+    // button that says why it is not ready.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'SubmissionOpen' }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Close submission window' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Reason'), '   ')
+
+    expect(within(dialog).getByRole('button', { name: 'Close submission window' })).toBeDisabled()
+  })
+
+  it('Draft: the approver field says which button commits the choice, and is associated with it', async () => {
+    // §C2.4. Submitting for review also commits whatever is in this select, and leaving it blank means
+    // "any manager" - which the placeholder already said. What nothing said is that the OTHER button is
+    // what applies it, so an officer could choose an approver, not press Submit, and reasonably believe
+    // they had nominated somebody.
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ rfqState: 'Draft' }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    const hint = await screen.findByText('Applied when you submit for review. Leave blank to let any manager approve.')
+    // Associated, not merely adjacent: a sighted officer sees it beside the control and a screen-reader
+    // user hears it as part of the control, which is the whole point of saying it here rather than in
+    // a paragraph somewhere on the page.
+    const select = screen.getByRole('combobox', { name: 'Choose an approver' })
+    expect(select.getAttribute('aria-describedby')).toBe(hint.getAttribute('id'))
   })
 
   it('Published: an existing item is shown but item-edit controls are gone (state-gated editing)', async () => {

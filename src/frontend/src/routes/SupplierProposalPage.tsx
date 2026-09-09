@@ -1,6 +1,7 @@
 import { formatCurrency, formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { Dialog } from '../components/ui/Dialog'
+import { ReasonDialog } from '../components/ReasonDialog'
 import { useTranslation } from 'react-i18next'
 import { getPublicSettings } from '../api/systemSettings'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -42,7 +43,7 @@ export function SupplierProposalPage() {
   const [paymentTerms, setPaymentTerms] = useState('')
   const [incotermCode, setIncotermCode] = useState('')
   const [validityEnd, setValidityEnd] = useState('')
-  const [withdrawReason, setWithdrawReason] = useState('')
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['supplier-rfq', referenceCode], queryFn: () => getInvitedRfq(referenceCode) })
@@ -151,8 +152,10 @@ export function SupplierProposalPage() {
   })
 
   const withdrawMutation = useMutation({
-    mutationFn: () => withdrawProposal(proposalCode, withdrawReason),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.withdrawn') }); setWithdrawReason('') },
+    // The reason arrives from the dialog rather than from page state, so the text the supplier typed in
+    // the thing they confirmed is the text that is sent.
+    mutationFn: (reason: string) => withdrawProposal(proposalCode, reason),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.withdrawn') }); setWithdrawOpen(false) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.withdrawFailed')) }),
   })
 
@@ -423,13 +426,23 @@ export function SupplierProposalPage() {
 
       {canWithdraw ? (
         <Card title={t('proposal.withdrawTitle')}>
-          <div className="flex gap-2">
-            <Input aria-label={t('rfq.fields.reason')} placeholder={t('proposal.withdrawReasonPlaceholder')}
-              value={withdrawReason} onChange={(e) => setWithdrawReason(e.target.value)} />
-            <Button variant="ghost" isLoading={withdrawMutation.isPending} disabled={!withdrawReason} onClick={() => withdrawMutation.mutate()}>
-              {t('proposal.withdraw')}
-            </Button>
-          </div>
+          {/* `Withdrawn` is terminal (Proposal.cs:553-555). This was an inline field beside a `ghost`
+              button - the lowest-emphasis variant this system has - and nothing on the screen said the
+              action could not be taken back. The variant now matches the consequence, and the dialog
+              says so in words before it happens. */}
+          <Button variant="danger" onClick={() => setWithdrawOpen(true)}>
+            {t('proposal.withdraw')}
+          </Button>
+          <ReasonDialog
+            open={withdrawOpen}
+            onOpenChange={setWithdrawOpen}
+            onSubmit={(reason) => withdrawMutation.mutate(reason)}
+            isLoading={withdrawMutation.isPending}
+            title={t('proposal.withdrawTitle')}
+            confirmLabel={t('proposal.withdraw')}
+            variant="danger"
+            warning={t('proposal.withdrawWarning')}
+          />
         </Card>
       ) : null}
 
