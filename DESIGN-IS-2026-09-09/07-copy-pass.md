@@ -74,12 +74,16 @@ there is one** — which is code, and belongs to Phase 6.
 
 Each of these is a behaviour defect that a copy change would only paper over.
 
-1. **`rfq.clarifications.publish` "Publish to all" is unreachable.** Guarded on
-   `answer && visibility === 'PrivateToAsker'`, and answering sets both fields at once
-   (`Rfq.cs:528-530`), so the combination cannot occur. The button and its "Private to asker" badge
-   describe a state the domain cannot produce. **Question: should private-to-asker answers exist at all?**
-   If yes, the domain needs to allow them; if no, the control and its badge should go. Wording it better
-   would only make an impossible state more convincing.
+1. ~~**`rfq.clarifications.publish` "Publish to all" is unreachable.**~~ **Withdrawn — this finding was
+   wrong, and so was my first reading of it.** The guard is real, but the state is not impossible: it is
+   *legacy*. Decision **A-4** (`DECISIONS-TAKEN.md:441`) deliberately made answering publish to every
+   invitee, on the ground that *"equal information to all bidders is the fundamental fairness principle in
+   tendering"*, and it kept the visibility enum and the publish route on purpose — rows answered before
+   A-4 are still private, and `ClarificationEndpointsTests` has a test for exactly them. So the control is
+   not describing something that cannot happen; it is the promotion path for data that already exists.
+   Reversing A-4 to make it reachable for new answers is a procurement-policy decision marked
+   `[recommended — awaiting procurement]` with MOT procurement named as its confirmer. See
+   `08-plan-6a-product-fixes.md` task 6.
 2. **`rfq.closeSubmission` collects its audit reason through `window.prompt`.** Cancelling or typing only
    whitespace fires nothing and **shows no feedback**, while the copy promises the reason is recorded. The
    string written for this, `rfq.manualCloseReason`, is a dead key. **Question: confirm this should be a
@@ -88,9 +92,12 @@ Each of these is a behaviour defect that a copy change would only paper over.
 3. **"Submit for review" also commits the approver nomination.** The select's empty option is already
    labelled "Any manager", so that half is not hidden — but nothing says the choice is committed by the
    *other* button. Saying so needs a hint slot on that field, which is markup. **Question: add the hint?**
-4. **The evaluator assignment field takes a raw user id typed by hand** (`RfqDetailPage.tsx:103,386`),
-   while the page already fetches the assignee list for two other pickers. **Question: make it a picker?**
-   Until then the label stays honest rather than friendly.
+4. ~~**The evaluator assignment field takes a raw user id typed by hand.**~~ **Withdrawn — already
+   fixed.** The audit cited the state variable and the mutation, both named `evaluatorUserId`. The control
+   is a `Select` over the evaluator candidates, and the comment beside it records that the free-text GUID
+   box was found and removed by walking the tender in a browser, because the only staff list in the
+   product needs a permission a procurement manager does not hold. What survived was the label key for a
+   field that no longer exists, now deleted.
 5. **Withdrawing a proposal is terminal, has no confirmation, and is the lowest-emphasis variant in the
    system** (`ghost`). No copy tells the supplier it is final. A warning string is easy; the missing
    confirmation step is not copy. **Question: add a confirm step?**

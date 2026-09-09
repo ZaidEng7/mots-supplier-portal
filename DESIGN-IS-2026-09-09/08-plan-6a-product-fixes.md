@@ -441,158 +441,57 @@ git add -A && git commit -m "fix(rfq): evaluators are assigned by name, from the
 
 ---
 
-### Task 6: Clarification answers can be private to the asker (FR-CLR-002)
+### Task 6: BLOCKED — reversing A-4 is not mine to do
 
-`FR-CLR-002` requires that answers be *"**private** (to the asker) or **published** to all invited suppliers"*, and flags its own default as **[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION] default publish-to-all for fairness**. `Rfq.PublishClarification` exists for exactly this and documents itself as *"the explicit publish action for a question answered privately at first"*. It is unreachable, because `AnswerClarification` sets `Visibility = PublishedToAll` unconditionally (`Rfq.cs:530`). That is what makes the "Publish to all" button in the interface describe a state the domain cannot produce.
+**Status: not implemented. It needs a decision from MOT procurement, and the plan that proposed it was
+written on a false premise, which was mine.**
 
-**Publish-to-all stays the default.** The assumption is unconfirmed, so private must be a deliberate choice, never the fallback.
+I described this as a half-implemented requirement: `FR-CLR-002` requires private-or-published answers,
+`Rfq.PublishClarification` exists for the private-first path, and `AnswerClarification` forces
+`PublishedToAll` unconditionally, leaving the interface's "Publish to all" button describing a state the
+domain cannot produce. Every one of those statements is true, and the conclusion drawn from them is wrong.
 
-**Files:**
-- Modify: `src/backend/Domain/Rfqs/Rfq.cs:518-531`
-- Modify: `src/backend/Application/Rfqs/RfqHandlers.cs` (the answer command and handler)
-- Modify: `src/backend/Api/Endpoints/RfqEndpoints.cs` (the request body)
-- Modify: `src/frontend/src/api/rfqs.ts`, `src/frontend/src/routes/back-office/RfqDetailPage.tsx`
-- Test: `src/backend/Tests/Domain/RfqClarificationTests.cs`, `src/frontend/src/routes/back-office/RfqDetailPage.test.tsx`
+**A-4 is a recorded decision that removed private answers deliberately.** `DECISIONS-TAKEN.md:441`:
 
-**Interfaces:**
-- Produces: `Rfq.AnswerClarification(Guid clarificationId, string answer, bool publishToAll)`. Every existing caller passes `true`, which is the current behaviour.
+> **What was decided.** Answering publishes to every invitee. The asker's identity is never in the
+> broadcast copy; the asker alone sees their own question attributed as theirs.
+>
+> **Why.** Equal information to all bidders is the fundamental fairness principle in tendering — a private
+> answer hands one bidder an advantage created by the buyer.
+>
+> **Supersedes.** R-7 / the ASM-044 reading. **This is a reversal of shipped behaviour, not a new
+> default.**
+>
+> **Who should confirm it.** MOT procurement.
 
-- [ ] **Step 1: Write the failing domain tests**
+The documents disagreed and A-4 says so in terms: `BRULE-036` broadcasts to all, `ASM-044`/`OQ-008` keep
+answers private with an option to broadcast, and the code had been built to `ASM-044`. A-4 chose
+`BRULE-036` on fairness grounds and reversed the code to match. `FR-CLR-002`, which I cited as the
+requirement being unmet, is the `ASM-044` reading — the side A-4 decided against.
 
-```csharp
-[Fact]
-public void AnswerClarification_publishing_makes_the_answer_visible_to_all()
-{
-    var rfq = PublishedRfqWithQuestion(out var id);
-    rfq.AnswerClarification(id, "Delivery is daily.", publishToAll: true);
-    Assert.Equal(ClarificationVisibility.PublishedToAll, rfq.Clarifications.Single().Visibility);
-}
+**Three consequences for this task.**
 
-[Fact]
-public void AnswerClarification_privately_leaves_it_private_to_the_asker()
-{
-    var rfq = PublishedRfqWithQuestion(out var id);
-    rfq.AnswerClarification(id, "Your registration is already on file.", publishToAll: false);
-    Assert.Equal(ClarificationVisibility.PrivateToAsker, rfq.Clarifications.Single().Visibility);
-}
+1. The unreachable button is not a defect. A-4 kept the `ClarificationVisibility` enum on purpose,
+   recording that "a reversal is a default change and not a migration". The publish path was left
+   deliberately cheap to restore.
+2. The button is not describing an *impossible* state either, which is where the audit's §C2.3 was also
+   wrong. It describes a **legacy** state: rows answered before A-4 are still `PrivateToAsker`, and
+   `ClarificationEndpointsTests.The_publish_route_still_promotes_a_clarification_answered_before_A_4`
+   exists for exactly them — *"a deployment that answered privately last week still has them, and dropping
+   the route would leave those threads permanently unshareable"*. That test manufactures the row by
+   writing to storage directly, because no API path produces one, and says that is the point.
+3. Implementing this would reverse a fairness decision on a government tendering system that is marked
+   `[recommended — awaiting procurement]` and names MOT procurement as its confirmer. A design pass is not
+   where that gets decided, and the owner's approval was given on my framing, not on A-4's.
 
-[Fact]
-public void A_privately_answered_clarification_can_still_be_published_afterwards()
-{
-    // This is the path PublishClarification was written for and that nothing could reach.
-    var rfq = PublishedRfqWithQuestion(out var id);
-    rfq.AnswerClarification(id, "Your registration is already on file.", publishToAll: false);
-    rfq.PublishClarification(id);
-    Assert.Equal(ClarificationVisibility.PublishedToAll, rfq.Clarifications.Single().Visibility);
-}
-```
+**What can be done without a decision, if the Ministry wants the screen tidier:** hide the publish control
+for clarifications that are already `PublishedToAll`, which is every new one, so it appears only on the
+legacy rows it is actually for. That removes the confusing affordance without changing who sees what.
 
-- [ ] **Step 2: Run them and watch them fail**
-
-```bash
-DOTNET_ROOT=$HOME/.dotnet dotnet test --filter RfqClarificationTests
-```
-Expected: two compile errors (no such overload), and once the parameter exists, the private case fails because the method forces `PublishedToAll`.
-
-- [ ] **Step 3: Take the choice in the domain**
-
-```csharp
-public void AnswerClarification(Guid clarificationId, string answer, bool publishToAll)
-{
-    var clarification = _clarifications.FirstOrDefault(c => c.Id == clarificationId)
-        ?? throw new DomainException("Clarification not found.");
-    if (clarification.Answer is not null)
-    {
-        throw new DomainException("This clarification has already been answered.");
-    }
-    if (string.IsNullOrWhiteSpace(answer)) throw new DomainException("An answer is required.");
-
-    clarification.Answer = answer;
-    clarification.AnsweredAt = DateTimeOffset.UtcNow;
-    // FR-CLR-002. Publishing is the default at every layer above this: the requirement's own
-    // fairness assumption is marked as requiring business confirmation, so answering privately is a
-    // choice somebody makes, never something that happens because a field was left unset.
-    clarification.Visibility = publishToAll
-        ? ClarificationVisibility.PublishedToAll
-        : ClarificationVisibility.PrivateToAsker;
-}
-```
-
-- [ ] **Step 4: Carry it through the command, the handler and the endpoint**
-
-The command record gains `bool PublishToAll`. The endpoint's request body gains `bool? PublishToAll`, and the handler reads `request.PublishToAll ?? true` — an omitted field publishes, which keeps every existing client working and keeps the fair default the fallback.
-
-The notification the answer raises must follow the choice: a `PrivateToAsker` answer notifies **only the asking supplier**, never every invitee. Find the fan-out at `RfqHandlers.cs:1210-1222` and branch it. This is the half of the task that carries the real risk — a private answer that still notifies everyone has published it in the only way a supplier can observe.
-
-- [ ] **Step 5: Write the fan-out test**
-
-```csharp
-[Fact]
-public async Task A_privately_answered_clarification_notifies_only_the_asker()
-{
-    var recipients = await AnswerAndCaptureRecipients(publishToAll: false);
-    Assert.Single(recipients);
-    Assert.Equal(AskingSupplierId, recipients.Single());
-}
-
-[Fact]
-public async Task A_published_clarification_notifies_every_invited_supplier()
-{
-    var recipients = await AnswerAndCaptureRecipients(publishToAll: true);
-    Assert.Equal(InvitedSupplierIds.Count, recipients.Distinct().Count());
-}
-```
-
-The second test is the denominator: it asserts the fan-out is still the whole invitee list, so a bug that narrows both paths cannot pass.
-
-- [ ] **Step 6: Run the backend tests**
-
-```bash
-DOTNET_ROOT=$HOME/.dotnet dotnet test
-```
-Expected: PASS.
-
-- [ ] **Step 7: The interface — the button stops describing an impossible state**
-
-The answer form gains a two-option choice, publish-to-all selected. `rfq.clarifications.publish` and its "Private to asker" badge now describe a state that can exist, and the existing guard (`answer && visibility === 'PrivateToAsker'`) becomes reachable without changing a line of it.
-
-```ts
-// en.translation.rfq.clarifications
-answerVisibility: 'Who sees this answer',
-answerToAll: 'Every invited supplier',
-answerToAsker: 'Only the supplier who asked',
-answerToAskerHint: 'Use this only when the answer concerns that supplier alone. Anything that affects the tender must go to everyone.',
-```
-
-```ts
-// ar.translation.rfq.clarifications
-answerVisibility: 'من يرى هذا الرد',
-answerToAll: 'جميع الموردين المدعوين',
-answerToAsker: 'المورد صاحب السؤال فقط',
-answerToAskerHint: 'استخدم هذا الخيار فقط عندما يخص الرد ذلك المورد وحده. وكل ما يؤثر في المناقصة يجب أن يصل إلى الجميع.',
-```
-
-- [ ] **Step 8: Write the frontend test**
-
-```tsx
-it('publishes to every invited supplier unless the officer chooses otherwise', async () => {
-  const user = userEvent.setup()
-  renderRfq({ state: 'SubmissionOpen', clarifications: [openQuestion] })
-
-  await user.type(await screen.findByLabelText('Answer'), 'Delivery is daily.')
-  await user.click(screen.getByRole('button', { name: 'Save answer' }))
-
-  expect(answerSpy).toHaveBeenCalledWith(expect.objectContaining({ publishToAll: true }))
-})
-```
-
-- [ ] **Step 9: Full suite, log the Arabic, commit**
-
-```bash
-npx tsc --noEmit && npx vitest run && npx playwright test
-DOTNET_ROOT=$HOME/.dotnet dotnet test
-git add -A && git commit -m "feat(clarifications): answers can be private to the asker, as FR-CLR-002 always required"
-```
+**If MOT procurement does reverse A-4,** the work is the plan as originally written — a `publishToAll`
+parameter defaulting to publish at every layer, and a branched notification fan-out with the published
+case as its denominator, because a private answer that still notifies every invitee has published it in
+the only way a supplier can observe.
 
 ---
 
@@ -613,7 +512,7 @@ This plan is done when all of the following hold:
 3. `tokenConformance.test.ts` passes without a new exemption. A new exemption means the change reached the token layer, which this plan does not do.
 4. `grep -rn "window.prompt" src/frontend/src` returns nothing.
 5. `grep -rn "problemMessage\|errorDetail" src/frontend/src/routes` shows read paths using the error, and `grep -c "loadFailed" src/frontend/src/i18n/config.ts` has fallen by at least six — the keys the bare paragraphs used.
-6. `Rfq.PublishClarification` has a test that reaches it through `AnswerClarification(..., publishToAll: false)`. Until that test exists, the method is still dead code with a passing suite around it.
+6. Task 6 is not part of this plan's completion. It is blocked on MOT procurement, and `PublishClarification` already has a test that reaches it — through a legacy row, which is what it is for.
 7. Every string added here appears in `ARABIC-REVIEW.md` under a "Plan 6A" heading, recorded as accepted for the demonstration build without a line-by-line read.
 8. `07-copy-pass.md`'s "Raised as questions" section is updated: each of the five carries its answer and the task that closed it.
 
