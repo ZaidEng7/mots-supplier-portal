@@ -28,8 +28,13 @@ export function SupplierShell({ children }: Props) {
     window.location.href = '/login'
   }
 
+  // `msp-density-supplier` sets --density-body to 16px for everything inside this shell.
+  // RECONCILIATION.md's reasoning: this reader is an outside company completing a legal application a
+  // few times a year under deadline, not an officer scanning tables all day. The back office keeps the
+  // 14px default, so only one of the two shells has to say anything.
+
   return (
-    <div className="flex min-h-screen flex-col" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+    <div className="msp-density-supplier flex min-h-screen flex-col" style={{ backgroundColor: 'var(--color-bg-app)' }}>
       {/* SCR-045: above the header, so it is chrome rather than page content. */}
       <ErpStatusBanner />
       <header

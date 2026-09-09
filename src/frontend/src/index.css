@@ -14,6 +14,29 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
+/*
+  The two densities, as one variable.
+
+  RECONCILIATION.md decided them and nothing applied them: the back office is a workspace read all day
+  and its body floor is 14px; the supplier is an outside company reading a legal form a few times a year
+  under deadline, and its body is 16px. The audit found 13px as the most common size on all twelve
+  screens it measured, for both audiences at once.
+
+  A variable rather than a sweep, because the size is a property of the AUDIENCE, not of each of the 191
+  places text is sized. A shell declares which one it is; shared content components read this. 13px keeps
+  its job - secondary text beside a value, never the value itself.
+
+  The default is the back-office size, so a screen outside either shell (sign in, register, accept an
+  invitation) still resolves rather than inheriting nothing.
+*/
+:root {
+  --density-body: var(--text-body);
+}
+
+.msp-density-supplier {
+  --density-body: var(--text-body-lg);
+}
+
 * {
   box-sizing: border-box;
 }

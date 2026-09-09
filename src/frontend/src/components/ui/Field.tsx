@@ -21,7 +21,7 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
     <div className="flex flex-col gap-1.5">
       <Label.Root
         htmlFor={id}
-        className="text-[length:var(--text-body-sm)] font-[var(--fw-medium)]"
+        className="text-[length:var(--density-body)] font-[var(--fw-medium)]"
         style={{ color: 'var(--color-text-secondary)' }}
       >
         {label}
