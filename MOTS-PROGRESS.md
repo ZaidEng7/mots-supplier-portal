@@ -1,7 +1,7 @@
 # MOTS Supplier Portal — progress
 
-> **Taken at:** `main` @ `5c9acab`, 2026-09-09, after PRs #126 (phase 3), #127 (phase 4 and the Ministry
-> screens) and #128 (P12 items 26 and 29) merged.
+> **Taken at:** `main` @ `9aedd41`, 2026-09-09, after PRs #126 (phase 3), #127 (phase 4 and the Ministry
+> screens), #128 (P12 items 26 and 29) and #130/#131 (the whole-product visual pass) merged.
 > **This edition moves verdicts for the first time in three editions.** Every screen the inventory names
 > is built: the three that were missing, the five that were refused by decision, and the one that was
 > unresolved. What remains is one other engineer's integration and one deferred testing pass.
@@ -25,9 +25,9 @@
 | Screens: missing | **0** |
 | Screens: refused by decision | **0** — all five were authorised: SCR-901 by D-60, SCR-601/602/603/606 by D-66 |
 | Screens: unresolved | **0** — SCR-501 answered and built |
-| Hand-written application code | **72,093 lines** production · **46,987** test · **31,571** generated |
+| Hand-written application code | **72,272 lines** production · **47,298** test · **31,571** generated |
 | Backend tests | **1,243** — 17 architecture, 439 unit, 787 integration (Testcontainers: Postgres, MinIO, real clamd) |
-| Frontend tests | **617** vitest · **226** Playwright, of which **137** are axe scans over 68 routes in both languages |
+| Frontend tests | **630** vitest · **226** Playwright, of which **137** are axe scans over 68 routes in both languages |
 | Blocked on somebody else | **0 open questions.** Twelve were answered as D-57–D-68; two standing **gates** remain (§7) |
 | Merged PRs | #79 → #127 in this record |
 | Walkthrough findings | **13 raised, 12 fixed, 1 answered** — F-13 closed by D-67 (`WALKTHROUGH-FINDINGS.md`) |
@@ -237,11 +237,34 @@ recording because they are the same shape:
 The pattern across all four: the failure mode of a check is silence, not noise. Every sweep in this
 repository now asserts its own denominator before it asserts its rule.
 
+### 5.4 The visual pass: two defects nothing in the product could see
+
+The design pass (#130, #131) went looking for inconsistency and found dropped properties and a false
+statement.
+
+- **41 references to 14 CSS variables that were never defined**, 37 of them with no fallback. An undefined
+  custom property invalidates the whole declaration, so `var(--radius-md)` rendered square corners,
+  `var(--text-heading-lg)` rendered five dashboard titles at body size, and `var(--color-danger)` left the
+  notification badge with no fill. `docs/ux/DESIGN-SYSTEM.md` §4 had declared those scales all along;
+  `tokens.css` shipped colours and type and none of the rest. TypeScript does not read CSS, axe measures
+  the colour that actually rendered - an inherited one passes contrast - and a screenshot of a square
+  button looks like a square button.
+- **Eighteen screens rendered their EMPTY state when a fetch failed**, because React Query does not throw
+  to the router's error boundary unless a query opts in. "No invitations yet" to a supplier whose list
+  could not load; "No applications awaiting review" to a reviewer, who acts on that by going away. Each is
+  a claim about the world the product had never checked - the same shape as a withheld bid value rendering
+  as zero, which D-66 got right on the Ministry screens by insisting the two were different facts.
+
+Both are now instruments (§6). And the second one's own test passed for the wrong reason on its first
+run - it mocked a path the page never calls, so the unmatched-route throw produced the very error state
+the test was looking for. That is the fifth instance in this batch, which is why §4's fifth question
+exists.
+
 ---
 
 ## 6. The instruments, and what each one cannot see
 
-Six checks now exist for classes of defect that used to be found by a person pressing a button. Each is
+Eight checks now exist for classes of defect that used to be found by a person pressing a button. Each is
 listed with what it closes and what it does not, because an instrument trusted past its range is how the
 next defect gets certified as absent.
 
@@ -253,6 +276,8 @@ next defect gets certified as absent.
 | `exportReachability.test.ts` | A capability no screen exposes — `PUT /rfqs/{code}` sat unused with its client function beside it | Whether the screen that references it is reachable |
 | `AuthorizationFuzzTests` | Every permissioned route called as every persona lacking its permission, with a 5xx counted as a failure | A class of attack nobody thought to test for. It is coverage, not a review (D-68) |
 | `app-a11y.spec.ts` route denominator | The scan quietly covering fewer routes than the router declares | Whether a screen reader can complete a tender in Arabic (D-68) |
+| `tokenConformance.test.ts` | A `var(--x)` that resolves to nothing, a literal colour, a Tailwind utility where the scale has a token, a z-index off the one scale | Whether the token chosen is the RIGHT one - `--radius-lg` on a control that wanted `--radius-md` passes |
+| `asyncStateCoverage.test.ts` | A fetching screen with no way to say the fetch failed, which renders its empty state instead | Whether the failure copy is any good, or renders at all - it reads source, which is why two page tests render the failure for real |
 
 Two exemption lists per sweep, hand-written, each entry naming why. The rule is the same everywhere: a
 pattern-matched exemption lets the next instance join it silently, so exemptions are typed out by hand and
@@ -318,12 +343,12 @@ comment lines are **not** separated; these are physical lines.
 
 | Bucket | Files | Lines | What is in it |
 |---|---:|---:|---|
-| **Production** | 569 | **72,093** | Hand-written application source |
-| **Test** | 297 | **46,987** | Everything under a test directory or named as a test |
+| **Production** | 568 | **72,272** | Hand-written application source |
+| **Test** | 299 | **47,298** | Everything under a test directory or named as a test |
 | **Walkthrough** | 9 | 3,122 | The driver, its scripts, the generated guide, and the `.docx` generator |
 | **Generated** | 6 | **31,571** | The EF migration baseline with its Designer and snapshot, `package-lock.json`, the captured OpenAPI baseline |
-| **Docs** | 52 | 19,866 | Markdown, including `docs/` |
-| **Total** | 933 | **173,639** | Binary and image files not counted |
+| **Docs** | 52 | 19,753 | Markdown, including `docs/` |
+| **Total** | 934 | **174,016** | Binary and image files not counted |
 
 ### Production, by language
 
@@ -353,9 +378,9 @@ deleted from the product: 59 EF migrations, each carrying a `.Designer.cs` that 
 were squashed into one baseline (P12 item 29). The generated bucket is now three files of C# — the baseline,
 its Designer and the model snapshot — plus `package-lock.json` and the captured OpenAPI contract.
 
-**The honest answer to "how much application code is there" is 72,093 lines**, against 46,987 lines of tests
-— a test-to-production ratio of **0.65:1**. The two largest hand-written files are `i18n/config.ts` at 3,788
-lines (every string in the product, in both languages) and `AppDbContext.cs` at 1,289.
+**The honest answer to "how much application code is there" is 72,272 lines**, against 47,298 lines of tests
+— a test-to-production ratio of **0.65:1**. The two largest hand-written files are `i18n/config.ts` at 3,789
+lines (every string in the product, in both languages) and `AppDbContext.cs` at 1,290.
 
 ---
 
@@ -377,6 +402,12 @@ lines (every string in the product, in both languages) and `AppDbContext.cs` at 
   including a migration squash that would have silently reverted D-58.
 - **§9 recounted, and the generated bucket fell from 161,324 to 31,571** because of the squash. Production
   72,093 (+4,477 since batch 13), tests 46,987 (+3,709).
+
+### The visual pass (PRs #130, #131, 2026-09-09)
+
+A whole-product pass over all 68 routes, measured against `docs/ux/DESIGN-SYSTEM.md` rather than taste. It
+moved no epic or phase verdict and is recorded because of what it found: **§5.4** is new, §6 grew from six
+instruments to eight, and §9's production and test counts moved by +179 and +311.
 
 ### Batch 13 (PR #120, 2026-09-08)
 
