@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Comp · Supplier onboarding</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/ibm-plex-sans-arabic/400.css">
+<link rel="stylesheet" href="/src/styles/tokens.css">
+<style>
+  /* COMP ONLY - every value resolves from tokens.css. Supplier side: desktop-first (confirmed),
+     lower density than the back office, guidance carried by the page rather than by prior knowledge. */
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font-ui); background: var(--color-bg-app); color: var(--color-text-primary); }
+
+  .chrome { background: var(--color-bg-surface); border-block-end: 1px solid var(--color-border);
+            padding: var(--space-3) var(--space-6); display: flex; align-items: center; gap: var(--space-5); }
+  .chrome a { color: var(--color-text-secondary); font-size: var(--text-body-sm); text-decoration: none; }
+  .chrome a[aria-current] { color: var(--color-text-brand); font-weight: var(--fw-semibold); }
+  .chrome .brand { font-size: var(--text-h4); font-weight: var(--fw-semibold); color: var(--color-text-brand); }
+  .chrome .spacer { flex: 1; }
+
+  .page { max-inline-size: 64rem; margin-inline: auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  h1 { font-size: var(--text-h1); line-height: var(--lh-tight); font-weight: var(--fw-semibold); margin: 0 0 var(--space-2); }
+  .lede { font-size: var(--text-body-lg); color: var(--color-text-secondary); margin: 0 0 var(--space-6); max-inline-size: 46rem; }
+
+  /* ---- the driver: what is left, stated once, at the top ---- */
+  .gate { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--space-6); align-items: center;
+          background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl);
+          box-shadow: var(--shadow-sm); padding: var(--space-5) var(--space-6); margin-block-end: var(--space-6); }
+  .gate h2 { font-size: var(--text-h3); font-weight: var(--fw-semibold); margin: 0 0 var(--space-1); }
+  .gate p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-body-sm); }
+  .gate-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); text-align: center; }
+  .bar { block-size: 6px; border-radius: var(--radius-pill); background: var(--color-bg-sunken); overflow: hidden;
+         margin-block: var(--space-4) var(--space-3); }
+  .bar span { display: block; block-size: 100%; inline-size: 68%; background: var(--color-brand-solid); }
+
+  .todo-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .todo-list a { display: inline-flex; align-items: center; gap: var(--space-2); text-decoration: none;
+                 border: 1px solid var(--color-warning-fg); background: var(--color-warning-bg); color: var(--color-warning-fg);
+                 border-radius: var(--radius-pill); padding: var(--space-1) var(--space-3); font-size: var(--text-body-sm); }
+  .done-pill { display: inline-flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-pill);
+               padding: var(--space-1) var(--space-3); font-size: var(--text-body-sm);
+               background: var(--color-success-bg); color: var(--color-success-fg); }
+
+  button { font: inherit; border-radius: var(--radius-md); padding: var(--space-3) var(--space-5);
+           font-size: var(--text-body); font-weight: var(--fw-medium); border: 1px solid transparent; cursor: pointer; }
+  .btn-primary { background: var(--color-brand-solid); color: var(--color-text-inverse); }
+  .btn-primary[disabled] { background: var(--color-bg-sunken); color: var(--color-text-disabled);
+                           border-color: var(--color-border); cursor: not-allowed; }
+  .btn-secondary { background: var(--color-bg-surface); color: var(--color-text-primary); border-color: var(--color-border-strong); }
+  .btn-sm { padding: var(--space-2) var(--space-3); font-size: var(--text-body-sm); }
+
+  /* ---- the spine: five steps, each with its own state ---- */
+  .spine { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); margin-block-end: var(--space-6); }
+  .step { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface);
+          padding: var(--space-4); text-decoration: none; color: inherit; display: block; }
+  .step[aria-current] { border-color: var(--color-brand-solid); box-shadow: 0 0 0 3px var(--color-brand-subtle); }
+  .step .n { font-family: var(--font-numeric); font-size: var(--text-caption); color: var(--color-text-muted); }
+  .step .t { display: block; font-weight: var(--fw-semibold); font-size: var(--text-body); margin-block: var(--space-1); }
+  .step .s { font-size: var(--text-caption); }
+  .s-done { color: var(--color-success-fg); }
+  .s-todo { color: var(--color-warning-fg); }
+  .s-none { color: var(--color-text-muted); }
+
+  .card { background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-sm); margin-block-end: var(--space-4); }
+  .card-h { padding: var(--space-5) var(--space-6) 0; display: flex; align-items: baseline; gap: var(--space-3); }
+  .card-h h2 { font-size: var(--text-h4); font-weight: var(--fw-semibold); margin: 0; }
+  .card-h .why { font-size: var(--text-body-sm); color: var(--color-text-secondary); }
+  .card-b { padding: var(--space-4) var(--space-6) var(--space-6); }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4) var(--space-5); }
+  .field label { display: block; font-size: var(--text-body-sm); color: var(--color-text-secondary); margin-block-end: var(--space-1); }
+  .req { color: var(--color-danger-fg); }
+  .control { inline-size: 100%; border: 1px solid var(--color-border-input); border-radius: var(--radius-md);
+             padding: var(--space-3); font-size: var(--text-body); background: var(--color-bg-surface);
+             color: var(--color-text-primary); font-family: inherit; }
+  .control[disabled] { background: var(--color-bg-sunken); color: var(--color-text-disabled); cursor: not-allowed; }
+  .help { font-size: var(--text-caption); color: var(--color-text-muted); margin-block-start: var(--space-1); }
+
+  /* ---- documents: a row states what it is, whether it is in, and when it dies ---- */
+  .doc { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) 0;
+         border-block-start: 1px solid var(--color-border); }
+  .doc:first-of-type { border-block-start: 0; }
+  .doc .name { font-weight: var(--fw-medium); }
+  .doc .meta { font-size: var(--text-caption); color: var(--color-text-secondary); }
+  .doc .spacer { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-pill);
+          padding: 2px var(--space-2); font-size: var(--text-caption); font-weight: var(--fw-medium); }
+  .c-ok { background: var(--color-success-bg); color: var(--color-success-fg); }
+  .c-warn { background: var(--color-warning-bg); color: var(--color-warning-fg); }
+  .c-need { background: var(--color-bg-sunken); color: var(--color-text-secondary); }
+
+  .banner { border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-block-end: var(--space-6);
+            display: flex; gap: var(--space-3); align-items: flex-start; font-size: var(--text-body-sm); }
+  .banner-info { background: var(--color-info-bg); color: var(--color-info-fg); border: 1px solid var(--color-info-fg); }
+  .banner strong { font-weight: var(--fw-semibold); }
+  .divider { border: 0; border-block-start: 1px solid var(--color-border); margin-block: var(--space-12) var(--space-6); }
+  .comp-label { font-size: var(--text-caption); letter-spacing: .04em; text-transform: uppercase;
+                color: var(--color-text-muted); margin-block-end: var(--space-3); }
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <span class="brand">Supplier Portal</span>
+  <a href="#" aria-current="page">Application</a><a href="#">Documents</a><a href="#">Tenders</a>
+  <a href="#">My bids</a><a href="#">Company</a>
+  <span class="spacer"></span><a href="#">Help</a><a href="#">العربية</a><a href="#">Log out</a>
+</div>
+
+<div class="page">
+  <p class="comp-label">Comp A · in progress, editable</p>
+
+  <h1>Your application</h1>
+  <p class="lede">Complete these five steps and submit. A reviewer at the Ministry will decide your
+    application, and we will email you either way.</p>
+
+  <div class="gate">
+    <div>
+      <h2>Three things left</h2>
+      <p>You can submit as soon as these are done. Everything else is saved.</p>
+      <div class="bar"><span></span></div>
+      <ul class="todo-list">
+        <li><a href="#">Head office address</a></li>
+        <li><a href="#">Commercial registration</a></li>
+        <li><a href="#">Accept the terms</a></li>
+      </ul>
+    </div>
+    <div class="gate-actions">
+      <button class="btn-primary" disabled>Submit application</button>
+      <span class="help">Available once the three above are done</span>
+    </div>
+  </div>
+
+  <nav class="spine">
+    <a class="step" href="#" aria-current="step"><span class="n">Step 1</span><span class="t">Company</span><span class="s s-todo">1 thing left</span></a>
+    <a class="step" href="#"><span class="n">Step 2</span><span class="t">People</span><span class="s s-done">Complete</span></a>
+    <a class="step" href="#"><span class="n">Step 3</span><span class="t">Addresses</span><span class="s s-todo">Required</span></a>
+    <a class="step" href="#"><span class="n">Step 4</span><span class="t">Banking</span><span class="s s-none">Optional</span></a>
+    <a class="step" href="#"><span class="n">Step 5</span><span class="t">What you supply</span><span class="s s-done">Complete</span></a>
+  </nav>
+
+  <section class="card">
+    <div class="card-h"><h2>Legal information</h2><span class="why">As written on your commercial register</span></div>
+    <div class="card-b">
+      <div class="fields">
+        <div class="field"><label>Legal name, Arabic <span class="req">*</span></label>
+          <input class="control" dir="rtl" value="شركة الشام للتموين"></div>
+        <div class="field"><label>Legal name, English <span class="req">*</span></label>
+          <input class="control" value="Al-Sham Catering Co."></div>
+        <div class="field"><label>Commercial register number</label>
+          <input class="control" value="RC-1234"><p class="help">Digits only, as printed on the register</p></div>
+        <div class="field"><label>Tax number</label><input class="control" value="TX-5678"></div>
+        <div class="field"><label>Entity type <span class="req">*</span></label>
+          <select class="control"><option>Company</option></select></div>
+        <div class="field"><label>Established on</label><input class="control" value="01 Jan 2020"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h2>Documents</h2><span class="why">Two are required before you can be approved</span></div>
+    <div class="card-b">
+      <div class="doc">
+        <div><div class="name">Commercial registration</div>
+          <div class="meta">PDF or image, up to 20 MB</div></div>
+        <span class="spacer"></span>
+        <span class="chip c-need">Not uploaded</span>
+        <button class="btn-secondary btn-sm">Upload</button>
+      </div>
+      <div class="doc">
+        <div><div class="name">Tax certificate</div>
+          <div class="meta">Expires 12 Jan 2027 · 125 days left</div></div>
+        <span class="spacer"></span>
+        <span class="chip c-ok">Approved</span>
+        <button class="btn-secondary btn-sm">Replace</button>
+      </div>
+      <div class="doc">
+        <div><div class="name">Chamber of commerce membership</div>
+          <div class="meta">Optional — improves your standing, never blocks a bid</div></div>
+        <span class="spacer"></span>
+        <span class="chip c-need">Not uploaded</span>
+        <button class="btn-secondary btn-sm">Upload</button>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+  <p class="comp-label">Comp B · after submission — the same screen, read-only</p>
+
+  <div class="banner banner-info">
+    <span>ℹ️</span>
+    <div><strong>Submitted on 14 August 2026, and now read-only.</strong>
+      A reviewer has your application. If they need a correction they will ask for it, and the fields they
+      name will reopen. You can still upload a replacement document at any time.</div>
+  </div>
+
+  <section class="card">
+    <div class="card-h"><h2>Legal information</h2><span class="why">Locked while under review</span></div>
+    <div class="card-b">
+      <div class="fields">
+        <div class="field"><label>Legal name, Arabic</label>
+          <input class="control" dir="rtl" value="شركة الشام للتموين" disabled></div>
+        <div class="field"><label>Legal name, English</label>
+          <input class="control" value="Al-Sham Catering Co." disabled></div>
+        <div class="field"><label>Entity type</label>
+          <select class="control" disabled><option>Company</option></select></div>
+        <div class="field"><label>Established on</label><input class="control" value="01 Jan 2020" disabled></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

@@ -29,6 +29,22 @@ body {
 /* MSP-72 (NFR-A11Y): every animated thing today is a Tailwind transition- / animate- utility */
 /* class (Button, Input, OnboardingStepNav, LanguageSwitch, Button spinner) - verified via grep */
 /* across src/ before writing this. A global override covers those and any future one too. */
+/* DESIGN-SYSTEM.md §6.2: "hover (border --n-400)". Gated behind a real pointer, because a touch device
+   fires hover on tap and would leave the field looking hovered after the finger lifts. Never on a field
+   that is refusing input. */
+/* A button should answer the press. 120ms on the product's own motion token, scale kept subtle, and
+   never on a button that is refusing the click. The global reduced-motion rule below flattens it. */
+.msp-pressable:not(:disabled):active {
+  transform: scale(0.97);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .msp-input:not(:disabled):not([readonly]):hover {
+    --input-border: var(--color-border-strong);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

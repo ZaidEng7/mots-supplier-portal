@@ -1,4 +1,4 @@
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { rememberETag } from './etags'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
@@ -34,12 +34,9 @@ export interface ReviewerSupplierView {
   annotationHistory: ReviewAnnotation[]
 }
 
-export class ReviewApiError extends Error {
-  status: number
+export class ReviewApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

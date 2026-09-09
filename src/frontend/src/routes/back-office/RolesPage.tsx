@@ -72,7 +72,7 @@ export function RolesPage() {
   }
   // A failed fetch is not an empty result: without this the screen below renders its
   // empty state and tells the reader there is nothing here.
-  if (rolesQuery.isError) return <QueryError onRetry={() => void rolesQuery.refetch()} />
+  if (rolesQuery.isError) return <QueryError error={rolesQuery.error} onRetry={() => void rolesQuery.refetch()} />
 
 
   return (

@@ -1,3 +1,4 @@
+import * as RadixDialog from '@radix-ui/react-dialog'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { chooseLanguage, getAccount } from '../api/auth'
@@ -41,25 +42,35 @@ export function FirstRunLocale() {
   if (!isAuthenticated || !accountQuery.data || accountQuery.data.languageChosen) return null
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      // The modal layer, below the expiry overlay: if a session lapses while the language question is
-      // open, the expiry is the one that has to be answered first.
-      style={{ zIndex: 'var(--z-modal)', backgroundColor: 'var(--color-bg-overlay)' }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="first-run-locale-title"
-        className="w-full max-w-[26rem] rounded-[var(--radius-lg)] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-      >
+    // Radix for the same reason as the expiry overlay: this declared aria-modal and trapped nothing.
+    <RadixDialog.Root open modal>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay
+          className="fixed inset-0"
+          // The modal layer, below the expiry overlay: if a session lapses while the language question
+          // is open, the expiry is the one that has to be answered first.
+          style={{ zIndex: 'var(--z-modal)', backgroundColor: 'var(--color-bg-overlay)' }}
+        />
+        <RadixDialog.Content
+          aria-labelledby="first-run-locale-title"
+          className="fixed left-1/2 top-1/2 w-full max-w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius-lg)] p-6"
+          style={{
+            zIndex: 'var(--z-modal)',
+            backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+          // The question has to be answered - there is no dismiss, so Escape and outside clicks do not
+          // close it. Two buttons, both of which answer it.
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
         {/* Both languages at once, and this is the one screen in the app where that is right: the
             reader has not told us which one they read yet, so showing the question in only one of them
             is a coin toss. */}
-        <h2 id="first-run-locale-title" className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+        <RadixDialog.Title id="first-run-locale-title" className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           اختر لغة الواجهة
-        </h2>
+        </RadixDialog.Title>
         <h2 className="mb-4 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           Choose your language
         </h2>
@@ -77,7 +88,8 @@ export function FirstRunLocale() {
             {t('firstRunLocale.failed')}
           </p>
         ) : null}
-      </div>
-    </div>
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   )
 }

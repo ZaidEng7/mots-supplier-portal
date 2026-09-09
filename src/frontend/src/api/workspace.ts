@@ -1,4 +1,4 @@
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 
 /** FEAT-13.1/FR-PWF-001: mirrors WorkspaceStageDto - only the 10 RfqState values any domain method
@@ -34,12 +34,9 @@ export interface Workspace {
   nextActions: WorkspaceAction[]
 }
 
-export class WorkspaceApiError extends Error {
-  status: number
+export class WorkspaceApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

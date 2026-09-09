@@ -43,3 +43,59 @@ export function problemMessage(problem: ProblemDetails | null, fallback: string)
 export function hasCode(problem: ProblemDetails | null, code: string): boolean {
   return problem?.code?.toUpperCase() === code.toUpperCase()
 }
+
+/**
+ * The server's own explanation for a failure, or null when there is not one worth showing a reader.
+ *
+ * <p>Every API module here throws a typed error whose `message` came from {@link problemMessage} - the
+ * RFC 9457 `detail` the server wrote for a human. This reads it back off an unknown throw so a screen
+ * can show it instead of a fallback, which is what the read paths were doing with a string written to
+ * be a last resort.</p>
+ *
+ * <p><b>Why a marker rather than `instanceof Error`.</b> A dropped connection throws a plain
+ * `TypeError` reading "Failed to fetch"; a bug in a component throws whatever it throws. Neither is
+ * prose to put in front of a supplier. Only errors this application constructed from a problem
+ * document carry `isProblemError` - set from {@link hasProblemProse} - and only those are rendered,
+ * which also means a bare 503 whose
+ * body held no `title` and no `detail` falls back, because `problemMessage` then returns
+ * "Request failed: 503" and that is developer text too.</p>
+ */
+export function hasProblemProse(problem: ProblemDetails | null): boolean {
+  return problem?.detail !== undefined || problem?.title !== undefined
+}
+
+export function errorDetail(err: unknown): string | null {
+  if (err === null || typeof err !== 'object') return null
+  if ((err as { isProblemError?: unknown }).isProblemError !== true) return null
+  const message = (err as { message?: unknown }).message
+  return typeof message === 'string' && message.trim() !== '' ? message : null
+}
+
+/**
+ * The shape every API module's error type shares: the server's message, the status, and whether that
+ * message is the server's own prose.
+ *
+ * <p>Eighteen modules each declared their own class with an identical constructor - the same cast, the
+ * same `problemMessage` call, the same two assignments - differing only in the name and in whatever
+ * extra field that module needed. Sonar's duplication gate is what said so out loud, when adding one
+ * more line to each of them pushed new-code duplication to 4.7% against a 3% ceiling.</p>
+ *
+ * <p>The separate classes are kept rather than collapsed into one, because `instanceof` is how callers
+ * tell "the tender API refused this" from "the documents API refused this", and several add a field of
+ * their own on top - `isConcurrencyConflict`, a validation `field`. They now differ only in what makes
+ * them different.</p>
+ */
+export class ProblemError extends Error {
+  readonly status: number
+  /** Read by {@link errorDetail}: this message is the server's own prose, not a bug's. False when the
+   * problem document carried no `title` and no `detail`, because {@link problemMessage} then falls back
+   * to "Request failed: <status>", which is developer text and must not reach a reader. */
+  readonly isProblemError: boolean
+
+  constructor(status: number, body: unknown) {
+    const problem = body as ProblemDetails | null
+    super(problemMessage(problem, `Request failed: ${status}`))
+    this.status = status
+    this.isProblemError = hasProblemProse(problem)
+  }
+}

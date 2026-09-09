@@ -1,5 +1,5 @@
 import { apiFetch } from './auth'
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 
 /** SCR-400's KPI row (SCREEN-SPECIFICATIONS.md §10). */
 export interface ProcurementKpis {
@@ -72,11 +72,9 @@ export interface ReviewDashboard {
   expiryWatchlist: ExpiringDocument[]
 }
 
-export class DashboardApiError extends Error {
-  status: number
+export class DashboardApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    super(problemMessage(body as ProblemDetails | null, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

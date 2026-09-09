@@ -1,4 +1,4 @@
-import { hasCode, problemMessage, type ProblemDetails } from './problem'
+import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import { rememberETag } from './etags'
 
@@ -109,8 +109,7 @@ export interface UpdateLegalInfoPayload {
   establishedOn?: string | null
 }
 
-export class SupplierApiError extends Error {
-  status: number
+export class SupplierApiError extends ProblemError {
   missingFields?: string[]
   fieldErrors?: Record<string, string[]>
   /** MSP-65: someone else saved this supplier since we read it. Callers surface a localized
@@ -127,13 +126,12 @@ export class SupplierApiError extends Error {
   code?: string
 
   constructor(status: number, body: unknown) {
+    super(status, body)
     const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
     this.missingFields = b?.missingFields as string[] | undefined
     this.fieldErrors = b?.errors as Record<string, string[]> | undefined
-    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
-    this.isFieldNotFlagged = status === 403 && hasCode(b, 'FIELD_NOT_FLAGGED')
+    this.isConcurrencyConflict = status === 412 && hasCode(body as ProblemDetails | null, 'ETAG_MISMATCH')
+    this.isFieldNotFlagged = status === 403 && hasCode(body as ProblemDetails | null, 'FIELD_NOT_FLAGGED')
     this.code = b?.code
   }
 }

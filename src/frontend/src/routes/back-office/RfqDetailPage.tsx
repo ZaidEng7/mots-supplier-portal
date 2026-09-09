@@ -22,6 +22,7 @@ import {
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
 import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
+import { ReasonDialog } from '../../components/ReasonDialog'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -288,9 +289,10 @@ export function RfqDetailPage() {
   // advertised deadline is a decision bidders can challenge and the answer has to be on the record.
   // This sent a fixed translated string, so every early close in the system carried the same sentence
   // and the audit trail said nothing about why - satisfying the rule while defeating it.
+  const [closeOpen, setCloseOpen] = useState(false)
   const closeMutation = useMutation({
     mutationFn: (reason: string) => closeRfqSubmission(referenceCode, reason),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.closed') }) },
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.closed') }); setCloseOpen(false) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
@@ -414,7 +416,7 @@ export function RfqDetailPage() {
 
   // A tender that failed to load is not a tender that does not exist, and the branch below says
   // "not found" for both.
-  if (rfqQuery.isError) return <QueryError onRetry={() => void rfqQuery.refetch()} />
+  if (rfqQuery.isError) return <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
 
   if (rfqQuery.isLoading || !rfq) {
     return <SkeletonList label={t('common.loading')} />
@@ -450,15 +452,29 @@ export function RfqDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* Optional by design: an empty selection submits to the manager pool, exactly as this
                   transition behaved before A-7. The placeholder says so rather than reading as an
-                  unfilled required field. */}
+                  unfilled required field.
+
+                  §C2.4: what the placeholder could not say is that the choice is committed by the
+                  button NEXT to it rather than by this control, so an officer could pick an approver,
+                  never press Submit, and reasonably believe they had nominated somebody. The hint is
+                  wired through aria-describedby rather than left as an adjacent paragraph, so it
+                  reaches a screen reader as part of the control. */}
               <Select
                 aria-label={t('rfq.ownership.nominateApprover')}
+                aria-describedby="rfq-approver-hint"
                 placeholder={t('rfq.ownership.anyManager')}
                 value={approverDraft}
                 onValueChange={setApproverDraft}
                 options={(assigneesQuery.data?.approvers ?? []).map((a) => ({ value: a.userId, label: a.fullName }))}
               />
               <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
+              <p
+                id="rfq-approver-hint"
+                className="basis-full text-[length:var(--text-caption)]"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                {t('rfq.ownership.approverHint')}
+              </p>
             </div>
           ) : null}
           {isInternalReview ? (
@@ -468,16 +484,25 @@ export function RfqDetailPage() {
             <Button isLoading={publishMutation.isPending} onClick={() => publishMutation.mutate()}>{t('rfq.publish')}</Button>
           ) : null}
           {isSubmissionOpen ? (
-            <Button
-              variant="secondary"
-              isLoading={closeMutation.isPending}
-              onClick={() => {
-                const reason = window.prompt(t('rfq.closeReasonPrompt'))?.trim()
-                if (reason) closeMutation.mutate(reason)
-              }}
-            >
-              {t('rfq.closeSubmission')}
-            </Button>
+            <>
+              {/* window.prompt rendered browser chrome in a product where every other reason field is
+                  themed, and - the part that mattered - it said nothing at all when it was dismissed or
+                  filled with spaces, while the copy promised the reason was recorded. The same dialog
+                  the rest of this product uses for a mandatory reason refuses an empty one visibly. */}
+              <Button variant="secondary" onClick={() => setCloseOpen(true)}>
+                {t('rfq.closeSubmission')}
+              </Button>
+              <ReasonDialog
+                open={closeOpen}
+                onOpenChange={setCloseOpen}
+                onSubmit={(reason) => closeMutation.mutate(reason.trim())}
+                isLoading={closeMutation.isPending}
+                title={t('rfq.closeSubmission')}
+                confirmLabel={t('rfq.closeSubmission')}
+                variant="danger"
+                warning={t('rfq.closeReasonPrompt')}
+              />
+            </>
           ) : null}
         </div>
       </div>

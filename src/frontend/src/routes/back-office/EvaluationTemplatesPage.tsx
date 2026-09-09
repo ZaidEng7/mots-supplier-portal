@@ -116,7 +116,7 @@ export function EvaluationTemplatesPage() {
       {templatesQuery.isPending ? (
         <SkeletonList label={t('common.loading')} />
       ) : templatesQuery.isError ? (
-        <QueryError onRetry={() => void templatesQuery.refetch()} />
+        <QueryError error={templatesQuery.error} onRetry={() => void templatesQuery.refetch()} />
       ) : templates.length === 0 ? (
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluationTemplates.empty')}</p>
       ) : (

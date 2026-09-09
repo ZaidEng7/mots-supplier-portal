@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Comp · Charts</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<link rel="stylesheet" href="/src/styles/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font-ui); background: var(--color-bg-app); color: var(--color-text-primary); }
+  .page { max-inline-size: 74rem; margin-inline: auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  h1 { font-size: var(--text-h1); font-weight: var(--fw-semibold); margin: 0 0 var(--space-2); }
+  .lede { color: var(--color-text-secondary); margin: 0 0 var(--space-8); max-inline-size: 46rem; font-size: var(--text-body); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+  .card { background: var(--color-bg-surface); border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-5); }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { font-size: var(--text-h4); font-weight: var(--fw-semibold); margin: 0 0 var(--space-1); }
+  .sub { font-size: var(--text-caption); color: var(--color-text-secondary); margin: 0 0 var(--space-4); }
+  .note { font-size: var(--text-caption); color: var(--color-text-muted); margin: var(--space-3) 0 0; }
+  .num { font-family: var(--font-numeric); font-feature-settings: "tnum" 1; }
+
+  /* recessive axes and grid - the data is the figure */
+  .grid-line { stroke: var(--color-border); stroke-width: 1; }
+  .axis-text { fill: var(--color-text-secondary); font-size: 11px; font-family: var(--font-numeric); }
+  .cat-text { fill: var(--color-text-primary); font-size: 12px; }
+  .val-text { fill: var(--color-text-primary); font-size: 12px; font-weight: 600; font-family: var(--font-numeric); }
+  .bar { fill: var(--color-brand-solid); }
+  .bar-sub { fill: var(--brand-200); }
+  .legend { display: flex; gap: var(--space-4); font-size: var(--text-caption); color: var(--color-text-secondary);
+            margin-block-start: var(--space-3); }
+  .legend i { inline-size: 10px; block-size: 10px; border-radius: 2px; display: inline-block; margin-inline-end: var(--space-2); }
+
+  /* status: reserved palette, and never colour alone */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+  .tile { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+  .tile .n { font-size: var(--text-h1); font-weight: var(--fw-semibold); font-family: var(--font-numeric); line-height: 1; }
+  .tile .l { font-size: var(--text-body-sm); margin-block-start: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+  .t-ok { border-color: var(--color-success-fg); } .t-ok .n, .t-ok .l { color: var(--color-success-fg); }
+  .t-warn { border-color: var(--color-warning-fg); } .t-warn .n, .t-warn .l { color: var(--color-warning-fg); }
+  .t-bad { border-color: var(--color-danger-fg); } .t-bad .n, .t-bad .l { color: var(--color-danger-fg); }
+
+  .withheld { display: grid; place-content: center; block-size: 190px; text-align: center; max-inline-size: 26rem;
+              margin-inline: auto; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md);
+              color: var(--color-text-secondary); font-size: var(--text-body-sm); padding: var(--space-5);
+              line-height: var(--lh-normal); }
+  .withheld p { margin: 0; }
+  .withheld p + p { margin-block-start: var(--space-2); }
+  .comp-label { font-size: var(--text-caption); letter-spacing: .04em; text-transform: uppercase;
+                color: var(--color-text-muted); margin-block: var(--space-8) var(--space-3); }
+  table { inline-size: 100%; border-collapse: collapse; font-size: var(--text-body-sm); margin-block-start: var(--space-3); }
+  th { text-align: start; color: var(--color-text-secondary); font-size: var(--text-caption); padding: var(--space-2); background: var(--color-bg-sunken); }
+  td { padding: var(--space-2); border-block-start: 1px solid var(--color-border); }
+  td.n, th.n { text-align: end; font-family: var(--font-numeric); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Awards and spend</h1>
+  <p class="lede">Every chart below draws its colour from the product's own tokens. The brand teal is
+    deliberately desaturated, so no chart uses hue to tell one thing from another — magnitude charts carry
+    one hue, and the only coloured distinctions are the reserved status colours, which always ship with a
+    word beside them.</p>
+
+  <div class="grid">
+
+    <!-- 1 · magnitude over time: one series, one hue, no legend -->
+    <div class="card wide">
+      <h2>Awarded value by month</h2>
+      <p class="sub">Twelve months to September 2026 · SYP</p>
+      <svg viewBox="0 0 900 220" width="100%" height="220" role="img" aria-label="Awarded value by month, bar chart">
+        <line class="grid-line" x1="52" y1="20"  x2="890" y2="20"></line>
+        <line class="grid-line" x1="52" y1="70"  x2="890" y2="70"></line>
+        <line class="grid-line" x1="52" y1="120" x2="890" y2="120"></line>
+        <line class="grid-line" x1="52" y1="170" x2="890" y2="170"></line>
+        <text class="axis-text" x="44" y="24"  text-anchor="end">400M</text>
+        <text class="axis-text" x="44" y="74"  text-anchor="end">300M</text>
+        <text class="axis-text" x="44" y="124" text-anchor="end">200M</text>
+        <text class="axis-text" x="44" y="174" text-anchor="end">100M</text>
+        <g class="bar">
+          <rect x="62"  y="128" width="46" height="42"  rx="4"></rect>
+          <rect x="132" y="96"  width="46" height="74"  rx="4"></rect>
+          <rect x="202" y="140" width="46" height="30"  rx="4"></rect>
+          <rect x="272" y="74"  width="46" height="96"  rx="4"></rect>
+          <rect x="342" y="112" width="46" height="58"  rx="4"></rect>
+          <rect x="412" y="52"  width="46" height="118" rx="4"></rect>
+          <rect x="482" y="150" width="46" height="20"  rx="4"></rect>
+          <rect x="552" y="88"  width="46" height="82"  rx="4"></rect>
+          <rect x="622" y="118" width="46" height="52"  rx="4"></rect>
+          <rect x="692" y="36"  width="46" height="134" rx="4"></rect>
+          <rect x="762" y="104" width="46" height="66"  rx="4"></rect>
+          <rect x="832" y="82"  width="46" height="88"  rx="4"></rect>
+        </g>
+        <!-- selective direct labels: the peak and the latest, never every bar -->
+        <text class="val-text" x="715" y="28"  text-anchor="middle">268M</text>
+        <text class="val-text" x="855" y="74"  text-anchor="middle">176M</text>
+        <line class="grid-line" x1="52" y1="170" x2="890" y2="170" stroke-width="1"></line>
+        <g class="axis-text" text-anchor="middle">
+          <text x="85" y="190">Oct</text><text x="155" y="190">Nov</text><text x="225" y="190">Dec</text>
+          <text x="295" y="190">Jan</text><text x="365" y="190">Feb</text><text x="435" y="190">Mar</text>
+          <text x="505" y="190">Apr</text><text x="575" y="190">May</text><text x="645" y="190">Jun</text>
+          <text x="715" y="190">Jul</text><text x="785" y="190">Aug</text><text x="855" y="190">Sep</text>
+        </g>
+      </svg>
+      <p class="note">Hover any month for its exact value and the number of awards behind it.</p>
+    </div>
+
+    <!-- 2 · magnitude across named things: ranked horizontal bars, long labels readable -->
+    <div class="card">
+      <h2>By category</h2>
+      <p class="sub">Ranked, twelve months</p>
+      <svg viewBox="0 0 430 210" width="100%" height="210" role="img" aria-label="Awarded value by category">
+        <g class="cat-text">
+          <text x="0" y="20">Catering</text><text x="0" y="52">Transport</text>
+          <text x="0" y="84">Maintenance</text><text x="0" y="116">Accommodation</text>
+          <text x="0" y="148">Events</text><text x="0" y="180">Tour operations</text>
+        </g>
+        <g class="bar">
+          <rect x="130" y="8"   width="230" height="16" rx="4"></rect>
+          <rect x="130" y="40"  width="176" height="16" rx="4"></rect>
+          <rect x="130" y="72"  width="121" height="16" rx="4"></rect>
+          <rect x="130" y="104" width="88"  height="16" rx="4"></rect>
+          <rect x="130" y="136" width="47"  height="16" rx="4"></rect>
+          <rect x="130" y="168" width="22"  height="16" rx="4"></rect>
+        </g>
+        <g class="val-text">
+          <text x="368" y="21">412M</text><text x="314" y="53">315M</text><text x="259" y="85">217M</text>
+          <text x="226" y="117">158M</text><text x="185" y="149">84M</text><text x="160" y="181">39M</text>
+        </g>
+      </svg>
+      <p class="note">An award counts once per category its tender touched, so this column can total more
+        than the number of awards.</p>
+    </div>
+
+    <!-- 3 · same form, different dimension -->
+    <div class="card">
+      <h2>By buying body</h2>
+      <p class="sub">Ranked, twelve months</p>
+      <svg viewBox="0 0 430 210" width="100%" height="210" role="img" aria-label="Awarded value by buying body">
+        <g class="cat-text">
+          <text x="0" y="20">Ministry of Transport</text><text x="0" y="52">Ports Authority</text>
+          <text x="0" y="84">Civil Aviation</text><text x="0" y="116">Railways</text>
+          <text x="0" y="148">Roads &amp; Bridges</text><text x="0" y="180">Public Transport</text>
+        </g>
+        <g class="bar">
+          <rect x="150" y="8"   width="210" height="16" rx="4"></rect>
+          <rect x="150" y="40"  width="150" height="16" rx="4"></rect>
+          <rect x="150" y="72"  width="112" height="16" rx="4"></rect>
+          <rect x="150" y="104" width="76"  height="16" rx="4"></rect>
+          <rect x="150" y="136" width="44"  height="16" rx="4"></rect>
+          <rect x="150" y="168" width="18"  height="16" rx="4"></rect>
+        </g>
+        <g class="val-text">
+          <text x="368" y="21">376M</text><text x="308" y="53">269M</text><text x="270" y="85">201M</text>
+          <text x="234" y="117">136M</text><text x="202" y="149">79M</text><text x="176" y="181">32M</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- 4 · a subset relationship: two steps of ONE hue, both labelled -->
+    <div class="card">
+      <h2>Category coverage</h2>
+      <p class="sub">Approved suppliers, and how many can trade today</p>
+      <svg viewBox="0 0 430 210" width="100%" height="210" role="img" aria-label="Approved and active suppliers per category">
+        <g class="cat-text">
+          <text x="0" y="20">Catering</text><text x="0" y="52">Transport</text>
+          <text x="0" y="84">Maintenance</text><text x="0" y="116">Accommodation</text>
+          <text x="0" y="148">Events</text><text x="0" y="180">Tour operations</text>
+        </g>
+        <g class="bar-sub">
+          <rect x="130" y="8"   width="180" height="16" rx="4"></rect>
+          <rect x="130" y="40"  width="150" height="16" rx="4"></rect>
+          <rect x="130" y="72"  width="120" height="16" rx="4"></rect>
+          <rect x="130" y="104" width="75"  height="16" rx="4"></rect>
+          <rect x="130" y="136" width="45"  height="16" rx="4"></rect>
+          <rect x="130" y="168" width="15"  height="16" rx="4"></rect>
+        </g>
+        <g class="bar">
+          <rect x="130" y="8"   width="150" height="16" rx="4"></rect>
+          <rect x="130" y="40"  width="132" height="16" rx="4"></rect>
+          <rect x="130" y="72"  width="96"  height="16" rx="4"></rect>
+          <rect x="130" y="104" width="60"  height="16" rx="4"></rect>
+          <rect x="130" y="136" width="30"  height="16" rx="4"></rect>
+          <rect x="130" y="168" width="0"   height="16" rx="4"></rect>
+        </g>
+        <g class="val-text">
+          <text x="318" y="21">12 of 14</text><text x="288" y="53">11 of 12</text><text x="258" y="85">8 of 10</text>
+          <text x="213" y="117">5 of 6</text><text x="183" y="149">2 of 3</text>
+          <text x="153" y="181" fill="var(--color-danger-fg)">0 of 1</text>
+        </g>
+      </svg>
+      <div class="legend">
+        <span><i style="background:var(--color-brand-solid)"></i>Can trade today</span>
+        <span><i style="background:var(--brand-200)"></i>Approved</span>
+      </div>
+      <p class="note">Tour operations has no supplier able to bid. That is the number this screen exists
+        to surface.</p>
+    </div>
+
+    <!-- 5 · status is not magnitude: reserved colours, each with a word -->
+    <div class="card">
+      <h2>Review queue</h2>
+      <p class="sub">Applications waiting, by how long they have waited</p>
+      <div class="tiles">
+        <div class="tile t-ok"><div class="n">14</div><div class="l">✓ Within target</div></div>
+        <div class="tile t-warn"><div class="n">5</div><div class="l">! At risk</div></div>
+        <div class="tile t-bad"><div class="n">2</div><div class="l">✕ Overdue</div></div>
+      </div>
+      <p class="note">Thresholds come from the queue's own at-risk and overdue hours, not from a
+        percentage of the total.</p>
+    </div>
+  </div>
+
+  <p class="comp-label">The state the disclosure flag produces — not an error, and not zero</p>
+  <div class="grid">
+    <div class="card">
+      <h2>Awarded value by month</h2>
+      <p class="sub">Twelve months to September 2026</p>
+      <div class="withheld">
+        <p><strong>Commercial values are withheld by disclosure policy.</strong></p>
+        <p>Award counts are shown below. The money is not — that is a decision, not a missing number.</p>
+      </div>
+      <table>
+        <thead><tr><th>Month</th><th class="n">Awards</th><th class="n">Value</th></tr></thead>
+        <tbody>
+          <tr><td>July 2026</td><td class="n">9</td><td class="n">Withheld</td></tr>
+          <tr><td>August 2026</td><td class="n">4</td><td class="n">Withheld</td></tr>
+          <tr><td>September 2026</td><td class="n">6</td><td class="n">Withheld</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>The table view, always available</h2>
+      <p class="sub">Every chart above has one — for screen readers, for export, and for anyone who wants
+        the number rather than the picture</p>
+      <table>
+        <thead><tr><th>Category</th><th class="n">Awards</th><th class="n">Value (SYP)</th></tr></thead>
+        <tbody>
+          <tr><td>Catering</td><td class="n">18</td><td class="n">412,000,000</td></tr>
+          <tr><td>Transport</td><td class="n">14</td><td class="n">315,000,000</td></tr>
+          <tr><td>Maintenance</td><td class="n">11</td><td class="n">217,000,000</td></tr>
+          <tr><td>Accommodation</td><td class="n">7</td><td class="n">158,000,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>

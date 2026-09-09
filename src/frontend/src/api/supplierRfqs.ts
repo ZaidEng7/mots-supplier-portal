@@ -1,4 +1,4 @@
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 import type { InvitationStatus, RfqItem, Requirement, RfqAttachment, RfqState, ClarificationVisibility, Addendum } from './rfqs'
@@ -56,12 +56,9 @@ export interface SupplierRfq {
   submissionDeadlineChangedAt: string | null
 }
 
-export class SupplierRfqApiError extends Error {
-  status: number
+export class SupplierRfqApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

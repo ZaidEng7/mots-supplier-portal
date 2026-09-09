@@ -70,7 +70,7 @@ export function TeamPage() {
   }
   // A failed fetch is not an empty result: without this the screen below renders its
   // empty state and tells the reader there is nothing here.
-  if (teamQuery.isError) return <QueryError onRetry={() => void teamQuery.refetch()} />
+  if (teamQuery.isError) return <QueryError error={teamQuery.error} onRetry={() => void teamQuery.refetch()} />
 
 
   const members = teamQuery.data?.pages.flatMap((p) => p.data) ?? []

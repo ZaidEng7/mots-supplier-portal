@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch, listPage, type RecordedRequest } from '../../test/renderPage'
+import { renderPage, mockFetch, listPage, type RecordedRequest, expectRetryableFailure } from '../../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -111,5 +111,17 @@ describe('RfqListPage', () => {
 
     // "No RFQs yet" under a "Mine" filter would tell an officer their organization has none.
     expect(await screen.findByText('No RFQs are assigned to you')).toBeInTheDocument()
+  })
+
+  it('shows a retryable failure rather than an empty screen', async () => {
+    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
+    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
+    // button wired to nothing looks identical to one that works.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/rfqs': { __status: 500 } }, recorded)
+
+    renderPage(<RfqListPage />)
+
+    await expectRetryableFailure('/api/v1/rfqs', recorded)
   })
 })

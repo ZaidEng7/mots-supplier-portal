@@ -59,7 +59,7 @@ describe('ComparisonPage', () => {
 
     renderPage(<ComparisonPage />)
 
-    expect(await screen.findByText('Awaiting evaluation consolidation')).toBeInTheDocument()
+    expect(await screen.findByText('Waiting for the evaluators’ scores to be combined')).toBeInTheDocument()
     expect(screen.getByText('Supplier A')).toBeInTheDocument()
     expect(screen.getByText('Supplier B')).toBeInTheDocument()
 

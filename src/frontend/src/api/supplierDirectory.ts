@@ -1,6 +1,6 @@
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 
 /**
  * SCR-402 and SCR-307: the two reads across the supplier registry.
@@ -11,11 +11,9 @@ import { problemMessage, type ProblemDetails } from './problem'
  * the other's fields, so a screen cannot quietly render data its persona should not read.</p>
  */
 
-export class SupplierDirectoryApiError extends Error {
-  status: number
+export class SupplierDirectoryApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    super(problemMessage(body as ProblemDetails | null, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

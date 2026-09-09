@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type Notification } from '../api/notifications'
 import { notificationRoute } from '../lib/notificationRoutes'
 import { Button } from '../components/ui/Button'
+import { QueryError } from '../components/ui/ListScreen'
 import { Card } from '../components/ui/Card'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { formatDateTime } from '../lib/datetime'
@@ -45,8 +46,7 @@ export function NotificationsPage() {
   if (query.isError) {
     return (
       <Card title={t('notifications.title')}>
-        <p>{t('notifications.loadFailed')}</p>
-        <Button size="sm" variant="ghost" onClick={() => query.refetch()}>{t('notifications.retry')}</Button>
+        <QueryError error={query.error} onRetry={() => void query.refetch()} />
       </Card>
     )
   }

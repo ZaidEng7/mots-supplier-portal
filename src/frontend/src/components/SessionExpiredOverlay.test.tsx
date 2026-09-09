@@ -56,6 +56,38 @@ describe('SessionExpiredOverlay', () => {
     expect(screen.getByText('officer@example.test')).toBeInTheDocument()
   })
 
+  it('cannot be dismissed by Escape, because there is nothing behind it to go back to', async () => {
+    // Phase 4 replaced a hand-rolled overlay that declared role="dialog" aria-modal="true" and trapped
+    // nothing, so Tab walked out into a page the reader could no longer save. The replacement refuses
+    // Escape, outside pointer-down and outside interaction - and until now that refusal was a claim in
+    // a comment. The way out is the sign-out button, which the test below covers.
+    signedIn()
+    useAuthStore.setState({ expired: true })
+    renderPage(<SessionExpiredOverlay />)
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(useAuthStore.getState().expired).toBe(true)
+  })
+
+  it('makes the page behind it inert, so an outside click cannot even be delivered', async () => {
+    // Not the same claim as "the outside-click handler is prevented", and a stronger one. Radix's modal
+    // mode sets pointer-events: none on the body and marks the background aria-hidden, so the page below
+    // is unreachable by pointer AND by assistive technology - which is what the hand-rolled overlay this
+    // replaced never did, while declaring aria-modal="true" and looking identical.
+    signedIn()
+    useAuthStore.setState({ expired: true })
+    renderPage(<SessionExpiredOverlay />)
+
+    await screen.findByRole('dialog')
+
+    expect(document.body.style.pointerEvents).toBe('none')
+    await expect(userEvent.click(document.body)).rejects.toThrow(/pointer-events: none/)
+  })
+
   it('closes itself when the re-authentication succeeds', async () => {
     signedIn()
     useAuthStore.getState().expireSession()

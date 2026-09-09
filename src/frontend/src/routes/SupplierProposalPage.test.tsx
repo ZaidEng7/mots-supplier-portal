@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../test/renderPage'
 
@@ -167,10 +167,37 @@ describe('SupplierProposalPage', () => {
     // The fixture proposal has no currency yet, so the line total renders as a bare amount.
     expect(await screen.findByText('50')).toBeInTheDocument()
     expect(screen.queryByLabelText('Unit price - Widget')).not.toBeInTheDocument()
-    await userEvent.type(screen.getByLabelText('Reason'), 'Pricing error')
+    // Withdrawn is terminal (Proposal.cs:553-555) and this control used to be an inline field beside a
+    // `ghost` button - the LOWEST-emphasis variant in the system - with nothing anywhere saying the
+    // action could not be taken back. It now opens a dialog that says so.
     await userEvent.click(screen.getByRole('button', { name: 'Withdraw proposal' }))
 
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/cannot be undone|final/i)).toBeInTheDocument()
+
+    await userEvent.type(within(dialog).getByLabelText('Reason'), 'Pricing error')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Withdraw proposal' }))
+
     expect(await screen.findByText('Proposal withdrawn')).toBeInTheDocument()
+  })
+
+  it('Submitted: closing the withdraw dialog withdraws nothing', async () => {
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Submitted'),
+      '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
+      '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
+    })
+
+    renderPage(<SupplierProposalPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw proposal' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    // The proposal is still there. A dialog that can be dismissed by accident and still fires is worse
+    // than no dialog, because it looks like a safeguard.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('Proposal withdrawn')).not.toBeInTheDocument()
   })
 
   it('Withdrawn: withdraw action is hidden', async () => {

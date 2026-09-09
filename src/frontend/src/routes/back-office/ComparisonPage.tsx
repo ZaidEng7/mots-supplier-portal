@@ -77,7 +77,7 @@ export function ComparisonPage() {
   }
   // A failed fetch is not an empty result: without this the screen below renders its
   // empty state and tells the reader there is nothing here.
-  if (comparisonQuery.isError) return <QueryError onRetry={() => void comparisonQuery.refetch()} />
+  if (comparisonQuery.isError) return <QueryError error={comparisonQuery.error} onRetry={() => void comparisonQuery.refetch()} />
 
   if (!comparison) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notFound')}</p>

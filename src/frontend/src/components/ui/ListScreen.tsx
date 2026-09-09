@@ -4,6 +4,7 @@ import { Button } from './Button'
 import { Card } from './Card'
 import { Input } from './Input'
 import { SkeletonTable } from './Skeleton'
+import { errorDetail } from '../../api/problem'
 
 /**
  * The three pieces every list screen in this product repeats: a heading, a labelled filter control, and a
@@ -92,7 +93,7 @@ export function FilterBar({ children }: { children: ReactNode }) {
  * reader the second when the first is true.</p>
  */
 export function ListState({
-  isPending, isError, isEmpty, loadingLabel, errorText, emptyText, skeletonRows = 5, children,
+  isPending, isError, isEmpty, loadingLabel, errorText, emptyText, error, skeletonRows = 5, children,
 }: {
   isPending: boolean
   isError: boolean
@@ -100,11 +101,17 @@ export function ListState({
   loadingLabel: string
   errorText: string
   emptyText: string
+  /** The thrown value, so a failure can say what the server said. Optional: a caller that does not
+   * hold it still gets `errorText`. */
+  error?: unknown
   skeletonRows?: number
   children: ReactNode
 }) {
   if (isPending) return <SkeletonTable label={loadingLabel} rows={skeletonRows} />
-  if (isError) return <p style={{ color: 'var(--color-danger-fg)' }}>{errorText}</p>
+  if (isError) {
+    const detail = errorDetail(error)
+    return <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? errorText}</p>
+  }
   if (isEmpty) return <p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>
   return <>{children}</>
 }
@@ -121,11 +128,16 @@ export function ListState({
  * on every screen, and eighteen variants would be eighteen more strings to translate and keep aligned.
  * `onRetry` is optional because not every caller holds a refetch worth offering.</p>
  */
-export function QueryError({ onRetry }: { onRetry?: () => void }) {
+export function QueryError({ error, onRetry }: { error?: unknown; onRetry?: () => void }) {
   const { t } = useTranslation()
+  // The audit's §C5: a reader learned THAT a screen failed and never WHY. The why was already on the
+  // error - every api module builds its message from the server's RFC 9457 `detail` - and the read
+  // paths were discarding it in favour of a string written to be a last resort. `common.loadFailed`
+  // is still the fallback; it is no longer the whole message.
+  const detail = errorDetail(error)
   return (
     <div role="alert" className="flex flex-col items-start gap-2">
-      <p style={{ color: 'var(--color-danger-fg)' }}>{t('common.loadFailed')}</p>
+      <p style={{ color: 'var(--color-danger-fg)' }}>{detail ?? t('common.loadFailed')}</p>
       {onRetry ? (
         <Button size="sm" variant="secondary" onClick={onRetry}>
           {t('common.retry')}
@@ -162,6 +174,9 @@ export function LoadMore({
 export interface PagedQueryLike {
   isPending: boolean
   isError: boolean
+  /** React Query's own `error`. Structural like the rest of this interface, and optional so a screen
+   * holding a plain `useQuery` result still satisfies it. */
+  error?: unknown
   hasNextPage?: boolean
   isFetchingNextPage?: boolean
   fetchNextPage?: () => unknown
@@ -202,6 +217,7 @@ export function ListCard({
         loadingLabel={labels.loading}
         errorText={labels.error}
         emptyText={labels.empty}
+        error={query.error}
         skeletonRows={skeletonRows}
       >
         {children}

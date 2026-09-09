@@ -106,7 +106,7 @@ export function AwardPage() {
   if (awardQuery.isError || evaluationQuery.isError) {
     // An award screen that renders "no recommendation yet" because the fetch failed is the worst
     // version of this defect in the product: it invites the officer to start the process again.
-    return <QueryError onRetry={() => { void awardQuery.refetch(); void evaluationQuery.refetch() }} />
+    return <QueryError error={awardQuery.error} onRetry={() => { void awardQuery.refetch(); void evaluationQuery.refetch() }} />
   }
 
   if (awardQuery.isLoading || evaluationQuery.isLoading) {

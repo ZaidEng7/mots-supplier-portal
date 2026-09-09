@@ -1,5 +1,5 @@
 import { apiFetch } from './auth'
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 
 /**
  * SCR-500 / FR-DSH-004. The evaluator's own assignments.
@@ -22,11 +22,9 @@ export interface MyAssignment {
   tab: MyAssignmentTab
 }
 
-export class MyEvaluationsApiError extends Error {
-  status: number
+export class MyEvaluationsApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    super(problemMessage(body as ProblemDetails | null, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

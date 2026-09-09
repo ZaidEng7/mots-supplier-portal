@@ -32,17 +32,20 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       aria-invalid={invalid || undefined}
       disabled={disabled}
       readOnly={readOnly}
-      className={`w-full rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] ${disabled ? 'cursor-not-allowed' : ''} ${className}`}
+      className={`msp-input w-full rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] ${disabled ? 'cursor-not-allowed' : ''} ${className}`}
       style={{
+        // The resting border is a custom property so the stylesheet can raise it on hover: an inline
+        // style beats a class, which is why this component had no hover state for its whole life.
+        ['--input-border' as string]: readOnly && !disabled ? 'transparent' : borderColor,
         backgroundColor: disabled ? 'var(--color-bg-sunken)' : readOnly ? 'transparent' : 'var(--color-bg-surface)',
         color: disabled ? 'var(--color-text-disabled)' : 'var(--color-text-primary)',
-        border: readOnly && !disabled ? '1px solid transparent' : `1px solid ${borderColor}`,
+        border: '1px solid var(--input-border)',
         ...style,
       }}
       onFocus={(e) => {
         if (!disabled) {
           e.currentTarget.style.boxShadow = 'var(--focus-ring)'
-          e.currentTarget.style.borderColor = invalid ? 'var(--color-danger-solid)' : 'var(--color-border-focus)'
+          e.currentTarget.style.setProperty('--input-border', invalid ? 'var(--color-danger-solid)' : 'var(--color-border-focus)')
         }
         onFocus?.(e)
       }}
@@ -50,7 +53,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         e.currentTarget.style.boxShadow = 'none'
         // Back to the resting border for whichever state this field is in - a read-only field that
         // grew a border on focus and kept it would read as editable afterwards.
-        e.currentTarget.style.borderColor = readOnly && !disabled ? 'transparent' : borderColor
+        e.currentTarget.style.setProperty('--input-border', readOnly && !disabled ? 'transparent' : borderColor)
         onBlur?.(e)
       }}
       {...rest}

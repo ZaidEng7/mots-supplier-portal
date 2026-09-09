@@ -5,7 +5,7 @@ import { Link } from '@tanstack/react-router'
 import { getSupplierDashboard, type ActionRequired } from '../api/supplierDashboard'
 import { unreadNotificationCount } from '../api/notifications'
 import { Card } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
+import { QueryError } from '../components/ui/ListScreen'
 import { StatusChip } from '../components/ui/StatusChip'
 import { SkeletonGrid, SkeletonList } from '../components/ui/Skeleton'
 import { formatDate, formatDeadline, formatNumber } from '../lib/datetime'
@@ -57,8 +57,7 @@ export function SupplierDashboardPage() {
   if (query.isError || !data) {
     return (
       <Card title={t('supplierDashboard.invitations')}>
-        <p>{t('supplierDashboard.loadFailed')}</p>
-        <Button size="sm" variant="ghost" onClick={() => query.refetch()}>{t('supplierDashboard.retry')}</Button>
+        <QueryError error={query.error} onRetry={() => void query.refetch()} />
       </Card>
     )
   }
@@ -234,12 +233,7 @@ export function SupplierDashboardPage() {
             {notifications.isError ? (
               // The isolated-failure requirement, made visible: this widget says it failed and
               // everything around it still renders.
-              <div>
-                <p>{t('supplierDashboard.loadFailed')}</p>
-                <Button size="sm" variant="ghost" onClick={() => notifications.refetch()}>
-                  {t('supplierDashboard.retry')}
-                </Button>
-              </div>
+              <QueryError error={notifications.error} onRetry={() => void notifications.refetch()} />
             ) : (
               <Link to="/notifications">{t('supplierDashboard.openNotifications')}</Link>
             )}

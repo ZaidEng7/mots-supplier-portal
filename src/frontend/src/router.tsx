@@ -28,6 +28,7 @@ import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } fr
 import { useTranslation } from 'react-i18next'
 import { LanguageSwitch } from './components/LanguageSwitch'
 import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
+import { SkipLink } from './components/SkipLink'
 import { useAuthStore } from './lib/authStore'
 import i18n from 'i18next'
 import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
@@ -131,6 +132,9 @@ async function ensureAuthenticated(currentPath: string) {
 const rootRoute = createRootRoute({
   component: () => (
     <Suspense fallback={null}>
+      {/* WCAG 2.4.1. Before everything, including the maintenance banner: the whole point is that it is
+          the first thing a Tab reaches. */}
+      <SkipLink />
       {/* SCR-044. Above the Outlet so it is the first thing on every page, authenticated or not. */}
       <MaintenanceBanner />
       <Outlet />

@@ -1,4 +1,4 @@
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 
 export interface SupplierDocument {
@@ -34,17 +34,10 @@ export interface DocumentTypeStatus {
   latestDocument: SupplierDocument | null
 }
 
-export class DocumentApiError extends Error {
-  status: number
-  constructor(status: number, body: unknown) {
-    // `message` is the human-readable explanation (e.g. why an expiry date was rejected);
-    // `error` is just the short machine code. Preferring the code left every validation
-    // failure showing the same opaque string ("invalid_expiry") regardless of which of several
-    // distinct rules actually failed.
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
-  }
+export class DocumentApiError extends ProblemError {
+  // ProblemError prefers the human-readable explanation (e.g. why an expiry date was rejected) over
+  // the short machine code. Preferring the code left every validation failure showing the same opaque
+  // string ("invalid_expiry") regardless of which of several distinct rules actually failed.
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {

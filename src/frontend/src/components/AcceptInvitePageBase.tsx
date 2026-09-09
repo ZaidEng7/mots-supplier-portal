@@ -55,7 +55,7 @@ export function AcceptInvitePageBase({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+    <main id="main" className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
       <div className="w-full max-w-sm rounded-[var(--radius-lg)] p-8" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
         <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {title}
@@ -90,6 +90,6 @@ export function AcceptInvitePageBase({
           </form>
         )}
       </div>
-    </div>
+    </main>
   )
 }

@@ -1,5 +1,5 @@
 import { apiFetch } from './auth'
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 
 /** SCR-120's KPI row (SCREEN-SPECIFICATIONS.md §1). */
 export interface SupplierKpis {
@@ -62,11 +62,9 @@ export interface SupplierDashboard {
   erpDegraded: boolean
 }
 
-export class SupplierDashboardApiError extends Error {
-  status: number
+export class SupplierDashboardApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    super(problemMessage(body as ProblemDetails | null, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

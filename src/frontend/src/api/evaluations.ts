@@ -1,4 +1,4 @@
-import { hasCode, problemMessage, type ProblemDetails } from './problem'
+import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { RfqItem, Requirement } from './rfqs'
 
@@ -141,15 +141,12 @@ export async function evaluatorProposalDocumentUrl(
   return body.url
 }
 
-export class EvaluationApiError extends Error {
-  status: number
+export class EvaluationApiError extends ProblemError {
   /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict - see RfqApiError's own doc comment. */
   isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
-    this.isConcurrencyConflict = status === 412 && hasCode(b, 'ETAG_MISMATCH')
+    super(status, body)
+    this.isConcurrencyConflict = status === 412 && hasCode(body as ProblemDetails | null, 'ETAG_MISMATCH')
   }
 }
 

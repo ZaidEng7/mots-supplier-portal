@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../../test/renderPage'
 import type { Award } from '../../api/awards'
 import type { Evaluation } from '../../api/evaluations'
 
@@ -136,5 +136,17 @@ describe('AwardPage', () => {
     expect(screen.queryByText(/ERP sync status/)).not.toBeInTheDocument()
     expect(screen.queryByText(/NotRequested/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Sync pending/)).not.toBeInTheDocument()
+  })
+
+  it('shows a retryable failure rather than an empty award screen', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/award': { __status: 500 },
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluationFixture(),
+    }, recorded)
+
+    renderPage(<AwardPage />)
+
+    await expectRetryableFailure('/award', recorded)
   })
 })

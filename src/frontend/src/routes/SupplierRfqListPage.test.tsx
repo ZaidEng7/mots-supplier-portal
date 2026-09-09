@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch, listPage } from '../test/renderPage'
+import { renderPage, mockFetch, listPage, expectRetryableFailure, type RecordedRequest } from '../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -108,5 +108,14 @@ describe('SupplierRfqListPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('We could not load this. Try again.')
     expect(screen.queryByText(/no invitations/i)).not.toBeInTheDocument()
+  })
+
+  it('the Try again button actually tries again', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/rfqs': { __status: 500 } }, recorded)
+
+    renderPage(<SupplierRfqListPage />)
+
+    await expectRetryableFailure('/api/v1/rfqs', recorded)
   })
 })

@@ -198,7 +198,7 @@ function SupplierLinksSection() {
             {linksQuery.isLoading ? (
               <SkeletonList label={t('common.loading')} />
             ) : linksQuery.isError ? (
-              <QueryError onRetry={() => void linksQuery.refetch()} />
+              <QueryError error={linksQuery.error} onRetry={() => void linksQuery.refetch()} />
             ) : linksQuery.data && linksQuery.data.length > 0 ? (
               <ul className="flex flex-col gap-2">
                 {linksQuery.data.map((link) => (

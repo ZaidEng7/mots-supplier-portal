@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch, type RecordedRequest } from '../../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest, expectRetryableFailure } from '../../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -142,5 +142,17 @@ describe('OfferingsPage', () => {
       const reads = recorded.filter((r) => r.method === 'GET' && r.url.endsWith('/api/v1/suppliers/me'))
       expect(reads.length).toBeGreaterThan(1)
     })
+  })
+
+  it('shows a retryable failure rather than an empty category list', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me': { __status: 500 },
+      '/api/v1/reference/categories': CATEGORIES,
+    }, recorded)
+
+    renderPage(<OfferingsPage />)
+
+    await expectRetryableFailure('/suppliers/me', recorded)
   })
 })

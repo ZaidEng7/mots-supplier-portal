@@ -1,4 +1,4 @@
-import { problemMessage, type ProblemDetails } from './problem'
+import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 import { rememberETag } from './etags'
 
@@ -6,12 +6,9 @@ import { rememberETag } from './etags'
  * EvaluationTemplate invariant refusal (EvaluationTemplateMutationResult.InvalidState) - unlike
  * SupplierApiError's `.error`-only convention, the precise message is the useful part here since
  * these are dynamic domain-exception texts, not a small enum of known codes. */
-export class EvaluationTemplateApiError extends Error {
-  status: number
+export class EvaluationTemplateApiError extends ProblemError {
   constructor(status: number, body: unknown) {
-    const b = body as ProblemDetails | null
-    super(problemMessage(b, `Request failed: ${status}`))
-    this.status = status
+    super(status, body)
   }
 }
 

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Comp · Buyer tender workspace</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/ibm-plex-sans-arabic/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/ibm-plex-sans-arabic/600.css">
+<link rel="stylesheet" href="/src/styles/tokens.css">
+<style>
+  /* COMP ONLY. Every value below resolves from tokens.css - no literal colour, no invented size.
+     This file exists to be looked at and thrown away; the build reuses the product's components. */
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font-ui); background: var(--color-bg-app); color: var(--color-text-primary); }
+  :root[dir="rtl"] body { font-family: var(--font-sans-ar); }
+
+  /* ---- chrome: unchanged from the shipped product, dark in both themes ---- */
+  .chrome { background: var(--color-chrome-surface); border-block-end: 1px solid var(--color-chrome-border);
+            padding-inline: var(--space-6); padding-block: var(--space-3); display: flex; align-items: center; gap: var(--space-6); }
+  .chrome a, .chrome span { color: var(--color-chrome-text); font-size: var(--text-body-sm); text-decoration: none; }
+  .chrome .brand { font-size: var(--text-h4); font-weight: var(--fw-semibold); color: var(--color-gold-fg); }
+  .chrome .spacer { flex: 1; }
+
+  /* ---- header band: identity, state, and the ONE next action ---- */
+  .band { background: var(--color-bg-surface); border-block-end: 1px solid var(--color-border);
+          padding: var(--space-6) var(--space-6) 0; }
+  .band-top { display: flex; align-items: flex-start; gap: var(--space-6); }
+  h1 { font-size: var(--text-h1); line-height: var(--lh-tight); font-weight: var(--fw-semibold); margin: 0; }
+  .ref { font-family: var(--font-numeric); font-feature-settings: "tnum" 1; color: var(--color-text-secondary);
+         font-size: var(--text-body-sm); margin-block-start: var(--space-1); display: block; }
+  .band-actions { margin-inline-start: auto; display: flex; gap: var(--space-2); align-items: center; }
+
+  .chip { display: inline-flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-pill);
+          padding: 2px var(--space-2); font-size: var(--text-caption); font-weight: var(--fw-medium); }
+  .chip-live { background: var(--color-success-bg); color: var(--color-success-fg); }
+  .chip-muted { background: var(--color-bg-sunken); color: var(--color-text-secondary); }
+  .dot { inline-size: 6px; block-size: 6px; border-radius: var(--radius-pill); background: currentColor; }
+
+  button { font: inherit; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);
+           font-size: var(--text-body-sm); font-weight: var(--fw-medium); border: 1px solid transparent; cursor: pointer;
+           transition: background-color var(--motion-fast) var(--ease-out); }
+  .btn-primary { background: var(--color-brand-solid); color: var(--color-text-inverse); }
+  .btn-secondary { background: var(--color-bg-surface); color: var(--color-text-primary); border-color: var(--color-border-strong); }
+  .btn-ghost { background: transparent; color: var(--color-text-secondary); }
+  .btn-danger { background: var(--color-bg-surface); color: var(--color-danger-fg); border-color: var(--color-danger-fg); }
+
+  /* ---- the exits: first-class, not <a href> inside a card ---- */
+  .tabs { display: flex; gap: var(--space-5); margin-block-start: var(--space-5); }
+  .tab { padding-block-end: var(--space-3); font-size: var(--text-body-sm); color: var(--color-text-secondary);
+         border-block-end: 2px solid transparent; display: flex; align-items: center; gap: var(--space-2); }
+  .tab[aria-current] { color: var(--color-text-brand); border-block-end-color: var(--color-brand-solid); font-weight: var(--fw-semibold); }
+  .count { background: var(--color-bg-sunken); border-radius: var(--radius-pill); padding: 0 var(--space-2);
+           font-size: var(--text-caption); font-family: var(--font-numeric); color: var(--color-text-secondary); }
+
+  /* ---- body: work on the left, standing on the right ---- */
+  .body { display: grid; grid-template-columns: minmax(0,1fr) 20rem; gap: var(--space-6);
+          padding: var(--space-6); align-items: start; }
+  .card { background: var(--color-bg-surface); border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+  .card + .card { margin-block-start: var(--space-4); }
+  .card-h { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); }
+  .card-h h2 { font-size: var(--text-h4); font-weight: var(--fw-semibold); margin: 0; }
+  .card-b { padding: 0 var(--space-5) var(--space-5); }
+  .card-h .spacer { flex: 1; }
+
+  /* an empty section is ONE line, not a card of its own */
+  .empty-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5);
+               border-block-start: 1px solid var(--color-border); font-size: var(--text-body-sm); color: var(--color-text-secondary); }
+  .empty-row:first-child { border-block-start: 0; }
+  .empty-row .spacer { flex: 1; }
+
+  table { inline-size: 100%; border-collapse: collapse; font-size: var(--text-body); }
+  th { text-align: start; font-weight: var(--fw-semibold); color: var(--color-text-secondary);
+       font-size: var(--text-caption); padding: var(--space-2) var(--space-3); background: var(--color-bg-sunken); }
+  td { padding: var(--space-3); border-block-start: 1px solid var(--color-border); }
+  td.num, th.num { text-align: end; font-family: var(--font-numeric); font-feature-settings: "tnum" 1; }
+
+  /* ---- the right rail: where this tender stands ---- */
+  .rail { position: sticky; top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+  .rail h3 { font-size: var(--text-caption); text-transform: uppercase; letter-spacing: .04em;
+             color: var(--color-text-secondary); margin: 0 0 var(--space-3); font-weight: var(--fw-semibold); }
+  .stepper { list-style: none; margin: 0; padding: 0; }
+  .stepper li { display: flex; gap: var(--space-3); align-items: flex-start; padding-block: var(--space-1); font-size: var(--text-body-sm); }
+  .stepper .mark { inline-size: 1rem; block-size: 1rem; border-radius: var(--radius-pill); margin-block-start: 2px;
+                   border: 2px solid var(--color-border-strong); flex: none; }
+  .stepper .done .mark { background: var(--color-success-solid); border-color: var(--color-success-solid); }
+  .stepper .now .mark { border-color: var(--color-brand-solid); background: var(--color-brand-solid); box-shadow: 0 0 0 3px var(--color-brand-subtle); }
+  .stepper .done, .stepper .todo { color: var(--color-text-secondary); }
+  .stepper .now { color: var(--color-text-primary); font-weight: var(--fw-semibold); }
+
+  .facts { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2) var(--space-3); font-size: var(--text-body-sm); }
+  .facts dt { color: var(--color-text-secondary); }
+  .facts dd { margin: 0; text-align: end; font-family: var(--font-numeric); font-feature-settings: "tnum" 1; }
+
+  .next { background: var(--color-brand-subtle); border: 1px solid var(--color-brand-solid);
+          border-radius: var(--radius-lg); padding: var(--space-4); }
+  .next p { margin: 0 0 var(--space-3); font-size: var(--text-body-sm); }
+  .next .btn-primary { inline-size: 100%; }
+
+  .danger { border-color: var(--color-danger-fg); }
+  .danger .card-h h2 { color: var(--color-danger-fg); }
+  .hint { font-size: var(--text-body-sm); color: var(--color-text-secondary); margin: 0 0 var(--space-3); }
+  .note { font-size: var(--text-caption); color: var(--color-text-muted); }
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <span class="brand">Supplier Portal · Back Office</span>
+  <a href="#">Dashboard</a><a href="#">Tenders</a><a href="#">Suppliers</a><a href="#">Search</a>
+  <span class="spacer"></span><span>🔔</span><span>العربية</span><a href="#">Log out</a>
+</div>
+
+<div class="band">
+  <div class="band-top">
+    <div>
+      <h1>Catering services for three sites</h1>
+      <span class="ref">RFQ-2026-000001 · Owner: Rana Tester · Ministry of Transport</span>
+      <div style="display:flex;gap:var(--space-2);margin-block-start:var(--space-3)">
+        <span class="chip chip-live"><span class="dot"></span>Open for submissions</span>
+        <span class="chip chip-muted">Closes in 6 days</span>
+      </div>
+    </div>
+    <div class="band-actions">
+      <button class="btn-secondary">Close submission early</button>
+      <button class="btn-ghost">⋯</button>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <span class="tab" aria-current="page">Tender</span>
+    <span class="tab">Suppliers <span class="count">7</span></span>
+    <span class="tab">Bids <span class="count">4</span></span>
+    <span class="tab">Evaluation</span>
+    <span class="tab">Award</span>
+    <span class="tab">Settings</span>
+  </nav>
+</div>
+
+<div class="body">
+  <main>
+    <section class="card">
+      <div class="card-h"><h2>Line items</h2><span class="count">3</span><span class="spacer"></span>
+        <button class="btn-secondary">Add item</button></div>
+      <table>
+        <thead><tr><th>Item</th><th>Category</th><th class="num">Quantity</th><th>Unit</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Hot meals, site A</td><td>Catering</td><td class="num">500</td><td>unit</td><td style="text-align:end"><button class="btn-ghost">Edit</button></td></tr>
+          <tr><td>Hot meals, site B</td><td>Catering</td><td class="num">320</td><td>unit</td><td style="text-align:end"><button class="btn-ghost">Edit</button></td></tr>
+          <tr><td>Beverage service</td><td>Catering</td><td class="num">1,200</td><td>person</td><td style="text-align:end"><button class="btn-ghost">Edit</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><h2>Requirements</h2><span class="count">2</span><span class="spacer"></span>
+        <button class="btn-secondary">Add requirement</button></div>
+      <table>
+        <thead><tr><th>Requirement</th><th>Envelope</th><th>Mandatory</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Food safety certificate, valid 12 months</td><td>Technical</td><td>Yes</td><td style="text-align:end"><button class="btn-ghost">Edit</button></td></tr>
+          <tr><td>Delivery schedule for each site</td><td>Technical</td><td>Yes</td><td style="text-align:end"><button class="btn-ghost">Edit</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><h2>Description and documents</h2><span class="spacer"></span>
+        <button class="btn-ghost">Edit</button></div>
+      <div class="card-b">
+        <p class="hint">Hot meals for three Ministry sites, delivered daily for twelve months from the award date.</p>
+      </div>
+      <div class="empty-row"><span>Attachments</span><span class="spacer"></span>
+        <span class="note">Locked once the tender leaves Draft</span><button class="btn-ghost">1 file</button></div>
+      <div class="empty-row"><span>Scoring sheet</span><span class="spacer"></span>
+        <span>Standard services template, v3</span></div>
+    </section>
+  </main>
+
+  <aside class="rail">
+    <div class="next">
+      <h3 style="color:var(--color-text-brand)">What happens next</h3>
+      <p>Bidding closes on 20 September. Four of seven invited suppliers have bid. Nothing is required from
+        you until then.</p>
+    </div>
+
+    <div class="card" style="padding:var(--space-4)">
+      <h3>Where this tender stands</h3>
+      <ol class="stepper">
+        <li class="done"><span class="mark"></span><span>Drafted</span></li>
+        <li class="done"><span class="mark"></span><span>Reviewed and approved</span></li>
+        <li class="done"><span class="mark"></span><span>Published · 1 Sep</span></li>
+        <li class="now"><span class="mark"></span><span>Open for bids · closes 20 Sep</span></li>
+        <li class="todo"><span class="mark"></span><span>Evaluation</span></li>
+        <li class="todo"><span class="mark"></span><span>Award</span></li>
+      </ol>
+    </div>
+
+    <div class="card" style="padding:var(--space-4)">
+      <h3>At a glance</h3>
+      <dl class="facts">
+        <dt>Invited</dt><dd>7</dd>
+        <dt>Bids received</dt><dd>4</dd>
+        <dt>Questions open</dt><dd>1</dd>
+        <dt>Line items</dt><dd>3</dd>
+        <dt>Changes issued</dt><dd>0</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>

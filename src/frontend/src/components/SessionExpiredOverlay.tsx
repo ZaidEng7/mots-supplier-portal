@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import * as RadixDialog from '@radix-ui/react-dialog'
 import { useTranslation } from 'react-i18next'
 import { login } from '../api/auth'
 import { useAuthStore } from '../lib/authStore'
@@ -55,27 +56,40 @@ export function SessionExpiredOverlay() {
   }
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      // The topmost layer this product defines. Nothing else uses --z-tooltip (there are no tooltips),
-      // and an expired session outranks everything a person could be in the middle of - a dialog, a
-      // select popover, a toast. Above them all is the whole point: the work behind it cannot be saved.
-      style={{ zIndex: 'var(--z-tooltip)', backgroundColor: 'var(--color-bg-overlay)' }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="session-expired-title"
-        className="w-full max-w-[26rem] rounded-[var(--radius-lg)] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-      >
-        <h2
+    // Radix, not a hand-rolled overlay: this declared role="dialog" aria-modal="true" and trapped
+    // nothing, so Tab walked straight out into the page behind it - a page the reader can no longer
+    // save. `modal` also makes that background inert to assistive technology.
+    <RadixDialog.Root open modal>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay
+          className="fixed inset-0"
+          // The topmost layer this product defines. Nothing else uses --z-tooltip (there are no
+          // tooltips), and an expired session outranks everything a person could be in the middle of -
+          // a dialog, a select popover, a toast.
+          style={{ zIndex: 'var(--z-tooltip)', backgroundColor: 'var(--color-bg-overlay)' }}
+        />
+        <RadixDialog.Content
+          aria-labelledby="session-expired-title"
+          className="fixed left-1/2 top-1/2 w-full max-w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius-lg)] p-6"
+          style={{
+            zIndex: 'var(--z-tooltip)',
+            backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+          // There is no way out of this one except re-authenticating: Escape, an outside click and the
+          // close affordance are all refused deliberately.
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+        <RadixDialog.Title
           id="session-expired-title"
           className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]"
           style={{ color: 'var(--color-text-primary)' }}
         >
           {t('sessionExpired.title')}
-        </h2>
+        </RadixDialog.Title>
         <p className="mb-4 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('sessionExpired.body')}
         </p>
@@ -116,7 +130,8 @@ export function SessionExpiredOverlay() {
             <Button variant="ghost" onClick={clearSession}>{t('sessionExpired.signOut')}</Button>
           </div>
         </div>
-      </div>
-    </div>
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   )
 }

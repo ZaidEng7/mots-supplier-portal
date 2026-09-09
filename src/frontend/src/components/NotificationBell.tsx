@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { Bell } from 'lucide-react'
 import { unreadNotificationCount } from '../api/notifications'
 import { formatNumber } from '../lib/datetime'
 
@@ -35,12 +36,19 @@ export function NotificationBell({ to = '/notifications' }: { to?: string }) {
   return (
     <Link
       to={to}
-      className="relative inline-flex items-center"
+      // WCAG 2.5.8 Target Size (Minimum), which axe checks under `wcag22aa`. The icon is 18px; the
+      // link is padded out to a 24x24 target so the thing you click is bigger than the thing you see.
+      // The emoji this replaced happened to render larger in the reader's system font, so the target
+      // was adequate by accident and stopped being adequate the moment it became a real icon.
+      className="relative inline-flex min-h-6 min-w-6 items-center justify-center"
       aria-label={count > 0
         ? t('notifications.bellWithCount', { count })
         : t('notifications.bell')}
     >
-      <span aria-hidden="true">🔔</span>
+      {/* An emoji renders in the reader's system font, at their system's idea of the size, in a
+          palette this product does not control - and it was the one dated marker the design audit found
+          in an otherwise trend-free interface. lucide is what every other icon here uses. */}
+      <Bell size={18} aria-hidden="true" />
       {count > 0 ? (
         <span
           aria-hidden="true"

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from '../i18n/config'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../test/renderPage'
 import { clearDismissed } from '../lib/dismissedChips'
 
 vi.mock('@tanstack/react-router', async () => {
@@ -122,7 +122,10 @@ describe('SupplierDashboardPage (SCR-120)', () => {
 
     renderPage(<SupplierDashboardPage />)
 
-    expect(await screen.findByText("Couldn't load this section")).toBeInTheDocument()
+    // The widget now renders the shared QueryError, so the wording is `common.loadFailed` rather than a
+    // per-widget copy of the same sentence. What this test is about is unchanged: the panel says it
+    // failed and the three below it still stand.
+    expect(await screen.findByText('We could not load this. Try again.')).toBeInTheDocument()
 
     // The three that must still be standing.
     expect(screen.getByText('Open invitations')).toBeInTheDocument()
@@ -233,5 +236,32 @@ describe('SupplierDashboardPage (SCR-120)', () => {
     renderPage(<SupplierDashboardPage />)
 
     expect(await screen.findByText(/orphan_type/)).toBeInTheDocument()
+  })
+
+  it('shows a retryable failure when the dashboard itself cannot load', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': { __status: 500 },
+      '/api/v1/notifications/unread-count': { count: 0 },
+    }, recorded)
+
+    renderPage(<SupplierDashboardPage />)
+
+    await expectRetryableFailure('/suppliers/me/dashboard', recorded)
+  })
+
+  it('the isolated notifications failure offers its own retry', async () => {
+    // The widget-level case, which is a different code path from the whole-page one above: everything
+    // around it still renders, and the panel carries its own way out.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': dashboard(),
+      '/api/v1/notifications/unread-count': { __status: 500 },
+    }, recorded)
+
+    renderPage(<SupplierDashboardPage />)
+
+    await expectRetryableFailure('/notifications/unread-count', recorded)
+    expect(screen.getByText('Open invitations')).toBeInTheDocument()
   })
 })

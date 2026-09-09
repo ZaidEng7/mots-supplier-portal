@@ -6,7 +6,9 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
-      nav: { home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
+      nav: {
+        skipToContent: 'تخطَّ إلى المحتوى',
+ home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
       // transcribed - reported as a documentation gap rather than presented as approved.
@@ -61,8 +63,6 @@ const resources = {
         erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.',  // §9's sync tone
         emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
         emptyBody: 'ستظهر هنا دعوات طلبات عروض الأسعار عند دعوتكم للمشاركة.',
-        loadFailed: 'تعذر تحميل هذا القسم',  // per-widget, not per-page
-        retry: 'إعادة المحاولة',                    // [reused]
       },
       // FEAT-19.1/19.2 report screen. AUTHORED, not transcribed: no document specifies this
       // screen at all, so every string here is an invention and none of it is a §7 label set. The
@@ -410,8 +410,6 @@ const resources = {
         markAllRead: 'تعليم الكل كمقروء',
         markRead: 'تعليم كمقروء',
         open: 'فتح',
-        loadFailed: 'تعذر تحميل الإشعارات',
-        retry: 'إعادة المحاولة',
         bell: 'الإشعارات',
         bellWithCount: 'الإشعارات، {{count}} غير مقروء',
       },
@@ -785,7 +783,7 @@ const resources = {
         optional: 'تنبيهات اختيارية',
         optionalHint: 'إلغاء التحديد يوقف وصول هذا التنبيه إليك.',
         alwaysOn: 'تنبيهات لا يمكن إيقافها',  // D-60
-        alwaysOnHint: 'الدعوات وطلبات الاستيضاح ونتائج الترسية وانتهاء المستندات تُرسل دائماً.',  // names D-60's four families
+        alwaysOnHint: 'الدعوات وطلبات الاستيضاح ونتائج الترسية تُرسل دائماً ولا تظهر في القائمة أدناه. وتنبيهات انتهاء المستندات تُرسل دائماً أيضاً، بالبريد الإلكتروني.',  // names D-60's four families
         save: 'حفظ',                                            // [reused]
         saved: 'تم حفظ التفضيلات',
         saveFailed: 'تعذّر حفظ التفضيلات',
@@ -1018,7 +1016,6 @@ const resources = {
           failed: 'تعذر تغيير موعد إغلاق التقديم',
         },
         closeSubmission: 'إغلاق باب التقديم',
-        manualCloseReason: 'إغلاق يدوي من قبل موظف المشتريات',
         closeReasonPrompt: 'سبب إغلاق باب العروض مبكراً — يُسجَّل في سجل التدقيق:',
         returnForEditsTitle: 'إعادة للتعديل',
         returnForEdits: 'إعادة للتعديل',
@@ -1040,7 +1037,7 @@ const resources = {
         },
         noRequirements: 'لا توجد متطلبات بعد',
         noTemplateBound: 'لم يتم ربط أي قالب تقييم بعد',
-        boundTemplate: 'القالب المرتبط: {{id}} (الإصدار {{version}})',
+        boundTemplate: 'قالب التقييم مرتبط (الإصدار {{version}})',
         yes: 'نعم',
         no: 'لا',
         pending: 'قيد الانتظار',
@@ -1077,6 +1074,7 @@ const resources = {
           reassign: 'نقل المسؤولية',
           reassigned: 'تم نقل المسؤولية',
           nominateApprover: 'تحديد المعتمِد',
+          approverHint: 'يُطبَّق عند الإرسال للمراجعة. اتركه فارغاً ليتمكن أي مدير من الاعتماد.',
           anyManager: 'أي مدير',
         },
         errors: { saveFailed: 'تعذر حفظ الطلب', transitionFailed: 'تعذر تنفيذ الإجراء' },
@@ -1129,7 +1127,6 @@ const resources = {
         financialEnvelope: 'مالي',
         assignments: 'المقيّمون المعيّنون',
         evaluator: 'المقيّم',
-        evaluatorUserId: 'معرّف المقيّم',
         assign: 'تعيين',
         assigned: 'تم تعيين المقيّم',
         noAssignments: 'لم يُعيَّن أي مقيّم بعد',
@@ -1392,14 +1389,14 @@ const resources = {
         // ── SCR-155 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
         clarificationTitle: 'طلب إيضاح',  // §4.1's «إيضاح»
         clarificationNoReason: 'لم يُسجَّل نص الطلب.',
-        clarificationHint: 'تسجيل ردّك ينقل العرض إلى المراجعة من جديد. لا يمكن تعديل بنود العرض في هذه المرحلة.',
+        clarificationHint: 'يُرسَل ردّك إلى موظف المشتريات، وهو من يقرّر إعادة العرض إلى المراجعة. لا يمكن تعديل بنود العرض في هذه المرحلة.',
         revise: 'تسجيل الردّ',
         revised: 'تم تسجيل الردّ',
         revisedTitle: 'بانتظار إعادة المراجعة',
         revisedBody: 'سُجّل ردّك (المراجعة رقم {{revision}}). سيعيد موظّف المشتريات العرض إلى المراجعة.',
         withdrawTitle: 'سحب العرض',
+        withdrawWarning: 'السحب نهائي. لا يمكنك العودة إلى هذه المناقصة، ولا يمكن استرجاع العرض بعد سحبه.',
         withdraw: 'سحب العرض',
-        withdrawReasonPlaceholder: 'سبب السحب',
         withdrawn: 'تم سحب العرض',
         // ── T-064 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────
         // §7 has no award-offer strings. Authored in §7's register and accepted under D-62; logged in
@@ -1628,7 +1625,6 @@ const resources = {
         title: 'ملف المورد',                                 // [reused] §7's own term
         edit: 'تعديل',                                       // [reused]
         manage: 'إدارة',                                     // [reused]
-        retry: 'إعادة المحاولة',                              // [reused]
         incompleteTitle: 'الملف غير مكتمل',
         incompleteBody: 'العناصر التالية مطلوبة قبل تقديم الطلب:',
         companyTitle: 'بيانات الشركة',                        // [reused]
@@ -1652,7 +1648,6 @@ const resources = {
           legalInfo: 'البيانات القانونية', address: 'العنوان', categoryLink: 'الفئات',
           termsAccepted: 'الموافقة على الشروط',
         },
-        errors: { loadFailed: 'تعذّر تحميل ملف المورد' },
       },
       // ── SCR-130..133 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
       // §7 has no documents-centre strings. Authored in §7's register, accepted under D-62,
@@ -1677,14 +1672,12 @@ const resources = {
         noHistory: 'لم يُرفع أي إصدار بعد',
         close: 'إغلاق',                                         // [reused]
         uploaded: 'تم رفع المستند',                              // [reused] matches onboarding
-        retry: 'إعادة المحاولة',                                // [reused]
         fields: {
           type: 'نوع المستند', required: 'الإلزامية', state: 'الحالة', expiry: 'تاريخ الانتهاء',
           actions: 'الإجراءات', version: 'الإصدار', fileName: 'اسم الملف',
           uploadedAt: 'تاريخ الرفع', reason: 'سبب الرفض',
         },
         errors: {
-          loadFailed: 'تعذّر تحميل المستندات',
           uploadFailed: 'تعذّر رفع المستند',                     // [reused]
           downloadFailed: 'تعذّر تنزيل المستند',
           historyFailed: 'تعذّر تحميل سجل الإصدارات',
@@ -1712,13 +1705,12 @@ const resources = {
       account: {
         title: 'الحساب',  // SCR-902
         save: 'حفظ',                                          // [reused]
-        retry: 'إعادة المحاولة',                               // [reused]
         saved: 'تم حفظ التغييرات',                             // [reused]
         emailFixed: 'لا يمكن تغيير البريد الإلكتروني من هذه الشاشة.',
         numeralsFollowLanguage: 'تتبع الأرقام لغة الواجهة: العربية تعرض ٠-٩ والإنجليزية 0-9.',
         fields: { fullName: 'الاسم الكامل', language: 'لغة الواجهة', email: 'البريد الإلكتروني' },
         languages: { ar: 'العربية', en: 'الإنجليزية' },
-        errors: { loadFailed: 'تعذّر تحميل بيانات الحساب', saveFailed: 'تعذّر حفظ التغييرات' },
+        errors: { saveFailed: 'تعذّر حفظ التغييرات' },
       },
       // ── SCR-040 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       sessionExpired: {
@@ -1970,7 +1962,9 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
-      nav: { home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete Profile', profile: 'Profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back Office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'RFQs' },
+      nav: {
+        skipToContent: 'Skip to content',
+ home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete profile', profile: 'Company profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'Tenders' },
       supplierDashboard: {
         title: 'Supplier dashboard',
         greeting: 'Welcome, {{name}}',
@@ -2005,8 +1999,6 @@ const resources = {
         erpDegraded: 'Purchase-order sync is paused. This does not affect your proposal.',
         emptyTitle: 'No invitations yet',
         emptyBody: "RFQ invitations will appear here when a buyer invites you.",
-        loadFailed: "Couldn't load this section",
-        retry: 'Try again',
       },
       notificationTemplates: {
         title: 'Notification templates',
@@ -2318,8 +2310,6 @@ const resources = {
         markAllRead: 'Mark all as read',
         markRead: 'Mark as read',
         open: 'Open',
-        loadFailed: "Couldn't load notifications",
-        retry: 'Try again',
         bell: 'Notifications',
         bellWithCount: 'Notifications, {{count}} unread',
       },
@@ -2649,12 +2639,12 @@ const resources = {
         },
       },
       notificationPreferences: {
-        title: 'Notification Preferences',
+        title: 'Notification preferences',
         subtitle: 'Choose which optional notifications you want switched off.',
         optional: 'Optional notifications',
         optionalHint: 'Unticking one stops it reaching you.',
         alwaysOn: 'Notifications that cannot be switched off',
-        alwaysOnHint: 'Invitations, clarification requests, award outcomes and document expiry are always sent.',
+        alwaysOnHint: 'Invitations, clarification requests and award outcomes are always sent and are not listed below. Document expiry reminders are always sent too, by email.',
         save: 'Save',
         saved: 'Preferences saved',
         saveFailed: 'Could not save your preferences',
@@ -2871,7 +2861,6 @@ const resources = {
           failed: 'Could not change the submission deadline',
         },
         closeSubmission: 'Close submission window',
-        manualCloseReason: 'Manually closed by procurement officer',
         closeReasonPrompt: 'Why are you closing bidding early? This is recorded in the audit trail:',
         returnForEditsTitle: 'Return for edits',
         returnForEdits: 'Return for edits',
@@ -2893,7 +2882,7 @@ const resources = {
         },
         noRequirements: 'No requirements yet',
         noTemplateBound: 'No evaluation template bound yet',
-        boundTemplate: 'Bound template: {{id}} (version {{version}})',
+        boundTemplate: 'Evaluation template attached (version {{version}})',
         yes: 'Yes',
         no: 'No',
         pending: 'Pending',
@@ -2927,6 +2916,7 @@ const resources = {
           reassign: 'Reassign',
           reassigned: 'Ownership reassigned',
           nominateApprover: 'Choose an approver',
+          approverHint: 'Applied when you submit for review. Leave blank to let any manager approve.',
           anyManager: 'Any manager',
         },
         errors: { saveFailed: 'Could not save the RFQ', transitionFailed: 'Could not perform the action' },
@@ -2972,23 +2962,22 @@ const resources = {
         criteria: 'Criteria',
         dimension: 'Dimension',
         weight: 'Weight',
-        threshold: 'Threshold',
+        threshold: 'Minimum score',
         envelope: 'Envelope',
         technicalEnvelope: 'Technical',
         financialEnvelope: 'Financial',
         assignments: 'Assigned evaluators',
         evaluator: 'Evaluator',
-        evaluatorUserId: 'Evaluator user id',
         assign: 'Assign',
         assigned: 'Evaluator assigned',
         noAssignments: 'No evaluators assigned yet',
         submittedAt: 'Submitted',
-        recusedAt: 'Recused',
-        recusedWithReason: 'Recused: {{reason}}',
-        recuse: 'Recuse',
-        recuseReason: 'Recusal reason',
-        confirmRecuse: 'Confirm recusal',
-        recused: 'Evaluator recused',
+        recusedAt: 'Stood down',
+        recusedWithReason: 'Stood down: {{reason}}',
+        recuse: 'Stand down',
+        recuseReason: 'Reason for standing down',
+        confirmRecuse: 'Confirm',
+        recused: 'Evaluator stood down',
         results: 'Results',
         rank: 'Rank',
         proposal: 'Proposal',
@@ -2998,8 +2987,8 @@ const resources = {
         technicalScore: 'Technical score',
         financialScore: 'Financial score',
         total: 'Total',
-        consolidate: 'Consolidate',
-        consolidated: 'Results consolidated',
+        consolidate: 'Combine scores',
+        consolidated: 'Scores combined',
         finalize: 'Finalize',
         finalized: 'Evaluation finalized',
         reopen: 'Reopen',
@@ -3098,13 +3087,13 @@ const resources = {
         empty: 'No proposals submitted yet',
         proposalCount: '{{count}} proposal',
         proposalCount_other: '{{count}} proposals',
-        awaitingConsolidation: 'Awaiting evaluation consolidation',
+        awaitingConsolidation: 'Waiting for the evaluators’ scores to be combined',
         rowLabel: 'Line item',
         notVisible: 'Not visible',
         groups: { commercial: 'Commercial', requirements: 'Requirements', evaluation: 'Evaluation' },
         grandTotal: 'Grand total',
         paymentTerms: 'Payment terms',
-        incoterm: 'Incoterm',
+        incoterm: 'Delivery terms (Incoterm)',
         validityEnd: 'Validity end',
         met: 'Met',
         notMet: 'Not met',
@@ -3160,18 +3149,18 @@ const resources = {
           title: 'The submission deadline changed',
         },
         attachments: {
-          title: 'RFQ attachments',
+          title: 'Tender documents',
           none: 'No attachments',
           download: 'Download',
           downloadFailed: 'Could not download the attachment',
         },
-        title: 'RFQs',
-        subtitle: 'Requests for Quotation you have been invited to.',
+        title: 'Tenders',
+        subtitle: 'Tenders you have been invited to bid on.',
         listTitle: 'Invitations',
         empty: 'No invitations yet',
         loadMore: 'Load more',
         myStatus: 'My status',
-        notFound: 'RFQ not found',
+        notFound: 'Tender not found',
         declineTitle: 'Decline invitation',
         decline: 'Decline invitation',
         declineReasonPlaceholder: 'Reason (optional)',
@@ -3209,7 +3198,7 @@ const resources = {
         terms: 'Commercial terms',
         currency: 'Currency',
         paymentTerms: 'Payment terms',
-        incoterm: 'Incoterm',
+        incoterm: 'Delivery terms (Incoterm)',
         validityEnd: 'Validity end date',
         saveTerms: 'Save terms',
         termsSaved: 'Terms saved',
@@ -3226,14 +3215,14 @@ const resources = {
         documentAdded: 'Document added',
         clarificationTitle: 'Clarification requested',
         clarificationNoReason: 'No question was recorded with this request.',
-        clarificationHint: 'Recording your response returns the proposal for re-review. Proposal lines cannot be edited at this stage.',
+        clarificationHint: 'Your response goes to the procurement officer, who decides whether to return the proposal to review. Proposal lines cannot be edited at this stage.',
         revise: 'Record response',
         revised: 'Response recorded',
         revisedTitle: 'Awaiting re-review',
         revisedBody: 'Your response was recorded (revision {{revision}}). A procurement officer will return the proposal to review.',
         withdrawTitle: 'Withdraw proposal',
+        withdrawWarning: 'Withdrawing is final. You cannot re-enter this tender, and a withdrawn proposal cannot be restored.',
         withdraw: 'Withdraw proposal',
-        withdrawReasonPlaceholder: 'Reason for withdrawal',
         withdrawn: 'Proposal withdrawn',
         awardOfferedTitle: 'Award offer',
         awardOfferedBody: 'Your proposal has been selected for award. You may decline with a reason, or wait for the buyer to confirm.',
@@ -3309,12 +3298,12 @@ const resources = {
         deactivate: 'Deactivate',
         deactivateWarning: 'Deactivation is permanent and cannot be undone. All of this supplier\u2019s users will lose access immediately.',
         lifecycleFailed: 'Could not change supplier state',
-        requestInfo: 'Request info',
+        requestInfo: 'Request information',
         requestInfoFailed: 'Could not submit info request',
         reason: 'Reason',
         flagProfileFields: 'Fields needing changes',
         flagDocuments: 'Documents needing changes',
-        submit: 'Submit',
+        submit: 'Send request',
         cancel: 'Cancel',
         profile: 'Profile',
         legalInfo: 'Legal information',
@@ -3451,7 +3440,6 @@ const resources = {
         title: 'Company profile',
         edit: 'Edit',
         manage: 'Manage',
-        retry: 'Try again',
         incompleteTitle: 'Profile incomplete',
         incompleteBody: 'These items are required before the application can be submitted:',
         companyTitle: 'Company details',
@@ -3475,7 +3463,6 @@ const resources = {
           legalInfo: 'Legal information', address: 'Address', categoryLink: 'Categories',
           termsAccepted: 'Terms accepted',
         },
-        errors: { loadFailed: 'Could not load the profile' },
       },
       documents: {
         title: 'Documents',
@@ -3497,14 +3484,12 @@ const resources = {
         noHistory: 'No versions uploaded yet',
         close: 'Close',
         uploaded: 'Document uploaded',
-        retry: 'Try again',
         fields: {
           type: 'Document type', required: 'Required', state: 'State', expiry: 'Expires',
           actions: 'Actions', version: 'Version', fileName: 'File name',
           uploadedAt: 'Uploaded', reason: 'Rejection reason',
         },
         errors: {
-          loadFailed: 'Could not load your documents',
           uploadFailed: 'Could not upload the document',
           downloadFailed: 'Could not download the document',
           historyFailed: 'Could not load the version history',
@@ -3528,13 +3513,12 @@ const resources = {
       account: {
         title: 'Account',
         save: 'Save',
-        retry: 'Try again',
         saved: 'Changes saved',
         emailFixed: 'Your email address cannot be changed from this screen.',
         numeralsFollowLanguage: 'Numerals follow the interface language: Arabic renders ٠-٩, English 0-9.',
         fields: { fullName: 'Full name', language: 'Interface language', email: 'Email address' },
         languages: { ar: 'Arabic', en: 'English' },
-        errors: { loadFailed: 'Could not load your account', saveFailed: 'Could not save your changes' },
+        errors: { saveFailed: 'Could not save your changes' },
       },
       sessionExpired: {
         title: 'Session expired',
@@ -3564,8 +3548,8 @@ const resources = {
         topics: {
           submitProposal: {
             question: 'How do I bid on a tender?',
-            answer: 'Tenders you have been invited to appear in your RFQ list. Open one, start a proposal, and complete pricing, terms and documents before submitting.',
-            action: 'Go to RFQs',
+            answer: 'Tenders you have been invited to appear in your tender list. Open one, start a proposal, and complete pricing, terms and documents before submitting.',
+            action: 'Go to tenders',
           },
           afterSubmitting: {
             question: 'Can I change my proposal after submitting it?',

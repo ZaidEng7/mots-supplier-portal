@@ -459,7 +459,7 @@ export function OnboardingPage() {
   }
   // A failed fetch is not an empty result: without this the screen below renders its
   // empty state and tells the reader there is nothing here.
-  if (profileQuery.isError) return <QueryError onRetry={() => void profileQuery.refetch()} />
+  if (profileQuery.isError) return <QueryError error={profileQuery.error} onRetry={() => void profileQuery.refetch()} />
 
 
   const profile = profileQuery.data as SupplierProfile | undefined

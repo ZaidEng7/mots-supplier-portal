@@ -309,7 +309,7 @@ export function BackOfficeShell({ children }: Props) {
           </Button>
         </div>
       </header>
-      <main className="flex flex-1 flex-col px-4 py-8 sm:px-6" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+      <main id="main" className="flex flex-1 flex-col px-4 py-8 sm:px-6" style={{ backgroundColor: 'var(--color-bg-app)' }}>
         {children}
       </main>
     </div>
