@@ -840,3 +840,11 @@ Ship on D-65's terms: **accepted for the demonstration build without a line-by-l
 They name the four regions the buyer's tender screen is now divided into. «الطلب» rather than «المناقصة»
 because the rest of this screen's Arabic already calls the thing الطلب, and one screen using two words for
 one object is the defect the copy pass spent its time removing.
+
+### Phase 6E · the charts
+
+Ships on D-65's terms: **accepted for the demonstration build without a line-by-line read**.
+
+| Key | English | Arabic (authored) | Why it exists |
+|---|---|---|---|
+| `charts.nothingToPlot` | No figures available to chart. The table below carries what there is. | لا توجد أرقام قابلة للرسم. الجدول أدناه يعرض المتاح منها. | D-57 withholds commercial values outside a demonstration environment. A chart of nothing but withheld months must say so rather than draw bars of height zero, which would assert that nothing was awarded |

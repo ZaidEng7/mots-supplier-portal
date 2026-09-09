@@ -51,3 +51,10 @@ for (const [route, name] of [
     })
   }
 }
+
+test('capture ministry award analytics en', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await mockBackend(page)
+  await page.goto('/back-office/ministry/awards?lng=en', { waitUntil: 'networkidle' })
+  await page.screenshot({ path: `${OUT}/ministry-awards-en.png`, fullPage: true })
+})
