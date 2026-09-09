@@ -7,7 +7,7 @@ interface FieldProps {
   error?: string
   hint?: string
   required?: boolean
-  children: (inputProps: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean }) => ReactNode
+  children: (inputProps: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean; 'aria-required'?: boolean }) => ReactNode
 }
 
 /** Label + input-slot + error/hint wiring so every form control gets consistent a11y association. */
@@ -25,6 +25,13 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
         style={{ color: 'var(--color-text-secondary)' }}
       >
         {label}
+        {/*
+          The asterisk is aria-hidden and stays that way - a screen reader announcing "asterisk" is
+          noise. What was missing is the fact it stands for: nothing in this component told assistive
+          technology the field was required, so a screen-reader user met the requirement for the first
+          time as a validation error after submitting. `aria-required` below is that fact, said once, in
+          the place a reader is already listening.
+        */}
         {required ? (
           <span aria-hidden="true" style={{ color: 'var(--color-danger-fg)' }}>
             {' '}
@@ -32,7 +39,12 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
           </span>
         ) : null}
       </Label.Root>
-      {children({ id, 'aria-describedby': describedBy, 'aria-invalid': !!error })}
+      {children({
+        id,
+        'aria-describedby': describedBy,
+        'aria-invalid': !!error,
+        'aria-required': required || undefined,
+      })}
       {hint && !error ? (
         // --color-text-muted fails WCAG AA at caption size (3.83:1 vs the 4.5:1 required for
         // small text) - use --color-text-secondary here, which clears AA at 5.99:1.
