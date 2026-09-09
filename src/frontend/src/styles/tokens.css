@@ -109,6 +109,51 @@
   --text-caption: 0.75rem;
   --lh-tight: 1.25; --lh-normal: 1.5; --lh-relaxed: 1.6;
   --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+
+  /* Spacing — DESIGN-SYSTEM.md §4.1, the canonical 4px grid.
+     Declared here because the spec declares it and 41 references across the product asked for
+     tokens this file had never defined. Applied through LOGICAL properties only
+     (padding-inline, margin-block, gap) so RTL mirrors without a second rule. */
+  --space-0: 0; --space-0-5: 2px; --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* Radius — §4.2. Nineteen components already said var(--radius-md) / var(--radius-sm) and got
+     nothing: an undefined custom property makes the whole declaration invalid, so those corners
+     rendered square beside literal-valued neighbours that rendered round. */
+  --radius-sm: 6px;      /* chips, small controls */
+  --radius-md: 8px;      /* inputs, buttons */
+  --radius-lg: 12px;     /* cards */
+  --radius-xl: 16px;     /* large cards, modals */
+  --radius-pill: 9999px; /* status chips, avatars */
+
+  /* Elevation — §4.3: soft and layered, never a harsh 0-offset black shadow. Separation is a 1px
+     border by default; elevation is for genuinely floating layers only - dropdown sm, card and
+     drawer md, modal and popover lg. */
+  --shadow-sm: 0 1px 2px rgba(28,27,25,0.06), 0 1px 1px rgba(28,27,25,0.04);
+  --shadow-md: 0 4px 12px rgba(28,27,25,0.08), 0 1px 3px rgba(28,27,25,0.05);
+  --shadow-lg: 0 12px 32px rgba(28,27,25,0.12), 0 4px 8px rgba(28,27,25,0.06);
+  --shadow-focus: var(--focus-ring);
+
+  /* Motion — §4.4. Reduced motion is honoured globally in index.css, which overrides every
+     duration rather than relying on each component to remember. */
+  --motion-fast: 120ms; --motion-base: 160ms; --motion-slow: 200ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.15, 1);
+
+  /* Back-office chrome — §5.2/5.3's dark top bar, which is dark in BOTH themes so staff can tell at
+     a glance which side of the product they are in. It was 32 copies of a literal #F4F1EC plus raw
+     --n-800/--n-900 primitives in one file; components consume semantics only (the rule at the top of
+     this file), so the chrome gets its own semantic names and they do not flip with the theme. */
+  --color-chrome-bg: var(--n-900);
+  --color-chrome-surface: var(--n-800);
+  --color-chrome-border: var(--n-700);
+  --color-chrome-text: #F4F1EC;
+
+  /* Z-index — §4.5. One scale, so "which of these two floats above the other" is answered by the
+     token names rather than by two components both reaching for z-50. */
+  --z-base: 0; --z-sticky: 100; --z-header: 200; --z-dropdown: 300; --z-drawer: 400;
+  --z-modal: 500; --z-popover: 600; --z-toast: 700; --z-tooltip: 800;
 }
 
 :root[dir="rtl"] { --font-ui: var(--font-sans-ar); --lh-body: var(--lh-relaxed); }
@@ -175,6 +220,12 @@
   --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: #CD3D2E;
   --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: #2B73C1;
   --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
+
+  /* Elevation in dark mode - §4.3. A shadow tuned for a light surface disappears on a dark one,
+     so these are deeper rather than the same values reused. */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.45);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,0.55);
   /* -danger-solid/-info-solid are the only two "solid" swatches overridden here rather than
      inheriting the light-mode primitive (success/warning/gold-solid all cleared 3:1 against
      --color-bg-surface as-is, checked, not assumed) - --danger-500/--info-500 measured 2.85:1

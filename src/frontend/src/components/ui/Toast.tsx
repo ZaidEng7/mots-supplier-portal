@@ -49,10 +49,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onOpenChange={(open) => {
               if (!open) dismiss(toast.id)
             }}
-            className="rounded-[0.5rem] p-4 shadow-lg"
+            className="rounded-[var(--radius-md)] p-4"
             style={{
               backgroundColor: 'var(--color-bg-surface)',
               border: `1px solid ${kindColor[toast.kind]}`,
+              boxShadow: 'var(--shadow-lg)',
             }}
           >
             <RadixToast.Title className="text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -76,7 +77,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           Found by the 320px reflow check added for the reports screen, which is the first check in
           this project to look at that width at all. Pre-existing and unrelated to that screen.
         */}
-        <RadixToast.Viewport className="fixed bottom-20 end-4 z-50 flex w-96 max-w-[calc(100%-2rem)] flex-col gap-2 outline-none md:bottom-4" />
+        <RadixToast.Viewport
+          // §4.5: above a modal, so a confirmation is never hidden behind the dialog that produced it.
+          style={{ zIndex: 'var(--z-toast)' }}
+          className="fixed bottom-20 end-4 flex w-96 max-w-[calc(100%-2rem)] flex-col gap-2 outline-none md:bottom-4" />
       </RadixToast.Provider>
     </ToastContext.Provider>
   )

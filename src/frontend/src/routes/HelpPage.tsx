@@ -38,7 +38,7 @@ export function HelpPage() {
         {topics.map((topic) => (
           <div
             key={topic.key}
-            className="rounded-[0.75rem] p-5"
+            className="rounded-[var(--radius-lg)] p-5"
             style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
           >
             <h2 className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -49,14 +49,14 @@ export function HelpPage() {
             </p>
             {/* Every answer ends somewhere the user can act, because guidance that stops at an
                 explanation makes the reader hunt for the screen it just described. */}
-            <Link to={topic.to} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-primary-fg)' }}>
+            <Link to={topic.to} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-link)' }}>
               {t(`help.topics.${topic.key}.action`)}
             </Link>
           </div>
         ))}
       </section>
 
-      <section className="rounded-[0.75rem] p-5" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <section className="rounded-[var(--radius-lg)] p-5" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('help.contactTitle')}
         </h2>

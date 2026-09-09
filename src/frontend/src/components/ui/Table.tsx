@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from 'react'
 export function Table({ children, caption, maxHeight }: { children: ReactNode; caption?: string; maxHeight?: string }) {
   return (
     <div
-      className="w-full overflow-auto rounded-[0.5rem]"
+      className="w-full overflow-auto rounded-[var(--radius-md)]"
       style={{ border: '1px solid var(--color-border)', maxHeight }}
     >
       <table className="w-full border-collapse text-[length:var(--text-body-sm)]">
@@ -72,7 +72,7 @@ export function TableCell({
       className={`px-4 py-2.5 ${className}`}
       style={{
         color: 'var(--color-text-primary)',
-        backgroundColor: highlight ? 'var(--color-warning-subtle, var(--color-brand-subtle))' : sticky ? 'var(--color-bg-surface)' : undefined,
+        backgroundColor: highlight ? 'var(--color-warning-bg)' : sticky ? 'var(--color-bg-surface)' : undefined,
         fontWeight: highlight ? 'var(--fw-semibold)' : undefined,
         ...(sticky ? { position: 'sticky', insetInlineStart: 0, zIndex: 1 } : {}),
         ...style,

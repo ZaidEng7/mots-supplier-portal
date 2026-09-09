@@ -16,13 +16,13 @@ export function HomePage() {
         className="rounded-lg border p-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
       >
-        <h2 className="mb-2 text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        <h2 className="mb-2 text-[length:var(--text-body-lg)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('health.title')}
         </h2>
         {health.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>...</p>}
         {health.isSuccess && (
           <span
-            className="inline-flex rounded-full px-3 py-1 text-sm font-medium"
+            className="inline-flex rounded-full px-3 py-1 text-[length:var(--text-body)] font-[var(--fw-medium)]"
             style={{ color: 'var(--color-success-fg)', backgroundColor: 'var(--color-success-bg)' }}
           >
             {t('health.healthy')}
@@ -30,7 +30,7 @@ export function HomePage() {
         )}
         {health.isError && (
           <span
-            className="inline-flex rounded-full px-3 py-1 text-sm font-medium"
+            className="inline-flex rounded-full px-3 py-1 text-[length:var(--text-body)] font-[var(--fw-medium)]"
             style={{ color: 'var(--color-danger-fg)', backgroundColor: 'var(--color-danger-bg)' }}
           >
             {t('health.unhealthy')}
@@ -42,14 +42,14 @@ export function HomePage() {
         className="rounded-lg border p-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
       >
-        <h2 className="mb-3 text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        <h2 className="mb-3 text-[length:var(--text-body-lg)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('reference.currencies')}
         </h2>
         <ul className="flex flex-col gap-2">
           {currencies.data?.map((c) => (
-            <li key={c.id} className="flex items-center justify-between text-sm">
+            <li key={c.id} className="flex items-center justify-between text-[length:var(--text-body)]">
               <span style={{ color: 'var(--color-text-primary)' }}>{isArabic ? c.nameAr : c.nameEn}</span>
-              <span className="num font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+              <span className="num font-[var(--fw-medium)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {c.code}
               </span>
             </li>

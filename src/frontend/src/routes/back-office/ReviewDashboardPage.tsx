@@ -29,7 +29,7 @@ export function ReviewDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-[length:var(--text-heading-lg)]">{t('reviewDashboard.title')}</h1>
+        <h1 className="text-[length:var(--text-h1)]">{t('reviewDashboard.title')}</h1>
         <Link to="/back-office/review">{t('reviewDashboard.openQueue')}</Link>
       </div>
 
@@ -55,7 +55,7 @@ export function ReviewDashboardPage() {
               <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {t(`reviewDashboard.kpis.${key}`)}
               </p>
-              <p className="num text-[length:var(--text-heading-md)]">{formatNumber(value, locale, 0)}</p>
+              <p className="num text-[length:var(--text-h2)]">{formatNumber(value, locale, 0)}</p>
             </li>
           ))}
         </ul>

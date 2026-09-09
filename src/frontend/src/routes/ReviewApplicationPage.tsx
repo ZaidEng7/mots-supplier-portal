@@ -57,7 +57,7 @@ function RequestInfoDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={t('review.requestInfo')}>
       <div className="flex flex-col gap-4">
         <textarea
-          className="rounded-[0.375rem] p-2"
+          className="rounded-[var(--radius-md)] p-2"
           style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
           rows={3}
           value={reason}
@@ -263,7 +263,7 @@ export function ReviewApplicationPage() {
         ) : null}
       </div>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('review.profile')}
         </h2>
@@ -279,7 +279,7 @@ export function ReviewApplicationPage() {
         </dl>
       </div>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('review.legalInfo')}
         </h2>
@@ -311,7 +311,7 @@ export function ReviewApplicationPage() {
         )}
       </div>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('review.addresses')}
         </h2>
@@ -339,7 +339,7 @@ export function ReviewApplicationPage() {
         )}
       </div>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('review.representatives')}
         </h2>
@@ -395,13 +395,13 @@ export function ReviewApplicationPage() {
         )}
       </div>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('review.documents')}
         </h2>
         <ul className="flex flex-col gap-2">
           {documents.map((doc) => (
-            <li key={doc.documentTypeId} className="flex items-center justify-between gap-3 rounded-[0.375rem] p-3" style={{ border: '1px solid var(--color-border)' }}>
+            <li key={doc.documentTypeId} className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3" style={{ border: '1px solid var(--color-border)' }}>
               <div className="flex items-center gap-2">
                 <Badge tone={doc.latestDocument?.state === 'Rejected' || doc.latestDocument?.state === 'Expired' ? 'danger' : 'neutral'}>
                   {doc.latestDocument?.state ?? t('onboarding.missing')}
@@ -439,7 +439,7 @@ export function ReviewApplicationPage() {
       </div>
 
       {annotationHistory.length > 0 ? (
-        <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
           <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {t('review.annotationHistory')}
           </h2>

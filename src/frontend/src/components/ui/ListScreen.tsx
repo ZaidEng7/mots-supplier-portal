@@ -103,7 +103,7 @@ export function ListState({
   children: ReactNode
 }) {
   if (isPending) return <SkeletonTable label={loadingLabel} rows={skeletonRows} />
-  if (isError) return <p style={{ color: 'var(--color-danger)' }}>{errorText}</p>
+  if (isError) return <p style={{ color: 'var(--color-danger-fg)' }}>{errorText}</p>
   if (isEmpty) return <p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>
   return <>{children}</>
 }

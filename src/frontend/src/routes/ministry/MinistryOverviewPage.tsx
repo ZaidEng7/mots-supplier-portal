@@ -53,7 +53,7 @@ export function MinistryOverviewPage() {
             <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t(`ministry.kpis.${key}`)}
             </p>
-            <p className="num text-[length:var(--text-heading-md)]">{value}</p>
+            <p className="num text-[length:var(--text-h2)]">{value}</p>
           </li>
         ))}
       </ul>

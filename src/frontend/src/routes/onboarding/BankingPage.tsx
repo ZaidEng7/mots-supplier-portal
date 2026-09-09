@@ -226,7 +226,7 @@ export function BankingPage() {
 
       <Card title={t('banking.accountsTitle')} action={editable ? <Button size="sm" onClick={() => setDialog({ open: true })}>{t('banking.addAccount')}</Button> : null}>
         {rowError ? (
-          <p role="alert" className="mb-3 rounded-[0.375rem] px-3 py-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--danger-50)', color: 'var(--danger-600)' }}>
+          <p role="alert" className="mb-3 rounded-[var(--radius-sm)] px-3 py-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--danger-50)', color: 'var(--danger-600)' }}>
             {rowError}
           </p>
         ) : null}

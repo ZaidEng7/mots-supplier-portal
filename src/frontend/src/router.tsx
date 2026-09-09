@@ -140,7 +140,7 @@ const rootRoute = createRootRoute({
           page content, and inside the root so an anonymous user on /login has it too. */}
       <PublicFooter />
       <SessionExpiredOverlay />
-      {/* SCR-010. Below the expiry overlay in stacking order (z-40 against z-50): if a session lapses
+      {/* SCR-010. Below the expiry overlay in stacking order (--z-modal against --z-tooltip): if a session lapses
           while the language question is open, the expiry is the one that has to be answered first. */}
       <FirstRunLocale />
     </Suspense>
@@ -222,14 +222,14 @@ function IndexPage() {
         className="flex items-center justify-between border-b px-6 py-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
       >
-        <span className="text-lg font-semibold" style={{ color: 'var(--color-text-brand)' }}>
+        <span className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-brand)' }}>
           {t('appName')}
         </span>
         <div className="flex items-center gap-3">
           <LanguageSwitch />
           <Link
             to="/login"
-            className="rounded-md px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)]"
+            className="rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)]"
             style={{ backgroundColor: 'var(--color-brand-solid)', color: 'var(--color-text-inverse)' }}
           >
             {t('auth.submit')}

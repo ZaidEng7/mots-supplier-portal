@@ -23,8 +23,12 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label={t('nav.mobileTabBarLabel')}
-      className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
-      style={{ backgroundColor: 'var(--color-bg-surface)', borderTop: '1px solid var(--color-border)' }}
+      className="fixed inset-x-0 bottom-0 flex md:hidden"
+      style={{
+        zIndex: 'var(--z-sticky)',
+        backgroundColor: 'var(--color-bg-surface)',
+        borderTop: '1px solid var(--color-border)',
+      }}
     >
       {TABS.map(({ path, key, Icon }) => {
         const active = path === '/dashboard' ? pathname === path : pathname.startsWith(path)

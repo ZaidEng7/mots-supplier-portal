@@ -60,7 +60,7 @@ export function ReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-[length:var(--text-heading-lg)]">{t('reports.title')}</h1>
+        <h1 className="text-[length:var(--text-h1)]">{t('reports.title')}</h1>
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col text-[length:var(--text-body-sm)]">
             {t('reports.from')}
@@ -86,7 +86,7 @@ export function ReportsPage() {
       </header>
 
       {downloadError ? (
-        <p role="alert" style={{ color: 'var(--color-danger)' }}>{t('reports.downloadFailed')}</p>
+        <p role="alert" style={{ color: 'var(--color-danger-fg)' }}>{t('reports.downloadFailed')}</p>
       ) : null}
 
       {/* ---------------------------------------------------------------- FEAT-19.1 */}
@@ -122,7 +122,7 @@ export function ReportsPage() {
             />
 
             <section>
-              <h3 className="mb-2 text-[length:var(--text-body-md)]">{t('reports.procurement.cycleTime')}</h3>
+              <h3 className="mb-2 text-[length:var(--text-h4)]">{t('reports.procurement.cycleTime')}</h3>
 
               {/*
                 The coverage floor, stated on the screen and not only in the export. Cycle time is
@@ -151,7 +151,7 @@ export function ReportsPage() {
                   <tbody>
                     {procurement.data.cycleTimes.map((interval) => (
                       <tr key={interval.key}>
-                        <th scope="row" className="text-start font-normal">
+                        <th scope="row" className="text-start font-[var(--fw-regular)]">
                           {t(`reports.intervals.${interval.key}`)}
                         </th>
                         <td className="num">{formatNumber(interval.sampleSize, locale, 0)}</td>
@@ -258,7 +258,7 @@ function CountTable({
 }) {
   return (
     <section>
-      <h3 className="mb-2 text-[length:var(--text-body-md)]">{caption}</h3>
+      <h3 className="mb-2 text-[length:var(--text-h4)]">{caption}</h3>
 
       {rows.length === 0 ? (
         <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -278,7 +278,7 @@ function CountTable({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key}>
-                  <th scope="row" className="text-start font-normal">
+                  <th scope="row" className="text-start font-[var(--fw-regular)]">
                     <StatusChip machine={machine} value={row.key} />
                   </th>
                   <td className="num">{formatNumber(row.count, locale, 0)}</td>

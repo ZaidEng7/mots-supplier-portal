@@ -41,12 +41,17 @@ export function FirstRunLocale() {
   if (!isAuthenticated || !accountQuery.data || accountQuery.data.languageChosen) return null
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      // The modal layer, below the expiry overlay: if a session lapses while the language question is
+      // open, the expiry is the one that has to be answered first.
+      style={{ zIndex: 'var(--z-modal)', backgroundColor: 'var(--color-bg-overlay)' }}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="first-run-locale-title"
-        className="w-full max-w-[26rem] rounded-[0.75rem] p-6"
+        className="w-full max-w-[26rem] rounded-[var(--radius-lg)] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
       >
         {/* Both languages at once, and this is the one screen in the app where that is right: the

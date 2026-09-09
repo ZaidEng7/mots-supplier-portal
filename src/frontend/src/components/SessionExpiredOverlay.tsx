@@ -56,14 +56,17 @@ export function SessionExpiredOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+      className="fixed inset-0 flex items-center justify-center p-4"
+      // The topmost layer this product defines. Nothing else uses --z-tooltip (there are no tooltips),
+      // and an expired session outranks everything a person could be in the middle of - a dialog, a
+      // select popover, a toast. Above them all is the whole point: the work behind it cannot be saved.
+      style={{ zIndex: 'var(--z-tooltip)', backgroundColor: 'var(--color-bg-overlay)' }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-expired-title"
-        className="w-full max-w-[26rem] rounded-[0.75rem] p-6"
+        className="w-full max-w-[26rem] rounded-[var(--radius-lg)] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
       >
         <h2

@@ -40,7 +40,7 @@ export function ProcurementDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-[length:var(--text-heading-lg)]">{t('procurementDashboard.title')}</h1>
+        <h1 className="text-[length:var(--text-h1)]">{t('procurementDashboard.title')}</h1>
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col text-[length:var(--text-body-sm)]">
             {t('procurementDashboard.from')}
@@ -81,7 +81,7 @@ export function ProcurementDashboardPage() {
               <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {t(`procurementDashboard.kpis.${key}`)}
               </p>
-              <p className="num text-[length:var(--text-heading-md)]">{formatNumber(value, locale, 0)}</p>
+              <p className="num text-[length:var(--text-h2)]">{formatNumber(value, locale, 0)}</p>
             </li>
           ))}
         </ul>
@@ -104,7 +104,7 @@ export function ProcurementDashboardPage() {
                   <li key={column.state} className="min-w-[9rem] rounded-[var(--radius-md)] p-3"
                     style={{ border: '1px solid var(--color-border)' }}>
                     <StatusChip machine="rfq" value={column.state} />
-                    <p className="num mt-2 text-[length:var(--text-heading-md)]">
+                    <p className="num mt-2 text-[length:var(--text-h2)]">
                       {formatNumber(column.count, locale, 0)}
                     </p>
                     {column.nearestDeadline ? (

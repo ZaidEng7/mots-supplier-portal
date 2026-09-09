@@ -84,7 +84,7 @@ function AccountSection() {
         {(p) => (
         <select
           {...p}
-          className="w-full rounded-[0.5rem] px-3 py-2 text-[length:var(--text-body)]"
+          className="w-full rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)]"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
           value={languageValue}
           onChange={(e) => setLanguage(e.target.value)}
@@ -165,7 +165,7 @@ function ChangePasswordSection() {
   })
 
   return (
-    <section className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+    <section className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
       <h2 className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
         {t('settings.passwordTitle')}
       </h2>
@@ -233,7 +233,7 @@ function MfaSection() {
         <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('settings.recoveryCodesNotice')}
         </p>
-        <ul className="num grid grid-cols-2 gap-2 rounded-[0.375rem] p-3" style={{ backgroundColor: 'var(--color-bg-sunken)' }}>
+        <ul className="num grid grid-cols-2 gap-2 rounded-[var(--radius-sm)] p-3" style={{ backgroundColor: 'var(--color-bg-sunken)' }}>
           {recoveryCodes.map((c) => (
             <li key={c} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
               {c}
@@ -248,7 +248,7 @@ function MfaSection() {
     return (
       <div className="flex flex-col gap-3">
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('settings.mfaScanOrEnter')}</p>
-        <p className="num rounded-[0.375rem] p-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--color-bg-sunken)', color: 'var(--color-text-primary)' }}>
+        <p className="num rounded-[var(--radius-sm)] p-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--color-bg-sunken)', color: 'var(--color-text-primary)' }}>
           {enrollment.sharedKey}
         </p>
         <Field label={t('settings.mfaCodeLabel')}>
@@ -309,7 +309,7 @@ function SessionsSection() {
         {sessions.map((s) => (
           <li
             key={s.familyId}
-            className="flex items-center justify-between rounded-[0.375rem] p-3"
+            className="flex items-center justify-between rounded-[var(--radius-sm)] p-3"
             style={{ border: '1px solid var(--color-border)' }}
           >
             <div>
@@ -357,7 +357,7 @@ export function SettingsPage() {
         {t('settings.title')}
       </h1>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('account.title')}
         </h2>
@@ -366,14 +366,14 @@ export function SettingsPage() {
 
       <ChangePasswordSection />
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('settings.mfaTitle')}
         </h2>
         <MfaSection />
       </div>
 
-      <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+      <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
         <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('settings.sessionsTitle')}
         </h2>
@@ -393,7 +393,7 @@ export function SettingsPage() {
         rather than as a section that does not apply to them.
       */}
       {isSupplier ? (
-        <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
           <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {t('settings.auditTitle')}
           </h2>

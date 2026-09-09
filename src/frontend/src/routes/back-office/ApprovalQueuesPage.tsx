@@ -67,7 +67,7 @@ export function ApprovalQueuesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-[length:var(--text-heading-lg)]">{t('approvals.title')}</h1>
+        <h1 className="text-[length:var(--text-h1)]">{t('approvals.title')}</h1>
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('approvals.subtitle')}</p>
       </div>
 

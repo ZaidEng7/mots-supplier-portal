@@ -37,7 +37,7 @@ export function SupplierShell({ children }: Props) {
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
       >
         <div className="flex items-center gap-6">
-          <span className="text-lg font-semibold" style={{ color: 'var(--color-text-brand)' }}>
+          <span className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-brand)' }}>
             {t('appName')}
           </span>
           <nav className="hidden gap-4 md:flex">
