@@ -10,6 +10,7 @@ import { invalidateQuietly } from '../lib/queryClient'
 import { listOfferings, createOffering, updateOffering, deactivateOffering, type Offering, type OfferingPayload } from '../api/offerings'
 import { fetchCategories, fetchUnitsOfMeasure, fetchCurrencies } from '../api/reference'
 import { SupplierApiError } from '../api/supplier'
+import { localisedName } from '../lib/localised'
 
 const schema = z.object({
   nameAr: z.string().min(1),
@@ -230,11 +231,11 @@ export function OfferingCatalogPage() {
 
   const categoryLabel = (code: string) => {
     const c = categories.find((c) => c.code === code)
-    return c ? (isArabic ? c.nameAr : c.nameEn) : code
+    return localisedName(c, isArabic, code)
   }
   const unitLabel = (code: string) => {
     const u = units.find((u) => u.code === code)
-    return u ? (isArabic ? u.nameAr : u.nameEn) : code
+    return localisedName(u, isArabic, code)
   }
 
   if (offeringsQuery.isError) {

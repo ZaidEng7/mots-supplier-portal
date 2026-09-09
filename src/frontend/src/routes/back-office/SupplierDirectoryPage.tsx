@@ -5,6 +5,7 @@ import { Badge, FilterBar, FilterField, ListCard, PageHeading, SearchField, Sele
 import { listSupplierDirectory } from '../../api/supplierDirectory'
 import { nextPageParam } from '../../api/listEnvelope'
 import { fetchCategories } from '../../api/reference'
+import { localisedName } from '../../lib/localised'
 
 /**
  * SCR-402: the supplier directory a buyer browses before deciding whom to invite.
@@ -48,7 +49,7 @@ export function SupplierDirectoryPage() {
 
   const categoryLabel = (code: string) => {
     const match = categories.find((c) => c.code === code)
-    return match ? (isArabic ? match.nameAr : match.nameEn) : code
+    return localisedName(match, isArabic, code)
   }
 
   return (

@@ -29,6 +29,12 @@ const PERMISSION_LABELS: Record<string, { ar: string; en: string }> = {
   'offering.search': { ar: 'البحث عن الخدمات المعروضة', en: 'Search offerings' },
 }
 
+/** The two refusals the server names, and the string each maps to. */
+const ROLE_ERROR_KEYS: Record<string, string> = {
+  would_lock_out_role_management: 'roleManagement.errors.wouldLockOutRoleManagement',
+  invalid_permission: 'roleManagement.errors.invalidPermission',
+}
+
 export function RolesPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -51,12 +57,10 @@ export function RolesPage() {
       )
     },
     onError: (err) => {
-      const message =
-        err instanceof SupplierApiError && err.message === 'would_lock_out_role_management'
-          ? t('roleManagement.errors.wouldLockOutRoleManagement')
-          : err instanceof SupplierApiError && err.message === 'invalid_permission'
-            ? t('roleManagement.errors.invalidPermission')
-            : t('roleManagement.errors.updateFailed')
+      // The server names its two refusals with machine-stable codes, so the mapping is a table.
+      const code = err instanceof SupplierApiError ? err.message : undefined
+      const messageKey = ROLE_ERROR_KEYS[code ?? ''] ?? 'roleManagement.errors.updateFailed'
+      const message = t(messageKey)
       notify({ kind: 'danger', title: message })
     },
   })

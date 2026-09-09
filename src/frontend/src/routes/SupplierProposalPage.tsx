@@ -9,6 +9,7 @@ import { useParams } from '@tanstack/react-router'
 import {Button, Card, Input, PageHeading, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
+import { apiErrorMessage } from '../api/problem'
 import {
   startProposal, getProposal, patchProposal,
   addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, declineAwardOffer, reviseProposal, ProposalApiError,
@@ -77,7 +78,7 @@ export function SupplierProposalPage() {
   }
 
   const errorMessage = (err: unknown, fallback: string) =>
-    err instanceof ProposalApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof ProposalApiError ? err.message : fallback
+    apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
 
   const startMutation = useMutation({
     mutationFn: () => startProposal(referenceCode),

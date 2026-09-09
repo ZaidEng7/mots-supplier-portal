@@ -2,7 +2,7 @@ import { formatNumber } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   listEvaluationTemplates, createEvaluationTemplate, addCriterion, activateEvaluationTemplate,
@@ -17,6 +17,8 @@ const SCORING_TYPES: ScoringType[] = ['Numeric', 'Scale', 'Boolean', 'Formula']
  * a real, Active template to exist. Weight-sum-must-equal-100 and immutable-once-referenced are
  * both domain invariants (EvaluationTemplate.cs); this page surfaces the exact refusal message the
  * domain raises rather than re-deriving validation client-side. */
+const TEMPLATE_TONES = { Active: 'success', Archived: 'neutral', Draft: 'info' } as const
+
 export function EvaluationTemplatesPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -121,7 +123,7 @@ export function EvaluationTemplatesPage() {
           return (
             <Card key={template.id} title={`${template.nameEn} (v${template.version})`}>
               <div className="mb-3 flex items-center gap-2">
-                <Badge tone={template.status === 'Active' ? 'success' : template.status === 'Archived' ? 'neutral' : 'info'}>
+                <Badge tone={toneFor(template.status, TEMPLATE_TONES)}>
                   {template.status}
                 </Badge>
                 {template.isReferenced ? <Badge tone="warning">{t('evaluationTemplates.referenced')}</Badge> : null}

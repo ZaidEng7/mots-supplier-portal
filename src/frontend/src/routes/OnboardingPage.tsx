@@ -632,9 +632,9 @@ export function OnboardingPage() {
             </Button>
           </div>
         ) : (
-          <p role="status" style={{ color: 'var(--success-600)' }}>
+          <output className="block" style={{ color: 'var(--success-600)' }}>
             {t('onboarding.readOnlyNotice')}
-          </p>
+          </output>
         )}
       </form>
 

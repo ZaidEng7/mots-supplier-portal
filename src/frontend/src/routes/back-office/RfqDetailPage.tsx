@@ -12,7 +12,6 @@ import {
   changeSubmissionDeadline, reassignRfq, listRfqAssignees,
   inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
   updateRfqBasics, updateRfqItem, updateRequirement,
-  RfqApiError,
 } from '../../api/rfqs'
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
 import { fetchCategories, fetchUnitsOfMeasure } from '../../api/reference'
@@ -24,6 +23,7 @@ import { getWorkspace } from '../../api/workspace'
 import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
 import { CancelSection } from './rfq/sections/CancelSection'
+import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
@@ -157,7 +157,7 @@ export function RfqDetailPage() {
   const evaluation = evaluationQuery.data ?? null
 
   const errorMessage = (err: unknown, fallback: string) =>
-    err instanceof RfqApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof RfqApiError ? err.message : fallback
+    apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
   const invalidate = () => {
     invalidateQuietly(queryClient, { queryKey: ['rfq', referenceCode] })
     invalidateQuietly(queryClient, { queryKey: ['workspace', referenceCode] })

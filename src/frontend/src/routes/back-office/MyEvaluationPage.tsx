@@ -5,8 +5,9 @@ import { Link, useParams } from '@tanstack/react-router'
 import {Badge, Button, Card, Input, PageHeading, QueryError, SkeletonList, StatusChip, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
+import { apiErrorMessage } from '../../api/problem'
 import {
-  getMyEvaluation, scoreCriterion, submitMyEvaluation, evaluatorProposalDocumentUrl, EvaluationApiError,
+  getMyEvaluation, scoreCriterion, submitMyEvaluation, evaluatorProposalDocumentUrl,
   getConflictDeclaration, declareConflict,
 } from '../../api/evaluations'
 
@@ -72,7 +73,7 @@ export function MyEvaluationPage() {
   const evaluation = evaluationQuery.data ?? null
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['my-evaluation', referenceCode] })
   const errorMessage = (err: unknown, fallback: string) =>
-    err instanceof EvaluationApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof EvaluationApiError ? err.message : fallback
+    apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
 
   /**
    * BRULE-061's comment travels with the score, in ONE language - whichever the evaluator is working in.

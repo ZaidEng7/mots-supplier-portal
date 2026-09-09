@@ -82,10 +82,10 @@ export function SearchPage() {
           </p>
 
           {resultsQuery.data.truncated ? (
-            <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
+            <output className="block mb-3 rounded-[var(--radius-md)] p-3"
               style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
               {t('search.truncated')}
-            </p>
+            </output>
           ) : null}
 
           {resultsQuery.data.hits.length === 0 ? (

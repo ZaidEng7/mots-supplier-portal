@@ -19,6 +19,19 @@ import { getSystemSettings, updateSystemSetting, type SystemSetting } from '../.
  * renders the right control without keeping a second copy of the catalogue that could disagree with
  * the one that validates.</p>
  */
+/**
+ * The help text under a setting's control. A list of integers needs a format hint; a bounded integer
+ * needs its bounds; everything else needs nothing, and an unbounded one must NOT be given a range hint
+ * with `null` in it.
+ */
+function hintFor(setting: SystemSetting, t: (key: string, opts?: Record<string, unknown>) => string): string | undefined {
+  if (setting.kind === 'IntegerList') return t('systemSettings.hints.integerList')
+  if (setting.minimum !== null && setting.maximum !== null) {
+    return t('systemSettings.hints.range', { min: setting.minimum, max: setting.maximum })
+  }
+  return undefined
+}
+
 export function SystemSettingsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -108,13 +121,7 @@ export function SystemSettingsPage() {
                 <Field
                   label={t('systemSettings.value')}
                   error={error}
-                  hint={
-                    setting.kind === 'IntegerList'
-                      ? t('systemSettings.hints.integerList')
-                      : setting.minimum !== null && setting.maximum !== null
-                        ? t('systemSettings.hints.range', { min: setting.minimum, max: setting.maximum })
-                        : undefined
-                  }
+                  hint={hintFor(setting, t)}
                 >
                   {(inputProps) => (
                     <Input

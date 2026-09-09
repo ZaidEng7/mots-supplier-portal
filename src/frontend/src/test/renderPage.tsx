@@ -76,11 +76,18 @@ export interface RecordedRequest {
 }
 
 /** Pass a `recorded` array to assert what the page SENT, not only what it rendered. */
+/** `fetch` takes three shapes of first argument, and all three carry a URL. */
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return input.url
+}
+
 export function mockFetch(routes: Record<string, unknown>, recorded?: RecordedRequest[]): () => void {
   const original = globalThis.fetch
 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = requestUrl(input)
     // LONGEST match, not first declared. §12-A/C2 introduced nested routes where one declared
     // path is a strict prefix of another - "/api/v1/rfqs/RFQ-1" and "/api/v1/rfqs/RFQ-1/proposals"
     // - and a first-match-wins substring search answers the sub-route with the parent's fixture.

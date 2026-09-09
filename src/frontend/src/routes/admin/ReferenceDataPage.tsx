@@ -23,6 +23,16 @@ import {
  * would leave that RFQ describing nothing, and renaming a code would silently change what a historical
  * award was for. Deactivation hides a code from new selections and leaves every existing row readable.</p>
  */
+/**
+ * A duplicate code is a refusal this screen can word itself. An invalid reference item is one only the
+ * server can explain, so its own message wins. Everything else falls back to the caller's wording.
+ */
+function messageFor(code: string | undefined, raised: unknown, fallback: string, duplicateText: string): string {
+  if (code === 'DUPLICATE_RESOURCE') return duplicateText
+  if (code === 'INVALID_REFERENCE_ITEM' && raised instanceof SupplierApiError) return raised.message
+  return fallback
+}
+
 export function ReferenceDataPage() {
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -50,11 +60,10 @@ export function ReferenceDataPage() {
   // so it goes to the toast. Doing both put the same sentence on screen twice.
   const onError = (raised: unknown, fallback: string, surface: 'field' | 'toast') => {
     const code = raised instanceof SupplierApiError ? (raised.code ?? '') : ''
-    const message =
-      code === 'DUPLICATE_RESOURCE' ? t('referenceAdmin.errors.duplicateCode')
-        : code === 'INVALID_REFERENCE_ITEM'
-          ? (raised instanceof SupplierApiError ? raised.message : fallback)
-          : fallback
+    // Two distinct refusals, each with its own answer, and everything else falling back. Written as
+    // statements rather than a chain because the middle case defers to the SERVER's wording - the
+    // reference item is invalid for a reason only the server knows.
+    const message = messageFor(code, raised, fallback, t('referenceAdmin.errors.duplicateCode'))
     if (surface === 'field') setError(message)
     else notify({ kind: 'danger', title: message })
   }

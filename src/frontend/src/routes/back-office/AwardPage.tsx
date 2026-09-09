@@ -8,6 +8,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
+import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-14.1..14.6/FR-AWD-001..007. Every action here hides only, never gates - the server
  * re-enforces its own guard (state, segregation of duties, supplier-active) regardless of what
@@ -55,7 +56,7 @@ export function AwardPage() {
 
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['award', referenceCode] })
   const errorMessage = (err: unknown, fallback: string) =>
-    err instanceof AwardApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof AwardApiError ? err.message : fallback
+    apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
 
   const recommendMutation = useMutation({
     mutationFn: () => recommendAward(referenceCode, { winningProposalId, justificationAr, justificationEn }),

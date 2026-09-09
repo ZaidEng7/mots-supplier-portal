@@ -21,7 +21,11 @@ for (const locale of ['en', 'ar'] as const) {
     test(`capture buyer tender workspace ${name} ${locale}`, async ({ page }) => {
       await page.setViewportSize({ width, height })
       await mockBackend(page)
-      await page.goto(`/back-office/rfqs/${RFQ_REFERENCE_CODE}?lng=${locale}`, { waitUntil: 'networkidle' })
+      // No `networkidle`: it waits for the network to go quiet, which is a proxy for readiness rather
+      // than readiness itself, and it never settles on a page that polls. The heading assertion below is
+      // the real condition - the screen has rendered - so waiting for it is both the readiness check and
+      // the proof the capture is worth taking.
+      await page.goto(`/back-office/rfqs/${RFQ_REFERENCE_CODE}?lng=${locale}`)
       // Not ceremony to satisfy a rule. A screenshot of a blank page is worthless as evidence and looks
       // identical to a screenshot of a working one in a file listing - which is the failure mode this
       // whole batch has been closing. Every capture proves the screen rendered before recording it.
@@ -41,7 +45,7 @@ for (const [route, name] of [
     test(`capture ${name} ${locale}`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 900 })
       await mockBackend(page)
-      await page.goto(`${route}?lng=${locale}`, { waitUntil: 'networkidle' })
+      await page.goto(`${route}?lng=${locale}`)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await page.screenshot({ path: `${OUT}/${name}-${locale}.png`, fullPage: true })
     })

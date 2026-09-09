@@ -98,10 +98,10 @@ export function SupplierDashboardPage() {
       </header>
 
       {data.erpDegraded ? (
-        <div role="status" className="rounded-[var(--radius-md)] p-3"
+        <output className="block rounded-[var(--radius-md)] p-3"
           style={{ background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
           {t('supplierDashboard.erpDegraded')}
-        </div>
+        </output>
       ) : null}
 
       {chips.length > 0 ? (

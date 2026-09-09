@@ -16,7 +16,7 @@ import type { ReactNode } from 'react'
  * screen would have picked its own. This is that component, and the size is the one they already agreed
  * on rather than a new opinion.</p>
  */
-export function AuthHeading({ title, children }: { title: string; children?: ReactNode }) {
+export function AuthHeading({ title, children }: Readonly<{ title: string; children?: ReactNode }>) {
   return (
     <>
       <h1

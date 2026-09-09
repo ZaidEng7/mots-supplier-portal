@@ -75,10 +75,10 @@ export function MinistryAwardAnalyticsPage() {
       </div>
 
       {!commercialValuesVisible ? (
-        <p role="status" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
+        <output className="block rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
            style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
           {t('ministryAwards.valuesWithheld')}
-        </p>
+        </output>
       ) : null}
 
       <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">

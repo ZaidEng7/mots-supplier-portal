@@ -34,7 +34,9 @@ function decodeClaims(accessToken: string): AuthClaims | null {
   try {
     const payload = accessToken.split('.')[1]
     const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-    const permissions: string[] = Array.isArray(json.perms) ? json.perms : json.perms ? [json.perms] : []
+    // The claim arrives as an array when there are several and as a bare string when there is one,
+    // which is how JWT claims are serialised. Neither shape is an error; both mean "these permissions".
+    const permissions: string[] = toPermissionList(json.perms)
     return {
       userId: json.sub,
       email: json.email,
@@ -45,6 +47,13 @@ function decodeClaims(accessToken: string): AuthClaims | null {
   } catch {
     return null
   }
+}
+
+/** A JWT claim holding several values arrives as an array and one holding a single value as a string. */
+function toPermissionList(claim: unknown): string[] {
+  if (Array.isArray(claim)) return claim as string[]
+  if (typeof claim === 'string' && claim !== '') return [claim]
+  return []
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({

@@ -64,7 +64,12 @@ export function RfqListPage() {
       <Card
         title={t('rfq.listTitle')}
         action={
-          <div role="group" aria-label={t('rfq.ownerFilter.label')} className="flex flex-wrap gap-2">
+          <fieldset className="m-0 flex flex-wrap gap-2 border-0 p-0">
+            {/* <fieldset>, not <div role="group">: the native element carries the same grouping
+                semantics without asserting a role, and its <legend> is the accessible name rather than
+                an aria-label duplicating one. The classes strip the border and padding a fieldset
+                brings by default. */}
+            <legend className="sr-only">{t('rfq.ownerFilter.label')}</legend>
             {(['all', 'me', 'unassigned'] as const).map((value) => (
               <Button
                 key={value}
@@ -76,7 +81,7 @@ export function RfqListPage() {
                 {t(`rfq.ownerFilter.${value}`)}
               </Button>
             ))}
-          </div>
+          </fieldset>
         }
       >
         {rfqsQuery.isPending ? (

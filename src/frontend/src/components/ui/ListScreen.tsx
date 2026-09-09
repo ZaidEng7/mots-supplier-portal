@@ -19,14 +19,14 @@ import { errorDetail } from '../../api/problem'
  */
 
 /** Screen title and its one-line explanation of what the reader is looking at. */
-export function PageHeading({ title, subtitle, actions, meta }: {
+export function PageHeading({ title, subtitle, actions, meta }: Readonly<{
   title: string
   subtitle?: string
   /** The primary action for this screen, beside the title rather than adrift below it. */
   actions?: ReactNode
   /** A status chip, a reference code, an owner - the facts that identify this particular record. */
   meta?: ReactNode
-}) {
+}>) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
@@ -68,7 +68,7 @@ export function PageHeading({ title, subtitle, actions, meta }: {
  * a text input, say - and a plain `<span>` otherwise. A `<label for>` pointing at nothing is worse than no
  * label, because a screen reader announces the association and then lands the user nowhere.</p>
  */
-export function FilterField({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+export function FilterField({ label, htmlFor, children }: Readonly<{ label: string; htmlFor?: string; children: ReactNode }>) {
   return (
     <div className="flex flex-col gap-1">
       {htmlFor ? (
@@ -93,13 +93,13 @@ export function FilterField({ label, htmlFor, children }: { label: string; htmlF
  */
 export function SearchField({
   id, label, placeholder, value, onChange,
-}: {
+}: Readonly<{
   id: string
   label: string
   placeholder?: string
   value: string
   onChange: (value: string) => void
-}) {
+}>) {
   return (
     <FilterField label={label} htmlFor={id}>
       <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
@@ -108,7 +108,7 @@ export function SearchField({
 }
 
 /** The row of filters above a list. */
-export function FilterBar({ children }: { children: ReactNode }) {
+export function FilterBar({ children }: Readonly<{ children: ReactNode }>) {
   return <div className="flex flex-wrap gap-4">{children}</div>
 }
 
@@ -121,7 +121,7 @@ export function FilterBar({ children }: { children: ReactNode }) {
  */
 export function ListState({
   isPending, isError, isEmpty, loadingLabel, errorText, emptyText, error, skeletonRows = 5, children,
-}: {
+}: Readonly<{
   isPending: boolean
   isError: boolean
   isEmpty: boolean
@@ -133,7 +133,7 @@ export function ListState({
   error?: unknown
   skeletonRows?: number
   children: ReactNode
-}) {
+}>) {
   if (isPending) return <SkeletonTable label={loadingLabel} rows={skeletonRows} />
   if (isError) {
     const detail = errorDetail(error)
@@ -155,7 +155,7 @@ export function ListState({
  * on every screen, and eighteen variants would be eighteen more strings to translate and keep aligned.
  * `onRetry` is optional because not every caller holds a refetch worth offering.</p>
  */
-export function QueryError({ error, onRetry }: { error?: unknown; onRetry?: () => void }) {
+export function QueryError({ error, onRetry }: Readonly<{ error?: unknown; onRetry?: () => void }>) {
   const { t } = useTranslation()
   // The audit's §C5: a reader learned THAT a screen failed and never WHY. The why was already on the
   // error - every api module builds its message from the server's RFC 9457 `detail` - and the read
@@ -177,12 +177,12 @@ export function QueryError({ error, onRetry }: { error?: unknown; onRetry?: () =
 /** The next page of a keyset-paged list. Renders nothing when there is no next page. */
 export function LoadMore({
   hasNextPage, isFetching, onClick, label,
-}: {
+}: Readonly<{
   hasNextPage: boolean
   isFetching: boolean
   onClick: () => void
   label: string
-}) {
+}>) {
   if (!hasNextPage) return null
   return (
     <div className="mt-4">
@@ -227,14 +227,14 @@ export interface ListCardLabels {
  */
 export function ListCard({
   title, query, isEmpty, labels, skeletonRows, children,
-}: {
+}: Readonly<{
   title: string
   query: PagedQueryLike
   isEmpty: boolean
   labels: ListCardLabels
   skeletonRows?: number
   children: ReactNode
-}) {
+}>) {
   return (
     <Card title={title}>
       <ListState

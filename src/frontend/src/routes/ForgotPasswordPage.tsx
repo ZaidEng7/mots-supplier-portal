@@ -49,9 +49,9 @@ export function ForgotPasswordPage() {
       >
         <AuthHeading title={t('auth.forgotTitle')} />
         {sent ? (
-          <p role="status" style={{ color: 'var(--color-text-secondary)' }}>
+          <output className="block" style={{ color: 'var(--color-text-secondary)' }}>
             {t('auth.forgotSent')}
-          </p>
+          </output>
         ) : (
           <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
             {failed ? (

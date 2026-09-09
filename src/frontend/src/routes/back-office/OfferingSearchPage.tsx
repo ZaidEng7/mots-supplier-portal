@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import {Badge, Card, Input, PageHeading, QueryError, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
+import { localisedName } from '../../lib/localised'
 
 /** FEAT-06.3/FR-OFF-004/FR-SRCH-001: procurement staff searching offerings across all suppliers
  * for RFQ invitation candidates. Results are already lifecycle-filtered server-side (FEAT-06.4) -
@@ -26,7 +27,7 @@ export function OfferingSearchPage() {
 
   const categoryLabel = (code: string) => {
     const c = categories.find((c) => c.code === code)
-    return c ? (isArabic ? c.nameAr : c.nameEn) : code
+    return localisedName(c, isArabic, code)
   }
 
   return (

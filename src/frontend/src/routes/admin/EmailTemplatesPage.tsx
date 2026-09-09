@@ -19,6 +19,12 @@ import {
  * <p>The shipped wording sits beside the editor with its tokens intact, so revert is not guesswork and an
  * administrator can see which placeholders they are allowed to use.</p>
  */
+/** The server's two named refusals, and their strings. Anything else is a generic save failure. */
+const REASON_KEYS: Record<string, string> = {
+  MISSING_REQUIRED_TOKENS: 'emailTemplates.errors.missingTokens',
+  UNKNOWN_TOKENS: 'emailTemplates.errors.unknownTokens',
+}
+
 export function EmailTemplatesPage() {
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -43,11 +49,7 @@ export function EmailTemplatesPage() {
         setRejectedTokens(error.tokens)
         notify({
           kind: 'danger',
-          title: t(error.reason === 'MISSING_REQUIRED_TOKENS'
-            ? 'emailTemplates.errors.missingTokens'
-            : error.reason === 'UNKNOWN_TOKENS'
-              ? 'emailTemplates.errors.unknownTokens'
-              : 'emailTemplates.errors.saveFailed'),
+          title: t(REASON_KEYS[error.reason] ?? 'emailTemplates.errors.saveFailed'),
         })
         return
       }
