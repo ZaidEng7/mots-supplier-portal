@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { getMeta } from '../api/meta'
-import { PageHeading } from '../components/ui/ListScreen'
+import { Card, PageHeading } from '../components/ui'
 
 /**
  * SCR-908 — what this build is, and what to quote when reporting a problem.
@@ -20,10 +20,7 @@ export function AboutPage() {
     <main className="mx-auto flex max-w-[42rem] flex-col gap-6 p-6">
       <PageHeading title={t('about.title')} />
 
-      <section className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('about.buildTitle')}
-        </h2>
+      <Card title={t('about.buildTitle')}>
         <dl className="flex flex-col gap-2">
           <div>
             <dt className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>{t('about.version')}</dt>
@@ -40,14 +37,11 @@ export function AboutPage() {
             </div>
           ) : null}
         </dl>
-      </section>
+      </Card>
 
-      <section className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('about.supportTitle')}
-        </h2>
+      <Card title={t('about.supportTitle')}>
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('about.correlationHelp')}</p>
-      </section>
+      </Card>
 
       {/*
         Legal is a HEADING and no text. SCREEN-INVENTORY asks for "legal links", and terms of use and a
@@ -55,12 +49,9 @@ export function AboutPage() {
         plausible-looking policy nobody approved is worse than an acknowledged gap, so the section says
         what is missing and who owes it.
       */}
-      <section className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('about.legalTitle')}
-        </h2>
+      <Card title={t('about.legalTitle')}>
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('about.legalPending')}</p>
-      </section>
+      </Card>
     </main>
   )
 }
