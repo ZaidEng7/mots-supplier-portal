@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch, listPage, type RecordedRequest } from '../test/renderPage'
+import { renderPage, mockFetch, listPage, type RecordedRequest, expectRetryableFailure } from '../test/renderPage'
 
 const { SettingsPage } = await import('./SettingsPage')
 const { useAuthStore } = await import('../lib/authStore')
@@ -263,5 +263,17 @@ describe('SettingsPage change password (SCR-903)', () => {
     await screen.findByText(/password changed|تم تغيير/i)
     expect(await screen.findByLabelText(/current password/i)).toHaveValue('')
     expect(screen.getByLabelText(/^new password/i)).toHaveValue('')
+  })
+
+  it('shows a retryable failure rather than an empty screen', async () => {
+    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
+    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
+    // button wired to nothing looks identical to one that works.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/auth/me': { __status: 500 } }, recorded)
+
+    renderPage(<SettingsPage />)
+
+    await expectRetryableFailure('/api/v1/auth/me', recorded)
   })
 })

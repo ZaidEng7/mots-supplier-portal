@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../test/renderPage'
 import { AT_RISK_HOURS, OVERDUE_HOURS, ReviewQueuePage, ageTone, formatAge } from './ReviewQueuePage'
 
 /** FEAT-03.6/FR-ONB-012: the age-badge logic had zero test coverage before this - the backend
@@ -89,5 +89,17 @@ describe('ReviewQueuePage state filter', () => {
     expect(screen.getByRole('option', { name: 'Rejected' })).toBeInTheDocument()
     // The default option said "All" and meant "the three that need a decision", which is not all.
     expect(screen.getByRole('option', { name: 'Awaiting a decision' })).toBeInTheDocument()
+  })
+
+  it('shows a retryable failure rather than an empty screen', async () => {
+    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
+    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
+    // button wired to nothing looks identical to one that works.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/review/queue': { __status: 500 } }, recorded)
+
+    renderPage(<ReviewQueuePage />)
+
+    await expectRetryableFailure('/api/v1/review/queue', recorded)
   })
 })

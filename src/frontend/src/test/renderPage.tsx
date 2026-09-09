@@ -180,3 +180,36 @@ export function listPage<T>(items: T[], overrides: { hasMore?: boolean; nextCurs
     meta: { sort: null, filtersApplied: null },
   }
 }
+
+/**
+ * Asserts a screen's failure state: it says the load failed, and its retry control actually retries.
+ *
+ * <p><b>The half that was missing everywhere.</b> `asyncStateCoverage.test.ts` proves every fetching
+ * route HANDLES `isError` — it reads the source and checks the branch exists. Nine screens had no test
+ * that the branch ever renders, and not one screen in the product had a test that clicked the button
+ * inside it. A retry control wired to nothing looks exactly like one that works, in a screenshot and in
+ * a source sweep alike.</p>
+ *
+ * <p>Counting requests rather than spying on `refetch` keeps this about the observable behaviour: the
+ * screen asked the server again. Pass the `recorded` array `mockFetch` filled, and the URL fragment the
+ * screen's own query uses.</p>
+ */
+export async function expectRetryableFailure(url: string, recorded: RecordedRequest[]) {
+  const { screen, waitFor, within } = await import('@testing-library/react')
+  const userEvent = (await import('@testing-library/user-event')).default
+  const { expect } = await import('vitest')
+
+  // Scoped to the alert, not the page. A screen with several independent queries renders several of
+  // these, and clicking whichever one the document happened to yield first would prove nothing about
+  // the query under test.
+  const alerts = await screen.findAllByRole('alert')
+  const alert = alerts.find((node) => /could not load|تعذّر تحميل/i.test(node.textContent ?? ''))
+  expect(alert, 'no failure message on screen').toBeDefined()
+
+  const before = recorded.filter((request) => request.url.includes(url)).length
+  await userEvent.click(within(alert!).getByRole('button', { name: /try again|إعادة المحاولة/i }))
+
+  await waitFor(() => {
+    expect(recorded.filter((request) => request.url.includes(url)).length).toBeGreaterThan(before)
+  })
+}

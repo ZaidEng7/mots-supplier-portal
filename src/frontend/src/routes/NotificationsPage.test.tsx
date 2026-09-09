@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../test/renderPage'
 
 // Same shape every other page test uses: the real Link needs a router context this render does not
 // provide, and the assertions here are about the anchor existing, not about navigation.
@@ -95,5 +95,17 @@ describe('NotificationsPage (SCR-900)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Mark all as read' }))
 
     expect(calls.some((url) => url.endsWith('/api/v1/notifications/read-all'))).toBe(true)
+  })
+
+  it('shows a retryable failure rather than an empty screen', async () => {
+    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
+    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
+    // button wired to nothing looks identical to one that works.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/notifications': { __status: 500 } }, recorded)
+
+    renderPage(<NotificationsPage />)
+
+    await expectRetryableFailure('/api/v1/notifications', recorded)
   })
 })

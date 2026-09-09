@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
-import { renderPage, mockFetch } from '../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../test/renderPage'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -107,5 +107,17 @@ describe('ProfilePage (SCR-121)', () => {
     renderPage(<ProfilePage />)
 
     expect(await screen.findByRole('button', { name: /try again|إعادة المحاولة/i })).toBeInTheDocument()
+  })
+
+  it('shows a retryable failure rather than an empty screen', async () => {
+    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
+    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
+    // button wired to nothing looks identical to one that works.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/suppliers/me': { __status: 500 } }, recorded)
+
+    renderPage(<ProfilePage />)
+
+    await expectRetryableFailure('/api/v1/suppliers/me', recorded)
   })
 })

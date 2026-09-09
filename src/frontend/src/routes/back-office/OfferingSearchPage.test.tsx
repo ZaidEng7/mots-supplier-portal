@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../../test/renderPage'
 
 const { OfferingSearchPage } = await import('./OfferingSearchPage')
 
@@ -44,5 +44,17 @@ describe('OfferingSearchPage', () => {
     renderPage(<OfferingSearchPage />)
 
     expect(await screen.findByText('No results')).toBeInTheDocument()
+  })
+
+  it('shows a retryable failure rather than an empty screen', async () => {
+    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
+    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
+    // button wired to nothing looks identical to one that works.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({ '/api/v1/offerings/search': { __status: 500 }, '/api/v1/reference/categories': [] }, recorded)
+
+    renderPage(<OfferingSearchPage />)
+
+    await expectRetryableFailure('/api/v1/offerings/search', recorded)
   })
 })

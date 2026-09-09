@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch, type RecordedRequest } from '../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest, expectRetryableFailure } from '../test/renderPage'
 
 const { DocumentsPage } = await import('./DocumentsPage')
 
@@ -267,5 +267,17 @@ describe('DocumentsPage (SCR-130)', () => {
     expect(await screen.findByText(/could not|تعذّر/i)).toBeInTheDocument()
     expect(open).not.toHaveBeenCalled()
     open.mockRestore()
+  })
+
+  it('shows a retryable failure rather than an empty document list', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      '/api/v1/suppliers/SUP-000001/documents': { __status: 500 },
+    }, recorded)
+
+    renderPage(<DocumentsPage />)
+
+    await expectRetryableFailure('/documents', recorded)
   })
 })

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../../test/renderPage'
 
 const { OrganizationsPage } = await import('./OrganizationsPage')
 
@@ -93,5 +93,22 @@ describe('OrganizationsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add link' }))
 
     expect(await screen.findByText('Link created')).toBeInTheDocument()
+  })
+
+  it('shows a retryable failure when a supplier lookup cannot load its links', async () => {
+    // This query is disabled until somebody actually looks a supplier up, so the failure state cannot
+    // be reached by rendering the page - the test has to do what a user does first.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/organizations': [],
+      '/api/v1/organizations/supplier-links/SUP-2026-000001': { __status: 500 },
+    }, recorded)
+
+    renderPage(<OrganizationsPage />)
+
+    await userEvent.type(await screen.findByLabelText('Supplier reference code'), 'SUP-2026-000001')
+    await userEvent.click(screen.getByRole('button', { name: 'Look up' }))
+
+    await expectRetryableFailure('/supplier-links/', recorded)
   })
 })
