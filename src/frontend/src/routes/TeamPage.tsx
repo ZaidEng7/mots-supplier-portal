@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Dialog, Field, Input, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
 import { useToast } from '../components/ui'
 import { listTeam, inviteTeamMember, disableTeamMember } from '../api/team'
 import { SupplierApiError } from '../api/supplier'
@@ -68,6 +68,10 @@ export function TeamPage() {
   if (teamQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
+  // A failed fetch is not an empty result: without this the screen below renders its
+  // empty state and tells the reader there is nothing here.
+  if (teamQuery.isError) return <QueryError onRetry={() => void teamQuery.refetch()} />
+
 
   const members = teamQuery.data?.pages.flatMap((p) => p.data) ?? []
 

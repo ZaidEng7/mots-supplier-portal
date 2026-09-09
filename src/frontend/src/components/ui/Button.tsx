@@ -34,7 +34,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
-      className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-[var(--fw-medium)] transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${sizeStyle[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-[var(--fw-medium)] transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${sizeStyle[size]} ${className}`}
       style={{
         backgroundColor: v.bg,
         color: v.fg,

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from './Button'
 import { Card } from './Card'
 import { Input } from './Input'
@@ -106,6 +107,32 @@ export function ListState({
   if (isError) return <p style={{ color: 'var(--color-danger-fg)' }}>{errorText}</p>
   if (isEmpty) return <p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>
   return <>{children}</>
+}
+
+/**
+ * "We could not load this", said once, everywhere.
+ *
+ * <p><b>The defect this closes.</b> Eighteen screens distinguished loading from empty and stopped there,
+ * so a failed fetch rendered the EMPTY state: "you have no invitations" when the truth was "we could not
+ * ask". React Query does not throw to the router's error boundary unless a query opts in, so nothing
+ * escalated - the page looked calm and said something false.</p>
+ *
+ * <p>One component and one string pair rather than eighteen: the words a person needs here are the same
+ * on every screen, and eighteen variants would be eighteen more strings to translate and keep aligned.
+ * `onRetry` is optional because not every caller holds a refetch worth offering.</p>
+ */
+export function QueryError({ onRetry }: { onRetry?: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div role="alert" className="flex flex-col items-start gap-2">
+      <p style={{ color: 'var(--color-danger-fg)' }}>{t('common.loadFailed')}</p>
+      {onRetry ? (
+        <Button size="sm" variant="secondary" onClick={onRetry}>
+          {t('common.retry')}
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 /** The next page of a keyset-paged list. Renders nothing when there is no next page. */

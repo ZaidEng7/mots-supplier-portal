@@ -2,7 +2,7 @@ import { formatNumber } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   listEvaluationTemplates, createEvaluationTemplate, addCriterion, activateEvaluationTemplate,
@@ -113,7 +113,11 @@ export function EvaluationTemplatesPage() {
         <Button onClick={() => setCreateOpen(true)}>{t('evaluationTemplates.add')}</Button>
       </div>
 
-      {templates.length === 0 ? (
+      {templatesQuery.isPending ? (
+        <SkeletonList label={t('common.loading')} />
+      ) : templatesQuery.isError ? (
+        <QueryError onRetry={() => void templatesQuery.refetch()} />
+      ) : templates.length === 0 ? (
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluationTemplates.empty')}</p>
       ) : (
         templates.map((template: EvaluationTemplate) => {

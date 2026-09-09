@@ -3,7 +3,7 @@ import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Dialog, Field, Input, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Field, Input, QueryError, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -411,6 +411,10 @@ export function RfqDetailPage() {
     onSuccess: () => { invalidateEvaluation(); notify({ kind: 'success', title: t('evaluation.reopened') }); setReopenReason('') },
     onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
   })
+
+  // A tender that failed to load is not a tender that does not exist, and the branch below says
+  // "not found" for both.
+  if (rfqQuery.isError) return <QueryError onRetry={() => void rfqQuery.refetch()} />
 
   if (rfqQuery.isLoading || !rfq) {
     return <SkeletonList label={t('common.loading')} />

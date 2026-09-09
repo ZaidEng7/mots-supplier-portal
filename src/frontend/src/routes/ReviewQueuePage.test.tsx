@@ -7,6 +7,23 @@ import { AT_RISK_HOURS, OVERDUE_HOURS, ReviewQueuePage, ageTone, formatAge } fro
 /** FEAT-03.6/FR-ONB-012: the age-badge logic had zero test coverage before this - the backend
  * sourcing (EnteredQueueAt) is tested in ReviewQueuePaginationTests.cs, but the tone thresholds
  * and the AR/EN formatting that turn hours into what a reviewer actually reads were not. */
+describe('ReviewQueuePage, when the queue cannot be loaded', () => {
+  let restore: () => void
+  afterEach(() => restore?.())
+
+  it('says the fetch failed instead of saying the queue is empty', async () => {
+    // The defect this pins: React Query does not throw to the router's error boundary, so a failed
+    // fetch left `data` undefined and this screen rendered "nothing waiting for you" - the one thing a
+    // reviewer must not be told wrongly, because they act on it by going away.
+    restore = mockFetch({ '/api/v1/review/queue': { __status: 500 } })
+
+    renderPage(<ReviewQueuePage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('We could not load this. Try again.')
+    expect(screen.queryByText('No applications awaiting review')).not.toBeInTheDocument()
+  })
+})
+
 describe('ageTone', () => {
   it('is success below the at-risk threshold', () => {
     expect(ageTone(0)).toBe('success')

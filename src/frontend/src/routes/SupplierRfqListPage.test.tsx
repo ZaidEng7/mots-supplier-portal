@@ -98,4 +98,15 @@ describe('SupplierRfqListPage', () => {
     expect(screen.getByText('RFQ-2026-000001')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
   })
+
+  it('says the fetch failed rather than "no invitations yet"', async () => {
+    // T2-32 fixed loading-vs-empty and left failure sharing the empty branch: a supplier whose list
+    // could not load was told they had no invitations, which is a reason to stop looking.
+    restore = mockFetch({ '/api/v1/rfqs': { __status: 500 } })
+
+    renderPage(<SupplierRfqListPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('We could not load this. Try again.')
+    expect(screen.queryByText(/no invitations/i)).not.toBeInTheDocument()
+  })
 })

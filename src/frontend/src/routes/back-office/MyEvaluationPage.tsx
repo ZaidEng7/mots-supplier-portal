@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, SkeletonList, StatusChip, useToast } from '../../components/ui'
+import { Badge, Button, Card, Input, QueryError, SkeletonList, StatusChip, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
 import {
@@ -151,6 +151,10 @@ export function MyEvaluationPage() {
   if (evaluationQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
+  // A failed fetch is not an empty result: without this the screen below renders its
+  // empty state and tells the reader there is nothing here.
+  if (evaluationQuery.isError) return <QueryError onRetry={() => void evaluationQuery.refetch()} />
+
 
   if (!evaluation) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.notAssigned')}</p>

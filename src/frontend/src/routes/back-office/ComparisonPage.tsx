@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Input, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Badge, Button, Input, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { getComparison, resolveEvaluationTie } from '../../api/comparison'
 import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
@@ -75,6 +75,10 @@ export function ComparisonPage() {
   if (comparisonQuery.isLoading) {
     return <SkeletonTable label={t('common.loading')} />
   }
+  // A failed fetch is not an empty result: without this the screen below renders its
+  // empty state and tells the reader there is nothing here.
+  if (comparisonQuery.isError) return <QueryError onRetry={() => void comparisonQuery.refetch()} />
+
   if (!comparison) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notFound')}</p>
   }

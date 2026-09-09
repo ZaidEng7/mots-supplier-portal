@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Field, Input, PhoneInput, Select, StatusChip } from '../components/ui'
+import { Badge, Button, Card, Field, Input, PhoneInput, QueryError, Select, StatusChip } from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -457,6 +457,10 @@ export function OnboardingPage() {
   if (profileQuery.isLoading) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
   }
+  // A failed fetch is not an empty result: without this the screen below renders its
+  // empty state and tells the reader there is nothing here.
+  if (profileQuery.isError) return <QueryError onRetry={() => void profileQuery.refetch()} />
+
 
   const profile = profileQuery.data as SupplierProfile | undefined
   const missing = new Set(profile?.missingProfileFields ?? [])

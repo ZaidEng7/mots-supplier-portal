@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Card, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import { Button, Card, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
 import { nextPageParam } from '../api/listEnvelope'
 import { listInvitedRfqs } from '../api/supplierRfqs'
 
@@ -44,6 +44,10 @@ export function SupplierRfqListPage() {
             (skeleton), error, success". */}
         {rfqsQuery.isPending ? (
           <SkeletonList label={t('common.loading')} rows={3} />
+        ) : rfqsQuery.isError ? (
+          // The third state this chain was missing: a failed fetch used to fall through to "no
+          // invitations", which is a different fact and one the reader would have acted on.
+          <QueryError onRetry={() => void rfqsQuery.refetch()} />
         ) : rfqs.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.empty')}</p>
         ) : (

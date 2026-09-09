@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Card, Dialog, Field, Input, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import { Button, Card, Dialog, Field, Input, QueryError, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -84,7 +84,11 @@ export function RfqListPage() {
           </div>
         }
       >
-        {rfqs.length === 0 ? (
+        {rfqsQuery.isPending ? (
+          <SkeletonTable label={t('common.loading')} />
+        ) : rfqsQuery.isError ? (
+          <QueryError onRetry={() => void rfqsQuery.refetch()} />
+        ) : rfqs.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>
             {owner === 'all' ? t('rfq.empty') : t(`rfq.ownerFilter.empty.${owner}`)}
           </p>

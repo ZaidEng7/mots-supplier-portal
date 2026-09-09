@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, SkeletonList, useToast } from '../../components/ui'
+import { Card, QueryError, SkeletonList, useToast } from '../../components/ui'
 import { listRoles, updateRolePermissions, type Role, type RolesResponse } from '../../api/roles'
 import { SupplierApiError } from '../../api/supplier'
 
@@ -70,6 +70,10 @@ export function RolesPage() {
   if (rolesQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
+  // A failed fetch is not an empty result: without this the screen below renders its
+  // empty state and tells the reader there is nothing here.
+  if (rolesQuery.isError) return <QueryError onRetry={() => void rolesQuery.refetch()} />
+
 
   return (
     <div className="flex flex-col gap-6">
