@@ -31,7 +31,7 @@ export function LanguageSwitch() {
     <button
       type="button"
       onClick={toggle}
-      className="rounded-[var(--radius-md)] border px-3 py-1.5 text-[length:var(--text-body)] font-[var(--fw-medium)] transition-colors"
+      className="rounded-[var(--radius-md)] border px-3 py-1.5 text-[length:var(--text-body)] font-[var(--fw-medium)] transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)]"
       style={{
         borderColor: 'var(--color-border)',
         color: 'var(--color-text-primary)',

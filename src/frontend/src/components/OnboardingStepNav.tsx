@@ -28,7 +28,7 @@ export function OnboardingStepNav() {
           <Link
             key={step.path}
             to={step.path}
-            className="whitespace-nowrap rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)] transition-colors"
+            className="whitespace-nowrap rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)] transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)]"
             style={{
               backgroundColor: active ? 'var(--color-bg-surface)' : 'transparent',
               color: active ? 'var(--color-text-brand)' : 'var(--color-text-secondary)',
