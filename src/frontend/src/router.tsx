@@ -1,29 +1,75 @@
-import { AdminOverviewPage } from './routes/admin/AdminOverviewPage'
-import { SystemSettingsPage } from './routes/admin/SystemSettingsPage'
-import { NotificationTemplatesPage } from './routes/admin/NotificationTemplatesPage'
-import { ProfilePage } from './routes/ProfilePage'
-import { DocumentsPage } from './routes/DocumentsPage'
-import { MyProposalsPage } from './routes/MyProposalsPage'
-import { AboutPage } from './routes/AboutPage'
-import { HelpPage } from './routes/HelpPage'
-import { ReferenceDataPage } from './routes/admin/ReferenceDataPage'
-import { OperationsPage } from './routes/admin/OperationsPage'
-import { UiStringsPage } from './routes/admin/UiStringsPage'
-import { EmailTemplatesPage } from './routes/admin/EmailTemplatesPage'
-import { SearchPage } from './routes/SearchPage'
-import { AuditExplorerPage } from './routes/admin/AuditExplorerPage'
-import { MinistryOverviewPage } from './routes/ministry/MinistryOverviewPage'
 // SCR-604, eager like the overview it sits beside: both are small, and ministry_viewer's whole product is
 // these two screens.
-import { CategoryCoveragePage } from './routes/ministry/CategoryCoveragePage'
 // SCR-601/602/603/606 under D-66. Lazy, unlike the two small ministry screens above: these carry tables and
 // a detail view, and a ministry_viewer opening the overview should not pay for all four.
+import { lazy, Suspense } from 'react'
+
+const AdminOverviewPage = lazy(() => import('./routes/admin/AdminOverviewPage').then((m) => ({ default: m.AdminOverviewPage })))
+const SystemSettingsPage = lazy(() => import('./routes/admin/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })))
+const NotificationTemplatesPage = lazy(() => import('./routes/admin/NotificationTemplatesPage').then((m) => ({ default: m.NotificationTemplatesPage })))
+const ProfilePage = lazy(() => import('./routes/ProfilePage').then((m) => ({ default: m.ProfilePage })))
+const DocumentsPage = lazy(() => import('./routes/DocumentsPage').then((m) => ({ default: m.DocumentsPage })))
+const MyProposalsPage = lazy(() => import('./routes/MyProposalsPage').then((m) => ({ default: m.MyProposalsPage })))
+const AboutPage = lazy(() => import('./routes/AboutPage').then((m) => ({ default: m.AboutPage })))
+const HelpPage = lazy(() => import('./routes/HelpPage').then((m) => ({ default: m.HelpPage })))
+const ReferenceDataPage = lazy(() => import('./routes/admin/ReferenceDataPage').then((m) => ({ default: m.ReferenceDataPage })))
+const OperationsPage = lazy(() => import('./routes/admin/OperationsPage').then((m) => ({ default: m.OperationsPage })))
+const UiStringsPage = lazy(() => import('./routes/admin/UiStringsPage').then((m) => ({ default: m.UiStringsPage })))
+const EmailTemplatesPage = lazy(() => import('./routes/admin/EmailTemplatesPage').then((m) => ({ default: m.EmailTemplatesPage })))
+const SearchPage = lazy(() => import('./routes/SearchPage').then((m) => ({ default: m.SearchPage })))
+const AuditExplorerPage = lazy(() => import('./routes/admin/AuditExplorerPage').then((m) => ({ default: m.AuditExplorerPage })))
+const MinistryOverviewPage = lazy(() => import('./routes/ministry/MinistryOverviewPage').then((m) => ({ default: m.MinistryOverviewPage })))
+const CategoryCoveragePage = lazy(() => import('./routes/ministry/CategoryCoveragePage').then((m) => ({ default: m.CategoryCoveragePage })))
 const MinistryRfqMonitorPage = lazy(() => import('./routes/ministry/MinistryRfqMonitorPage').then((m) => ({ default: m.MinistryRfqMonitorPage })))
 const MinistryRfqDetailRoute = lazy(() => import('./routes/ministry/MinistryRfqDetailPage').then((m) => ({ default: m.MinistryRfqDetailRoute })))
 const MinistrySupplierRegistryPage = lazy(() => import('./routes/ministry/MinistrySupplierRegistryPage').then((m) => ({ default: m.MinistrySupplierRegistryPage })))
 const MinistryAwardAnalyticsPage = lazy(() => import('./routes/ministry/MinistryAwardAnalyticsPage').then((m) => ({ default: m.MinistryAwardAnalyticsPage })))
-import { ReportsPage } from './routes/back-office/ReportsPage'
-import { lazy, Suspense } from 'react'
+const ReportsPage = lazy(() => import('./routes/back-office/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const HomePage = lazy(() => import('./routes/HomePage').then((m) => ({ default: m.HomePage })))
+const LoginPage = lazy(() => import('./routes/LoginPage').then((m) => ({ default: m.LoginPage })))
+const RegisterPage = lazy(() => import('./routes/RegisterPage').then((m) => ({ default: m.RegisterPage })))
+const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
+const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
+const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
+const AcceptTeamInvitePage = lazy(() => import('./routes/AcceptTeamInvitePage').then((m) => ({ default: m.AcceptTeamInvitePage })))
+const AcceptStaffInvitePage = lazy(() => import('./routes/AcceptStaffInvitePage').then((m) => ({ default: m.AcceptStaffInvitePage })))
+const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
+const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
+const ContactsPage = lazy(() => import('./routes/onboarding/ContactsPage').then((m) => ({ default: m.ContactsPage })))
+const AddressesPage = lazy(() => import('./routes/onboarding/AddressesPage').then((m) => ({ default: m.AddressesPage })))
+const BankingPage = lazy(() => import('./routes/onboarding/BankingPage').then((m) => ({ default: m.BankingPage })))
+const OfferingsPage = lazy(() => import('./routes/onboarding/OfferingsPage').then((m) => ({ default: m.OfferingsPage })))
+const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: m.TeamPage })))
+const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').then((m) => ({ default: m.OfferingCatalogPage })))
+const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const NotificationPreferencesPage = lazy(() => import('./routes/NotificationPreferencesPage').then((m) => ({ default: m.NotificationPreferencesPage })))
+const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
+const EvaluationDashboardPage = lazy(() => import('./routes/EvaluationDashboardPage').then((m) => ({ default: m.EvaluationDashboardPage })))
+const ProcurementDashboardPage = lazy(() => import('./routes/back-office/ProcurementDashboardPage').then((m) => ({ default: m.ProcurementDashboardPage })))
+const ApprovalQueuesPage = lazy(() => import('./routes/back-office/ApprovalQueuesPage').then((m) => ({ default: m.ApprovalQueuesPage })))
+const ReviewDashboardPage = lazy(() => import('./routes/back-office/ReviewDashboardPage').then((m) => ({ default: m.ReviewDashboardPage })))
+const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
+const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
+const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
+const ComplianceDirectoryPage = lazy(() => import('./routes/ComplianceDirectoryPage').then((m) => ({ default: m.ComplianceDirectoryPage })))
+const SupplierDirectoryPage = lazy(() => import('./routes/back-office/SupplierDirectoryPage').then((m) => ({ default: m.SupplierDirectoryPage })))
+const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })))
+const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
+const RolesPage = lazy(() => import('./routes/back-office/RolesPage').then((m) => ({ default: m.RolesPage })))
+const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearchPage').then((m) => ({ default: m.OfferingSearchPage })))
+const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/EvaluationTemplatesPage').then((m) => ({ default: m.EvaluationTemplatesPage })))
+const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
+const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
+const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
+const MyEvaluationBriefRoute = lazy(() => import('./routes/back-office/MyEvaluationBriefPage').then((m) => ({ default: m.MyEvaluationBriefRoute })))
+const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
+const ReceivedProposalsPage = lazy(() => import('./routes/back-office/ReceivedProposalsPage').then((m) => ({ default: m.ReceivedProposalsPage })))
+const AwardPage = lazy(() => import('./routes/back-office/AwardPage').then((m) => ({ default: m.AwardPage })))
+const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
+const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
+const SupplierProposalPage = lazy(() => import('./routes/SupplierProposalPage').then((m) => ({ default: m.SupplierProposalPage })))
+const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
+const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { LanguageSwitch } from './components/LanguageSwitch'
@@ -42,55 +88,10 @@ import { refresh, getAccount } from './api/auth'
 // Lighthouse's mobile/4G throttling - well over budget - because every route pulled in every
 // other route's code (Radix, react-hook-form, zod) on first paint. Lazy-loading each route
 // component means the initial chunk only needs the router shell.
-const HomePage = lazy(() => import('./routes/HomePage').then((m) => ({ default: m.HomePage })))
-const LoginPage = lazy(() => import('./routes/LoginPage').then((m) => ({ default: m.LoginPage })))
-const RegisterPage = lazy(() => import('./routes/RegisterPage').then((m) => ({ default: m.RegisterPage })))
-const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
-const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
-const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
-const AcceptTeamInvitePage = lazy(() => import('./routes/AcceptTeamInvitePage').then((m) => ({ default: m.AcceptTeamInvitePage })))
-const AcceptStaffInvitePage = lazy(() => import('./routes/AcceptStaffInvitePage').then((m) => ({ default: m.AcceptStaffInvitePage })))
-const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
-const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
-const ContactsPage = lazy(() => import('./routes/onboarding/ContactsPage').then((m) => ({ default: m.ContactsPage })))
-const AddressesPage = lazy(() => import('./routes/onboarding/AddressesPage').then((m) => ({ default: m.AddressesPage })))
-const BankingPage = lazy(() => import('./routes/onboarding/BankingPage').then((m) => ({ default: m.BankingPage })))
-const OfferingsPage = lazy(() => import('./routes/onboarding/OfferingsPage').then((m) => ({ default: m.OfferingsPage })))
-const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: m.TeamPage })))
-const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').then((m) => ({ default: m.OfferingCatalogPage })))
-const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 // SCR-901.
-const NotificationPreferencesPage = lazy(() => import('./routes/NotificationPreferencesPage').then((m) => ({ default: m.NotificationPreferencesPage })))
-const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
-const EvaluationDashboardPage = lazy(() => import('./routes/EvaluationDashboardPage').then((m) => ({ default: m.EvaluationDashboardPage })))
-const ProcurementDashboardPage = lazy(() => import('./routes/back-office/ProcurementDashboardPage').then((m) => ({ default: m.ProcurementDashboardPage })))
-const ApprovalQueuesPage = lazy(() => import('./routes/back-office/ApprovalQueuesPage').then((m) => ({ default: m.ApprovalQueuesPage })))
-const ReviewDashboardPage = lazy(() => import('./routes/back-office/ReviewDashboardPage').then((m) => ({ default: m.ReviewDashboardPage })))
-const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
-const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
-const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
 // SCR-307 and SCR-402, the two directories. Lazy like every other back-office screen: neither is on the
 // path a reviewer or an officer takes on sign-in, so neither belongs in the first bundle.
-const ComplianceDirectoryPage = lazy(() => import('./routes/ComplianceDirectoryPage').then((m) => ({ default: m.ComplianceDirectoryPage })))
-const SupplierDirectoryPage = lazy(() => import('./routes/back-office/SupplierDirectoryPage').then((m) => ({ default: m.SupplierDirectoryPage })))
-const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })))
-const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
-const RolesPage = lazy(() => import('./routes/back-office/RolesPage').then((m) => ({ default: m.RolesPage })))
-const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearchPage').then((m) => ({ default: m.OfferingSearchPage })))
-const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/EvaluationTemplatesPage').then((m) => ({ default: m.EvaluationTemplatesPage })))
-const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
-const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
-const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
 // SCR-501.
-const MyEvaluationBriefRoute = lazy(() => import('./routes/back-office/MyEvaluationBriefPage').then((m) => ({ default: m.MyEvaluationBriefRoute })))
-const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
-const ReceivedProposalsPage = lazy(() => import('./routes/back-office/ReceivedProposalsPage').then((m) => ({ default: m.ReceivedProposalsPage })))
-const AwardPage = lazy(() => import('./routes/back-office/AwardPage').then((m) => ({ default: m.AwardPage })))
-const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
-const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
-const SupplierProposalPage = lazy(() => import('./routes/SupplierProposalPage').then((m) => ({ default: m.SupplierProposalPage })))
-const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
-const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
 
 /** Ensures a valid access token is in memory before a protected route renders — on a cold load
  * (page refresh) the store is empty, so this silently exchanges the httpOnly refresh cookie for a
