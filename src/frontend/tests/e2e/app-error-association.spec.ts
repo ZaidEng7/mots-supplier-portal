@@ -205,7 +205,10 @@ test.describe('Authenticated forms: error-association on real validation failure
     await page.goto('/onboarding?lng=en', { waitUntil: 'networkidle' })
     const legalNameEn = field(page, 'Legal name (English)')
     await legalNameEn.fill('')
-    await page.getByRole('button', { name: 'Save', exact: true }).first().click()
+    // Named, not `.first()` on an ambiguous 'Save'. The screen has two forms and both submit buttons
+    // used to read just "Save", so this clicked whichever came first in the DOM and would have passed
+    // even if it had submitted the wrong one.
+    await page.getByRole('button', { name: 'Save legal information' }).click()
     await assertErrorAssociated(page, legalNameEn, 'OnboardingPage.legalNameEn')
   })
 })

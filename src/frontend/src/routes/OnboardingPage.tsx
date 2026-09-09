@@ -625,7 +625,7 @@ export function OnboardingPage() {
           {!isReadOnly ? (
             <div>
               <Button type="submit" variant="secondary" isLoading={saveLegalMutation.isPending}>
-                {t('onboarding.save')}
+                {t('onboarding.saveLegal')}
               </Button>
             </div>
           ) : null}
@@ -672,7 +672,7 @@ export function OnboardingPage() {
           {!isReadOnly ? (
             <div>
               <Button type="submit" variant="secondary" isLoading={saveProfileMutation.isPending}>
-                {t('onboarding.save')}
+                {t('onboarding.saveProfile')}
               </Button>
             </div>
           ) : (
