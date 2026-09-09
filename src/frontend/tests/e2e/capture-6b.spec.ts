@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { RFQ_REFERENCE_CODE, mockBackend } from './fixtures'
 
 /**
@@ -22,6 +22,10 @@ for (const locale of ['en', 'ar'] as const) {
       await page.setViewportSize({ width, height })
       await mockBackend(page)
       await page.goto(`/back-office/rfqs/${RFQ_REFERENCE_CODE}?lng=${locale}`, { waitUntil: 'networkidle' })
+      // Not ceremony to satisfy a rule. A screenshot of a blank page is worthless as evidence and looks
+      // identical to a screenshot of a working one in a file listing - which is the failure mode this
+      // whole batch has been closing. Every capture proves the screen rendered before recording it.
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await page.screenshot({ path: `${OUT}/rfq-detail-${name}-${locale}.png`, fullPage: true })
     })
   }
@@ -38,6 +42,7 @@ for (const [route, name] of [
       await page.setViewportSize({ width: 1280, height: 900 })
       await mockBackend(page)
       await page.goto(`${route}?lng=${locale}`, { waitUntil: 'networkidle' })
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await page.screenshot({ path: `${OUT}/${name}-${locale}.png`, fullPage: true })
     })
   }
