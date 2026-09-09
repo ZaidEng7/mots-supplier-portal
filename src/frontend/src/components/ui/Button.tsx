@@ -1,8 +1,8 @@
 import { forwardRef } from 'react'
 import type { ButtonHTMLAttributes } from 'react'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
-type Size = 'sm' | 'md' | 'lg'
+export type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+export type Size = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant
@@ -21,6 +21,31 @@ const sizeStyle: Record<Size, string> = {
   sm: 'px-3 py-2 text-[length:var(--text-body-sm)]',
   md: 'px-4 py-2 text-[length:var(--text-body)]',
   lg: 'px-5 py-3 text-[length:var(--text-body-lg)]',
+}
+
+/**
+ * Everything that makes a control LOOK like a button, without deciding what element it is.
+ *
+ * <p>Extracted so a navigation target can wear the same appearance without being a `<button>`. The
+ * buyer's exits to the bids, the comparison and the award used to be a `<button>` inside an `<a href>`,
+ * which is invalid markup and reloaded the whole application; the fix needs a real link that looks like
+ * a button, and that needs this shape shared rather than copied.</p>
+ */
+export function buttonAppearance(variant: Variant = 'primary', size: Size = 'md') {
+  const v = variantStyle[variant]
+  return {
+    className: `inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-[var(--fw-medium)] msp-pressable transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] focus-visible:outline-none ${sizeStyle[size]}`,
+    style: {
+      backgroundColor: v.bg,
+      color: v.fg,
+      border: v.border ? `1px solid ${v.border}` : 'none',
+      textDecoration: 'none',
+    } as const,
+    onMouseEnter: (e: { currentTarget: HTMLElement }) => { e.currentTarget.style.backgroundColor = v.bgHover },
+    onMouseLeave: (e: { currentTarget: HTMLElement }) => { e.currentTarget.style.backgroundColor = v.bg },
+    onFocus: (e: { currentTarget: HTMLElement }) => { e.currentTarget.style.boxShadow = 'var(--focus-ring)' },
+    onBlur: (e: { currentTarget: HTMLElement }) => { e.currentTarget.style.boxShadow = 'none' },
+  }
 }
 
 /** Reusable button primitive — token-driven, focus-visible ring, disabled/loading states. */
