@@ -96,7 +96,7 @@ export function RegisterPage() {
 
   if (registrationClosed) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+      <main id="main" className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
         <div
           className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
@@ -111,13 +111,13 @@ export function RegisterPage() {
             {t('auth.submit')}
           </Link>
         </div>
-      </div>
+      </main>
     )
   }
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
+      <main id="main" className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
         <div
           className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
           style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
@@ -137,7 +137,7 @@ export function RegisterPage() {
             {t('auth.submit')}
           </Link>
         </div>
-      </div>
+      </main>
     )
   }
 

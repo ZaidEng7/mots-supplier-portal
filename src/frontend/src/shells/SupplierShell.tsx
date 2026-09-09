@@ -90,7 +90,7 @@ export function SupplierShell({ children }: Props) {
           </Button>
         </div>
       </header>
-      <main className="flex flex-1 flex-col px-4 py-8 pb-20 sm:px-6 md:pb-8">{children}</main>
+      <main id="main" className="flex flex-1 flex-col px-4 py-8 pb-20 sm:px-6 md:pb-8">{children}</main>
       <MobileTabBar />
     </div>
   )

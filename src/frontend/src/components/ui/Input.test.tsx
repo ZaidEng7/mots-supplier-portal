@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -17,7 +19,9 @@ describe('Input invalid state', () => {
     await userEvent.click(input)
     await userEvent.tab()
 
-    expect(input.style.borderColor).toBe('var(--color-danger-solid)')
+    // The resting border moved into a custom property so a stylesheet rule can raise it on hover; the
+    // behaviour is the same and this is where it now lives.
+    expect(input.style.getPropertyValue('--input-border')).toBe('var(--color-danger-solid)')
   })
 
   it('restores the normal border color on blur when not invalid', async () => {
@@ -27,7 +31,7 @@ describe('Input invalid state', () => {
     await userEvent.click(input)
     await userEvent.tab()
 
-    expect(input.style.borderColor).toBe('var(--color-border-input)')
+    expect(input.style.getPropertyValue('--input-border')).toBe('var(--color-border-input)')
   })
 })
 
@@ -63,7 +67,7 @@ describe('Input disabled and read-only states', () => {
     const input = screen.getByLabelText('probe')
 
     expect(input).toHaveAttribute('readonly')
-    expect(input.style.border).toBe('1px solid transparent')
+    expect(input.style.getPropertyValue('--input-border')).toBe('transparent')
     // The value is still the primary colour: read-only means "not editable here", not "inactive".
     expect(input.style.color).toBe('var(--color-text-primary)')
   })
@@ -74,10 +78,51 @@ describe('Input disabled and read-only states', () => {
 
     await userEvent.click(input)
     await userEvent.tab()
-    expect(input.style.borderColor).toBe('transparent')
+    expect(input.style.getPropertyValue('--input-border')).toBe('transparent')
 
     rerender(<Input disabled aria-label="probe" />)
     expect(input.style.boxShadow).not.toBe('var(--focus-ring)')
   })
 })
 
+
+/**
+ * The hover state `docs/ux/DESIGN-SYSTEM.md` has always required, and which the component did not
+ * have: a resting border that visibly strengthens when a pointer is over an editable field.
+ *
+ * <p><b>Why this test reads a stylesheet instead of hovering.</b> jsdom applies no author CSS, so
+ * `userEvent.hover` here would dispatch a pointer event and then assert nothing — the rule that does
+ * the work lives in `index.css`, outside the component. What a unit test *can* prove is that the two
+ * halves still meet: the element carries the hook the rule selects on, its border reads through the
+ * custom property the rule sets, and the rule itself is still present and still guarded. Break either
+ * half and hover silently stops working in the browser with every other test in this file green —
+ * which is exactly what happened before the property indirection existed.</p>
+ */
+describe('Input hover state', () => {
+  const indexCss = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+
+  it('exposes the class and the custom property the stylesheet rule needs', () => {
+    render(<Input aria-label="probe" />)
+    const input = screen.getByLabelText('probe')
+
+    // The hook. Without it the rule in index.css selects nothing.
+    expect(input.className).toContain('msp-input')
+    // The indirection. A literal `borderColor` here would win over the rule's custom property and
+    // the hover would never be seen, which is the failure this asserts against.
+    expect(input.style.border).toBe('1px solid var(--input-border)')
+    expect(input.style.getPropertyValue('--input-border')).toBe('var(--color-border-input)')
+  })
+
+  it('the rule exists, raises the border, and is guarded on all three states', () => {
+    const rule = indexCss.match(/\.msp-input[^{]*\{[^}]*\}/)?.[0]
+    expect(rule, 'no .msp-input hover rule in index.css').toBeDefined()
+
+    // It must set the same property the component reads, to the stronger token.
+    expect(rule).toContain('--input-border: var(--color-border-strong)')
+    // And it must not fire on a field that cannot be edited, or on a touch device where `:hover`
+    // sticks after a tap.
+    expect(rule).toContain(':not(:disabled)')
+    expect(rule).toContain(':not([readonly])')
+    expect(indexCss).toContain('@media (hover: hover) and (pointer: fine)')
+  })
+})

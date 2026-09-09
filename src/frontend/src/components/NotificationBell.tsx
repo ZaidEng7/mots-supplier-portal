@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { Bell } from 'lucide-react'
 import { unreadNotificationCount } from '../api/notifications'
 import { formatNumber } from '../lib/datetime'
 
@@ -40,7 +41,10 @@ export function NotificationBell({ to = '/notifications' }: { to?: string }) {
         ? t('notifications.bellWithCount', { count })
         : t('notifications.bell')}
     >
-      <span aria-hidden="true">🔔</span>
+      {/* An emoji renders in the reader's system font, at their system's idea of the size, in a
+          palette this product does not control - and it was the one dated marker the design audit found
+          in an otherwise trend-free interface. lucide is what every other icon here uses. */}
+      <Bell size={18} aria-hidden="true" />
       {count > 0 ? (
         <span
           aria-hidden="true"
