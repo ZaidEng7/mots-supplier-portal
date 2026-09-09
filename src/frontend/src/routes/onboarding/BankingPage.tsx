@@ -251,9 +251,12 @@ export function BankingPage() {
                   </TableCell>
                   <TableCell>{a.currencyCode}</TableCell>
                   <TableCell>
+                    {/* The account that IS the default says so; one that could become it offers the
+                        control; a read-only view of a non-default account has nothing to add. */}
                     {a.isDefault ? (
                       <Badge tone="brand">{t('banking.isDefault')}</Badge>
-                    ) : editable ? (
+                    ) : null}
+                    {!a.isDefault && editable ? (
                       <Button variant="ghost" size="sm" isLoading={setDefaultMutation.isPending} onClick={() => setDefaultMutation.mutate(a.id)}>
                         {t('banking.makeDefault')}
                       </Button>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList} from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, toneFor} from '../components/ui'
 import { search, type SearchHit } from '../api/search'
 
 /**
@@ -19,6 +19,8 @@ import { search, type SearchHit } from '../api/search'
  * <p><b>Submitted, not live.</b> A keystroke-per-request search over three tables is a load test aimed at
  * the database, and a person typing a reference code does not want results for its first three characters.</p>
  */
+const KIND_TONES = { rfq: 'brand', supplier: 'info' } as const
+
 export function SearchPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -109,7 +111,7 @@ export function SearchPage() {
                     style={{ border: '1px solid var(--color-border)' }}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={hit.kind === 'rfq' ? 'brand' : hit.kind === 'supplier' ? 'info' : 'neutral'}>
+                      <Badge tone={toneFor(hit.kind, KIND_TONES)}>
                         {t(`search.kinds.${hit.kind}`, { defaultValue: hit.kind })}
                       </Badge>
                       {to ? (

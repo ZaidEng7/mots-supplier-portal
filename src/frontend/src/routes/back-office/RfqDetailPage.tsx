@@ -17,7 +17,6 @@ import { listEvaluationTemplates } from '../../api/evaluationTemplates'
 import { fetchCategories, fetchUnitsOfMeasure } from '../../api/reference'
 import {
   getEvaluation, openEvaluation, assignEvaluators, listEvaluatorCandidates, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
-  EvaluationApiError,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
 import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
@@ -39,6 +38,13 @@ function toLocalInput(iso: string | null | undefined): string {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Where a stage stands: the one being worked now, one already passed, or one still ahead. */
+function stageTone(stage: { isCurrent: boolean; isCompleted: boolean }): 'brand' | 'success' | 'neutral' {
+  if (stage.isCurrent) return 'brand'
+  if (stage.isCompleted) return 'success'
+  return 'neutral'
 }
 
 export function RfqDetailPage() {
@@ -129,6 +135,8 @@ export function RfqDetailPage() {
    * are still what the award is being decided from, and Reopen is still a legitimate action. Cancelled and
    * Completed are excluded - nothing is left to do to an evaluation on either.</p>
    */
+  // Submissions are closed, so there is something to evaluate and nothing still arriving.
+  const canOpenEvaluation = rfq?.state === 'SubmissionClosed'
   const evaluationEligible = !!rfq && [
     'SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting',
     'Recommendation', 'AwardApproval', 'Awarded',
@@ -374,7 +382,7 @@ export function RfqDetailPage() {
   })
 
   const evaluationErrorMessage = (err: unknown, fallback: string) =>
-    err instanceof EvaluationApiError && err.isConcurrencyConflict ? t('common.concurrencyConflict') : err instanceof EvaluationApiError ? err.message : fallback
+    apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
   const invalidateEvaluation = () => {
     invalidateQuietly(queryClient, { queryKey: ['evaluation', referenceCode] })
     invalidateQuietly(queryClient, { queryKey: ['workspace', referenceCode] })
@@ -532,7 +540,7 @@ export function RfqDetailPage() {
                     {workspaceQuery.data.stages.map((stage) => (
                       <span key={stage.key} className="inline-flex items-center gap-1">
                         {stage.isCompleted ? <span aria-hidden="true">✓</span> : null}
-                        <StatusChip machine="rfq" value={stage.key} tone={stage.isCurrent ? 'brand' : stage.isCompleted ? 'success' : 'neutral'} />
+                        <StatusChip machine="rfq" value={stage.key} tone={stageTone(stage)} />
                       </span>
                     ))}
                   </div>
@@ -1015,15 +1023,18 @@ export function RfqDetailPage() {
                   </a>
                 ) : null}
               </div>
-              {!evaluation ? (
-                rfq.state === 'SubmissionClosed' ? (
-                  <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
-                    {t('evaluation.open')}
-                  </Button>
-                ) : (
-                  <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.notOpened')}</p>
-                )
-              ) : (
+              {/* Three states, said separately. No evaluation and submissions closed means one can be
+                  opened; no evaluation and submissions still open means it is not time yet; an
+                  evaluation that exists is the panel below. */}
+              {!evaluation && canOpenEvaluation ? (
+                <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
+                  {t('evaluation.open')}
+                </Button>
+              ) : null}
+              {!evaluation && !canOpenEvaluation ? (
+                <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.notOpened')}</p>
+              ) : null}
+              {evaluation ? (
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between">
                     <StatusChip machine="evaluation" value={evaluation.state} />
@@ -1192,7 +1203,7 @@ export function RfqDetailPage() {
                     </div>
                   ) : null}
                 </div>
-              )}
+              ) : null}
             </Card>
           ) : null}
 

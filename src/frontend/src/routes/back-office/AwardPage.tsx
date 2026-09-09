@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../lib/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import {Badge, Button, Card, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, useToast} from '../../components/ui'
+import {Badge, Button, Card, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
@@ -35,6 +35,8 @@ const ERP_SYNC_LABEL_KEYS: Record<Exclude<ErpSyncStatus, 'NotRequested'>, string
 function erpSyncLabelKey(status: ErpSyncStatus): string | null {
   return status === 'NotRequested' ? null : ERP_SYNC_LABEL_KEYS[status]
 }
+
+const ERP_TONES = { Synced: 'success', Failed: 'danger' } as const
 
 export function AwardPage() {
   const canApproveAward = useAuthStore((state) => state.claims?.permissions.includes('award.approve') ?? false)
@@ -173,7 +175,7 @@ export function AwardPage() {
             {award.state === 'Awarded' ? (
               <div className="flex flex-col gap-2">
                 {erpSyncLabelKey(award.erpSyncStatus) ? (
-                  <Badge tone={award.erpSyncStatus === 'Synced' ? 'success' : award.erpSyncStatus === 'Failed' ? 'danger' : 'info'}>
+                  <Badge tone={toneFor(award.erpSyncStatus, ERP_TONES)}>
                     {t('award.erpStatus')}: {t(erpSyncLabelKey(award.erpSyncStatus)!)}
                   </Badge>
                 ) : null}

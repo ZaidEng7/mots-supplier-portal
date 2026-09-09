@@ -94,9 +94,13 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
               {t('ministryRfqs.fields.awarded')}
             </dt>
             <dd>
-              {summary.awardedValue === null
-                ? (commercialValuesVisible ? t('ministryRfqDetail.notAwarded') : t('ministryRfqDetail.withheld'))
-                : formatCurrency(summary.awardedValue, summary.currencyCode, locale)}
+              {/* No value has two different meanings, and confusing them would be the worst thing this
+                  screen could do: either nothing has been awarded, or the figure exists and disclosure
+                  policy withholds it. */}
+              {(() => {
+                if (summary.awardedValue !== null) return formatCurrency(summary.awardedValue, summary.currencyCode, locale)
+                return commercialValuesVisible ? t('ministryRfqDetail.notAwarded') : t('ministryRfqDetail.withheld')
+              })()}
             </dd>
           </div>
         </dl>

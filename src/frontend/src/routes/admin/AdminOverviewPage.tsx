@@ -39,6 +39,42 @@ export function AdminOverviewPage() {
   const users = data.usersByRole.reduce((total, entry) => total + entry.count, 0)
   const emptyTables = data.referenceData.filter((table) => table.active === 0)
 
+  const jobsMissing = data.jobs.missingJobs.length > 0
+
+  /**
+   * Three answers to "are the background jobs running?", in order of how bad they are: the scheduler is
+   * off, the scheduler is on but jobs the deployment expects are absent, or everything is registered.
+   * A function rather than a chain of ternaries because they are three separate answers, not one
+   * decision refined twice.
+   */
+  function renderJobs() {
+    if (!data.jobs.recurringJobsEnabled) {
+      return (
+        <div className="flex flex-col gap-2">
+          <Badge tone="warning">{t('adminOverview.jobsDisabled')}</Badge>
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('adminOverview.jobsDisabledBody')}</p>
+        </div>
+      )
+    }
+    if (jobsMissing) {
+      return (
+        <div className="flex flex-col gap-2">
+          <Badge tone="danger">{t('adminOverview.jobsMissing')}</Badge>
+          {/* The ids themselves: an operator comparing them against the deployment is the point, so
+              these are not translated. */}
+          <ul className="flex flex-col gap-1">
+            {data.jobs.missingJobs.map((job) => <li key={job}><code>{job}</code></li>)}
+          </ul>
+        </div>
+      )
+    }
+    return (
+      <Badge tone="success">
+        {t('adminOverview.jobsHealthy', { value: n(data.jobs.registeredJobs.length) })}
+      </Badge>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeading title={t('adminOverview.title')} />
@@ -93,25 +129,7 @@ export function AdminOverviewPage() {
       </Card>
 
       <Card title={t('adminOverview.jobs')}>
-        {!data.jobs.recurringJobsEnabled ? (
-          <div className="flex flex-col gap-2">
-            <Badge tone="warning">{t('adminOverview.jobsDisabled')}</Badge>
-            <p style={{ color: 'var(--color-text-secondary)' }}>{t('adminOverview.jobsDisabledBody')}</p>
-          </div>
-        ) : data.jobs.missingJobs.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <Badge tone="danger">{t('adminOverview.jobsMissing')}</Badge>
-            {/* The ids themselves: an operator comparing them against the deployment is the point,
-                so these are not translated. */}
-            <ul className="flex flex-col gap-1">
-              {data.jobs.missingJobs.map((job) => <li key={job}><code>{job}</code></li>)}
-            </ul>
-          </div>
-        ) : (
-          <Badge tone="success">
-            {t('adminOverview.jobsHealthy', { value: n(data.jobs.registeredJobs.length) })}
-          </Badge>
-        )}
+        {renderJobs()}
       </Card>
 
       <Card title={t('adminOverview.referenceData')}>

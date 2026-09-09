@@ -37,6 +37,10 @@ export function VerifyEmailPage() {
     }
   }
 
+  // Three outcomes of one request, rendered as three independent branches rather than a chain: each is
+  // a different thing to say, not a refinement of the one before.
+  const isVerified = status === 'success'
+
   return (
     <main id="main" className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
       <div
@@ -47,7 +51,8 @@ export function VerifyEmailPage() {
           <output className="block" style={{ color: 'var(--color-text-secondary)' }}>
             {t('auth.verifyingEmail')}
           </output>
-        ) : status === 'success' ? (
+        ) : null}
+        {isVerified ? (
           <div className="flex flex-col gap-4">
             <output className="block" style={{ color: 'var(--success-600)' }}>
               {t('auth.verifySuccess')}
@@ -56,7 +61,8 @@ export function VerifyEmailPage() {
               {t('auth.submit')}
             </Link>
           </div>
-        ) : (
+        ) : null}
+        {status === 'failed' ? (
           <div className="flex flex-col gap-4 text-start">
             <p role="alert" className="text-center" style={{ color: 'var(--color-danger-fg)' }}>
               {t('auth.verifyFailed')}
@@ -76,7 +82,7 @@ export function VerifyEmailPage() {
               </>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </main>
   )

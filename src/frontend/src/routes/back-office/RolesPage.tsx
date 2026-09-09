@@ -35,6 +35,16 @@ const ROLE_ERROR_KEYS: Record<string, string> = {
   invalid_permission: 'roleManagement.errors.invalidPermission',
 }
 
+/**
+ * A permission's human label, or the raw permission when the catalogue has no label for it. The raw
+ * string is a deliberate fallback: an administrator granting an unlabelled permission should still see
+ * which one it is.
+ */
+function permissionLabel(label: { ar: string; en: string } | undefined, isArabic: boolean, permission: string): string {
+  if (!label) return permission
+  return isArabic ? label.ar : label.en
+}
+
 export function RolesPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -103,7 +113,7 @@ export function RolesPage() {
                       disabled={updateMutation.isPending}
                       onChange={() => toggle(role, permission)}
                     />
-                    <span style={{ color: 'var(--color-text-primary)' }}>{label ? (isArabic ? label.ar : label.en) : permission}</span>
+                    <span style={{ color: 'var(--color-text-primary)' }}>{permissionLabel(label, isArabic, permission)}</span>
                   </label>
                 </li>
               )

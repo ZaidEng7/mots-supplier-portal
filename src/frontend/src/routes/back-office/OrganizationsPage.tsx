@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {Badge, Button, Card, Dialog, Field, Input, PageHeading, PhoneInput, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, ListState, PageHeading, PhoneInput, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   addOrgUnit,
@@ -195,11 +195,18 @@ function SupplierLinksSection() {
 
         {lookupCode ? (
           <div className="flex flex-col gap-3">
-            {linksQuery.isLoading ? (
-              <SkeletonList label={t('common.loading')} />
-            ) : linksQuery.isError ? (
-              <QueryError error={linksQuery.error} onRetry={() => void linksQuery.refetch()} />
-            ) : linksQuery.data && linksQuery.data.length > 0 ? (
+            <ListState
+              isPending={linksQuery.isLoading}
+              isError={linksQuery.isError}
+              error={linksQuery.error}
+              onRetry={() => void linksQuery.refetch()}
+              isEmpty={!linksQuery.data || linksQuery.data.length === 0}
+              loadingLabel={t('common.loading')}
+              errorText={t('common.loadFailed')}
+              emptyText={t('organizations.noLinks')}
+              skeleton="list"
+            >
+              {linksQuery.data && linksQuery.data.length > 0 ? (
               <ul className="flex flex-col gap-2">
                 {linksQuery.data.map((link) => (
                   <li key={link.id} className="flex items-center justify-between rounded-[var(--radius-sm)] px-3 py-2" style={{ border: '1px solid var(--color-border)' }}>
@@ -210,9 +217,8 @@ function SupplierLinksSection() {
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p style={{ color: 'var(--color-text-secondary)' }}>{t('organizations.noLinks')}</p>
-            )}
+              ) : null}
+            </ListState>
 
             <div className="flex items-end gap-2">
               <Field label={t('organizations.fields.organization')}>
