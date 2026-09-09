@@ -20,7 +20,10 @@ export function Table({ children, caption, maxHeight }: { children: ReactNode; c
       className="w-full overflow-auto rounded-[var(--radius-md)]"
       style={{ border: '1px solid var(--color-border)', maxHeight }}
     >
-      <table className="w-full border-collapse text-[length:var(--text-body-sm)]">
+      {/* The one line that made 13px the most common size on every screen the audit measured: tables are
+          the dominant content on 33 of the 65 screens, and this set all of them below the body floor.
+          `--density-body` is 14px in the back office and 16px for a supplier. */}
+      <table className="w-full border-collapse text-[length:var(--density-body)]">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         {children}
       </table>
