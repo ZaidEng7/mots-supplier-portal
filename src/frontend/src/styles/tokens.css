@@ -113,7 +113,13 @@
   /* Spacing — DESIGN-SYSTEM.md §4.1, the canonical 4px grid.
      Declared here because the spec declares it and 41 references across the product asked for
      tokens this file had never defined. Applied through LOGICAL properties only
-     (padding-inline, margin-block, gap) so RTL mirrors without a second rule. */
+     (padding-inline, margin-block, gap) so RTL mirrors without a second rule.
+
+     A deliberate exception to "components consume tokens": screens keep using Tailwind's spacing
+     utilities (gap-6, p-4, mt-2), which land on this same 4px grid - gap-6 IS --space-6. Converting
+     ~60 files would be hundreds of edits for zero rendered difference, and the utilities already
+     emit logical properties under RTL. These tokens are here for the cases Tailwind cannot express:
+     an inline style, a calc(), a component that has to compute its own spacing. */
   --space-0: 0; --space-0-5: 2px; --space-1: 4px; --space-2: 8px; --space-3: 12px;
   --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
   --space-12: 48px; --space-16: 64px;
