@@ -843,6 +843,9 @@ const resources = {
           bids: 'العروض المقدَّمة', won: 'الترسيات', registered: 'تاريخ التسجيل',
         },
       },
+      charts: {
+        nothingToPlot: 'لا توجد أرقام قابلة للرسم. الجدول أدناه يعرض المتاح منها.',
+      },
       ministryAwards: {
         title: 'الترسيات والإنفاق',
         subtitle: 'اتجاهات الترسية والإنفاق بحسب الشهر والفئة والجهة المشترية.',
@@ -2706,6 +2709,9 @@ const resources = {
           supplier: 'Supplier', categories: 'Categories', onboarding: 'Application', standing: 'Standing',
           bids: 'Bids submitted', won: 'Awards won', registered: 'Registered',
         },
+      },
+      charts: {
+        nothingToPlot: 'No figures available to chart. The table below carries what there is.',
       },
       ministryAwards: {
         title: 'Awards & Spend',

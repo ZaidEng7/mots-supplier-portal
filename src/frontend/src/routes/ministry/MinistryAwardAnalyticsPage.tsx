@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import {Card, PageHeading, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { BarChart } from '../../components/charts/BarChart'
 import { getMinistryAwardAnalytics, type MinistrySpendBucket } from '../../api/governance'
 import { formatCurrency, formatNumber } from '../../lib/datetime'
 
@@ -44,6 +45,30 @@ export function MinistryAwardAnalyticsPage() {
       {buckets.length === 0 ? (
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('ministryAwards.empty')}</p>
       ) : (
+        <>
+          {/*
+            The chart reads the table beneath it, and sits above rather than instead of it.
+
+            It charts VALUE when there is value to chart and AWARD COUNT when there is not, saying which
+            in the label. D-57 withholds commercial figures outside a demonstration environment, and a
+            chart of nothing but withheld months is a chart of nothing - while the award counts beside
+            them are never withheld and are the fact the screen still has. A withheld value is a gap with
+            its category still labelled, never a bar of height zero, which would assert that nothing was
+            awarded.
+          */}
+          <div className="mb-4">
+            {buckets.some((bucket) => bucket.value !== null) ? (
+              <BarChart
+                data={buckets.map((bucket) => ({ key: bucket.key, value: bucket.value }))}
+                valueLabel={t('ministryAwards.fields.value')}
+              />
+            ) : (
+              <BarChart
+                data={buckets.map((bucket) => ({ key: bucket.key, value: bucket.awards }))}
+                valueLabel={t('ministryAwards.fields.awards')}
+              />
+            )}
+          </div>
         <Table caption={title}>
           <TableHead>
             <TableHeaderCell>{keyHeader}</TableHeaderCell>
@@ -64,6 +89,7 @@ export function MinistryAwardAnalyticsPage() {
             ))}
           </TableBody>
         </Table>
+        </>
       )}
     </Card>
   )
