@@ -74,7 +74,7 @@ function LogoUploader({ profile, canEdit, onProfile }: { profile: SupplierProfil
   return (
     <div className="flex items-center gap-4">
       <div
-        className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[0.5rem]"
+        className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-md)]"
         style={{ backgroundColor: 'var(--color-bg-sunken)', border: '1px solid var(--color-border)' }}
       >
         {logoUrlQuery.data ? (
@@ -140,9 +140,11 @@ function DocumentGroup({
 
   return (
     <section>
-      <h3 className="mb-2 text-sm font-semibold text-fg-muted">{heading}</h3>
+      {/* text-fg-muted was a class this project never defines - Tailwind dropped it and these two
+          lines rendered at the inherited colour. The token is what the rest of the product uses. */}
+      <h3 className="mb-2 text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-muted)' }}>{heading}</h3>
       {documents.length === 0 ? (
-        <p className="text-sm text-fg-muted">{emptyLabel}</p>
+        <p className="text-[length:var(--text-body)]" style={{ color: 'var(--color-text-muted)' }}>{emptyLabel}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {documents.map((doc) => (
@@ -210,7 +212,7 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
     <li
       id={documentAnchorId(doc.code)}
       tabIndex={-1}
-      className="flex items-center justify-between gap-3 rounded-[0.375rem] p-3"
+      className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3"
       style={{ border: '1px solid var(--color-border)' }}
     >
       <div className="flex items-center gap-2">
@@ -263,7 +265,7 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
                 aria-label={t('onboarding.documentExpiryLabel')}
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
-                className="rounded-[0.375rem] px-2 py-1 text-[length:var(--text-body-sm)]"
+                className="rounded-[var(--radius-sm)] px-2 py-1 text-[length:var(--text-body-sm)]"
                 style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
               />
             ) : null}
@@ -501,7 +503,7 @@ export function OnboardingPage() {
       <OnboardingStepNav />
 
       {isInfoRequested && annotation ? (
-        <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--warning-500)' }}>
+        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--warning-500)' }}>
           <h2 className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--warning-600)' }}>
             {t('onboarding.infoRequestedTitle')}
           </h2>
@@ -534,7 +536,7 @@ export function OnboardingPage() {
       </Card>
 
       <form
-        className="flex flex-col gap-4 rounded-[0.75rem] p-6"
+        className="flex flex-col gap-4 rounded-[var(--radius-lg)] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
         onSubmit={legalForm.handleSubmit((values) => saveLegalMutation.mutate(values))}
       >
@@ -578,7 +580,7 @@ export function OnboardingPage() {
       </form>
 
       <form
-        className="flex flex-col gap-4 rounded-[0.75rem] p-6"
+        className="flex flex-col gap-4 rounded-[var(--radius-lg)] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
         onSubmit={profileForm.handleSubmit((values) => saveProfileMutation.mutate(values))}
       >
@@ -705,7 +707,7 @@ export function OnboardingPage() {
       {blockingDocuments.length > 0 ? (
         <div
           role="alert"
-          className="rounded-[0.375rem] p-3"
+          className="rounded-[var(--radius-sm)] p-3"
           style={{ border: '1px solid var(--color-danger-fg)', color: 'var(--color-danger-fg)' }}
         >
           <p className="font-[var(--fw-semibold)]">{t('onboarding.submitBlockedTitle')}</p>

@@ -93,7 +93,7 @@ export function SupplierDashboardPage() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[length:var(--text-heading-lg)]">
+          <h1 className="text-[length:var(--text-h1)]">
             {t('supplierDashboard.greeting', { name: isArabic ? data.displayNameAr : data.displayNameEn })}
           </h1>
         </div>
@@ -102,7 +102,7 @@ export function SupplierDashboardPage() {
 
       {data.erpDegraded ? (
         <div role="status" className="rounded-[var(--radius-md)] p-3"
-          style={{ background: 'var(--color-surface-raised)', border: '1px solid var(--color-border)' }}>
+          style={{ background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
           {t('supplierDashboard.erpDegraded')}
         </div>
       ) : null}
@@ -111,7 +111,7 @@ export function SupplierDashboardPage() {
         <ul className="flex flex-wrap gap-2">
           {chips.map(([key, count, href]) => (
             <li key={key} className="flex items-center gap-2 rounded-[var(--radius-md)] px-3 py-2"
-              style={{ background: 'var(--color-surface-raised)', border: '1px solid var(--color-border)' }}>
+              style={{ background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
               <Link to={href}>{t(`supplierDashboard.actionRequired.${key}`, { count: formatNumber(count, locale, 0) })}</Link>
               <button type="button" aria-label={t('supplierDashboard.actionRequired.dismiss')}
                 onClick={() => { dismiss(key); forceRender((n) => n + 1) }}>
@@ -133,7 +133,7 @@ export function SupplierDashboardPage() {
             <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t(`supplierDashboard.kpis.${key}`)}
             </p>
-            <p className="num text-[length:var(--text-heading-md)]">{formatNumber(value, locale, 0)}</p>
+            <p className="num text-[length:var(--text-h2)]">{formatNumber(value, locale, 0)}</p>
           </li>
         ))}
       </ul>
@@ -205,7 +205,7 @@ export function SupplierDashboardPage() {
                 style={{
                   inlineSize: `${Math.round(data.profileHealth.completeness * 100)}%`,
                   marginInlineStart: 0,
-                  background: 'var(--color-primary)',
+                  background: 'var(--color-brand-solid)',
                 }} />
             </div>
             <p className="mt-2">

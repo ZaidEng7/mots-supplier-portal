@@ -14,7 +14,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <input
       ref={ref}
       aria-invalid={invalid || undefined}
-      className={`w-full rounded-[0.375rem] px-3 py-2 text-[length:var(--text-body)] outline-none transition-colors ${className}`}
+      className={`w-full rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none transition-colors ${className}`}
       style={{
         backgroundColor: 'var(--color-bg-surface)',
         color: 'var(--color-text-primary)',

@@ -33,7 +33,7 @@ export function MyEvaluationBriefPage({ referenceCode }: { referenceCode: string
 
   if (briefQuery.isPending) return <Skeleton className="h-64 w-full" />
   if (briefQuery.isError || !briefQuery.data) {
-    return <p style={{ color: 'var(--color-danger)' }}>{t('evaluationBrief.error')}</p>
+    return <p style={{ color: 'var(--color-danger-fg)' }}>{t('evaluationBrief.error')}</p>
   }
 
   const evaluation = briefQuery.data

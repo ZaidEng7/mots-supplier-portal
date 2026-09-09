@@ -25,12 +25,12 @@ export function ReasonDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={title}>
       <div className="flex flex-col gap-4">
         {warning ? (
-          <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-danger)' }}>
+          <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
             {warning}
           </p>
         ) : null}
         <textarea
-          className="rounded-[0.375rem] p-2"
+          className="rounded-[var(--radius-md)] p-2"
           style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
           rows={4}
           value={reason}

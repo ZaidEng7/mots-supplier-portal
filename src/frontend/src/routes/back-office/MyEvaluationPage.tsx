@@ -194,7 +194,7 @@ export function MyEvaluationPage() {
 
         {evaluation.rfqItems.length > 0 ? (
           <>
-            <h3 className="mb-1 text-[length:var(--text-body-md)]">{t('evaluation.my.items')}</h3>
+            <h3 className="mb-1 text-[length:var(--text-h4)]">{t('evaluation.my.items')}</h3>
             <ul className="mb-3 list-inside list-disc">
               {evaluation.rfqItems.map((item) => (
                 <li key={item.id}>
@@ -207,7 +207,7 @@ export function MyEvaluationPage() {
 
         {evaluation.rfqRequirements.length > 0 ? (
           <>
-            <h3 className="mb-1 text-[length:var(--text-body-md)]">{t('evaluation.my.requirements')}</h3>
+            <h3 className="mb-1 text-[length:var(--text-h4)]">{t('evaluation.my.requirements')}</h3>
             <ul className="list-inside list-disc">
               {evaluation.rfqRequirements.map((req) => (
                 <li key={req.id}>
@@ -254,14 +254,14 @@ export function MyEvaluationPage() {
             {/* T-067: the bid's own technical content, which is what is being scored. */}
             {narrative ? (
               <section className="mb-3">
-                <h3 className="mb-1 text-[length:var(--text-body-md)]">{t('evaluation.my.narrative')}</h3>
+                <h3 className="mb-1 text-[length:var(--text-h4)]">{t('evaluation.my.narrative')}</h3>
                 <p>{narrative}</p>
               </section>
             ) : null}
 
             {proposal.requirementAnswers.length > 0 ? (
               <section className="mb-3">
-                <h3 className="mb-1 text-[length:var(--text-body-md)]">{t('evaluation.my.answers')}</h3>
+                <h3 className="mb-1 text-[length:var(--text-h4)]">{t('evaluation.my.answers')}</h3>
                 <ul className="list-inside list-disc">
                   {proposal.requirementAnswers.map((answer) => (
                     <li key={answer.id}>{isArabic ? answer.answerAr : answer.answerEn}</li>
@@ -272,7 +272,7 @@ export function MyEvaluationPage() {
 
             {proposal.documents.length > 0 ? (
               <section className="mb-3">
-                <h3 className="mb-1 text-[length:var(--text-body-md)]">{t('evaluation.my.documents')}</h3>
+                <h3 className="mb-1 text-[length:var(--text-h4)]">{t('evaluation.my.documents')}</h3>
                 <ul className="list-inside list-disc">
                   {proposal.documents.map((doc) => (
                     <li key={doc.id}>

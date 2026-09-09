@@ -101,7 +101,7 @@ export function NotificationsPage() {
                 style={{
                   // Unread carries weight, read does not. §10: "non-intrusive", and the read ones
                   // are history rather than something demanding attention.
-                  background: notification.isRead ? 'transparent' : 'var(--color-surface-raised)',
+                  background: notification.isRead ? 'transparent' : 'var(--color-brand-subtle)',
                   border: '1px solid var(--color-border)',
                 }}
               >

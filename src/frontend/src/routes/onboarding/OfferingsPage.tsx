@@ -68,7 +68,7 @@ export function OfferingsPage() {
       <OnboardingStepNav />
 
       {missingCategoryLink ? (
-        <p role="alert" className="rounded-[0.5rem] px-4 py-3 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
+        <p role="alert" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
           {t('offerings.missingCategory')}
         </p>
       ) : null}
@@ -83,7 +83,7 @@ export function OfferingsPage() {
               return (
                 <li key={c.code}>
                   <label
-                    className="flex cursor-pointer items-center gap-3 rounded-[0.5rem] p-3 text-[length:var(--text-body-sm)]"
+                    className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-md)] p-3 text-[length:var(--text-body-sm)]"
                     style={{ border: `1px solid ${linked ? 'var(--color-brand-solid)' : 'var(--color-border)'}`, backgroundColor: linked ? 'var(--color-brand-subtle)' : 'transparent' }}
                   >
                     <input

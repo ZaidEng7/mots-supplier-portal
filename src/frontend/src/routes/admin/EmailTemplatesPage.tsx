@@ -132,7 +132,7 @@ export function EmailTemplatesPage() {
                     {...p}
                     dir="rtl"
                     rows={4}
-                    className="w-full rounded-[0.5rem] p-2 font-mono text-[length:var(--text-body-sm)]"
+                    className="w-full rounded-[var(--radius-md)] p-2 font-mono text-[length:var(--text-body-sm)]"
                     style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
                     value={draft.bodyAr}
                     onChange={(e) => setDraft({ ...draft, bodyAr: e.target.value })}
@@ -145,7 +145,7 @@ export function EmailTemplatesPage() {
                     {...p}
                     dir="ltr"
                     rows={4}
-                    className="w-full rounded-[0.5rem] p-2 font-mono text-[length:var(--text-body-sm)]"
+                    className="w-full rounded-[var(--radius-md)] p-2 font-mono text-[length:var(--text-body-sm)]"
                     style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
                     value={draft.bodyEn}
                     onChange={(e) => setDraft({ ...draft, bodyEn: e.target.value })}

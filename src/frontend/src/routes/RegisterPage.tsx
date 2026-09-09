@@ -98,8 +98,8 @@ export function RegisterPage() {
     return (
       <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
         <div
-          className="w-full max-w-sm rounded-[0.75rem] p-8 text-center shadow-sm"
-          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+          className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
+          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
         >
           <h1 className="mb-3 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {t('register.closedTitle')}
@@ -119,8 +119,8 @@ export function RegisterPage() {
     return (
       <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg-app)' }}>
         <div
-          className="w-full max-w-sm rounded-[0.75rem] p-8 text-center shadow-sm"
-          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+          className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
+          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
         >
           <h1 className="mb-3 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
             {t('register.successTitle')}
@@ -144,8 +144,8 @@ export function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8" style={{ backgroundColor: 'var(--color-bg-app)' }}>
       <div
-        className="w-full max-w-lg rounded-[0.75rem] p-8 shadow-sm"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+        className="w-full max-w-lg rounded-[var(--radius-lg)] p-8"
+        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
       >
         <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('register.title')}

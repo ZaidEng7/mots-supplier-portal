@@ -30,7 +30,7 @@ export function Select({ id, value, onValueChange, options, placeholder, ...aria
         id={id}
         aria-label={placeholder}
         {...aria}
-        className="flex w-full items-center justify-between gap-2 rounded-[0.375rem] px-3 py-2 text-[length:var(--text-body)] outline-none"
+        className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none"
         style={{
           backgroundColor: 'var(--color-bg-surface)',
           color: 'var(--color-text-primary)',
@@ -45,11 +45,20 @@ export function Select({ id, value, onValueChange, options, placeholder, ...aria
       <RadixSelect.Portal>
         <RadixSelect.Content
           // Explicit z-index: this Portal renders independently of any ancestor Dialog's own
-          // Portal, so without this the popper has no stacking-context guarantee against
-          // Dialog's overlay (z-40) or content (z-50) - it rendered correctly positioned but
-          // visually behind the Dialog overlay, silently swallowing every click.
-          className="z-[60] overflow-hidden rounded-[0.375rem] shadow-lg"
-          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+          // Portal, so without this the popper has no stacking-context guarantee against the
+          // Dialog - it rendered correctly positioned but visually behind the overlay, silently
+          // swallowing every click.
+          //
+          // --z-popover (600), deliberately ABOVE --z-modal (500) rather than the --z-dropdown slot
+          // §4.5 would suggest: a select inside a dialog is the case that produced that defect, and
+          // the dropdown layer sits below the dialog it would have to open over.
+          className="overflow-hidden rounded-[var(--radius-md)]"
+          style={{
+            backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)',
+            zIndex: 'var(--z-popover)',
+          }}
         >
           <RadixSelect.Viewport className="p-1">
             {options.map((opt) => (

@@ -10,10 +10,10 @@ export function ErrorBoundaryScreen({ code }: Props) {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 py-24 text-center">
-      <span className="num text-6xl font-bold" style={{ color: 'var(--color-text-muted)' }}>
+      <span className="num text-[length:var(--text-display)] font-[var(--fw-bold)]" style={{ color: 'var(--color-text-muted)' }}>
         {code}
       </span>
-      <p className="text-lg" style={{ color: 'var(--color-text-secondary)' }}>
+      <p className="text-[length:var(--text-h4)]" style={{ color: 'var(--color-text-secondary)' }}>
         {t(`errors.${messageKey}`)}
       </p>
     </div>

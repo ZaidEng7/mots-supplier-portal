@@ -91,7 +91,7 @@ export function RolesPage() {
               return (
                 <li key={permission}>
                   <label
-                    className="flex cursor-pointer items-center gap-3 rounded-[0.5rem] p-3 text-[length:var(--text-body-sm)]"
+                    className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-md)] p-3 text-[length:var(--text-body-sm)]"
                     style={{ border: `1px solid ${checked ? 'var(--color-brand-solid)' : 'var(--color-border)'}`, backgroundColor: checked ? 'var(--color-brand-subtle)' : 'transparent' }}
                   >
                     <input

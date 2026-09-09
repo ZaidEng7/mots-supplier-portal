@@ -32,7 +32,10 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger> : null}
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="fixed inset-0 z-40" style={{ backgroundColor: 'var(--color-bg-overlay)' }} />
+        <RadixDialog.Overlay
+          className="fixed inset-0"
+          style={{ backgroundColor: 'var(--color-bg-overlay)', zIndex: 'var(--z-modal)' }}
+        />
         {/*
           * The dialog is capped and scrolls its own body, rather than growing until its buttons leave
           * the screen.
@@ -46,8 +49,15 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
           * same shape, and the next one will be written by somebody who never saw this.
           */}
         <RadixDialog.Content
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-[0.5rem] p-6 shadow-xl"
-          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
+          className="fixed left-1/2 top-1/2 flex max-h-[calc(100dvh-2rem)] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-xl)] p-6"
+          // §6.12: radius-xl and shadow-lg, both from the scale rather than Tailwind's own shadow-xl,
+          // which is a harder shadow than this design system uses anywhere.
+          style={{
+            backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-lg)',
+            zIndex: 'var(--z-modal)',
+          }}
           onCloseAutoFocus={(e) => {
             if (previouslyFocused.current) {
               e.preventDefault()

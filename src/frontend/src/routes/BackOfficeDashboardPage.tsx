@@ -12,7 +12,7 @@ export function BackOfficeDashboardPage() {
         {t('dashboard.welcome', { email: claims?.email ?? '' })}
       </h1>
       <div
-        className="flex flex-wrap gap-4 rounded-[0.75rem] p-6"
+        className="flex flex-wrap gap-4 rounded-[var(--radius-lg)] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
       >
         <div>

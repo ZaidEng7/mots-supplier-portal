@@ -129,7 +129,7 @@ function OrgUnitsDialog({ org, open, onOpenChange }: { org: Organization | null;
         ) : (
           <ul className="flex flex-col gap-2">
             {org.orgUnits.map((u) => (
-              <li key={u.id} className="flex items-center justify-between rounded-[0.375rem] px-3 py-2" style={{ border: '1px solid var(--color-border)' }}>
+              <li key={u.id} className="flex items-center justify-between rounded-[var(--radius-sm)] px-3 py-2" style={{ border: '1px solid var(--color-border)' }}>
                 <span style={{ color: 'var(--color-text-primary)' }}>{u.name}</span>
                 <Button variant="ghost" size="sm" isLoading={removeMutation.isPending} onClick={() => removeMutation.mutate(u.id)}>
                   {t('organizations.remove')}
@@ -200,7 +200,7 @@ function SupplierLinksSection() {
             ) : linksQuery.data && linksQuery.data.length > 0 ? (
               <ul className="flex flex-col gap-2">
                 {linksQuery.data.map((link) => (
-                  <li key={link.id} className="flex items-center justify-between rounded-[0.375rem] px-3 py-2" style={{ border: '1px solid var(--color-border)' }}>
+                  <li key={link.id} className="flex items-center justify-between rounded-[var(--radius-sm)] px-3 py-2" style={{ border: '1px solid var(--color-border)' }}>
                     <span style={{ color: 'var(--color-text-primary)' }}>{orgById.get(link.organizationId)?.legalNameEn ?? link.organizationId}</span>
                     <Button variant="ghost" size="sm" isLoading={removeLinkMutation.isPending} onClick={() => removeLinkMutation.mutate(link.id)}>
                       {t('organizations.remove')}

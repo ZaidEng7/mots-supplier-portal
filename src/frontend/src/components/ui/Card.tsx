@@ -10,7 +10,16 @@ interface CardProps {
  * onboarding section already repeats inline, extracted so new screens don't hand-roll it again. */
 export function Card({ title, action, children }: CardProps) {
   return (
-    <div className="rounded-[0.75rem] p-6" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
+    <div
+      className="rounded-[var(--radius-lg)] p-6"
+      // §6.7: surface, 1px border, --radius-lg, --shadow-sm. The border does the separating; the
+      // shadow is the faintest step on the scale, not a lift.
+      style={{
+        backgroundColor: 'var(--color-bg-surface)',
+        border: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
       {title || action ? (
         <div className="mb-3 flex items-center justify-between gap-3">
           {title ? (

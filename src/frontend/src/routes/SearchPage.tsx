@@ -85,7 +85,7 @@ export function SearchPage() {
           </p>
 
           {resultsQuery.data.truncated ? (
-            <p role="status" className="mb-3 rounded-[0.5rem] p-3"
+            <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
               style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
               {t('search.truncated')}
             </p>
@@ -108,7 +108,7 @@ export function SearchPage() {
                 return (
                   <li
                     key={`${hit.kind}:${hit.referenceCode ?? title}`}
-                    className="rounded-[0.5rem] p-3"
+                    className="rounded-[var(--radius-md)] p-3"
                     style={{ border: '1px solid var(--color-border)' }}
                   >
                     <div className="flex flex-wrap items-center gap-2">
@@ -116,7 +116,7 @@ export function SearchPage() {
                         {t(`search.kinds.${hit.kind}`, { defaultValue: hit.kind })}
                       </Badge>
                       {to ? (
-                        <Link to={to} style={{ color: 'var(--color-primary-fg)' }}>{title}</Link>
+                        <Link to={to} style={{ color: 'var(--color-text-link)' }}>{title}</Link>
                       ) : (
                         <span style={{ color: 'var(--color-text-primary)' }}>{title}</span>
                       )}

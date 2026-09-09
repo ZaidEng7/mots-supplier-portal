@@ -94,7 +94,7 @@ export function OperationsPage() {
           the reader to skip it.
         */}
         {jobsQuery.data && !jobsQuery.data.recurringEnabled ? (
-          <p role="status" className="mb-3 rounded-[0.5rem] p-3"
+          <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
             style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger-fg)' }}>
             {t('operations.recurringDisabled')}
           </p>
@@ -223,8 +223,8 @@ export function OperationsPage() {
                       </Button>
                     </span>
                     {expanded === message.id ? (
-                      <pre className="mt-2 max-h-[12rem] overflow-auto rounded-[0.5rem] p-2 text-[length:var(--text-caption)]"
-                        style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-primary)' }}>
+                      <pre className="mt-2 max-h-[12rem] overflow-auto rounded-[var(--radius-md)] p-2 text-[length:var(--text-caption)]"
+                        style={{ backgroundColor: 'var(--color-bg-sunken)', color: 'var(--color-text-primary)' }}>
                         {message.payloadJson}
                       </pre>
                     ) : null}
@@ -263,7 +263,7 @@ export function OperationsPage() {
           line would be an instrument asserting something untrue.
         */}
         {erpQuery.data && !erpQuery.data.transportConfigured ? (
-          <p role="status" className="mb-3 rounded-[0.5rem] p-3"
+          <p role="status" className="mb-3 rounded-[var(--radius-md)] p-3"
             style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
             {t('operations.erpNotConfigured')}
           </p>

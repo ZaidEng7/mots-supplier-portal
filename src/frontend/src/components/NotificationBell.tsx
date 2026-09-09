@@ -45,7 +45,7 @@ export function NotificationBell({ to = '/notifications' }: { to?: string }) {
         <span
           aria-hidden="true"
           className="ms-1 rounded-full px-1.5 text-[length:var(--text-body-sm)]"
-          style={{ background: 'var(--color-danger)', color: 'var(--color-on-danger, #fff)' }}
+          style={{ background: 'var(--color-danger-solid)', color: 'var(--color-text-inverse)' }}
         >
           {formatNumber(count, locale, 0)}
         </span>
