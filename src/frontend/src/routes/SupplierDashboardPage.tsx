@@ -5,7 +5,7 @@ import { Link } from '@tanstack/react-router'
 import { getSupplierDashboard, type ActionRequired } from '../api/supplierDashboard'
 import { unreadNotificationCount } from '../api/notifications'
 import { Card } from '../components/ui/Card'
-import { QueryError } from '../components/ui/ListScreen'
+import {PageHeading, QueryError} from '../components/ui/ListScreen'
 import { StatusChip } from '../components/ui/StatusChip'
 import { SkeletonGrid, SkeletonList } from '../components/ui/Skeleton'
 import { formatDate, formatDeadline, formatNumber } from '../lib/datetime'
@@ -92,9 +92,7 @@ export function SupplierDashboardPage() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[length:var(--text-h1)]">
-            {t('supplierDashboard.greeting', { name: isArabic ? data.displayNameAr : data.displayNameEn })}
-          </h1>
+          <PageHeading title={t('supplierDashboard.greeting', { name: isArabic ? data.displayNameAr : data.displayNameEn })} />
         </div>
         <StatusChip machine="onboarding" value={data.lifecycleState} />
       </header>

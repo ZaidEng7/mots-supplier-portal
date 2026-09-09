@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Card, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import {Button, Card, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { nextPageParam } from '../api/listEnvelope'
 import { listInvitedRfqs } from '../api/supplierRfqs'
 
@@ -28,12 +28,7 @@ export function SupplierRfqListPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('supplierRfq.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('supplierRfq.subtitle')}
-        </p>
+        <PageHeading title={t('supplierRfq.title')} subtitle={t('supplierRfq.subtitle')} />
       </div>
 
       <Card title={t('supplierRfq.listTitle')}>

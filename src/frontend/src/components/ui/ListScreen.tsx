@@ -19,17 +19,44 @@ import { errorDetail } from '../../api/problem'
  */
 
 /** Screen title and its one-line explanation of what the reader is looking at. */
-export function PageHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeading({ title, subtitle, actions, meta }: {
+  title: string
+  subtitle?: string
+  /** The primary action for this screen, beside the title rather than adrift below it. */
+  actions?: ReactNode
+  /** A status chip, a reference code, an owner - the facts that identify this particular record. */
+  meta?: ReactNode
+}) {
   return (
-    <div>
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {title}
-      </h1>
-      {subtitle ? (
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {subtitle}
-        </p>
-      ) : null}
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        {/*
+          `--text-h1`, not `--text-h2`. The audit measured `<h1>` rendering at THREE different sizes
+          across the product for one job - the h1 token on 5 screens, h2 on 45 and h3 on 7 - and this
+          component was itself one of the wrong ones, so the six screens already using it were being
+          made consistent with each other and inconsistent with the scale.
+
+          RECONCILIATION.md's shared rule: page title is `--text-h1`, one size, once per page. Never a
+          smaller heading for the page's own name.
+        */}
+        {/*
+          `break-words` is not decoration. A page title is not always prose: the back-office dashboard
+          greets you with your own email address, and a supplier's legal name can be one long token in
+          either script. At 24px those fit a 320px viewport and at 30px they do not - the reflow guard
+          caught this the moment the size changed, with the document scrolling sideways by 47px.
+          Breaking inside a word is the right answer for a heading that may contain data.
+        */}
+        <h1 className="break-words text-[length:var(--text-h1)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="mt-1 break-words text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {subtitle}
+          </p>
+        ) : null}
+        {meta ? <div className="mt-2 flex flex-wrap items-center gap-2">{meta}</div> : null}
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   )
 }

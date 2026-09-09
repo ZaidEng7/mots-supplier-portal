@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Field, Input, PhoneInput, QueryError, Select, StatusChip } from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, PhoneInput, QueryError, Select, StatusChip} from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -498,9 +498,7 @@ export function OnboardingPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('onboarding.title')}
-        </h1>
+        <PageHeading title={t('onboarding.title')} />
         <StatusChip machine="onboarding" value={profile.onboardingState} />
       </div>
 

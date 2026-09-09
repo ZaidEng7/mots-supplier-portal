@@ -26,3 +26,19 @@ for (const locale of ['en', 'ar'] as const) {
     })
   }
 }
+
+// Phase 2: the same screens after the system pass, so the heading change has evidence rather than a claim.
+for (const [route, name] of [
+  ['/back-office/dashboard', 'dashboard'],
+  ['/back-office/rfqs', 'rfq-list'],
+  ['/documents', 'documents'],
+] as const) {
+  for (const locale of ['en', 'ar'] as const) {
+    test(`capture ${name} ${locale}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 900 })
+      await mockBackend(page)
+      await page.goto(`${route}?lng=${locale}`, { waitUntil: 'networkidle' })
+      await page.screenshot({ path: `${OUT}/${name}-${locale}.png`, fullPage: true })
+    })
+  }
+}

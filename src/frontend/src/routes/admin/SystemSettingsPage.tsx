@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Field, Input, Select, SkeletonList, useToast } from '../../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, Select, SkeletonList, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import { getSystemSettings, updateSystemSetting, type SystemSetting } from '../../api/systemSettings'
 
@@ -75,10 +75,7 @@ export function SystemSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('systemSettings.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('systemSettings.subtitle')}</p>
+        <PageHeading title={t('systemSettings.title')} subtitle={t('systemSettings.subtitle')} />
       </div>
 
       {query.data.map((setting) => {

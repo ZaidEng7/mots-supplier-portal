@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Dialog, Field, Input, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { useToast } from '../components/ui'
 import { listTeam, inviteTeamMember, disableTeamMember } from '../api/team'
 import { SupplierApiError } from '../api/supplier'
@@ -79,12 +79,7 @@ export function TeamPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('team.title')}
-          </h1>
-          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('team.subtitle')}
-          </p>
+          <PageHeading title={t('team.title')} subtitle={t('team.subtitle')} />
         </div>
         <Button onClick={() => setInviteOpen(true)}>{t('team.invite')}</Button>
       </div>

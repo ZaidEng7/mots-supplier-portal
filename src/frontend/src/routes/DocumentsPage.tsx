@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, Field, Input, SkeletonList, StatusChip,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast, QueryError } from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { formatDate, formatDateTime } from '../lib/datetime'
 import { getOwnSupplier } from '../api/supplier'
 import {
@@ -99,10 +97,7 @@ export function DocumentsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('documents.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('documents.subtitle')}</p>
+        <PageHeading title={t('documents.title')} subtitle={t('documents.subtitle')} />
       </div>
 
       {/* SCR-133. Shown only when there IS something to attend to - a permanent "0 need attention"

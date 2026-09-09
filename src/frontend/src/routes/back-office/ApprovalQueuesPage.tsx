@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { StatusChip } from '../../components/ui/StatusChip'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDateTime } from '../../lib/datetime'
+import { PageHeading } from '../../components/ui/ListScreen'
 
 /**
  * SCR-401 — manager approvals. `/procurement/approvals`, P0.
@@ -67,8 +68,7 @@ export function ApprovalQueuesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-[length:var(--text-h1)]">{t('approvals.title')}</h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('approvals.subtitle')}</p>
+        <PageHeading title={t('approvals.title')} subtitle={t('approvals.subtitle')} />
       </div>
 
       {queue(t('approvals.rfqQueue'), query.data?.rfqPublishApprovals ?? [], 'rfq', t('approvals.noRfqs'))}

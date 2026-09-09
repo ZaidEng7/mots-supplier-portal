@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '../lib/datetime'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Input, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import {Badge, Button, Card, Input, PageHeading, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq, declineInvitation, postClarification, SupplierRfqApiError } from '../api/supplierRfqs'
 import { getRfqAttachmentDownloadUrl } from '../api/rfqs'
@@ -64,9 +64,7 @@ export function SupplierRfqDetailPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {rfq.rfqCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
-          </h1>
+          <PageHeading title={`${rfq.rfqCode} — ${isArabic ? rfq.titleAr : rfq.titleEn}`} />
           <StatusChip machine="invitation" value={rfq.invitationStatus} />
         </div>
         {rfq.invitationStatus !== 'Declined' ? (

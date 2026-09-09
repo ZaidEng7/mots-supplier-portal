@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Field, Input, SkeletonList, useToast } from '../../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import {
   listNotificationTemplates,
@@ -95,10 +95,7 @@ export function NotificationTemplatesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('notificationTemplates.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('notificationTemplates.subtitle')}</p>
+        <PageHeading title={t('notificationTemplates.title')} subtitle={t('notificationTemplates.subtitle')} />
       </div>
 
       {query.data.map((template) => {

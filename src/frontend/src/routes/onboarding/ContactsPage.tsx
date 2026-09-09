@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Dialog, Field, Input, PhoneInput, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, PageHeading, PhoneInput, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Representative, type Contact, type SupplierProfile } from '../../api/supplier'
 import { addRepresentative, updateRepresentative, removeRepresentative, setPrimaryRepresentative } from '../../api/representatives'
@@ -149,12 +149,7 @@ export function ContactsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('contacts.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('contacts.subtitle')}
-        </p>
+        <PageHeading title={t('contacts.title')} subtitle={t('contacts.subtitle')} />
       </div>
 
       <OnboardingStepNav />

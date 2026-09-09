@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../lib/authStore'
-import { Badge } from '../components/ui'
+import {Badge, PageHeading} from '../components/ui'
 
 export function BackOfficeDashboardPage() {
   const { t } = useTranslation()
@@ -8,9 +8,7 @@ export function BackOfficeDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('dashboard.welcome', { email: claims?.email ?? '' })}
-      </h1>
+      <PageHeading title={t('dashboard.welcome', { email: claims?.email ?? '' })} />
       <div
         className="flex flex-wrap gap-4 rounded-[var(--radius-lg)] p-6"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}

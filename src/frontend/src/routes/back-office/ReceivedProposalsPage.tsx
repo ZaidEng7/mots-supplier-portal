@@ -2,10 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, SkeletonTable, StatusChip,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow,
-} from '../../components/ui'
+import {Badge, Button, Card, PageHeading, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { listReceivedProposals, getReceivedProposal } from '../../api/buyerProposals'
 
@@ -46,12 +43,7 @@ export function ReceivedProposalsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('receivedProposals.title')}
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>
-          {t('receivedProposals.subtitle', { code: referenceCode })}
-        </p>
+        <PageHeading title={t('receivedProposals.title')} subtitle={t('receivedProposals.subtitle', { code: referenceCode })} />
       </div>
 
       {listQuery.isLoading ? (

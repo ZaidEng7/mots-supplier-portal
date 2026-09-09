@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
-import { Button, Field, Input } from '../components/ui'
+import { AuthHeading, Button, Field, Input } from '../components/ui'
 import { forgotPassword } from '../api/auth'
 
 const schema = z.object({ email: z.email() })
@@ -47,9 +47,7 @@ export function ForgotPasswordPage() {
         className="w-full max-w-sm rounded-[var(--radius-lg)] p-8"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
       >
-        <h1 className="mb-6 text-[length:var(--text-h3)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('auth.forgotTitle')}
-        </h1>
+        <AuthHeading title={t('auth.forgotTitle')} />
         {sent ? (
           <p role="status" style={{ color: 'var(--color-text-secondary)' }}>
             {t('auth.forgotSent')}

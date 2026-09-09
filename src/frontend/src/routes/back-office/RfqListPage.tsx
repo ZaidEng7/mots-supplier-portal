@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Button, Card, Dialog, Field, Input, QueryError, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import {Button, Card, Dialog, Field, Input, PageHeading, QueryError, SkeletonTable, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -56,12 +56,7 @@ export function RfqListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('rfq.title')}
-          </h1>
-          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.subtitle')}
-          </p>
+          <PageHeading title={t('rfq.title')} subtitle={t('rfq.subtitle')} />
         </div>
         <Button onClick={() => setCreateOpen(true)}>{t('rfq.add')}</Button>
       </div>

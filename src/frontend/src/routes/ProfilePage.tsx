@@ -1,9 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Badge, Button, Card, SkeletonList, StatusChip,
-  Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, QueryError } from '../components/ui'
+import {Badge, Button, Card, PageHeading, QueryError, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../components/ui'
 import { getOwnSupplier } from '../api/supplier'
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue, LEGAL_INFO_FIELDS, legalInfoValue } from './profileDisplayFields'
 
@@ -48,9 +46,7 @@ export function ProfilePage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {name}
-          </h1>
+          <PageHeading title={name} />
           <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
             <code>{supplier.supplierCode}</code>
           </p>

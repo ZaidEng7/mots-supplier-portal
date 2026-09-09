@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Card, SkeletonList } from '../../components/ui'
+import {Badge, Button, Card, PageHeading, SkeletonList} from '../../components/ui'
 import { formatNumber } from '../../lib/datetime'
 import { getAdminOverview } from '../../api/admin'
 
@@ -41,9 +41,7 @@ export function AdminOverviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-        {t('adminOverview.title')}
-      </h1>
+      <PageHeading title={t('adminOverview.title')} />
 
       {/* 2x2 on phones, widening with the viewport - the KPI-row shape the other dashboards use. */}
       <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">

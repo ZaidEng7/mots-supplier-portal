@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { StatusChip } from '../../components/ui/StatusChip'
 import { SkeletonGrid, SkeletonList } from '../../components/ui/Skeleton'
 import { formatDeadline, formatNumber } from '../../lib/datetime'
+import { PageHeading } from '../../components/ui/ListScreen'
 
 /**
  * SCR-400 — the procurement dashboard. `/procurement`, P0, SCREEN-SPECIFICATIONS.md §10.
@@ -40,7 +41,7 @@ export function ProcurementDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-[length:var(--text-h1)]">{t('procurementDashboard.title')}</h1>
+        <PageHeading title={t('procurementDashboard.title')} />
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col text-[length:var(--text-body-sm)]">
             {t('procurementDashboard.from')}

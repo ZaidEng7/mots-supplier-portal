@@ -2,7 +2,7 @@ import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Card, Input, QueryError, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui'
+import {Badge, Card, Input, PageHeading, QueryError, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
 
@@ -32,12 +32,7 @@ export function OfferingSearchPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('offeringSearch.title')}
-        </h1>
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('offeringSearch.subtitle')}
-        </p>
+        <PageHeading title={t('offeringSearch.title')} subtitle={t('offeringSearch.subtitle')} />
       </div>
 
       <div className="flex flex-wrap gap-4">

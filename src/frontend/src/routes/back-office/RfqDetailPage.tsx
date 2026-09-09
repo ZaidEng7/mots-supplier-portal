@@ -3,7 +3,7 @@ import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Badge, Button, Card, Dialog, Field, Input, QueryError, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../../components/ui'
+import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -439,9 +439,7 @@ export function RfqDetailPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {rfq.referenceCode} — {isArabic ? rfq.titleAr : rfq.titleEn}
-          </h1>
+          <PageHeading title={`${rfq.referenceCode} — ${isArabic ? rfq.titleAr : rfq.titleEn}`} />
           <StatusChip machine="rfq" value={rfq.state} />
           {/* A-7: who is answerable, on the screen rather than only in the audit trail. */}
           <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>

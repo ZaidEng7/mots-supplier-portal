@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Dialog, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast } from '../components/ui'
+import {Badge, Button, Dialog, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import {
   getReviewerSupplierView,
   pickUpApplication,
@@ -216,9 +216,7 @@ export function ReviewApplicationPage() {
           <Link to="/back-office/review" style={{ color: 'var(--color-text-brand)' }}>
             {t('review.backToQueue')}
           </Link>
-          <h1 className="mt-2 text-[length:var(--text-h2)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-            {isArabic ? supplier.displayNameAr : supplier.displayNameEn}
-          </h1>
+          <PageHeading title={isArabic ? supplier.displayNameAr : supplier.displayNameEn} />
         </div>
         <div className="flex items-center gap-2">
           <StatusChip machine="onboarding" value={state} />
