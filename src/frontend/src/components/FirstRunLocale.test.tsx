@@ -54,6 +54,22 @@ describe('FirstRunLocale', () => {
     expect(screen.getByText('اختر لغة الواجهة')).toBeInTheDocument()
   })
 
+  it('cannot be escaped past, because a choice not made is the thing it exists to collect', async () => {
+    // Phase 4 converted this from a hand-rolled overlay to a Radix dialog with Escape, outside
+    // pointer-down and outside interaction all refused. Until now that was a claim in a comment.
+    // Dismissing it would leave the reader in a language nobody chose, which is the state this screen
+    // exists to end.
+    signedIn()
+    restore = mockFetch(account(false))
+    renderPage(<FirstRunLocale />)
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
   it('records the choice and closes on the server\'s answer', async () => {
     signedIn()
     // The read flips to chosen only AFTER the POST, so this drives the real sequence: the dialog is up,
