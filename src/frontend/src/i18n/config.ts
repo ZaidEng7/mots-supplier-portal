@@ -890,6 +890,7 @@ const resources = {
         nothingToPlot: 'لا توجد أرقام قابلة للرسم. الجدول أدناه يعرض المتاح منها.',
         coverageCanTrade: 'يمكنه التقديم اليوم',
         coverageApproved: 'معتمد',
+        coverageSuspended: 'معتمد، لا يمكنه التقديم اليوم',
         coverageReadout: '{{covered}} من {{total}}',
       },
       ministryAwards: {
@@ -2830,6 +2831,7 @@ const resources = {
         nothingToPlot: 'No figures available to chart. The table below carries what there is.',
         coverageCanTrade: 'Can trade today',
         coverageApproved: 'Approved',
+        coverageSuspended: 'Approved, cannot trade today',
         coverageReadout: '{{covered}} of {{total}}',
       },
       ministryAwards: {

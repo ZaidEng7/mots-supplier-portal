@@ -68,6 +68,12 @@ export default defineConfig({
     // this proves a closing element actually reaches animationend and is released by Radix, which no
     // amount of reading CSS can establish.
     chromeProject('motion', 'motion.spec.ts', 'http://localhost:6007'),
+    // The chart geometry, in a browser, for the same reason the motion pass needed one: jsdom gives
+    // every text node zero metrics, so recharts renders empty axis tick groups and no unit test in this
+    // repository can measure a label against a bar. Every RTL defect these charts shipped was of
+    // exactly that shape. Storybook rather than the app because the demonstration database holds zero
+    // awards, so the product's own award charts render an empty state.
+    chromeProject('charts', 'charts.spec.ts', 'http://localhost:6007'),
     chromeProject('app-keyboard', 'app-keyboard.spec.ts'),
     // Task #22/NFR-A11Y-007: real DOM/ARIA read proving aria-describedby resolves to an actual,
     // non-empty error element and aria-invalid is set - axe does not check that an

@@ -42,11 +42,24 @@ export function MinistryAwardAnalyticsPage() {
    */
   const bucketTable = (
     title: string,
-    buckets: MinistrySpendBucket[],
+    unordered: MinistrySpendBucket[],
     keyHeader: string,
     orientation: 'columns' | 'ranked',
     note?: string,
-  ) => (
+  ) => {
+    /*
+      One order, used by the chart and by the table under it.
+
+      A ranked chart sorts by the measure - that is what makes it ranked - and the table beneath kept
+      the server's order, so the tallest bar and the first row were different categories. Sorting once
+      here and handing the same array to both is the only arrangement in which the two can be read
+      against each other. A withheld figure sorts last rather than as zero: it is a number nobody is
+      allowed to see, not a small one.
+    */
+    const buckets = orientation === 'ranked'
+      ? [...unordered].sort((a, b) => (b.value ?? b.awards ?? -1) - (a.value ?? a.awards ?? -1))
+      : unordered
+    return (
     <Card title={title}>
       {note ? (
         <p className="mb-3 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -73,12 +86,16 @@ export function MinistryAwardAnalyticsPage() {
                 data={buckets.map((bucket) => ({ key: bucket.key, value: bucket.value }))}
                 valueLabel={t('ministryAwards.fields.value')}
                 orientation={orientation}
+                // Money on the chart is written the way money is written in the table beneath it. A
+                // bar chart cannot know a currency, so the screen that does supplies the formatter.
+                formatValue={(value) => formatCurrency(value, null, locale)}
               />
             ) : (
               <BarChart
                 data={buckets.map((bucket) => ({ key: bucket.key, value: bucket.awards }))}
                 valueLabel={t('ministryAwards.fields.awards')}
                 orientation={orientation}
+                formatValue={(value) => formatNumber(value, locale, 0)}
               />
             )}
           </div>
@@ -105,7 +122,8 @@ export function MinistryAwardAnalyticsPage() {
         </>
       )}
     </Card>
-  )
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">

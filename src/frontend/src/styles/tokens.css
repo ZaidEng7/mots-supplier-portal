@@ -135,6 +135,32 @@
   --color-accent-wash: var(--brand-50);
   --color-accent-line: var(--brand-200);
 
+  /* Semantic — chart fills.
+     A SEQUENTIAL pair: one hue, two steps, a part and the whole it sits inside. Not a categorical
+     palette, because this ramp cannot carry one - only --brand-400 (chroma 0.111) and --brand-500
+     (0.108) clear the 0.10 chroma floor a hue needs to do identity work, and two steps of one hue
+     one apart are not two identities. Charts here carry identity in the axis label and the table
+     beneath, and spend colour on magnitude only.
+
+     The muted step is the one that was wrong. The coverage chart borrowed --color-accent-line, which
+     is --brand-200 and measures 1.68:1 against a white surface - below the 2.0:1 floor a sequential
+     ramp's faint end has to clear, so the segment standing for "approved but cannot trade today" was
+     the part of the chart a reader could not see. That token also belongs to NextActionCard's border,
+     so it could not be re-stepped for a chart's sake; these are its own names.
+
+     Measured with the dataviz validator, ordinal mode, against this theme's own surface:
+       --color-chart-fill        --brand-600  5.29:1
+       --color-chart-fill-muted  --brand-300  2.30:1   (floor 2.0)   delta-L 0.212
+     Guarded by themeContrast.test.ts, which recomputes both rather than restating them, and which
+     also refuses any chart colour that is not on the short list it measures. */
+  --color-chart-fill: var(--brand-600);
+  --color-chart-fill-muted: var(--brand-300);
+  /* Recessive by design: a grid line is scaffolding, not a boundary, and SC 1.4.11 does not reach it.
+     Named separately from --color-border so the two themes can read at the same weight - the dark
+     theme's border is 3.63:1, which drawn as a grid would be a stronger line than the light theme's
+     1.26:1 and would make one chart read as two. */
+  --color-chart-grid: var(--n-200);
+
   --sidebar-width: 260px;
 
   --color-success-fg: var(--success-600); --color-success-bg: var(--success-50); --color-success-solid: var(--success-500);
@@ -282,6 +308,16 @@
     --color-accent-wash: rgba(47, 160, 128, 0.13);
     --color-accent-line: rgba(47, 160, 128, 0.40);
 
+    /* The ramp flips its anchor in dark, as a sequential ramp must: the emphasis step is the light one
+       and the muted step is dark. Measured against this theme's own surface (#1C2421), ordinal mode:
+         --color-chart-fill        --brand-300  6.90:1
+         --color-chart-fill-muted  --brand-700  2.70:1   (floor 2.0)   delta-L 0.236
+       The value this replaces was rgba(47,160,128,0.40), which composites to #245647 and measures
+       1.89:1 - the same invisible segment as the light theme, reached a different way. */
+    --color-chart-fill: var(--brand-300);
+    --color-chart-fill-muted: var(--brand-700);
+    --color-chart-grid: var(--n-700);
+
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
     --shadow-md: 0 4px 12px rgba(0,0,0,0.45);
     --shadow-lg: 0 16px 40px rgba(0,0,0,0.55);
@@ -367,6 +403,16 @@
 
   --color-accent-wash: rgba(47, 160, 128, 0.13);
   --color-accent-line: rgba(47, 160, 128, 0.40);
+
+  /* The ramp flips its anchor in dark, as a sequential ramp must: the emphasis step is the light one
+     and the muted step is dark. Measured against this theme's own surface (#1C2421), ordinal mode:
+       --color-chart-fill        --brand-300  6.90:1
+       --color-chart-fill-muted  --brand-700  2.70:1   (floor 2.0)   delta-L 0.236
+     The value this replaces was rgba(47,160,128,0.40), which composites to #245647 and measures
+     1.89:1 - the same invisible segment as the light theme, reached a different way. */
+  --color-chart-fill: var(--brand-300);
+  --color-chart-fill-muted: var(--brand-700);
+  --color-chart-grid: var(--n-700);
 
   /* Elevation in dark mode - §4.3. A shadow tuned for a light surface disappears on a dark one,
      so these are deeper rather than the same values reused. */

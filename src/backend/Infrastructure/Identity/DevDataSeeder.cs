@@ -94,6 +94,9 @@ public static class DevDataSeeder
         await SeedUsersAsync(userManager, password, organizationId, demoSupplierId);
         await SeedTendersAsync(db, organizationId, demoSupplierId);
         await SeedVolumeAsync(db, organizationId);
+        await SeedVolumePricingAsync(db);
+        await SeedVolumeAwardsAsync(db);
+        await SeedHistoricAwardsAsync(db, organizationId);
         await EnableCommercialVisibilityAsync(db);
     }
 
@@ -518,6 +521,76 @@ public static class DevDataSeeder
         await SeedVolumeTendersAsync(db, organizationId, suppliers);
     }
 
+    /// <summary>
+    /// Every bulk bid gets priced lines.
+    ///
+    /// <para><b>A bid with no lines is worth nothing, everywhere.</b> A proposal's total is derived from
+    /// its lines and never stored - that is the domain's own invariant - so eighty-odd bids created
+    /// without any were zero on the comparison screen, zero in the awarded-value column, and zero in the
+    /// Ministry's spend analytics. The screens were not wrong; there was nothing to show.</para>
+    ///
+    /// <para><b>Why it moves the state and puts it back.</b> Draft is the only state a proposal accepts
+    /// an edit in, and that is the right rule, so this works with it rather than around it: the state
+    /// flag is moved in storage, the aggregate does the pricing under its own guards, and the flag goes
+    /// back. Moving that flag in storage is how these proposals were submitted in the first place - the
+    /// fixture has never had a supplier session to submit them from.</para>
+    /// </summary>
+    private static async Task SeedVolumePricingAsync(AppDbContext db)
+    {
+        var unpriced = await db.Proposals.AsNoTracking()
+            .Where(p => p.ReferenceCode.StartsWith("PRP-DEMO-01") && !db.ProposalItems.Any(i => i.ProposalId == p.Id))
+            .Select(p => new { p.Id, p.State })
+            .ToListAsync();
+        if (unpriced.Count == 0) return;
+
+        // In a transaction, because the middle of this leaves the fixture WORSE than it found it: the
+        // proposals are Draft between the two flips, and a failure in between would leave sixteen
+        // submitted bids sitting as drafts with their submission timestamps still on them. That is not
+        // a hypothetical - the first run of this method threw on SaveChanges and did exactly that.
+        await using var transaction = await db.Database.BeginTransactionAsync();
+
+        var submitted = unpriced.Where(p => p.State == ProposalState.Submitted).Select(p => p.Id).ToList();
+        await db.Proposals.Where(p => submitted.Contains(p.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.State, ProposalState.Draft));
+
+        db.ChangeTracker.Clear();
+        var ids = unpriced.Select(p => p.Id).ToList();
+        var proposals = await db.Proposals.Include(p => p.Items).Where(p => ids.Contains(p.Id)).ToListAsync();
+        var lines = await db.RfqItems.AsNoTracking()
+            .Where(i => proposals.Select(p => p.RfqId).Contains(i.RfqId))
+            .Select(i => new { i.Id, i.RfqId, i.Quantity })
+            .ToListAsync();
+        var byRfq = lines.GroupBy(l => l.RfqId).ToDictionary(g => g.Key, g => g.ToList());
+
+        for (var i = 0; i < proposals.Count; i++)
+        {
+            if (!byRfq.TryGetValue(proposals[i].RfqId, out var rfqLines)) continue;
+            foreach (var line in rfqLines)
+            {
+                // Spread either side of a notional list price, so no two bids on one tender are equal,
+                // the cheapest is not always the first one invited, and a comparison has an order.
+                proposals[i].SetItemPricing(line.Id, line.Quantity, 120m + ((i * 37) % 260),
+                    discount: null, leadTimeDays: 7 + (i % 21), notesAr: null, notesEn: null);
+
+                // Added to the set explicitly, which is what ManageProposalItemHandler does on the line
+                // after its own SetItemPricing call and for the same reason. A ProposalItem carries a
+                // key it assigns itself, so a child discovered inside a tracked parent's collection is
+                // attached as Modified rather than Added - EF reads "has a key" as "already exists".
+                // The first draft of this omitted it, and the seeder emitted twenty-one UPDATEs against
+                // rows that had never been inserted: zero rows affected, and a
+                // DbUpdateConcurrencyException that named nothing useful.
+                db.ProposalItems.Add(proposals[i].Items.First(item => item.RfqItemId == line.Id));
+            }
+        }
+        await db.SaveChangesAsync();
+
+        await db.Proposals.Where(p => submitted.Contains(p.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.State, ProposalState.Submitted));
+
+        await transaction.CommitAsync();
+        db.ChangeTracker.Clear();
+    }
+
     /// <summary>Tender subjects a Ministry of Transport would actually run.</summary>
     private static readonly (string Ar, string En)[] BulkTenders =
     [
@@ -643,6 +716,273 @@ public static class DevDataSeeder
             closing[i].OpenEvaluation();
         }
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Tenders carried all the way to Awarded, in the bulk range only.
+    ///
+    /// <para><b>Why this exists, and why it stops where it does.</b> The curated fixture deliberately
+    /// leaves its one award at Recommended - "an award is a verdict, and a fixture has no standing to
+    /// reach one" - and that is still true of the tender the walkthrough follows. It is not true of the
+    /// bulk range, which exists precisely so the screens have something to render: with no award
+    /// anywhere in the database, the Ministry's three award charts drew "no figures available to chart",
+    /// the awarded-value column was empty on every row, and the ranked bars nobody had ever seen could
+    /// not be seen. A demonstration of a procurement portal in which nothing has ever been procured
+    /// shows the pipeline and hides the point of it.</para>
+    ///
+    /// <para>So the curated award stays in flight, the manager's approval queue keeps its row, and these
+    /// are separate: RFQ-DEMO-01xx only.</para>
+    ///
+    /// <para><b>The dates are moved backwards afterwards.</b> Every award created in one run carries one
+    /// timestamp, and a spend-by-month chart of a single month is a chart of one bar. `CreatedAt` is
+    /// init-only and `AwardedAt` is set by the aggregate, correctly - neither is something a caller
+    /// should be able to choose - so they are rewritten in storage the same way the submission window
+    /// is, which is the move this seeder and the integration suite already make for the same reason.</para>
+    /// </summary>
+
+    /// <summary>Subjects for the tenders that have already been decided.</summary>
+    private static readonly (string Ar, string En)[] HistoricTenders =
+    [
+        ("توريد حافلات المدينة", "City bus supply"), ("صيانة جسر النهر", "River bridge maintenance"),
+        ("خدمات الإطعام للمقر", "Headquarters catering"), ("تأمين إقامة البعثات", "Mission accommodation"),
+        ("تنظيم معرض النقل", "Transport expo"), ("رحلات الوفود الرسمية", "Official delegation tours"),
+        ("توريد زيوت المحركات", "Engine oil supply"), ("تجديد أرصفة المحطة", "Station platform renewal"),
+        ("خدمات الغسيل للأسطول", "Fleet laundry services"), ("توريد أجهزة اللاسلكي", "Radio equipment supply"),
+        ("صيانة أنظمة الإنذار", "Alarm system maintenance"), ("خدمات النقل المدرسي", "School transport services"),
+        ("توريد مواد التنظيف", "Cleaning consumables"), ("تدريب سائقي الحافلات", "Bus driver training"),
+    ];
+
+    /// <summary>
+    /// A procurement history: tenders that were run, decided and closed, spread over the past ten months.
+    ///
+    /// <para><b>Why a separate range rather than more of the bulk one.</b> The bulk tenders are a
+    /// PIPELINE - four drafts, four in review, four approved, three open, three under evaluation - and
+    /// those proportions are a deliberate statement about what a working queue looks like. Pushing more
+    /// of them to Awarded to fill a chart would break the thing they were built to show. These are
+    /// RFQ-DEMO-02xx, they are all finished, and they exist for the screens that read backwards:
+    /// award analytics, spend by month, spend by category, the coverage report's awarded column.</para>
+    ///
+    /// <para><b>Ten months, fourteen tenders, six categories.</b> A chart of one month is a chart of one
+    /// bar, and a ranked chart of two categories has nothing to rank. The months are uneven because a
+    /// procurement year is uneven.</para>
+    ///
+    /// <para>One buying body, because this demonstration has one. The Ministry's "by buying body" chart
+    /// is therefore a single row - which is the truth of this tenancy rather than a gap: a second
+    /// organisation would hide its own tenders from the officer, whose every list is scoped to the
+    /// organisation they belong to, and would strand the owner-eligibility check on transitions.</para>
+    /// </summary>
+    private static async Task SeedHistoricAwardsAsync(AppDbContext db, Guid organizationId)
+    {
+        if (await db.Rfqs.AnyAsync(r => r.ReferenceCode == "RFQ-DEMO-0201")) return;
+
+        var officerId = await db.Users.Where(u => u.Email == "officer@mots.local").Select(u => u.Id).FirstAsync();
+        var approverId = await db.Users.Where(u => u.Email == "manager@mots.local").Select(u => u.Id).FirstAsync();
+        var template = await db.EvaluationTemplates.Include(t => t.Criteria).FirstAsync();
+        var snapshot = System.Text.Json.JsonSerializer.Serialize(template.Criteria.Select(c => new
+        {
+            c.NameAr, c.NameEn, Dimension = c.Dimension.ToString(), c.Weight, c.MaxScore, c.Threshold,
+            ScoringType = c.ScoringType.ToString(), c.RequiresJustification,
+        }));
+
+        // Only suppliers who could really have been invited - approved, and able to trade.
+        var invitable = await db.Suppliers
+            .Where(s => s.OnboardingState == SupplierOnboardingState.Approved
+                        && s.LifecycleState == SupplierLifecycleState.Active)
+            .OrderBy(s => s.ReferenceCode)
+            .Select(s => s.Id)
+            .ToListAsync();
+        if (invitable.Count == 0) return;
+
+        var created = new List<Rfq>();
+        for (var i = 0; i < HistoricTenders.Length; i++)
+        {
+            var (titleAr, titleEn) = HistoricTenders[i];
+            var rfq = Rfq.Create($"RFQ-DEMO-{201 + i:0000}", organizationId, titleAr, titleEn, null, null, "SYP",
+                publishAt: null,
+                submissionOpensAt: DateTimeOffset.UtcNow.AddHours(1),
+                submissionClosesAt: DateTimeOffset.UtcNow.AddDays(2),
+                clarificationDeadlineAt: null, evaluationTargetDate: null, ownerUserId: officerId);
+            // Two lines on every third one, so an award can touch two categories and the note under the
+            // by-category chart - "an award counts once per category its tender touched" - describes
+            // something that actually happens in this data.
+            rfq.AddItem(titleAr, titleEn, null, null, Categories[i % Categories.Length],
+                20m + (i * 13 % 180), "unit", isUnitPrice: true, isOptional: false);
+            if (i % 3 == 0)
+            {
+                rfq.AddItem(titleAr, titleEn, null, null, Categories[(i + 2) % Categories.Length],
+                    15m + (i * 7 % 120), "unit", isUnitPrice: true, isOptional: false);
+            }
+            rfq.BindEvaluationTemplate(template.Id, 1, snapshot);
+            foreach (var supplierId in invitable.Skip(i % 3).Take(3)) rfq.InviteSupplier(supplierId);
+            rfq.SubmitForReview();
+            db.RfqApprovals.Add(rfq.Approvals.Single(a => a.Decision is null));
+            rfq.Approve(officerId);
+            rfq.Publish();
+            db.Rfqs.Add(rfq);
+            created.Add(rfq);
+        }
+        await db.SaveChangesAsync();
+
+        // The window has to be in the past before it can legally open - the same move the bulk tenders
+        // make, and the same one the integration suite documents.
+        var ids = created.Select(r => r.Id).ToList();
+        await db.Rfqs.Where(r => ids.Contains(r.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionOpensAt, DateTimeOffset.UtcNow.AddHours(-1)));
+        db.ChangeTracker.Clear();
+
+        var tenders = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations).Include(r => r.Items)
+            .Where(r => ids.Contains(r.Id)).OrderBy(r => r.ReferenceCode).ToListAsync();
+        foreach (var rfq in tenders) rfq.OpenSubmissionWindow();
+        await db.SaveChangesAsync();
+
+        // Bids, priced. A bid with no lines is worth nothing everywhere the product asks what a tender
+        // cost, which is the whole reason these tenders exist.
+        var proposalNumber = 201;
+        var bids = new List<Proposal>();
+        foreach (var rfq in tenders)
+        {
+            foreach (var supplierId in rfq.Invitations.Select(inv => inv.SupplierId))
+            {
+                var bid = Proposal.Create($"PRP-DEMO-{proposalNumber:0000}", rfq.Id, supplierId);
+                foreach (var line in rfq.Items)
+                {
+                    bid.SetItemPricing(line.Id, line.Quantity, 140m + ((proposalNumber * 29) % 320),
+                        discount: null, leadTimeDays: 5 + (proposalNumber % 25), notesAr: null, notesEn: null);
+                }
+                bids.Add(bid);
+                proposalNumber++;
+            }
+        }
+        db.Proposals.AddRange(bids);
+        await db.SaveChangesAsync();
+
+        var bidIds = bids.Select(b => b.Id).ToList();
+        await db.Proposals.Where(p => bidIds.Contains(p.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.State, ProposalState.Submitted)
+                                      .SetProperty(x => x.SubmittedAt, DateTimeOffset.UtcNow.AddDays(-1)));
+        db.ChangeTracker.Clear();
+
+        // Closed, evaluated, decided. The winner is the cheapest bid on the tender, which is a rule this
+        // fixture can defend: it is not a judgement about quality, it is the only ordering the data
+        // carries.
+        var totals = await db.ProposalItems.AsNoTracking()
+            .Where(i => bidIds.Contains(i.ProposalId))
+            .Select(i => new { i.ProposalId, i.Quantity, i.UnitPrice })
+            .ToListAsync();
+        var totalByProposal = totals.GroupBy(t => t.ProposalId)
+            .ToDictionary(g => g.Key, g => g.Sum(t => t.Quantity * t.UnitPrice));
+        var bidsByRfq = bids.GroupBy(b => b.RfqId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var decided = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations)
+            .Where(r => ids.Contains(r.Id)).OrderBy(r => r.ReferenceCode).ToListAsync();
+        var awarded = new List<(Guid AwardId, int Index)>();
+        for (var i = 0; i < decided.Count; i++)
+        {
+            var rfq = decided[i];
+            if (!bidsByRfq.TryGetValue(rfq.Id, out var candidates) || candidates.Count == 0) continue;
+            var winner = candidates.OrderBy(b => totalByProposal.GetValueOrDefault(b.Id)).First();
+
+            rfq.CloseSubmissionWindow(reason: null, isEarlyClose: false);
+            rfq.OpenEvaluation();
+            rfq.BeginShortlisting();
+            rfq.RecordRecommendation();
+            rfq.EnterAwardApproval();
+            rfq.MarkAwarded();
+
+            var award = Domain.Awards.Award.Recommend(
+                rfq.Id, winner.Id,
+                "أفضل عرض من حيث السعر والمواصفات الفنية.",
+                "Best combination of price and technical specification.",
+                officerId);
+            award.RouteForApproval();
+            award.Approve(approverId);
+            award.ExecuteAward(snapshot);
+            db.Awards.Add(award);
+            awarded.Add((award.Id, i));
+        }
+        await db.SaveChangesAsync();
+
+        foreach (var (awardId, position) in awarded)
+        {
+            // Ten months, unevenly filled: two of the months carry three awards and one carries none,
+            // because a spend chart whose bars are all the same height teaches nothing about reading one.
+            var monthsAgo = position % 10;
+            var when = DateTimeOffset.UtcNow.AddMonths(-monthsAgo).AddDays(-(position * 5 % 27));
+            await db.Awards.Where(a => a.Id == awardId)
+                .ExecuteUpdateAsync(p => p.SetProperty(a => a.CreatedAt, when)
+                                          .SetProperty(a => a.AwardedAt, when));
+        }
+    }
+
+    private static async Task SeedVolumeAwardsAsync(AppDbContext db)
+    {
+        // Self-gating rather than gated by the caller, because this runs on databases that already
+        // exist. SeedVolumeAsync returns early the moment its first supplier is found, which is right
+        // for what it does and useless for adding something that was never there.
+        if (await db.Awards.AnyAsync(a => a.State == Domain.Awards.AwardState.Awarded)) return;
+
+        var officerId = await db.Users.Where(u => u.Email == "officer@mots.local").Select(u => u.Id).FirstAsync();
+        var template = await db.EvaluationTemplates.Include(t => t.Criteria).FirstAsync();
+        var snapshot = System.Text.Json.JsonSerializer.Serialize(template.Criteria.Select(c => new
+        {
+            c.NameAr, c.NameEn, Dimension = c.Dimension.ToString(), c.Weight, c.MaxScore, c.Threshold,
+            ScoringType = c.ScoringType.ToString(), c.RequiresJustification,
+        }));
+
+        // Segregation of duties: §6.1 refuses an approver who is also the recommender, and the second
+        // manager exists for exactly this. Recommending as the officer and approving as a manager is
+        // also what actually happens.
+        var approverId = await db.Users.Where(u => u.Email == "manager@mots.local").Select(u => u.Id).FirstAsync();
+
+        db.ChangeTracker.Clear();
+        var evaluating = await db.Rfqs
+            .Where(r => r.ReferenceCode.StartsWith("RFQ-DEMO-01") && r.State == RfqState.UnderEvaluation)
+            .OrderBy(r => r.ReferenceCode)
+            .ToListAsync();
+
+        var submittedByRfq = await db.Proposals.AsNoTracking()
+            .Where(p => p.State == ProposalState.Submitted)
+            .Select(p => new { p.Id, p.RfqId })
+            .ToListAsync();
+        var winners = submittedByRfq.GroupBy(p => p.RfqId).ToDictionary(g => g.Key, g => g.First().Id);
+
+        var awarded = new List<(Guid AwardId, int Index)>();
+        var index = 0;
+        foreach (var rfq in evaluating)
+        {
+            // A tender with no submitted bid has no winner to name, and inventing one would be the
+            // fixture asserting something the product refuses.
+            if (!winners.TryGetValue(rfq.Id, out var winningProposalId)) continue;
+
+            rfq.BeginShortlisting();
+            rfq.RecordRecommendation();
+            rfq.EnterAwardApproval();
+            rfq.MarkAwarded();
+
+            var award = Domain.Awards.Award.Recommend(
+                rfq.Id, winningProposalId,
+                "أفضل عرض من حيث السعر والمواصفات الفنية.",
+                "Best combination of price and technical specification.",
+                officerId);
+            award.RouteForApproval();
+            award.Approve(approverId);
+            award.ExecuteAward(snapshot);
+            db.Awards.Add(award);
+            awarded.Add((award.Id, index++));
+        }
+        await db.SaveChangesAsync();
+
+        // Spread backwards over eight months. The analytics group by month, so this is what gives the
+        // spend chart an axis rather than a single column - and the months are uneven on purpose,
+        // because a procurement year is.
+        foreach (var (awardId, position) in awarded)
+        {
+            var monthsAgo = position % 8;
+            var when = DateTimeOffset.UtcNow.AddMonths(-monthsAgo).AddDays(-(position * 3 % 25));
+            await db.Awards.Where(a => a.Id == awardId)
+                .ExecuteUpdateAsync(p => p.SetProperty(a => a.CreatedAt, when)
+                                          .SetProperty(a => a.AwardedAt, when));
+        }
     }
 
     private static Rfq NewRfq(AppDbContext db, string code, Guid organizationId, string titleAr, string titleEn,
