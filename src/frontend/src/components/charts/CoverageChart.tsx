@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Bar, BarChart as RechartsBarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { RTL_LANGUAGES } from '../../i18n/rtl'
-import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE } from './chartTooltip'
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, segmentTooltipRow } from './chartTooltip'
 import { formatNumber } from '../../lib/datetime'
 
 /** Rounded at the data end, square against the baseline it is measured from - mirrored for Arabic. */
@@ -152,10 +152,10 @@ export function CoverageChart({ data, height }: {
               contentStyle={TOOLTIP_STYLE}
               itemStyle={TOOLTIP_ITEM_STYLE}
               labelStyle={TOOLTIP_LABEL_STYLE}
-              formatter={(value, name) => [
-                formatNumber(Number(value), locale, 0),
-                name === 'covered' ? t('charts.coverageCanTrade') : t('charts.coverageSuspended'),
-              ]}
+              formatter={segmentTooltipRow(
+                (figure) => formatNumber(figure, locale, 0),
+                (segment) => (segment === 'covered' ? t('charts.coverageCanTrade') : t('charts.coverageSuspended')),
+              )}
             />
             {/*
               Square, deliberately, and this is the one place the rounding rule is not applied.

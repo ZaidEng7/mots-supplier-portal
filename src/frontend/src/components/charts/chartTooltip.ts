@@ -25,3 +25,42 @@ export const TOOLTIP_STYLE = {
  */
 export const TOOLTIP_ITEM_STYLE = { color: 'var(--color-text-primary)' } as const
 export const TOOLTIP_LABEL_STYLE = { color: 'var(--color-text-secondary)' } as const
+
+/**
+ * What one row of a tooltip says: the figure, then what the figure is.
+ *
+ * <p>A named function rather than an arrow written inline three times, because the rule it carries is
+ * the one this pass was about - a figure on a chart is written the way the table beneath writes it, in
+ * whichever locale is running - and a rule worth stating is worth testing. Inline, it was three
+ * closures nothing could reach: recharts calls them from inside its own hover machinery, which needs
+ * real element geometry, and jsdom reports none.</p>
+ *
+ * <p>recharts hands the value back as `unknown` because a tooltip can sit on any series; anything that
+ * is not a number is passed through as its own text rather than coerced into `NaN`.</p>
+ */
+export function tooltipRow(
+  write: (value: number) => string,
+  label: string,
+): (value: unknown) => [string, string] {
+  return (value) => {
+    if (typeof value === 'number') return [write(value), label]
+    // Anything else is passed through only when it is already text. An object stringified here would
+    // put "[object Object]" on screen, which is worse than the value it stands for.
+    return [typeof value === 'string' ? value : '', label]
+  }
+}
+
+/**
+ * The same row for a chart whose segments have different names - a stacked pair, where what the figure
+ * IS depends on which segment the pointer is over.
+ *
+ * <p>Separate from <see cref="tooltipRow"/> for the reason that one exists at all: written inline it is
+ * a closure recharts only calls from its hover machinery, which jsdom cannot drive, so the rule that
+ * decides which of two words appears beside a number could not be checked anywhere.</p>
+ */
+export function segmentTooltipRow(
+  write: (value: number) => string,
+  labelFor: (segment: unknown) => string,
+): (value: unknown, segment: unknown) => [string, string] {
+  return (value, segment) => tooltipRow(write, labelFor(segment))(value)
+}

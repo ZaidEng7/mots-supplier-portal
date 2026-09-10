@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Bar, BarChart as RechartsBarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { RTL_LANGUAGES } from '../../i18n/rtl'
 import { formatNumber } from '../../lib/datetime'
-import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE } from './chartTooltip'
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, tooltipRow } from './chartTooltip'
 
 export interface BarDatum {
   /** The category this bar names — a month, a category, a buying body. */
@@ -112,7 +112,7 @@ export function BarChart({ data, valueLabel, orientation = 'columns', height, fo
               contentStyle={TOOLTIP_STYLE}
               itemStyle={TOOLTIP_ITEM_STYLE}
               labelStyle={TOOLTIP_LABEL_STYLE}
-              formatter={(value) => [write(Number(value)), valueLabel]}
+              formatter={tooltipRow(write, valueLabel)}
             />
             <YAxis
               type="category"
@@ -199,7 +199,7 @@ export function BarChart({ data, valueLabel, orientation = 'columns', height, fo
             contentStyle={TOOLTIP_STYLE}
             itemStyle={TOOLTIP_ITEM_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
-            formatter={(value) => [write(Number(value)), valueLabel]}
+            formatter={tooltipRow(write, valueLabel)}
           />
           {/* `maxBarSize` because a category count is not a width. A month with one award drew a bar
               spanning the whole card, which reads as a full scale rather than as one data point -
