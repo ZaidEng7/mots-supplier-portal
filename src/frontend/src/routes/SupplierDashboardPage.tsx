@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Metric, MetricRow } from '../components/ui'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -119,21 +120,16 @@ export function SupplierDashboardPage() {
         </ul>
       ) : null}
 
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <MetricRow>
         {([
           ['openInvitations', data.kpis.openInvitations],
           ['draftProposals', data.kpis.draftProposals],
           ['submittedProposals', data.kpis.submittedProposals],
           ['documentsNeedingAttention', data.kpis.documentsNeedingAttention],
         ] as const).map(([key, value]) => (
-          <li key={key} className="rounded-[var(--radius-md)] p-3" style={{ border: '1px solid var(--color-border)' }}>
-            <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-              {t(`supplierDashboard.kpis.${key}`)}
-            </p>
-            <p className="num text-[length:var(--text-h2)]">{formatNumber(value, locale, 0)}</p>
-          </li>
+          <Metric key={key} label={t(`supplierDashboard.kpis.${key}`)} value={formatNumber(value, locale, 0)} />
         ))}
-      </ul>
+      </MetricRow>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
