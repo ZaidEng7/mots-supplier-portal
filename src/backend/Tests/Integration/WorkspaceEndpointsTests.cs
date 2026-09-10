@@ -74,8 +74,16 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         var submitReview = actions.Single();
         submitReview.GetProperty("action").GetString().Should().Be("submit_review");
         submitReview.GetProperty("permitted").GetBoolean().Should().BeFalse("a Draft RFQ with no items yet cannot be submitted for review");
-        submitReview.GetProperty("blockedReasonEn").GetString().Should().Be("No items yet.");
-        submitReview.GetProperty("blockedReasonAr").GetString().Should().Be("لا توجد بنود بعد.");
+
+        // EVERY unmet precondition, not the first one. The rail used to name one, so a person fixed it,
+        // pressed the button and was told about the next - five round trips to learn what submitting
+        // needs. Worse, the list was missing the submission-window rule entirely, so the rail and the
+        // domain disagreed about why a draft was blocked. This RFQ was created with nothing at all, so
+        // all four that apply are named, in the order SubmitForReview checks them.
+        submitReview.GetProperty("blockedReasonEn").GetString().Should().Be(
+            "No items yet. Submission dates not set. No evaluation template bound. No supplier invited yet.");
+        submitReview.GetProperty("blockedReasonAr").GetString().Should().Be(
+            "لا توجد بنود بعد. لم يتم تحديد تواريخ التقديم. لم يتم ربط قالب تقييم. لم تتم دعوة أي مورد بعد.");
     }
 
     [Fact]
