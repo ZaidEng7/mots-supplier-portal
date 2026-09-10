@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { PageHeading } from '../components/ui/ListScreen'
+import { Card } from '../components/ui/Card'
 
 /**
  * SCR-907 — help, written from what the software actually does.
@@ -34,14 +35,9 @@ export function HelpPage() {
 
       <section className="flex flex-col gap-3">
         {topics.map((topic) => (
-          <div
-            key={topic.key}
-            className="rounded-[var(--radius-lg)] p-5"
-            style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-          >
-            <h2 className="mb-1 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-              {t(`help.topics.${topic.key}.question`)}
-            </h2>
+          // The question is the card's name, so it belongs in the header band rather than in a
+          // hand-written heading inside a hand-rolled surface. Card draws both.
+          <Card key={topic.key} title={t(`help.topics.${topic.key}.question`)}>
             <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {t(`help.topics.${topic.key}.answer`)}
             </p>
@@ -50,16 +46,13 @@ export function HelpPage() {
             <Link to={topic.to} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-link)' }}>
               {t(`help.topics.${topic.key}.action`)}
             </Link>
-          </div>
+          </Card>
         ))}
       </section>
 
-      <section className="rounded-[var(--radius-lg)] p-5" style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}>
-        <h2 className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('help.contactTitle')}
-        </h2>
+      <Card title={t('help.contactTitle')}>
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('help.contactPending')}</p>
-      </section>
+      </Card>
     </div>
   )
 }

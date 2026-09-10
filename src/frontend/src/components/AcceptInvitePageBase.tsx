@@ -60,7 +60,7 @@ export function AcceptInvitePageBase({
         <AuthHeading title={title} />
         {status === 'success' ? (
           <div className="flex flex-col gap-4">
-            <p role="status" style={{ color: 'var(--success-600)' }}>
+            <p role="status" style={{ color: 'var(--color-success-fg)' }}>
               {successMessage}
             </p>
             <Link to="/login" style={{ color: 'var(--color-text-link)' }}>

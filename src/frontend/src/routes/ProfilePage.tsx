@@ -109,13 +109,14 @@ export function ProfilePage() {
       </Card>
 
       <Card
+        flush
         title={t('profile.contactsTitle')}
         action={<Link to="/onboarding/contacts"><Button size="sm" variant="ghost">{t('profile.manage')}</Button></Link>}
       >
         {supplier.representatives.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('profile.noContacts')}</p>
         ) : (
-          <Table caption={t('profile.contactsTitle')}>
+          <Table flush caption={t('profile.contactsTitle')}>
             <TableHead>
               <TableHeaderCell>{t('profile.fields.fullName')}</TableHeaderCell>
               <TableHeaderCell>{t('profile.fields.email')}</TableHeaderCell>

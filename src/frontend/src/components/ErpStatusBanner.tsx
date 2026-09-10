@@ -42,7 +42,7 @@ export function ErpStatusBanner() {
       // interrupt a screen reader mid-sentence.
       role="status"
       className="px-4 py-2 text-[length:var(--text-body-sm)] sm:px-6"
-      style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)', borderBottom: '1px solid var(--color-border)' }}
+      style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)', borderBottom: '1px solid var(--color-border)' }}
     >
       {message}
     </div>

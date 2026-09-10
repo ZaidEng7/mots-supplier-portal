@@ -255,11 +255,11 @@ export function OfferingCatalogPage() {
         <Button onClick={() => { setEditing(null); setDialogOpen(true) }}>{t('offeringCatalog.add')}</Button>
       </div>
 
-      <Card title={t('offeringCatalog.listTitle')}>
+      <Card flush title={t('offeringCatalog.listTitle')}>
         {offerings.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('offeringCatalog.empty')}</p>
+          <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('offeringCatalog.empty')}</p>
         ) : (
-          <Table caption={t('offeringCatalog.listTitle')}>
+          <Table flush caption={t('offeringCatalog.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('offeringCatalog.fields.name')}</TableHeaderCell>
               <TableHeaderCell>{t('offeringCatalog.fields.category')}</TableHeaderCell>

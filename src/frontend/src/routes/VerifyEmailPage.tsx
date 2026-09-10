@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearch } from '@tanstack/react-router'
-import { Button, Field, Input } from '../components/ui'
+import { AuthHeading, Button, Field, Input } from '../components/ui'
 import { resendVerification } from '../api/auth'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
@@ -47,6 +47,10 @@ export function VerifyEmailPage() {
         className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
       >
+        {/* The screen had no title in any of its three states, so a reader who followed a link from an
+            email and hit the failure branch was shown an error with nothing saying what had failed.
+            AuthHeading rather than PageHeading: this card IS the viewport. */}
+        <AuthHeading title={t('auth.verifyEmailTitle')} />
         {status === 'pending' ? (
           <output className="block" style={{ color: 'var(--color-text-secondary)' }}>
             {t('auth.verifyingEmail')}
@@ -54,7 +58,7 @@ export function VerifyEmailPage() {
         ) : null}
         {isVerified ? (
           <div className="flex flex-col gap-4">
-            <output className="block" style={{ color: 'var(--success-600)' }}>
+            <output className="block" style={{ color: 'var(--color-success-fg)' }}>
               {t('auth.verifySuccess')}
             </output>
             <Link to="/login" style={{ color: 'var(--color-text-link)' }}>
@@ -68,7 +72,7 @@ export function VerifyEmailPage() {
               {t('auth.verifyFailed')}
             </p>
             {resendStatus === 'sent' ? (
-              <output className="block" style={{ color: 'var(--success-600)' }}>
+              <output className="block" style={{ color: 'var(--color-success-fg)' }}>
                 {t('auth.resendSent')}
               </output>
             ) : (

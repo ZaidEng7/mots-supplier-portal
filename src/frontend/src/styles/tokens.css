@@ -140,6 +140,11 @@
   --color-success-fg: var(--success-600); --color-success-bg: var(--success-50); --color-success-solid: var(--success-500);
   --color-warning-fg: var(--warning-600); --color-warning-bg: var(--warning-50); --color-warning-solid: var(--warning-500);
   --color-danger-fg: var(--danger-600);  --color-danger-bg: var(--danger-50);  --color-danger-solid: var(--danger-500);
+  /* The danger button while a pointer is on it. It existed only as a raw --danger-600 read from
+     Button.tsx, which is the one primitive the semantic layer had no name for: --color-danger-fg is
+     the same value in this theme but is a FOREGROUND, and in dark mode it is a pale salmon that would
+     make the button lighten under the cursor while its label stayed white. */
+  --color-danger-solid-hover: var(--danger-600);
   --color-info-fg: var(--info-600);    --color-info-bg: var(--info-50);    --color-info-solid: var(--info-500);
   --color-gold-fg: var(--accent-gold-700); --color-gold-solid: var(--accent-gold-600);
 
@@ -277,6 +282,9 @@
   --color-success-fg: #6FCF97; --color-success-bg: rgba(30,135,75,0.16);  --color-success-solid: var(--success-500);
   --color-warning-fg: #E3B15C; --color-warning-bg: rgba(183,121,31,0.16); --color-warning-solid: var(--warning-500);
   --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: #CD3D2E;
+  /* Darkening on hover, like the light theme's, rather than brightening toward the foreground colour:
+     the label on this fill is white in both themes. */
+  --color-danger-solid-hover: #B23325;
   --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: #2B73C1;
   --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
 

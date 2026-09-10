@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { listMyAssignments, type MyAssignmentTab } from '../api/myEvaluations'
 import { Card } from '../components/ui/Card'
+import { PageHeading } from '../components/ui/ListScreen'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { StatusChip } from '../components/ui/StatusChip'
 import { Button } from '../components/ui/Button'
@@ -35,7 +36,11 @@ export function EvaluationDashboardPage() {
   const tabs: MyAssignmentTab[] = ['Assigned', 'InProgress', 'Submitted']
 
   return (
-    <Card title={t('evaluationDashboard.title')}>
+    // The page's name, then the card. This screen carried its title in a card header band, which
+    // renders at body size, so it had no page heading at all.
+    <div className="flex flex-col gap-6">
+      <PageHeading title={t('evaluationDashboard.title')} />
+      <Card>
       <div role="tablist" aria-label={t('evaluationDashboard.title')} className="mb-4 flex flex-wrap gap-2">
         {tabs.map((candidate) => (
           <Button
@@ -108,6 +113,7 @@ export function EvaluationDashboardPage() {
           </li>
         ))}
       </ul>
-    </Card>
+      </Card>
+    </div>
   )
 }

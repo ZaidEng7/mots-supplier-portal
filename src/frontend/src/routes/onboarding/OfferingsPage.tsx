@@ -68,7 +68,7 @@ export function OfferingsPage() {
       <OnboardingStepNav />
 
       {missingCategoryLink ? (
-        <p role="alert" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
+        <p role="alert" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
           {t('offerings.missingCategory')}
         </p>
       ) : null}

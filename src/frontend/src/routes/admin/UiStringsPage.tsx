@@ -161,7 +161,7 @@ export function UiStringsPage() {
         </p>
       </Card>
 
-      <Card title={t('uiStrings.listTitle')}>
+      <Card flush title={t('uiStrings.listTitle')}>
         {overridesQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
         {overridesQuery.isError ? (
           <div className="flex flex-col gap-2">
@@ -177,7 +177,7 @@ export function UiStringsPage() {
         ) : null}
 
         {overridesQuery.data && overridesQuery.data.length > 0 ? (
-          <Table>
+          <Table flush>
             <TableHead>
               <TableRow>
                 <TableHeaderCell>{t('uiStrings.fields.key')}</TableHeaderCell>

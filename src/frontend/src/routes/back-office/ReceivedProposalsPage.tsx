@@ -215,7 +215,7 @@ export function ReceivedProposalsPage() {
               {list && list.proposals.length > 0 ? (
                 <ProposalsTable proposals={list.proposals} isArabic={isArabic} locale={locale} onOpen={setSelected} />
               ) : (
-                <p style={{ color: 'var(--color-text-secondary)' }}>{t('receivedProposals.empty')}</p>
+                <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('receivedProposals.empty')}</p>
               )}
             </Card>
 

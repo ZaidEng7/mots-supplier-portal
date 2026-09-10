@@ -257,11 +257,11 @@ export function OrganizationsPage() {
         <PageHeading title={t('organizations.title')} subtitle={t('organizations.subtitle')} />
       </div>
 
-      <Card title={t('organizations.listTitle')} action={<Button size="sm" onClick={() => setCreateOpen(true)}>{t('organizations.createTitle')}</Button>}>
+      <Card flush title={t('organizations.listTitle')} action={<Button size="sm" onClick={() => setCreateOpen(true)}>{t('organizations.createTitle')}</Button>}>
         {organizations.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('organizations.empty')}</p>
+          <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('organizations.empty')}</p>
         ) : (
-          <Table caption={t('organizations.listTitle')}>
+          <Table flush caption={t('organizations.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('organizations.fields.legalNameEn')}</TableHeaderCell>
               <TableHeaderCell>{t('organizations.fields.organizationType')}</TableHeaderCell>

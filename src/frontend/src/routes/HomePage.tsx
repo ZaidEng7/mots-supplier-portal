@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { fetchCurrencies, fetchHealth } from '../api/reference'
+import { Card, PageHeading } from '../components/ui'
 
 /** Walking-skeleton slice: renders a real reference-data read through every layer
  *  (UI -> API -> Application -> Domain -> EF Core -> PostgreSQL). docs/backlog/ROADMAP.md Phase 0. */
@@ -12,13 +13,11 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section
-        className="rounded-lg border p-4"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
-      >
-        <h2 className="mb-2 text-[length:var(--text-body-lg)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('health.title')}
-        </h2>
+      {/* The landing page imported no shared component at all - it was the walking skeleton, written
+          before there was a component layer, and it kept its own hand-rolled surfaces and headings long
+          after one existed. Both sections are `Card`s now, and the page has a name. */}
+      <PageHeading title={t('appName')} />
+      <Card title={t('health.title')}>
         {health.isLoading && <p style={{ color: 'var(--color-text-secondary)' }}>...</p>}
         {health.isSuccess && (
           <span
@@ -36,15 +35,9 @@ export function HomePage() {
             {t('health.unhealthy')}
           </span>
         )}
-      </section>
+      </Card>
 
-      <section
-        className="rounded-lg border p-4"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
-      >
-        <h2 className="mb-3 text-[length:var(--text-body-lg)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
-          {t('reference.currencies')}
-        </h2>
+      <Card title={t('reference.currencies')}>
         <ul className="flex flex-col gap-2">
           {currencies.data?.map((c) => (
             <li key={c.id} className="flex items-center justify-between text-[length:var(--text-body)]">
@@ -55,7 +48,7 @@ export function HomePage() {
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
     </div>
   )
 }
