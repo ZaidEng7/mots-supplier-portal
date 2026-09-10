@@ -13,7 +13,6 @@ import {
   publishClarification,
   suggestInvitationCandidates,
 } from '../../api/rfqs'
-import { getWorkspace } from '../../api/workspace'
 import { TenderTabs } from './rfq/TenderTabs'
 
 /**
@@ -37,7 +36,6 @@ export function TenderSuppliersPage() {
   const draftFor = (id: string) => answerDrafts[id] ?? { text: '' }
 
   const rfqQuery = useQuery({ queryKey: ['rfq', referenceCode], queryFn: () => getRfq(referenceCode) })
-  const workspaceQuery = useQuery({ queryKey: ['workspace', referenceCode], queryFn: () => getWorkspace(referenceCode) })
   const candidatesQuery = useQuery({
     queryKey: ['rfq-candidates', referenceCode],
     queryFn: () => suggestInvitationCandidates(referenceCode),
@@ -93,11 +91,7 @@ export function TenderSuppliersPage() {
         meta={<StatusChip machine="rfq" value={rfq.state} />}
       />
 
-      <TenderTabs
-        referenceCode={referenceCode}
-        invitedCount={rfq.invitations.length}
-        bidCount={workspaceQuery.data?.submittedProposalCount ?? 0}
-      />
+      <TenderTabs referenceCode={referenceCode} />
 
       <div className="flex flex-col gap-4">
           <Card title={t('rfq.invitations.title')}>

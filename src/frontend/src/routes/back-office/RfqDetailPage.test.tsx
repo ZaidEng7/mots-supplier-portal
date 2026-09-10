@@ -58,6 +58,12 @@ const REFERENCE_ROUTES = {
   // of the base RFQ route, so each must win the match or the base RFQ fixture object would be
   // returned here instead (breaking candidates.filter() / workspace's own shape).
   '/api/v1/rfqs/RFQ-2026-000001/invitations/candidates': [],
+  // Declared here for the reason the comment above gives: `/evaluation` is a SUFFIX of the base RFQ
+  // route, so without its own entry it matched the base one and the page was handed an Rfq where it
+  // expected an Evaluation - then read `.criteria` off it and crashed. Only ever visible in a test that
+  // lingered long enough for this query to settle, which made it look like whichever assertion was slow
+  // that day. Tests that need a real evaluation still declare their own.
+  '/api/v1/rfqs/RFQ-2026-000001/evaluation': null,
   '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture(),
   // A-7: the two assignment pickers ask for this on every buyer view of an RFQ, so it belongs in the
   // shared routes rather than in the tests that happen to click one.
@@ -459,6 +465,27 @@ describe('RfqDetailPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Assign' }))
 
     expect(await screen.findByText('Evaluator assigned')).toBeInTheDocument()
+  })
+
+  /**
+   * Walked into: a submission window set to open a few minutes ahead had lapsed by the time the form
+   * was finished, and Submit was refused for a date that had been in the future when it was typed. The
+   * refusal is the domain's and is correct; the picker offering that time is what made it happen.
+   */
+  it('will not offer a submission time that lapses while the form is being filled in', async () => {
+    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
+
+    renderPage(<RfqDetailPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit details' }))
+
+    const opens = screen.getByLabelText('Submission opens')
+    const min = opens.getAttribute('min')
+    expect(min, 'the opening date needs a floor, or the picker offers a time already in the past').not.toBeNull()
+    expect(new Date(min!).getTime()).toBeGreaterThan(Date.now())
+
+    // And the closing date cannot be before the opening one, which is the other half of the same window.
+    const closes = screen.getByLabelText('Submission closes')
+    expect(closes.getAttribute('min')).toBe(min)
   })
 
   // ---- The comp's band: a tender is a thing with a name ----

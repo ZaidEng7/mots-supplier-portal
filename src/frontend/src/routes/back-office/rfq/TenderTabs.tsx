@@ -1,5 +1,8 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
+import { getRfq } from '../../../api/rfqs'
+import { getWorkspace } from '../../../api/workspace'
 
 /**
  * The buyer's six views of one tender, as a strip rather than as a page.
@@ -18,14 +21,26 @@ import { useTranslation } from 'react-i18next'
  * <p>The counts are the point of putting them here: "Suppliers" and "Suppliers 7" ask a reader for
  * different amounts of work, and the second answers a question they would otherwise open the tab to
  * ask.</p>
+ *
+ * <p><b>It reads its own counts.</b> Seven screens render this, and four of them - the bids, the
+ * comparison, the award and an evaluator's own scoring - hold neither the tender nor its workspace.
+ * Threading two numbers through all seven signatures would put them in four components that have no
+ * other use for them. The query keys are the ones the tender screens already use, so on those it is the
+ * cached answer rather than a second request.</p>
  */
-export function TenderTabs({ referenceCode, invitedCount, bidCount }: Readonly<{
-  referenceCode: string
-  invitedCount: number
-  bidCount: number
-}>) {
+export function TenderTabs({ referenceCode }: Readonly<{ referenceCode: string }>) {
   const { t } = useTranslation()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const rfqQuery = useQuery({ queryKey: ['rfq', referenceCode], queryFn: () => getRfq(referenceCode) })
+  const workspaceQuery = useQuery({ queryKey: ['workspace', referenceCode], queryFn: () => getWorkspace(referenceCode) })
+  /**
+   * `null` rather than `0` when the answer has not arrived. A count of zero is a fact - nobody has
+   * bid - and printing it because a request failed says that fact wrongly. A tab with no number is
+   * honest about not knowing, and the strip is navigation first: it must still take you to the bids
+   * when the count of them could not be read.
+   */
+  const invitedCount = rfqQuery.isSuccess ? rfqQuery.data.invitations.length : null
+  const bidCount = workspaceQuery.isSuccess ? (workspaceQuery.data?.submittedProposalCount ?? null) : null
   const base = `/back-office/rfqs/${referenceCode}`
 
   const tabs = [

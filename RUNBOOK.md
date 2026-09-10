@@ -62,7 +62,7 @@ pinning 5080 the SPA loads and every request fails against a port nothing is lis
 On the run that creates them, the seed credentials are printed once:
 
 ```
-[dev-seed] system_admin created: admin@mots.local / motsadmin2026
+[dev-seed] system_admin created: admin@mots.local / motsdemo2026
 [dev-seed] TOTP secret (add to an authenticator app): <generated, different every fresh database>
 [dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / motsdemo2026
 ```
@@ -83,6 +83,11 @@ cd src/frontend && npm install && npm run dev
 Seeded automatically at start-up in Development by `DevDataSeeder`. Idempotent — restarting does not
 duplicate anything.
 
+One password across all nine, so a walkthrough never stops to look up which account is the exception.
+The two that used to be exceptions — the onboarding reviewer and the bootstrap admin — are the two a
+walk cannot get past without. Production is unaffected: it supplies `DevSeed:AdminPassword` and never
+reaches the fallback, and system_admin still requires a TOTP code, which is what actually guards it.
+
 | Persona | Email | Password |
 |---|---|---|
 | supplier_admin | `supplier@mots.local` | `motsdemo2026` |
@@ -91,8 +96,8 @@ duplicate anything.
 | procurement_manager | `manager@mots.local` | `motsdemo2026` |
 | evaluator | `evaluator@mots.local` | `motsdemo2026` |
 | ministry_viewer | `ministry@mots.local` | `motsdemo2026` |
-| onboarding_reviewer | `reviewer@mots.local` | `motsreview2026` |
-| system_admin | `admin@mots.local` | `motsadmin2026` + **TOTP** |
+| onboarding_reviewer | `reviewer@mots.local` | `motsdemo2026` |
+| system_admin | `admin@mots.local` | `motsdemo2026` + **TOTP** |
 | procurement_manager (second) | `manager2@mots.local` | `motsdemo2026` |
 
 **system_admin needs a TOTP code** — it is the only role in `Mfa:RequiredRoles`. Add the printed

@@ -2,19 +2,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../../test/renderPage'
+import { TENDER_CODE, TestLink } from './rfq/tenderTestHarness'
 import type { Award } from '../../api/awards'
 import type { Evaluation } from '../../api/evaluations'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  return {
+    ...actual,
+    useParams: () => ({ referenceCode: TENDER_CODE }),
+    useRouterState: () => `/back-office/rfqs/${TENDER_CODE}/award`,
+    Link: TestLink,
+  }
 })
 
 const { AwardPage } = await import('./AwardPage')
 
 function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
   return {
-    id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'Finalized',
+    id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: TENDER_CODE, state: 'Finalized',
     criteria: [], assignments: [],
     results: [
       { proposalId: 'proposal-a', proposalReferenceCode: 'PRP-2026-000001', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
@@ -25,7 +31,7 @@ function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
 
 function awardFixture(overrides: Partial<Award> = {}): Award {
   return {
-    id: 'award-1', rfqReferenceCode: 'RFQ-2026-000001', state: 'PendingApproval',
+    id: 'award-1', rfqReferenceCode: TENDER_CODE, state: 'PendingApproval',
     winningProposalId: 'proposal-a', justificationAr: 'الأفضل', justificationEn: 'Best overall',
     recommendedByUserId: 'user-1', recommendedAt: '2026-08-01T00:00:00Z', recommendationRevision: 1,
     approvals: [{ stepNo: 1, approverUserId: null, decision: null, comment: null, decidedAt: null }],

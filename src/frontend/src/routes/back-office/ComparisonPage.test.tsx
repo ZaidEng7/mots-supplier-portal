@@ -2,18 +2,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../../test/renderPage'
+import { TENDER_CODE, TestLink } from './rfq/tenderTestHarness'
 import type { Comparison } from '../../api/comparison'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  return {
+    ...actual,
+    useParams: () => ({ referenceCode: TENDER_CODE }),
+    useRouterState: () => `/back-office/rfqs/${TENDER_CODE}/comparison`,
+    Link: TestLink,
+  }
 })
 
 const { ComparisonPage } = await import('./ComparisonPage')
 
 function comparisonFixture(overrides: Partial<Comparison> = {}): Comparison {
   return {
-    rfqReferenceCode: 'RFQ-2026-000001', rfqTitleAr: 'طلب', rfqTitleEn: 'Sample RFQ', evaluationState: 'NotStarted',
+    rfqReferenceCode: TENDER_CODE, rfqTitleAr: 'طلب', rfqTitleEn: 'Sample RFQ', evaluationState: 'NotStarted',
     rfqItems: [{ id: 'item-1', lineNo: 1, titleAr: 'بند', titleEn: 'Widget', quantity: 10, unitOfMeasureCode: 'unit' }],
     proposals: [
       {
@@ -67,8 +73,10 @@ describe('ComparisonPage', () => {
     const notVisibleCells = screen.getAllByText('Not visible')
     expect(notVisibleCells.length).toBeGreaterThanOrEqual(2) // unit price row x 2 proposals
 
-    // No evaluation group at all pre-consolidation.
-    expect(screen.queryByText('Evaluation')).not.toBeInTheDocument()
+    // No evaluation group at all pre-consolidation. Scoped outside the tab strip, which carries an
+    // "Evaluation" link on every tender screen and is not what this asserts.
+    const outsideTabs = (text: string) => screen.queryAllByText(text).filter((el) => !el.closest('nav'))
+    expect(outsideTabs('Evaluation')).toEqual([])
     expect(screen.queryByText('Weighted total')).not.toBeInTheDocument()
 
     // Requirement fulfilment IS shown (not gated - only pricing/scores are).
@@ -105,7 +113,9 @@ describe('ComparisonPage', () => {
 
     renderPage(<ComparisonPage />)
 
-    expect(await screen.findByText('Evaluation')).toBeInTheDocument()
+    // The evaluation group, not the tab of the same name.
+    await screen.findByText('Weighted total')
+    expect(screen.queryAllByText('Evaluation').filter((el) => !el.closest('nav'))).toHaveLength(1)
 
     const rows = screen.getAllByRole('row')
     const qualificationRow = rows.find((r) => within(r).queryByText('Technical qualification'))!

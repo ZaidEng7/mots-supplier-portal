@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Direction 1 · The Register</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<link rel="stylesheet" href="/src/styles/tokens.css">
+<style>
+  /* DIRECTION 1 — THE REGISTER. Inside the token layer, unchanged.
+     Every value resolves from tokens.css. No literal colour, no invented size. */
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font-ui);background:var(--color-bg-app);color:var(--color-text-primary);font-size:var(--text-body-sm)}
+  .chrome{background:var(--color-chrome-surface);border-block-end:1px solid var(--color-chrome-border);
+          padding:var(--space-3) var(--space-6);display:flex;align-items:center;gap:var(--space-6)}
+  .chrome a,.chrome span{color:var(--color-chrome-text);font-size:var(--text-body-sm);text-decoration:none}
+  .chrome .brand{font-size:var(--text-h4);font-weight:var(--fw-semibold);color:var(--color-gold-fg)}
+  .spacer{flex:1}
+
+  .idbar{background:var(--color-bg-surface);border-block-end:1px solid var(--color-border);
+         padding:var(--space-4) var(--space-6);display:flex;align-items:baseline;gap:var(--space-4)}
+  .idbar h1{font-size:var(--text-h3);font-weight:var(--fw-semibold);margin:0}
+  .ref{font-family:var(--font-numeric);font-feature-settings:"tnum" 1;color:var(--color-text-secondary);font-size:var(--text-caption)}
+  .chip{display:inline-flex;align-items:center;gap:var(--space-1);border-radius:var(--radius-pill);
+        padding:1px var(--space-2);font-size:var(--text-caption);font-weight:var(--fw-medium)}
+  .chip-live{background:var(--color-success-bg);color:var(--color-success-fg)}
+  .chip-mute{background:var(--color-bg-sunken);color:var(--color-text-secondary)}
+  .dot{inline-size:5px;block-size:5px;border-radius:var(--radius-pill);background:currentColor}
+
+  .tabs{display:flex;gap:var(--space-5);padding:0 var(--space-6);background:var(--color-bg-surface);
+        border-block-end:1px solid var(--color-border)}
+  .tab{padding-block:var(--space-3);font-size:var(--text-body-sm);color:var(--color-text-secondary);
+       border-block-end:2px solid transparent;display:flex;align-items:center;gap:var(--space-2)}
+  .tab[aria-current]{color:var(--color-text-brand);border-block-end-color:var(--color-brand-solid);font-weight:var(--fw-semibold)}
+  .count{background:var(--color-bg-sunken);border-radius:var(--radius-pill);padding:0 var(--space-2);
+         font-size:var(--text-caption);font-family:var(--font-numeric);color:var(--color-text-secondary)}
+
+  .work{display:grid;grid-template-columns:minmax(0,1fr) 22rem;block-size:calc(100vh - 148px)}
+  .main{overflow:hidden;display:flex;flex-direction:column}
+  .toolbar{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-6);
+           border-block-end:1px solid var(--color-border);background:var(--color-bg-app)}
+  .toolbar .seg{display:flex;border:1px solid var(--color-border-strong);border-radius:var(--radius-md);overflow:hidden}
+  .toolbar .seg button{border:0;background:var(--color-bg-surface);padding:2px var(--space-3);font:inherit;
+                       font-size:var(--text-caption);color:var(--color-text-secondary)}
+  .toolbar .seg button[aria-pressed="true"]{background:var(--color-brand-subtle);color:var(--color-text-brand);font-weight:var(--fw-semibold)}
+  .toolbar input{border:1px solid var(--color-border-strong);border-radius:var(--radius-md);
+                 padding:2px var(--space-2);font:inherit;font-size:var(--text-caption);inline-size:14rem;background:var(--color-bg-surface)}
+  button.primary{background:var(--color-brand-solid);color:var(--color-text-inverse);border:0;
+                 border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);font:inherit;
+                 font-size:var(--text-caption);font-weight:var(--fw-medium)}
+
+  table{inline-size:100%;border-collapse:collapse;font-size:var(--text-body-sm)}
+  thead th{position:sticky;top:0;text-align:start;font-weight:var(--fw-semibold);color:var(--color-text-secondary);
+     font-size:var(--text-caption);padding:var(--space-2) var(--space-3);background:var(--color-bg-sunken);
+     border-block-end:1px solid var(--color-border)}
+  td{padding:var(--space-2) var(--space-3);border-block-end:1px solid var(--color-border);background:var(--color-bg-surface)}
+  tr[aria-selected="true"] td{background:var(--color-brand-subtle);box-shadow:inset 3px 0 0 var(--color-brand-solid)}
+  td.num,th.num{text-align:end;font-family:var(--font-numeric);font-feature-settings:"tnum" 1}
+  .grp td{background:var(--color-bg-app);font-size:var(--text-caption);color:var(--color-text-secondary);
+          text-transform:uppercase;letter-spacing:.05em;font-weight:var(--fw-semibold);padding-block:var(--space-1)}
+
+  aside{border-inline-start:1px solid var(--color-border);background:var(--color-bg-surface);
+        padding:var(--space-5) var(--space-5);display:flex;flex-direction:column;gap:var(--space-5)}
+  aside h2{font-size:var(--text-caption);text-transform:uppercase;letter-spacing:.05em;
+           color:var(--color-text-secondary);margin:0 0 var(--space-2);font-weight:var(--fw-semibold)}
+  dl{display:grid;grid-template-columns:1fr auto;gap:var(--space-2) var(--space-3);margin:0;font-size:var(--text-body-sm)}
+  dt{color:var(--color-text-secondary)}
+  dd{margin:0;text-align:end;font-family:var(--font-numeric);font-feature-settings:"tnum" 1}
+  .commit{border:1px solid var(--color-warning-fg);background:var(--warning-50);border-radius:var(--radius-md);padding:var(--space-3)}
+  .commit p{margin:0 0 var(--space-2);font-size:var(--text-caption);color:var(--color-text-primary)}
+  .commit b{color:var(--color-warning-fg)}
+</style>
+</head>
+<body>
+<div class="chrome"><span class="brand">Supplier Portal · Back Office</span>
+  <a href="#">Dashboard</a><a href="#">Tenders</a><a href="#">Suppliers</a><a href="#">Search</a>
+  <span class="spacer"></span><span>العربية</span><a href="#">Log out</a></div>
+
+<div class="idbar">
+  <h1>Catering services for three sites</h1>
+  <span class="ref">RFQ-2026-000001 · Rana Tester · Ministry of Transport</span>
+  <span class="spacer"></span>
+  <span class="chip chip-live"><span class="dot"></span>Open for submissions</span>
+  <span class="chip chip-mute">Closes in 6 days</span>
+</div>
+
+<nav class="tabs">
+  <span class="tab" aria-current="page">Tender</span>
+  <span class="tab">Suppliers <span class="count">7</span></span>
+  <span class="tab">Bids <span class="count">4</span></span>
+  <span class="tab">Evaluation</span><span class="tab">Award</span><span class="tab">Settings</span>
+</nav>
+
+<div class="work">
+  <main class="main">
+    <div class="toolbar">
+      <div class="seg"><button aria-pressed="true">All</button><button>Items</button><button>Requirements</button><button>Documents</button></div>
+      <input placeholder="Filter this register…">
+      <span class="spacer"></span>
+      <span style="color:var(--color-text-secondary);font-size:var(--text-caption)">14 rows</span>
+      <button class="primary">Add</button>
+    </div>
+    <div style="overflow:auto">
+      <table>
+        <thead><tr><th style="inline-size:3rem">#</th><th>Record</th><th>Category</th><th class="num">Quantity</th><th>Unit</th><th>State</th><th>Changed</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="7">Line items · 3</td></tr>
+          <tr aria-selected="true"><td class="num">1</td><td>Hot meals, site A</td><td>Catering</td><td class="num">500</td><td>unit</td><td><span class="chip chip-mute">Draft</span></td><td class="num">1 Sep</td></tr>
+          <tr><td class="num">2</td><td>Hot meals, site B</td><td>Catering</td><td class="num">320</td><td>unit</td><td><span class="chip chip-mute">Draft</span></td><td class="num">1 Sep</td></tr>
+          <tr><td class="num">3</td><td>Beverage service</td><td>Catering</td><td class="num">1,200</td><td>person</td><td><span class="chip chip-mute">Draft</span></td><td class="num">1 Sep</td></tr>
+          <tr class="grp"><td colspan="7">Requirements · 2</td></tr>
+          <tr><td class="num">4</td><td>Food safety certificate, valid 12 months</td><td>Technical</td><td class="num">—</td><td>—</td><td><span class="chip chip-mute">Mandatory</span></td><td class="num">1 Sep</td></tr>
+          <tr><td class="num">5</td><td>Delivery schedule for each site</td><td>Technical</td><td class="num">—</td><td>—</td><td><span class="chip chip-mute">Mandatory</span></td><td class="num">1 Sep</td></tr>
+          <tr class="grp"><td colspan="7">Documents · 1</td></tr>
+          <tr><td class="num">6</td><td>Scope of works.pdf</td><td>Attachment</td><td class="num">2.4</td><td>MB</td><td><span class="chip chip-live"><span class="dot"></span>Locked</span></td><td class="num">1 Sep</td></tr>
+          <tr class="grp"><td colspan="7">Clarifications · 1 open</td></tr>
+          <tr><td class="num">7</td><td>Al-Sham Catering: are site B deliveries daily?</td><td>Question</td><td class="num">—</td><td>—</td><td><span class="chip" style="background:var(--warning-50);color:var(--color-warning-fg)">Unanswered</span></td><td class="num">8 Sep</td></tr>
+          <tr class="grp"><td colspan="7">Audit · last 5 of 41</td></tr>
+          <tr><td class="num">8</td><td>Published by Rana Tester</td><td>Transition</td><td class="num">—</td><td>—</td><td><span class="chip chip-mute">Published</span></td><td class="num">1 Sep</td></tr>
+          <tr><td class="num">9</td><td>Invitation sent to Al-Sham Catering</td><td>Invitation</td><td class="num">—</td><td>—</td><td><span class="chip chip-mute">Sent</span></td><td class="num">1 Sep</td></tr>
+          <tr><td class="num">10</td><td>Evaluation template bound: Standard services v3</td><td>Binding</td><td class="num">—</td><td>—</td><td><span class="chip chip-mute">Bound</span></td><td class="num">31 Aug</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <aside>
+    <div>
+      <h2>Hot meals, site A</h2>
+      <dl><dt>Line</dt><dd>1</dd><dt>Quantity</dt><dd>500</dd><dt>Unit</dt><dd>unit</dd>
+          <dt>Category</dt><dd>Catering</dd><dt>Unit price</dt><dd>—</dd></dl>
+    </div>
+    <div>
+      <h2>At a glance</h2>
+      <dl><dt>Invited</dt><dd>7</dd><dt>Bids received</dt><dd>4</dd><dt>Questions open</dt><dd>1</dd>
+          <dt>Line items</dt><dd>3</dd><dt>Changes issued</dt><dd>0</dd></dl>
+    </div>
+    <div class="commit">
+      <p><b>Before you close submissions</b></p>
+      <p>Four of seven invited suppliers have bid. Closing now ends the window for the other three, notifies all seven, and cannot be undone.</p>
+      <button class="primary" style="inline-size:100%">Close submissions early</button>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

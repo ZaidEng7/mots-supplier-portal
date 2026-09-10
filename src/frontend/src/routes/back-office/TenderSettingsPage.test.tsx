@@ -2,45 +2,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch, type RecordedRequest } from '../../test/renderPage'
-import type { Rfq, RfqState } from '../../api/rfqs'
+import { TENDER_CODE, TENDER_ROUTES, TestLink, rfqFixture } from './rfq/tenderTestHarness'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
   return {
     ...actual,
-    useParams: () => ({ referenceCode: 'RFQ-2026-000001' }),
-    useRouterState: () => '/back-office/rfqs/RFQ-2026-000001/settings',
-    Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: React.ReactNode }) => {
-      const href = Object.entries(params ?? {}).reduce((path, [key, value]) => path.replace(`\$${key}`, value), to)
-      return <a href={href} {...rest}>{children}</a>
-    },
+    useParams: () => ({ referenceCode: TENDER_CODE }),
+    useRouterState: () => `/back-office/rfqs/${TENDER_CODE}/settings`,
+    Link: TestLink,
   }
 })
 
 const { TenderSettingsPage } = await import('./TenderSettingsPage')
 
-function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
-  return {
-    referenceCode: 'RFQ-2026-000001', organizationId: 'org-1', titleAr: 'طلب تجريبي', titleEn: 'Sample RFQ',
-    descriptionAr: null, descriptionEn: null, currencyCode: 'SYP', state,
-    publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
-    evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
-    items: [], requirements: [], attachments: [], approvals: [], invitations: [], clarifications: [], addenda: [],
-    ownerUserId: null, ownerName: null, assignedApproverUserId: null, assignedApproverName: null,
-    ...overrides,
-  }
-}
-
-const REFERENCE_ROUTES = {
-  '/api/v1/rfqs/RFQ-2026-000001/workspace': {
-    rfqReferenceCode: 'RFQ-2026-000001', rfqState: 'Draft', isCancelled: false, submittedProposalCount: 0,
-    evaluationState: null, awardState: null, stages: [], nextActions: [],
-  },
-  '/api/v1/rfqs/RFQ-2026-000001/assignees': {
-    owners: [{ userId: 'u-officer-2', fullName: 'Second Officer' }],
-    approvers: [{ userId: 'u-manager-1', fullName: 'A Manager' }],
-  },
-}
+const REFERENCE_ROUTES = TENDER_ROUTES
 
 /**
  * The comp's Settings tab: everything done TO a tender rather than what the tender is.

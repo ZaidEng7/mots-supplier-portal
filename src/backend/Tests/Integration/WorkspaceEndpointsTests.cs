@@ -74,8 +74,50 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         var submitReview = actions.Single();
         submitReview.GetProperty("action").GetString().Should().Be("submit_review");
         submitReview.GetProperty("permitted").GetBoolean().Should().BeFalse("a Draft RFQ with no items yet cannot be submitted for review");
-        submitReview.GetProperty("blockedReasonEn").GetString().Should().Be("No items yet.");
-        submitReview.GetProperty("blockedReasonAr").GetString().Should().Be("لا توجد بنود بعد.");
+
+        // EVERY unmet precondition, not the first one. The rail used to name one, so a person fixed it,
+        // pressed the button and was told about the next - five round trips to learn what submitting
+        // needs. Worse, the list was missing the submission-window rule entirely, so the rail and the
+        // domain disagreed about why a draft was blocked. This RFQ was created with nothing at all, so
+        // all four that apply are named, in the order SubmitForReview checks them.
+        submitReview.GetProperty("blockedReasonEn").GetString().Should().Be(
+            "No items yet. Submission dates not set. No evaluation template bound. No supplier invited yet.");
+        submitReview.GetProperty("blockedReasonAr").GetString().Should().Be(
+            "لا توجد بنود بعد. لم يتم تحديد تواريخ التقديم. لم يتم ربط قالب تقييم. لم تتم دعوة أي مورد بعد.");
+    }
+
+    /// <summary>
+    /// The blocker the rail did not check at all, which is how it came to disagree with the domain.
+    /// A window that has already opened refuses submit; before this the rail listed the other four and
+    /// never mentioned this one, so a person fixed what they were told and was refused for something
+    /// else. Walked into by hand.
+    /// </summary>
+    [Fact]
+    public async Task Workspace_names_a_submission_window_that_has_already_started()
+    {
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب بنافذة منتهية", titleEn = "Window already open RFQ",
+            descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
+            publishAt = (DateTimeOffset?)null,
+            submissionOpensAt = DateTimeOffset.UtcNow.AddHours(-2),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddDays(7),
+            clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString()!;
+
+        var workspace = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/workspace");
+        var reason = workspace.GetProperty("nextActions").EnumerateArray().Single()
+            .GetProperty("blockedReasonEn").GetString();
+
+        reason.Should().Contain("The submission window has already started.",
+            "the rail reports every precondition SubmitForReview checks, and this is the one it used to miss");
+        reason.Should().NotContain("Submission dates not set.",
+            "the dates ARE set; what is wrong is that one of them has passed");
     }
 
     [Fact]

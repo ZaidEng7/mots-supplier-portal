@@ -606,9 +606,19 @@ public sealed class Rfq : IVersionedAggregate
         {
             throw new DomainException("Cannot submit for review: submission open/close dates must be set.");
         }
-        if (SubmissionOpensAt <= DateTimeOffset.UtcNow || SubmissionClosesAt <= DateTimeOffset.UtcNow)
+        // Named separately rather than as "dates", plural, for both. The refusal a person actually meets
+        // is one date in the past and the other fine, and being told "dates" sends them to check the one
+        // that was never wrong. Walked into: a window set to open a few minutes ahead had opened by the
+        // time the form was finished, and the message did not say which end had lapsed.
+        if (SubmissionOpensAt <= DateTimeOffset.UtcNow)
         {
-            throw new DomainException("Cannot submit for review: submission dates must be in the future.");
+            throw new DomainException(
+                "Cannot submit for review: the submission window has already opened. Set an opening date in the future.");
+        }
+        if (SubmissionClosesAt <= DateTimeOffset.UtcNow)
+        {
+            throw new DomainException(
+                "Cannot submit for review: the submission window has already closed. Set a closing date in the future.");
         }
         if (EvaluationTemplateId is null)
         {

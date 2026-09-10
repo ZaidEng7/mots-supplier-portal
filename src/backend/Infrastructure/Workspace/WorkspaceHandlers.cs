@@ -75,11 +75,7 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
         {
             case RfqState.Draft:
                 actions.Add(BuildAction("submit_review", "إرسال للمراجعة الداخلية", "Submit for internal review", Permissions.RfqSubmitReview,
-                    rfq.Items.Count == 0 ? ("لا توجد بنود بعد.", "No items yet.")
-                    : rfq.EvaluationTemplateId is null ? ("لم يتم ربط قالب تقييم.", "No evaluation template bound.")
-                    : rfq.SubmissionOpensAt is null || rfq.SubmissionClosesAt is null ? ("لم يتم تحديد تواريخ التقديم.", "Submission dates not set.")
-                    : rfq.Invitations.Count == 0 ? ("لم تتم دعوة أي مورد بعد.", "No supplier invited yet.")
-                    : null));
+                    DraftBlockers(rfq)));
                 break;
 
             case RfqState.InternalReview:
@@ -122,6 +118,50 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
         }
 
         return actions;
+    }
+
+    /// <summary>
+    /// Every precondition <see cref="Rfq.SubmitForReview"/> checks that this draft does not yet meet,
+    /// in the order it checks them, joined into the one reason string the DTO carries.
+    /// </summary>
+    /// <remarks>
+    /// <para>This used to be a ternary chain returning the FIRST unmet precondition, and it was missing
+    /// one: the rule that a submission window may not have started already. So a draft whose window had
+    /// opened five minutes ago was told by the rail that no supplier was invited, fixed that, pressed
+    /// the button, and was refused for a reason the rail had never mentioned. Found by walking it.</para>
+    /// <para>Naming one blocker at a time is the deeper fault. There are five, a person meets them one
+    /// round trip at a time, and the rail exists precisely so they do not have to. The domain stays the
+    /// authority on whether the transition is allowed - this only reports, and reporting a subset is how
+    /// it came to disagree with the domain in the first place.</para>
+    /// </remarks>
+    private static (string Ar, string En)? DraftBlockers(Rfq rfq)
+    {
+        var reasons = new List<(string Ar, string En)>();
+
+        if (rfq.Items.Count == 0)
+        {
+            reasons.Add(("لا توجد بنود بعد.", "No items yet."));
+        }
+        if (rfq.SubmissionOpensAt is null || rfq.SubmissionClosesAt is null)
+        {
+            reasons.Add(("لم يتم تحديد تواريخ التقديم.", "Submission dates not set."));
+        }
+        else if (rfq.SubmissionOpensAt <= DateTimeOffset.UtcNow || rfq.SubmissionClosesAt <= DateTimeOffset.UtcNow)
+        {
+            reasons.Add(("تواريخ التقديم يجب أن تكون في المستقبل.", "The submission window has already started."));
+        }
+        if (rfq.EvaluationTemplateId is null)
+        {
+            reasons.Add(("لم يتم ربط قالب تقييم.", "No evaluation template bound."));
+        }
+        if (rfq.Invitations.Count == 0)
+        {
+            reasons.Add(("لم تتم دعوة أي مورد بعد.", "No supplier invited yet."));
+        }
+
+        return reasons.Count == 0
+            ? null
+            : (string.Join(" ", reasons.Select(r => r.Ar)), string.Join(" ", reasons.Select(r => r.En)));
     }
 
     private List<WorkspaceActionDto> NextEvaluationActions(EvaluationAggregate? evaluation, int unresolvedClarifications)

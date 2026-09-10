@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Direction 4 · Operations Console</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<style>
+  /* DIRECTION 4 — OPERATIONS CONSOLE. OUTSIDE the current token layer.
+     Dark ground, high contrast, everything on one screen. For staff who live here all day. */
+  :root{
+    --bg:#0F1214; --panel:#161A1E; --panel-2:#1D2227; --line:#262C33; --line-2:#333B44;
+    --ink:#E8EDF2; --ink-2:#9AA7B2; --ink-3:#66727D;
+    --teal:#2DD4A7; 
+    --amber:#E3A94C; --red:#E8705F; --blue:#63A6E8;
+    --r:6px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13.5px;line-height:1.5}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+  .spacer{flex:1}
+
+  .bar{display:flex;align-items:center;gap:22px;padding:10px 20px;background:var(--panel);border-block-end:1px solid var(--line)}
+  .bar .brand{font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--teal)}
+  .bar a{color:var(--ink-2);text-decoration:none;font-size:13px}
+  .bar a[aria-current]{color:var(--ink)}
+  .cmd{background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r);padding:5px 12px;
+       color:var(--ink-3);inline-size:22rem;font-size:12.5px;display:flex;gap:9px;align-items:center}
+  .cmd kbd{margin-inline-start:auto;border:1px solid var(--line-2);border-radius:3px;padding:0 5px;font-size:11px;color:var(--ink-3)}
+
+  .head{padding:18px 20px 0;display:flex;align-items:flex-start;gap:20px}
+  h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-.012em}
+  .ref{color:var(--ink-3);font-size:12.5px;margin-block-start:5px}
+  .tag{border-radius:3px;padding:2px 8px;font-size:11.5px;font-weight:500;display:inline-flex;gap:6px;align-items:center}
+  .tag.live{background:rgba(45,212,167,.13);color:var(--teal)}
+  .tag.warn{background:rgba(227,169,76,.13);color:var(--amber)}
+  .tag.mute{background:var(--panel-2);color:var(--ink-2)}
+  .dot{inline-size:5px;block-size:5px;border-radius:999px;background:currentColor}
+  .act{background:var(--teal);color:#04201A;border:0;border-radius:var(--r);padding:7px 14px;font:inherit;font-weight:600;font-size:12.5px}
+  .act.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line-2)}
+
+  nav.t{display:flex;gap:26px;padding:14px 20px 0;border-block-end:1px solid var(--line);margin-block-start:14px}
+  nav.t a{color:var(--ink-3);text-decoration:none;font-size:12.5px;padding-block-end:10px;border-block-end:2px solid transparent;display:flex;gap:7px}
+  nav.t a[aria-current]{color:var(--teal);border-block-end-color:var(--teal)}
+  nav.t .n{color:var(--ink-3);font-size:11px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:14px;padding:14px 20px 24px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+  .panel+.panel{margin-block-start:14px}
+  .ph{display:flex;align-items:center;gap:10px;padding:10px 14px;border-block-end:1px solid var(--line)}
+  .ph h2{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin:0;font-weight:600}
+  .ph .n{color:var(--teal);font-size:11.5px}
+  table{inline-size:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:start;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:500;padding:9px 14px;background:var(--panel-2)}
+  td{padding:10px 14px;border-block-start:1px solid var(--line)}
+  td.num,th.num{text-align:end;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  tbody tr:hover td{background:var(--panel-2)}
+
+  /* sparkline strip */
+  .strip{display:flex;gap:14px;padding:14px}
+  .stat{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:11px 13px}
+  .stat .l{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+  .stat .v{font-size:26px;font-weight:600;margin-block-start:5px;font-family:ui-monospace,Menlo,monospace}
+  .stat.ok .v{color:var(--teal)} .stat.warn .v{color:var(--amber)} .stat.bad .v{color:var(--red)}
+  .bars{display:flex;align-items:flex-end;gap:3px;block-size:26px;margin-block-start:9px}
+  .bars i{flex:1;background:var(--teal);opacity:.45;border-radius:1px}
+  .bars i:last-child{opacity:1}
+
+  .rail .panel{padding:0}
+  .rail h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px;font-weight:600}
+  .box{padding:14px}
+  .nextbox{border:1px solid rgba(45,212,167,.35);background:rgba(45,212,167,.07);border-radius:var(--r);padding:14px}
+  .nextbox h3{color:var(--teal)}
+  .nextbox p{margin:0 0 12px;color:var(--ink-2);font-size:12.5px}
+  .nextbox .act{inline-size:100%}
+  dl{display:grid;grid-template-columns:1fr auto;gap:9px 12px;margin:0;font-size:12.5px}
+  dt{color:var(--ink-3)}
+  dd{margin:0;text-align:end;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  .steps{display:flex;flex-direction:column;gap:9px;font-size:12.5px}
+  .steps div{display:flex;gap:10px;align-items:center;color:var(--ink-3)}
+  .steps .m{inline-size:8px;block-size:8px;border-radius:999px;border:2px solid var(--line-2);flex:none}
+  .steps .done .m{background:var(--teal);border-color:var(--teal);opacity:.55}
+  .steps .now{color:var(--ink);font-weight:600}
+  .steps .now .m{background:var(--teal);border-color:var(--teal);box-shadow:0 0 0 3px rgba(45,212,167,.18)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="brand">MOTS · Procurement</span>
+  <a href="#">Dashboard</a><a href="#" aria-current="page">Tenders</a><a href="#">Suppliers</a><a href="#">Queue</a>
+  <span class="spacer"></span>
+  <div class="cmd">Search tenders, suppliers, documents… <kbd>⌘K</kbd></div>
+  <a href="#">العربية</a><a href="#">Log out</a>
+</div>
+
+<div class="head">
+  <div>
+    <h1>Catering services for three sites</h1>
+    <div class="ref mono">RFQ-2026-000001 · Rana Tester · Directorate of Operations</div>
+  </div>
+  <span class="spacer"></span>
+  <span class="tag live"><span class="dot"></span>Open for submissions</span>
+  <span class="tag warn">Closes in 6d</span>
+  <button class="act ghost">Close early</button>
+  <button class="act">Remind 3 bidders</button>
+</div>
+
+<nav class="t">
+  <a href="#" aria-current="page">Tender</a>
+  <a href="#">Suppliers <span class="n">7</span></a>
+  <a href="#">Bids <span class="n">4</span></a>
+  <a href="#">Evaluation</a><a href="#">Award</a><a href="#">Settings</a>
+</nav>
+
+<div class="grid">
+  <main>
+    <div class="panel">
+      <div class="strip">
+        <div class="stat ok"><div class="l">Bids received</div><div class="v">4</div>
+          <div class="bars"><i style="height:20%"></i><i style="height:35%"></i><i style="height:30%"></i><i style="height:55%"></i><i style="height:70%"></i><i style="height:100%"></i></div></div>
+        <div class="stat"><div class="l">Invited</div><div class="v">7</div>
+          <div class="bars"><i style="height:100%"></i><i style="height:100%"></i><i style="height:100%"></i><i style="height:100%"></i><i style="height:100%"></i><i style="height:100%"></i></div></div>
+        <div class="stat warn"><div class="l">Questions open</div><div class="v">1</div>
+          <div class="bars"><i style="height:10%"></i><i style="height:40%"></i><i style="height:15%"></i><i style="height:60%"></i><i style="height:25%"></i><i style="height:45%"></i></div></div>
+        <div class="stat bad"><div class="l">Days to close</div><div class="v">6</div>
+          <div class="bars"><i style="height:100%"></i><i style="height:88%"></i><i style="height:74%"></i><i style="height:60%"></i><i style="height:44%"></i><i style="height:30%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h2>Line items</h2><span class="n mono">3</span><span class="spacer"></span><button class="act ghost">Add</button></div>
+      <table>
+        <thead><tr><th>Item</th><th>Category</th><th class="num">Qty</th><th>Unit</th><th class="num">Est. value</th></tr></thead>
+        <tbody>
+          <tr><td>Hot meals, site A</td><td>Catering</td><td class="num">500</td><td>unit</td><td class="num">—</td></tr>
+          <tr><td>Hot meals, site B</td><td>Catering</td><td class="num">320</td><td>unit</td><td class="num">—</td></tr>
+          <tr><td>Beverage service</td><td>Catering</td><td class="num">1,200</td><td>person</td><td class="num">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h2>Requirements</h2><span class="n mono">2</span><span class="spacer"></span><button class="act ghost">Add</button></div>
+      <table>
+        <thead><tr><th>Requirement</th><th>Envelope</th><th>Mandatory</th></tr></thead>
+        <tbody>
+          <tr><td>Food safety certificate, valid 12 months</td><td>Technical</td><td>Yes</td></tr>
+          <tr><td>Delivery schedule for each site</td><td>Technical</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <aside class="rail">
+    <div class="nextbox">
+      <h3>What happens next</h3>
+      <p>Bidding closes 20 Sep. Four of seven invited suppliers have bid. Nothing is required from you until then.</p>
+      <button class="act">Remind the three</button>
+    </div>
+    <div class="panel" style="margin-block-start:14px"><div class="box">
+      <h3>Where this stands</h3>
+      <div class="steps">
+        <div class="done"><span class="m"></span>Drafted</div>
+        <div class="done"><span class="m"></span>Reviewed and approved</div>
+        <div class="done"><span class="m"></span>Published · 1 Sep</div>
+        <div class="now"><span class="m"></span>Open for bids</div>
+        <div><span class="m"></span>Evaluation</div>
+        <div><span class="m"></span>Award</div>
+      </div>
+    </div></div>
+    <div class="panel" style="margin-block-start:14px"><div class="box">
+      <h3>At a glance</h3>
+      <dl><dt>Invited</dt><dd>7</dd><dt>Bids received</dt><dd>4</dd><dt>Questions open</dt><dd>1</dd>
+          <dt>Line items</dt><dd>3</dd><dt>Changes issued</dt><dd>0</dd></dl>
+    </div></div>
+  </aside>
+</div>
+</body>
+</html>
