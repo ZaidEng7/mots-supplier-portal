@@ -40,6 +40,7 @@ const SCREENS = [
   ['/back-office/dashboard', 'back-office'],
   ['/back-office/rfqs', 'back-office-tenders'],
   ['/dashboard', 'supplier'],
+  ['/back-office/rfqs/RFQ-2026-000001/award', 'workspace-award'],
 ] as const
 
 for (const locale of ['en', 'ar'] as const) {

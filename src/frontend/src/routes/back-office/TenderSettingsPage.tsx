@@ -3,7 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../../lib/queryClient'
-import { Button, Card, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, useToast } from '../../components/ui'
+import { Button, Card, Input, QueryError, Select, SkeletonList, useToast } from '../../components/ui'
 import { apiErrorMessage } from '../../api/problem'
 import {
   getRfq,
@@ -16,6 +16,7 @@ import {
 } from '../../api/rfqs'
 import { CancelSection } from './rfq/sections/CancelSection'
 import { TenderTabs } from './rfq/TenderTabs'
+import { TenderHeader } from './rfq/TenderHeader'
 
 /**
  * Everything done TO a tender rather than everything the tender IS: who owns it, when it closes, what
@@ -115,12 +116,10 @@ export function TenderSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeading
-        title={isArabic ? rfq.titleAr : rfq.titleEn}
-        subtitle={rfq.referenceCode}
-        meta={<StatusChip machine="rfq" value={rfq.state} />}
-      />
-
+      {/* The tender's identity, said the same way on all six of its views. This screen already named
+          the tender and its code; what it did not carry was who owns it or when bidding closes, which
+          the tender's own view has always shown. One record, one head. */}
+      <TenderHeader referenceCode={referenceCode} />
       <TenderTabs referenceCode={referenceCode} />
 
       <div className="flex flex-col gap-4">
