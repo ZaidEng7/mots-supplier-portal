@@ -155,7 +155,9 @@ test('the route denominator is what the router actually declares, not what this 
   //   /ministry/rfqs/$referenceCode     SCR-606, each named bidder and what it bid
   //   /ministry/suppliers               SCR-601, the registry as an overseer reads it
   //   /ministry/awards                  SCR-603, award trends and spend
-  expect(routes.length).toBe(68)
+  // 70 rather than 68: the comp gives the tender workspace a tab strip, and two of its six tabs are new
+  // routes - Suppliers and Settings - carrying sections the workspace used to stack down one column.
+  expect(routes.length).toBe(70)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

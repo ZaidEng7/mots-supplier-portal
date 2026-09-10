@@ -27,6 +27,19 @@ function leafKeys(node: unknown, prefix = ''): string[] {
     .flatMap(([key, value]) => leafKeys(value, prefix ? `${prefix}.${key}` : key))
 }
 
+/**
+ * i18next appends a CLDR plural category to a pluralised key, and the categories a language HAS are a
+ * property of the language: English has two, Arabic six. So `stepStatus.left_one` exists only in English
+ * and `stepStatus.left_few` only in Arabic, and neither is the defect this file was written for.
+ *
+ * <p>Comparison is therefore on the base key. A whole string present on one side and absent on the other
+ * - the failure that renders Arabic to an English reader - still fails, because its base key is still
+ * missing. What stripping loses is a language declaring some of its own categories and not others, which
+ * the `_other` check below covers separately.</p>
+ */
+const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/
+const baseKey = (key: string) => key.replace(PLURAL_SUFFIX, '')
+
 describe('the two catalogues hold the same keys', () => {
   const ar = leafKeys(i18n.getResourceBundle('ar', 'translation'))
   const en = leafKeys(i18n.getResourceBundle('en', 'translation'))
@@ -39,17 +52,33 @@ describe('the two catalogues hold the same keys', () => {
   })
 
   it('has no key that exists in Arabic and not in English', () => {
-    const englishKeys = new Set(en)
-    const missing = ar.filter((key) => !englishKeys.has(key))
+    const englishKeys = new Set(en.map(baseKey))
+    const missing = ar.map(baseKey).filter((key) => !englishKeys.has(key))
 
     expect(missing, 'fallbackLng is "ar", so each of these renders ARABIC TEXT to an English reader').toEqual([])
   })
 
   it('has no key that exists in English and not in Arabic', () => {
-    const arabicKeys = new Set(ar)
-    const missing = en.filter((key) => !arabicKeys.has(key))
+    const arabicKeys = new Set(ar.map(baseKey))
+    const missing = en.map(baseKey).filter((key) => !arabicKeys.has(key))
 
     expect(missing, 'each of these prints its raw key to an Arabic reader').toEqual([])
+  })
+
+  /**
+   * What stripping the suffix would otherwise let through. `_other` is the one category every language
+   * has, and it is what i18next falls back to when the resolved category is not declared - so a
+   * pluralised key without it can print its raw key for a count nobody tested.
+   */
+  it('gives every pluralised key an _other form in both catalogues', () => {
+    const pluralBases = (keys: string[]) => new Set(keys.filter((k) => PLURAL_SUFFIX.test(k)).map(baseKey))
+    const hasOther = (keys: string[]) => new Set(keys.filter((k) => k.endsWith('_other')).map(baseKey))
+
+    for (const [language, keys] of [['ar', ar], ['en', en]] as const) {
+      const withOther = hasOther(keys)
+      const missing = [...pluralBases(keys)].filter((base) => !withOther.has(base))
+      expect(missing, `${language} pluralises these without declaring _other`).toEqual([])
+    }
   })
 
   it('the check can fail', () => {

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Bar, BarChart as RechartsBarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart as RechartsBarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { RTL_LANGUAGES } from '../../i18n/config'
 
 export interface BarDatum {
@@ -27,15 +27,33 @@ export interface BarDatum {
  * as a gap with the category still labelled — never as a bar of height zero, which would assert that
  * nothing was awarded.</p>
  */
-export function BarChart({ data, valueLabel, height = 220 }: {
+export function BarChart({ data, valueLabel, orientation = 'columns', height }: {
   data: BarDatum[]
   /** What the measure is, for the tooltip and the axis. */
   valueLabel: string
+  /**
+   * `'columns'` for a series read along time - a month beside a month - where the order is the data's
+   * own and reversing it would lie about it.
+   *
+   * `'ranked'` for a comparison of unordered things, where the question is which is biggest: bars run
+   * along the reading direction, sorted, with the value written at the end of each. A category name is
+   * prose and does not fit under a column; ranked puts it on the axis where it has room, and puts the
+   * number where the eye already is instead of making the reader walk back to a scale.
+   */
+  orientation?: 'columns' | 'ranked'
+  /**
+   * Optional. A column chart has a fixed height because its bars share one baseline; a ranked chart is a
+   * list, and its height is however many rows it has. Six categories in a 220px box left a bar floating
+   * in the middle of an empty card, which reads as missing data rather than as one row.
+   */
   height?: number
 }) {
   const { t, i18n } = useTranslation()
   const isRtl = RTL_LANGUAGES.has(i18n.language)
-  const drawable = data.filter((d) => d.value !== null)
+  const withValues = data.filter((d) => d.value !== null)
+  const drawable = orientation === 'ranked'
+    ? [...withValues].sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+    : withValues
 
   if (drawable.length === 0) {
     return (
@@ -45,12 +63,65 @@ export function BarChart({ data, valueLabel, height = 220 }: {
     )
   }
 
+  if (orientation === 'ranked') {
+    const rankedHeight = height ?? Math.max(72, drawable.length * 34 + 16)
+    return (
+      // `aria-hidden` for the same reason as the column chart below: the table beneath is the accessible
+      // copy, and announcing both would announce it twice, worse the first time.
+      <div aria-hidden="true" style={{ inlineSize: '100%', blockSize: rankedHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RechartsBarChart
+            data={drawable}
+            layout="vertical"
+            accessibilityLayer={false}
+            // Room at the inline end for the value written there. Without it the widest number is
+            // clipped by the container, which is the one number a reader most wants.
+            margin={{ top: 4, right: isRtl ? 8 : 48, bottom: 4, left: isRtl ? 48 : 8 }}
+          >
+            <XAxis type="number" hide reversed={isRtl} />
+            <YAxis
+              type="category"
+              dataKey="key"
+              orientation={isRtl ? 'right' : 'left'}
+              tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={128}
+            />
+            {/* Thin marks: a ranked row is a length to compare, not a block to fill. */}
+            <Bar
+              dataKey="value"
+              // Rounded at the data end only, square against the baseline it is measured from - which is
+              // the inline-start edge, and swaps with the reading direction.
+              radius={isRtl ? [4, 0, 0, 4] : [0, 4, 4, 0]}
+              barSize={14}
+              isAnimationActive={false}
+            >
+              {drawable.map((d) => (
+                <Cell key={d.key} fill="var(--color-brand-solid)" />
+              ))}
+              {/* The number at the end of its own bar, rather than read off a scale. It takes a text
+                  token rather than the series colour: a value is text, and the bar beside it already
+                  carries the identity. */}
+              <LabelList
+                dataKey="value"
+                position={isRtl ? 'left' : 'right'}
+                fill="var(--color-text-primary)"
+                fontSize={11}
+              />
+            </Bar>
+          </RechartsBarChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
+
   return (
     // `aria-hidden`, deliberately. Recharts emits an SVG of paths and tick labels that a screen reader
     // reads as a stream of unrelated numbers; the table directly beneath carries the same data with
     // headers, which is the accessible presentation. Announcing both would be announcing it twice, worse
     // the first time.
-    <div aria-hidden="true" style={{ inlineSize: '100%', blockSize: height }}>
+    <div aria-hidden="true" style={{ inlineSize: '100%', blockSize: height ?? 220 }}>
       <ResponsiveContainer width="100%" height="100%">
         {/* `accessibilityLayer={false}` because recharts otherwise emits <svg role="application"
             tabindex="0">, which is focusable - and a focusable element inside an aria-hidden

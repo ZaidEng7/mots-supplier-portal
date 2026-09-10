@@ -35,7 +35,18 @@ export function MinistryAwardAnalyticsPage() {
 
   const { totalAwards, totalAwardedValue, byMonth, byCategory, byOrganization, commercialValuesVisible } = query.data
 
-  const bucketTable = (title: string, buckets: MinistrySpendBucket[], keyHeader: string, note?: string) => (
+  /**
+   * @param orientation `'columns'` for a series read along time, where the data's own order is the
+   *   meaning. `'ranked'` for a comparison of unordered things, where the question is which is biggest -
+   *   and where a category name like "Tour operations" is prose that does not fit under a column.
+   */
+  const bucketTable = (
+    title: string,
+    buckets: MinistrySpendBucket[],
+    keyHeader: string,
+    orientation: 'columns' | 'ranked',
+    note?: string,
+  ) => (
     <Card title={title}>
       {note ? (
         <p className="mb-3 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -61,11 +72,13 @@ export function MinistryAwardAnalyticsPage() {
               <BarChart
                 data={buckets.map((bucket) => ({ key: bucket.key, value: bucket.value }))}
                 valueLabel={t('ministryAwards.fields.value')}
+                orientation={orientation}
               />
             ) : (
               <BarChart
                 data={buckets.map((bucket) => ({ key: bucket.key, value: bucket.awards }))}
                 valueLabel={t('ministryAwards.fields.awards')}
+                orientation={orientation}
               />
             )}
           </div>
@@ -100,10 +113,22 @@ export function MinistryAwardAnalyticsPage() {
         <PageHeading title={t('ministryAwards.title')} subtitle={t('ministryAwards.subtitle')} />
       </div>
 
+      {/* The comp draws this as a panel rather than a strip, and states it as a decision: a reader who
+          meets a blank money column needs to know it is withheld on purpose and not missing through a
+          fault. The screen keeps charting award counts underneath, which the comp's own version does not
+          - a chart of nothing but withheld months is a chart of nothing, and the counts are never
+          withheld. */}
       {!commercialValuesVisible ? (
-        <output className="block rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
-           style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
-          {t('ministryAwards.valuesWithheld')}
+        <output
+          className="block rounded-[var(--radius-lg)] p-4"
+          style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--color-warning-fg)' }}
+        >
+          <p className="font-[var(--fw-semibold)]" style={{ color: 'var(--color-warning-fg)' }}>
+            {t('ministryAwards.valuesWithheldTitle')}
+          </p>
+          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
+            {t('ministryAwards.valuesWithheld')}
+          </p>
         </output>
       ) : null}
 
@@ -122,9 +147,16 @@ export function MinistryAwardAnalyticsPage() {
         </li>
       </ul>
 
-      {bucketTable(t('ministryAwards.byMonth'), byMonth, t('ministryAwards.fields.month'))}
-      {bucketTable(t('ministryAwards.byCategory'), byCategory, t('ministryAwards.fields.category'), t('ministryAwards.categoryNote'))}
-      {bucketTable(t('ministryAwards.byOrganization'), byOrganization, t('ministryAwards.fields.organization'))}
+      {bucketTable(t('ministryAwards.byMonth'), byMonth, t('ministryAwards.fields.month'), 'columns')}
+
+      {/* Side by side, as the comp has them: two answers to the same question asked of different
+          dimensions, and reading one after the other down a full-width column made them look like two
+          unrelated screens. One column below the layout breakpoint, where side by side would make both
+          unreadable rather than comparable. */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        {bucketTable(t('ministryAwards.byCategory'), byCategory, t('ministryAwards.fields.category'), 'ranked', t('ministryAwards.categoryNote'))}
+        {bucketTable(t('ministryAwards.byOrganization'), byOrganization, t('ministryAwards.fields.organization'), 'ranked')}
+      </div>
     </div>
   )
 }

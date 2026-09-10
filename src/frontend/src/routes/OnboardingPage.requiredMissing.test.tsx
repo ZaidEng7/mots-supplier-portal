@@ -233,15 +233,25 @@ describe('the submit gate', () => {
 
     renderPage(<OnboardingPage />)
 
-    expect(await screen.findByText('Before you can submit')).toBeInTheDocument()
+    // The card is titled with the answer rather than the question. A supplier came to find out how much
+    // is left, and "Before you can submit" made them read the list to learn it.
+    //
+    // Asserted as a heading: the step cards say the same sentence about their own share of the same
+    // list, which is correct on both and ambiguous to a bare text query.
+    expect(await screen.findByRole('heading', { name: '2 things left' })).toBeInTheDocument()
     expect(screen.getByText('Available once the items above are done.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit application' })).toBeDisabled()
 
     // Two outstanding items and no more. Before this the card listed all eight requirements with a
-    // badge on each, so the two that mattered were two rows among eight. Nothing else on this screen
-    // renders "Missing" until a submit has been attempted, which is why a page-level count is safe here
-    // and is asserted rather than assumed - the sibling tests above cover the post-submit case.
-    expect(screen.getAllByText('Missing')).toHaveLength(2)
+    // badge on each, so the two that mattered were two rows among eight. Counted inside the list rather
+    // than by the word "Missing", which each row used to carry and the title now says once.
+    const outstanding = screen.getByRole('list', { name: 'What is left' })
+    expect(within(outstanding).getAllByRole('listitem')).toHaveLength(2)
+
+    // How much is left, said to a screen reader as well as drawn. Six requirements, two outstanding.
+    const bar = screen.getByRole('progressbar', { name: 'Application progress' })
+    expect(bar).toHaveAttribute('aria-valuemax', '6')
+    expect(bar).toHaveAttribute('aria-valuenow', '4')
   })
 
   it('does not offer to submit an application that is already with a reviewer', async () => {
