@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Metric, MetricRow } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import {Badge, Button, Card, PageHeading, SkeletonList} from '../../components/ui'
 import { formatNumber } from '../../lib/datetime'
@@ -40,21 +41,16 @@ export function MinistryOverviewPage() {
 
       {/* 2x2 on phones, widening with the viewport - the same KPI-row shape the procurement
           dashboard uses, for the 320px reflow reason recorded there. */}
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <MetricRow>
         {([
           ['suppliers', formatNumber(data.totalSuppliers, locale, 0)],
           ['rfqs', formatNumber(data.totalRfqs, locale, 0)],
           ['awards', formatNumber(data.totalAwards, locale, 0)],
           ['participation', formatNumber(data.averageProposalsPerRfq, locale, 1)],
         ] as const).map(([key, value]) => (
-          <li key={key} className="rounded-[var(--radius-md)] p-3" style={{ border: '1px solid var(--color-border)' }}>
-            <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-              {t(`ministry.kpis.${key}`)}
-            </p>
-            <p className="num text-[length:var(--text-h2)]">{value}</p>
-          </li>
+          <Metric key={key} label={t(`ministry.kpis.${key}`)} value={value} />
         ))}
-      </ul>
+      </MetricRow>
 
       {/*
         The one commercial figure, and the reason it says WHY rather than rendering blank: a viewer who

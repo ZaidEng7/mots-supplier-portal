@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Metric, MetricRow } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
 import {Badge, Button, Card, PageHeading, SkeletonList} from '../../components/ui'
 import { formatNumber } from '../../lib/datetime'
@@ -80,21 +81,16 @@ export function AdminOverviewPage() {
       <PageHeading title={t('adminOverview.title')} />
 
       {/* 2x2 on phones, widening with the viewport - the KPI-row shape the other dashboards use. */}
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <MetricRow>
         {([
           ['users', n(users)],
           ['roles', n(data.totalRoles)],
           ['outboxPending', n(data.outbox.pending)],
           ['auditRows', n(data.auditRowsLast24Hours)],
         ] as const).map(([key, value]) => (
-          <li key={key} className="rounded-[var(--radius-md)] p-3" style={{ border: '1px solid var(--color-border)' }}>
-            <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-              {t(`adminOverview.kpis.${key}`)}
-            </p>
-            <p className="num text-[length:var(--text-h2)]">{value}</p>
-          </li>
+          <Metric key={key} label={t(`adminOverview.kpis.${key}`)} value={value} />
         ))}
-      </ul>
+      </MetricRow>
 
       <Card title={t('adminOverview.outbox')}>
         <ul className="flex flex-col gap-1">

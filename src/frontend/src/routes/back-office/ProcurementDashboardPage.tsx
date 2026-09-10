@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Metric, MetricRow } from '../../components/ui'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -21,6 +22,14 @@ import { PageHeading } from '../../components/ui/ListScreen'
  * <p>Every number renders through `formatNumber`, so a KPI tile cannot read "14" beside a date
  * reading «٣٠ أغسطس». That inconsistency is the reason R-1 was ruled on.</p>
  */
+/**
+ * The two figures on this row that mean somebody is waiting, rather than reporting how things stand.
+ *
+ * <p>Toned only while the count is above zero: an amber nought is not a warning, it is the absence of
+ * one, and a row where every tile is coloured is a row where colour has stopped meaning anything.</p>
+ */
+const WAITING = new Set(['awaitingMyAction', 'pendingApprovals'])
+
 export function ProcurementDashboardPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -70,7 +79,7 @@ export function ProcurementDashboardPage() {
 
       {kpis ? (
         // §10's KPI row. 2×2 on phones per its mobile note, widening with the viewport.
-        <ul className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <MetricRow>
           {([
             ['activeRfqs', kpis.activeRfqs],
             ['closingThisWeek', kpis.closingThisWeek],
@@ -78,14 +87,14 @@ export function ProcurementDashboardPage() {
             ['pendingApprovals', kpis.pendingApprovals],
             ['awardsInProgress', kpis.awardsInProgress],
           ] as const).map(([key, value]) => (
-            <li key={key} className="rounded-[var(--radius-md)] p-3" style={{ border: '1px solid var(--color-border)' }}>
-              <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                {t(`procurementDashboard.kpis.${key}`)}
-              </p>
-              <p className="num text-[length:var(--text-h2)]">{formatNumber(value, locale, 0)}</p>
-            </li>
+            <Metric
+              key={key}
+              label={t(`procurementDashboard.kpis.${key}`)}
+              value={formatNumber(value, locale, 0)}
+              tone={WAITING.has(key) && value > 0 ? 'warning' : 'neutral'}
+            />
           ))}
-        </ul>
+        </MetricRow>
       ) : null}
 
       {query.data ? (
