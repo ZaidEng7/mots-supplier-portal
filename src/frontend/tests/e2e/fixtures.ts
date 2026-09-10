@@ -34,10 +34,28 @@ export const supplierToken = fakeJwt({
   supplierId: SUPPLIER_ID,
   perms: ['supplier.profile.edit', 'supplier.documents.upload', 'supplier.users.manage'],
 })
+/**
+ * The staff account every back-office scan runs as.
+ *
+ * <p>It held `review.read` and `review.decide` only, and no navigation row in either shell has ever
+ * been gated on those two - so every accessibility scan of the back office rendered a rail with two
+ * rows in it, and axe has never once seen the navigation it was supposed to be checking. The rest of
+ * the list below is exactly the set the sidebar's rows are gated on, plus an organization, because
+ * BRULE-029 hides the procurement rows from an account that belongs to no buying body.</p>
+ *
+ * <p>This is a scanning fixture and not a claim about any real role: no person holds all of these. What
+ * it buys is that the scan sees every row the product can draw, which is the thing being scanned.</p>
+ */
 export const reviewerToken = fakeJwt({
   sub: '01a00000-0000-7000-8000-0000000000a2',
   email: 'a11y-reviewer@example.com',
-  perms: ['review.read', 'review.decide'],
+  organizationId: '01a00000-0000-7000-8000-0000000000b1',
+  perms: [
+    'review.read', 'review.decide',
+    'report.read', 'rfq.read', 'evaluation.template.manage', 'evaluation.score', 'supplier.review',
+    'supplier.directory.read', 'offering.search', 'governance.read', 'admin.organizations.manage',
+    'admin.users.manage', 'admin.roles.manage', 'reference.manage', 'audit.read',
+  ],
 })
 
 export const REFERENCE_CODE = 'SUP-2026-000001'

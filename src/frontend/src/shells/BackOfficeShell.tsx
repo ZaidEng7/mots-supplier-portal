@@ -1,30 +1,18 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from '@tanstack/react-router'
-import { LanguageSwitch } from '../components/LanguageSwitch'
-import { NotificationBell } from '../components/NotificationBell'
-import { ErpStatusBanner } from '../components/ErpStatusBanner'
-import { Button } from '../components/ui'
+import { AppShell } from './AppShell'
+import { BACK_OFFICE_CHROME, BACK_OFFICE_NAV } from './navigation'
 import { useAuthStore } from '../lib/authStore'
-import { logout as apiLogout } from '../api/auth'
 
-interface Props {
-  children: ReactNode
-}
-
-/** Back-office (MOTS staff) app shell: dark sidebar-style top bar, visually distinct from the
- * supplier shell so staff and suppliers are never mistaken for the same surface. */
 /**
  * One permission lookup for the whole shell.
  *
  * <p>This was thirteen separate `useAuthStore` subscriptions, each repeating
- * `claims?.permissions.includes(x) ?? false`. Sonar put the component's cognitive complexity at 20
- * against a limit of 15 and it was right: the count is the point, not any one line. Reading the claim
- * list once and returning a predicate says the same thing in one place, and adding a link no longer
- * means adding a subscription.</p>
+ * `claims?.permissions.includes(x) ?? false`. Reading the claim list once and returning a predicate
+ * says the same thing in one place, and adding a destination no longer means adding a subscription.</p>
  */
 function usePermissions(): (permission: string) => boolean {
-  const permissions = useAuthStore((s) => s.claims?.permissions)
+  const permissions = useAuthStore((state) => state.claims?.permissions)
   return (permission) => permissions?.includes(permission) ?? false
 }
 
@@ -34,284 +22,44 @@ function usePermissions(): (permission: string) => boolean {
  * <p>BRULE-029 scopes every procurement query by the caller's organization, and two personas
  * deliberately have none: the bootstrap administrator, and `ministry_viewer`, whose grant is
  * cross-organization by BRULE-086 and would be narrowed by pinning it to one. For those two the
- * procurement screens answer 404 - correctly, there is nothing in scope to return.</p>
- *
- * <p>The links were offered anyway, because they are gated on permission and `system_admin` holds
- * all of them. An administrator clicking Procurement dashboard got "Couldn't load the dashboard -
- * Try again", a retry that can never succeed. Hidden now, which is what already happens to the
- * Ministry viewer for every link but its own.</p>
- *
- * <p>Hiding rather than widening is the reversible half of the choice: whether a platform
- * administrator SHOULD read across every organization's live procurements is a policy question, and
- * the same one BRULE-086 answers for the Ministry. It should not be settled by a nav gate.</p>
+ * procurement screens answer 404 - correctly, there is nothing in scope to return - so the rows that
+ * lead to them are not offered. Hiding rather than widening is the reversible half of the choice:
+ * whether a platform administrator should read across every organization's live procurements is a
+ * policy question, and it should not be settled by a navigation gate.</p>
  */
 function useHasOrganization(): boolean {
-  return useAuthStore((s) => Boolean(s.claims?.organizationId))
+  return useAuthStore((state) => Boolean(state.claims?.organizationId))
 }
 
-export function BackOfficeShell({ children }: Props) {
+/**
+ * The internal side of the product, for Ministry staff.
+ *
+ * <p><b>What changed.</b> Thirty-one destinations were listed as one wrapping row of
+ * identically-coloured links, with no grouping and no marker for the page you were on. Three of them
+ * had shipped permissioned and unreachable because nothing linked to them at all, found by hand rather
+ * than by any instrument. The destinations now live in `navigation.ts` as data, grouped by the question
+ * a member of staff arrived with, and `reachability.test.tsx` fails when a route no navigation offers
+ * has no written reason for it.</p>
+ *
+ * <p>The rail is dark in both themes. That is what tells a member of staff at a glance which side of
+ * the product they are on, and it is the one thing about this shell that was already working.</p>
+ */
+export function BackOfficeShell({ children }: Readonly<{ children: ReactNode }>) {
   const can = usePermissions()
   const inABuyingBody = useHasOrganization()
   const { t } = useTranslation()
-  const clearSession = useAuthStore((s) => s.clearSession)
-  // FR-IAM-010: hide, never gate - the API re-enforces admin.organizations.manage on every
-  // Organization endpoint regardless of what this link's visibility does.
-  const canManageOrganizations = can('admin.organizations.manage')
-  // Task #28: same hide-never-gate rule - StaffEndpoints re-enforces admin.users.manage
-  // (Permissions.AdminUsersManage) on the actual invite endpoint regardless of this link.
-  const canManageStaff = can('admin.users.manage')
-  const canManageRoles = can('admin.roles.manage')
-  // T-080: same hide-never-gate rule - every /api/v1/admin/reference route re-enforces
-  // reference.manage. Its own permission rather than admin.users.manage, because the two are
-  // separately grantable and a role that edits code lists need not administer accounts.
-  const canManageReferenceData = can('reference.manage')
-  // T-079/SCR-720: same hide-never-gate rule - every /api/v1/audit route re-enforces audit.read.
-  const canReadAudit = can('audit.read')
-  const canReviewSuppliers = can('supplier.review')
-  const canScoreEvaluations = can('evaluation.score')
-  // governance.read is the ONLY permission ministry_viewer holds, so without this link the persona
-  // had to type the URL: every other link in this bar 403s for it.
-  const canViewGovernance = can('governance.read')
-  // FEAT-06.3: same hide-never-gate rule - the /api/v1/offerings/search endpoint re-enforces
-  // offering.search regardless of what this link's visibility does.
-  const canSearchOfferings = can('offering.search') && inABuyingBody
-  // SCR-402: same hide-never-gate rule. Its own permission rather than offering.search, because the two
-  // answer different questions - one searches catalogue entries, the other lists companies - and a
-  // supplier with no catalogue was invisible to the officer choosing whom to invite.
-  const canBrowseSuppliers = can('supplier.directory.read') && inABuyingBody
-  // EPIC-07: same hide-never-gate rule - RfqEndpoints re-enforces rfq.read/rfq.edit/etc on
-  // every actual RFQ endpoint regardless of what this link's visibility does.
-  //
-  // Gated on rfq.read, not rfq.create: procurement_manager approves RFQs but does not author them,
-  // so keying the link on the authoring permission hid the section from the one role whose job is
-  // to open it. Same defect as the endpoints' own gate, on the navigation side.
-  const canViewRfqs = can('rfq.read') && inABuyingBody
-  const canManageEvaluationTemplates = can('evaluation.template.manage') && inABuyingBody
-  // Batch 12. Three screens were built, permissioned and unreachable: nothing in this bar linked to
-  // them, so the only way in was to type the address. Same hide-never-gate rule as every link above -
-  // each route's own endpoints re-enforce the permission regardless of what the link does.
-  //
-  // report.read reaches procurement_manager AND ministry_viewer (D-44 resolved in batch 11), so the
-  // link follows the permission rather than naming either role.
-  const canReadReports = can('report.read')
-
-  const handleLogout = async () => {
-    await apiLogout()
-    clearSession()
-    window.location.href = '/login'
-  }
 
   return (
-    <div className="flex min-h-screen flex-col" style={{ backgroundColor: 'var(--color-chrome-bg)' }}>
-      {/*
-        T-040: this header measured 424px against a 320px viewport in English and 377px in Arabic,
-        and it is shared chrome - so every back-office route overflowed the document sideways, which
-        ACCESSIBILITY.md's reflow clause forbids.
-
-        The cause was a non-wrapping flex row holding up to eight nav links plus the bell, the
-        language switch and logout. The fix is wrapping, not hiding: `flex-wrap` changes nothing at
-        any width where the row already fits, so the desktop layout is byte-identical and only the
-        narrow case behaves differently. A collapsed hamburger would have been a new component and a
-        new interaction to test on every back-office screen.
-
-        Horizontal padding drops to 1rem below `sm` for the same reason the supplier shell's does -
-        at 320px, 48px of chrome padding is 15% of the viewport.
-      */}
-      {/* SCR-045: above the header, so it is chrome rather than page content. */}
-      <ErpStatusBanner />
-      <header className="flex flex-wrap items-center justify-between gap-y-3 border-b px-4 py-4 sm:px-6" style={{ borderColor: 'var(--color-chrome-border)', backgroundColor: 'var(--color-chrome-surface)' }}>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-          <span className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-chrome-accent)' }}>
-            {t('appName')} · {t('nav.backOffice')}
-          </span>
-          <nav className="flex flex-wrap gap-x-4 gap-y-2">
-            {/* FEAT-19.1/19.2. Permissioned correctly in batch 11 and still unreachable until now. */}
-            {canReadReports ? (
-              <Link to="/back-office/reports" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('reports.title')}
-              </Link>
-            ) : null}
-            {canViewGovernance ? (
-              <Link to="/back-office/ministry" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('ministry.title')}
-              </Link>
-            ) : null}
-            {/* SCR-604. The second of the Ministry's two non-refused screens, and the one that answers a
-                question the overview cannot: which categories has nobody registered for. */}
-            {canViewGovernance ? (
-              <Link to="/back-office/ministry/categories" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('categoryCoverage.title')}
-              </Link>
-            ) : null}
-            {/* SCR-602, SCR-601 and SCR-603, under D-66. These three carry named tenders, named suppliers and
-                - while the commercial-visibility flag is on - the money, which is what D-57 was about. */}
-            {canViewGovernance ? (
-              <Link to="/back-office/ministry/rfqs" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('ministryRfqs.title')}
-              </Link>
-            ) : null}
-            {canViewGovernance ? (
-              <Link to="/back-office/ministry/suppliers" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('ministrySuppliers.title')}
-              </Link>
-            ) : null}
-            {canViewGovernance ? (
-              <Link to="/back-office/ministry/awards" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('ministryAwards.title')}
-              </Link>
-            ) : null}
-            {canManageStaff ? (
-              <Link to="/back-office/notification-templates" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('notificationTemplates.title')}
-              </Link>
-            ) : null}
-            {canManageReferenceData ? (
-              <Link to="/back-office/reference" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('referenceAdmin.title')}
-              </Link>
-            ) : null}
-            {canReadAudit ? (
-              <Link to="/back-office/audit" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('auditExplorer.title')}
-              </Link>
-            ) : null}
-            {canManageStaff ? (
-              <Link to="/back-office/settings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('systemSettings.title')}
-              </Link>
-            ) : null}
-            {canManageStaff ? (
-              <Link to="/back-office/admin" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('adminOverview.title')}
-              </Link>
-            ) : null}
-            {/* T-076. */}
-            {canManageStaff ? (
-              <Link to="/back-office/email-templates" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('emailTemplates.title')}
-              </Link>
-            ) : null}
-            {/* SCR-716. */}
-            {canManageStaff ? (
-              <Link to="/back-office/ui-strings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('uiStrings.title')}
-              </Link>
-            ) : null}
-            {/* SCR-721/722. Same gate as the dashboard it drills into - canManageStaff is this shell's
-                stand-in for system_admin, and the endpoints behind the page require the same
-                permission, so a visible link that 403s is not possible here. */}
-            {canManageStaff ? (
-              <Link to="/back-office/operations" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('operations.title')}
-              </Link>
-            ) : null}
-            <Link to="/back-office/dashboard" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-              {t('nav.dashboard')}
-            </Link>
-            {/* SCR-906. Ungated, like the route: the server decides what each persona can find. */}
-            <Link to="/back-office/search" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-              {t('search.title')}
-            </Link>
-            {/* SCR-907. */}
-            <Link to="/back-office/help" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-              {t('help.title')}
-            </Link>
-            {/* SCR-902: every back-office persona's own account, password, MFA and sessions. */}
-            <Link to="/back-office/account" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-              {t('nav.account')}
-            </Link>
-            {/* SCR-901. Beside the account link because that is where a user goes looking for "what does this
-                system send me", and the answer includes the four families they cannot switch off. */}
-            <Link to="/back-office/account/notifications" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-              {t('notificationPreferences.title')}
-            </Link>
-            {/* Gated on supplier.review, which it always should have been. An evaluator holds
-                evaluation.score, evaluation.submit and rfq.clarify and nothing else, and this link was offered
-                to them - a 403 they could not explain, on the only "work" link their nav had. */}
-            {canReviewSuppliers ? (
-              <Link to="/back-office/review" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('review.title')}
-              </Link>
-            ) : null}
-            {/* SCR-307. The whole registry, not the queue: everything that happens to a supplier AFTER
-                their application is decided happened on no screen until this one. */}
-            {canReviewSuppliers ? (
-              <Link to="/back-office/review/suppliers" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('complianceDirectory.title')}
-              </Link>
-            ) : null}
-            {/* SCR-300. The reviewer's dashboard - oldest waiting case, queue age, expiring-document
-                watchlist. Beside the queue it summarises, because that is the pair a reviewer works. */}
-            {canReviewSuppliers ? (
-              <Link to="/back-office/review-dashboard" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('reviewDashboard.title')}
-              </Link>
-            ) : null}
-            {/* And the link an evaluator actually needs. Their dashboard lives under a different layout
-                (/evaluation, not /back-office/...), which is why it was missing from this nav entirely. */}
-            {canScoreEvaluations ? (
-              <Link to="/evaluation" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('evaluationDashboard.title')}
-              </Link>
-            ) : null}
-            {canManageOrganizations ? (
-              <Link to="/back-office/organizations" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('organizations.title')}
-              </Link>
-            ) : null}
-            {canManageStaff ? (
-              <Link to="/back-office/staff" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('staff.title')}
-              </Link>
-            ) : null}
-            {canManageRoles ? (
-              <Link to="/back-office/roles" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('roleManagement.title')}
-              </Link>
-            ) : null}
-            {canSearchOfferings ? (
-              <Link to="/back-office/offerings" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('offeringSearch.title')}
-              </Link>
-            ) : null}
-            {/* SCR-402. Beside the offering search on purpose: an officer looking for a supplier starts
-                from one or the other, and before this only the catalogue had a link. */}
-            {canBrowseSuppliers ? (
-              <Link to="/back-office/suppliers" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('supplierDirectory.title')}
-              </Link>
-            ) : null}
-            {/* SCR-400. The procurement officer's actual home screen - tenders by state, approvals
-                waiting, deadlines. Gated on rfq.read for the same reason the RFQ link below is: a
-                manager reads this dashboard without authoring anything. */}
-            {canViewRfqs ? (
-              <Link to="/back-office/procurement" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('procurementDashboard.title')}
-              </Link>
-            ) : null}
-            {canViewRfqs ? (
-              <Link to="/back-office/rfqs" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('rfq.title')}
-              </Link>
-            ) : null}
-            {canManageEvaluationTemplates ? (
-              <Link to="/back-office/evaluation-templates" className="text-[length:var(--density-body)]" style={{ color: 'var(--color-chrome-text)' }}>
-                {t('evaluationTemplates.title')}
-              </Link>
-            ) : null}
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
-          <NotificationBell to="/back-office/notifications" />
-          <LanguageSwitch />
-          <Button variant="ghost" size="sm" style={{ color: 'var(--color-chrome-text)' }} onClick={handleLogout}>
-            {t('nav.logout')}
-          </Button>
-        </div>
-      </header>
-      <main id="main" className="flex flex-1 flex-col px-4 py-8 sm:px-6" style={{ backgroundColor: 'var(--color-bg-app)' }}>
-        {children}
-      </main>
-    </div>
+    <AppShell
+      groups={BACK_OFFICE_NAV}
+      chrome={BACK_OFFICE_CHROME}
+      context={{ can, inABuyingBody }}
+      title={t('appName')}
+      subtitle={t('nav.backOffice')}
+      home={{ to: '/back-office/dashboard', label: t('nav.dashboard') }}
+      searchTo="/back-office/search"
+    >
+      {children}
+    </AppShell>
   )
 }

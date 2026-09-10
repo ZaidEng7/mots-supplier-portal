@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -55,27 +55,64 @@ describe('SkipLink, the control', () => {
 })
 
 describe('SkipLink, the target it depends on', () => {
-  /** Every file that renders a page shell or a whole public screen — the places the link is mounted over. */
+  /**
+   * Every file that renders a page shell or a whole public screen - the places the link is mounted over.
+   *
+   * <p>The shells are read from the router rather than by listing the folder. The folder used to hold
+   * one file per shell and now holds the frame they share and the pieces it is built from, so a sweep
+   * over the folder would demand a `main` landmark of a sidebar. What the router imports as a layout is
+   * what actually wraps a page, which is the thing this rule is about.</p>
+   */
+  function shellEntryPoints(): string[] {
+    const router = readFileSync(join(SRC, 'router.tsx'), 'utf8')
+    // Quoted rather than `from`-anchored: the shells are code-split, so the router names them inside
+    // `lazy(() => import('./shells/X'))` and an import-statement pattern would have matched none of them.
+    const named = [...router.matchAll(/'\.\/shells\/([A-Za-z]+)'/g)].map((m) => join('shells', `${m[1]}.tsx`))
+    return [...new Set(named)]
+  }
+
+  /**
+   * Whether a file provides the landmark itself or renders something beside it that does.
+   *
+   * <p>One level of delegation, not arbitrary depth: the shells hand off to exactly one frame, and a
+   * resolver that chased imports forever would be a module graph rather than a test.</p>
+   */
+  function providesMain(relative: string): boolean {
+    const source = readFileSync(join(SRC, relative), 'utf8')
+    if (source.includes('id="main"')) return true
+    return [...source.matchAll(/from '\.\/([A-Za-z]+)'/g)]
+      .map((m) => join('shells', `${m[1]}.tsx`))
+      .some((imported) => {
+        try {
+          return readFileSync(join(SRC, imported), 'utf8').includes('id="main"')
+        } catch {
+          return false
+        }
+      })
+  }
+
   function screensThatNeedMain(): string[] {
-    const shells = readdirSync(join(SRC, 'shells')).filter((f) => f.endsWith('.tsx') && !f.includes('.test.'))
-      .map((f) => join('shells', f))
     const publicScreens = [
       'routes/LoginPage.tsx', 'routes/RegisterPage.tsx', 'routes/ForgotPasswordPage.tsx',
       'routes/VerifyEmailPage.tsx', 'components/AcceptInvitePageBase.tsx',
     ]
-    return [...shells, ...publicScreens]
+    return [...shellEntryPoints(), ...publicScreens]
   }
 
   it('sweeps the screens it claims to', () => {
     // The denominator. A sweep that silently matched nothing would pass every assertion below.
     expect(screensThatNeedMain().length).toBeGreaterThanOrEqual(7)
+    // And the router really is where the shells come from, so a rename cannot empty this quietly.
+    expect(shellEntryPoints()).toContain(join('shells', 'BackOfficeShell.tsx'))
+    expect(shellEntryPoints()).toContain(join('shells', 'SupplierShell.tsx'))
+    // The delegation resolver has to actually resolve something, or every shell would pass by accident.
+    expect(readFileSync(join(SRC, 'shells', 'BackOfficeShell.tsx'), 'utf8')).not.toContain('id="main"')
+    expect(providesMain(join('shells', 'BackOfficeShell.tsx'))).toBe(true)
+    expect(providesMain(join('shells', 'Sidebar.tsx'))).toBe(false)
   })
 
   it('every one of them renders the id the link points at', () => {
-    const missing = screensThatNeedMain().filter((relative) => {
-      const source = readFileSync(join(SRC, relative), 'utf8')
-      return !source.includes('id="main"')
-    })
+    const missing = screensThatNeedMain().filter((relative) => !providesMain(relative))
 
     expect(missing, 'the skip link moves focus nowhere on these, and looks identical while doing it').toEqual([])
   })
