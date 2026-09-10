@@ -21,6 +21,76 @@ namespace MotsSupplierPortal.Infrastructure.Identity;
 /// - a bare string literal here is indistinguishable, to a static scanner, from a real hardcoded
 /// production credential; this file never has to be edited to carry a real one either.
 /// </summary>
+/// <summary>
+/// The half of a development-only staff seed that is the same whoever is being seeded: look for the
+/// account, read its password with the shared fallback, create it through real Identity, put it in
+/// its role.
+///
+/// <para>Both seeders below were written with this body spelled out, and the copies had already begun
+/// to drift: the reason for the password fallback was written out in full in one and summarised in the
+/// other, so the two now had to be read together to learn one rule. Sonar reported the file as 100%
+/// duplicated on new code once a change touched both password lines at once. The duplication was real
+/// and older than that change; the change only made it countable.</para>
+///
+/// <para>What stays with each seeder is what actually differs: system_admin has to pre-enroll TOTP,
+/// because NFR-SEC-003 mandates MFA for that role and there is no bootstrap enrollment flow for an
+/// account that cannot log in yet. onboarding_reviewer is not in <c>Mfa:RequiredRoles</c>, so
+/// password-only login is correct for it as shipped.</para>
+/// </summary>
+internal static class DevStaffSeed
+{
+    /// <summary>
+    /// Returns the created user and the password it was given, or null if the account already exists -
+    /// which is how a caller knows whether it has anything to print, and keeps the seeder idempotent
+    /// across restarts of a development host.
+    /// </summary>
+    internal static async Task<(AppUser User, string Password)?> CreateAsync(
+        UserManager<AppUser> userManager,
+        IConfiguration configuration,
+        string email,
+        string fullName,
+        string role,
+        string passwordKey)
+    {
+        if (await userManager.FindByEmailAsync(email) is not null) return null;
+
+        // Identity policy here is length>=12, no complexity requirement (Program.cs) - the fallback is
+        // kept simple to type live rather than adding punctuation/case-mixing nothing actually enforces.
+        //
+        // The fallback is DevDataSeeder's own constant, so every seeded account on a development
+        // database shares one password. Three different fallbacks meant a walkthrough stopped twice to
+        // look up which account was the exception, and the exceptions were the two accounts - the
+        // onboarding reviewer and the bootstrap admin - that a walk cannot get past without.
+        //
+        // Production is unaffected: it supplies the configured key and never reaches the fallback. MFA
+        // is unchanged either way - system_admin still requires a TOTP code, which is what actually
+        // guards that account.
+        var password = configuration[passwordKey] ?? DevDataSeeder.Password;
+
+        var user = new AppUser
+        {
+            Id = Guid.CreateVersion7(),
+            UserName = email,
+            Email = email,
+            FullName = fullName,
+            EmailConfirmed = true,
+            IsActive = true,
+            SupplierId = null,
+        };
+
+        var created = await userManager.CreateAsync(user, password);
+        if (!created.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Could not seed the demo {role} user: " +
+                string.Join(", ", created.Errors.Select(e => e.Description)));
+        }
+
+        await userManager.AddToRoleAsync(user, role);
+        return (user, password);
+    }
+}
+
 public static class AdminSeeder
 {
     public const string Email = "admin@mots.local";
@@ -38,50 +108,16 @@ public static class AdminSeeder
 
     public static async Task SeedAsync(UserManager<AppUser> userManager, IConfiguration configuration)
     {
-        var existing = await userManager.FindByEmailAsync(Email);
-        if (existing is not null) return;
+        var seeded = await DevStaffSeed.CreateAsync(
+            userManager, configuration, Email, "Demo System Admin", Roles.SystemAdmin, "DevSeed:AdminPassword");
+        if (seeded is not { } account) return;
 
-        // Identity policy here is length>=12, no complexity requirement (Program.cs) - the
-        // fallback is kept simple to type live rather than adding punctuation/case-mixing
-        // nothing actually enforces.
-        //
-        // The fallback is DevDataSeeder's own constant, so every seeded account on a development
-        // database shares one password. Three different fallbacks meant a walkthrough stopped twice to
-        // look up which account was the exception, and the exceptions were the two accounts - the
-        // onboarding reviewer and the bootstrap admin - that a walk cannot get past without.
-        //
-        // Production is unaffected: it supplies DevSeed:AdminPassword and never reaches the fallback.
-        // MFA is unchanged either way - system_admin still requires a TOTP code, which is what actually
-        // guards this account.
-        var password = configuration["DevSeed:AdminPassword"] ?? DevDataSeeder.Password;
-
-        var user = new AppUser
-        {
-            Id = Guid.CreateVersion7(),
-            UserName = Email,
-            Email = Email,
-            FullName = "Demo System Admin",
-            EmailConfirmed = true,
-            IsActive = true,
-            SupplierId = null,
-        };
-
-        var created = await userManager.CreateAsync(user, password);
-        if (!created.Succeeded)
-        {
-            throw new InvalidOperationException(
-                "Could not seed the demo system_admin user: " +
-                string.Join(", ", created.Errors.Select(e => e.Description)));
-        }
-
-        await userManager.AddToRoleAsync(user, Roles.SystemAdmin);
-
-        // Same technique as StaffTestClient.CreateWithMfaAsync: Identity only generates this key,
-        // it cannot be assigned a chosen value, so it must be read back after resetting it.
-        await userManager.ResetAuthenticatorKeyAsync(user);
-        TotpSecret = await userManager.GetAuthenticatorKeyAsync(user);
-        await userManager.SetTwoFactorEnabledAsync(user, true);
-        PasswordUsed = password;
+        // Same technique as StaffTestClient.CreateWithMfaAsync: Identity only generates this key, it
+        // cannot be assigned a chosen value, so it must be read back after resetting it.
+        await userManager.ResetAuthenticatorKeyAsync(account.User);
+        TotpSecret = await userManager.GetAuthenticatorKeyAsync(account.User);
+        await userManager.SetTwoFactorEnabledAsync(account.User, true);
+        PasswordUsed = account.Password;
     }
 }
 
@@ -104,33 +140,8 @@ public static class ReviewerSeeder
 
     public static async Task SeedAsync(UserManager<AppUser> userManager, IConfiguration configuration)
     {
-        var existing = await userManager.FindByEmailAsync(Email);
-        if (existing is not null) return;
-
-        // DevDataSeeder's constant, for the same reason as above: one password across every seeded
-        // account, and this is one of the two accounts a walkthrough cannot get past without.
-        var password = configuration["DevSeed:ReviewerPassword"] ?? DevDataSeeder.Password;
-
-        var user = new AppUser
-        {
-            Id = Guid.CreateVersion7(),
-            UserName = Email,
-            Email = Email,
-            FullName = "Demo Ministry Reviewer",
-            EmailConfirmed = true,
-            IsActive = true,
-            SupplierId = null,
-        };
-
-        var created = await userManager.CreateAsync(user, password);
-        if (!created.Succeeded)
-        {
-            throw new InvalidOperationException(
-                "Could not seed the demo onboarding_reviewer user: " +
-                string.Join(", ", created.Errors.Select(e => e.Description)));
-        }
-
-        await userManager.AddToRoleAsync(user, Roles.OnboardingReviewer);
-        PasswordUsed = password;
+        var seeded = await DevStaffSeed.CreateAsync(
+            userManager, configuration, Email, "Demo Ministry Reviewer", Roles.OnboardingReviewer, "DevSeed:ReviewerPassword");
+        PasswordUsed = seeded?.Password;
     }
 }
