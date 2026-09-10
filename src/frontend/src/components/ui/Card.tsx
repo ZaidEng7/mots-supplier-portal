@@ -11,7 +11,7 @@ interface CardProps {
 export function Card({ title, action, children }: CardProps) {
   return (
     <div
-      className="rounded-[var(--radius-lg)] p-6"
+      className="overflow-hidden rounded-[var(--radius-lg)]"
       // §6.7: surface, 1px border, --radius-lg, --shadow-sm. The border does the separating; the
       // shadow is the faintest step on the scale, not a lift.
       style={{
@@ -20,10 +20,18 @@ export function Card({ title, action, children }: CardProps) {
         boxShadow: 'var(--shadow-sm)',
       }}
     >
+      {/*
+        A band rather than a heading floating above the content, which is the approved template's card.
+        The rule under it is what separates the card's own name from what the card holds - before this
+        the two sat in one padded box and a reader had to take the first line on faith as a title.
+      */}
       {title || action ? (
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div
+          className="flex items-center justify-between gap-3 px-4 py-3.5"
+          style={{ borderBlockEnd: '1px solid var(--color-border)' }}
+        >
           {title ? (
-            <h2 className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+            <h2 className="text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
               {title}
             </h2>
           ) : (
@@ -32,7 +40,7 @@ export function Card({ title, action, children }: CardProps) {
           {action}
         </div>
       ) : null}
-      {children}
+      <div className="p-4">{children}</div>
     </div>
   )
 }

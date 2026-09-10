@@ -55,7 +55,7 @@ function markStyle(state: StepState) {
     return {
       backgroundColor: 'var(--color-brand-solid)',
       border: '2px solid var(--color-brand-solid)',
-      boxShadow: '0 0 0 3px var(--color-brand-subtle)',
+      boxShadow: '0 0 0 3px var(--color-accent-wash)',
     }
   }
   return { backgroundColor: 'transparent', border: '2px solid var(--color-border-strong)' }
