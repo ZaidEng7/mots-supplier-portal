@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import type { StepState } from '../../components/ui'
-import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, PageHeading, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -18,10 +18,11 @@ import {
   getEvaluation, openEvaluation, assignEvaluators, listEvaluatorCandidates, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
-import { formatDateTime, formatNumber, formatRelative } from '../../lib/datetime'
+import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
 import { ButtonLink } from '../../components/ButtonLink'
 import { TenderTabs } from './rfq/TenderTabs'
+import { TenderHeader } from './rfq/TenderHeader'
 import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
@@ -402,25 +403,11 @@ export function RfqDetailPage() {
         A-7: who is answerable stays on the screen rather than only in the audit trail. It has moved
         into the identity line, beside the code, because that is the same kind of fact.
       */}
-      <PageHeading
-        title={isArabic ? rfq.titleAr : rfq.titleEn}
-        subtitle={[
-          rfq.referenceCode,
-          `${t('rfq.ownership.ownerLabel')}: ${rfq.ownerName ?? t('rfq.unassigned')}`,
-          rfq.assignedApproverName ? `${t('rfq.ownership.approverLabel')}: ${rfq.assignedApproverName}` : null,
-        ].filter(Boolean).join(' · ')}
-        meta={
-          <>
-            <StatusChip machine="rfq" value={rfq.state} />
-            {/* The second chip in the comp, and the one a reader actually acts on. A state of
-                "Open for submissions" does not say whether that means today or next month, and the
-                closing date was three cards further down the page. Only while it is open: on a Draft
-                or an Awarded tender the same date is history, not a countdown. */}
-            {isSubmissionOpen && rfq.submissionClosesAt ? (
-              <Badge>{t('rfq.closes', { when: formatRelative(rfq.submissionClosesAt, locale) })}</Badge>
-            ) : null}
-          </>
-        }
+      {/* This band was written here first and is now `TenderHeader`, which the tender's other five
+          views render too. It was the only one of the six that named the tender rather than the tab,
+          so the others were made to match it rather than the other way round. */}
+      <TenderHeader
+        referenceCode={referenceCode}
         actions={
           <>
           {isDraft ? (

@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
-import {Badge, Button, Input, PageHeading, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Input, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { TenderTabs } from './rfq/TenderTabs'
+import { TenderHeader } from './rfq/TenderHeader'
 import { getComparison, resolveEvaluationTie } from '../../api/comparison'
 import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
@@ -117,10 +118,13 @@ export function ComparisonPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <PageHeading
-          title={`${t('comparison.title')} — ${isArabic ? comparison.rfqTitleAr : comparison.rfqTitleEn}`}
-          subtitle={t('comparison.proposalCount', { count: proposals.length })}
-        />
+        {/* The tender, not the view: the strip below already says this is the comparison. The bid
+            count moved to its own line rather than into the subtitle, which now carries the tender's
+            code and its owner like every other view of it. */}
+        <TenderHeader referenceCode={referenceCode} />
+        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('comparison.proposalCount', { count: proposals.length })}
+        </p>
         {!consolidatedOrLater ? (
           <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('comparison.awaitingConsolidation')}

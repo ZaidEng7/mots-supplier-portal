@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../lib/authStore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import {Badge, Button, Card, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, toneFor, useToast} from '../../components/ui'
+import {Badge, Button, Card, Input, QueryError, Select, SkeletonList, StatusChip, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
 import { TenderTabs } from './rfq/TenderTabs'
+import { TenderHeader } from './rfq/TenderHeader'
 import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-14.1..14.6/FR-AWD-001..007. Every action here hides only, never gates - the server
@@ -122,11 +123,10 @@ export function AwardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeading title={`${t('award.title')} — ${referenceCode}`} />
-
-      {/* The way back. These screens are tabs of one tender, and until this was here a buyer who opened
-          the bids could only leave through the browser's own button - the strip that names the six views
-          was rendered on three of them and not on the other four. */}
+      {/* The tender, then which of its six views you are on. The heading here used to name the view -
+          "Award" joined to a reference code - which is what the strip immediately below already says,
+          while the tender's own name appeared nowhere on the screen. */}
+      <TenderHeader referenceCode={referenceCode} />
       <TenderTabs referenceCode={referenceCode} />
 
       {award ? (

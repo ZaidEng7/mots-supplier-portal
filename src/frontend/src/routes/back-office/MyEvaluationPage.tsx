@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import {Badge, Button, Card, Input, PageHeading, QueryError, SkeletonList, StatusChip, useToast} from '../../components/ui'
+import {Badge, Button, Card, Input, QueryError, SkeletonList, StatusChip, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
 import { TenderTabs } from './rfq/TenderTabs'
+import { TenderHeader } from './rfq/TenderHeader'
 import { apiErrorMessage } from '../../api/problem'
 import {
   getMyEvaluation, scoreCriterion, submitMyEvaluation, evaluatorProposalDocumentUrl,
@@ -170,14 +171,13 @@ export function MyEvaluationPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <PageHeading title={`${t('evaluation.my.title')} — ${referenceCode}`} />
-
-      {/* The way back. These screens are tabs of one tender, and until this was here a buyer who opened
-          the bids could only leave through the browser's own button - the strip that names the six views
-          was rendered on three of them and not on the other four. */}
-      <TenderTabs referenceCode={referenceCode} />
-        <div className="flex items-center gap-3">
+      {/* The tender, then which of its six views you are on. The heading here used to name the view,
+          which is what the strip immediately below already says. The strip was also nested inside the
+          heading's own flex row, so it sat beside the title rather than under it. */}
+      <TenderHeader
+        referenceCode={referenceCode}
+        actions={
+          <div className="flex items-center gap-3">
           {/* SCR-501. The brief carries the one thing this screen cannot show without becoming a wall of
               text: each criterion's scoring guidance, as the template author wrote it. */}
           <Link
@@ -188,8 +188,10 @@ export function MyEvaluationPage() {
             {t('evaluationBrief.title')}
           </Link>
           <StatusChip machine="evaluation" value={evaluation.state} />
-        </div>
-      </div>
+          </div>
+        }
+      />
+      <TenderTabs referenceCode={referenceCode} />
 
       {/*
         T-067: the SPECIFICATION, on the screen where the scoring happens. Before this an evaluator

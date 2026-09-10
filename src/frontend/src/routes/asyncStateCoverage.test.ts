@@ -38,6 +38,13 @@ const NO_ERROR_BRANCH_NEEDED: Record<string, string> = {
     + 'count on two of the tabs. A failed fetch renders NO count rather than a zero - the honest answer '
     + 'to not knowing - and the strip still takes you everywhere it did. An error panel here would '
     + 'replace the way back with a message the screen underneath is already showing.',
+  'back-office/rfq/TenderHeader.tsx':
+    'Not a screen, and the same case as the strip directly below it. It is the identity band six tender '
+    + 'views share, and it fetches only to say which tender you are looking at. A failed fetch falls '
+    + 'back to the reference code, which is the one fact the screen holds before any request answers '
+    + 'and is enough to name the record. Each of the six views reports its own failure for its own '
+    + 'data; an error panel here would report the same outage a second time, above the tab strip, on '
+    + 'every one of them.',
   'admin/AuditExplorerPage.tsx':
     'Has an error branch already, spelled with its own `error` variable rather than `isError`, because '
     + 'it must distinguish a refused FIELD (a permission answer, shown inline) from a failed query.',
