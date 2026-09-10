@@ -3,12 +3,21 @@ import type { ReactNode } from 'react'
 interface CardProps {
   title?: string
   action?: ReactNode
+  /**
+   * Hold the content edge to edge rather than padding it.
+   *
+   * <p>For the one thing that brings its own edges: a table. Padded, a table draws its own frame a few
+   * pixels inside the card's, which reads as a box in a box and is the one place this product's list
+   * screens visibly departed from the approved template. Everything else keeps the padding, because
+   * everything else is content rather than a surface.</p>
+   */
+  flush?: boolean
   children: ReactNode
 }
 
 /** Section container per DESIGN-SYSTEM §6.7 - the surface/border/radius/padding pattern every
  * onboarding section already repeats inline, extracted so new screens don't hand-roll it again. */
-export function Card({ title, action, children }: CardProps) {
+export function Card({ title, action, flush = false, children }: CardProps) {
   return (
     <div
       className="overflow-hidden rounded-[var(--radius-lg)]"
@@ -40,7 +49,7 @@ export function Card({ title, action, children }: CardProps) {
           {action}
         </div>
       ) : null}
-      <div className="p-4">{children}</div>
+      <div className={flush ? '' : 'p-4'}>{children}</div>
     </div>
   )
 }

@@ -70,7 +70,7 @@ export function MinistrySupplierRegistryPage() {
         skeletonRows={6}
         labels={{ loading: t('common.loading'), error: t('ministrySuppliers.loadFailed'), empty: t('ministrySuppliers.empty'), loadMore: t('ministrySuppliers.loadMore') }}
       >
-        <Table caption={t('ministrySuppliers.title')}>
+        <Table flush caption={t('ministrySuppliers.title')}>
         <TableHead labels={[t('ministrySuppliers.fields.supplier'), t('ministrySuppliers.fields.categories'), t('ministrySuppliers.fields.onboarding'), t('ministrySuppliers.fields.standing'), t('ministrySuppliers.fields.bids'), t('ministrySuppliers.fields.won'), t('ministrySuppliers.fields.registered')]} />
         <TableBody>
           {suppliers.map((supplier) => (

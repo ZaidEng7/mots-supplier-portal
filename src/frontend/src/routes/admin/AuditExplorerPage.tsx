@@ -136,7 +136,7 @@ export function AuditExplorerPage() {
           loadMore: t('auditExplorer.loadMore'),
         }}
       >
-        <Table caption={t('auditExplorer.resultsTitle')}>
+        <Table flush caption={t('auditExplorer.resultsTitle')}>
           <TableHead>
             <TableHeaderCell>{t('auditExplorer.fields.occurredAt')}</TableHeaderCell>
             <TableHeaderCell>{t('auditExplorer.fields.action')}</TableHeaderCell>

@@ -202,7 +202,7 @@ export function ReferenceDataPage() {
           </p>
         }
       >
-          <Table caption={t(`adminOverview.tables.${table}`)}>
+          <Table flush caption={t(`adminOverview.tables.${table}`)}>
               <TableHead>
                 <TableHeaderCell>{t('referenceAdmin.code')}</TableHeaderCell>
                 <TableHeaderCell>{t('referenceAdmin.name')}</TableHeaderCell>

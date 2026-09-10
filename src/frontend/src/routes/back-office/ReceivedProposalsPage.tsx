@@ -25,7 +25,7 @@ function ProposalsTable({ proposals, isArabic, locale, onOpen }: Readonly<{
 }>) {
   const { t } = useTranslation()
   return (
-    <Table caption={t('receivedProposals.listTitle')}>
+    <Table flush caption={t('receivedProposals.listTitle')}>
       <TableHead>
         <TableHeaderCell>{t('receivedProposals.fields.supplier')}</TableHeaderCell>
         <TableHeaderCell>{t('receivedProposals.fields.proposal')}</TableHeaderCell>
@@ -211,7 +211,7 @@ export function ReceivedProposalsPage() {
               </Card>
             ) : null}
 
-            <Card title={t('receivedProposals.listTitle')}>
+            <Card flush title={t('receivedProposals.listTitle')}>
               {list && list.proposals.length > 0 ? (
                 <ProposalsTable proposals={list.proposals} isArabic={isArabic} locale={locale} onOpen={setSelected} />
               ) : (

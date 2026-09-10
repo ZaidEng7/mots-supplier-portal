@@ -50,7 +50,7 @@ export function SupplierRfqListPage() {
           loadMore: t('supplierRfq.loadMore'),
         }}
       >
-        <Table caption={t('supplierRfq.listTitle')}>
+        <Table flush caption={t('supplierRfq.listTitle')}>
           <TableHead>
             <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
             <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>

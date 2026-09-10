@@ -63,7 +63,7 @@ export function OfferingSearchPage() {
         isEmpty={results.length === 0}
         labels={{ loading: t('common.loading'), error: t('common.loadFailed'), empty: t('offeringSearch.empty') }}
       >
-          <Table caption={t('offeringSearch.title')}>
+          <Table flush caption={t('offeringSearch.title')}>
             <TableHead>
               <TableHeaderCell>{t('offeringSearch.fields.name')}</TableHeaderCell>
               <TableHeaderCell>{t('offeringSearch.supplier')}</TableHeaderCell>

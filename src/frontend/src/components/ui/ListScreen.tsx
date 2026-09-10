@@ -139,15 +139,20 @@ export function ListState({
   skeletonRows?: number
   children: ReactNode
 }>) {
+  // The three states that are not the caller's content carry their own padding, because the card
+  // around them no longer does: a list card holds a table edge to edge, and a skeleton, an error or
+  // an empty line pressed against that edge reads as broken rather than as flush.
+  const padded = (node: ReactNode) => <div className="p-4">{node}</div>
+
   if (isPending) {
-    return skeleton === 'list'
+    return padded(skeleton === 'list'
       ? <SkeletonList label={loadingLabel} rows={skeletonRows} />
-      : <SkeletonTable label={loadingLabel} rows={skeletonRows} />
+      : <SkeletonTable label={loadingLabel} rows={skeletonRows} />)
   }
   // Delegates rather than rendering its own paragraph. QueryError carries role="alert" and the retry
   // control; a second, quieter error presentation here meant that adopting ListState LOST both.
-  if (isError) return <QueryError error={error} errorText={errorText} onRetry={onRetry} />
-  if (isEmpty) return <p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>
+  if (isError) return padded(<QueryError error={error} errorText={errorText} onRetry={onRetry} />)
+  if (isEmpty) return padded(<p style={{ color: 'var(--color-text-secondary)' }}>{emptyText}</p>)
   return <>{children}</>
 }
 
@@ -204,7 +209,9 @@ export function LoadMore({
 }>) {
   if (!hasNextPage) return null
   return (
-    <div className="mt-4">
+    // Padded rather than margined: this sits below a table that now reaches the card's edges, so the
+    // control needs the inset the card stopped providing.
+    <div className="p-4">
       <Button variant="secondary" isLoading={isFetching} onClick={onClick}>
         {label}
       </Button>
@@ -269,8 +276,16 @@ export function ListCard({
   footer?: ReactNode
   children: ReactNode
 }>) {
+  // Flush, because the one thing a list card holds is a table and a table brings its own edges. The
+  // template's list screen is a single framed surface; a padded card round a bordered table is two
+  // frames a few pixels apart, which is what this looked like before.
+  //
+  // The template also puts a count in this header - "18 tenders". There is no honest count to put
+  // there: these lists are paged, and the envelope's `totalCount` is null unless the request asks for
+  // it, which no request does. A header reading "18 tenders" over seven loaded rows would be the screen
+  // saying something it does not know, so it says nothing.
   return (
-    <Card title={title} action={action}>
+    <Card flush title={title} action={action}>
       <ListState
         isPending={query.isPending}
         isError={query.isError}

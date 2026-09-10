@@ -118,8 +118,8 @@ export function DocumentsPage() {
         </Card>
       ) : null}
 
-      <Card title={t('documents.listTitle')}>
-        <Table caption={t('documents.listTitle')}>
+      <Card flush title={t('documents.listTitle')}>
+        <Table flush caption={t('documents.listTitle')}>
           <TableHead>
             <TableHeaderCell>{t('documents.fields.type')}</TableHeaderCell>
             <TableHeaderCell>{t('documents.fields.required')}</TableHeaderCell>
@@ -217,7 +217,7 @@ export function DocumentsPage() {
           skeleton="list"
           skeletonRows={3}
         >
-          <Table caption={t('documents.historyTitle')}>
+          <Table flush caption={t('documents.historyTitle')}>
             <TableHead>
               <TableHeaderCell>{t('documents.fields.version')}</TableHeaderCell>
               <TableHeaderCell>{t('documents.fields.state')}</TableHeaderCell>
