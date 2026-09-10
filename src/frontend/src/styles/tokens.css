@@ -219,6 +219,75 @@
 :root[dir="rtl"] { --font-ui: var(--font-sans-ar); --lh-body: var(--lh-relaxed); }
 :root[dir="ltr"] { --font-ui: var(--font-sans-latin); --lh-body: var(--lh-normal); }
 
+/* The dark theme, and the three ways in.
+   ------------------------------------------------------------------------------------------------
+   It had two selectors and nothing that set either. The palette was written, re-stepped during the
+   redesign, and guarded pair-by-pair by themeContrast - eighty-three pairs - while no user of this
+   product could reach a single one of those colours. A Rams audit scored the whole
+   environmental-friendliness principle at zero on that one fact: a reader whose machine asks for dark
+   was served light, and downloaded the dark palette anyway.
+
+   The media query is the decision: the portal follows the setting the reader has already made in
+   their operating system. No control to find, nothing to remember, and nothing new in a top bar that
+   already carries a language switch, a bell and a sign-out.
+
+   The class and the attribute stay, and are still first in the cascade, because they are how a test
+   or a capture driver forces a theme regardless of the machine it runs on. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-bg-app: var(--n-900);
+    --color-bg-surface: #1C2421;
+    --color-bg-sunken: #151C1A;
+    --color-bg-inset: #17201D;
+    --color-bg-hover: #242E2A;
+    --color-bg-selected: rgba(47, 160, 128, 0.22);
+    --color-bg-overlay: rgba(0, 0, 0, 0.60);
+
+    --color-text-primary: #EDF2EF;
+    --color-text-secondary: #C4CFCA;
+    --color-text-muted: #94A29C;
+    --color-text-disabled: #63726B;
+    --color-text-inverse: #FFFFFF;
+    --color-text-link: var(--brand-300);
+    --color-text-brand: var(--brand-300);
+
+    --color-border: #6E7C76;
+    --color-border-strong: #7C8A83;
+    --color-border-focus: var(--brand-300);
+    --color-border-input: #7C8A83;
+
+    --color-on-brand: #08140F;
+    --color-brand-solid: var(--brand-300);
+    --color-brand-solid-hover: var(--brand-200);
+    --color-brand-solid-active: var(--brand-100);
+    --color-brand-subtle: rgba(47, 160, 128, 0.16);
+
+    --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--brand-300);
+
+    --color-success-fg: #6FCF97; --color-success-bg: rgba(30,135,75,0.16);  --color-success-solid: var(--success-500);
+    --color-warning-fg: #E3B15C; --color-warning-bg: rgba(183,121,31,0.16); --color-warning-solid: var(--warning-500);
+    --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: #CD3D2E;
+    --color-danger-solid-hover: #B23325;
+    --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: #2B73C1;
+    --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
+
+    --color-field: #0A1714;
+    --color-field-raised: #122820;
+    --color-field-active: #1A3A30;
+    --color-on-field: #E7EFEB;
+    --color-on-field-muted: #9FB6AC;
+
+    --color-accent-wash: rgba(47, 160, 128, 0.13);
+    --color-accent-line: rgba(47, 160, 128, 0.40);
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.45);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,0.55);
+  }
+}
+
 .theme-dark, :root[data-theme="dark"] {
   color-scheme: dark;
 

@@ -173,7 +173,15 @@ describe('SupplierProposalPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Withdraw proposal' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/cannot be undone|final/i)).toBeInTheDocument()
+    // The bid really is gone for good, so the dialog has to say that.
+    expect(within(dialog).getByText(/cannot be restored/i)).toBeInTheDocument()
+    // And it must NOT say the supplier is out of the tender, because they are not. This dialog read
+    // "You cannot re-enter this tender" while ProposalHandlers.cs:139 treats a withdrawn proposal as
+    // the absence of one and creates a new draft - the code's own comment records that a supplier who
+    // withdrew to correct a price could once never bid again, which is the bug that guard exists to
+    // stop. The words were never corrected with it. A Rams audit found the pair still disagreeing.
+    expect(within(dialog).queryByText(/cannot re-enter/i)).toBeNull()
+    expect(within(dialog).getByText(/start a new bid/i)).toBeInTheDocument()
 
     await userEvent.type(within(dialog).getByLabelText('Reason'), 'Pricing error')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Withdraw proposal' }))

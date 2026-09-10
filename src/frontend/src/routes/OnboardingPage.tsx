@@ -535,6 +535,32 @@ export function OnboardingPage() {
   ]
   const isEditableState = state === 'EmailVerified' || state === 'ProfileInProgress' || isInfoRequested
   const isReadOnly = !isEditableState
+
+  /**
+   * WHY this screen is read-only, rather than one message for every reason it might be.
+   *
+   * <p>There was a single string here - "Your application is with a reviewer" - shown for every
+   * non-editable state. Six states are non-editable, and in two of them nobody is reviewing anything:
+   * an APPROVED supplier was told their application was still with a reviewer, under a page headed
+   * "Complete your supplier profile", for a profile that was complete and decided. Found by a Rams
+   * audit reading the screen as an approved supplier sees it.</p>
+   *
+   * <p>The three that really are with a reviewer keep the original words. The two that are decided say
+   * so. Anything else falls back to the plain fact - the screen cannot be changed - rather than to a
+   * guess about why.</p>
+   */
+  const readOnlyMessage = (() => {
+    if (state === 'Submitted' || state === 'UnderReview' || state === 'Resubmitted') {
+      return { title: t('onboarding.readOnlyTitle'), body: t('onboarding.readOnlyBody') }
+    }
+    if (state === 'Approved') {
+      return { title: t('onboarding.readOnlyApprovedTitle'), body: t('onboarding.readOnlyApprovedBody') }
+    }
+    if (state === 'Rejected') {
+      return { title: t('onboarding.readOnlyRejectedTitle'), body: t('onboarding.readOnlyRejectedBody') }
+    }
+    return { title: t('onboarding.readOnlyGenericTitle'), body: t('onboarding.readOnlyGenericBody') }
+  })()
   const annotation = annotationQuery.data
   const flaggedFields = new Set(annotation?.flaggedProfileFields ?? [])
   const flaggedDocCodes = new Set(annotation?.flaggedDocumentTypeCodes ?? [])
@@ -564,7 +590,12 @@ export function OnboardingPage() {
 
   return (
     <FormMeasure>
-      <PageHeading title={t('onboarding.title')} meta={<StatusChip machine="onboarding" value={profile.onboardingState} />} />
+      {/* An instruction while there is something to do, a name once there is not. "Complete your
+          supplier profile" was the heading over an approved, complete, unchangeable profile. */}
+      <PageHeading
+        title={isReadOnly ? t('onboarding.titleReadOnly') : t('onboarding.title')}
+        meta={<StatusChip machine="onboarding" value={profile.onboardingState} />}
+      />
 
       <OnboardingStepNav />
 
@@ -586,10 +617,10 @@ export function OnboardingPage() {
           style={{ backgroundColor: 'var(--color-info-bg)', border: '1px solid var(--color-info-solid)' }}
         >
           <p className="font-[var(--fw-semibold)]" style={{ color: 'var(--color-info-fg)' }}>
-            {t('onboarding.readOnlyTitle')}
+            {readOnlyMessage.title}
           </p>
           <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
-            {t('onboarding.readOnlyBody')}
+            {readOnlyMessage.body}
           </p>
         </div>
       ) : null}
@@ -826,6 +857,19 @@ export function OnboardingPage() {
       </Card>
 
       <Card title={t('onboarding.termsTitle')}>
+        {/*
+          The document this card asks about has not been published. The About page has always said so
+          ("Terms of use and the privacy notice have not been issued yet"); this card did not, and its
+          checkbox asked the supplier to confirm they had READ it. Nobody could have. The claim is gone
+          and the fact is here, so a supplier accepting knows exactly what they are accepting and what
+          state it is in.
+
+          This makes the screen truthful. Whether recording acceptance of an unpublished document is
+          acceptable at all is the Ministry's question, not this component's - reported, not decided.
+        */}
+        <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+          {t('onboarding.termsPending')}
+        </p>
         {/* Two independent facts, not one refined twice: whether the terms have been accepted, and
             whether this supplier can still act. An accepted application shows when and which version;
             an editable one that has not accepted shows the checkbox; a read-only one shows neither. */}

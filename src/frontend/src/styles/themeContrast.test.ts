@@ -246,6 +246,45 @@ describe.each(THEMES)('%s theme contrast', (_theme, blocks) => {
   })
 })
 
+/**
+ * The dark palette is written twice, and the two copies must not drift.
+ *
+ * <p>CSS cannot express "these declarations apply under a media query AND under a class" in one rule,
+ * so binding the theme to `prefers-color-scheme` meant a second copy of every dark value beside the
+ * `.theme-dark` block that tests and capture drivers force. Two copies of forty declarations is a
+ * divergence waiting to happen, and the guard above reads only one of them - so a value fixed in the
+ * class block and forgotten in the media query would ship wrong to every reader whose machine asks
+ * for dark, with eighty-three green assertions over it.</p>
+ *
+ * <p>This compares them declaration by declaration. It is the price of the duplication, and it is
+ * cheaper than the duplication going unnoticed.</p>
+ */
+describe('the two dark blocks say the same thing', () => {
+  const declarations = (block: string) =>
+    Object.fromEntries([...block.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
+
+  const mediaStart = css.indexOf('@media (prefers-color-scheme: dark)')
+  const mediaBlock = css.slice(mediaStart, css.indexOf('\n}', css.indexOf('\n  }', mediaStart)))
+  const fromMedia = declarations(mediaBlock)
+  const fromClass = declarations(darkBlock)
+
+  it('reads two real blocks, not one block twice', () => {
+    // The denominator. If either slice missed, every comparison below would be vacuous.
+    expect(mediaStart).toBeGreaterThan(0)
+    expect(Object.keys(fromMedia).length).toBeGreaterThan(30)
+    expect(Object.keys(fromClass).length).toBeGreaterThan(30)
+    expect(mediaBlock).not.toBe(darkBlock)
+  })
+
+  it('declares the same tokens with the same values in both', () => {
+    const disagreements = [...new Set([...Object.keys(fromMedia), ...Object.keys(fromClass)])]
+      .filter((name) => fromMedia[name] !== fromClass[name])
+      .map((name) => `${name}: media "${fromMedia[name] ?? 'absent'}" vs class "${fromClass[name] ?? 'absent'}"`)
+
+    expect(disagreements, 'the two dark blocks have drifted; a reader on a dark machine sees the media one').toEqual([])
+  })
+})
+
 describe('the contrast arithmetic itself', () => {
   it('can fail, in the shape the real defect took', () => {
     // Revert-to-red. The brand step cleared white at 4.83 and missed the app background by three
