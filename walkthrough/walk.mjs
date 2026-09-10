@@ -25,7 +25,7 @@ const MAILHOG = 'http://localhost:8025'
 const SHOTS = new URL('./screenshots/', import.meta.url).pathname
 const GUIDE = new URL('./GUIDE.md', import.meta.url).pathname
 
-const ADMIN = { email: 'admin@mots.local', password: 'motsadmin2026' }
+const ADMIN = { email: 'admin@mots.local', password: 'motsdemo2026' }
 /**
  * Read from the database, not pasted in.
  *

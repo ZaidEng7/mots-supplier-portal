@@ -44,7 +44,16 @@ public static class AdminSeeder
         // Identity policy here is length>=12, no complexity requirement (Program.cs) - the
         // fallback is kept simple to type live rather than adding punctuation/case-mixing
         // nothing actually enforces.
-        var password = configuration["DevSeed:AdminPassword"] ?? "motsadmin2026";
+        //
+        // The fallback is DevDataSeeder's own constant, so every seeded account on a development
+        // database shares one password. Three different fallbacks meant a walkthrough stopped twice to
+        // look up which account was the exception, and the exceptions were the two accounts - the
+        // onboarding reviewer and the bootstrap admin - that a walk cannot get past without.
+        //
+        // Production is unaffected: it supplies DevSeed:AdminPassword and never reaches the fallback.
+        // MFA is unchanged either way - system_admin still requires a TOTP code, which is what actually
+        // guards this account.
+        var password = configuration["DevSeed:AdminPassword"] ?? DevDataSeeder.Password;
 
         var user = new AppUser
         {
@@ -98,7 +107,9 @@ public static class ReviewerSeeder
         var existing = await userManager.FindByEmailAsync(Email);
         if (existing is not null) return;
 
-        var password = configuration["DevSeed:ReviewerPassword"] ?? "motsreview2026";
+        // DevDataSeeder's constant, for the same reason as above: one password across every seeded
+        // account, and this is one of the two accounts a walkthrough cannot get past without.
+        var password = configuration["DevSeed:ReviewerPassword"] ?? DevDataSeeder.Password;
 
         var user = new AppUser
         {
