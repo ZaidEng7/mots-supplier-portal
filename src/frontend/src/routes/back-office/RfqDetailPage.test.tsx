@@ -305,12 +305,16 @@ describe('RfqDetailPage', () => {
     // Decisions is ABSENT here, and that is the assertion. A draft tender has no approvals and no
     // evaluation, so a Decisions heading would label an empty space - which is exactly the kind of
     // thing this whole pass has been removing. The next test covers the case where it is present.
+    // The rail comes FIRST in the DOM, on purpose - a screen reader and a 320px viewport both meet
+    // "what happens next" before the body of the page - so its own heading leads this list. That was
+    // already true; it only became visible here once the rail's card carried a real heading instead of
+    // a card title.
     const groups = screen.getAllByRole('region').filter((g) => g.tagName === 'SECTION')
     expect(groups.map((g) => g.getAttribute('aria-labelledby'))).toEqual([
-      'rfq-group-tender', 'rfq-group-suppliers', 'rfq-group-managing',
+      'next-action-title', 'rfq-group-tender', 'rfq-group-suppliers', 'rfq-group-managing',
     ])
     expect(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent)).toEqual([
-      'The tender', 'Suppliers', 'Managing this tender',
+      'What happens next', 'The tender', 'Suppliers', 'Managing this tender',
     ])
     expect(screen.queryByText('Decisions')).not.toBeInTheDocument()
   })
@@ -605,6 +609,104 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText('Evaluator assigned')).toBeInTheDocument()
   })
 
+  // ---- The comp's band: a tender is a thing with a name ----
+
+  /**
+   * The heading used to be `RFQ-2026-000001 — Sample RFQ`: the code first, at h1 size, with the
+   * tender's own name appended to it. A reference code is how you find a tender again, not what it is
+   * called. The comp puts the name in the heading and files the code with the other identifying facts.
+   */
+  it('names the tender in the heading and files its code with the other identity facts', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', { ownerName: 'Rana Tester' }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    const heading = await screen.findByRole('heading', { level: 1 })
+    expect(heading).toHaveTextContent('Sample RFQ')
+    expect(heading).not.toHaveTextContent('RFQ-2026-000001')
+
+    // Still on the screen, and still saying who is answerable - A-7 put the owner here and it stays.
+    expect(screen.getByText(/RFQ-2026-000001 · Owner: Rana Tester/)).toBeInTheDocument()
+  })
+
+  /**
+   * The comp's second chip, and the one a buyer acts on. "Open for submissions" does not say whether
+   * that means today or next month, and the closing date lived three cards down the page.
+   */
+  it('says when submissions close, while they are open', async () => {
+    // An hour of slack: `formatRelative` truncates, so exactly six days minus the milliseconds this
+    // test takes to run is five whole days, and the assertion would be about the clock rather than
+    // about the chip.
+    const closes = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString()
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', { submissionClosesAt: closes }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByText('Closes in 6 days')).toBeInTheDocument()
+  })
+
+  /**
+   * The denominator, and the reason this is a condition rather than a chip that always renders. On a
+   * Draft the same date is a plan and on an Awarded tender it is history; counting down to either
+   * would be the screen telling a buyer to hurry about something already finished.
+   */
+  it('does not count down on a tender whose submissions are not open', async () => {
+    const closes = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString()
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', { submissionClosesAt: closes }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByRole('heading', { level: 1 })
+    expect(screen.queryByText(/Closes in/)).toBeNull()
+  })
+
+  /**
+   * "At a glance" counts what is on the page, and each number is one a reader used to get by scrolling
+   * to a card and counting its rows. Questions counts UNANSWERED clarifications: an answered question
+   * is not waiting on the buyer, and a total would read as though it were.
+   */
+  it('counts what is on the page, and counts only the questions still open', async () => {
+    restore = mockFetch({
+      ...REFERENCE_ROUTES,
+      '/api/v1/rfqs/RFQ-2026-000001/workspace': workspaceFixture({ submittedProposalCount: 4 }),
+      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', {
+        invitations: [
+          { id: 'i-1', supplierId: 's-1', supplierDisplayNameAr: 'أ', supplierDisplayNameEn: 'A', status: 'Invited', invitedAt: '2026-09-01T00:00:00Z', viewedAt: null, respondedAt: null, declineReason: null },
+          { id: 'i-2', supplierId: 's-2', supplierDisplayNameAr: 'ب', supplierDisplayNameEn: 'B', status: 'Invited', invitedAt: '2026-09-01T00:00:00Z', viewedAt: null, respondedAt: null, declineReason: null },
+        ],
+        clarifications: [
+          { id: 'c-1', askedBySupplierId: 's-1', askedBySupplierNameAr: 'أ', askedBySupplierNameEn: 'A', question: 'Open one', answer: null, visibility: 'PublishedToAll', askedAt: '2026-09-02T00:00:00Z', answeredAt: null },
+          { id: 'c-2', askedBySupplierId: 's-2', askedBySupplierNameAr: 'ب', askedBySupplierNameEn: 'B', question: 'Answered one', answer: 'Yes', visibility: 'PublishedToAll', askedAt: '2026-09-02T00:00:00Z', answeredAt: '2026-09-03T00:00:00Z' },
+        ],
+      }),
+    })
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByText('At a glance')
+
+    // Read off the description list rather than the page: "Invited" is also an invitation STATUS in
+    // the table below, so a page-wide text query would find the wrong one and pass for the wrong
+    // reason.
+    const glance = document.querySelector('dl')!
+    const pairs = Object.fromEntries(
+      [...glance.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]),
+    )
+
+    expect(pairs['Invited']).toBe('2')
+    expect(pairs['Bids received']).toBe('4')
+    expect(pairs['Questions open']).toBe('1')
+  })
+
   // ---- FEAT-13.1/FR-PWF-001: the guided workspace panel ----
 
   it('Draft: the workspace panel shows the Draft stage as current and a blocked submit_review action with its reason', async () => {
@@ -618,9 +720,18 @@ describe('RfqDetailPage', () => {
 
     renderPage(<RfqDetailPage />)
 
-    expect(await screen.findByText('RFQ Workflow')).toBeInTheDocument()
+    // Three cards, not one. "What happens next" is the one that asks something of the reader, and a
+    // blocked transition still names itself before it explains itself: the label is what the reason is
+    // a reason ABOUT, and the panel this replaced put the label in a badge and the reason in grey text
+    // beside it.
+    expect(await screen.findByText('What happens next')).toBeInTheDocument()
     expect(screen.getByText('Submit for internal review')).toBeInTheDocument()
     expect(screen.getByText('No items yet.')).toBeInTheDocument()
+
+    // The stage the tender is actually at, said in the markup rather than only in a colour.
+    const stages = screen.getByLabelText('Lifecycle stages')
+    const current = within(stages).getByRole('listitem', { current: 'step' })
+    expect(current).toHaveTextContent('Draft')
   })
 
   it('Awarded: the workspace panel shows a system-driven, unpermitted next action awaiting ERP sync', async () => {
@@ -642,13 +753,14 @@ describe('RfqDetailPage', () => {
 
     expect(await screen.findByText('Awaiting ERP Purchase Order sync')).toBeInTheDocument()
     expect(screen.getByText('This step is automatic or awaiting another party.')).toBeInTheDocument()
-    // T2-33: the stage label now comes from UX-WRITING §7 via StatusChip, and the completed tick is
-    // a separate aria-hidden glyph rather than string-concatenated into the label - so the two are
-    // asserted separately. "Awarded" appears twice (the RFQ's own state chip and this stage), hence
-    // the stage tracker is scoped by its own accessible name before querying inside it.
-    expect(screen.getByText('✓')).toBeInTheDocument()
+    // T2-33: the stage label comes from UX-WRITING §7 via StatusChip. The finished tick used to be a
+    // visible aria-hidden glyph; the mark is now filled, ringed or hollow, and the state travels to a
+    // screen reader as a word instead. "Awarded" appears twice - the RFQ's own state chip and this
+    // stage - so the tracker is scoped by its accessible name before querying inside it.
     const stages = screen.getByLabelText('Lifecycle stages')
     expect(within(stages).getByText('Draft')).toBeInTheDocument()
+    expect(within(stages).getByText('Done:')).toBeInTheDocument()
+    expect(within(stages).getByRole('listitem', { current: 'step' })).toHaveTextContent('Awarded')
   })
 
   it('Cancelled: the workspace panel shows a cancelled banner instead of stages or actions', async () => {

@@ -3,7 +3,7 @@ import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, PageHeading, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -19,7 +19,7 @@ import {
   getEvaluation, openEvaluation, assignEvaluators, listEvaluatorCandidates, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
-import { formatDate, formatDateTime, formatNumber } from '../../lib/datetime'
+import { formatDate, formatDateTime, formatNumber, formatRelative } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
 import { ButtonLink } from '../../components/ButtonLink'
 import { CancelSection } from './rfq/sections/CancelSection'
@@ -39,13 +39,6 @@ function toLocalInput(iso: string | null | undefined): string {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/** Where a stage stands: the one being worked now, one already passed, or one still ahead. */
-function stageTone(stage: { isCurrent: boolean; isCompleted: boolean }): 'brand' | 'success' | 'neutral' {
-  if (stage.isCurrent) return 'brand'
-  if (stage.isCompleted) return 'success'
-  return 'neutral'
 }
 
 export function RfqDetailPage() {
@@ -444,19 +437,64 @@ export function RfqDetailPage() {
   const canIssueAddendum = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
   const draftFor = (id: string) => answerDrafts[id] ?? { text: '' }
 
+  /**
+   * The rail's three answers, derived once rather than inside the JSX.
+   *
+   * <p>`permitted` already reflects both the caller's permission claim and the domain precondition,
+   * resolved server-side, so nothing here re-derives who may do what.</p>
+   */
+  const workspace = workspaceQuery.data
+  const permittedActions = workspace?.nextActions.filter((a) => a.permitted) ?? []
+  const blockedActions = workspace?.nextActions.filter((a) => !a.permitted) ?? []
+
+  /**
+   * The counts the comp puts in the rail. Every one is already on this page, and every one of them
+   * used to be found by scrolling to its card and counting the rows.
+   *
+   * <p>"Questions open" counts unanswered clarifications rather than all of them: a question that has
+   * been answered is not something waiting on the buyer, and a total would read as one that is.</p>
+   */
+  const glanceFacts = [
+    { key: 'invited', label: t('workspace.facts.invited'), value: formatNumber(rfq.invitations.length, locale, 0) },
+    { key: 'bids', label: t('workspace.facts.bids'), value: formatNumber(workspace?.submittedProposalCount ?? 0, locale, 0) },
+    { key: 'questions', label: t('workspace.facts.questions'), value: formatNumber(rfq.clarifications.filter((c) => !c.answer).length, locale, 0) },
+    { key: 'items', label: t('workspace.facts.items'), value: formatNumber(rfq.items.length, locale, 0) },
+    { key: 'addenda', label: t('workspace.facts.addenda'), value: formatNumber(rfq.addenda.length, locale, 0) },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <PageHeading title={`${rfq.referenceCode} — ${isArabic ? rfq.titleAr : rfq.titleEn}`} />
-          <StatusChip machine="rfq" value={rfq.state} />
-          {/* A-7: who is answerable, on the screen rather than only in the audit trail. */}
-          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('rfq.ownership.ownerLabel')}: {rfq.ownerName ?? t('rfq.unassigned')}
-            {rfq.assignedApproverName ? ` · ${t('rfq.ownership.approverLabel')}: ${rfq.assignedApproverName}` : ''}
-          </p>
-        </div>
-        <div className="flex gap-2">
+      {/*
+        The comp's band, and `PageHeading` already had its shape: a name, the line that identifies the
+        record, the chips that say what state it is in, and the actions. The page was passing all four
+        as loose siblings instead, which is why the reference code was the heading and the tender's own
+        name was an afterthought appended to it. A tender is a thing with a name; the code is how you
+        find it again.
+
+        A-7: who is answerable stays on the screen rather than only in the audit trail. It has moved
+        into the identity line, beside the code, because that is the same kind of fact.
+      */}
+      <PageHeading
+        title={isArabic ? rfq.titleAr : rfq.titleEn}
+        subtitle={[
+          rfq.referenceCode,
+          `${t('rfq.ownership.ownerLabel')}: ${rfq.ownerName ?? t('rfq.unassigned')}`,
+          rfq.assignedApproverName ? `${t('rfq.ownership.approverLabel')}: ${rfq.assignedApproverName}` : null,
+        ].filter(Boolean).join(' · ')}
+        meta={
+          <>
+            <StatusChip machine="rfq" value={rfq.state} />
+            {/* The second chip in the comp, and the one a reader actually acts on. A state of
+                "Open for submissions" does not say whether that means today or next month, and the
+                closing date was three cards further down the page. Only while it is open: on a Draft
+                or an Awarded tender the same date is history, not a countdown. */}
+            {isSubmissionOpen && rfq.submissionClosesAt ? (
+              <Badge>{t('rfq.closes', { when: formatRelative(rfq.submissionClosesAt, locale) })}</Badge>
+            ) : null}
+          </>
+        }
+        actions={
+          <>
           {isDraft ? (
             <div className="flex flex-wrap items-center gap-2">
               {/* Optional by design: an empty selection submits to the manager pool, exactly as this
@@ -513,8 +551,9 @@ export function RfqDetailPage() {
               />
             </>
           ) : null}
-        </div>
-      </div>
+          </>
+        }
+      />
 
 
       {/* One column on a narrow screen, two from the layout breakpoint up. The rail is FIRST in the
@@ -524,48 +563,74 @@ export function RfqDetailPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1">
           {workspaceQuery.data ? (
-            <Card title={t('workspace.title')}>
-              {workspaceQuery.data.isCancelled ? (
+            workspaceQuery.data.isCancelled ? (
+              <Card title={t('workspace.title')}>
                 <Badge tone="danger">{t('workspace.cancelledBanner')}</Badge>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {/* Labelled visibly, not only for a screen reader. Sitting unlabelled at the top of
-                      the rail, a lone stage chip reads as THE tender's state - and §D1 caught exactly
-                      that, with the header saying Published while this said Draft. They are two
-                      different facts from two different queries: one is the state, this is the journey.
-                      The label is what makes them different on screen rather than only in the data. */}
-                  <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('workspace.stages')}
-                  </p>
-                  <div className="flex flex-wrap gap-2" aria-label={t('workspace.stages')}>
-                    {workspaceQuery.data.stages.map((stage) => (
-                      <span key={stage.key} className="inline-flex items-center gap-1">
-                        {stage.isCompleted ? <span aria-hidden="true">✓</span> : null}
-                        <StatusChip machine="rfq" value={stage.key} tone={stageTone(stage)} />
-                      </span>
-                    ))}
-                  </div>
-                  {workspaceQuery.data.nextActions.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                      {workspaceQuery.data.nextActions.map((action) => (
-                        <div key={action.action} className="flex items-center gap-2 flex-wrap">
-                          <Badge tone={action.permitted ? 'success' : 'warning'}>
-                            {isArabic ? action.labelAr : action.labelEn}
-                          </Badge>
-                          {!action.permitted ? (
-                            <span style={{ color: 'var(--color-text-secondary)' }}>
-                              {isArabic ? action.blockedReasonAr : action.blockedReasonEn}
+              </Card>
+            ) : (
+              <>
+                {/*
+                  The comp's three rail cards, and they answer three different questions: what am I
+                  expected to do, how far along is this, and how big is it. One card used to answer all
+                  three at once with a row of chips and a column of badges, and answered none of them
+                  in a sentence.
+                */}
+                <NextActionCard
+                  title={t('workspace.next')}
+                  action={permittedActions.length > 0 ? (
+                    <p
+                      className="text-[length:var(--text-body-sm)] font-[var(--fw-semibold)]"
+                      style={{ color: 'var(--color-text-brand)' }}
+                    >
+                      {permittedActions.map((a) => (isArabic ? a.labelAr : a.labelEn)).join(' · ')}
+                    </p>
+                  ) : undefined}
+                >
+                  {/*
+                    A blocked transition still has to name itself. The panel this replaces rendered the
+                    label as a warning badge and the server's reason as grey text beside it, and the
+                    reason is the useful half - but the label is what it is a reason ABOUT, so both are
+                    kept and the label leads. A state that asks nothing of this reader says that instead.
+                  */}
+                  {blockedActions.length > 0 ? (
+                    <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                      {blockedActions.map((a) => (
+                        <li key={a.action}>
+                          <span className="font-[var(--fw-medium)]">{isArabic ? a.labelAr : a.labelEn}</span>
+                          {(isArabic ? a.blockedReasonAr : a.blockedReasonEn) ? (
+                            <span className="block" style={{ color: 'var(--color-text-secondary)' }}>
+                              {isArabic ? a.blockedReasonAr : a.blockedReasonEn}
                             </span>
                           ) : null}
-                        </div>
+                        </li>
                       ))}
-                    </div>
-                  ) : (
-                    <span style={{ color: 'var(--color-text-secondary)' }}>{t('workspace.noNextAction')}</span>
-                  )}
-                </div>
-              )}
-            </Card>
+                    </ul>
+                  ) : permittedActions.length > 0 ? null : t('workspace.noNextAction')}
+                </NextActionCard>
+
+                <Card title={t('workspace.stands')}>
+                  <Stepper
+                    label={t('workspace.stages')}
+                    stateLabels={{
+                      done: t('workspace.stepDone'),
+                      current: t('workspace.stepCurrent'),
+                      todo: t('workspace.stepTodo'),
+                    }}
+                    steps={workspaceQuery.data.stages.map((stage) => ({
+                      key: stage.key,
+                      // The same key StatusChip resolves, so a stage and a state chip never disagree
+                      // about what a lifecycle stop is called.
+                      label: t(`status.rfq.${stage.key}`),
+                      state: stage.isCurrent ? 'current' : stage.isCompleted ? 'done' : 'todo',
+                    }))}
+                  />
+                </Card>
+
+                <Card title={t('workspace.glance')}>
+                  <FactList facts={glanceFacts} />
+                </Card>
+              </>
+            )
           ) : null}
 
         </aside>
