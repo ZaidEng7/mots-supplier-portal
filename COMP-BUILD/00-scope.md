@@ -79,13 +79,15 @@ Code: `src/frontend/src/routes/ministry/MinistryAwardAnalyticsPage.tsx`, and the
 | Withheld state as a bordered panel stating the decision | A banner at the top of the page | Restyle |
 | Table beside every chart | Already there | None |
 
-**One decision needed before this is built.** The comp is a single analytics surface carrying charts
-that today belong to three different screens: awards, `/ministry/categories`, and the review queue.
-Either the comp becomes one combined screen and the other two lose their charts, or each chart goes
-home to its own screen and the comp is read as a chart language rather than a page. My
-recommendation is the second, because the review queue is a working screen for reviewers rather than
-a ministry reporting surface, and moving its numbers away from the people who act on them is a
-behaviour change dressed as a layout one.
+**Decided 2026-09-10: each chart goes to the screen its numbers already live on.** The comp is a
+single analytics surface carrying charts that belong to three different screens. It is read as a
+chart language rather than as a page:
+
+- `/ministry/awards` keeps its three award charts and gets the ranked horizontal treatment.
+- `/ministry/categories` keeps its table and gains the coverage chart above it.
+- `/review` keeps its list and gains the three threshold tiles above it.
+
+Nothing moves between screens, so no figure is taken away from the person who acts on it.
 
 `BarChart` needs a ranked horizontal mode and a two-series mode. Both are recharts props already, so
 no new dependency.
