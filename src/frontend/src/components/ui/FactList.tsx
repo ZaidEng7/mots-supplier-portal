@@ -22,7 +22,9 @@ export function FactList({ facts }: Readonly<{ facts: readonly Fact[] }>) {
       {facts.map((fact) => (
         <div key={fact.key} className="contents">
           <dt style={{ color: 'var(--color-text-secondary)' }}>{fact.label}</dt>
-          <dd className="m-0 text-end tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
+          {/* The numeric face rather than the body one: a column of figures only lines up if the
+              digits are the same width, which is what --font-numeric is for. */}
+          <dd className="m-0 text-end" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-numeric)', fontVariantNumeric: 'tabular-nums' }}>
             {fact.value}
           </dd>
         </div>

@@ -55,6 +55,15 @@ body {
 /* DESIGN-SYSTEM.md §6.2: "hover (border --n-400)". Gated behind a real pointer, because a touch device
    fires hover on tap and would leave the field looking hovered after the finger lifts. Never on a field
    that is refusing input. */
+/* A table row should answer a pointer. It cannot be an inline style, because a pointer state is not a
+   style - and it is deliberately weaker than one: a cell that sets its own background (a flagged row, a
+   pinned first column) keeps it, because that background is why the row is worth looking at. */
+@media (hover: hover) and (pointer: fine) {
+  .msp-row:hover > td {
+    background-color: var(--color-bg-hover);
+  }
+}
+
 /* A button should answer the press. 120ms on the product's own motion token, scale kept subtle, and
    never on a button that is refusing the click. The global reduced-motion rule below flattens it. */
 .msp-pressable:not(:disabled):active {

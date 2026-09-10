@@ -21,7 +21,7 @@ export function NextActionCard({ title, children, action }: Readonly<{
     <section
       aria-labelledby="next-action-title"
       className="rounded-[var(--radius-lg)] p-4"
-      style={{ backgroundColor: 'var(--color-brand-subtle)', border: '1px solid var(--color-brand-solid)' }}
+      style={{ backgroundColor: 'var(--color-accent-wash)', border: '1px solid var(--color-accent-line)' }}
     >
       <h2
         id="next-action-title"

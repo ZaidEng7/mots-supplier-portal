@@ -52,10 +52,14 @@ export function TableHeaderCell({
   return (
     <th
       scope={scope}
-      className={`px-4 py-2 text-start font-[var(--fw-semibold)] ${className}`}
+      // Uppercase at caption size with open tracking, which is the approved template's header. It
+      // reads as a label for the column rather than as a short first row, and it is what stops a
+      // dense table looking like a wall of equal-weight text.
+      className={`px-4 py-2.5 text-start text-[length:var(--text-caption)] font-[var(--fw-semibold)] uppercase tracking-[0.06em] ${className}`}
       style={{
         color: 'var(--color-text-secondary)',
         backgroundColor: 'var(--color-bg-sunken)',
+        borderBlockEnd: '1px solid var(--color-border)',
         ...(sticky ? { position: 'sticky', insetInlineStart: 0, zIndex: 1 } : {}),
         ...style,
       }}
@@ -71,7 +75,10 @@ export function TableBody({ children }: { children: ReactNode }) {
 
 export function TableRow({ children }: { children: ReactNode }) {
   return (
-    <tr className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+    // `msp-row` is a hover rule rather than an inline style because a pointer state cannot be one.
+    // Cells that set their own background - flagged and pinned ones - keep it: an inline style wins
+    // over the class, which is the correct precedence and not an accident.
+    <tr className="msp-row border-t" style={{ borderColor: 'var(--color-border)' }}>
       {children}
     </tr>
   )
@@ -82,7 +89,7 @@ export function TableCell({
 }: { children: ReactNode; sticky?: boolean; highlight?: boolean; className?: string; style?: CSSProperties }) {
   return (
     <td
-      className={`px-4 py-2 ${className}`}
+      className={`px-4 py-3 ${className}`}
       style={{
         color: 'var(--color-text-primary)',
         backgroundColor: rowBackground(highlight, sticky),
