@@ -30,7 +30,12 @@ export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInpu
   ]
 
   return (
-    <div className="flex gap-2">
+    // The number takes the room the dialling code leaves, and drops to its own line rather than being
+    // crushed when there is not enough. On the registration screen this pair sits in a half-width
+    // column, and the number field was collapsing to about sixty pixels with its placeholder clipped
+    // to "Phon" - the first form a supplier ever fills in, with the field they cannot read what they
+    // typed into. An input's intrinsic width is what it shrinks from; nothing was telling it to grow.
+    <div className="flex flex-wrap gap-2">
       <div className="w-36 shrink-0">
         <Select
           value={countryCode}
@@ -43,6 +48,7 @@ export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInpu
           aria-invalid={aria['aria-invalid']}
         />
       </div>
+      <div className="min-w-[9rem] flex-1">
       <Input
         id={id}
         type="tel"
@@ -52,6 +58,7 @@ export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInpu
         placeholder={t('phone.localNumberPlaceholder')}
         {...aria}
       />
+      </div>
     </div>
   )
 }
