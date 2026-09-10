@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
 /**
  * Every pair of colours either theme can put together clears its WCAG floor, measured from tokens.css.
@@ -243,6 +243,144 @@ describe.each(THEMES)('%s theme contrast', (_theme, blocks) => {
       .map((p) => `${p.label} is ${contrast(p.fg, p.bg).toFixed(2)}:1, floor ${p.floor}`)
 
     expect(failures, 'WCAG 2.2 AA: 4.5:1 for text, 3:1 for a boundary or a meaningful fill').toEqual([])
+  })
+})
+
+/**
+ * The chart palette, measured as the SEQUENTIAL ramp it is rather than the categorical one it is not.
+ *
+ * <p><b>Why it is not in the sweep above.</b> That sweep holds every meaningful fill to 3:1, and the
+ * muted chart step is deliberately below it: a sequential ramp's faint end only has to clear 2:1,
+ * because the reader is not asked to identify it - they are asked to see where one segment stops. The
+ * relief that makes the relaxation legal is real and shipped: every chart in this product writes its
+ * figures at the end of the bar and sits above the table it draws.</p>
+ *
+ * <p><b>The defect this closes.</b> The coverage chart painted its second segment with
+ * --color-accent-line, which is --brand-200 and measures 1.68:1 on white. The segment standing for
+ * "approved, but cannot trade today" - the whole point of the chart - was invisible in the light theme,
+ * and 1.89:1 in the dark one once the wash was composited. Two component doc comments claimed a
+ * dataviz pass had validated the palette; neither claim was computed, and one of them states a chroma
+ * range for the brand ramp that is wrong at both ends.</p>
+ *
+ * <p><b>What makes this an instrument and not a transcript.</b> The denominator is read out of the
+ * chart components: every --color-* token they paint a mark with has to be one of the names checked
+ * here. A fourth chart that reaches for a fresh colour fails this test rather than shipping unmeasured.</p>
+ */
+describe.each(THEMES)('%s theme chart palette', (theme, blocks) => {
+  const value = (name: string) => {
+    const resolved = lookup(name, blocks)
+    if (resolved === null) throw new Error(`tokens.css does not resolve --${name}`)
+    return resolved
+  }
+
+  /** OKLCH, for the two ramp questions WCAG contrast cannot answer: is it one hue, and does it step. */
+  function oklch(colour: string): { l: number; c: number; h: number } {
+    const [r, g, b] = rgb(colour).map((v) => channel(v / 255))
+    const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+    const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+    const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+    const A = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+    const B = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    return {
+      l: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+      c: Math.hypot(A, B),
+      h: ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360,
+    }
+  }
+
+  const surface = value('color-bg-surface')
+  const fill = over(value('color-chart-fill'), surface)
+  const muted = over(value('color-chart-fill-muted'), surface)
+  const grid = over(value('color-chart-grid'), surface)
+
+  it('resolves all three chart tokens to real colours', () => {
+    // The denominator, before anything is measured with it. A token that failed to resolve would
+    // otherwise make every assertion below vacuous rather than red.
+    expect([fill, muted, grid].every((c) => /^#[0-9a-f]{6}$/i.test(c))).toBe(true)
+    expect(new Set([fill, muted, grid]).size).toBe(3)
+  })
+
+  it('keeps the emphasis fill above the 3:1 a meaningful mark needs', () => {
+    expect(contrast(fill, surface)).toBeGreaterThanOrEqual(UI_FLOOR)
+  })
+
+  it("keeps the muted fill above the 2:1 a ramp's faint end needs", () => {
+    // The floor the shipped value missed, in both themes, by different arithmetic.
+    expect(contrast(muted, surface)).toBeGreaterThanOrEqual(2)
+  })
+
+  it('steps far enough that two touching segments are two segments', () => {
+    expect(Math.abs(oklch(fill).l - oklch(muted).l)).toBeGreaterThanOrEqual(0.06)
+  })
+
+  it('is one hue, so the pair reads as a quantity and not as two identities', () => {
+    const spread = Math.abs(oklch(fill).h - oklch(muted).h)
+    expect(Math.min(spread, 360 - spread)).toBeLessThanOrEqual(15)
+  })
+
+  it('runs the ramp the right way for this theme', () => {
+    // Sequential ramps flip their anchor in dark: the emphasis step is the light one there and the
+    // dark one here. Getting this backwards is not a contrast failure, so nothing else would catch it.
+    const emphasisIsLighter = oklch(fill).l > oklch(muted).l
+    expect(emphasisIsLighter).toBe(theme === 'dark')
+  })
+
+  it('draws a grid line that recedes, and recedes the same amount in both themes', () => {
+    // A grid is scaffolding, not a boundary; SC 1.4.11 does not reach it. What it must not be is a
+    // rule the eye reads before the data - which is what --color-border would have been in dark, at
+    // 3.63:1 against the same surface the light theme's grid meets at 1.26:1.
+    expect(contrast(grid, surface)).toBeLessThan(2)
+    expect(contrast(grid, surface)).toBeGreaterThan(1.1)
+  })
+})
+
+/**
+ * Every colour the charts paint a mark with is one this file measures.
+ *
+ * <p>This is the denominator assertion, and it is the half that would have caught the original defect.
+ * A guard that checks three named tokens passes forever while a fourth chart paints itself with a
+ * fresh one. So the list of names comes out of the components.</p>
+ */
+describe('the charts paint only measured colours', () => {
+  const CHART_DIR = resolve(process.cwd(), 'src/components/charts')
+
+  /**
+   * Tokens a chart may use that are not marks: ink for labels and axis ticks, the surface it draws on,
+   * the surface-coloured separator between stacked fills, and the reserved status scale, which is
+   * measured by the sweep at the top of this file and ships with a glyph and a word beside it.
+   */
+  const NOT_A_MARK = new Set([
+    'color-text-primary', 'color-text-secondary', 'color-text-muted',
+    'color-bg-surface', 'color-bg-sunken', 'color-border', 'color-chart-grid',
+    'color-success-fg', 'color-warning-fg', 'color-danger-fg',
+    'radius-sm', 'radius-md', 'radius-lg', 'space-2', 'space-3',
+    'text-caption', 'text-body-sm', 'text-h3', 'fw-semibold',
+  ])
+  const MEASURED = new Set(['color-chart-fill', 'color-chart-fill-muted'])
+
+  const used = new Set<string>()
+  const files = readdirSync(CHART_DIR).filter((f) => /\.tsx$/.test(f) && !/\.(test|stories)\.tsx$/.test(f))
+  for (const file of files) {
+    const source = readFileSync(join(CHART_DIR, file), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    for (const match of source.matchAll(/var\(\s*--([a-z0-9-]+)/g)) used.add(match[1])
+  }
+
+  it('reads the real chart components', () => {
+    // Comments are stripped first, for the reason two other guards in this repository had to learn it:
+    // these files discuss the tokens they rejected as well as the ones they use.
+    expect(files.length).toBeGreaterThanOrEqual(3)
+    expect(used.size).toBeGreaterThan(5)
+  })
+
+  it('uses no colour that nothing measures', () => {
+    const unmeasured = [...used].filter((name) => !MEASURED.has(name) && !NOT_A_MARK.has(name))
+    expect(unmeasured, 'a chart is painting with a token no guard checks; add it above or use a chart token').toEqual([])
+  })
+
+  it('actually uses the measured ones, so the list is not aspirational', () => {
+    for (const name of MEASURED) expect(used.has(name), `nothing paints with --${name}`).toBe(true)
   })
 })
 
