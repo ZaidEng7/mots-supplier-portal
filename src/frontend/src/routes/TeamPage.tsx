@@ -84,11 +84,11 @@ export function TeamPage() {
         <Button onClick={() => setInviteOpen(true)}>{t('team.invite')}</Button>
       </div>
 
-      <Card title={t('team.membersTitle')}>
+      <Card flush title={t('team.membersTitle')}>
         {members.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('team.empty')}</p>
+          <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('team.empty')}</p>
         ) : (
-          <Table caption={t('team.membersTitle')}>
+          <Table flush caption={t('team.membersTitle')}>
             <TableHead>
               <TableHeaderCell>{t('team.fields.fullName')}</TableHeaderCell>
               <TableHeaderCell>{t('team.fields.email')}</TableHeaderCell>

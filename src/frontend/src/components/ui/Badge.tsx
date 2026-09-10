@@ -16,10 +16,10 @@ export function toneFor(state: string | null | undefined, map: Readonly<Record<s
 
 const toneStyle: Record<Tone, { bg: string; fg: string }> = {
   neutral: { bg: 'var(--color-bg-sunken)', fg: 'var(--color-text-secondary)' },
-  success: { bg: 'var(--success-50)', fg: 'var(--success-600)' },
-  warning: { bg: 'var(--warning-50)', fg: 'var(--warning-600)' },
-  danger: { bg: 'var(--danger-50)', fg: 'var(--danger-600)' },
-  info: { bg: 'var(--info-50)', fg: 'var(--info-600)' },
+  success: { bg: 'var(--color-success-bg)', fg: 'var(--color-success-fg)' },
+  warning: { bg: 'var(--color-warning-bg)', fg: 'var(--color-warning-fg)' },
+  danger: { bg: 'var(--color-danger-bg)', fg: 'var(--color-danger-fg)' },
+  info: { bg: 'var(--color-info-bg)', fg: 'var(--color-info-fg)' },
   brand: { bg: 'var(--color-brand-subtle)', fg: 'var(--color-text-brand)' },
 }
 

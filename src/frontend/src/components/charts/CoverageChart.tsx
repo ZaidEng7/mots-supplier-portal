@@ -66,7 +66,7 @@ export function CoverageChart({ data, height }: {
           {t('charts.coverageCanTrade')}
         </li>
         <li className="flex items-center gap-2">
-          <span aria-hidden="true" className="h-3 w-3 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--brand-200)' }} />
+          <span aria-hidden="true" className="h-3 w-3 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--color-accent-line)' }} />
           {t('charts.coverageApproved')}
         </li>
       </ul>
@@ -95,7 +95,7 @@ export function CoverageChart({ data, height }: {
             <Bar
               dataKey="remainder"
               stackId="pool"
-              fill="var(--brand-200)"
+              fill="var(--color-accent-line)"
               barSize={14}
               isAnimationActive={false}
               radius={isRtl ? [4, 0, 0, 4] : [0, 4, 4, 0]}

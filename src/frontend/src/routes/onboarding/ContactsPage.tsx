@@ -160,7 +160,7 @@ export function ContactsPage() {
         action={editable ? <Button size="sm" onClick={() => setRepDialog({ open: true })}>{t('contacts.addRepresentative')}</Button> : null}
       >
         {repRowError ? (
-          <p role="alert" className="mb-3 rounded-[var(--radius-sm)] px-3 py-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--danger-50)', color: 'var(--danger-600)' }}>
+          <p role="alert" className="mb-3 rounded-[var(--radius-sm)] px-3 py-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger-fg)' }}>
             {repRowError}
           </p>
         ) : null}

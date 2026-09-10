@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import {Card, PageHeading, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { Card, Metric, MetricRow, PageHeading, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
 import { BarChart } from '../../components/charts/BarChart'
 import { getMinistryAwardAnalytics, type MinistrySpendBucket } from '../../api/governance'
 import { formatCurrency, formatNumber } from '../../lib/datetime'
@@ -121,7 +121,7 @@ export function MinistryAwardAnalyticsPage() {
       {!commercialValuesVisible ? (
         <output
           className="block rounded-[var(--radius-lg)] p-4"
-          style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--color-warning-fg)' }}
+          style={{ backgroundColor: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-fg)' }}
         >
           <p className="font-[var(--fw-semibold)]" style={{ color: 'var(--color-warning-fg)' }}>
             {t('ministryAwards.valuesWithheldTitle')}
@@ -132,20 +132,18 @@ export function MinistryAwardAnalyticsPage() {
         </output>
       ) : null}
 
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <li>
-          <Card title={t('ministryAwards.totalAwards')}>
-            <p className="text-[length:var(--text-h3)]">{formatNumber(totalAwards, locale, 0)}</p>
-          </Card>
-        </li>
-        <li>
-          <Card title={t('ministryAwards.totalValue')}>
-            <p className="text-[length:var(--text-h3)]">
-              {totalAwardedValue === null ? t('ministryAwards.withheld') : formatCurrency(totalAwardedValue, null, locale)}
-            </p>
-          </Card>
-        </li>
-      </ul>
+      {/* Two headline figures, drawn by the component the other five dashboards use. They were cards
+          inside list items with the number at heading size, which is the shape every dashboard had
+          before Metric existed - and the last copy of it. The withheld case stays a word rather than a
+          figure: under the current visibility policy there is no number to show, and a zero would say
+          something false. */}
+      <MetricRow>
+        <Metric label={t('ministryAwards.totalAwards')} value={formatNumber(totalAwards, locale, 0)} />
+        <Metric
+          label={t('ministryAwards.totalValue')}
+          value={totalAwardedValue === null ? t('ministryAwards.withheld') : formatCurrency(totalAwardedValue, null, locale)}
+        />
+      </MetricRow>
 
       {bucketTable(t('ministryAwards.byMonth'), byMonth, t('ministryAwards.fields.month'), 'columns')}
 

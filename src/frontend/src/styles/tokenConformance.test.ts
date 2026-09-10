@@ -67,33 +67,22 @@ function code(relative: string): string {
  * value rather than a token. A semantic name would have made the pair visible to the contrast guard and
  * the re-step impossible to get wrong.</p>
  *
- * <p><b>Why a list and not a ban.</b> These are real, and fixing them is the component phase's work, not
- * the token layer's. What the token layer can do is stop the list growing. The assertion below is exact
- * equality, so a new instance fails and so does a fixed one - the list is the current truth about this
- * debt, and it has to be edited down as the debt is paid rather than drifting out of date.</p>
+ * <p><b>The list is empty, and that is the point.</b> It held fifteen files and thirty-six reads when it
+ * was written, each a status pair inlined before the semantic status tokens existed. They were never
+ * contrast failures - in the light theme a primitive holds the same value the semantic token points at -
+ * they were THEME failures, because a primitive does not change between themes. Every badge, every
+ * inline form error and every banner in those files rendered light-theme status colours on a dark page.</p>
  *
- * <p>Every entry is a status pair inlined before the semantic status tokens existed, or a chart fill.
- * They are not contrast failures today: the primitive holds the same value the semantic token points at
- * in the light theme. They are THEME failures - a primitive does not change between themes, so each of
- * these renders light-theme status colours on a dark page.</p>
+ * <p>The assertion is exact equality in both directions, so a new instance fails and so would a stale
+ * entry. An empty map is the strongest form of this rule: any component that reads a primitive now
+ * fails this test by name.</p>
+ *
+ * <p>One read had no semantic name to move to - the danger button's hover fill - and got one
+ * (`--color-danger-solid-hover`) rather than being waived. `--color-danger-fg` is the same value in the
+ * light theme, but it is a foreground, and in dark mode it is a pale salmon that would have lightened
+ * the button under the cursor while its label stayed white.</p>
  */
-const PRIMITIVE_DEBT: Record<string, readonly string[]> = {
-  'components/AcceptInvitePageBase.tsx': ['success-600'],
-  'components/ErpStatusBanner.tsx': ['warning-50', 'warning-600'],
-  'components/charts/CoverageChart.tsx': ['brand-200'],
-  'components/ui/Badge.tsx': ['danger-50', 'danger-600', 'info-50', 'info-600', 'success-50', 'success-600', 'warning-50', 'warning-600'],
-  'components/ui/Button.tsx': ['danger-600'],
-  'components/ui/Toast.tsx': ['success-500'],
-  'routes/OnboardingPage.tsx': ['info-50', 'info-500', 'info-600', 'success-600', 'warning-50', 'warning-500', 'warning-600'],
-  'routes/SettingsPage.tsx': ['success-600'],
-  'routes/VerifyEmailPage.tsx': ['success-600'],
-  'routes/ministry/MinistryAwardAnalyticsPage.tsx': ['warning-50'],
-  'routes/ministry/MinistryRfqDetailPage.tsx': ['warning-50', 'warning-600'],
-  'routes/onboarding/AddressesPage.tsx': ['danger-50', 'danger-600', 'warning-50', 'warning-600'],
-  'routes/onboarding/BankingPage.tsx': ['danger-50', 'danger-600'],
-  'routes/onboarding/ContactsPage.tsx': ['danger-50', 'danger-600'],
-  'routes/onboarding/OfferingsPage.tsx': ['warning-50', 'warning-600'],
-}
+const PRIMITIVE_DEBT: Record<string, readonly string[]> = {}
 
 /** The primitive ramps. A semantic token is every other `--color-*` name; these are the raw steps. */
 const PRIMITIVE = /var\(--((?:n|brand|success|warning|danger|info|accent-gold)-\d+)\)/g

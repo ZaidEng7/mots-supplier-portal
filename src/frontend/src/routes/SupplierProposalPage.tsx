@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { getPublicSettings } from '../api/systemSettings'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import {Button, Card, Input, PageHeading, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import {Button, Card, Field, Input, PageHeading, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
 import { apiErrorMessage } from '../api/problem'
@@ -179,7 +179,8 @@ export function SupplierProposalPage() {
   if (!proposal) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeading title={`${t('proposal.title')} — ${rfq.rfqCode}`} />
+        {/* The code identifies the tender this bid is for; it is not part of the screen's name. */}
+        <PageHeading title={t('proposal.title')} subtitle={rfq.rfqCode} />
         <Button isLoading={startMutation.isPending} onClick={() => startMutation.mutate()} className="self-start">
           {t('proposal.start')}
         </Button>
@@ -198,15 +199,16 @@ export function SupplierProposalPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeading
-        title={`${t('proposal.title')} — ${rfq.rfqCode}`}
+        title={t('proposal.title')}
+        subtitle={rfq.rfqCode}
         meta={<StatusChip machine="proposal" value={proposal.state} />}
         actions={isDraft ? (
           <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('proposal.submit')}</Button>
         ) : null}
       />
 
-      <Card title={t('proposal.pricing')}>
-        <Table caption={t('proposal.pricing')}>
+      <Card flush title={t('proposal.pricing')}>
+        <Table flush caption={t('proposal.pricing')}>
           <TableHead>
             <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
             <TableHeaderCell>{t('rfq.fields.quantity')}</TableHeaderCell>
@@ -334,17 +336,23 @@ export function SupplierProposalPage() {
               mis-tag then under-serves the evaluator rather than leaking a price into the technical
               envelope, which is the direction that fails closed.
             */}
-            <label className="flex flex-col gap-1 text-[length:var(--text-body-sm)]">
-              {t('proposal.envelope')}
-              <Select
-                value={uploadEnvelope}
-                onValueChange={(value: string) => setUploadEnvelope(value as 'Commercial' | 'Technical')}
-                options={[
-                  { value: 'Commercial', label: t('proposal.envelopeCommercial') },
-                  { value: 'Technical', label: t('proposal.envelopeTechnical') },
-                ]}
-              />
-            </label>
+            {/* A hand-written label wrapping the shared control, where Field associates the two by id.
+                Wrapping works for a native input and not for this one: the Select renders a button, and
+                a label that wraps rather than points at it is a label a screen reader may not announce. */}
+            <Field label={t('proposal.envelope')}>
+              {(p) => (
+                <Select
+                  id={p.id}
+                  aria-describedby={p['aria-describedby']}
+                  value={uploadEnvelope}
+                  onValueChange={(value: string) => setUploadEnvelope(value as 'Commercial' | 'Technical')}
+                  options={[
+                    { value: 'Commercial', label: t('proposal.envelopeCommercial') },
+                    { value: 'Technical', label: t('proposal.envelopeTechnical') },
+                  ]}
+                />
+              )}
+            </Field>
             <input type="file" aria-label={t('proposal.uploadDocument')}
               onChange={(e) => {
                 const file = e.target.files?.[0]

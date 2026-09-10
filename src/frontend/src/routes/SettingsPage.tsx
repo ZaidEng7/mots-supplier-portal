@@ -7,7 +7,7 @@ import { changePassword, getAccount, updateAccount, ApiError } from '../api/auth
 import { useAuthStore } from '../lib/authStore'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Card, Field, Input, LoadMore, PageHeading, QueryError, SkeletonList, useToast} from '../components/ui'
+import { Badge, Button, Card, Field, Input, LoadMore, PageHeading, QueryError, Select, SkeletonList, useToast} from '../components/ui'
 import {
   enrollMfa,
   confirmMfaEnrollment,
@@ -79,18 +79,21 @@ function AccountSection() {
         {(p) => <Input {...p} value={nameValue} onChange={(e) => setFullName(e.target.value)} />}
       </Field>
 
+      {/* A bare select hand-styling the shared control's surface, and with the wrong border: this drew
+          --color-border, which is the separator, where an input's edge answers to SC 1.4.11 and the
+          shared control draws --color-border-input for exactly that reason. */}
       <Field label={t('account.fields.language')}>
         {(p) => (
-        <select
-          {...p}
-          className="w-full rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)]"
-          style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
-          value={languageValue}
-          onChange={(e) => setLanguage(e.target.value)}
-        >
-          <option value="ar">{t('account.languages.ar')}</option>
-          <option value="en">{t('account.languages.en')}</option>
-        </select>
+          <Select
+            id={p.id}
+            aria-describedby={p['aria-describedby']}
+            value={languageValue}
+            onValueChange={setLanguage}
+            options={[
+              { value: 'ar', label: t('account.languages.ar') },
+              { value: 'en', label: t('account.languages.en') },
+            ]}
+          />
         )}
       </Field>
 
@@ -225,7 +228,7 @@ function MfaSection() {
   if (recoveryCodes) {
     return (
       <div className="flex flex-col gap-3">
-        <p style={{ color: 'var(--success-600)' }}>{t('settings.mfaEnabled')}</p>
+        <p style={{ color: 'var(--color-success-fg)' }}>{t('settings.mfaEnabled')}</p>
         <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('settings.recoveryCodesNotice')}
         </p>

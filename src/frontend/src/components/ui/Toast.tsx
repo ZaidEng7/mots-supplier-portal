@@ -19,7 +19,7 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 
 const kindColor: Record<ToastKind, string> = {
   info: 'var(--color-info-solid)',
-  success: 'var(--success-500)',
+  success: 'var(--color-success-solid)',
   danger: 'var(--color-danger-solid)',
 }
 

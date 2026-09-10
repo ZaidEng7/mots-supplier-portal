@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Card, Dialog, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import { Badge, Button, Card, Dialog, Field, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import {
   getReviewerSupplierView,
   pickUpApplication,
@@ -56,14 +56,22 @@ function RequestInfoDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={t('review.requestInfo')}>
       <div className="flex flex-col gap-4">
-        <textarea
-          className="rounded-[var(--radius-md)] p-2"
-          style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
-          rows={3}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder={t('review.reason')}
-        />
+        {/* The reason was labelled by its placeholder alone, which disappears the moment a reviewer
+            starts typing - and this is the field that tells a supplier what to fix. Field gives it a
+            real label and the described-by wiring; the control stays a textarea because three rows of
+            prose is what it is for. */}
+        <Field label={t('review.reason')}>
+          {(p) => (
+            <textarea
+              {...p}
+              className="w-full rounded-[var(--radius-md)] p-2"
+              style={{ border: '1px solid var(--color-border-input)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          )}
+        </Field>
         <fieldset className="flex flex-col gap-1.5">
           <legend className="text-[length:var(--text-body-sm)] font-[var(--fw-medium)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('review.flagProfileFields')}
@@ -311,11 +319,11 @@ export function ReviewApplicationPage() {
         )}
       </Card>
 
-      <Card title={t('review.addresses')}>
+      <Card flush title={t('review.addresses')}>
         {supplier.addresses.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('addresses.empty')}</p>
+          <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('addresses.empty')}</p>
         ) : (
-          <Table caption={t('review.addresses')}>
+          <Table flush caption={t('review.addresses')}>
             <TableHead>
               <TableHeaderCell>{t('addresses.fields.kind')}</TableHeaderCell>
               <TableHeaderCell>{t('addresses.fields.line1')}</TableHeaderCell>

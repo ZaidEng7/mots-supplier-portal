@@ -35,6 +35,18 @@ const HEADING_COMPONENTS = ['ui/ListScreen.tsx', 'ui/AuthHeading.tsx']
  */
 const EXEMPT: Record<string, string> = {}
 
+/**
+ * Source with its comments removed.
+ *
+ * <p>This sweep matched the text of a doc comment that mentioned the tag it forbids, and reported the
+ * file as hand-rolling a heading it does not render. Prose about a rule is not a breach of it - the
+ * same mistake the contrast guard made when it matched a declaration quoted inside a comment, and the
+ * same fix.</p>
+ */
+function code(file: string): string {
+  return readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
 function routeFiles(dir = ROUTES): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry)
@@ -43,6 +55,61 @@ function routeFiles(dir = ROUTES): string[] {
     return [full]
   })
 }
+
+/**
+ * The screens the router actually mounts, from the router rather than from a listing of the folder.
+ *
+ * <p>The folder also holds pieces that are not screens - a tab strip, a section of a workspace, a test
+ * harness - and demanding a page title of those would be demanding the wrong thing. What the router
+ * names is what a person can land on.</p>
+ */
+function mountedScreens(): string[] {
+  const router = readFileSync(resolve(process.cwd(), 'src/router.tsx'), 'utf8')
+  const named = [...router.matchAll(/'\.\/routes\/([A-Za-z/]+)'/g)].map((m) => `${m[1]}.tsx`)
+  return [...new Set(named)].sort()
+}
+
+/**
+ * Whether a screen says its own name, itself or through something it renders.
+ *
+ * <p>One level of delegation, because that is the depth the product actually uses: three auth screens
+ * hand the whole viewport to `AcceptInvitePageBase`, and the tender's six views hand their band to
+ * `TenderHeader`. A resolver that chased imports without limit would be a module graph rather than a
+ * test.</p>
+ */
+function saysItsName(relativePath: string): boolean {
+  let source: string
+  try {
+    source = code(join(ROUTES, relativePath))
+  } catch {
+    return true
+  }
+  if (/<(PageHeading|AuthHeading|TenderHeader)[\s/>]/.test(source)) return true
+  return [...source.matchAll(/from '([./A-Za-z-]+)'/g)]
+    .map((m) => m[1])
+    .filter((spec) => spec.startsWith('.'))
+    .some((spec) => {
+      for (const base of [ROUTES, COMPONENTS]) {
+        try {
+          const candidate = resolve(join(ROUTES, relativePath, '..'), `${spec}.tsx`)
+          if (!candidate.startsWith(base) && base !== ROUTES) continue
+          if (/<(PageHeading|AuthHeading)[\s/>]/.test(code(candidate))) return true
+        } catch { /* not a local .tsx, or not readable - not a heading source */ }
+      }
+      return false
+    })
+}
+
+/**
+ * Screens that legitimately have no page title, each with the reason.
+ *
+ * <p>Empty, and that is the finding. Two screens - the notification centre and the evaluator's own
+ * queue - carried their name in a card's header band, which renders at body size, so they had no page
+ * heading at all. The rule above forbade hand-rolling one and never required having one, which is how
+ * both passed every sweep in the suite: an accessibility scan tags a missing top-level heading as
+ * best-practice, and this project scans the WCAG tags only.</p>
+ */
+const NO_TITLE_NEEDED: Record<string, string> = {}
 
 describe('every screen takes its title from one component', () => {
   const files = routeFiles()
@@ -55,7 +122,7 @@ describe('every screen takes its title from one component', () => {
 
   it('no screen hand-rolls its own <h1>', () => {
     const handRolled = files
-      .filter((file) => /<h1[\s>]/.test(readFileSync(file, 'utf8')))
+      .filter((file) => /<h1[\s>]/.test(code(file)))
       .map((file) => relative(ROUTES, file))
       .filter((name) => !(name in EXEMPT))
 
@@ -65,12 +132,36 @@ describe('every screen takes its title from one component', () => {
     ).toEqual([])
   })
 
+  it('every screen the router mounts says its own name', () => {
+    const silent = mountedScreens()
+      .filter((screen) => !saysItsName(screen))
+      .filter((screen) => !(screen in NO_TITLE_NEEDED))
+
+    expect(
+      silent,
+      'a screen with no page heading has no <h1>: a reader landing on it is told nothing about where they are',
+    ).toEqual([])
+  })
+
+  it('the name check can fail, and reads a real list of screens', () => {
+    // The denominator, and the control. A resolver that found a heading in everything would pass the
+    // assertion above while checking nothing.
+    expect(mountedScreens().length).toBeGreaterThan(40)
+    expect(saysItsName('LoginPage.tsx')).toBe(true)
+    // Delegation really resolves: this one renders no heading itself and hands the viewport to a
+    // component that does.
+    expect(code(join(ROUTES, 'AcceptTeamInvitePage.tsx'))).not.toMatch(/<(PageHeading|AuthHeading)[\s/>]/)
+    expect(saysItsName('AcceptTeamInvitePage.tsx')).toBe(true)
+    // And a file that genuinely says no name is genuinely reported.
+    expect(saysItsName('back-office/rfq/tenderTestHarness.tsx')).toBe(false)
+  })
+
   it('no component outside the two heading components declares an <h1> either', () => {
     // The hole this closes was found the hard way. `AcceptInvitePageBase` is a whole screen that lives
     // under components/ because two routes share it, so a sweep of routes/ alone declared victory while
     // one of the three heading sizes was still there.
     const offenders = routeFiles(COMPONENTS)
-      .filter((file) => /<h1[\s>]/.test(readFileSync(file, 'utf8')))
+      .filter((file) => /<h1[\s>]/.test(code(file)))
       .map((file) => relative(COMPONENTS, file))
       .filter((name) => !HEADING_COMPONENTS.includes(name))
 

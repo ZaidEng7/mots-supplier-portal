@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type Notification } from '../api/notifications'
 import { notificationRoute } from '../lib/notificationRoutes'
 import { Button } from '../components/ui/Button'
-import { QueryError } from '../components/ui/ListScreen'
+import { PageHeading, QueryError } from '../components/ui/ListScreen'
 import { Card } from '../components/ui/Card'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { formatDateTime } from '../lib/datetime'
@@ -35,19 +36,34 @@ export function NotificationsPage() {
   const readMutation = useMutation({ mutationFn: markNotificationRead, onSuccess: invalidate })
   const readAllMutation = useMutation({ mutationFn: markAllNotificationsRead, onSuccess: invalidate })
 
+  /**
+   * The page's own name, above whichever of the four states it is in.
+   *
+   * <p>This screen had no `<h1>` at all: its name was carried by a card's header band, which renders at
+   * body size, so the notification centre was the one screen in the product a reader could land on with
+   * no page title. Four early returns is why - each rendered its own `Card title=` and none of them was
+   * the page. One shell, four bodies.</p>
+   */
+  const shell = (body: ReactNode) => (
+    <div className="flex flex-col gap-6">
+      <PageHeading title={t('notifications.title')} />
+      {body}
+    </div>
+  )
+
   if (query.isPending) {
-    return (
-      <Card title={t('notifications.title')}>
+    return shell(
+      <Card>
         <SkeletonList label={t('notifications.title')} rows={5} />
-      </Card>
+      </Card>,
     )
   }
 
   if (query.isError) {
-    return (
-      <Card title={t('notifications.title')}>
+    return shell(
+      <Card>
         <QueryError error={query.error} onRetry={() => void query.refetch()} />
-      </Card>
+      </Card>,
     )
   }
 
@@ -57,13 +73,13 @@ export function NotificationsPage() {
     // UX-WRITING.md §4's empty-state formula: title (what this is), one line (why it is empty),
     // and no primary action - there is nothing for a reader to create here, and §4 shows the
     // action column as "—" for exactly that shape (the reviewer's empty queue).
-    return (
-      <Card title={t('notifications.title')}>
+    return shell(
+      <Card>
         <div className="py-8 text-center">
           <p className="font-[var(--fw-semibold)]">{t('notifications.emptyTitle')}</p>
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('notifications.emptyBody')}</p>
         </div>
-      </Card>
+      </Card>,
     )
   }
 
@@ -75,9 +91,8 @@ export function NotificationsPage() {
     groups.set(day, [...(groups.get(day) ?? []), notification])
   }
 
-  return (
+  return shell(
     <Card
-      title={t('notifications.title')}
       action={
         <Button size="sm" variant="ghost" isLoading={readAllMutation.isPending}
           onClick={() => readAllMutation.mutate()}>
@@ -135,6 +150,6 @@ export function NotificationsPage() {
           </ul>
         </section>
       ))}
-    </Card>
+    </Card>,
   )
 }

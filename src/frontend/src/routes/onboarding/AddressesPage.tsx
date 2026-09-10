@@ -261,7 +261,7 @@ export function AddressesPage() {
       <OnboardingStepNav />
 
       {missingHeadOffice ? (
-        <p role="alert" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
+        <p role="alert" className="rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
           {t('addresses.missingHeadOffice')}
         </p>
       ) : null}
@@ -271,7 +271,7 @@ export function AddressesPage() {
         action={editable ? <Button size="sm" onClick={() => setAddrDialog({ open: true })}>{t('addresses.addAddress')}</Button> : null}
       >
         {addrRowError ? (
-          <p role="alert" className="mb-3 rounded-[var(--radius-sm)] px-3 py-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--danger-50)', color: 'var(--danger-600)' }}>
+          <p role="alert" className="mb-3 rounded-[var(--radius-sm)] px-3 py-2 text-[length:var(--text-body-sm)]" style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger-fg)' }}>
             {addrRowError}
           </p>
         ) : null}

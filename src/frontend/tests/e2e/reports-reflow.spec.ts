@@ -44,8 +44,13 @@ for (const locale of ['ar', 'en'] as const) {
 
     // And the tables themselves are the things that scroll, which is the mechanism that makes the
     // above true rather than an accident of narrow content.
-    const scrollers = await page.locator('div.overflow-x-auto').count()
-    expect(scrollers).toBeGreaterThan(0)
+    //
+    // `overflow-auto`, not `overflow-x-auto`: this screen used to hand-roll its own scroll wrapper
+    // around a raw <table>, and now uses the shared Table, which brings its own container and lets it
+    // scroll in both directions. The mechanism is the same and stronger; only the class naming it
+    // changed, and a selector pinned to the old class would have quietly matched nothing and passed.
+    const scrollers = await page.locator('div.overflow-auto, div.overflow-x-auto').count()
+    expect(scrollers, 'the wide content has to sit in its own scroll container, or the page scrolls instead').toBeGreaterThan(0)
   })
 }
 

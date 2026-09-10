@@ -9,6 +9,9 @@ import { StatusChip } from '../../components/ui/StatusChip'
 import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { PageHeading } from '../../components/ui/ListScreen'
+import { Field } from '../../components/ui/Field'
+import { Input } from '../../components/ui/Input'
+import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui/Table'
 
 /**
  * FEAT-19.1 and FEAT-19.2, at `/back-office/reports`.
@@ -63,26 +66,12 @@ export function ReportsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <PageHeading title={t('reports.title')} />
         <div className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col text-[length:var(--text-body-sm)]">
-            {t('reports.from')}
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="rounded-[var(--radius-sm)] border p-1"
-              style={{ borderColor: 'var(--color-border)' }}
-            />
-          </label>
-          <label className="flex flex-col text-[length:var(--text-body-sm)]">
-            {t('reports.to')}
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="rounded-[var(--radius-sm)] border p-1"
-              style={{ borderColor: 'var(--color-border)' }}
-            />
-          </label>
+          <Field label={t('reports.from')}>
+            {(p) => <Input {...p} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />}
+          </Field>
+          <Field label={t('reports.to')}>
+            {(p) => <Input {...p} type="date" value={to} onChange={(e) => setTo(e.target.value)} />}
+          </Field>
         </div>
       </header>
 
@@ -139,24 +128,19 @@ export function ReportsPage() {
                   : t('reports.procurement.coverageNone')}
               </p>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-start">
-                  <caption className="sr-only">{t('reports.procurement.cycleTime')}</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className="text-start">{t('reports.interval')}</th>
-                      <th scope="col" className="text-start">{t('reports.sampleSize')}</th>
-                      <th scope="col" className="text-start">{t('reports.medianHours')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div>
+                <Table caption={t('reports.procurement.cycleTime')}>
+                  <TableHead labels={[t('reports.interval'), t('reports.sampleSize'), t('reports.medianHours')]} />
+                  <TableBody>
                     {procurement.data.cycleTimes.map((interval) => (
-                      <tr key={interval.key}>
-                        <th scope="row" className="text-start font-[var(--fw-regular)]">
+                      <TableRow key={interval.key}>
+                        {/* The interval names the row, so it stays a header cell rather than becoming a
+                            data cell: a screen reader announces it with every figure beside it. */}
+                        <TableHeaderCell scope="row" className="font-[var(--fw-regular)]">
                           {t(`reports.intervals.${interval.key}`)}
-                        </th>
-                        <td className="num">{formatNumber(interval.sampleSize, locale, 0)}</td>
-                        <td className="num">
+                        </TableHeaderCell>
+                        <TableCell className="num">{formatNumber(interval.sampleSize, locale, 0)}</TableCell>
+                        <TableCell className="num">
                           {/*
                             Never a zero for an unmeasured interval. "No RFQ has reached award" and
                             "award takes no time" are different facts and only one of them is true.
@@ -164,11 +148,11 @@ export function ReportsPage() {
                           {interval.medianHours === null
                             ? t('reports.notMeasured')
                             : formatNumber(interval.medianHours, locale, 1)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </section>
 
@@ -266,28 +250,21 @@ function CountTable({
           {emptyLabel}
         </p>
       ) : (
-        // Wide content scrolls inside its own container; the page body never scrolls sideways.
-        <div className="overflow-x-auto">
-          <table className="w-full text-start">
-            <caption className="sr-only">{caption}</caption>
-            <thead>
-              <tr>
-                <th scope="col" className="text-start">{stateHeader}</th>
-                <th scope="col" className="text-start">{countHeader}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key}>
-                  <th scope="row" className="text-start font-[var(--fw-regular)]">
-                    <StatusChip machine={machine} value={row.key} />
-                  </th>
-                  <td className="num">{formatNumber(row.count, locale, 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        // Table already scrolls wide content inside its own container, so the page body still never
+        // scrolls sideways and the hand-rolled wrapper that used to say so is gone with it.
+        <Table caption={caption}>
+          <TableHead labels={[stateHeader, countHeader]} />
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.key}>
+                <TableHeaderCell scope="row" className="font-[var(--fw-regular)]">
+                  <StatusChip machine={machine} value={row.key} />
+                </TableHeaderCell>
+                <TableCell className="num">{formatNumber(row.count, locale, 0)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </section>
   )

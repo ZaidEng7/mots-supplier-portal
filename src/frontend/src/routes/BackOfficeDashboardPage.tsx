@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../lib/authStore'
-import {Badge, PageHeading} from '../components/ui'
+import {Badge, Card, PageHeading} from '../components/ui'
 
 export function BackOfficeDashboardPage() {
   const { t } = useTranslation()
@@ -9,11 +9,10 @@ export function BackOfficeDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeading title={t('dashboard.welcome', { email: claims?.email ?? '' })} />
-      <div
-        className="flex flex-wrap gap-4 rounded-[var(--radius-lg)] p-6"
-        style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-      >
-        <div>
+      {/* A hand-rolled surface standing in for the component that owns surfaces. It had the radius and
+          the border and not the shadow, which is how a copy drifts. */}
+      <Card>
+        <div className="flex flex-wrap gap-4">
           <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('dashboard.permission')}
           </p>
@@ -29,8 +28,7 @@ export function BackOfficeDashboardPage() {
             )}
           </div>
         </div>
-      </div>
-      <p style={{ color: 'var(--color-text-secondary)' }}>{t('dashboard.placeholder')}</p>
+      </Card>
     </div>
   )
 }

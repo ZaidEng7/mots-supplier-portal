@@ -197,11 +197,11 @@ function StaffAccounts() {
   const accounts: StaffAccount[] = staffQuery.data?.data ?? []
 
   return (
-    <Card title={t('staff.accountsTitle')}>
+    <Card flush title={t('staff.accountsTitle')}>
       {accounts.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('staff.noAccounts')}</p>
+        <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('staff.noAccounts')}</p>
       ) : (
-        <Table caption={t('staff.accountsTitle')}>
+        <Table flush caption={t('staff.accountsTitle')}>
           <TableHead>
             <TableHeaderCell>{t('staff.fields.fullName')}</TableHeaderCell>
             <TableHeaderCell>{t('staff.fields.email')}</TableHeaderCell>

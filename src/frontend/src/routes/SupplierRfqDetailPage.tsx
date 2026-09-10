@@ -64,8 +64,14 @@ export function SupplierRfqDetailPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <PageHeading title={`${rfq.rfqCode} — ${isArabic ? rfq.titleAr : rfq.titleEn}`} />
-          <StatusChip machine="invitation" value={rfq.invitationStatus} />
+          {/* The tender's name, with the code and the invitation's state as the facts that identify
+              this particular one. It read "RFQ-2026-000001 — Catering services" before, which led with
+              the way you find a tender again rather than with what it is. */}
+          <PageHeading
+            title={isArabic ? rfq.titleAr : rfq.titleEn}
+            subtitle={rfq.rfqCode}
+            meta={<StatusChip machine="invitation" value={rfq.invitationStatus} />}
+          />
         </div>
         {rfq.invitationStatus !== 'Declined' ? (
           <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode }}
@@ -76,9 +82,9 @@ export function SupplierRfqDetailPage() {
         ) : null}
       </div>
 
-      <Card title={t('rfq.fields.items')}>
+      <Card flush title={t('rfq.fields.items')}>
         {rfq.items.length > 0 ? (
-          <Table caption={t('rfq.fields.items')}>
+          <Table flush caption={t('rfq.fields.items')}>
             <TableHead>
               <TableHeaderCell>#</TableHeaderCell>
               <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
@@ -99,9 +105,9 @@ export function SupplierRfqDetailPage() {
         )}
       </Card>
 
-      <Card title={t('rfq.fields.requirements')}>
+      <Card flush title={t('rfq.fields.requirements')}>
         {rfq.requirements.length > 0 ? (
-          <Table caption={t('rfq.fields.requirements')}>
+          <Table flush caption={t('rfq.fields.requirements')}>
             <TableHead>
               <TableHeaderCell>{t('rfq.fields.text')}</TableHeaderCell>
               <TableHeaderCell>{t('rfq.fields.mandatory')}</TableHeaderCell>

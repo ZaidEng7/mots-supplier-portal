@@ -583,9 +583,9 @@ export function OnboardingPage() {
         <div
           role="status"
           className="rounded-[var(--radius-lg)] p-4"
-          style={{ backgroundColor: 'var(--info-50)', border: '1px solid var(--info-500)' }}
+          style={{ backgroundColor: 'var(--color-info-bg)', border: '1px solid var(--color-info-solid)' }}
         >
-          <p className="font-[var(--fw-semibold)]" style={{ color: 'var(--info-600)' }}>
+          <p className="font-[var(--fw-semibold)]" style={{ color: 'var(--color-info-fg)' }}>
             {t('onboarding.readOnlyTitle')}
           </p>
           <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -595,8 +595,8 @@ export function OnboardingPage() {
       ) : null}
 
       {isInfoRequested && annotation ? (
-        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--warning-500)' }}>
-          <h2 className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--warning-600)' }}>
+        <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-solid)' }}>
+          <h2 className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-warning-fg)' }}>
             {t('onboarding.infoRequestedTitle')}
           </h2>
           <p style={{ color: 'var(--color-text-primary)' }}>{annotation.reason}</p>
@@ -830,7 +830,7 @@ export function OnboardingPage() {
             whether this supplier can still act. An accepted application shows when and which version;
             an editable one that has not accepted shows the checkbox; a read-only one shows neither. */}
         {profile.termsAcceptedAt ? (
-          <p style={{ color: 'var(--success-600)' }}>
+          <p style={{ color: 'var(--color-success-fg)' }}>
             {t('onboarding.termsAcceptedNotice', {
               date: formatDateTime(profile.termsAcceptedAt, i18n.language),
               version: profile.termsAcceptedVersion,

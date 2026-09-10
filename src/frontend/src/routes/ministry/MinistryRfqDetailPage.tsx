@@ -61,7 +61,7 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
 
       {!commercialValuesVisible ? (
         <output className="block rounded-[var(--radius-md)] px-4 py-3 text-[length:var(--text-body-sm)]"
-           style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)' }}>
+           style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
           {t('ministryRfqDetail.valuesWithheld')}
         </output>
       ) : null}
@@ -118,11 +118,11 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
         </Card>
       ) : null}
 
-      <Card title={t('ministryRfqDetail.bids')}>
+      <Card flush title={t('ministryRfqDetail.bids')}>
         {bids.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('ministryRfqDetail.noBids')}</p>
+          <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('ministryRfqDetail.noBids')}</p>
         ) : (
-          <Table caption={t('ministryRfqDetail.bids')}>
+          <Table flush caption={t('ministryRfqDetail.bids')}>
             <TableHead>
               <TableHeaderCell>{t('ministryRfqDetail.fields.supplier')}</TableHeaderCell>
               <TableHeaderCell>{t('ministryRfqDetail.fields.state')}</TableHeaderCell>

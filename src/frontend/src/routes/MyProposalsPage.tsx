@@ -41,11 +41,11 @@ export function MyProposalsPage() {
         <PageHeading title={t('myProposals.title')} subtitle={t('myProposals.subtitle')} />
       </div>
 
-      <Card title={t('myProposals.listTitle')}>
+      <Card flush title={t('myProposals.listTitle')}>
         {proposals.length === 0 ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>{t('myProposals.empty')}</p>
+          <p className="p-4" style={{ color: 'var(--color-text-secondary)' }}>{t('myProposals.empty')}</p>
         ) : (
-          <Table caption={t('myProposals.listTitle')}>
+          <Table flush caption={t('myProposals.listTitle')}>
             <TableHead>
               <TableHeaderCell>{t('myProposals.fields.rfq')}</TableHeaderCell>
               <TableHeaderCell>{t('myProposals.fields.proposal')}</TableHeaderCell>
