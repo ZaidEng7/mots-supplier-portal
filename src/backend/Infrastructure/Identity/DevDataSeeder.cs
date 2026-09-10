@@ -93,6 +93,7 @@ public static class DevDataSeeder
         var demoSupplierId = await SeedSuppliersAsync(db);
         await SeedUsersAsync(userManager, password, organizationId, demoSupplierId);
         await SeedTendersAsync(db, organizationId, demoSupplierId);
+        await SeedVolumeAsync(db, organizationId);
         await EnableCommercialVisibilityAsync(db);
     }
 
@@ -429,6 +430,218 @@ public static class DevDataSeeder
             "Best combination of price and technical specification.",
             officerId);
         db.Awards.Add(award);
+        await db.SaveChangesAsync();
+    }
+
+    // ── Volume ───────────────────────────────────────────────────────────────────────────────────
+    //
+    // Everything above is a CURATED fixture: one supplier at each lifecycle position, one tender at
+    // each state, one proposal in each shape. It is what the walkthrough follows and what the
+    // dashboards need in order to render something other than a zero.
+    //
+    // It is not what the product looks like in use. Six tenders fit on one screen with no scrollbar,
+    // every list is one page, no filter narrows anything, no ranking has a second place, and a table
+    // whose column would collapse under real width never gets the chance. A demonstration on that data
+    // shows the screens working and says nothing about whether they hold.
+    //
+    // So this adds bulk beside it. The codes are a separate range - SUP-DEMO-01xx and RFQ-DEMO-01xx -
+    // so nothing here can be mistaken for the curated rows the walkthrough names, and so a reader can
+    // tell at a glance which is which.
+
+    /// <summary>Category codes seeded by <c>AppDbContext</c>, so a linked category always resolves.</summary>
+    private static readonly string[] Categories =
+        ["catering", "transport", "maintenance", "accommodation", "events", "tour_operations"];
+
+    /// <summary>Company names that read like companies, so a directory of them can be scanned.</summary>
+    private static readonly (string Ar, string En)[] BulkCompanies =
+    [
+        ("شركة بردى للتوريدات", "Barada Supplies"), ("مؤسسة الياسمين التجارية", "Yasmine Trading"),
+        ("شركة قاسيون للنقل", "Qasioun Transport"), ("شركة الميادين للمقاولات", "Mayadeen Contracting"),
+        ("مؤسسة العاصي للتجهيزات", "Orontes Equipment"), ("شركة تدمر للضيافة", "Tadmur Hospitality"),
+        ("شركة اللاذقية البحرية", "Latakia Marine"), ("مؤسسة حلب الصناعية", "Aleppo Industrial"),
+        ("شركة حمص للصيانة", "Homs Maintenance"), ("شركة درعا الزراعية", "Daraa Agricultural"),
+        ("مؤسسة السويداء للخدمات", "Suwayda Services"), ("شركة طرطوس للشحن", "Tartus Freight"),
+        ("شركة دير الزور للطاقة", "Deir ez-Zor Energy"), ("مؤسسة الرقة للبناء", "Raqqa Construction"),
+        ("شركة إدلب للتغليف", "Idlib Packaging"), ("شركة الحسكة للحبوب", "Hasakah Grain"),
+        ("مؤسسة القنيطرة اللوجستية", "Quneitra Logistics"), ("شركة صافيتا للأثاث", "Safita Furniture"),
+        ("شركة مصياف للمعدات", "Masyaf Machinery"), ("مؤسسة جبلة للتبريد", "Jableh Refrigeration"),
+        ("شركة السلمية للطباعة", "Salamiyah Printing"), ("شركة معلولا للترجمة", "Maaloula Translation"),
+        ("مؤسسة عفرين للزيوت", "Afrin Oils"), ("شركة الزبداني للمياه", "Zabadani Water"),
+    ];
+
+    /// <summary>
+    /// Suppliers and tenders in quantity, so every list has more rows than fit on a screen.
+    ///
+    /// <para>Idempotent on its own first row, like every other step here: re-running the API adds
+    /// nothing. Lifecycle positions are spread by index rather than chosen one at a time, so the
+    /// proportions are visible in the code - roughly half approved and active, which is what a working
+    /// register looks like, and the rest spread across the states a reviewer actually sees.</para>
+    /// </summary>
+    private static async Task SeedVolumeAsync(AppDbContext db, Guid organizationId)
+    {
+        if (await db.Suppliers.AnyAsync(s => s.ReferenceCode == "SUP-DEMO-0101")) return;
+
+        var suppliers = new List<Supplier>();
+        for (var i = 0; i < BulkCompanies.Length; i++)
+        {
+            var (nameAr, nameEn) = BulkCompanies[i];
+            var code = $"SUP-DEMO-{101 + i:0000}";
+            var supplier = Register(db, code, nameAr, nameEn, $"RC-DEMO-{101 + i:0000}");
+            // A second category on every third one, so the coverage report has rows that differ and
+            // the directory's category filter narrows to something rather than to everything.
+            supplier.LinkCategory(Categories[i % Categories.Length], isComplianceCritical: i % 4 == 0);
+            suppliers.Add(supplier);
+        }
+        await db.SaveChangesAsync();
+
+        for (var i = 0; i < suppliers.Count; i++)
+        {
+            var (onboarding, lifecycle) = (i % 8) switch
+            {
+                0 => (SupplierOnboardingState.Submitted, SupplierLifecycleState.None),
+                1 => (SupplierOnboardingState.UnderReview, SupplierLifecycleState.None),
+                2 => (SupplierOnboardingState.ProfileInProgress, SupplierLifecycleState.None),
+                3 => (SupplierOnboardingState.Approved, SupplierLifecycleState.Suspended),
+                _ => (SupplierOnboardingState.Approved, SupplierLifecycleState.Active),
+            };
+            await SetStateAsync(db, suppliers[i].Id, onboarding, lifecycle);
+
+            // The ones actually in the queue get their arrival recorded, spread over six weeks, because
+            // the wait-time widget and the queue's age column both measure from that audit row rather
+            // than from the supplier - and a queue where everything arrived at once cannot be ordered.
+            if (onboarding is SupplierOnboardingState.Submitted or SupplierOnboardingState.UnderReview)
+            {
+                await SeedQueueEntryAuditAsync(db, suppliers[i].Id, suppliers[i].ReferenceCode, daysAgo: 1 + (i * 3) % 42);
+            }
+        }
+
+        await SeedVolumeTendersAsync(db, organizationId, suppliers);
+    }
+
+    /// <summary>Tender subjects a Ministry of Transport would actually run.</summary>
+    private static readonly (string Ar, string En)[] BulkTenders =
+    [
+        ("صيانة الطرق السريعة", "Motorway maintenance"), ("توريد إطارات الحافلات", "Bus fleet tyre supply"),
+        ("خدمات النظافة في المرافئ", "Port cleaning services"), ("تجديد لافتات الطرق", "Road signage renewal"),
+        ("توريد وقود الأسطول", "Fleet fuel supply"), ("صيانة حواجز السكك", "Rail crossing barriers"),
+        ("خدمات الإطعام في المحطات", "Station catering services"), ("تأمين مواقف الشاحنات", "Truck park security"),
+        ("توريد قطع غيار المصاعد", "Lift spare parts"), ("مسح أعماق الميناء", "Harbour dredging survey"),
+        ("تجهيزات مكاتب المديرية", "Directorate office fit-out"), ("خدمات الترجمة الفورية", "Interpretation services"),
+        ("تنظيم مؤتمر النقل", "Transport conference"), ("توريد أنظمة التذاكر", "Ticketing systems"),
+        ("صيانة أنظمة التكييف", "Air conditioning maintenance"), ("خدمات الإقامة للوفود", "Delegation accommodation"),
+        ("توريد معدات السلامة", "Safety equipment supply"), ("تدقيق أسطول المركبات", "Vehicle fleet audit"),
+    ];
+
+    /// <summary>
+    /// Tenders across every state, most of them with bids on them.
+    ///
+    /// <para>The states are assigned by index for the same reason the supplier ones are: the shape of
+    /// the pipeline is then a thing a reader can check against the code rather than a thing they have
+    /// to count in the database. Every published tender invites between three and eight suppliers, so
+    /// the invitation list scrolls and the "invited" count on the tab strip is a number worth reading.</para>
+    /// </summary>
+    private static async Task SeedVolumeTendersAsync(AppDbContext db, Guid organizationId, List<Supplier> suppliers)
+    {
+        var officerId = await db.Users.Where(u => u.Email == "officer@mots.local").Select(u => u.Id).FirstAsync();
+        var template = await db.EvaluationTemplates.Include(t => t.Criteria).FirstAsync();
+        var snapshot = System.Text.Json.JsonSerializer.Serialize(template.Criteria.Select(c => new
+        {
+            c.NameAr, c.NameEn, Dimension = c.Dimension.ToString(), c.Weight, c.MaxScore, c.Threshold,
+            ScoringType = c.ScoringType.ToString(), c.RequiresJustification,
+        }));
+
+        // Only suppliers a buyer could really invite. Inviting a half-finished application would be a
+        // fixture asserting something the product refuses.
+        var invitable = suppliers
+            .Where((_, i) => (i % 8) is not (0 or 1 or 2 or 3))
+            .Select(s => s.Id)
+            .ToList();
+
+        var created = new List<(Rfq Rfq, int Index)>();
+        for (var i = 0; i < BulkTenders.Length; i++)
+        {
+            var (titleAr, titleEn) = BulkTenders[i];
+            var rfq = Rfq.Create($"RFQ-DEMO-{101 + i:0000}", organizationId, titleAr, titleEn, null, null, "SYP",
+                publishAt: null,
+                submissionOpensAt: DateTimeOffset.UtcNow.AddHours(1),
+                // Staggered, so "closes in six days" differs from "closes in three weeks" and a list
+                // sorted by closing date has an order worth sorting.
+                submissionClosesAt: DateTimeOffset.UtcNow.AddDays(3 + (i * 5) % 40),
+                clarificationDeadlineAt: null, evaluationTargetDate: null, ownerUserId: officerId);
+            rfq.AddItem(titleAr, titleEn, null, null, Categories[i % Categories.Length],
+                10m + (i * 37 % 500), "unit", isUnitPrice: true, isOptional: false);
+            rfq.BindEvaluationTemplate(template.Id, 1, snapshot);
+            foreach (var supplierId in invitable.Skip(i % 4).Take(3 + i % 6)) rfq.InviteSupplier(supplierId);
+            db.Rfqs.Add(rfq);
+            created.Add((rfq, i));
+        }
+        await db.SaveChangesAsync();
+
+        // Draft, internal review, approved, published-and-open, closed. Same five positions the curated
+        // fixture has one of each of, in the proportions a real pipeline carries.
+        var published = new List<Guid>();
+        foreach (var (rfq, i) in created)
+        {
+            var stage = i % 5;
+            if (stage == 0) continue;
+
+            rfq.SubmitForReview();
+            db.RfqApprovals.Add(rfq.Approvals.Single(a => a.Decision is null));
+            if (stage == 1) continue;
+
+            rfq.Approve(officerId);
+            if (stage == 2) continue;
+
+            rfq.Publish();
+            published.Add(rfq.Id);
+        }
+        await db.SaveChangesAsync();
+
+        // The window has to be in the past before it can legally open, which is the same move the
+        // curated fixture makes and the same one the integration suite documents.
+        await db.Rfqs.Where(r => published.Contains(r.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(r => r.SubmissionOpensAt, DateTimeOffset.UtcNow.AddHours(-1)));
+        db.ChangeTracker.Clear();
+
+        var toOpen = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations)
+            .Where(r => published.Contains(r.Id)).ToListAsync();
+        foreach (var rfq in toOpen) rfq.OpenSubmissionWindow();
+        await db.SaveChangesAsync();
+
+        // Bids. Every open tender gets several, from the suppliers it invited, so the received-bids list
+        // has rows to compare and the tab strip's count means something. One bid per supplier per tender:
+        // the unique index over (RfqId, SupplierId) for live states says so, and it is right to.
+        var proposalNumber = 101;
+        var bids = new List<Proposal>();
+        foreach (var rfq in toOpen)
+        {
+            var invitedIds = rfq.Invitations.Select(i => i.SupplierId).ToList();
+            foreach (var supplierId in invitedIds.Take(2 + proposalNumber % 4))
+            {
+                bids.Add(Proposal.Create($"PRP-DEMO-{proposalNumber++:0000}", rfq.Id, supplierId));
+            }
+        }
+        db.Proposals.AddRange(bids);
+        await db.SaveChangesAsync();
+
+        // Most submitted, a few left in draft - a bidder who started and has not finished is a state the
+        // buyer's screens have to render and the supplier's own list has to explain.
+        var submittedIds = bids.Where((_, i) => i % 5 != 0).Select(b => b.Id).ToList();
+        await db.Proposals.Where(p => submittedIds.Contains(p.Id))
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.State, ProposalState.Submitted)
+                                      .SetProperty(x => x.SubmittedAt, DateTimeOffset.UtcNow.AddHours(-6)));
+
+        // Half the open tenders close, so the pipeline is not entirely front-loaded and the evaluation
+        // side of the product has tenders to work on. No winner is chosen here, for the same reason the
+        // curated fixture chooses none: an award is a verdict, and a fixture has no standing to reach one.
+        db.ChangeTracker.Clear();
+        var closing = await db.Rfqs.AsSplitQuery().Include(r => r.Approvals).Include(r => r.Invitations)
+            .Where(r => published.Contains(r.Id)).ToListAsync();
+        for (var i = 0; i < closing.Count; i += 2)
+        {
+            closing[i].CloseSubmissionWindow(reason: null, isEarlyClose: false);
+            closing[i].OpenEvaluation();
+        }
         await db.SaveChangesAsync();
     }
 
