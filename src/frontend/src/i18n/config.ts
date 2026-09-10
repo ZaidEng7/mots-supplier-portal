@@ -11,6 +11,17 @@ const resources = {
         groupBidding: 'المناقصات',
         groupCompany: 'شركتي',
         groupAccount: 'الحساب',
+        // Phase B's sidebar headings and chrome labels. Authored in §7's register rather than
+        // translated, and accepted under D-62/D-65 for the demonstration build - recorded as authored,
+        // not as reviewed line by line.
+        groupOverview: 'نظرة عامة',
+        groupTenders: 'المناقصات',
+        groupSuppliers: 'الموردون',
+        groupMinistry: 'الوزارة',
+        groupAdministration: 'الإدارة',
+        breadcrumb: 'مسار التنقل',
+        primaryLabel: 'قائمة التنقل',
+        supplierArea: 'وزارة النقل',
  home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
       // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
@@ -2036,6 +2047,14 @@ const resources = {
         groupBidding: 'Bidding',
         groupCompany: 'Your company',
         groupAccount: 'Account',
+        groupOverview: 'Overview',
+        groupTenders: 'Tenders',
+        groupSuppliers: 'Suppliers',
+        groupMinistry: 'Ministry',
+        groupAdministration: 'Administration',
+        breadcrumb: 'Breadcrumb',
+        primaryLabel: 'Navigation menu',
+        supplierArea: 'Ministry of Transport',
  home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete profile', profile: 'Company profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'Tenders' },
       supplierDashboard: {
         title: 'Supplier dashboard',

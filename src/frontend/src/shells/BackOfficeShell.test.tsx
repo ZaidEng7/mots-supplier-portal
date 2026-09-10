@@ -13,6 +13,9 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
   // Present because the module exports it; these shells take their content as `children`.
   Outlet: () => null,
+  // The shell asks the router where it is so the rail can mark the current row. A path that matches no
+  // destination keeps these tests about permissions, which is what they are for.
+  useRouterState: () => '/back-office/nowhere-in-particular',
 }))
 
 const { BackOfficeShell } = await import('./BackOfficeShell')
