@@ -58,6 +58,35 @@ test.describe('a withheld figure keeps its place', () => {
   })
 })
 
+test.describe('the scale', () => {
+  test('is written the way the figures on the bars are written', async ({ page }) => {
+    await open(page, 'charts-barchart--by-month')
+
+    const ticks = (await boxes(page, '.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value'))
+      .map((t) => t.text)
+      .filter(Boolean)
+
+    expect(ticks.length).toBeGreaterThan(2)
+    // The axis read "240000" beside bars labelled "240,000" - the last place a raw JavaScript number
+    // reached a reader on these screens.
+    const large = ticks.filter((t) => /\d{4,}/.test(t.replace(/[^0-9]/g, '')))
+    for (const tick of large) {
+      expect(tick, `the axis writes ${tick} unformatted`).toMatch(/[,\u066C\u060C]/)
+    }
+  })
+
+  test('is not clipped by the room reserved for it', async ({ page }) => {
+    await open(page, 'charts-barchart--by-month')
+
+    const svg = (await boxes(page, 'svg.recharts-surface'))[0]
+    const ticks = await boxes(page, '.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')
+
+    for (const tick of ticks) {
+      expect(tick.x, `the axis label "${tick.text}" starts outside the chart`).toBeGreaterThanOrEqual(svg.x - 1)
+    }
+  })
+})
+
 test.describe('the marks obey their own spec', () => {
   test('a column is no thicker than the cap, and the grid is a hairline', async ({ page }) => {
     await open(page, 'charts-barchart--single-bar')

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Governance;
@@ -20,6 +21,21 @@ namespace MotsSupplierPortal.Infrastructure.Governance;
 /// a policy switch is that turning it off takes effect now - a cached "yes" would keep disclosing for the
 /// lifetime of a process after somebody decided to stop.</para>
 /// </summary>
+/// <summary>
+/// The month an award belongs to, as the analytics bucket it.
+///
+/// <para>Public and named so it can be tested, because the defect it closes cannot be seen from the
+/// outside without award data. <c>ToString("yyyy-MM")</c> formats in the CURRENT culture's calendar, and
+/// this application runs with Arabic cultures available - so the buckets came back "1448-01", Hijri
+/// years, on an axis a reader takes for the Gregorian months every other date on the screen uses. With
+/// no awards in a database there are no buckets and an empty chart formats nothing, so the bug shipped
+/// and stayed invisible until the demonstration data had its first award.</para>
+/// </summary>
+public static class MinistryAwardMonth
+{
+    public static string Of(DateTimeOffset when) => when.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+}
+
 internal static class MinistryCommercialVisibility
 {
     public static Task<bool> IsOnAsync(AppDbContext db, CancellationToken ct) =>
@@ -258,7 +274,7 @@ public sealed class GetMinistryAwardAnalyticsHandler(AppDbContext db) : IGetMini
 
         var awards = await db.Awards.AsNoTracking()
             .Where(a => a.State == AwardState.Awarded)
-            .Select(a => new { a.Id, a.RfqId, a.WinningProposalId, a.CreatedAt })
+            .Select(a => new { a.Id, a.RfqId, a.WinningProposalId, a.CreatedAt, a.AwardedAt })
             .ToListAsync(ct);
 
         var totals = commercialVisible
@@ -288,8 +304,19 @@ public sealed class GetMinistryAwardAnalyticsHandler(AppDbContext db) : IGetMini
             .Distinct()
             .ToListAsync(ct);
 
+        // InvariantCulture, and this is not a style preference. `ToString("yyyy-MM")` formats in the
+        // CURRENT culture's calendar, and this application runs with an Arabic culture available - so
+        // the buckets came back as "1448-01" and "1448-02", Hijri years, on a chart whose axis a reader
+        // takes for the Gregorian months every other date on the screen is written in. It was invisible
+        // until the demonstration database had its first award: with no awards there are no buckets,
+        // and an empty chart formats nothing.
+        //
+        // Grouped by AwardedAt rather than CreatedAt. CreatedAt is when the RECOMMENDATION row was
+        // written; this chart is titled by award. An award recommended in June and executed in July
+        // belongs to July, and the two are routinely different months. The fallback is for a row that
+        // somehow reached Awarded without a date, which the aggregate does not allow.
         var byMonth = awards
-            .GroupBy(a => a.CreatedAt.ToString("yyyy-MM"))
+            .GroupBy(a => MinistryAwardMonth.Of(a.AwardedAt ?? a.CreatedAt))
             .OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => new MinistrySpendBucketDto(g.Key, g.Count(), ValueOf(g.Select(a => a.WinningProposalId))))
             .ToList();

@@ -187,12 +187,18 @@ export function BarChart({ data, valueLabel, orientation = 'columns', height, fo
             tickLine={false}
             axisLine={{ stroke: 'var(--color-border)' }}
           />
+          {/* The scale is written the way every other figure on the screen is written. It was the last
+              place raw JavaScript numbers reached a reader: the bars carried formatted values and the
+              axis beside them read "240000", in Western digits even in Arabic. `width` grew with it,
+              because a separator makes the widest tick wider and a clipped axis label is worse than an
+              unformatted one. */}
           <YAxis
             orientation={isRtl ? 'right' : 'left'}
             tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+            tickFormatter={(value: number) => write(value)}
             tickLine={false}
             axisLine={false}
-            width={56}
+            width={72}
           />
           <Tooltip
             cursor={{ fill: 'var(--color-bg-sunken)' }}
