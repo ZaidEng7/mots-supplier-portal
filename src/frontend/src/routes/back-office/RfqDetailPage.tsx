@@ -3,6 +3,7 @@ import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
+import type { StepState } from '../../components/ui'
 import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, PageHeading, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
@@ -49,6 +50,12 @@ function toLocalInput(iso: string | null | undefined): string {
  */
 function earliestSubmissionInput(): string {
   return toLocalInput(new Date(Date.now() + 60 * 60 * 1000).toISOString())
+}
+
+/** Where one lifecycle stop stands, as the three names the stepper draws. */
+function stepStateOf(stage: { isCurrent: boolean; isCompleted: boolean }): StepState {
+  if (stage.isCurrent) return 'current'
+  return stage.isCompleted ? 'done' : 'todo'
 }
 
 export function RfqDetailPage() {
@@ -360,6 +367,13 @@ export function RfqDetailPage() {
   const workspace = workspaceQuery.data
   const permittedActions = workspace?.nextActions.filter((a) => a.permitted) ?? []
   const blockedActions = workspace?.nextActions.filter((a) => !a.permitted) ?? []
+  /** The label and the reason in the reader's own language, resolved once rather than at each use. */
+  const inLanguage = (ar: string | null, en: string | null) => (isArabic ? ar : en)
+  /**
+   * What the rail says when nothing is blocked: nothing, when there is something the reader may do, and
+   * so in words when there is not. Named rather than nested inline, which is where it was unreadable.
+   */
+  const nothingBlockedText = permittedActions.length > 0 ? null : t('workspace.noNextAction')
 
   /**
    * The counts the comp puts in the rail. Every one is already on this page, and every one of them
@@ -478,8 +492,7 @@ export function RfqDetailPage() {
           rather than a flex row: source order and visual order are allowed to differ. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1">
-          {workspaceQuery.data ? (
-            workspaceQuery.data.isCancelled ? (
+          {workspace === undefined || workspace === null ? null : workspace.isCancelled ? (
               <Card title={t('workspace.title')}>
                 <Badge tone="danger">{t('workspace.cancelledBanner')}</Badge>
               </Card>
@@ -512,16 +525,16 @@ export function RfqDetailPage() {
                     <ul className="m-0 flex list-none flex-col gap-2 p-0">
                       {blockedActions.map((a) => (
                         <li key={a.action}>
-                          <span className="font-[var(--fw-medium)]">{isArabic ? a.labelAr : a.labelEn}</span>
-                          {(isArabic ? a.blockedReasonAr : a.blockedReasonEn) ? (
+                          <span className="font-[var(--fw-medium)]">{inLanguage(a.labelAr, a.labelEn)}</span>
+                          {inLanguage(a.blockedReasonAr, a.blockedReasonEn) ? (
                             <span className="block" style={{ color: 'var(--color-text-secondary)' }}>
-                              {isArabic ? a.blockedReasonAr : a.blockedReasonEn}
+                              {inLanguage(a.blockedReasonAr, a.blockedReasonEn)}
                             </span>
                           ) : null}
                         </li>
                       ))}
                     </ul>
-                  ) : permittedActions.length > 0 ? null : t('workspace.noNextAction')}
+                  ) : nothingBlockedText}
                 </NextActionCard>
 
                 <Card title={t('workspace.stands')}>
@@ -532,12 +545,12 @@ export function RfqDetailPage() {
                       current: t('workspace.stepCurrent'),
                       todo: t('workspace.stepTodo'),
                     }}
-                    steps={workspaceQuery.data.stages.map((stage) => ({
+                    steps={workspace.stages.map((stage) => ({
                       key: stage.key,
                       // The same key StatusChip resolves, so a stage and a state chip never disagree
                       // about what a lifecycle stop is called.
                       label: t(`status.rfq.${stage.key}`),
-                      state: stage.isCurrent ? 'current' : stage.isCompleted ? 'done' : 'todo',
+                      state: stepStateOf(stage),
                     }))}
                   />
                 </Card>
@@ -546,8 +559,7 @@ export function RfqDetailPage() {
                   <FactList facts={glanceFacts} />
                 </Card>
               </>
-            )
-          ) : null}
+            )}
 
         </aside>
 

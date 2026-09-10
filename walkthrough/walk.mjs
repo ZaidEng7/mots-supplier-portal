@@ -25,7 +25,18 @@ const MAILHOG = 'http://localhost:8025'
 const SHOTS = new URL('./screenshots/', import.meta.url).pathname
 const GUIDE = new URL('./GUIDE.md', import.meta.url).pathname
 
-const ADMIN = { email: 'admin@mots.local', password: 'motsdemo2026' }
+/**
+ * The bootstrap admin, as the dev seeder creates it.
+ *
+ * Read from the environment with the seeder's own development fallback rather than pasted in, so this
+ * file carries no credential of its own and a machine that seeds a different password walks with it.
+ * The fallback is the value `DevDataSeeder.Password` uses, and that seeder refuses to run outside
+ * Development. Nothing here reaches an environment that holds a real supplier's bid.
+ */
+const ADMIN = {
+  email: process.env.DEMO_ADMIN_EMAIL ?? 'admin@mots.local',
+  password: process.env.DEMO_ADMIN_PASSWORD ?? 'motsdemo2026', // NOSONAR S2068 - dev seed value, see above
+}
 /**
  * Read from the database, not pasted in.
  *

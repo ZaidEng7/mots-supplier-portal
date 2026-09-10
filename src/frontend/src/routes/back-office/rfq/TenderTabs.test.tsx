@@ -120,4 +120,26 @@ describe('TenderTabs', () => {
     expect(labelled['award']).toBe('Award')
     expect(labelled['settings']).toBe('Settings')
   })
+
+  /**
+   * The denominator for the counts. A strip that printed 0 when the request failed would state a fact,
+   * that nobody has bid, because it could not read one. No number is the honest answer to not knowing,
+   * and the strip is navigation first: it still has to take you to the bids.
+   */
+  it('shows no count rather than a zero when the count cannot be read', async () => {
+    restore?.()
+    restore = mockFetch({})
+
+    renderTabs()
+
+    const nav = await screen.findByRole('navigation', { name: 'Tender sections' })
+    const labelled = Object.fromEntries(
+      within(nav).getAllByRole('link').map((a) => [a.getAttribute('href')?.split('/').pop(), a.textContent]),
+    )
+
+    expect(labelled['suppliers']).toBe('Suppliers')
+    expect(labelled['proposals']).toBe('Bids')
+    // And every destination is still there, which is the half that must not break.
+    expect(within(nav).getAllByRole('link')).toHaveLength(6)
+  })
 })
