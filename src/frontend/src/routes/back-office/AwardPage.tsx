@@ -8,6 +8,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
+import { TenderTabs } from './rfq/TenderTabs'
 import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-14.1..14.6/FR-AWD-001..007. Every action here hides only, never gates - the server
@@ -122,6 +123,11 @@ export function AwardPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeading title={`${t('award.title')} — ${referenceCode}`} />
+
+      {/* The way back. These screens are tabs of one tender, and until this was here a buyer who opened
+          the bids could only leave through the browser's own button - the strip that names the six views
+          was rendered on three of them and not on the other four. */}
+      <TenderTabs referenceCode={referenceCode} />
 
       {award ? (
         <Card title={t('award.status')}>

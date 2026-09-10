@@ -39,6 +39,18 @@ function toLocalInput(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/**
+ * The earliest a submission window may be set to open, as a `datetime-local` value: one hour ahead.
+ *
+ * <p>Not "now". The domain refuses a window that has already started, and a picker offering the current
+ * minute lets somebody choose a time that lapses while they finish the form - which is how a tender came
+ * to be refused for a date that had been in the future when it was typed. Read once per render, which is
+ * near enough: this is a floor on a control, and the domain is still the rule.</p>
+ */
+function earliestSubmissionInput(): string {
+  return toLocalInput(new Date(Date.now() + 60 * 60 * 1000).toISOString())
+}
+
 export function RfqDetailPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode' })
   const { t, i18n } = useTranslation()
@@ -458,11 +470,7 @@ export function RfqDetailPage() {
       />
 
 
-      <TenderTabs
-        referenceCode={referenceCode}
-        invitedCount={rfq.invitations.length}
-        bidCount={workspaceQuery.data?.submittedProposalCount ?? 0}
-      />
+      <TenderTabs referenceCode={referenceCode} />
 
       {/* One column on a narrow screen, two from the layout breakpoint up. The rail is FIRST in the
           DOM, so a screen reader and a 320px viewport both meet "what happens next" before the body,
@@ -581,15 +589,25 @@ export function RfqDetailPage() {
                       <Input {...inputProps} value={details.currencyCode} onChange={(e) => setDetails((p) => ({ ...p, currencyCode: e.target.value }))} />
                     )}
                   </Field>
+                  {/*
+                    `min` on both, an hour out rather than "now". The domain refuses a submission window
+                    that has already started, and this picker was offering times minutes away - long
+                    enough to choose, not long enough to finish the form. A window set to open in five
+                    minutes had lapsed by the time Submit was pressed, and the refusal then arrived on a
+                    different card from the control that caused it.
+
+                    A floor on the control, not a replacement for the rule: the domain still checks, and
+                    a date typed rather than picked still reaches it.
+                  */}
                   <Field label={t('rfq.fields.submissionOpensAt')}>
                     {(inputProps) => (
-                      <Input {...inputProps} type="datetime-local" value={details.submissionOpensAt}
+                      <Input {...inputProps} type="datetime-local" min={earliestSubmissionInput()} value={details.submissionOpensAt}
                         onChange={(e) => setDetails((p) => ({ ...p, submissionOpensAt: e.target.value }))} />
                     )}
                   </Field>
                   <Field label={t('rfq.fields.submissionClosesAt')}>
                     {(inputProps) => (
-                      <Input {...inputProps} type="datetime-local" value={details.submissionClosesAt}
+                      <Input {...inputProps} type="datetime-local" min={details.submissionOpensAt || earliestSubmissionInput()} value={details.submissionClosesAt}
                         onChange={(e) => setDetails((p) => ({ ...p, submissionClosesAt: e.target.value }))} />
                     )}
                   </Field>

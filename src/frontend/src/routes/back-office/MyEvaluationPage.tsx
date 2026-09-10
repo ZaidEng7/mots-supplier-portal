@@ -5,6 +5,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import {Badge, Button, Card, Input, PageHeading, QueryError, SkeletonList, StatusChip, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
+import { TenderTabs } from './rfq/TenderTabs'
 import { apiErrorMessage } from '../../api/problem'
 import {
   getMyEvaluation, scoreCriterion, submitMyEvaluation, evaluatorProposalDocumentUrl,
@@ -171,6 +172,11 @@ export function MyEvaluationPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <PageHeading title={`${t('evaluation.my.title')} — ${referenceCode}`} />
+
+      {/* The way back. These screens are tabs of one tender, and until this was here a buyer who opened
+          the bids could only leave through the browser's own button - the strip that names the six views
+          was rendered on three of them and not on the other four. */}
+      <TenderTabs referenceCode={referenceCode} />
         <div className="flex items-center gap-3">
           {/* SCR-501. The brief carries the one thing this screen cannot show without becoming a wall of
               text: each criterion's scoring guidance, as the template author wrote it. */}

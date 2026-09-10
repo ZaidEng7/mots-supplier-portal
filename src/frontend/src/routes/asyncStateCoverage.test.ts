@@ -33,6 +33,11 @@ const NO_ERROR_BRANCH_NEEDED: Record<string, string> = {
     'The only query is public settings, used to decide whether registration is open. Its failure is '
     + 'handled by the form itself refusing to submit, and an error panel over the registration form '
     + 'would block a person from a task that may still be possible.',
+  'back-office/rfq/TenderTabs.tsx':
+    'Not a screen. It is the navigation strip six tender views share, and it fetches only to put a '
+    + 'count on two of the tabs. A failed fetch renders NO count rather than a zero - the honest answer '
+    + 'to not knowing - and the strip still takes you everywhere it did. An error panel here would '
+    + 'replace the way back with a message the screen underneath is already showing.',
   'admin/AuditExplorerPage.tsx':
     'Has an error branch already, spelled with its own `error` variable rather than `isError`, because '
     + 'it must distinguish a refused FIELD (a permission answer, shown inline) from a failed query.',

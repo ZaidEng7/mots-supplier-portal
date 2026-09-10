@@ -6,7 +6,18 @@ import type { Comparison } from '../../api/comparison'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  return {
+    ...actual,
+    useParams: () => ({ referenceCode: 'RFQ-2026-000001' }),
+    useRouterState: () => '/back-office/rfqs/RFQ-2026-000001',
+    // `Link` as a real anchor that resolves `to` + `params` into an href: the tender tab strip this page
+    // now carries is six links, and a stub that threw their destinations away would let a wrong route
+    // pass unnoticed.
+    Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: React.ReactNode }) => {
+      const href = Object.entries(params ?? {}).reduce((path, [key, value]) => path.replace(`$${key}`, value), to)
+      return <a href={href} {...rest}>{children}</a>
+    },
+  }
 })
 
 const { ComparisonPage } = await import('./ComparisonPage')
@@ -67,8 +78,10 @@ describe('ComparisonPage', () => {
     const notVisibleCells = screen.getAllByText('Not visible')
     expect(notVisibleCells.length).toBeGreaterThanOrEqual(2) // unit price row x 2 proposals
 
-    // No evaluation group at all pre-consolidation.
-    expect(screen.queryByText('Evaluation')).not.toBeInTheDocument()
+    // No evaluation group at all pre-consolidation. Scoped outside the tab strip, which carries an
+    // "Evaluation" link on every tender screen and is not what this asserts.
+    const outsideTabs = (text: string) => screen.queryAllByText(text).filter((el) => !el.closest('nav'))
+    expect(outsideTabs('Evaluation')).toEqual([])
     expect(screen.queryByText('Weighted total')).not.toBeInTheDocument()
 
     // Requirement fulfilment IS shown (not gated - only pricing/scores are).
@@ -105,7 +118,9 @@ describe('ComparisonPage', () => {
 
     renderPage(<ComparisonPage />)
 
-    expect(await screen.findByText('Evaluation')).toBeInTheDocument()
+    // The evaluation group, not the tab of the same name.
+    await screen.findByText('Weighted total')
+    expect(screen.queryAllByText('Evaluation').filter((el) => !el.closest('nav'))).toHaveLength(1)
 
     const rows = screen.getAllByRole('row')
     const qualificationRow = rows.find((r) => within(r).queryByText('Technical qualification'))!

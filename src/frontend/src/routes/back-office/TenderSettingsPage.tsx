@@ -14,7 +14,6 @@ import {
   cancelRfq,
   listRfqAssignees,
 } from '../../api/rfqs'
-import { getWorkspace } from '../../api/workspace'
 import { CancelSection } from './rfq/sections/CancelSection'
 import { TenderTabs } from './rfq/TenderTabs'
 
@@ -49,7 +48,6 @@ export function TenderSettingsPage() {
   const [addendumDescEn, setAddendumDescEn] = useState('')
 
   const rfqQuery = useQuery({ queryKey: ['rfq', referenceCode], queryFn: () => getRfq(referenceCode) })
-  const workspaceQuery = useQuery({ queryKey: ['workspace', referenceCode], queryFn: () => getWorkspace(referenceCode) })
   const assigneesQuery = useQuery({
     queryKey: ['rfq-assignees', referenceCode],
     queryFn: () => listRfqAssignees(referenceCode),
@@ -123,11 +121,7 @@ export function TenderSettingsPage() {
         meta={<StatusChip machine="rfq" value={rfq.state} />}
       />
 
-      <TenderTabs
-        referenceCode={referenceCode}
-        invitedCount={rfq.invitations.length}
-        bidCount={workspaceQuery.data?.submittedProposalCount ?? 0}
-      />
+      <TenderTabs referenceCode={referenceCode} />
 
       <div className="flex flex-col gap-4">
           {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people

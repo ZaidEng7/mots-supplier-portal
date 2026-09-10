@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import {Badge, Button, Input, PageHeading, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import { TenderTabs } from './rfq/TenderTabs'
 import { getComparison, resolveEvaluationTie } from '../../api/comparison'
 import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
@@ -126,6 +127,9 @@ export function ComparisonPage() {
           </p>
         ) : null}
       </div>
+
+      {/* The way back, as on every other tab of a tender. */}
+      <TenderTabs referenceCode={referenceCode} />
 
       <Table caption={t('comparison.title')} maxHeight="70vh">
         <TableHead sticky>

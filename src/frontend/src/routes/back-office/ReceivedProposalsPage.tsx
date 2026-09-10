@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {Badge, Button, Card, ListCard, ListState, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { TenderTabs } from './rfq/TenderTabs'
 import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { listReceivedProposals, getReceivedProposal } from '../../api/buyerProposals'
 import type { BuyerProposalDetail, BuyerProposalListItem } from '../../api/buyerProposals'
@@ -173,6 +174,11 @@ export function ReceivedProposalsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <PageHeading title={t('receivedProposals.title')} subtitle={t('receivedProposals.subtitle', { code: referenceCode })} />
+
+      {/* The way back. These screens are tabs of one tender, and until this was here a buyer who opened
+          the bids could only leave through the browser's own button - the strip that names the six views
+          was rendered on three of them and not on the other four. */}
+      <TenderTabs referenceCode={referenceCode} />
       </div>
 
       {/* `!list` is treated as still loading, not as empty. Not loaded is not the same as empty, and

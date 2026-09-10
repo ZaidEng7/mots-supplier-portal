@@ -7,7 +7,18 @@ import type { Evaluation } from '../../api/evaluations'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }) }
+  return {
+    ...actual,
+    useParams: () => ({ referenceCode: 'RFQ-2026-000001' }),
+    useRouterState: () => '/back-office/rfqs/RFQ-2026-000001',
+    // `Link` as a real anchor that resolves `to` + `params` into an href: the tender tab strip this page
+    // now carries is six links, and a stub that threw their destinations away would let a wrong route
+    // pass unnoticed.
+    Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: React.ReactNode }) => {
+      const href = Object.entries(params ?? {}).reduce((path, [key, value]) => path.replace(`$${key}`, value), to)
+      return <a href={href} {...rest}>{children}</a>
+    },
+  }
 })
 
 const { AwardPage } = await import('./AwardPage')
