@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '../lib/datetime'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { ThresholdTiles } from '../components/charts/ThresholdTiles'
 import {Badge, Button, FilterBar, FilterField, ListState, LoadMore, PageHeading, Select, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { listReviewQueue, claimReviewItem, unassignReviewItem, type ReviewQueueItem } from '../api/review'
 import { useAuthStore } from '../lib/authStore'
@@ -62,6 +63,17 @@ export function ReviewQueuePage() {
   })
   const items = queueQuery.data?.pages.flatMap((p) => p.data) ?? []
 
+  /**
+   * The three buckets, from the same `ageTone` every row's own badge uses - so a tile and the rows it
+   * counts can never disagree about what "at risk" means.
+   */
+  const ageingTiles = (['success', 'warning', 'danger'] as const).map((tone) => ({
+    key: tone,
+    count: items.filter((item) => ageTone((Date.now() - new Date(item.enteredQueueAt).getTime()) / 3_600_000) === tone).length,
+    label: t(`review.ageing.${tone}`),
+    tone: ({ success: 'good', warning: 'warning', danger: 'critical' } as const)[tone],
+  }))
+
   const claimMutation = useMutation({
     mutationFn: (referenceCode: string) => claimReviewItem(referenceCode),
     onSuccess: () => {
@@ -88,6 +100,24 @@ export function ReviewQueuePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeading title={t('review.queue')} />
+
+      {/*
+        The comp's queue tiles, on the screen where the queue is worked rather than on a ministry
+        reporting page. The ageing was already here, one badge per row, so "how far behind am I" meant
+        reading every row and counting - which is the question a reviewer opens this screen with.
+
+        Counted from the rows that are loaded, because the endpoint returns a page and no per-threshold
+        aggregate. That is said out loud when there are more: three confident numbers describing the
+        first page of a long queue would be worse than no numbers, and quietly so.
+      */}
+      {items.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <ThresholdTiles label={t('review.ageing.label')} tiles={ageingTiles} />
+          <p className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {queueQuery.hasNextPage ? t('review.ageing.partial') : t('review.ageing.note')}
+          </p>
+        </div>
+      ) : null}
 
       <FilterBar>
         <FilterField label={t('review.filterState')}>

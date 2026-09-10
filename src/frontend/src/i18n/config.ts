@@ -868,6 +868,9 @@ const resources = {
       },
       charts: {
         nothingToPlot: 'لا توجد أرقام قابلة للرسم. الجدول أدناه يعرض المتاح منها.',
+        coverageCanTrade: 'يمكنه التقديم اليوم',
+        coverageApproved: 'معتمد',
+        coverageReadout: '{{covered}} من {{total}}',
       },
       ministryAwards: {
         title: 'الترسيات والإنفاق',
@@ -875,7 +878,8 @@ const resources = {
         totalAwards: 'إجمالي الترسيات',
         totalValue: 'إجمالي القيمة',
         withheld: 'غير متاح',
-        valuesWithheld: 'القيم المالية محجوبة حالياً بحسب سياسة الإفصاح؛ أعداد الترسيات معروضة.',
+        valuesWithheldTitle: 'القيم المالية محجوبة بحسب سياسة الإفصاح',
+        valuesWithheld: 'أعداد الترسيات معروضة أدناه. المبالغ ليست معروضة، وذلك قرار لا رقم ناقص.',
         byMonth: 'حسب الشهر',
         byCategory: 'حسب الفئة',
         byOrganization: 'حسب الجهة المشترية',
@@ -1501,6 +1505,14 @@ const resources = {
         acceptInviteInvalid: 'الرابط غير صالح أو منتهي الصلاحية',
       },
       review: {
+        ageing: {
+          label: 'الطلبات المنتظرة بحسب مدة الانتظار',
+          success: 'ضمن المهلة',
+          warning: 'معرّض للتأخر',
+          danger: 'متأخر',
+          note: 'الحدود من ساعات المهلة والتأخر الخاصة بقائمة المراجعة، لا من نسبة من الإجمالي.',
+          partial: 'محسوبة من الطلبات المحمَّلة حتى الآن. حمّل المزيد لاكتمال العدّ.',
+        },
         title: 'مراجعة طلبات الموردين',
         queue: 'قائمة المراجعة',
         age: 'المدة',
@@ -2779,6 +2791,9 @@ const resources = {
       },
       charts: {
         nothingToPlot: 'No figures available to chart. The table below carries what there is.',
+        coverageCanTrade: 'Can trade today',
+        coverageApproved: 'Approved',
+        coverageReadout: '{{covered}} of {{total}}',
       },
       ministryAwards: {
         title: 'Awards & Spend',
@@ -2786,7 +2801,8 @@ const resources = {
         totalAwards: 'Awards',
         totalValue: 'Total value',
         withheld: 'Withheld',
-        valuesWithheld: 'Commercial values are currently withheld by disclosure policy; award counts are shown.',
+        valuesWithheldTitle: 'Commercial values are withheld by disclosure policy',
+        valuesWithheld: 'Award counts are shown below. The money is not, and that is a decision rather than a missing number.',
         byMonth: 'By month',
         byCategory: 'By category',
         byOrganization: 'By buying body',
@@ -3377,6 +3393,14 @@ const resources = {
         acceptInviteInvalid: 'This link is invalid or has expired',
       },
       review: {
+        ageing: {
+          label: 'Applications waiting, by how long they have waited',
+          success: 'Within target',
+          warning: 'At risk',
+          danger: 'Overdue',
+          note: 'Thresholds come from the queue\'s own at-risk and overdue hours, not from a share of the total.',
+          partial: 'Counted from the applications loaded so far. Load more for a complete count.',
+        },
         title: 'Supplier Application Review',
         queue: 'Review queue',
         age: 'Age',

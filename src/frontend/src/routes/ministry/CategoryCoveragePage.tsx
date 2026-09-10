@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Card, PageHeading, SkeletonTable, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
+import { CoverageChart } from '../../components/charts/CoverageChart'
 import { formatNumber } from '../../lib/datetime'
 import { getCategoryCoverage } from '../../api/governance'
 
@@ -65,6 +66,22 @@ export function CategoryCoveragePage() {
         {categories.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('categoryCoverage.empty')}</p>
         ) : (
+          <>
+          {/* The comp's coverage chart, on the screen whose numbers it draws rather than moved to a
+              reporting page. Both figures were already in the table, two columns apart, and the gap
+              between them - approved against able to bid today - is the thing this screen exists to
+              show. A category with a short dark segment and a long pale one has suppliers who cannot
+              act, which is a different problem from having none at all. */}
+          <div className="mb-4">
+            <CoverageChart
+              data={categories.map((category) => ({
+                key: category.categoryCode,
+                label: isArabic ? category.nameAr : category.nameEn,
+                total: category.approvedSuppliers,
+                covered: category.activeSuppliers,
+              }))}
+            />
+          </div>
           <Table caption={t('categoryCoverage.title')}>
             <TableHead labels={[t('categoryCoverage.fields.category'), t('categoryCoverage.fields.approved'), t('categoryCoverage.fields.active'), t('categoryCoverage.fields.offerings'), t('categoryCoverage.fields.tenders'), t('categoryCoverage.fields.awarded')]} />
             <TableBody>
@@ -96,6 +113,7 @@ export function CategoryCoveragePage() {
               ))}
             </TableBody>
           </Table>
+          </>
         )}
       </Card>
     </div>

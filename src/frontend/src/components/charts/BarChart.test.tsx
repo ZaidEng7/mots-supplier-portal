@@ -73,4 +73,55 @@ describe('BarChart', () => {
     const fills = [...container.querySelectorAll('.recharts-bar-rectangle path')].map((p) => p.getAttribute('fill'))
     expect(new Set(fills).size).toBe(1)
   })
+
+  /**
+   * Ranked is for a comparison of unordered things, and its whole claim is that the biggest is first.
+   * A mode that drew the data in its given order would look identical on already-sorted fixtures, which
+   * is exactly how a sorting bug survives.
+   */
+  it('puts the biggest first when ranked, whatever order it was given', () => {
+    const { container } = render(
+      <BarChart
+        orientation="ranked"
+        valueLabel="Awards"
+        data={[
+          { key: 'small', value: 3 },
+          { key: 'largest', value: 90 },
+          { key: 'middle', value: 40 },
+        ]}
+      />,
+    )
+
+    const ticks = [...container.querySelectorAll('.recharts-cartesian-axis-tick-value')].map((el) => el.textContent)
+    expect(ticks).toEqual(['largest', 'middle', 'small'])
+
+    // And the value is written at the end of its own bar rather than read off a scale, which is the
+    // other half of what ranked means.
+    const labels = [...container.querySelectorAll('.recharts-label')].map((el) => el.textContent)
+    expect(labels).toEqual(['90', '40', '3'])
+  })
+
+  /**
+   * The denominator for the mode itself: columns must NOT reorder. Months are read along time, and a
+   * chart that sorted them would be drawing a different fact from the one the table beneath carries.
+   */
+  it('leaves a column chart in the order it was given', () => {
+    const { container } = render(
+      <BarChart
+        valueLabel="Awards"
+        data={[
+          { key: 'Jan', value: 3 },
+          { key: 'Feb', value: 90 },
+          { key: 'Mar', value: 40 },
+        ]}
+      />,
+    )
+
+    // Both axes emit ticks, so this keeps only the ones that are month names - the numeric scale on the
+    // other axis is not what this asserts.
+    const months = [...container.querySelectorAll('.recharts-cartesian-axis-tick-value')]
+      .map((el) => el.textContent)
+      .filter((text) => ['Jan', 'Feb', 'Mar'].includes(text ?? ''))
+    expect(months).toEqual(['Jan', 'Feb', 'Mar'])
+  })
 })
