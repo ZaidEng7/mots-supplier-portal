@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Badge, Button, Card, Dialog, Field, Input, PageHeading, PhoneInput, QueryError, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { FormMeasure } from '../../components/ui/FormMeasure'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Representative, type Contact, type SupplierProfile } from '../../api/supplier'
 import { addRepresentative, updateRepresentative, removeRepresentative, setPrimaryRepresentative } from '../../api/representatives'
@@ -147,7 +148,7 @@ export function ContactsPage() {
   const contacts = profile?.contacts ?? []
 
   return (
-    <div className="flex flex-col gap-6">
+    <FormMeasure>
       <div>
         <PageHeading title={t('contacts.title')} subtitle={t('contacts.subtitle')} />
       </div>
@@ -274,6 +275,6 @@ export function ContactsPage() {
         isSaving={contactMutation.isPending}
         apiError={contactMutation.error instanceof SupplierApiError ? contactMutation.error.message : undefined}
       />
-    </div>
+    </FormMeasure>
   )
 }

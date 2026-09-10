@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { FormMeasure } from '../../components/ui/FormMeasure'
 import { useToast } from '../../components/ui'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type BankAccount, type SupplierProfile } from '../../api/supplier'
@@ -216,7 +217,7 @@ export function BankingPage() {
   const currencyOptions = (currenciesQuery.data ?? []).map((c) => ({ value: c.code, label: c.code }))
 
   return (
-    <div className="flex flex-col gap-6">
+    <FormMeasure>
       <div>
         <PageHeading title={t('banking.title')} subtitle={t('banking.subtitle')} />
       </div>
@@ -290,6 +291,6 @@ export function BankingPage() {
         isSaving={saveMutation.isPending}
         apiError={saveMutation.error instanceof SupplierApiError ? saveMutation.error.message : undefined}
       />
-    </div>
+    </FormMeasure>
   )
 }

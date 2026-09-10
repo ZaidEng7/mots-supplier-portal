@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
 import {Button, Card, Field, Input, PageHeading, PhoneInput, QueryError, Select, StatusChip} from '../components/ui'
+import { FormMeasure } from '../components/ui/FormMeasure'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -562,7 +563,7 @@ export function OnboardingPage() {
   if (!profile) return null
 
   return (
-    <div className="flex flex-col gap-6">
+    <FormMeasure>
       <PageHeading title={t('onboarding.title')} meta={<StatusChip machine="onboarding" value={profile.onboardingState} />} />
 
       <OnboardingStepNav />
@@ -887,6 +888,6 @@ export function OnboardingPage() {
           />
         </div>
       </Card>
-    </div>
+    </FormMeasure>
   )
 }
