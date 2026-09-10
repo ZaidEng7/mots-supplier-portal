@@ -68,7 +68,7 @@ export function MinistryRfqMonitorPage() {
         skeletonRows={6}
         labels={{ loading: t('common.loading'), error: t('ministryRfqs.loadFailed'), empty: t('ministryRfqs.empty'), loadMore: t('ministryRfqs.loadMore') }}
       >
-        <Table caption={t('ministryRfqs.title')}>
+        <Table flush caption={t('ministryRfqs.title')}>
         <TableHead labels={[t('ministryRfqs.fields.tender'), t('ministryRfqs.fields.organization'), t('ministryRfqs.fields.state'), t('ministryRfqs.fields.bids'), t('ministryRfqs.fields.closes'), t('ministryRfqs.fields.awarded')]} />
         <TableBody>
           {rfqs.map((rfq) => (

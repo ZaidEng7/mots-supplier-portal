@@ -97,7 +97,7 @@ export function SupplierDirectoryPage() {
         isEmpty={suppliers.length === 0}
         labels={{ loading: t('common.loading'), error: t('supplierDirectory.error'), empty: t('supplierDirectory.empty'), loadMore: t('supplierDirectory.loadMore') }}
       >
-        <Table caption={t('supplierDirectory.title')}>
+        <Table flush caption={t('supplierDirectory.title')}>
           <TableHead labels={[t('supplierDirectory.fields.name'), t('supplierDirectory.fields.code'), t('supplierDirectory.fields.categories'), t('supplierDirectory.fields.offerings'), t('supplierDirectory.fields.location'), t('supplierDirectory.fields.state')]} />
           <TableBody>
             {suppliers.map((s) => (

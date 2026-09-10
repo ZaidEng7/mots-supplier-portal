@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {Button, Dialog, Field, Input, ListCard, PageHeading, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Button, Dialog, Field, Input, ListCard, PageHeading, SegmentedControl, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -72,27 +72,18 @@ export function RfqListPage() {
           loadMore: t('rfq.loadMore'),
         }}
         action={
-          <fieldset className="m-0 flex flex-wrap gap-2 border-0 p-0">
-            {/* <fieldset>, not <div role="group">: the native element carries the same grouping
-                semantics without asserting a role, and its <legend> is the accessible name rather than
-                an aria-label duplicating one. The classes strip the border and padding a fieldset
-                brings by default. */}
-            <legend className="sr-only">{t('rfq.ownerFilter.label')}</legend>
-            {(['all', 'me', 'unassigned'] as const).map((value) => (
-              <Button
-                key={value}
-                size="sm"
-                variant={owner === value ? 'primary' : 'ghost'}
-                aria-pressed={owner === value}
-                onClick={() => setOwner(value)}
-              >
-                {t(`rfq.ownerFilter.${value}`)}
-              </Button>
-            ))}
-          </fieldset>
+          <SegmentedControl
+            legend={t('rfq.ownerFilter.label')}
+            value={owner}
+            onChange={setOwner}
+            segments={(['all', 'me', 'unassigned'] as const).map((value) => ({
+              value,
+              label: t(`rfq.ownerFilter.${value}`),
+            }))}
+          />
         }
       >
-        <Table caption={t('rfq.listTitle')}>
+        <Table flush caption={t('rfq.listTitle')}>
           <TableHead>
             <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
             <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>

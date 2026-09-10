@@ -14,11 +14,23 @@ function rowBackground(highlight: boolean | undefined, sticky: boolean | undefin
   return undefined
 }
 
-export function Table({ children, caption, maxHeight }: { children: ReactNode; caption?: string; maxHeight?: string }) {
+export function Table({ children, caption, maxHeight, flush = false }: {
+  children: ReactNode
+  caption?: string
+  maxHeight?: string
+  /**
+   * Drop this table's own border and corners, because the surface around it already has them.
+   *
+   * <p>Set by a list card, which holds exactly one table and draws the frame itself. Two frames a few
+   * pixels apart is what a table inside a padded card looked like, and it is the difference between
+   * this product's list screens and the template they are meant to match.</p>
+   */
+  flush?: boolean
+}) {
   return (
     <div
-      className="w-full overflow-auto rounded-[var(--radius-md)]"
-      style={{ border: '1px solid var(--color-border)', maxHeight }}
+      className={`w-full overflow-auto ${flush ? '' : 'rounded-[var(--radius-md)]'}`}
+      style={{ border: flush ? undefined : '1px solid var(--color-border)', maxHeight }}
     >
       {/* The one line that made 13px the most common size on every screen the audit measured: tables are
           the dominant content on 33 of the 65 screens, and this set all of them below the body floor.

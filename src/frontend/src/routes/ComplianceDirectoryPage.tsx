@@ -87,7 +87,7 @@ export function ComplianceDirectoryPage() {
         isEmpty={suppliers.length === 0}
         labels={{ loading: t('common.loading'), error: t('complianceDirectory.error'), empty: t('complianceDirectory.empty'), loadMore: t('complianceDirectory.loadMore') }}
       >
-        <Table caption={t('complianceDirectory.title')}>
+        <Table flush caption={t('complianceDirectory.title')}>
           <TableHead labels={[t('complianceDirectory.fields.name'), t('complianceDirectory.fields.onboarding'), t('complianceDirectory.fields.lifecycle'), t('complianceDirectory.fields.documents'), t('complianceDirectory.fields.registered')]} />
           <TableBody>
             {suppliers.map((s) => (
