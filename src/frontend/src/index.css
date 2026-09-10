@@ -86,6 +86,111 @@ body {
   }
 }
 
+/* ═══ Motion, and mostly the refusal of it ═══════════════════════════════════════════════════════
+   The motion tokens have existed since the token layer was written and almost nothing consumed them.
+   That was not an oversight to correct wholesale: this product is a tool a procurement officer is
+   inside all day, and the things they touch most - the tender list, the six-tab strip on a tender,
+   the review queue, the sidebar - are exactly the things that must not move. An animation seen forty
+   times a day stops being delight and becomes latency.
+
+   So motion is added in three places only, all of them seen once per task rather than once per
+   minute: the dialog, the toast, and the select. Everything else stays still on purpose, and this
+   comment is the record of that decision so the next person does not read the stillness as an
+   omission.
+
+   Keyframes rather than transitions, against the usual preference for interruptible transitions:
+   Radix's presence layer waits on `animationend` before unmounting. A transition would play on the
+   way in and be skipped entirely on the way out.
+
+   Exit is always faster than enter. By the time something is closing the user has already decided;
+   the system's job is to get out of the way. */
+
+@keyframes msp-overlay-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes msp-overlay-out { from { opacity: 1 } to { opacity: 0 } }
+
+/* 0.96, never 0. Nothing in the real world appears from nothing, and a dialog that grows from a point
+   reads as a special effect rather than as a panel arriving. */
+@keyframes msp-dialog-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96) }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1) }
+}
+@keyframes msp-dialog-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1) }
+  to   { opacity: 0; transform: translate(-50%, -50%) scale(0.98) }
+}
+
+.msp-overlay[data-state='open']   { animation: msp-overlay-in var(--motion-slow) var(--ease-out) }
+.msp-overlay[data-state='closed'] { animation: msp-overlay-out var(--motion-fast) var(--ease-out) }
+
+/* Centred origin, deliberately. A popover scales from the control that opened it; a modal is not
+   anchored to anything - it belongs to the viewport, and growing it from a corner would point at a
+   trigger the reader is no longer looking at. */
+.msp-dialog[data-state='open']   { animation: msp-dialog-in var(--motion-slow) var(--ease-out) }
+.msp-dialog[data-state='closed'] { animation: msp-dialog-out var(--motion-fast) var(--ease-out) }
+
+/* The shortest animation in the product, and the one a person sees most: an officer opens a filter
+   dozens of times a day. 120ms is enough to register as "this opened" and short enough that nobody
+   waits for it. */
+@keyframes msp-pop-in  { from { opacity: 0; transform: scale(0.96) } to { opacity: 1; transform: scale(1) } }
+@keyframes msp-pop-out { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.98) } }
+
+.msp-pop {
+  /* A popover should grow from the control that opened it. Radix only publishes
+     `--radix-select-content-transform-origin` in its popper positioning mode, and this Select uses
+     the default item-aligned mode, which lays the list OVER the trigger with the selected row on top
+     of it - so the fallback is what actually applies today, and a centred origin is the right
+     answer for content that already sits on its trigger. The var is read first so that switching
+     Select to `position="popper"` later becomes origin-aware with no change here. */
+  transform-origin: var(--radix-select-content-transform-origin, center);
+}
+.msp-pop[data-state='open']   { animation: msp-pop-in var(--motion-fast) var(--ease-out) }
+.msp-pop[data-state='closed'] { animation: msp-pop-out 100ms var(--ease-out) }
+
+/* The highlight on a select option, moved out of the component's inline pointer handlers.
+   `data-highlighted` is the state Radix sets for BOTH a pointer moving over a row and the arrow keys
+   moving through it, so the two paths now look the same; the inline `onPointerEnter` this replaces
+   painted only the pointer one, and a keyboard user navigating a filter saw no highlight at all. */
+.msp-option[data-highlighted] { background-color: var(--color-bg-hover) }
+
+/* The toast enters and leaves along the edge it can be swiped to, so the gesture is discoverable
+   without being taught. `--msp-toast-exit` flips with the document direction: the viewport is pinned
+   with a logical `end-4`, so in Arabic the toast sits on the LEFT, and a toast that flew in from the
+   right while swiping left would be two different mental models at once. */
+/* Default on bare `:root`, not on `[dir='ltr']`: index.html ships no dir attribute and useDirection
+   sets it in an effect, so for the first paint there is no selector to match. */
+:root { --msp-toast-from: 100%; }
+:root[dir='rtl'] { --msp-toast-from: -100%; }
+
+@keyframes msp-toast-in {
+  from { opacity: 0; transform: translateX(var(--msp-toast-from)) }
+  to   { opacity: 1; transform: translateX(0) }
+}
+@keyframes msp-toast-out {
+  from { opacity: 1; transform: translateX(0) }
+  to   { opacity: 0; transform: translateX(var(--msp-toast-from)) }
+}
+
+.msp-toast[data-state='open']   { animation: msp-toast-in var(--motion-slow) var(--ease-out) }
+.msp-toast[data-state='closed'] { animation: msp-toast-out var(--motion-base) var(--ease-out) }
+
+/* While a finger or pointer is dragging, the toast follows it exactly - no easing, no animation, or
+   the toast lags behind the thing moving it. Radix hands us the distance; we only apply it. */
+.msp-toast[data-swipe='move'] {
+  transform: translateX(var(--radix-toast-swipe-move-x));
+  animation: none;
+}
+/* Let go without going far enough and it returns, quickly, because the user has changed their mind
+   and is waiting to see that understood. */
+.msp-toast[data-swipe='cancel'] {
+  transform: translateX(0);
+  transition: transform var(--motion-fast) var(--ease-out);
+  animation: none;
+}
+.msp-toast[data-swipe='end'] { animation: msp-toast-out var(--motion-base) var(--ease-out) }
+
+/* Reduced motion is honoured by the global block above, which flattens every duration here to
+   0.01ms. These elements still appear and disappear; they simply stop travelling. */
+
 /* T2-32 skeleton shimmer. DESIGN-SYSTEM.md §6.17: "skeleton shaped like final content
    (cards/rows/detail), shimmering with reduced motion respected". The global block above already
    neutralises this animation's duration; the scoped rule below removes the animation and the

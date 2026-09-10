@@ -3929,7 +3929,9 @@ const resources = {
   },
 }
 
-export const RTL_LANGUAGES = new Set(['ar'])
+// Re-exported from rtl.ts, which exists so that knowing the page direction does not require importing
+// the i18next bootstrap below. See that file for what broke.
+export { RTL_LANGUAGES } from './rtl'
 
 void i18n
   .use(LanguageDetector)

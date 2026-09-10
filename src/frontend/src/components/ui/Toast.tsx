@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as RadixToast from '@radix-ui/react-toast'
+import { useTranslation } from 'react-i18next'
+import { RTL_LANGUAGES } from '../../i18n/rtl'
 
 type ToastKind = 'info' | 'success' | 'danger'
 
@@ -26,6 +28,13 @@ const kindColor: Record<ToastKind, string> = {
 /** App-wide toast host on Radix Toast (polite live region, swipe-to-dismiss). Wrap the app once. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  // The viewport is pinned with a logical `end-4`, so in Arabic the toast sits on the LEFT. A
+  // hardcoded "right" meant the toast had to be swiped away from its own edge, and the enter
+  // animation would have travelled in from the opposite side of the screen to the one it sat on.
+  // Read from the language rather than from useDirection, which also writes the document attributes -
+  // one owner for that side effect is enough.
+  const { i18n } = useTranslation()
+  const swipe = RTL_LANGUAGES.has(i18n.language) ? 'left' : 'right'
 
   const notify = useCallback((toast: Omit<ToastItem, 'id'>) => {
     // crypto.randomUUID rather than Date.now()+Math.random(): this id carries no security
@@ -40,7 +49,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={{ notify }}>
-      <RadixToast.Provider swipeDirection="right">
+      <RadixToast.Provider swipeDirection={swipe}>
         {children}
         {toasts.map((toast) => (
           <RadixToast.Root
@@ -49,7 +58,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onOpenChange={(open) => {
               if (!open) dismiss(toast.id)
             }}
-            className="rounded-[var(--radius-md)] p-4"
+            // `msp-toast` enters and exits along the edge it can be swiped to (src/index.css), which
+            // is what makes swipe-to-dismiss discoverable without being taught.
+            className="msp-toast rounded-[var(--radius-md)] p-4"
             style={{
               backgroundColor: 'var(--color-bg-surface)',
               border: `1px solid ${kindColor[toast.kind]}`,

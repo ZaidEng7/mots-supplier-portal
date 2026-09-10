@@ -33,7 +33,7 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
       {trigger ? <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger> : null}
       <RadixDialog.Portal>
         <RadixDialog.Overlay
-          className="fixed inset-0"
+          className="msp-overlay fixed inset-0"
           style={{ backgroundColor: 'var(--color-bg-overlay)', zIndex: 'var(--z-modal)' }}
         />
         {/*
@@ -49,7 +49,13 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
           * same shape, and the next one will be written by somebody who never saw this.
           */}
         <RadixDialog.Content
-          className="fixed left-1/2 top-1/2 flex max-h-[calc(100dvh-2rem)] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-xl)] p-6"
+          // `msp-overlay` and `msp-dialog` carry the fade and the 0.96 scale (src/index.css). They are
+          // keyframes rather than transitions because Radix waits on `animationend` before it unmounts
+          // this subtree; a transition would play on the way in and be skipped on the way out. The
+          // dialog keeps a centred transform-origin: it is not anchored to a trigger the way a popover
+          // is, and the translate that centres it is re-stated inside both keyframes, since an
+          // animated `transform` replaces the class's translate wholesale rather than composing with it.
+          className="msp-dialog fixed left-1/2 top-1/2 flex max-h-[calc(100dvh-2rem)] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-xl)] p-6"
           // §6.12: radius-xl and shadow-lg, both from the scale rather than Tailwind's own shadow-xl,
           // which is a harder shadow than this design system uses anywhere.
           style={{

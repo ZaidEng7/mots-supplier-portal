@@ -62,6 +62,12 @@ export default defineConfig({
     // Task #22/NFR-A11Y-002: real keyboard-only interaction (Tab/Enter/Escape/Arrow), not axe's
     // static DOM/ARIA checks - axe cannot verify tab order, focus traps, or that a control is
     // operable rather than merely focusable.
+    // The motion added to the shared layer, exercised in a real browser. Runs against the built
+    // Storybook (the same artefact storybook-axe uses) because the components are the shared ones and
+    // the stories need neither a session nor a backend. src/styles/motion.test.ts reads the stylesheet;
+    // this proves a closing element actually reaches animationend and is released by Radix, which no
+    // amount of reading CSS can establish.
+    chromeProject('motion', 'motion.spec.ts', 'http://localhost:6007'),
     chromeProject('app-keyboard', 'app-keyboard.spec.ts'),
     // Task #22/NFR-A11Y-007: real DOM/ARIA read proving aria-describedby resolves to an actual,
     // non-empty error element and aria-invalid is set - axe does not check that an
