@@ -2,21 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../../test/renderPage'
+import { TENDER_CODE, TestLink } from './rfq/tenderTestHarness'
 import type { Comparison } from '../../api/comparison'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
   return {
     ...actual,
-    useParams: () => ({ referenceCode: 'RFQ-2026-000001' }),
-    useRouterState: () => '/back-office/rfqs/RFQ-2026-000001',
-    // `Link` as a real anchor that resolves `to` + `params` into an href: the tender tab strip this page
-    // now carries is six links, and a stub that threw their destinations away would let a wrong route
-    // pass unnoticed.
-    Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: React.ReactNode }) => {
-      const href = Object.entries(params ?? {}).reduce((path, [key, value]) => path.replace(`$${key}`, value), to)
-      return <a href={href} {...rest}>{children}</a>
-    },
+    useParams: () => ({ referenceCode: TENDER_CODE }),
+    useRouterState: () => `/back-office/rfqs/${TENDER_CODE}/comparison`,
+    Link: TestLink,
   }
 })
 
@@ -24,7 +19,7 @@ const { ComparisonPage } = await import('./ComparisonPage')
 
 function comparisonFixture(overrides: Partial<Comparison> = {}): Comparison {
   return {
-    rfqReferenceCode: 'RFQ-2026-000001', rfqTitleAr: 'طلب', rfqTitleEn: 'Sample RFQ', evaluationState: 'NotStarted',
+    rfqReferenceCode: TENDER_CODE, rfqTitleAr: 'طلب', rfqTitleEn: 'Sample RFQ', evaluationState: 'NotStarted',
     rfqItems: [{ id: 'item-1', lineNo: 1, titleAr: 'بند', titleEn: 'Widget', quantity: 10, unitOfMeasureCode: 'unit' }],
     proposals: [
       {
