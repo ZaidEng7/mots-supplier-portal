@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../lib/queryClient'
-import {Badge, Button, Card, Field, Input, PageHeading, PhoneInput, QueryError, Select, StatusChip} from '../components/ui'
+import {Button, Card, Field, Input, PageHeading, PhoneInput, QueryError, Select, StatusChip} from '../components/ui'
 import { useToast } from '../components/ui'
 import { OnboardingStepNav } from '../components/OnboardingStepNav'
 import {
@@ -23,7 +23,7 @@ import {
 import { fetchCurrencies } from '../api/reference'
 import { listOwnDocuments, uploadDocument, getDocumentDownloadUrl, DocumentApiError, type DocumentTypeStatus } from '../api/documents'
 import { getOwnActiveAnnotation } from '../api/review'
-import { formatDateTime } from '../lib/datetime'
+import { formatDate, formatDateTime } from '../lib/datetime'
 
 const SUPPLIER_TYPES = ['Company', 'Individual', 'Partnership'] as const
 
@@ -49,6 +49,14 @@ type ProfileFormValues = z.infer<typeof profileSchema>
 // Matches SupplierDto.missingProfileFields' exact string values (Domain/Suppliers/Supplier.cs
 // GetMissingProfileFields), not arbitrary display keys - keep in sync if the backend list changes.
 const REQUIRED_FIELDS = ['legalInfo', 'currencyCode', 'address', 'categoryLink', 'primaryContactPhone'] as const
+
+/**
+ * What the gate's progress bar is a fraction OF: the five required profile fields plus the terms.
+ *
+ * <p>Derived from `REQUIRED_FIELDS` rather than typed as a number, so a field added to that list moves
+ * the bar with it instead of leaving a bar that quietly measures the wrong whole.</p>
+ */
+const GATE_REQUIREMENTS = REQUIRED_FIELDS.length + 1
 
 // FEAT-05.8: "N days" countdown for documents approaching/past expiry, next to the state chip.
 // Western digits (numberingSystem latn) to match the rest of the app's tabular-numeral convention
@@ -213,6 +221,25 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
   const state = doc.latestDocument?.state
   const label = isArabic ? doc.nameAr : doc.nameEn
 
+  /**
+   * The one line a supplier needs about this document beyond its name.
+   *
+   * <p>Both halves were already on the row, as fragments between the chip and the name: whether a type
+   * is optional, and how long an approved one has left. Neither is a state - the chip says the state -
+   * and both are what somebody deciding what to do next actually reads.</p>
+   *
+   * <p>The comp adds a third line here, "PDF or image, up to 20 MB". Nothing in this client knows the
+   * accepted types or the size limit; both are server-side, and printing a guess beside an upload
+   * control is how a supplier learns the rule by having a file rejected. It goes to the product owner
+   * as a question rather than into the copy.</p>
+   */
+  const expiry = doc.latestDocument?.expiryDate
+  const hint = !doc.isRequired
+    ? t('onboarding.optionalHint')
+    : expiry && (state === 'Approved' || state === 'ExpiringSoon')
+      ? `${formatDate(expiry, i18n.language)} · ${expiryCountdownLabel(expiry, i18n.language)}`
+      : null
+
   return (
     // id: the error summary below links straight to this row, per ACCESSIBILITY §7's error-summary
     // requirement. tabIndex -1 so the link can move focus here at all - a plain <li> is not focusable.
@@ -222,44 +249,42 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
       className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3"
       style={{ border: '1px solid var(--color-border)' }}
     >
-      <div className="flex items-center gap-2">
-        {/* T2-33 addendum: document states resolve through StatusChip like every other machine.
-            The no-document branch is not a DocumentState, but it still has documented labels, so
-            it routes through the same chip rather than a hand-rolled Badge:
-
-            - `Required` (§7.2's first row; SCR-106 lists it first in its StatusBadge set) is the
-              RESTING label for a required type with nothing uploaded.
-            - `Missing` is what that becomes once the supplier has attempted to submit and this
-              document is still absent. Driven by the server's own 422 list (§12.2: "422 listing
-              exactly what is missing"), never by client-side guesswork about what will block.
-            - An OPTIONAL type with no upload gets no chip at all. Calling it "Required" would be
-              false, and SCR-106 is explicit that "optional docs never block"; the "(optional)"
-              marker beside the name already says what it is. */}
-        {/* A document that has been uploaded shows the state the reviewer put it in. One that has not
-            shows whether it is still required - and `Missing` only once a submit attempt has named it,
-            which is what `isBlocking` carries. An optional document with nothing uploaded shows
-            nothing, because there is nothing to say about it. */}
-        {documentChipValue(state, doc.isRequired, isBlocking) ? (
-          <StatusChip machine="document" value={documentChipValue(state, doc.isRequired, isBlocking)!} />
-        ) : null}
-        {doc.latestDocument?.expiryDate && (state === 'Approved' || state === 'ExpiringSoon') ? (
-          <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
-            {expiryCountdownLabel(doc.latestDocument.expiryDate, i18n.language)}
-          </span>
-        ) : null}
+      {/*
+        The comp's row: the document's name and what a supplier needs to know about it on the left, its
+        state and the control that changes that state together on the right. The chip used to lead the
+        row, so a column of them was the first thing read and the names came second - and the two facts
+        a supplier acts on, that a document is optional and that one expires soon, were inline fragments
+        between them.
+      */}
+      <div className="flex min-w-0 flex-col gap-0.5">
         <span style={{ color: 'var(--color-text-primary)' }}>{label}</span>
-        {doc.isRequired ? null : (
+        {hint ? (
           <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-muted)' }}>
-            ({t('onboarding.optional')})
+            {hint}
           </span>
-        )}
+        ) : null}
         {doc.latestDocument?.rejectReason ? (
           <span className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-danger-fg)' }}>
             {doc.latestDocument.rejectReason}
           </span>
         ) : null}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-none items-center gap-2">
+        {/* T2-33 addendum: document states resolve through StatusChip like every other machine. The
+            no-document branch is not a DocumentState, but it still has documented labels, so it routes
+            through the same chip rather than a hand-rolled Badge:
+
+            - `Required` (§7.2's first row; SCR-106 lists it first in its StatusBadge set) is the
+              RESTING label for a required type with nothing uploaded.
+            - `Missing` is what that becomes once the supplier has attempted to submit and this document
+              is still absent. Driven by the server's own 422 list (§12.2: "422 listing exactly what is
+              missing"), never by client-side guesswork about what will block.
+            - An OPTIONAL type with no upload gets no chip at all. Calling it "Required" would be false,
+              and SCR-106 is explicit that "optional docs never block"; the hint beside the name already
+              says what it is. */}
+        {documentChipValue(state, doc.isRequired, isBlocking) ? (
+          <StatusChip machine="document" value={documentChipValue(state, doc.isRequired, isBlocking)!} />
+        ) : null}
         {doc.latestDocument && doc.latestDocument.state !== 'PendingScan' && doc.latestDocument.state !== 'ScanRejected' ? (
           <Button variant="ghost" size="sm" isLoading={downloadMutation.isPending} onClick={() => downloadMutation.mutate(doc.latestDocument!.documentId)}>
             {t('onboarding.download')}
@@ -542,6 +567,32 @@ export function OnboardingPage() {
 
       <OnboardingStepNav />
 
+      {/*
+        The comp's read-only banner. This used to be one green sentence at the bottom of the profile
+        card, where a supplier found it after filling in fields that would not save - the notice arrived
+        after the disappointment it was meant to prevent.
+
+        What it does NOT say is the comp's third line, "you can still upload a replacement document at
+        any time". Documents are gated by the same `canEdit` as every other control on this screen, so
+        while an application is with a reviewer nothing can be uploaded. The comp promises a behaviour
+        the product does not have, so the words change rather than the code, and the gap goes to the
+        product owner as a question.
+      */}
+      {isReadOnly ? (
+        <div
+          role="status"
+          className="rounded-[var(--radius-lg)] p-4"
+          style={{ backgroundColor: 'var(--info-50)', border: '1px solid var(--info-500)' }}
+        >
+          <p className="font-[var(--fw-semibold)]" style={{ color: 'var(--info-600)' }}>
+            {t('onboarding.readOnlyTitle')}
+          </p>
+          <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
+            {t('onboarding.readOnlyBody')}
+          </p>
+        </div>
+      ) : null}
+
       {isInfoRequested && annotation ? (
         <div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--warning-500)' }}>
           <h2 className="mb-2 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--warning-600)' }}>
@@ -604,43 +655,81 @@ export function OnboardingPage() {
           application that has already BEEN submitted is worse than no gate: it invites an action that no
           longer exists, and the read-only notice further down already says what state this is in. */}
       {!isReadOnly ? (
-      <Card title={outstanding.length === 0 ? t('onboarding.gateReady') : t('onboarding.gateTitle')}>
+      <Card
+        // The comp titles this card with the answer rather than with the question: "Two things left" is
+        // what a supplier came to find out, and "Before you can submit" made them read the list to learn
+        // it. The same string the step cards use, because it is the same sentence about the same list.
+        title={outstanding.length === 0 ? t('onboarding.gateReady') : t('onboarding.stepStatus.left', { count: outstanding.length })}
+        action={
+          <div className="flex flex-col items-end gap-1">
+            {isInfoRequested ? (
+              <Button isLoading={resubmitMutation.isPending} onClick={() => resubmitMutation.mutate()}>
+                {t('onboarding.resubmit')}
+              </Button>
+            ) : (
+              <Button
+                isLoading={submitMutation.isPending}
+                disabled={missing.size > 0}
+                onClick={() => submitMutation.mutate()}
+              >
+                {t('onboarding.submit')}
+              </Button>
+            )}
+            {!isInfoRequested && missing.size > 0 ? (
+              <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                {t('onboarding.gateBlocked')}
+              </span>
+            ) : null}
+          </div>
+        }
+      >
         {outstanding.length > 0 ? (
           <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('onboarding.gateHelp')}
           </p>
         ) : null}
+        {/*
+          The bar is the comp's, and it is the one thing on this card that says how MUCH is left rather
+          than what. It carries the same two numbers to a screen reader through `role="progressbar"`,
+          because a coloured strip says nothing to one.
+        */}
+        <div
+          role="progressbar"
+          aria-label={t('onboarding.gateProgressLabel')}
+          aria-valuemin={0}
+          aria-valuemax={GATE_REQUIREMENTS}
+          aria-valuenow={GATE_REQUIREMENTS - outstanding.length}
+          className="mb-4 h-1.5 w-full overflow-hidden rounded-[var(--radius-pill)]"
+          style={{ backgroundColor: 'var(--color-bg-sunken)' }}
+        >
+          <div
+            className="h-full rounded-[var(--radius-pill)]"
+            style={{
+              width: `${((GATE_REQUIREMENTS - outstanding.length) / GATE_REQUIREMENTS) * 100}%`,
+              backgroundColor: 'var(--color-brand-solid)',
+            }}
+          />
+        </div>
         {outstanding.length > 0 ? (
-          <ul className="mb-4 flex flex-col gap-1.5">
+          // Chips rather than badge-and-label rows. Every row carried the word "Missing", which is what
+          // the card's own title now says once, and eight repetitions of it were eight things to read
+          // past to reach the two names that mattered.
+          <ul aria-label={t('onboarding.gateOutstandingLabel')} className="m-0 flex list-none flex-wrap gap-2 p-0">
             {outstanding.map((item) => (
-              <li key={item.key} className="flex items-center gap-2">
-                <Badge tone="warning">{t('onboarding.missing')}</Badge>
-                <span style={{ color: 'var(--color-text-primary)' }}>{item.label}</span>
-                {item.flagged ? <Badge tone="danger">{t('onboarding.flagged')}</Badge> : null}
+              <li
+                key={item.key}
+                className="rounded-[var(--radius-pill)] px-3 py-1 text-[length:var(--text-body-sm)]"
+                style={{
+                  border: `1px solid ${item.flagged ? 'var(--color-danger-fg)' : 'var(--color-warning-fg)'}`,
+                  color: item.flagged ? 'var(--color-danger-fg)' : 'var(--color-warning-fg)',
+                }}
+              >
+                {item.label}
+                {item.flagged ? ` · ${t('onboarding.flagged')}` : ''}
               </li>
             ))}
           </ul>
         ) : null}
-        <div className="flex flex-wrap items-center gap-3">
-          {isInfoRequested ? (
-            <Button isLoading={resubmitMutation.isPending} onClick={() => resubmitMutation.mutate()}>
-              {t('onboarding.resubmit')}
-            </Button>
-          ) : (
-            <Button
-              isLoading={submitMutation.isPending}
-              disabled={missing.size > 0}
-              onClick={() => submitMutation.mutate()}
-            >
-              {t('onboarding.submit')}
-            </Button>
-          )}
-          {!isInfoRequested && missing.size > 0 ? (
-            <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-              {t('onboarding.gateBlocked')}
-            </span>
-          ) : null}
-        </div>
       </Card>
       ) : null}
 
@@ -731,11 +820,7 @@ export function OnboardingPage() {
                 {t('onboarding.saveProfile')}
               </Button>
             </div>
-          ) : (
-            <output className="block" style={{ color: 'var(--success-600)' }}>
-              {t('onboarding.readOnlyNotice')}
-            </output>
-          )}
+          ) : null}
         </form>
       </Card>
 
