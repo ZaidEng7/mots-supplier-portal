@@ -62,7 +62,9 @@ export function Select({ id, value, onValueChange, options, placeholder, disable
           // --z-popover (600), deliberately ABOVE --z-modal (500) rather than the --z-dropdown slot
           // §4.5 would suggest: a select inside a dialog is the case that produced that defect, and
           // the dropdown layer sits below the dialog it would have to open over.
-          className="overflow-hidden rounded-[var(--radius-md)]"
+          // `msp-pop` carries a 120ms scale-and-fade (src/index.css) - the shortest animation in the
+          // product, because this is the one an officer opens dozens of times a day.
+          className="msp-pop overflow-hidden rounded-[var(--radius-md)]"
           style={{
             backgroundColor: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
@@ -75,14 +77,12 @@ export function Select({ id, value, onValueChange, options, placeholder, disable
               <RadixSelect.Item
                 key={opt.value}
                 value={opt.value}
-                className="flex cursor-pointer items-center justify-between rounded px-2 py-2 text-[length:var(--text-body)] outline-none data-[highlighted]:outline-none"
+                // msp-option paints the highlight from `data-highlighted`, which Radix sets for the
+                // pointer AND for the arrow keys. The inline pointer handlers this replaces painted
+                // only the pointer case, so moving through a filter with the keyboard highlighted
+                // nothing - the outline that would otherwise have shown it is removed on the line above.
+                className="msp-option flex cursor-pointer items-center justify-between rounded px-2 py-2 text-[length:var(--text-body)] outline-none data-[highlighted]:outline-none"
                 style={{ color: 'var(--color-text-primary)' }}
-                onPointerEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
-                }}
-                onPointerLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                }}
               >
                 <RadixSelect.ItemText>{opt.label}</RadixSelect.ItemText>
                 <RadixSelect.ItemIndicator>
