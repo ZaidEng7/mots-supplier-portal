@@ -30,15 +30,19 @@ const TOKENS = join(SRC, 'styles/tokens.css')
 /**
  * Why the dark theme is defined and cannot be reached.
  *
- * <p>Set to null the moment anything turns it on.</p>
+ * <p>Null, because it is reachable now. It was not for the whole of the redesign: the palette was
+ * written, re-stepped and guarded pair-by-pair while nothing in the product applied it, and a Rams
+ * audit scored the environmental-friendliness principle at zero on that single fact. `tokens.css` now
+ * binds it to `prefers-color-scheme`, so the portal follows the setting the reader already made in
+ * their operating system.</p>
+ *
+ * <p>Left in place rather than deleted with the note: if a future change removes that binding, the
+ * assertion below demands a written reason again rather than letting the theme go quiet a second
+ * time.</p>
  */
-const UNREACHABLE_BECAUSE: string | null =
-  'No decision has been taken to ship it. The palette is maintained and guarded because it is cheaper '
-  + 'to keep a defined theme correct than to repair one later, and because the redesign re-stepped '
-  + 'every colour in it. Turning it on is a product change - it alters what every user sees - and it '
-  + 'needs a switch, a stored preference or a binding to the reader\'s own system setting, none of '
-  + 'which exist. Recorded here rather than in a commit message so the next person to read the dark '
-  + 'block learns it from the code.'
+// Widened deliberately: a `const … = null` narrows to the null type, and the branch below - the one
+// that demands a written reason if the binding is ever removed - would stop compiling with it.
+const UNREACHABLE_BECAUSE = null as string | null
 
 /** Everything a browser could load, minus the tests and stories that are allowed to force a theme. */
 function shippedFiles(): string[] {

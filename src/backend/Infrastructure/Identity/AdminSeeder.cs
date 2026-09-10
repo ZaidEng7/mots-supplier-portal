@@ -52,7 +52,26 @@ internal static class DevStaffSeed
         string role,
         string passwordKey)
     {
-        if (await userManager.FindByEmailAsync(email) is not null) return null;
+        // An account that already exists keeps its identity - but not necessarily its password.
+        //
+        // The "one password across every seeded account" change altered what this fallback IS, and an
+        // idempotent seeder returns early on a database created before that change, so the two accounts
+        // it was meant to fix kept the old value. Found by trying to sign in as the reviewer during a
+        // walkthrough on exactly such a database: the account existed, the published password was
+        // refused, and nothing anywhere said why.
+        //
+        // So the password is repaired rather than assumed. Development only - the whole seeder refuses
+        // to run anywhere else - and it changes nothing on a database where the two already agree.
+        if (await userManager.FindByEmailAsync(email) is { } existing)
+        {
+            var configured = configuration[passwordKey] ?? DevDataSeeder.Password;
+            if (!await userManager.CheckPasswordAsync(existing, configured))
+            {
+                var reset = await userManager.RemovePasswordAsync(existing);
+                if (reset.Succeeded) await userManager.AddPasswordAsync(existing, configured);
+            }
+            return null;
+        }
 
         // Identity policy here is length>=12, no complexity requirement (Program.cs) - the fallback is
         // kept simple to type live rather than adding punctuation/case-mixing nothing actually enforces.
