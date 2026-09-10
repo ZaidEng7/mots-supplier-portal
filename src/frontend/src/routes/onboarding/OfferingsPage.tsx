@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Card, PageHeading, QueryError, SkeletonList, useToast} from '../../components/ui'
+import { FormMeasure } from '../../components/ui/FormMeasure'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, type SupplierProfile } from '../../api/supplier'
 import { linkCategory, unlinkCategory } from '../../api/categoryLinks'
@@ -59,7 +60,7 @@ export function OfferingsPage() {
   const missingCategoryLink = (profile?.missingProfileFields ?? []).includes('categoryLink')
 
   return (
-    <div className="flex flex-col gap-6">
+    <FormMeasure>
       <div>
         <PageHeading title={t('offerings.title')} subtitle={t('offerings.subtitle')} />
       </div>
@@ -99,6 +100,6 @@ export function OfferingsPage() {
           </ul>
         )}
       </Card>
-    </div>
+    </FormMeasure>
   )
 }

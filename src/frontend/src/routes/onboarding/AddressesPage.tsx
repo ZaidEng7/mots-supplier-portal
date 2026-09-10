@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { FormMeasure } from '../../components/ui/FormMeasure'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Address, type Branch, type SupplierProfile } from '../../api/supplier'
 import { addAddress, updateAddress, removeAddress, addBranch, updateBranch, removeBranch, type UpdateBranchPayload } from '../../api/addresses'
@@ -252,7 +253,7 @@ export function AddressesPage() {
   const addressOptions = addresses.map((a) => ({ value: a.id, label: `${t(`addresses.kinds.${a.kind}`)} — ${a.city}` }))
 
   return (
-    <div className="flex flex-col gap-6">
+    <FormMeasure>
       <div>
         <PageHeading title={t('addresses.title')} subtitle={t('addresses.subtitle')} />
       </div>
@@ -382,6 +383,6 @@ export function AddressesPage() {
         isSaving={branchMutation.isPending}
         apiError={branchMutation.error instanceof SupplierApiError ? branchMutation.error.message : undefined}
       />
-    </div>
+    </FormMeasure>
   )
 }

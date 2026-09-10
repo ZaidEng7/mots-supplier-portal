@@ -73,7 +73,13 @@ export function AppShell({
             searchTo={searchTo}
             onLogout={handleLogout}
           />
-          <main id="main" className="flex flex-1 flex-col px-4 py-8 sm:px-6">{children}</main>
+          {/*
+            A measure, which no screen had. On a wide monitor the content simply filled the window: a
+            six-column table stretched to 1800 pixels puts the row's last cell an inch from the first,
+            and a form put a label most of a screen away from its own field. 1440 is the approved
+            template's own cap for a page; forms cap themselves tighter still, in `FormMeasure`.
+          */}
+          <main id="main" className="flex w-full max-w-[1440px] flex-1 flex-col px-4 py-8 sm:px-6">{children}</main>
           {footer}
         </div>
       </div>

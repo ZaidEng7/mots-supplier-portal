@@ -71,7 +71,7 @@ export function OnboardingStepNav() {
                 style={{
                   backgroundColor: 'var(--color-bg-surface)',
                   border: `1px solid ${active ? 'var(--color-brand-solid)' : 'var(--color-border)'}`,
-                  boxShadow: active ? '0 0 0 3px var(--color-brand-subtle)' : 'var(--shadow-sm)',
+                  boxShadow: active ? '0 0 0 3px var(--color-accent-wash)' : 'var(--shadow-sm)',
                   textDecoration: 'none',
                 }}
               >
