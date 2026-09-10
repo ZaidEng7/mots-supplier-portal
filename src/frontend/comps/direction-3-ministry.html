@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Direction 3 · State Instrument</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<style>
+  /* DIRECTION 3 — STATE INSTRUMENT. OUTSIDE the current token layer.
+     A deep institutional green field, brass rules, a much larger type scale, and far more air.
+     This is what relaxing tokens.css buys. Every colour below is new. */
+  :root{
+    --ink:#0C1F1A; --ink-2:#33463F; --ink-3:#6C7C75;
+    --field:#0C1F1A; --field-2:#123027;
+    --paper:#FBFAF7; --surface:#FFFFFF; --rule:#E3E0D8;
+    --brass:#B08D3F; --brass-soft:#F2E9D4;
+    --live:#1E874B; --warn:#B7791F; --stop:#9C2C20;
+    --r:4px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55}
+  .spacer{flex:1}
+
+  header{background:var(--field);color:#EAF2EE}
+  .util{display:flex;align-items:center;gap:28px;padding:14px 48px;border-block-end:1px solid rgba(255,255,255,.10);
+        font-size:13px;letter-spacing:.01em}
+  .util a{color:rgba(234,242,238,.72);text-decoration:none}
+  .util .mark{font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:12px;color:var(--brass)}
+  .hero{padding:44px 48px 40px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:40px;align-items:end}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin:0 0 14px;
+          font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  h1{font-size:46px;line-height:1.04;letter-spacing:-.022em;font-weight:600;margin:0;max-inline-size:20ch}
+  .meta{margin:16px 0 0;color:rgba(234,242,238,.62);font-size:14px;
+        font-family:ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.01em}
+  .state{display:flex;gap:10px;margin-block-start:20px}
+  .pill{border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:5px 14px;font-size:12.5px;
+        display:inline-flex;align-items:center;gap:7px;color:#EAF2EE}
+  .pill.live{border-color:rgba(110,214,160,.5);color:#8FE3B6}
+  .pill .dot{inline-size:6px;block-size:6px;border-radius:999px;background:currentColor}
+  .clock{text-align:end}
+  .clock .n{font-size:56px;line-height:1;font-weight:600;letter-spacing:-.03em;color:#FFF;
+            font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  .clock .l{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--brass);margin-block-start:8px}
+
+  nav.sections{background:var(--field-2);padding:0 48px;display:flex;gap:34px;border-block-end:1px solid rgba(255,255,255,.08)}
+  nav.sections a{color:rgba(234,242,238,.6);text-decoration:none;font-size:13.5px;padding:15px 0;
+                 border-block-end:2px solid transparent;display:flex;gap:9px;align-items:center}
+  nav.sections a[aria-current]{color:#FFF;border-block-end-color:var(--brass)}
+  nav.sections .n{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--brass)}
+
+  main{padding:44px 48px 64px;display:grid;grid-template-columns:minmax(0,1fr) 20rem;gap:44px;align-items:start;max-inline-size:1360px}
+  section{margin-block-end:44px}
+  .shead{display:flex;align-items:baseline;gap:14px;border-block-end:2px solid var(--ink);padding-block-end:10px;margin-block-end:0}
+  .shead h2{font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .shead .n{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--brass)}
+  .shead .act{font-size:13px;color:var(--ink-2);text-decoration:none;border-block-end:1px solid var(--brass)}
+  table{inline-size:100%;border-collapse:collapse;font-size:15px}
+  th{text-align:start;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:14px 16px 10px 0}
+  td{padding:15px 16px 15px 0;border-block-start:1px solid var(--rule)}
+  td.num,th.num{text-align:end;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  tbody tr:hover td{background:var(--brass-soft)}
+  .item{font-weight:500}
+  .sub{display:block;color:var(--ink-3);font-size:13px;margin-block-start:2px}
+
+  .rail>div{margin-block-end:26px}
+  .rail h3{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin:0 0 14px;font-weight:600}
+  .brief{background:var(--field);color:#EAF2EE;border-radius:var(--r);padding:22px}
+  .brief h3{color:var(--brass);margin-block-end:12px}
+  .brief p{margin:0 0 18px;font-size:14px;color:rgba(234,242,238,.86);line-height:1.55}
+  .brief button{inline-size:100%;background:var(--brass);color:#1A1204;border:0;border-radius:var(--r);
+                padding:12px 16px;font:inherit;font-weight:600;font-size:14px;letter-spacing:.01em}
+  dl{display:grid;grid-template-columns:1fr auto;gap:12px 16px;margin:0;font-size:14px;
+     border-block-start:1px solid var(--rule);padding-block-start:14px}
+  dt{color:var(--ink-3)}
+  dd{margin:0;text-align:end;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;font-weight:500}
+  .prog{display:flex;flex-direction:column;gap:11px;font-size:13.5px}
+  .prog div{display:flex;align-items:center;gap:11px;color:var(--ink-3)}
+  .prog .m{inline-size:9px;block-size:9px;border-radius:999px;border:2px solid var(--rule);flex:none}
+  .prog .done .m{background:var(--live);border-color:var(--live)}
+  .prog .now{color:var(--ink);font-weight:600}
+  .prog .now .m{background:var(--brass);border-color:var(--brass);box-shadow:0 0 0 4px var(--brass-soft)}
+</style>
+</head>
+<body>
+<header>
+  <div class="util"><span class="mark">Ministry of Transport · Procurement</span>
+    <a href="#">Dashboard</a><a href="#">Tenders</a><a href="#">Suppliers</a><a href="#">Search</a>
+    <span class="spacer"></span><a href="#">العربية</a><a href="#">Log out</a></div>
+  <div class="hero">
+    <div>
+      <p class="kicker">Request for quotation</p>
+      <h1>Catering services for three sites</h1>
+      <p class="meta">RFQ-2026-000001 &nbsp;·&nbsp; Rana Tester &nbsp;·&nbsp; Directorate of Operations</p>
+      <div class="state">
+        <span class="pill live"><span class="dot"></span>Open for submissions</span>
+        <span class="pill">4 of 7 invited have bid</span>
+      </div>
+    </div>
+    <div class="clock"><div class="n">6</div><div class="l">days to close</div></div>
+  </div>
+</header>
+
+<nav class="sections">
+  <a href="#" aria-current="page">Tender</a>
+  <a href="#">Suppliers <span class="n">7</span></a>
+  <a href="#">Bids <span class="n">4</span></a>
+  <a href="#">Evaluation</a><a href="#">Award</a><a href="#">Settings</a>
+</nav>
+
+<main>
+  <div>
+    <section>
+      <div class="shead"><h2>Line items</h2><span class="n">3</span><span class="spacer"></span><a class="act" href="#">Add item</a></div>
+      <table>
+        <thead><tr><th>Item</th><th>Category</th><th class="num">Quantity</th><th>Unit</th></tr></thead>
+        <tbody>
+          <tr><td class="item">Hot meals, site A<span class="sub">Delivered daily, 12 months from award</span></td><td>Catering</td><td class="num">500</td><td>unit</td></tr>
+          <tr><td class="item">Hot meals, site B<span class="sub">Delivered daily, 12 months from award</span></td><td>Catering</td><td class="num">320</td><td>unit</td></tr>
+          <tr><td class="item">Beverage service<span class="sub">All three sites</span></td><td>Catering</td><td class="num">1,200</td><td>person</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="shead"><h2>Requirements</h2><span class="n">2</span><span class="spacer"></span><a class="act" href="#">Add requirement</a></div>
+      <table>
+        <thead><tr><th>Requirement</th><th>Envelope</th><th>Mandatory</th></tr></thead>
+        <tbody>
+          <tr><td class="item">Food safety certificate, valid 12 months</td><td>Technical</td><td>Yes</td></tr>
+          <tr><td class="item">Delivery schedule for each site</td><td>Technical</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="shead"><h2>Description and documents</h2><span class="spacer"></span><a class="act" href="#">Edit</a></div>
+      <table>
+        <tbody>
+          <tr><td class="item">Scope of works.pdf<span class="sub">Locked once the tender left Draft</span></td><td class="num">2.4 MB</td></tr>
+          <tr><td class="item">Scoring sheet<span class="sub">Standard services template, version 3</span></td><td class="num">Bound</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <aside class="rail">
+    <div class="brief">
+      <h3>What happens next</h3>
+      <p>Bidding closes on 20 September. Four of seven invited suppliers have bid. Nothing is required from you until then.</p>
+      <button>Remind the three who have not bid</button>
+    </div>
+    <div>
+      <h3>Where this tender stands</h3>
+      <div class="prog">
+        <div class="done"><span class="m"></span>Drafted</div>
+        <div class="done"><span class="m"></span>Reviewed and approved</div>
+        <div class="done"><span class="m"></span>Published · 1 Sep</div>
+        <div class="now"><span class="m"></span>Open for bids · closes 20 Sep</div>
+        <div><span class="m"></span>Evaluation</div>
+        <div><span class="m"></span>Award</div>
+      </div>
+    </div>
+    <div>
+      <h3>At a glance</h3>
+      <dl><dt>Invited</dt><dd>7</dd><dt>Bids received</dt><dd>4</dd><dt>Questions open</dt><dd>1</dd>
+          <dt>Line items</dt><dd>3</dd><dt>Changes issued</dt><dd>0</dd></dl>
+    </div>
+  </aside>
+</main>
+</body>
+</html>

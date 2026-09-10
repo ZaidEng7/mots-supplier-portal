@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Direction 2 · The Line Diagram</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<link rel="stylesheet" href="/src/styles/tokens.css">
+<style>
+  /* DIRECTION 2 — THE LINE DIAGRAM. Inside the token layer, unchanged.
+     The lifecycle is drawn as a route with stations rather than listed down a rail. */
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font-ui);background:var(--color-bg-app);color:var(--color-text-primary);font-size:var(--text-body-sm)}
+  .chrome{background:var(--color-chrome-surface);border-block-end:1px solid var(--color-chrome-border);
+          padding:var(--space-3) var(--space-6);display:flex;align-items:center;gap:var(--space-6)}
+  .chrome a,.chrome span{color:var(--color-chrome-text);font-size:var(--text-body-sm);text-decoration:none}
+  .chrome .brand{font-size:var(--text-h4);font-weight:var(--fw-semibold);color:var(--color-gold-fg)}
+  .spacer{flex:1}
+
+  .band{background:var(--color-bg-surface);border-block-end:1px solid var(--color-border);padding:var(--space-6) var(--space-6) 0}
+  h1{font-size:var(--text-h1);line-height:var(--lh-tight);font-weight:var(--fw-semibold);margin:0}
+  .ref{font-family:var(--font-numeric);font-feature-settings:"tnum" 1;color:var(--color-text-secondary);
+       font-size:var(--text-body-sm);margin-block-start:var(--space-1);display:block}
+
+  /* ---- the diagram ---- */
+  .diagram{margin-block:var(--space-6) 0;padding-block-end:var(--space-5);overflow-x:auto}
+  .line{position:relative;min-inline-size:56rem;block-size:5.5rem}
+  .track{position:absolute;inset-block-start:1.15rem;inset-inline:2rem;block-size:3px;
+         background:var(--color-border-strong);border-radius:var(--radius-pill)}
+  .track.done{inset-inline-end:auto;inline-size:calc(33% - 1rem);background:var(--color-brand-solid)}
+  .stop{position:absolute;inset-block-start:0;transform:translateX(-50%);text-align:center;inline-size:8rem}
+  .mark{inline-size:16px;block-size:16px;border-radius:var(--radius-pill);border:3px solid var(--color-border-strong);
+        background:var(--color-bg-surface);margin:.4rem auto var(--space-2)}
+  .stop.done .mark{background:var(--color-brand-solid);border-color:var(--color-brand-solid)}
+  .stop.now .mark{background:var(--color-brand-solid);border-color:var(--color-brand-solid);
+                  box-shadow:0 0 0 5px var(--color-brand-subtle);inline-size:20px;block-size:20px;margin-block-start:.2rem}
+  .stop label{display:block;font-size:var(--text-caption);color:var(--color-text-secondary);line-height:1.25}
+  .stop.now label{color:var(--color-text-primary);font-weight:var(--fw-semibold);font-size:var(--text-body-sm)}
+  .stop small{display:block;font-family:var(--font-numeric);color:var(--color-text-muted);font-size:11px}
+  /* the branch: returned for edits */
+  .branch{position:absolute;inset-block-start:1.3rem;inline-size:8.5rem;block-size:2.2rem;
+          border-inline-start:2px dashed var(--color-warning-fg);border-block-end:2px dashed var(--color-warning-fg);
+          border-end-start-radius:10px}
+  .branch span{position:absolute;inset-block-start:1.9rem;inset-inline-start:.6rem;white-space:nowrap;
+               font-size:11px;color:var(--color-warning-fg)}
+
+  .body{display:grid;grid-template-columns:minmax(0,1fr) 20rem;gap:var(--space-6);padding:var(--space-6);align-items:start}
+  .card{background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
+  .card+.card{margin-block-start:var(--space-4)}
+  .card-h{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-5)}
+  .card-h h2{font-size:var(--text-h4);font-weight:var(--fw-semibold);margin:0}
+  .count{background:var(--color-bg-sunken);border-radius:var(--radius-pill);padding:0 var(--space-2);
+         font-size:var(--text-caption);font-family:var(--font-numeric);color:var(--color-text-secondary)}
+  table{inline-size:100%;border-collapse:collapse;font-size:var(--text-body)}
+  th{text-align:start;font-weight:var(--fw-semibold);color:var(--color-text-secondary);font-size:var(--text-caption);
+     padding:var(--space-2) var(--space-3);background:var(--color-bg-sunken)}
+  td{padding:var(--space-3);border-block-start:1px solid var(--color-border)}
+  td.num,th.num{text-align:end;font-family:var(--font-numeric);font-feature-settings:"tnum" 1}
+  .next{background:var(--color-brand-subtle);border:1px solid var(--color-brand-solid);border-radius:var(--radius-lg);padding:var(--space-4)}
+  .next h3{font-size:var(--text-caption);text-transform:uppercase;letter-spacing:.04em;color:var(--color-text-brand);
+           margin:0 0 var(--space-2);font-weight:var(--fw-semibold)}
+  .next p{margin:0 0 var(--space-3);font-size:var(--text-body-sm)}
+  button.primary{background:var(--color-brand-solid);color:var(--color-text-inverse);border:0;inline-size:100%;
+                 border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);font:inherit;font-weight:var(--fw-medium)}
+  .facts{background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);
+         padding:var(--space-4);margin-block-start:var(--space-4)}
+  .facts h3{font-size:var(--text-caption);text-transform:uppercase;letter-spacing:.04em;color:var(--color-text-secondary);
+            margin:0 0 var(--space-3);font-weight:var(--fw-semibold)}
+  dl{display:grid;grid-template-columns:1fr auto;gap:var(--space-2) var(--space-3);margin:0;font-size:var(--text-body-sm)}
+  dt{color:var(--color-text-secondary)}
+  dd{margin:0;text-align:end;font-family:var(--font-numeric);font-feature-settings:"tnum" 1}
+</style>
+</head>
+<body>
+<div class="chrome"><span class="brand">Supplier Portal · Back Office</span>
+  <a href="#">Dashboard</a><a href="#">Tenders</a><a href="#">Suppliers</a><a href="#">Search</a>
+  <span class="spacer"></span><span>العربية</span><a href="#">Log out</a></div>
+
+<div class="band">
+  <h1>Catering services for three sites</h1>
+  <span class="ref">RFQ-2026-000001 · Owner: Rana Tester · Ministry of Transport</span>
+
+  <div class="diagram">
+    <div class="line">
+      <div class="track"></div><div class="track done"></div>
+      <div class="branch" style="inset-inline-start:16.5%"><span>Returned for edits · once</span></div>
+
+      <div class="stop done" style="inset-inline-start:5%"><div class="mark"></div><label>Drafted</label><small>28 Aug</small></div>
+      <div class="stop done" style="inset-inline-start:16.5%"><div class="mark"></div><label>Internal review</label><small>30 Aug</small></div>
+      <div class="stop done" style="inset-inline-start:28%"><div class="mark"></div><label>Approved</label><small>31 Aug</small></div>
+      <div class="stop done" style="inset-inline-start:39.5%"><div class="mark"></div><label>Published</label><small>1 Sep</small></div>
+      <div class="stop now" style="inset-inline-start:51%"><div class="mark"></div><label>Open for bids</label><small>closes 20 Sep</small></div>
+      <div class="stop" style="inset-inline-start:62.5%"><div class="mark"></div><label>Submissions closed</label></div>
+      <div class="stop" style="inset-inline-start:74%"><div class="mark"></div><label>Under evaluation</label></div>
+      <div class="stop" style="inset-inline-start:85.5%"><div class="mark"></div><label>Award approval</label></div>
+      <div class="stop" style="inset-inline-start:96%"><div class="mark"></div><label>Awarded</label></div>
+    </div>
+  </div>
+</div>
+
+<div class="body">
+  <main>
+    <section class="card">
+      <div class="card-h"><h2>Line items</h2><span class="count">3</span></div>
+      <table>
+        <thead><tr><th>Item</th><th>Category</th><th class="num">Quantity</th><th>Unit</th></tr></thead>
+        <tbody>
+          <tr><td>Hot meals, site A</td><td>Catering</td><td class="num">500</td><td>unit</td></tr>
+          <tr><td>Hot meals, site B</td><td>Catering</td><td class="num">320</td><td>unit</td></tr>
+          <tr><td>Beverage service</td><td>Catering</td><td class="num">1,200</td><td>person</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Requirements</h2><span class="count">2</span></div>
+      <table>
+        <thead><tr><th>Requirement</th><th>Envelope</th><th>Mandatory</th></tr></thead>
+        <tbody>
+          <tr><td>Food safety certificate, valid 12 months</td><td>Technical</td><td>Yes</td></tr>
+          <tr><td>Delivery schedule for each site</td><td>Technical</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <aside>
+    <div class="next">
+      <h3>At this station</h3>
+      <p>Bidding closes on 20 September. Four of seven invited suppliers have bid. Nothing is required from you until then.</p>
+      <button class="primary">Remind the three who have not bid</button>
+    </div>
+    <div class="facts">
+      <h3>At a glance</h3>
+      <dl><dt>Invited</dt><dd>7</dd><dt>Bids received</dt><dd>4</dd><dt>Questions open</dt><dd>1</dd>
+          <dt>Line items</dt><dd>3</dd><dt>Changes issued</dt><dd>0</dd></dl>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

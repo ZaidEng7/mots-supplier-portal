@@ -1,0 +1,99 @@
+<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8">
+<title>Redesign, Supplier application</title>
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/400.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/500.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/600.css">
+<link rel="stylesheet" href="/node_modules/@fontsource/inter/700.css">
+<link rel="stylesheet" href="./shell.css"></head><body>
+<div class="app">
+<aside class="side">
+  <div class="brand"><span class="glyph">M</span><span class="name">Supplier Portal<small>Al-Sham Catering Co.</small></span></div>
+  <nav>
+    <div class="grp">
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Dashboard</a>
+    </div>
+    <div class="grp">
+      <h2>Bidding</h2>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 3h10M3 6.5h10M3 10h7"/></svg>Tenders<span class="tally">2</span></a>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 2.5h8v11l-4-2.5-4 2.5z"/></svg>My proposals<span class="tally">1</span></a>
+    </div>
+    <div class="grp">
+      <h2>Your company</h2>
+      <a class="item" href="#" aria-current="page"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13V5.5L8 3l5 2.5V13"/><path d="M6.5 13V9.5h3V13"/></svg>Application</a>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.5" y="2.5" width="9" height="11" rx="1.5"/><path d="M6 6h4M6 9h4"/></svg>Documents<span class="tally">3</span></a>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/></svg>Offerings</a>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="5.5" r="2.5"/><path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg>Team</a>
+    </div>
+    <div class="grp">
+      <h2>Account</h2>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"/></svg>Settings</a>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2a4 4 0 0 0-4 4v3l-1 2h10l-1-2V6a4 4 0 0 0-4-4Z"/></svg>Notifications</a>
+      <a class="item" href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/><path d="M6.4 6.2a1.7 1.7 0 1 1 2 1.7V9"/><path d="M8.4 11.2h.01"/></svg>Help</a>
+    </div>
+  </nav>
+  <div class="foot"><span class="av">AS</span><span class="who">Amjad Sabbagh<small>Supplier admin</small></span></div>
+</aside>
+<div>
+  <div class="top">
+    <div class="crumbs"><a href="#">Your company</a><span class="sep">/</span><span class="here">Application</span></div>
+    <span class="spacer"></span>
+    <div class="search">Search everything <kbd>K</kbd></div>
+    <button class="iconbtn" aria-label="Notifications"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2a4 4 0 0 0-4 4v3l-1 2h10l-1-2V6a4 4 0 0 0-4-4Z"/><path d="M6.5 13a1.5 1.5 0 0 0 3 0"/></svg></button>
+    <button class="btn quiet">العربية</button>
+  </div>
+  <main style="max-inline-size:1080px">
+    <div class="head">
+      <div><h1>Your application</h1><p class="sub">Complete these five steps and submit. A reviewer at the Ministry decides it, and we email you either way.</p></div>
+    </div>
+
+    <div class="card" style="margin-block-end:20px">
+      <div class="body" style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center">
+        <div>
+          <h2 style="margin:0 0 6px;font-size:17px;font-weight:600">Two things left</h2>
+          <p style="margin:0 0 12px;color:var(--ink-3);font-size:13px">Everything else is saved. You can submit as soon as these are done.</p>
+          <div class="bar-track" style="max-inline-size:420px;margin-block-end:12px"><div class="bar-fill" style="inline-size:67%"></div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span class="chip warn">Head office address</span>
+            <span class="chip warn">Commercial registration</span>
+          </div>
+        </div>
+        <div style="text-align:end">
+          <button class="btn pri" disabled style="opacity:.5">Submit application</button>
+          <p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-3)">Available once the two above are done</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="stepcards">
+      <a class="stepcard" href="#" aria-current="step"><span class="n">Step 1</span><span class="t">Company</span><span class="s left">1 thing left</span></a>
+      <a class="stepcard" href="#"><span class="n">Step 2</span><span class="t">People</span><span class="s done">Complete</span></a>
+      <a class="stepcard" href="#"><span class="n">Step 3</span><span class="t">Addresses</span><span class="s left">1 thing left</span></a>
+      <a class="stepcard" href="#"><span class="n">Step 4</span><span class="t">Banking</span><span class="s opt">Optional</span></a>
+      <a class="stepcard" href="#"><span class="n">Step 5</span><span class="t">What you supply</span><span class="s done">Complete</span></a>
+    </div>
+
+    <section class="card">
+      <header><h2>Legal information</h2><span class="tally">As written on your commercial register</span></header>
+      <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="field"><label for="a">Legal name, Arabic</label><input id="a" value="شركة الشام للتموين"></div>
+        <div class="field"><label for="b">Legal name, English</label><input id="b" value="Al-Sham Catering Co."></div>
+        <div class="field"><label for="c">Commercial register number</label><input id="c" value="RC-1234"><span class="hint">Digits only, as printed on the register</span></div>
+        <div class="field"><label for="d">Tax number</label><input id="d" value="TX-5678"></div>
+        <div class="field"><label for="e">Entity type</label><select id="e"><option>Company</option></select></div>
+        <div class="field"><label for="f">Established on</label><input id="f" value="01 Jan 2020"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><h2>Documents</h2><span class="tally">Two are required before you can be approved</span></header>
+      <table>
+        <tbody>
+          <tr><td><span class="lead">Commercial registration</span><span class="meta">Required. Nothing uploaded yet.</span></td><td style="text-align:end"><span class="chip warn">Required</span></td><td style="inline-size:1%"><button class="btn pri">Upload</button></td></tr>
+          <tr><td><span class="lead">Tax certificate</span><span class="meta">Expires 12 January 2027, 125 days left</span></td><td style="text-align:end"><span class="chip ok">Approved</span></td><td style="inline-size:1%"><button class="btn">Replace</button></td></tr>
+          <tr><td><span class="lead">Chamber of commerce membership</span><span class="meta">Optional. It never blocks a submission.</span></td><td style="text-align:end"><span class="chip mute">Not uploaded</span></td><td style="inline-size:1%"><button class="btn">Upload</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+</div></body></html>
