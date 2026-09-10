@@ -60,6 +60,8 @@ const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearc
 const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/EvaluationTemplatesPage').then((m) => ({ default: m.EvaluationTemplatesPage })))
 const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
 const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
+const TenderSuppliersPage = lazy(() => import('./routes/back-office/TenderSuppliersPage').then((m) => ({ default: m.TenderSuppliersPage })))
+const TenderSettingsPage = lazy(() => import('./routes/back-office/TenderSettingsPage').then((m) => ({ default: m.TenderSettingsPage })))
 const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
 const MyEvaluationBriefRoute = lazy(() => import('./routes/back-office/MyEvaluationBriefPage').then((m) => ({ default: m.MyEvaluationBriefRoute })))
 const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
@@ -718,6 +720,22 @@ const rfqDetailRoute = createRoute({
   component: RfqDetailPage,
 })
 
+// The comp's Suppliers tab: who was asked to bid, and what they asked back.
+const tenderSuppliersRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs/$referenceCode/suppliers',
+  component: TenderSuppliersPage,
+})
+
+// The comp's Settings tab. Everything done TO a tender rather than what the tender is - reassignment,
+// the deadline, addenda and cancellation - which the workspace used to stack below the tender's own
+// contents, so reading a line item meant scrolling past a cancel button.
+const tenderSettingsRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/rfqs/$referenceCode/settings',
+  component: TenderSettingsPage,
+})
+
 const myEvaluationRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/rfqs/$referenceCode/my-evaluation',
@@ -771,7 +789,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, ministryRfqMonitorRoute, ministryRfqDetailRoute, ministrySupplierRegistryRoute, ministryAwardAnalyticsRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, ministryRfqMonitorRoute, ministryRfqDetailRoute, ministrySupplierRegistryRoute, ministryAwardAnalyticsRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, tenderSuppliersRoute, tenderSettingsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })

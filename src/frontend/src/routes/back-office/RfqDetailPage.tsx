@@ -8,9 +8,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
   addRfqAttachment, removeRfqAttachment, getRfqAttachmentDownloadUrl,
-  submitRfqForReview, returnRfqForEdits, approveRfq, publishRfq, closeRfqSubmission, cancelRfq,
-  changeSubmissionDeadline, reassignRfq, listRfqAssignees,
-  inviteSupplier, suggestInvitationCandidates, answerClarification, publishClarification, issueAddendum,
+  submitRfqForReview, approveRfq, publishRfq, closeRfqSubmission, listRfqAssignees,
   updateRfqBasics, updateRfqItem, updateRequirement,
 } from '../../api/rfqs'
 import { listEvaluationTemplates } from '../../api/evaluationTemplates'
@@ -19,10 +17,10 @@ import {
   getEvaluation, openEvaluation, assignEvaluators, listEvaluatorCandidates, recuseEvaluator, consolidateEvaluation, finalizeEvaluation, reopenEvaluation,
 } from '../../api/evaluations'
 import { getWorkspace } from '../../api/workspace'
-import { formatDate, formatDateTime, formatNumber, formatRelative } from '../../lib/datetime'
+import { formatDateTime, formatNumber, formatRelative } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
 import { ButtonLink } from '../../components/ButtonLink'
-import { CancelSection } from './rfq/sections/CancelSection'
+import { TenderTabs } from './rfq/TenderTabs'
 import { apiErrorMessage } from '../../api/problem'
 
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
@@ -53,10 +51,6 @@ export function RfqDetailPage() {
   // reassignment is its own card, because it applies at every point in a tender's life rather than
   // at one transition.
   const [approverDraft, setApproverDraft] = useState('')
-  const [newOwnerDraft, setNewOwnerDraft] = useState('')
-  const [reassignReason, setReassignReason] = useState('')
-  const [deadlineDraft, setDeadlineDraft] = useState('')
-  const [deadlineReason, setDeadlineReason] = useState('')
   const [itemTitleAr, setItemTitleAr] = useState('')
   const [itemTitleEn, setItemTitleEn] = useState('')
   const [itemCategory, setItemCategory] = useState('')
@@ -66,8 +60,6 @@ export function RfqDetailPage() {
   const [reqTextEn, setReqTextEn] = useState('')
   const [reqMandatory, setReqMandatory] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
-  const [returnComments, setReturnComments] = useState('')
-  const [answerDrafts, setAnswerDrafts] = useState<Record<string, { text: string }>>({})
   // Which row is being corrected, and the values being typed into it. Null means "nobody is editing".
   //
   // An inline editor rather than a dialog: a correction is almost always one field on one row, and
@@ -80,10 +72,6 @@ export function RfqDetailPage() {
   const [details, setDetails] = useState({
     titleAr: '', titleEn: '', currencyCode: '', submissionOpensAt: '', submissionClosesAt: '',
   })
-  const [addendumTitleAr, setAddendumTitleAr] = useState('')
-  const [addendumTitleEn, setAddendumTitleEn] = useState('')
-  const [addendumDescAr, setAddendumDescAr] = useState('')
-  const [addendumDescEn, setAddendumDescEn] = useState('')
   /**
    * The page renders every transition and lets the SERVER refuse the ones this persona cannot take - which is
    * the pattern here and a good one, because a permission list in the client is a second authority.
@@ -111,10 +99,6 @@ export function RfqDetailPage() {
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const unitsQuery = useQuery({ queryKey: ['units-of-measure'], queryFn: fetchUnitsOfMeasure })
   const templatesQuery = useQuery({ queryKey: ['evaluation-templates'], queryFn: listEvaluationTemplates })
-  const candidatesQuery = useQuery({
-    queryKey: ['rfq-candidates', referenceCode],
-    queryFn: () => suggestInvitationCandidates(referenceCode),
-  })
   const rfq = rfqQuery.data
   /**
    * Where the evaluation panel is shown - and it used to be two states, which was a dead end.
@@ -155,7 +139,6 @@ export function RfqDetailPage() {
   const categories = categoriesQuery.data ?? []
   const units = unitsQuery.data ?? []
   const activeTemplates = (templatesQuery.data ?? []).filter((tpl) => tpl.status === 'Active')
-  const candidates = candidatesQuery.data ?? []
   const evaluation = evaluationQuery.data ?? null
 
   const errorMessage = (err: unknown, fallback: string) =>
@@ -255,24 +238,6 @@ export function RfqDetailPage() {
     queryFn: () => listRfqAssignees(referenceCode),
   })
 
-  const reassignMutation = useMutation({
-    mutationFn: () => reassignRfq(referenceCode, newOwnerDraft, reassignReason),
-    onSuccess: () => {
-      invalidate()
-      // The list's owner column and the "mine" filter both read from a different query.
-      invalidateQuietly(queryClient, { queryKey: ['rfqs'] })
-      notify({ kind: 'success', title: t('rfq.ownership.reassigned') })
-      setNewOwnerDraft(''); setReassignReason('')
-    },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
-  })
-
-  const returnMutation = useMutation({
-    mutationFn: () => returnRfqForEdits(referenceCode, returnComments),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.returned') }); setReturnComments('') },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
-  })
-
   const approveMutation = useMutation({
     mutationFn: () => approveRfq(referenceCode),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.approved') }) },
@@ -298,43 +263,6 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
-  // T-018: one control for both directions. The server decides which permission applies from the
-  // direction, so the UI does not have to know the caller's role - a 403 is surfaced as "not your
-  // direction" rather than hidden, because an officer who cannot shorten needs to know why.
-  const deadlineMutation = useMutation({
-    mutationFn: ({ deadline, reason }: { deadline: string; reason: string }) =>
-      changeSubmissionDeadline(referenceCode, new Date(deadline).toISOString(), reason),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.deadline.changed') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.deadline.failed')) }),
-  })
-
-  const inviteMutation = useMutation({
-    mutationFn: (supplierId: string) => inviteSupplier(referenceCode, supplierId),
-    onSuccess: () => {
-      invalidate()
-      invalidateQuietly(queryClient, { queryKey: ['rfq-candidates', referenceCode] })
-      notify({ kind: 'success', title: t('rfq.invitations.invited') })
-    },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.invitations.errors.inviteFailed')) }),
-  })
-
-  const answerMutation = useMutation({
-    mutationFn: ({ clarificationId, answer }: { clarificationId: string; answer: string }) =>
-      answerClarification(referenceCode, clarificationId, answer),
-    onSuccess: (_, { clarificationId }) => {
-      invalidate()
-      notify({ kind: 'success', title: t('rfq.clarifications.answered') })
-      setAnswerDrafts((prev) => { const next = { ...prev }; delete next[clarificationId]; return next })
-    },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.clarifications.errors.answerFailed')) }),
-  })
-
-  const publishClarificationMutation = useMutation({
-    mutationFn: (clarificationId: string) => publishClarification(referenceCode, clarificationId),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.clarifications.published') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.clarifications.errors.answerFailed')) }),
-  })
-
   // F-4: PUT /rfqs/{code} and updateRfqBasics both existed and nothing called either, so a tender
   // created with the wrong submission window - the easiest mistake on that form, both dates typed by
   // hand - could only be recovered by cancelling the tender and authoring it again.
@@ -353,26 +281,6 @@ export function RfqDetailPage() {
     }),
     onSuccess: () => { invalidate(); setDetailsOpen(false); notify({ kind: 'success', title: t('rfq.detailsSaved') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
-  })
-
-  const addendumMutation = useMutation({
-    mutationFn: () => issueAddendum(referenceCode, {
-      titleAr: addendumTitleAr, titleEn: addendumTitleEn, descriptionAr: addendumDescAr, descriptionEn: addendumDescEn,
-    }),
-    onSuccess: () => {
-      invalidate()
-      notify({ kind: 'success', title: t('rfq.addenda.issued') })
-      setAddendumTitleAr(''); setAddendumTitleEn(''); setAddendumDescAr(''); setAddendumDescEn('')
-    },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.addenda.errors.issueFailed')) }),
-  })
-
-  const cancelMutation = useMutation({
-    // The reason comes from the section's dialog rather than from state up here: it is that section's
-    // own working value and nothing else reads it.
-    mutationFn: (reason: string) => cancelRfq(referenceCode, reason),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }) },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
   const evaluationErrorMessage = (err: unknown, fallback: string) =>
@@ -430,12 +338,6 @@ export function RfqDetailPage() {
   const isInternalReview = rfq.state === 'InternalReview'
   const isApproved = rfq.state === 'Approved'
   const isSubmissionOpen = rfq.state === 'SubmissionOpen'
-  const canCancel = !['Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
-  const canInvite = !['SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting', 'Recommendation', 'AwardApproval', 'Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
-  const invitedSupplierIds = new Set(rfq.invitations.map((i) => i.supplierId))
-  const uninvitedCandidates = candidates.filter((c) => !invitedSupplierIds.has(c.supplierId))
-  const canIssueAddendum = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
-  const draftFor = (id: string) => answerDrafts[id] ?? { text: '' }
 
   /**
    * The rail's three answers, derived once rather than inside the JSX.
@@ -556,6 +458,12 @@ export function RfqDetailPage() {
       />
 
 
+      <TenderTabs
+        referenceCode={referenceCode}
+        invitedCount={rfq.invitations.length}
+        bidCount={workspaceQuery.data?.submittedProposalCount ?? 0}
+      />
+
       {/* One column on a narrow screen, two from the layout breakpoint up. The rail is FIRST in the
           DOM, so a screen reader and a 320px viewport both meet "what happens next" before the body,
           and grid placement moves it to the inline-end side on a wide one. That is why this is a grid
@@ -636,14 +544,10 @@ export function RfqDetailPage() {
         </aside>
 
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
-          <section aria-labelledby="rfq-group-tender" className="flex flex-col gap-4">
-            <h2
-              id="rfq-group-tender"
-              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
-              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
-            >
-              {t('rfq.groups.tender')}
-            </h2>
+          {/* No "The tender" heading any more: the tab strip above says which view this is, and a
+              grey label repeating the current tab is the kind of thing this pass exists to remove. The
+              Decisions group below keeps its heading, because it names a set the tab does not. */}
+          <div className="flex flex-col gap-4">
           {isDraft ? (
             <Card title={t('rfq.details.title')}>
               <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -934,109 +838,8 @@ export function RfqDetailPage() {
             ) : null}
           </Card>
 
-          </section>
+          </div>
 
-          <section aria-labelledby="rfq-group-suppliers" className="flex flex-col gap-4">
-            <h2
-              id="rfq-group-suppliers"
-              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
-              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
-            >
-              {t('rfq.groups.suppliers')}
-            </h2>
-          <Card title={t('rfq.invitations.title')}>
-            {rfq.invitations.length > 0 ? (
-              <Table caption={t('rfq.invitations.title')}>
-                <TableHead>
-                  <TableHeaderCell>{t('rfq.invitations.fields.supplier')}</TableHeaderCell>
-                  <TableHeaderCell>{t('rfq.invitations.fields.status')}</TableHeaderCell>
-                  <TableHeaderCell>{t('rfq.invitations.fields.invitedAt')}</TableHeaderCell>
-                  <TableHeaderCell>{t('rfq.invitations.fields.viewedAt')}</TableHeaderCell>
-                  <TableHeaderCell>{t('rfq.invitations.fields.declineReason')}</TableHeaderCell>
-                </TableHead>
-                <TableBody>
-                  {rfq.invitations.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell>{isArabic ? inv.supplierDisplayNameAr : inv.supplierDisplayNameEn}</TableCell>
-                      <TableCell>
-                        <StatusChip machine="invitation" value={inv.status} />
-                      </TableCell>
-                      <TableCell>{formatDate(inv.invitedAt, i18n.language)}</TableCell>
-                      <TableCell>{inv.viewedAt ? formatDate(inv.viewedAt, i18n.language) : '—'}</TableCell>
-                      <TableCell>{inv.declineReason ?? '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.invitations.none')}</p>
-            )}
-            {canInvite && uninvitedCandidates.length > 0 ? (
-              <div className="mt-4">
-                <p className="mb-2 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                  {t('rfq.invitations.candidatesTitle')}
-                </p>
-                <ul className="flex flex-col gap-2">
-                  {uninvitedCandidates.map((c) => (
-                    <li key={c.supplierId} className="flex items-center justify-between gap-2">
-                      <span>{isArabic ? c.displayNameAr : c.displayNameEn} ({t('rfq.invitations.matchCount', { count: c.matchCount })})</span>
-                      <Button size="sm" isLoading={inviteMutation.isPending} onClick={() => inviteMutation.mutate(c.supplierId)}>
-                        {t('rfq.invitations.invite')}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </Card>
-
-          <Card title={t('rfq.clarifications.title')}>
-            {rfq.clarifications.length > 0 ? (
-              <ul className="flex flex-col gap-4">
-                {rfq.clarifications.map((c) => {
-                  const draft = draftFor(c.id)
-                  return (
-                    <li key={c.id} className="border-b pb-4 last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-[var(--fw-medium)]">{isArabic ? c.askedBySupplierNameAr : c.askedBySupplierNameEn}: {c.question}</p>
-                        <Badge tone={c.visibility === 'PublishedToAll' ? 'success' : 'info'}>
-                          {c.visibility === 'PublishedToAll' ? t('rfq.clarifications.published') : t('rfq.clarifications.private')}
-                        </Badge>
-                      </div>
-                      {c.answer ? (
-                        <p className="mt-1" style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.answerLabel')}: {c.answer}</p>
-                      ) : (
-                        <div className="mt-2 flex flex-wrap items-end gap-2">
-                          <Input aria-label={t('rfq.clarifications.answerLabel')} placeholder={t('rfq.clarifications.answerLabel')}
-                            value={draft.text} onChange={(e) => setAnswerDrafts((prev) => ({ ...prev, [c.id]: { ...draft, text: e.target.value } }))} />
-                          <p className="w-full text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                            {t('rfq.clarifications.broadcastNotice')}
-                          </p>
-                          {/* A-4: no publish checkbox. Answering broadcasts to every invitee with the
-                              asker anonymised, so the officer is told that rather than asked it - an
-                              option whose only fair setting is "yes" is not a choice. */}
-                          <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
-                            onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text })}>
-                            {t('rfq.clarifications.answer')}
-                          </Button>
-                        </div>
-                      )}
-                      {c.answer && c.visibility === 'PrivateToAsker' ? (
-                        <Button size="sm" variant="secondary" className="mt-2" isLoading={publishClarificationMutation.isPending}
-                          onClick={() => publishClarificationMutation.mutate(c.id)}>
-                          {t('rfq.clarifications.publish')}
-                        </Button>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.clarifications.none')}</p>
-            )}
-          </Card>
-
-          </section>
 
           {/* Guarded, unlike the other three. Both of this group's members are conditional, so without
               this the screen renders the heading "Decisions" over nothing at all - a label describing an
@@ -1279,139 +1082,6 @@ export function RfqDetailPage() {
           </section>
           ) : null}
 
-          <section aria-labelledby="rfq-group-managing" className="flex flex-col gap-4">
-            <h2
-              id="rfq-group-managing"
-              className="mt-2 border-b pb-2 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] uppercase tracking-wide"
-              style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
-            >
-              {t('rfq.groups.managing')}
-            </h2>
-          {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people
-              do, not when a tender does. Hide-never-gate as everywhere else - the endpoint re-enforces
-              rfq.reassign, which officers do not hold, so an officer sees this card and gets a 403 rather
-              than being told the control does not exist. */}
-          {canCancel ? (
-            <Card title={t('rfq.ownership.title')}>
-              <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                {t('rfq.ownership.help')}
-              </p>
-              <div className="flex flex-wrap items-end gap-2">
-                <Select
-                  aria-label={t('rfq.ownership.newOwner')}
-                  placeholder={t('rfq.ownership.newOwner')}
-                  value={newOwnerDraft}
-                  onValueChange={setNewOwnerDraft}
-                  options={(assigneesQuery.data?.owners ?? []).map((o) => ({ value: o.userId, label: o.fullName }))}
-                />
-                {/* Mandatory. The audit row is the whole point of this operation, and a row saying only
-                    that ownership moved answers nothing a month later. */}
-                <Input
-                  aria-label={t('rfq.ownership.reason')}
-                  placeholder={t('rfq.ownership.reason')}
-                  value={reassignReason}
-                  onChange={(e) => setReassignReason(e.target.value)}
-                />
-                <Button
-                  variant="secondary"
-                  isLoading={reassignMutation.isPending}
-                  disabled={!newOwnerDraft || !reassignReason}
-                  onClick={() => reassignMutation.mutate()}
-                >
-                  {t('rfq.ownership.reassign')}
-                </Button>
-              </div>
-            </Card>
-          ) : null}
-
-          {/*
-            * F-4: the tender's own fields, editable while Draft - which is what Draft is documented to mean.
-            *
-            * `PUT /api/v1/rfqs/{code}` and `updateRfqBasics` both existed and nothing called either, so an
-            * officer who typed the submission window wrongly at creation had two options: cancel the tender
-            * and author it again, or ask an engineer to issue the PUT. Both happened during the walkthrough.
-            *
-            * Draft only, and that is the domain's rule rather than this screen's: UpdateBasics calls
-            * EnsureDraftEditable, because bidders price against what they were shown.
-            */}
-          {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
-              domain accepts. Same gate as the addendum control above, and for the same reason. */}
-          {canIssueAddendum ? (
-            <Card title={t('rfq.deadline.title')}>
-              <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                {t('rfq.deadline.help')}
-              </p>
-              <div className="flex flex-wrap items-end gap-2">
-                <Input
-                  type="datetime-local"
-                  aria-label={t('rfq.deadline.newDeadline')}
-                  value={deadlineDraft}
-                  onChange={(e) => setDeadlineDraft(e.target.value)}
-                />
-                {/* A-6: mandatory. A deadline moved with no stated basis is what the ruling exists to
-                    prevent, and the supplier reads this on their own view of the RFQ. */}
-                <Input
-                  aria-label={t('rfq.deadline.reason')}
-                  placeholder={t('rfq.deadline.reason')}
-                  value={deadlineReason}
-                  onChange={(e) => setDeadlineReason(e.target.value)}
-                />
-                <Button
-                  variant="secondary"
-                  isLoading={deadlineMutation.isPending}
-                  disabled={!deadlineDraft || !deadlineReason}
-                  onClick={() => deadlineMutation.mutate({ deadline: deadlineDraft, reason: deadlineReason })}
-                >
-                  {t('rfq.deadline.apply')}
-                </Button>
-              </div>
-            </Card>
-          ) : null}
-
-          {isInternalReview ? (
-            <Card title={t('rfq.returnForEditsTitle')}>
-              <div className="flex gap-2">
-                <Input aria-label={t('rfq.fields.comments')} placeholder={t('rfq.fields.comments')} value={returnComments} onChange={(e) => setReturnComments(e.target.value)} />
-                <Button variant="ghost" isLoading={returnMutation.isPending} onClick={() => returnMutation.mutate()}>{t('rfq.returnForEdits')}</Button>
-              </div>
-            </Card>
-          ) : null}
-
-          <Card title={t('rfq.addenda.title')}>
-            {rfq.addenda.length > 0 ? (
-              <ul className="flex flex-col gap-2">
-                {rfq.addenda.map((a) => (
-                  <li key={a.id}>
-                    <p className="font-[var(--fw-medium)]">{isArabic ? a.titleAr : a.titleEn}</p>
-                    <p style={{ color: 'var(--color-text-secondary)' }}>{isArabic ? a.descriptionAr : a.descriptionEn}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ color: 'var(--color-text-secondary)' }}>{t('rfq.addenda.none')}</p>
-            )}
-            {canIssueAddendum ? (
-              <form className="mt-4 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); addendumMutation.mutate() }}>
-                <div className="flex flex-wrap gap-2">
-                  <Input aria-label={t('rfq.fields.titleEn')} placeholder={t('rfq.fields.titleEn')} value={addendumTitleEn} onChange={(e) => setAddendumTitleEn(e.target.value)} />
-                  <Input aria-label={t('rfq.fields.titleAr')} placeholder={t('rfq.fields.titleAr')} value={addendumTitleAr} onChange={(e) => setAddendumTitleAr(e.target.value)} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Input aria-label={t('rfq.addenda.descriptionEn')} placeholder={t('rfq.addenda.descriptionEn')} value={addendumDescEn} onChange={(e) => setAddendumDescEn(e.target.value)} />
-                  <Input aria-label={t('rfq.addenda.descriptionAr')} placeholder={t('rfq.addenda.descriptionAr')} value={addendumDescAr} onChange={(e) => setAddendumDescAr(e.target.value)} />
-                </div>
-                <Button type="submit" size="sm" className="self-start" isLoading={addendumMutation.isPending}
-                  disabled={!addendumTitleAr || !addendumTitleEn || !addendumDescAr || !addendumDescEn}>
-                  {t('rfq.addenda.issue')}
-                </Button>
-              </form>
-            ) : null}
-          </Card>
-
-          {canCancel ? (
-            <CancelSection onCancel={(reason) => cancelMutation.mutate(reason)} isPending={cancelMutation.isPending} />
-          ) : null}
-          </section>
 
         </div>
       </div>

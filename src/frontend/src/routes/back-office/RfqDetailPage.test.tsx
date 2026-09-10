@@ -11,6 +11,10 @@ vi.mock('@tanstack/react-router', async () => {
   return {
     ...actual,
     useParams: () => ({ referenceCode: 'RFQ-2026-000001' }),
+    // The tab strip asks where it is, so the tests answer: on the tender tab itself. The Suppliers,
+    // Bids and Settings tabs are other routes with their own tests; what this has to be right about is
+    // that "Tender" is the current one and no other tab claims to be.
+    useRouterState: () => '/back-office/rfqs/RFQ-2026-000001',
     // A real anchor with the resolved href, rather than `Link: 'a'`. The screen's exits to the bids, the
     // comparison and the award are links now, and a stub that threw their destination away would let a
     // wrong route pass unnoticed - which is the whole reason they stopped being raw hrefs.
@@ -285,38 +289,35 @@ describe('RfqDetailPage', () => {
     expect(select.getAttribute('aria-describedby')).toBe(hint.getAttribute('id'))
   })
 
-  it('groups the screen, so the reading order is a decision rather than the DOM order', async () => {
-    // §D1 measured eleven cards of identical visual weight, seven of them empty, in DOM order, with
-    // nothing on the screen larger, closer or louder than anything else. Grouping is the fix, and these
-    // are landmarks rather than styled divs: a named region is what lets a screen-reader user jump
-    // between them, which is the same affordance the visual grouping gives a sighted reader.
+  /**
+   * §D1 measured eleven cards of identical visual weight, seven of them empty, in DOM order, with
+   * nothing on the screen larger, closer or louder than anything else.
+   *
+   * <p>Grouping was the first fix. The tab strip is the second and it does most of that work now: the
+   * sections a reader used to scroll past are separate screens, and the tab says which one they are on.
+   * What is left to be right about is that the rail comes first - a screen reader and a 320px viewport
+   * both meet "what happens next" before the body - and that a heading only appears where it names
+   * something the tab does not.</p>
+   */
+  it('leads with the rail, and labels only what the tab strip does not name', async () => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 
     renderPage(<RfqDetailPage />)
+    await screen.findByRole('heading', { level: 1 })
 
-    // Wait for the page itself first. `findAllByRole` resolves on the first match, and the toast
-    // region is mounted by the shell before any data arrives - so querying straight away returns
-    // ['Notifications (F8)'] and proves nothing about this screen.
-    await screen.findByRole('region', { name: 'The tender' })
+    const regions = screen.getAllByRole('region').filter((g) => g.tagName === 'SECTION')
+    expect(regions.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent))
+      .toEqual(['What happens next'])
 
-    // Named by their own visible heading (aria-labelledby), not by a duplicate aria-label: one source
-    // for the name a sighted reader sees and the one a screen reader announces.
-    //
-    // Decisions is ABSENT here, and that is the assertion. A draft tender has no approvals and no
-    // evaluation, so a Decisions heading would label an empty space - which is exactly the kind of
-    // thing this whole pass has been removing. The next test covers the case where it is present.
-    // The rail comes FIRST in the DOM, on purpose - a screen reader and a 320px viewport both meet
-    // "what happens next" before the body of the page - so its own heading leads this list. That was
-    // already true; it only became visible here once the rail's card carried a real heading instead of
-    // a card title.
-    const groups = screen.getAllByRole('region').filter((g) => g.tagName === 'SECTION')
-    expect(groups.map((g) => g.getAttribute('aria-labelledby'))).toEqual([
-      'next-action-title', 'rfq-group-tender', 'rfq-group-suppliers', 'rfq-group-managing',
-    ])
-    expect(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent)).toEqual([
-      'What happens next', 'The tender', 'Suppliers', 'Managing this tender',
-    ])
-    expect(screen.queryByText('Decisions')).not.toBeInTheDocument()
+    // "The tender" is gone because the current tab says it, and the group headings are gone because
+    // those sections are their own screens now, each with its own tests. Asserted outside the tab strip:
+    // "Suppliers" is still a word on this page, as the tab that leads to that screen.
+    const outsideTabs = (text: string) => screen.queryAllByText(text).filter((el) => !el.closest('nav'))
+
+    expect(outsideTabs('The tender')).toEqual([])
+    expect(outsideTabs('Suppliers')).toEqual([])
+    expect(outsideTabs('Managing this tender')).toEqual([])
+    expect(outsideTabs('Decisions')).toEqual([])
   })
 
   it('shows the Decisions group once there is a decision to show', async () => {
@@ -334,18 +335,6 @@ describe('RfqDetailPage', () => {
     await screen.findByRole('region', { name: 'Decisions' })
   })
 
-  it('puts every destructive control after the tender it would destroy', async () => {
-    // The ordering claim, asserted rather than described. An officer reading top to bottom meets the
-    // line items before they meet the button that cancels the whole tender.
-    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
-
-    renderPage(<RfqDetailPage />)
-
-    const tender = await screen.findByRole('region', { name: 'The tender' })
-    const cancel = screen.getByRole('button', { name: 'Cancel RFQ' })
-
-    expect(tender.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
 
   it('Published: an existing item is shown but item-edit controls are gone (state-gated editing)', async () => {
     restore = mockFetch({
@@ -389,150 +378,13 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText(toastText)).toBeInTheDocument()
   })
 
-  it('cancel asks before it acts, warns that it is final, and still requires a reason', async () => {
-    // §D1: this was an inline reason field beside a `ghost` button - the lowest-emphasis variant in the
-    // system - for an action that tells every invited supplier their tender is gone. It now gets the
-    // same treatment the supplier's proposal withdrawal got: danger variant, a dialog, and a warning.
-    // The mandatory reason is unchanged, because the reason is the audit record.
-    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 
-    renderPage(<RfqDetailPage />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Cancel RFQ' }))
 
-    const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/final/i)).toBeInTheDocument()
 
-    const confirm = within(dialog).getByRole('button', { name: 'Cancel RFQ' })
-    expect(confirm).toBeDisabled()
 
-    await userEvent.type(within(dialog).getByLabelText('Reason'), 'Budget withdrawn')
-    await waitFor(() => expect(confirm).toBeEnabled())
-    await userEvent.click(confirm)
 
-    expect(await screen.findByText('RFQ cancelled')).toBeInTheDocument()
-  })
 
-  it('hides the cancel section once the RFQ is Cancelled', async () => {
-    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Cancelled') })
-
-    renderPage(<RfqDetailPage />)
-
-    await screen.findByText('Cancelled')
-    expect(screen.queryByRole('button', { name: 'Cancel RFQ' })).not.toBeInTheDocument()
-  })
-
-  it('Draft: shows suggested candidates and inviting one shows a success toast', async () => {
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001/invitations/candidates': [
-        { supplierId: 'sup-1', displayNameAr: 'مورد', displayNameEn: 'Candidate Co', matchCount: 2 },
-      ],
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
-    })
-
-    renderPage(<RfqDetailPage />)
-
-    expect(await screen.findByText(/Candidate Co/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
-
-    expect(await screen.findByText('Supplier invited')).toBeInTheDocument()
-  })
-
-  it('lists existing invitations with supplier name and status', async () => {
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft', {
-        invitations: [
-          { id: 'inv-1', supplierId: 'sup-1', supplierDisplayNameAr: 'مورد', supplierDisplayNameEn: 'Invited Co', status: 'Viewed', invitedAt: '2026-08-01T00:00:00Z', viewedAt: '2026-08-02T00:00:00Z', respondedAt: null, declineReason: null },
-        ],
-      }),
-    })
-
-    renderPage(<RfqDetailPage />)
-
-    const row = (await screen.findByText('Invited Co')).closest('tr') as HTMLElement
-    expect(within(row).getByText('Viewed')).toBeInTheDocument()
-  })
-
-  it('shows an unanswered clarification with an answer form, and answering shows a success toast', async () => {
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
-        clarifications: [
-          { id: 'cl-1', askedBySupplierId: 'sup-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Asker Co', question: 'What is the incoterm?', answer: null, visibility: 'PrivateToAsker', askedAt: '2026-08-01T00:00:00Z', answeredAt: null },
-        ],
-      }),
-    })
-
-    renderPage(<RfqDetailPage />)
-
-    expect(await screen.findByText(/What is the incoterm\?/)).toBeInTheDocument()
-    await userEvent.type(screen.getByLabelText('Answer'), 'FOB.')
-    await userEvent.click(screen.getByRole('button', { name: 'Answer' }))
-
-    expect(await screen.findByText('Answer saved')).toBeInTheDocument()
-  })
-
-  it('shows a Publish button for a privately-answered clarification, and clicking it shows a success toast', async () => {
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
-        clarifications: [
-          { id: 'cl-1', askedBySupplierId: 'sup-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Asker Co', question: 'Q?', answer: 'A.', visibility: 'PrivateToAsker', askedAt: '2026-08-01T00:00:00Z', answeredAt: '2026-08-02T00:00:00Z' },
-        ],
-      }),
-    })
-
-    renderPage(<RfqDetailPage />)
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Publish to all' }))
-
-    expect(await screen.findByText('Published to all')).toBeInTheDocument()
-  })
-
-  it('does NOT show the Publish button for an answer that already went to everyone', async () => {
-    // The other half of the test above, and the one the design audit's §C2.3 assumed was missing. It
-    // read the guard - `answer && visibility === 'PrivateToAsker'` - noticed that answering now sets
-    // both fields at once, and concluded the control describes a state the domain cannot produce.
-    //
-    // What it describes is a LEGACY state. A-4 (DECISIONS-TAKEN.md:441) made answering publish to every
-    // invitee, on the ground that equal information to all bidders is the fundamental fairness principle
-    // in tendering, and it kept the visibility enum and this route on purpose: a deployment that
-    // answered privately before A-4 still holds those rows, and dropping the route would leave those
-    // threads permanently unshareable. The backend has the matching integration test.
-    //
-    // So the control is correct, and this pins the part that was only ever true by inspection: it never
-    // appears on a clarification answered under A-4.
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
-        clarifications: [
-          { id: 'cl-1', askedBySupplierId: 'sup-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Asker Co', question: 'Q?', answer: 'A.', visibility: 'PublishedToAll', askedAt: '2026-08-01T00:00:00Z', answeredAt: '2026-08-02T00:00:00Z' },
-        ],
-      }),
-    })
-
-    renderPage(<RfqDetailPage />)
-
-    // The thread renders, so a missing button is a decision rather than an empty screen.
-    expect(await screen.findByText(/Asker Co: Q\?/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Publish to all' })).not.toBeInTheDocument()
-  })
-
-  it('Published: shows the addendum form, and issuing one shows a success toast', async () => {
-    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
-
-    renderPage(<RfqDetailPage />)
-
-    await userEvent.type(await screen.findByLabelText('Title (English)'), 'Deadline extended')
-    await userEvent.type(screen.getByLabelText('Title (Arabic)'), 'تمديد الموعد')
-    await userEvent.type(screen.getByLabelText('Description (English)'), 'The deadline has moved.')
-    await userEvent.type(screen.getByLabelText('Description (Arabic)'), 'تم تمديد الموعد.')
-    await userEvent.click(screen.getByRole('button', { name: 'Issue addendum' }))
-
-    expect(await screen.findByText('Addendum issued')).toBeInTheDocument()
-  })
 
   it('Draft: hides the addendum form (locked-after-Published-except-addenda does not apply pre-publish)', async () => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
@@ -775,19 +627,6 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText('This RFQ has been cancelled.')).toBeInTheDocument()
   })
 
-  it('offers the deadline control on a Published RFQ and not on a Draft one', async () => {
-    // T-018: an extension the officer cannot trigger is the same defect shape as T-067 - the rule
-    // permits it and no surface reaches it.
-    restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
-
-    renderPage(<RfqDetailPage />)
-
-    expect(await screen.findByLabelText('New deadline')).toBeInTheDocument()
-    // A-6: and a reason, which the server now requires. Disabled until BOTH are given - the guard in
-    // the direction that refuses.
-    expect(screen.getByLabelText('Reason for the change')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
-  })
 
   it('hides the deadline control before the RFQ is published', async () => {
     // The control for the test above: BRULE-035 permits the change while Published/SubmissionOpen
@@ -848,77 +687,8 @@ describe('RfqDetailPage', () => {
     expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument()
   })
 
-  it('tells the officer the answer broadcasts instead of asking whether it should', async () => {
-    // A-4. The answer form used to carry a "publish immediately" checkbox defaulting to off, so the
-    // fair outcome depended on the officer ticking a box. Equal information to all bidders is not an
-    // option, so the box is gone and the form says what will happen.
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', {
-        clarifications: [{
-          id: 'c-1', askedBySupplierId: 's-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Supplier One',
-          question: 'Which incoterm?', answer: null, visibility: 'PrivateToAsker',
-          askedAt: '2026-09-01T10:00:00Z', answeredAt: null,
-        }],
-      }),
-    })
 
-    renderPage(<RfqDetailPage />)
 
-    // The question renders alongside the asker's name in one paragraph, hence the partial match.
-    expect(await screen.findByText(/Which incoterm\?/)).toBeInTheDocument()
-    expect(screen.getByText(/goes to every invited supplier/)).toBeInTheDocument()
-    expect(screen.queryByText('Publish immediately')).not.toBeInTheDocument()
-  })
-
-  it('sends no publish flag when the officer answers', async () => {
-    const calls: { url: string; method: string; body: string }[] = []
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', {
-        clarifications: [{
-          id: 'c-1', askedBySupplierId: 's-1', askedBySupplierNameAr: 'مورد', askedBySupplierNameEn: 'Supplier One',
-          question: 'Which incoterm?', answer: null, visibility: 'PrivateToAsker',
-          askedAt: '2026-09-01T10:00:00Z', answeredAt: null,
-        }],
-      }),
-      '/api/v1/rfqs/RFQ-2026-000001/clarifications/c-1/answer': rfqFixture('SubmissionOpen'),
-    }, calls)
-
-    renderPage(<RfqDetailPage />)
-
-    await userEvent.type(await screen.findByLabelText('Answer'), 'FOB.')  // the Field label, not the button
-    await userEvent.click(screen.getByRole('button', { name: 'Answer' }))
-
-    await vi.waitFor(() => expect(calls.some((c) => c.url.includes('/answer') && c.method === 'POST')).toBe(true))
-    const sent = JSON.parse(calls.find((c) => c.url.includes('/answer'))!.body)
-    expect(sent).toEqual({ answer: 'FOB.' })
-  })
-
-  it('sends the deadline reason and will not submit without one', async () => {
-    // A-6. BRULE-035 leaves an extension uncapped, so the reason is what makes it defensible; D-12
-    // called the audit row the control, and a row that records only that someone moved a date is not
-    // one.
-    const calls: { url: string; method: string; body: string }[] = []
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published'),
-      '/api/v1/rfqs/RFQ-2026-000001/deadline': rfqFixture('Published'),
-    }, calls)
-
-    renderPage(<RfqDetailPage />)
-
-    await userEvent.type(await screen.findByLabelText('New deadline'), '2026-12-01T10:00')
-    // Still disabled: the date alone is not enough.
-    expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
-
-    await userEvent.type(screen.getByLabelText('Reason for the change'), 'The Ministry extended the tender period.')
-    await userEvent.click(screen.getByRole('button', { name: 'Change deadline' }))
-
-    await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith('/deadline'))).toBe(true))
-    const sent = JSON.parse(calls.find((c) => c.url.endsWith('/deadline'))!.body)
-    expect(sent.reason).toBe('The Ministry extended the tender period.')
-  })
 
   it('names the owner on the screen, and says "Unassigned" when there is none', async () => {
     // A-7. Who is answerable belongs where the work is, not only in the audit trail.
@@ -942,30 +712,6 @@ describe('RfqDetailPage', () => {
     expect(await screen.findByText(/Owner: Unassigned/)).toBeInTheDocument()
   })
 
-  it('sends the new owner and the reason, and will not reassign without both', async () => {
-    const calls: RecordedRequest[] = []
-    restore = mockFetch({
-      ...REFERENCE_ROUTES,
-      '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft'),
-      '/api/v1/rfqs/RFQ-2026-000001/reassign': rfqFixture('Draft', { ownerUserId: 'u-officer-2', ownerName: 'Second Officer' }),
-    }, calls)
-
-    renderPage(<RfqDetailPage />)
-
-    await userEvent.click(await screen.findByRole('combobox', { name: 'New owner' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Second Officer' }))
-
-    // Still disabled: an owner without a stated reason is the audit row this operation exists for,
-    // written empty.
-    expect(screen.getByRole('button', { name: 'Reassign' })).toBeDisabled()
-
-    await userEvent.type(screen.getByLabelText('Reason for the handover'), 'The first officer is on leave.')
-    await userEvent.click(screen.getByRole('button', { name: 'Reassign' }))
-
-    await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith('/reassign'))).toBe(true))
-    const sent = JSON.parse(calls.find((c) => c.url.endsWith('/reassign'))!.body)
-    expect(sent).toMatchObject({ newOwnerUserId: 'u-officer-2', reason: 'The first officer is on leave.' })
-  })
 
   it('submits for review with the nominated approver, and without one when none is chosen', async () => {
     const calls: RecordedRequest[] = []

@@ -1033,6 +1033,15 @@ const resources = {
         returnForEditsTitle: 'إعادة للتعديل',
         returnForEdits: 'إعادة للتعديل',
         closes: 'يغلق {{when}}',
+        tabs: {
+          label: 'أقسام الطلب',
+          tender: 'الطلب',
+          suppliers: 'الموردون',
+          bids: 'العروض',
+          evaluation: 'التقييم',
+          award: 'الترسية',
+          settings: 'الإعدادات',
+        },
         groups: {
           tender: 'الطلب',
           suppliers: 'الموردون',
@@ -2912,6 +2921,15 @@ const resources = {
         returnForEditsTitle: 'Return for edits',
         returnForEdits: 'Return for edits',
         closes: 'Closes {{when}}',
+        tabs: {
+          label: 'Tender sections',
+          tender: 'Tender',
+          suppliers: 'Suppliers',
+          bids: 'Bids',
+          evaluation: 'Evaluation',
+          award: 'Award',
+          settings: 'Settings',
+        },
         groups: {
           tender: 'The tender',
           suppliers: 'Suppliers',
