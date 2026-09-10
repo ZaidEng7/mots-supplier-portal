@@ -56,6 +56,52 @@ function code(relative: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 }
 
+/**
+ * Components that reach past the semantic layer and read a primitive directly.
+ *
+ * <p><b>The defect this closes.</b> tokens.css states the rule at the top of the file - components
+ * consume semantics only - and nothing enforced it. BackOfficeShell painted the wordmark with
+ * `var(--accent-gold-500)`, so when the redesign re-stepped that primitive to fix its ratio against a
+ * light page, it silently changed a colour that only ever appears on the dark chrome bar: 5.93:1 became
+ * 4.25:1, and the only instrument that noticed was the axe sweep, which failed 86 times and named a hex
+ * value rather than a token. A semantic name would have made the pair visible to the contrast guard and
+ * the re-step impossible to get wrong.</p>
+ *
+ * <p><b>Why a list and not a ban.</b> These are real, and fixing them is the component phase's work, not
+ * the token layer's. What the token layer can do is stop the list growing. The assertion below is exact
+ * equality, so a new instance fails and so does a fixed one - the list is the current truth about this
+ * debt, and it has to be edited down as the debt is paid rather than drifting out of date.</p>
+ *
+ * <p>Every entry is a status pair inlined before the semantic status tokens existed, or a chart fill.
+ * They are not contrast failures today: the primitive holds the same value the semantic token points at
+ * in the light theme. They are THEME failures - a primitive does not change between themes, so each of
+ * these renders light-theme status colours on a dark page.</p>
+ */
+const PRIMITIVE_DEBT: Record<string, readonly string[]> = {
+  'components/AcceptInvitePageBase.tsx': ['success-600'],
+  'components/ErpStatusBanner.tsx': ['warning-50', 'warning-600'],
+  'components/charts/CoverageChart.tsx': ['brand-200'],
+  'components/ui/Badge.tsx': ['danger-50', 'danger-600', 'info-50', 'info-600', 'success-50', 'success-600', 'warning-50', 'warning-600'],
+  'components/ui/Button.tsx': ['danger-600'],
+  'components/ui/Toast.tsx': ['success-500'],
+  'routes/OnboardingPage.tsx': ['info-50', 'info-500', 'info-600', 'success-600', 'warning-50', 'warning-500', 'warning-600'],
+  'routes/SettingsPage.tsx': ['success-600'],
+  'routes/VerifyEmailPage.tsx': ['success-600'],
+  'routes/ministry/MinistryAwardAnalyticsPage.tsx': ['warning-50'],
+  'routes/ministry/MinistryRfqDetailPage.tsx': ['warning-50', 'warning-600'],
+  'routes/onboarding/AddressesPage.tsx': ['danger-50', 'danger-600', 'warning-50', 'warning-600'],
+  'routes/onboarding/BankingPage.tsx': ['danger-50', 'danger-600'],
+  'routes/onboarding/ContactsPage.tsx': ['danger-50', 'danger-600'],
+  'routes/onboarding/OfferingsPage.tsx': ['warning-50', 'warning-600'],
+}
+
+/** The primitive ramps. A semantic token is every other `--color-*` name; these are the raw steps. */
+const PRIMITIVE = /var\(--((?:n|brand|success|warning|danger|info|accent-gold)-\d+)\)/g
+
+function primitivesRead(file: string): string[] {
+  return [...new Set([...code(file).matchAll(PRIMITIVE)].map((m) => m[1]))].sort()
+}
+
 function definedTokens(): Set<string> {
   const names = new Set<string>()
   for (const file of TOKEN_FILES) {
@@ -162,6 +208,28 @@ describe('design tokens', () => {
       expect(code(file), `${file} no longer has a local z-index, so its exemption describes the past`)
         .toMatch(/zIndex:\s*\d/)
     }
+  })
+
+  it('no component reads a primitive the token layer has not named', () => {
+    const found: Record<string, readonly string[]> = {}
+    for (const file of FILES) {
+      const primitives = primitivesRead(file)
+      if (primitives.length > 0) found[file] = primitives
+    }
+
+    // Exact, both directions. A new instance is a regression; a fixed one means this list is stale.
+    expect(found, 'a primitive read from a component cannot be re-stepped without changing that component')
+      .toEqual(PRIMITIVE_DEBT)
+  })
+
+  it('the primitive sweep can fail', () => {
+    // The control, in the shape of the defect: the wordmark as it was written, and as it is now.
+    const offending = `<span style={{ color: 'var(--accent-gold-500)' }} />`
+    const conforming = `<span style={{ color: 'var(--color-chrome-accent)' }} />`
+    expect(new RegExp(PRIMITIVE.source, 'g').test(offending)).toBe(true)
+    expect(new RegExp(PRIMITIVE.source, 'g').test(conforming)).toBe(false)
+    // And the fix itself holds: the file that caused it reads no primitive now.
+    expect(primitivesRead('shells/BackOfficeShell.tsx')).toEqual([])
   })
 
   it('the check can fail', () => {

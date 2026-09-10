@@ -23,7 +23,7 @@ export function SkipLink() {
       style={{
         zIndex: 'var(--z-tooltip)',
         backgroundColor: 'var(--color-brand-solid)',
-        color: 'var(--color-text-inverse)',
+        color: 'var(--color-on-brand)',
         boxShadow: 'var(--focus-ring)',
       }}
     >

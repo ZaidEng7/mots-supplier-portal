@@ -121,7 +121,7 @@ export function BackOfficeShell({ children }: Props) {
       <ErpStatusBanner />
       <header className="flex flex-wrap items-center justify-between gap-y-3 border-b px-4 py-4 sm:px-6" style={{ borderColor: 'var(--color-chrome-border)', backgroundColor: 'var(--color-chrome-surface)' }}>
         <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-          <span className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--accent-gold-500)' }}>
+          <span className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-chrome-accent)' }}>
             {t('appName')} · {t('nav.backOffice')}
           </span>
           <nav className="flex flex-wrap gap-x-4 gap-y-2">

@@ -70,7 +70,7 @@ export function SupplierRfqDetailPage() {
         {rfq.invitationStatus !== 'Declined' ? (
           <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode }}
             className="rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-sm)] font-[var(--fw-medium)]"
-            style={{ backgroundColor: 'var(--color-brand-solid)', color: 'var(--color-text-inverse)' }}>
+            style={{ backgroundColor: 'var(--color-brand-solid)', color: 'var(--color-on-brand)' }}>
             {t('proposal.goToMyProposal')}
           </Link>
         ) : null}
