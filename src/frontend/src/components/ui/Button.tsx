@@ -11,7 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyle: Record<Variant, { bg: string; bgHover: string; fg: string; border?: string }> = {
-  primary: { bg: 'var(--color-brand-solid)', bgHover: 'var(--color-brand-solid-hover)', fg: 'var(--color-text-inverse)' },
+  primary: { bg: 'var(--color-brand-solid)', bgHover: 'var(--color-brand-solid-hover)', fg: 'var(--color-on-brand)' },
   secondary: { bg: 'var(--color-bg-surface)', bgHover: 'var(--color-bg-hover)', fg: 'var(--color-text-primary)', border: 'var(--color-border-strong)' },
   ghost: { bg: 'transparent', bgHover: 'var(--color-bg-hover)', fg: 'var(--color-text-primary)' },
   danger: { bg: 'var(--color-danger-solid)', bgHover: 'var(--danger-600)', fg: 'var(--color-text-inverse)' },

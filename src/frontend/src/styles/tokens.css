@@ -4,24 +4,32 @@
    Components must only ever consume semantic tokens. */
 
 :root {
-  /* Primitive — Brand (evergreen-teal) */
-  --brand-50: #ECF6F3;
-  --brand-100: #D2EBE4;
-  --brand-200: #A6D6C9;
-  --brand-300: #6FBAA8;
-  --brand-400: #3E9A85;
-  --brand-500: #1F8069;
-  --brand-600: #136A57;
-  --brand-700: #0F5647;
-  --brand-800: #0D453A;
-  --brand-900: #0A3730;
+  /* Primitive — Brand (evergreen-teal)
+     Re-stepped for the 2026-09-10 redesign. The hue is the product's own; what changed is that the
+     step the primary button and the links use now clears 4.5:1 against the page, not against white.
+     It measured 4.42 before, which is invisible to an eye and to a reviewer and was found by computing
+     it. The first re-step cleared white at 4.83 and still failed the app background at 4.497, because
+     the page is --n-50 and not white; lightThemeContrast caught that the same way. */
+  --brand-50: #E7F2EE;
+  --brand-100: #C9E5DC;
+  --brand-200: #9CD3C1;
+  --brand-300: #62BBA0;
+  --brand-400: #2FA080;
+  --brand-500: #158B6D;
+  --brand-600: #107A5E;
+  --brand-700: #0F7259;
+  --brand-800: #0C5C48;
+  --brand-900: #0A4436;
 
-  /* Primitive — Neutrals (warm stone) */
-  --n-50: #FAF9F7;
-  --n-100: #F3F1ED;
-  --n-200: #E7E3DC;
-  --n-300: #D6D0C6;
-  --n-400: #B4AB9D;
+  /* Primitive — Neutrals
+     Warm stone became a cool green-grey with the redesign, so the neutrals sit under the evergreen
+     rather than beside it. Every step below was checked against every surface it can land on, not
+     only against white, which is the check the first pass at --n-500 failed. */
+  --n-50: #F6F7F6;
+  --n-100: #EFF1EF;
+  --n-200: #E1E6E3;
+  --n-300: #CBD4CF;
+  --n-400: #A6B2AC;
   /* NFR-A11Y-003: #8B8173 (the original value) measured 3.83:1 against white - below the 4.5:1
      WCAG AA minimum for normal text - and was invisible to every check this project had until
      the app-a11y suite scanned a real page instead of an isolated Storybook component. n-500's
@@ -36,27 +44,33 @@
      margin for rendering differences. The boundary of what this proves: it is verified against
      every background this text sits on across the 18 routes / 2 locales this suite scans, not
      against every value --color-bg-* could theoretically resolve to. */
-  --n-500: #746B60;
-  --n-600: #6B6255;
-  --n-700: #4C463B;
-  --n-800: #302B24;
-  --n-900: #1C1B19;
+  --n-500: #5F6E67;
+  --n-600: #4A5A54;
+  --n-700: #33443E;
+  --n-800: #1E2C27;
+  --n-900: #14201C;
 
   /* Primitive — Accent & semantic */
+  /* 500 is the wordmark on the dark chrome bar and is left alone: it clears 5.93:1 there, and the
+     redesign's first pass DARKENED it to fix a light-surface ratio, which took the one pair that
+     actually ships from 5.93 to 4.25 and failed 86 axe checks. 700 is new, for the light-surface text
+     the 600 step could not carry (3.42:1). The lesson is in themeContrast now: a primitive is measured
+     against the surface its consumer puts it on, not against the surface its name suggests. */
   --accent-gold-500: #C8A045;
   --accent-gold-600: #A98633;
+  --accent-gold-700: #86681D;
   --success-500: #1E874B;
-  --success-600: #166B3B;
-  --success-50: #E9F5EE;
+  --success-600: #1A7742;
+  --success-50: #E6F4EB;
   --warning-500: #B7791F;
-  --warning-600: #8F5E17;
-  --warning-50: #FBF2E1;
+  --warning-600: #8C5A14;
+  --warning-50: #FBF1E2;
   --danger-500: #C0392B;
-  --danger-600: #9C2C20;
+  --danger-600: #A32C1E;
   --danger-50: #FBEAE7;
   --info-500: #2563A6;
-  --info-600: #1D4E82;
-  --info-50: #E8F0F8;
+  --info-600: #1F6FB2;
+  --info-50: #E8F1F9;
 
   color-scheme: light;
 
@@ -66,7 +80,10 @@
   --color-bg-sunken: var(--n-100);
   --color-bg-inset: var(--n-100);
   --color-bg-hover: var(--n-100);
-  --color-bg-selected: var(--brand-100);
+  /* --brand-100 before, which put a link on a selected row at 3.96:1. A selected row is distinguished
+     by its accent rule and its wash together, so the wash can be the lighter step and the row still
+     reads as chosen. */
+  --color-bg-selected: var(--brand-50);
   --color-bg-overlay: rgba(28, 27, 25, 0.48);
 
   /* Semantic — Text */
@@ -80,11 +97,24 @@
 
   /* Semantic — Borders */
   --color-border: var(--n-200);
-  --color-border-strong: var(--n-300);
+  /* Same value as --color-border-input, and for the same reason: its consumers are the secondary
+     button's outline and the Stepper's not-started marker, which are the edges that tell a user a
+     control is there. --n-300 measured 1.52:1 against the surface beside it. --color-border stays a
+     light separator because a card edge or a table rule identifies nothing. */
+  --color-border-strong: #7C8A83;
   --color-border-focus: var(--brand-500);
-  --color-border-input: var(--n-300);
+  /* NOT --n-300. An input's border is a UI component boundary and SC 1.4.11 asks 3:1 against the
+     surface beside it; --n-300 measures 1.53:1 against white. That was true before this redesign and
+     was never caught, because nothing computed it. The contrast guard added with this change does. */
+  --color-border-input: #7C8A83;
 
   /* Semantic — Brand / interactive */
+  /* The label on a brand fill, which is NOT --color-text-inverse. That token is shared with the danger
+     button, whose fill is theme-invariant, so one value had to serve two fills of different lightness:
+     white on the dark theme's brand steps measured 4.25:1 at rest and 2.30:1 while pressed. Splitting
+     the two lets the dark theme brighten on hover, the way a dark-theme button should, and lets the
+     label follow its own fill. */
+  --color-on-brand: #FFFFFF;
   --color-brand-solid: var(--brand-600);
   --color-brand-solid-hover: var(--brand-700);
   --color-brand-solid-active: var(--brand-800);
@@ -92,11 +122,26 @@
 
   --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--brand-500);
 
+  /* Semantic — the navigation field
+     The sidebar is a dark field in BOTH themes, for the same reason the back-office chrome always was:
+     it tells you at a glance which side of the product you are standing in. */
+  --color-field: #0E241E;
+  --color-field-raised: #16332B;
+  --color-field-active: #1E4438;
+  --color-on-field: #E7EFEB;
+  --color-on-field-muted: #9FB6AC;
+
+  /* Semantic — accent wash and line, for the one panel per screen that asks for something */
+  --color-accent-wash: var(--brand-50);
+  --color-accent-line: var(--brand-200);
+
+  --sidebar-width: 260px;
+
   --color-success-fg: var(--success-600); --color-success-bg: var(--success-50); --color-success-solid: var(--success-500);
   --color-warning-fg: var(--warning-600); --color-warning-bg: var(--warning-50); --color-warning-solid: var(--warning-500);
   --color-danger-fg: var(--danger-600);  --color-danger-bg: var(--danger-50);  --color-danger-solid: var(--danger-500);
   --color-info-fg: var(--info-600);    --color-info-bg: var(--info-50);    --color-info-solid: var(--info-500);
-  --color-gold-fg: var(--accent-gold-600); --color-gold-solid: var(--accent-gold-500);
+  --color-gold-fg: var(--accent-gold-700); --color-gold-solid: var(--accent-gold-600);
 
   /* Typography */
   --font-sans-ar: "IBM Plex Sans Arabic", "Inter", system-ui, sans-serif;
@@ -155,6 +200,10 @@
   --color-chrome-surface: var(--n-800);
   --color-chrome-border: var(--n-700);
   --color-chrome-text: #F4F1EC;
+  /* The wordmark. It was reaching straight through to --accent-gold-500, against the rule three lines
+     up, which is why re-stepping that primitive changed a shipped colour with nothing named to warn
+     about it. Named here, it is a pair the contrast guard can see. */
+  --color-chrome-accent: var(--accent-gold-500);
 
   /* Z-index — §4.5. One scale, so "which of these two floats above the other" is answered by the
      token names rather than by two components both reaching for z-50. */
@@ -169,11 +218,11 @@
   color-scheme: dark;
 
   --color-bg-app: var(--n-900);
-  --color-bg-surface: #26241F;
-  --color-bg-sunken: #1F1D19;
-  --color-bg-inset: #201E1A;
-  --color-bg-hover: #2F2C26;
-  --color-bg-selected: rgba(31, 128, 105, 0.22);
+  --color-bg-surface: #1C2421;
+  --color-bg-sunken: #151C1A;
+  --color-bg-inset: #17201D;
+  --color-bg-hover: #242E2A;
+  --color-bg-selected: rgba(47, 160, 128, 0.22);
   --color-bg-overlay: rgba(0, 0, 0, 0.60);
 
   /* Task #21/MSP-72 follow-up: the light theme's contrast audit (task #14) never checked dark
@@ -187,10 +236,10 @@
      five dark surfaces, so the binding case) - below the 4.5:1 AA minimum for normal text.
      #9C9588 clears 4.68:1 there (and more everywhere darker), same margin-for-rendering
      precedent as --n-500's own fix above. */
-  --color-text-primary: #F4F1EC;
-  --color-text-secondary: #C4BDB1;
-  --color-text-muted: #9C9588;
-  --color-text-disabled: #6B6357;
+  --color-text-primary: #EDF2EF;
+  --color-text-secondary: #C4CFCA;
+  --color-text-muted: #94A29C;
+  --color-text-disabled: #63726B;
   /* --color-text-inverse used to be var(--n-900) here - inverted from light mode's white on the
      (wrong) assumption that "inverse" should track the theme's own dominant text color. Its only
      consumers (Button.tsx primary/danger variants) put it on --color-brand-solid and --danger-500
@@ -209,15 +258,19 @@
      input or card boundary. Lightened along the same neutral hue, keeping border-strong/-input
      visibly stronger than plain border (matching their pre-fix relationship, where -strong was
      the lighter of the two): border clears 3.17/3.51:1, border-strong/-input clear 3.65/4.05:1. */
-  --color-border: #787061;
-  --color-border-strong: #827A6A;
+  --color-border: #6E7C76;
+  --color-border-strong: #7C8A83;
   --color-border-focus: var(--brand-300);
-  --color-border-input: #827A6A;
+  --color-border-input: #7C8A83;
 
-  --color-brand-solid: var(--brand-500);
-  --color-brand-solid-hover: var(--brand-400);
-  --color-brand-solid-active: var(--brand-300);
-  --color-brand-subtle: rgba(31, 128, 105, 0.16);
+  /* Brightening rather than darkening, which is what a dark theme wants and what white text made
+     impossible: 4.25 / 3.25 / 2.30:1 across rest, hover and pressed. The ink is near-black green, which
+     clears 8.18:1 on the lightest of the three. */
+  --color-on-brand: #08140F;
+  --color-brand-solid: var(--brand-300);
+  --color-brand-solid-hover: var(--brand-200);
+  --color-brand-solid-active: var(--brand-100);
+  --color-brand-subtle: rgba(47, 160, 128, 0.16);
 
   --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--brand-300);
 
@@ -226,6 +279,17 @@
   --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: #CD3D2E;
   --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: #2B73C1;
   --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
+
+  /* The navigation field is dark in both themes, so it barely moves - only far enough to sit against
+     a dark app ground rather than a light one. */
+  --color-field: #0A1714;
+  --color-field-raised: #122820;
+  --color-field-active: #1A3A30;
+  --color-on-field: #E7EFEB;
+  --color-on-field-muted: #9FB6AC;
+
+  --color-accent-wash: rgba(47, 160, 128, 0.13);
+  --color-accent-line: rgba(47, 160, 128, 0.40);
 
   /* Elevation in dark mode - §4.3. A shadow tuned for a light surface disappears on a dark one,
      so these are deeper rather than the same values reused. */
