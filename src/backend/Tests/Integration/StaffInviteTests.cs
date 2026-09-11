@@ -130,7 +130,11 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         var email = $"dup-{Guid.NewGuid():N}@ministry.example";
         await admin.PostAsJsonAsync("/api/v1/staff/invite", new { email, fullName = "First", role = Roles.OnboardingReviewer });
 
-        var second = await admin.PostAsJsonAsync("/api/v1/staff/invite", new { email, fullName = "Second", role = Roles.ProcurementOfficer });
+        // A role that needs no organisation, deliberately. This test is about the duplicate address,
+        // and a procurement role with no OrganizationId is now refused at validation - which would make
+        // it 422 before the duplicate check ever ran, and pass for the wrong reason if the assertion
+        // were loosened to "not Created".
+        var second = await admin.PostAsJsonAsync("/api/v1/staff/invite", new { email, fullName = "Second", role = Roles.OnboardingReviewer });
 
         second.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
@@ -297,5 +301,78 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         return perms.ValueKind == JsonValueKind.Array
             ? [.. perms.EnumerateArray().Select(p => p.GetString()!)]
             : [perms.GetString()!];
+    }
+
+    /// <summary>
+    /// A procurement invitation names the buying body the invitee will work in.
+    ///
+    /// <para><b>The defect.</b> <c>OrganizationId</c> was optional for every role, and the validator
+    /// checked only email, name and role. BRULE-029 scopes every procurement query by the caller's
+    /// organisation, so an officer invited without one signed in successfully, held every permission
+    /// the role grants, and met an empty product - no tenders, no dashboard figures, no approval queue,
+    /// and no error anywhere, because returning nothing is the CORRECT answer to "show me the tenders
+    /// of no organisation". The account looked fine and could do nothing.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.ProcurementOfficer)]
+    [InlineData(Roles.ProcurementManager)]
+    public async Task Invite_refuses_a_procurement_role_with_no_organization(string role)
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/staff/invite", new
+        {
+            email = $"noorg-{Guid.NewGuid():N}@mots.local",
+            fullName = "No Organization",
+            role,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("organizationId", "the refusal must name the field that is missing");
+    }
+
+    /// <summary>
+    /// The control, and it is the half that makes the rule narrow rather than blunt.
+    ///
+    /// <para>Five roles deliberately belong to no buying body: an evaluator is scoped by ASSIGNMENT and
+    /// may have no organisation at all, a reviewer works the national supplier registry, a
+    /// ministry_viewer's grant is cross-organisation by BRULE-086 and pinning it to one would narrow
+    /// it, and a system administrator has no tenancy. Requiring an organisation of any of them would be
+    /// refusing a legitimate invitation.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.OnboardingReviewer)]
+    [InlineData(Roles.Evaluator)]
+    [InlineData(Roles.MinistryViewer)]
+    public async Task Invite_still_accepts_a_role_that_belongs_to_no_buying_body(string role)
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/staff/invite", new
+        {
+            email = $"noorg-ok-{Guid.NewGuid():N}@mots.local",
+            fullName = "Rightly Without One",
+            role,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task Invite_accepts_a_procurement_role_that_names_its_organization()
+    {
+        var admin = await AdminClientAsync();
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+
+        var response = await admin.PostAsJsonAsync("/api/v1/staff/invite", new
+        {
+            email = $"withorg-{Guid.NewGuid():N}@mots.local",
+            fullName = "With Organization",
+            role = Roles.ProcurementOfficer,
+            organizationId = org.Id,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 }
