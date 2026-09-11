@@ -4387,6 +4387,19 @@
         ]
       }
     },
+    "/api/v1/reference/incoterms": {
+      "get": {
+        "operationId": "GetIncoterms",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Reference"
+        ]
+      }
+    },
     "/api/v1/reference/regions": {
       "get": {
         "operationId": "GetRegions",

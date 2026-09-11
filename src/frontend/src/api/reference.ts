@@ -52,6 +52,24 @@ export async function fetchUnitsOfMeasure(): Promise<UnitOfMeasure[]> {
   return res.json()
 }
 
+export interface Incoterm {
+  id: string
+  code: string
+  nameAr: string
+  nameEn: string
+}
+
+/**
+ * T-072. The delivery terms a bid may quote - Incoterms 2020, minus whatever the ministry has
+ * deactivated. The same list the server validates a submitted bid against, so a term offered here
+ * cannot be refused on save.
+ */
+export async function fetchIncoterms(): Promise<Incoterm[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/reference/incoterms`)
+  if (!res.ok) throw new Error(`Failed to fetch incoterms: ${res.status}`)
+  return res.json()
+}
+
 export async function fetchHealth(): Promise<string> {
   // The combined /health endpoint was split into /health/live and /health/ready (Task #16 /
   // NFR-OBS-006) - this call was never updated, so it hit a route that no longer exists and fell

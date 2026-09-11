@@ -42,9 +42,15 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 u => new ReferenceItemDto(u.Code, u.NameAr, u.NameEn, u.IsActive), u => u.IsActive, ct),
             ReferenceTables.Regions => await Project(db.Set<Region>(), includeInactive,
                 r => new ReferenceItemDto(r.Code, r.NameAr, r.NameEn, r.IsActive), r => r.IsActive, ct),
-            _ => await Project(db.Set<DocumentType>(), includeInactive,
+            ReferenceTables.Incoterms => await Project(db.Set<Incoterm>(), includeInactive,
+                i => new ReferenceItemDto(i.Code, i.NameAr, i.NameEn, i.IsActive), i => i.IsActive, ct),
+            // Named rather than left as the discard. T-072 added a sixth table and every switch in
+            // this file whose default was DocumentType would have answered with document types for
+            // it - a silent wrong answer, which is worse than the throw below.
+            ReferenceTables.DocumentTypes => await Project(db.Set<DocumentType>(), includeInactive,
                 d => new ReferenceItemDto(d.Code, d.NameAr, d.NameEn, d.IsActive, d.IsRequired, d.ExpiryTracked, d.IsAwardCritical),
                 d => d.IsActive, ct),
+            _ => throw new UnreachableTableException(table),
         };
     }
 
@@ -101,7 +107,13 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
             case ReferenceTables.Regions:
                 db.Add(new Region { Id = Guid.CreateVersion7(), Code = code, NameAr = command.NameAr, NameEn = command.NameEn });
                 break;
-            default:
+            case ReferenceTables.Incoterms:
+                // Upper-cased, because the standard's codes are and a proposal is matched against
+                // them exactly. "fob" and "FOB" naming two rows is the free-text problem this table
+                // exists to end, arriving through the admin surface instead of the bid form.
+                db.Add(new Incoterm { Id = Guid.CreateVersion7(), Code = code.ToUpperInvariant(), NameAr = command.NameAr, NameEn = command.NameEn });
+                break;
+            case ReferenceTables.DocumentTypes:
                 // A new DocumentType defaults to NOT required and NOT expiry-tracked when the caller
                 // says nothing. Required-by-default would retroactively make every existing supplier's
                 // profile incomplete the moment the row is created, which is a live consequence for
@@ -138,6 +150,7 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 case Currency c: c.NameAr = command.NameAr; c.NameEn = command.NameEn; break;
                 case UnitOfMeasure u: u.NameAr = command.NameAr; u.NameEn = command.NameEn; break;
                 case Region r: r.NameAr = command.NameAr; r.NameEn = command.NameEn; break;
+                case Incoterm i: i.NameAr = command.NameAr; i.NameEn = command.NameEn; break;
                 case DocumentType d:
                     d.NameAr = command.NameAr;
                     d.NameEn = command.NameEn;
@@ -174,6 +187,7 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 case Currency c: c.IsActive = command.IsActive; break;
                 case UnitOfMeasure u: u.IsActive = command.IsActive; break;
                 case Region r: r.IsActive = command.IsActive; break;
+                case Incoterm i: i.IsActive = command.IsActive; break;
                 case DocumentType d: d.IsActive = command.IsActive; break;
             }
         }, ct);
@@ -193,8 +207,13 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
 
     /// <summary>The column's own bound, so a refusal names the limit instead of surfacing a Postgres
     /// string-too-long as a 500.</summary>
-    private static int MaxCodeLength(string table) =>
-        table == ReferenceTables.Currencies ? 3 : 50;
+    private static int MaxCodeLength(string table) => table switch
+    {
+        // ISO 4217 and Incoterms 2020 are both three-letter standards; the other four tables carry
+        // this product's own codes and allow fifty.
+        ReferenceTables.Currencies or ReferenceTables.Incoterms => 3,
+        _ => 50,
+    };
 
     private Task<bool> ExistsAsync(string table, string code, CancellationToken ct) => table switch
     {
@@ -202,7 +221,9 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         ReferenceTables.Currencies => db.Set<Currency>().AnyAsync(c => c.Code == code, ct),
         ReferenceTables.UnitsOfMeasure => db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == code, ct),
         ReferenceTables.Regions => db.Set<Region>().AnyAsync(r => r.Code == code, ct),
-        _ => db.Set<DocumentType>().AnyAsync(d => d.Code == code, ct),
+        ReferenceTables.Incoterms => db.Set<Incoterm>().AnyAsync(i => i.Code == code.ToUpperInvariant(), ct),
+        ReferenceTables.DocumentTypes => db.Set<DocumentType>().AnyAsync(d => d.Code == code, ct),
+        _ => throw new UnreachableTableException(table),
     };
 
     /// <summary>Loads the row by code and hands it to <paramref name="mutate"/>. False when there is
@@ -215,7 +236,9 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
             ReferenceTables.Currencies => await db.Set<Currency>().FirstOrDefaultAsync(c => c.Code == code, ct),
             ReferenceTables.UnitsOfMeasure => await db.Set<UnitOfMeasure>().FirstOrDefaultAsync(u => u.Code == code, ct),
             ReferenceTables.Regions => await db.Set<Region>().FirstOrDefaultAsync(r => r.Code == code, ct),
-            _ => await db.Set<DocumentType>().FirstOrDefaultAsync(d => d.Code == code, ct),
+            ReferenceTables.Incoterms => await db.Set<Incoterm>().FirstOrDefaultAsync(i => i.Code == code, ct),
+            ReferenceTables.DocumentTypes => await db.Set<DocumentType>().FirstOrDefaultAsync(d => d.Code == code, ct),
+            _ => throw new UnreachableTableException(table),
         };
 
         if (item is null) return false;
@@ -232,3 +255,14 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         return item is null ? new ReferenceDataResult.NotFound() : new ReferenceDataResult.Success(item);
     }
 }
+
+/// <summary>
+/// A table that passed <c>ReferenceTables.All</c> and then reached a switch that does not know it.
+///
+/// <para>Unreachable by construction, and thrown rather than defaulted for a reason this file has
+/// already paid for once: every switch here used <c>_ =&gt;</c> for document types, so T-072's sixth
+/// table would have listed, created and deactivated DOCUMENT TYPES while the caller said
+/// "incoterms". A 500 naming the table is a bug report; a wrong answer that looks right is not.</para>
+/// </summary>
+public sealed class UnreachableTableException(string table)
+    : InvalidOperationException($"'{table}' is in ReferenceTables.All but no branch handles it.");

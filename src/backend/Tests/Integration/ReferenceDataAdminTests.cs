@@ -140,10 +140,12 @@ public sealed class ReferenceDataAdminTests(PostgresApiFixture fixture)
     {
         var admin = await AdminAsync();
 
-        (await admin.GetAsync("/api/v1/admin/reference/incoterms"))
+        // T-072 moved incoterms from "named by FR-ADM-004 and absent" to a real table, so the
+        // unknown-table case needs a name that is genuinely not one. A misspelling is the realistic
+        // shape of this mistake and the one that must not resolve to a neighbouring table.
+        (await admin.GetAsync("/api/v1/admin/reference/incoterm"))
             .StatusCode.Should().Be(HttpStatusCode.NotFound,
-                "FR-ADM-004 names Incoterm but no entity exists - a typo or a missing table must not " +
-                "silently resolve to a different one");
+                "a typo or a missing table must not silently resolve to a different one");
 
         // The control: a real table on the same route family answers.
         (await admin.GetAsync("/api/v1/admin/reference/regions")).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -172,5 +174,65 @@ public sealed class ReferenceDataAdminTests(PostgresApiFixture fixture)
         {
             nameAr = "منطقة", nameEn = "Region", isRequired = (bool?)null, expiryTracked = (bool?)null,
         })).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// T-072/FR-ADM-004: the sixth table exists, carries the standard, and is editable like the five.
+    ///
+    /// <para>The row this replaces asserted a 404 on this very route, with the reason "FR-ADM-004
+    /// names Incoterm but no entity exists". It was an honest record of a gap and it is now the
+    /// wrong assertion.</para>
+    /// </summary>
+    [Fact]
+    public async Task The_incoterm_table_carries_the_eleven_terms_of_the_standard()
+    {
+        var admin = await AdminAsync();
+
+        var response = await admin.GetAsync("/api/v1/admin/reference/incoterms");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var codes = (await response.Content.ReadFromJsonAsync<List<JsonElement>>())!
+            .Select(i => i.GetProperty("code").GetString()).ToList();
+
+        // Incoterms 2020, all eleven. Named one by one rather than counted, because a count passes
+        // against eleven of anything - and the set is the ICC's, not this product's to trim.
+        codes.Should().BeEquivalentTo(new[]
+        {
+            "EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF",
+        });
+    }
+
+    /// <summary>
+    /// Which of the eleven a bid may quote is the ministry's decision, and D-28's deactivation is
+    /// where it is taken. Asserted here because that is the whole answer to "procurement has not
+    /// supplied the list": they do not supply the list, they narrow it.
+    /// </summary>
+    [Fact]
+    public async Task A_ministry_narrows_the_standard_by_deactivating_a_term_rather_than_deleting_it()
+    {
+        var admin = await AdminAsync();
+
+        try
+        {
+            var deactivated = await admin.PostAsJsonAsync("/api/v1/admin/reference/incoterms/FAS/deactivate", new { });
+            deactivated.StatusCode.Should().Be(HttpStatusCode.OK, await deactivated.Content.ReadAsStringAsync());
+
+            var offered = (await (await admin.GetAsync("/api/v1/reference/incoterms")).Content.ReadFromJsonAsync<List<JsonElement>>())!
+                .Select(i => i.GetProperty("code").GetString()).ToList();
+            offered.Should().NotContain("FAS", "a deactivated term is not offered to a bidder");
+            offered.Should().Contain("FOB", "and the rest of the standard is untouched");
+
+            // Still listed to an administrator, because deactivation is not deletion: the row that
+            // historical proposals point at has to stay readable.
+            var all = (await (await admin.GetAsync("/api/v1/admin/reference/incoterms?includeInactive=true")).Content.ReadFromJsonAsync<List<JsonElement>>())!;
+            all.Should().Contain(i => i.GetProperty("code").GetString() == "FAS");
+        }
+        finally
+        {
+            // A seeded row, shared by every test in the suite. Restored in a finally rather than on
+            // the happy path: T-073 is the entry about exactly this, and a failing assertion above
+            // would otherwise leave FAS deactivated for whatever runs next.
+            await admin.PostAsJsonAsync("/api/v1/admin/reference/incoterms/FAS/reactivate", new { });
+        }
     }
 }

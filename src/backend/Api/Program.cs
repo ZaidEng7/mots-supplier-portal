@@ -248,6 +248,7 @@ builder.Services.AddScoped<IGetCurrenciesHandler, GetCurrenciesHandler>();
 builder.Services.AddScoped<IGetRegionsHandler, GetRegionsHandler>();
 builder.Services.AddScoped<IGetCategoriesHandler, GetCategoriesHandler>();
 builder.Services.AddScoped<IGetUnitsOfMeasureHandler, GetUnitsOfMeasureHandler>();
+builder.Services.AddScoped<IGetIncotermsHandler, GetIncotermsHandler>();
 // FEAT-06.1/FR-OFF-001: Offering CRUD.
 builder.Services.AddScoped<IListOfferingsHandler, ListOfferingsHandler>();
 builder.Services.AddScoped<ICreateOfferingHandler, CreateOfferingHandler>();
@@ -1008,6 +1009,14 @@ app.MapGet("/api/v1/reference/units-of-measure", async (IGetUnitsOfMeasureHandle
     Results.Ok(await handler.HandleAsync(ct)))
     .AllowAnonymous()
     .WithName("GetUnitsOfMeasure")
+    .WithTags("Reference");
+
+// T-072/FR-ADM-004's sixth table. Anonymous like its four siblings: a bidder reads the delivery
+// terms on offer while deciding whether to register at all.
+app.MapGet("/api/v1/reference/incoterms", async (IGetIncotermsHandler handler, CancellationToken ct) =>
+    Results.Ok(await handler.HandleAsync(ct)))
+    .AllowAnonymous()
+    .WithName("GetIncoterms")
     .WithTags("Reference");
 
 app.MapAdminOverviewEndpoints();
