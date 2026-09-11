@@ -5,13 +5,16 @@ import viteConfig from './vite.config.ts'
  * MSP-70: frontend coverage measurement.
  *
  * vitest was already a devDependency but had no config, no `test` script, and no test files - so
- * the frontend contributed nothing to the coverage number and its absence was invisible. There are
- * currently ZERO frontend unit tests; the two files under tests/e2e are Playwright specs, which
- * exercise the app through a browser and produce no coverage data.
+ * the frontend contributed nothing to the coverage number and its absence was invisible.
  *
- * The point of this config is therefore not to report a good number. It is to make the real one
- * visible: roughly 5,300 lines of TypeScript with no unit tests behind them. That is a genuine gap,
- * and it should show up in the gate as a gap rather than as silence.
+ * The point of this config was to make the real number visible rather than to report a good one:
+ * roughly 5,300 lines of TypeScript with no unit tests behind them, showing up in the gate as a gap
+ * rather than as silence. It did. There are 118 test files now and the frontend sits above 82%.
+ *
+ * This paragraph said "there are currently ZERO frontend unit tests" for as long as there were a
+ * hundred of them. It is left here corrected rather than deleted because the reason the config
+ * exists is still the reason it exists, and a file that records why it was written is worth more
+ * than one that only records what it does.
  */
 export default mergeConfig(
   viteConfig,
@@ -28,7 +31,13 @@ export default mergeConfig(
       // There are no test files yet. Without this the run exits non-zero and CI fails on a
       // condition that is already known and already reported by the coverage number - a red build
       // that teaches nothing. The zero is surfaced through coverage instead, where it is a
-      // measurement rather than an error. Remove this once the first test lands.
+      // measurement rather than an error.
+      //
+      // Kept now for a different reason than it was added for: a filter that matches nothing - a
+      // renamed directory, a changed `include` - would otherwise fail loudly, which sounds better
+      // and is not. It fails the same way whether the cause is zero tests or a broken glob, and
+      // this repository has been caught by that shape before. The instrument that would catch it is
+      // the coverage number dropping, which is watched.
       passWithNoTests: true,
 
       coverage: {

@@ -6,7 +6,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence;
 
 /// <summary>
 /// T-030/D-15: the mapping for an application-managed row version, replacing
-/// <c>IsRowVersion()</c>'s Postgres <c>xmin</c> on all nine versioned roots.
+/// <c>IsRowVersion()</c>'s Postgres <c>xmin</c> on all thirteen versioned roots.
 /// </summary>
 public static class AppManagedVersion
 {

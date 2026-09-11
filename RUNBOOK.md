@@ -3,8 +3,13 @@
 > Every command below was executed against a clean database while writing this file. Where a step
 > failed, the fix is in the step rather than in a footnote.
 
-**Prerequisites:** Docker, .NET 10 SDK, Node 20+. On this machine the SDK is not on `PATH`, so every
+**Prerequisites:** Docker, .NET 10 SDK, **Node 22**. On this machine the SDK is not on `PATH`, so every
 `dotnet` command is prefixed with `DOTNET_ROOT=/Users/zaid/.dotnet` — drop that prefix if yours is.
+
+> **Node 22, not 20.** This said "Node 20+" and Node 20 does not work: vitest, `tsc` and Playwright
+> all fail at startup with `webidl.util.markAsUncloneable is not a function`, which reads as a broken
+> dependency rather than as a wrong runtime. CI pins 22. There is no `.nvmrc` and no `engines` field
+> to tell you, so the version you have is the version you get.
 
 ---
 
