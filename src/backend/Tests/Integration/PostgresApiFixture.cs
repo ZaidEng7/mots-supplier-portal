@@ -24,7 +24,20 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
     // that belongs to Postgres itself (xmin row versioning, ON CONFLICT allocation), so an
     // unpinned image would let a silent upstream bump change what the suite is testing.
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
-    private readonly MinioContainer _minio = new MinioBuilder("minio/minio:latest").Build();
+    // quay.io, and PINNED - for the same reason the Postgres line above is pinned, learned the
+    // expensive way.
+    //
+    // This read `minio/minio:latest` until Docker Hub stopped serving that repository: the Hub API
+    // now answers 404 for minio/minio while answering 200 for library/postgres, because MinIO
+    // publishes to quay.io. Nothing in this repository changed. Every backend job went red at once,
+    // one millisecond into the run, with "pull access denied for minio/minio, repository does not
+    // exist" thrown from the line below - and it was invisible on any developer machine that had
+    // pulled the image before, because Docker reuses what it has.
+    //
+    // `latest` is what made a decision somebody else took land in this repository as a failure. A
+    // pinned release changes only when a person changes it.
+    private readonly MinioContainer _minio =
+        new MinioBuilder("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z").Build();
 
     // MSP-84/NFR-PERF-008: no official Testcontainers.ClamAv module exists, so this is the generic
     // ContainerBuilder against the same image docker-compose.yml already uses for local dev. Real
