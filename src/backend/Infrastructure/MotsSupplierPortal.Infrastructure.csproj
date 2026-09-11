@@ -6,17 +6,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.S3" Version="4.0.102.4" />
-    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.20" />
-    <PackageReference Include="Hangfire.PostgreSql" Version="1.20.12" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.103.1" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <PackageReference Include="MailKit" Version="4.17.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Serilog" Version="4.4.0" />
     <!-- FEAT-19.4 export engine. SkiaSharp draws and emits the PDF (SKDocument.CreatePdf);
          HarfBuzzSharp shapes Arabic. Both MIT. The NativeAssets.Linux packages are NOT optional:
@@ -27,7 +27,7 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.0" />
     <PackageReference Include="HarfBuzzSharp" Version="8.3.1.1" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="8.3.1.1" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
   </ItemGroup>
 
   <PropertyGroup>
