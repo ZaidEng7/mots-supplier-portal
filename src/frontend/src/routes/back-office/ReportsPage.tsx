@@ -99,6 +99,22 @@ export function ReportsPage() {
           </>
         ) : null}
 
+        {/*
+          Not an error, and it used to be reported as one.
+
+          This report counts one buying body's tenders, and two personas deliberately belong to none -
+          the bootstrap administrator and the Ministry viewer, whose grant is cross-organization by
+          BRULE-086 and would be narrowed by pinning it to one. The endpoint answers 404 for them,
+          correctly, and the card said "The report could not be loaded" with a Try again that could
+          never work: a retry of a question this account is not able to ask.
+
+          The compliance report below is unscoped, which is why it loads for the same accounts - and the
+          two sitting side by side, one broken and one fine, is what made it read as a fault.
+        */}
+        {procurement.isSuccess && procurement.data === null ? (
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('reports.procurement.noBuyingBody')}</p>
+        ) : null}
+
         {procurement.data ? (
           <div className="flex flex-col gap-5">
             <CountTable

@@ -5,6 +5,8 @@ import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import type { NavContext, NavGroup, NavItem } from './navigation'
 import { useAuthStore } from '../lib/authStore'
+import { PublicFooter } from '../components/PublicFooter'
+import { useDeclareShellMounted } from '../components/shellPresence'
 import { logout as apiLogout } from '../api/auth'
 
 export interface AppShellProps {
@@ -40,6 +42,11 @@ export interface AppShellProps {
 export function AppShell({
   groups, chrome, context, title, subtitle, home, searchTo, densityClass, footer, children,
 }: Readonly<AppShellProps>) {
+  // The root renders the same footer for anonymous pages and stands down while this is on screen -
+  // otherwise it draws below the sidebar, which is a full viewport tall, and every short page ends in a
+  // band of empty white with two links marooned in it.
+  useDeclareShellMounted()
+
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const email = useAuthStore((state) => state.claims?.email)
   const clearSession = useAuthStore((state) => state.clearSession)
@@ -80,6 +87,10 @@ export function AppShell({
             template's own cap for a page; forms cap themselves tighter still, in `FormMeasure`.
           */}
           <main id="main" className="flex w-full max-w-[1440px] flex-1 flex-col px-4 py-8 sm:px-6">{children}</main>
+          {/* In the content column, so it ends the page rather than the window - and inside the same
+              1440 measure the page uses, so it lines up with the content above it rather than running
+              out to the edge of a wide monitor. */}
+          <div className="w-full max-w-[1440px]"><PublicFooter inShell /></div>
           {footer}
         </div>
       </div>

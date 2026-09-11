@@ -135,3 +135,45 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
     expect(loading.every((el) => el.textContent === 'Reports')).toBe(true)
   })
 })
+
+/**
+ * The procurement report is scoped to one buying body; two personas deliberately belong to none.
+ *
+ * <p>The endpoint answers 404 for them, correctly - there is nothing in scope to return. It reached the
+ * screen as a thrown error, so the card offered "The report could not be loaded" and a Try again that
+ * could never succeed, on every visit, for the bootstrap administrator and the Ministry viewer. The
+ * compliance report below it is unscoped and loaded fine, and the two side by side - one broken, one
+ * working - is what made a policy boundary read as a fault.</p>
+ */
+describe('the procurement report when the reader belongs to no buying body', () => {
+  let restore: () => void
+  afterEach(() => restore?.())
+
+  it('explains the scope instead of reporting a failure', async () => {
+    restore = mockFetch({
+      '/api/v1/reports/procurement': { __status: 404 },
+      '/api/v1/reports/compliance': compliance(),
+    })
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText(/not attached to one/i)).toBeInTheDocument()
+    expect(screen.queryByText('The report could not be loaded.')).toBeNull()
+    // The retry is the part that mattered: a button that re-asks a question this account cannot ask.
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
+  it('still reports a real failure as one, with a retry that can work', async () => {
+    // The control. Without this the change above would pass just as well on a screen that had simply
+    // stopped reporting errors at all.
+    restore = mockFetch({
+      '/api/v1/reports/procurement': { __status: 500 },
+      '/api/v1/reports/compliance': compliance(),
+    })
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText('The report could not be loaded.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+})

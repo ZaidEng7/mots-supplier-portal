@@ -5,8 +5,12 @@ import userEvent from '@testing-library/user-event'
 import { List } from 'lucide-react'
 import type { NavGroup, NavItem } from './navigation'
 
+/** What the search field asked the router to do, which is the observable half of a submit. */
+const navigated: Array<Record<string, unknown>> = []
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => <a href={to} {...rest}>{children}</a>,
+  useNavigate: () => (options: Record<string, unknown>) => { navigated.push(options) },
 }))
 vi.mock('../components/NotificationBell', () => ({ NotificationBell: () => <button type="button">bell</button> }))
 vi.mock('../components/LanguageSwitch', () => ({ LanguageSwitch: () => <button type="button">language</button> }))
@@ -26,10 +30,15 @@ const CHROME: NavItem[] = [{ to: '/back-office/help', labelKey: 'help.title', ic
 const HOME = { to: '/back-office/dashboard', label: 'nav.dashboard' }
 const CONTEXT = { can: () => true, inABuyingBody: true }
 
-const renderBar = (pathname: string) =>
-  render(
-    <TopBar groups={GROUPS} chrome={CHROME} context={CONTEXT} pathname={pathname} home={HOME} onLogout={() => {}} />,
+const renderBar = (pathname: string, searchTo?: string) => {
+  navigated.length = 0
+  return render(
+    <TopBar
+      groups={GROUPS} chrome={CHROME} context={CONTEXT} pathname={pathname}
+      home={HOME} searchTo={searchTo} onLogout={() => {}}
+    />,
   )
+}
 
 describe('the top bar says where you are', () => {
   it('names the section, and lets the page name itself', () => {
@@ -58,7 +67,7 @@ describe('the top bar says where you are', () => {
 
   it('offers search only where the shell has somewhere to search', () => {
     const { rerender } = renderBar('/back-office/review')
-    expect(screen.queryByRole('link', { name: 'search.title' })).toBeNull()
+    expect(screen.queryByRole('searchbox', { name: 'search.title' })).toBeNull()
 
     rerender(
       <TopBar
@@ -66,7 +75,35 @@ describe('the top bar says where you are', () => {
         home={HOME} searchTo="/back-office/search" onLogout={() => {}}
       />,
     )
-    expect(screen.getByRole('link', { name: 'search.title' })).toHaveAttribute('href', '/back-office/search')
+    expect(screen.getByRole('searchbox', { name: 'search.title' })).toBeInTheDocument()
+  })
+
+  /**
+   * The control a reader can see is the control they get.
+   *
+   * <p>This was a `Link` 260 pixels wide, on the page background, inside an input border, with a
+   * magnifier and the word "Search" in it - a text field in every respect a reader can perceive and in
+   * none that they can use. Clicking navigated; typing did nothing; the destination was a page whose
+   * only content was the box they had just tried to type in.</p>
+   */
+  it('is a field that submits, not a link wearing the clothes of one', async () => {
+    renderBar('/back-office/review', '/back-office/search')
+
+    const box = screen.getByRole('searchbox', { name: 'search.title' })
+    expect(box.tagName).toBe('INPUT')
+    expect(box.closest('a')).toBeNull()
+
+    await userEvent.type(box, 'catering{Enter}')
+
+    expect(navigated).toEqual([{ to: '/back-office/search', search: { q: 'catering' } }])
+  })
+
+  it('does not submit an empty search', async () => {
+    renderBar('/back-office/review', '/back-office/search')
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'search.title' }), '   {Enter}')
+
+    expect(navigated).toEqual([])
   })
 })
 

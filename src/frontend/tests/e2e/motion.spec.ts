@@ -104,15 +104,25 @@ test.describe('the select popover', () => {
     await openStory(page, SELECT)
     await page.getByRole('combobox').first().click()
 
+    // Wait for the listbox to be the thing receiving keys. Pressing ArrowDown the instant after the
+    // click raced Radix's own focus move under parallel load - the key landed on the trigger, nothing
+    // was highlighted, and the test failed for a reason that had nothing to do with the highlight.
+    // Flaky once in a full run and green every time in isolation, which is the worst shape a guard
+    // can take: it teaches people to re-run rather than to look.
+    await expect(page.getByRole('listbox')).toBeVisible()
+    const highlighted = page.locator('.msp-option[data-highlighted]')
+
     // The defect this replaces: the highlight was painted by the component's own onPointerEnter, so
     // a keyboard user moving through a filter saw nothing at all - the outline that would otherwise
     // have shown the focused row is removed by data-[highlighted]:outline-none.
     await page.keyboard.press('ArrowDown')
-    const highlighted = page.locator('.msp-option[data-highlighted]')
     await expect(highlighted).toHaveCount(1)
-    const background = await highlighted.evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(background).not.toBe('rgba(0, 0, 0, 0)')
-    expect(background).not.toBe('transparent')
+
+    // Polled rather than read once: the background is painted by a class, and a single read can land
+    // in the frame before the style resolves.
+    await expect
+      .poll(async () => highlighted.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
   })
 })
 

@@ -143,8 +143,11 @@ const rootRoute = createRootRoute({
       <Outlet />
       {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
           re-authenticating does not remount the route underneath and discard the work it is protecting. */}
-      {/* SCR-908/SCR-907 reachable at last - see PublicFooter. Below the Outlet so it sits under the
-          page content, and inside the root so an anonymous user on /login has it too. */}
+      {/* SCR-908/SCR-907 reachable at last - see PublicFooter.
+          Anonymous pages only. Inside a shell it is rendered by AppShell instead, in the content
+          column: here at the root it sat BELOW a sidebar that is min-h-screen tall, so on any short
+          page it appeared as a lone pair of links stranded in a band of empty white the full width of
+          the window, the sidebar included. */}
       <PublicFooter />
       <SessionExpiredOverlay />
       {/* SCR-010. Below the expiry overlay in stacking order (--z-modal against --z-tooltip): if a session lapses
@@ -593,6 +596,12 @@ const uiStringsRoute = createRoute({
 const searchRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/search',
+  // The query lives in the URL so the top bar can submit into this screen, and so a search can be
+  // linked to, reloaded and gone back to. It was local state, which is why the only way to reach a
+  // result was to arrive at an empty page and type again.
+  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+    q: typeof search.q === 'string' && search.q.trim() !== '' ? search.q : undefined,
+  }),
   component: SearchPage,
 })
 

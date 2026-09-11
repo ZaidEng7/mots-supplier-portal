@@ -16,6 +16,10 @@ vi.mock('@tanstack/react-router', () => ({
   // The shell asks the router where it is so the rail can mark the current row. A path that matches no
   // destination keeps these tests about permissions, which is what they are for.
   useRouterState: () => '/back-office/nowhere-in-particular',
+  // The top bar's search is a real field now rather than a link dressed as one, so it asks the router
+  // where to submit. These tests are about which destinations a persona is offered; a navigation that
+  // goes nowhere keeps them that way.
+  useNavigate: () => () => undefined,
 }))
 
 const { BackOfficeShell } = await import('./BackOfficeShell')
