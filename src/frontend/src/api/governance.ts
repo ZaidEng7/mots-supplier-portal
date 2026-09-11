@@ -102,6 +102,15 @@ export interface MinistrySpendBucket {
   key: string
   awards: number
   value: number | null
+  /**
+   * The bucket's name, where its key is a CODE rather than a word.
+   *
+   * <p>Null for months, whose key is a date, and for buying bodies, whose key is already a name. Set
+   * for categories, which group on `CategoryCode` - so a Ministry reader met `tour_operations` on the
+   * axis of a ranked chart chosen precisely because a category name is prose.</p>
+   */
+  nameAr: string | null
+  nameEn: string | null
 }
 
 export interface MinistryAwardAnalytics {

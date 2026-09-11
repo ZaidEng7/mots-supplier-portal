@@ -39,9 +39,9 @@ function analytics(overrides: Record<string, unknown> = {}) {
       { key: '2026-06', awards: 4, value: 290_000 },
     ],
     byCategory: [
-      { key: 'catering', awards: 2, value: 90_000 },
-      { key: 'transport', awards: 4, value: 500_000 },
-      { key: 'maintenance', awards: 3, value: 222_500 },
+      { key: 'catering', awards: 2, value: 90_000, nameAr: 'التموين', nameEn: 'Catering & Hospitality' },
+      { key: 'transport', awards: 4, value: 500_000, nameAr: 'النقل', nameEn: 'Transport & Logistics' },
+      { key: 'tour_operations', awards: 3, value: 222_500, nameAr: 'الرحلات', nameEn: 'Tour operations' },
     ],
     byOrganization: [
       { key: 'Directorate of Ports', awards: 5, value: 600_000 },
@@ -85,7 +85,38 @@ describe('MinistryAwardAnalyticsPage (SCR-603)', () => {
     const tableOrder = rows.map((row) => within(row).getAllByRole('cell')[0].textContent)
 
     // Sorted by value descending: transport 500,000 then maintenance 222,500 then catering 90,000.
-    expect(tableOrder).toEqual(['transport', 'maintenance', 'catering'])
+    expect(tableOrder).toEqual(['Transport & Logistics', 'Tour operations', 'Catering & Hospitality'])
+  })
+
+  /**
+   * The naming defect, on the chart whose form was chosen because a category name is prose.
+   *
+   * <p>The by-category buckets group on CategoryCode, so a Ministry reader met `tour_operations` on
+   * the axis and in the table beside it - a domain identifier, in one language, with an underscore in
+   * it. The names exist in the reference table and the coverage endpoint already returned them.</p>
+   */
+  it('names a category rather than printing its code', async () => {
+    restore = mockFetch({ [ANALYTICS]: analytics() })
+
+    renderPage(<MinistryAwardAnalyticsPage />)
+    await screen.findByRole('heading', { name: 'By category' })
+
+    // Twice on purpose: once on the chart's axis and once in the table beneath it, which is the
+    // pairing this screen is built on.
+    expect(screen.getAllByText('Tour operations')).toHaveLength(2)
+    expect(screen.queryByText('tour_operations')).toBeNull()
+  })
+
+  it('keeps the key when a bucket carries no name, rather than rendering blank', async () => {
+    // Months and buying bodies send no name because a date and an organisation's own name are already
+    // words. A category deleted from the reference list would arrive the same way, and it still
+    // awarded something - hiding it would change the total.
+    restore = mockFetch({ [ANALYTICS]: analytics() })
+
+    renderPage(<MinistryAwardAnalyticsPage />)
+
+    expect((await screen.findAllByText('2026-05')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Directorate of Ports').length).toBeGreaterThan(0)
   })
 
   it('charts award counts, and says so, when the values are withheld', async () => {

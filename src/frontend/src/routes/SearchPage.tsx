@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, toneFor} from '../components/ui'
+import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, StatusChip, toneFor} from '../components/ui'
 import { search, type SearchHit } from '../api/search'
 
 /**
@@ -163,11 +163,7 @@ export function SearchPage() {
                           {hit.referenceCode}
                         </span>
                       ) : null}
-                      {hit.context ? (
-                        <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                          {hit.context}
-                        </span>
-                      ) : null}
+                      {hit.context ? <HitContext kind={hit.kind} context={hit.context} /> : null}
                     </div>
                   </li>
                 )
@@ -177,5 +173,33 @@ export function SearchPage() {
         </Card>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The third column of a result row, which is a different thing for each kind.
+ *
+ * <p><b>What this replaces.</b> `{hit.context}` printed raw. The server puts three unrelated values in
+ * that one field - an RFQ's state, a supplier's lifecycle state, and for an offering the supplier's
+ * reference code - so a search for "catering" answered with `Draft`, `InternalReview` and `Completed`
+ * in English, on an Arabic page as readily as an English one. They are enum members, not words anybody
+ * chose for a reader.</p>
+ *
+ * <p>Every one of those states already has an authored label in both languages, under `status.rfq.*`
+ * and `status.onboarding.*`, and a chip that renders them. The search screen was simply not using it.
+ * Interpreting by `kind` needs no change to the wire: the screen already decides what to link to the
+ * same way.</p>
+ *
+ * <p>An offering's context is a supplier CODE - an identifier a person reads and copies, not a word -
+ * so it stays as it is, in the same monospace treatment the reference code above it gets.</p>
+ */
+function HitContext({ kind, context }: Readonly<{ kind: SearchHit['kind']; context: string }>) {
+  if (kind === 'rfq') return <StatusChip machine="rfq" value={context} />
+  if (kind === 'supplier') return <StatusChip machine="onboarding" value={context} />
+
+  return (
+    <span className="font-mono text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+      {context}
+    </span>
   )
 }

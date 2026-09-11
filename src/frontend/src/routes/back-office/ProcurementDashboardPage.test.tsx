@@ -37,7 +37,7 @@ describe('ProcurementDashboardPage (SCR-400)', () => {
 
     renderPage(<ProcurementDashboardPage />)
 
-    expect(await screen.findByText('Active RFQs')).toBeInTheDocument()
+    expect(await screen.findByText('Active tenders')).toBeInTheDocument()
     for (const tile of ['Closing this week', 'Awaiting my action', 'Pending approvals', 'Awards in progress']) {
       expect(screen.getByText(tile)).toBeInTheDocument()
     }
@@ -59,7 +59,7 @@ describe('ProcurementDashboardPage (SCR-400)', () => {
 
     renderPage(<ProcurementDashboardPage />)
 
-    await screen.findByText('Active RFQs')
+    await screen.findByText('Active tenders')
     expect(screen.queryByText('Open approval queues')).not.toBeInTheDocument()
 
     restore()
@@ -79,7 +79,7 @@ describe('ProcurementDashboardPage (SCR-400)', () => {
 
     renderPage(<ProcurementDashboardPage />)
 
-    expect(await screen.findByText('No RFQs yet')).toBeInTheDocument()
+    expect(await screen.findByText('No tenders yet')).toBeInTheDocument()
   })
 
   it('counts render in Eastern Arabic numerals under Arabic', async () => {

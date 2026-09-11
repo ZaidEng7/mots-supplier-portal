@@ -35,7 +35,7 @@ function rfqFixture(state: RfqState, overrides: Partial<Rfq> = {}): Rfq {
     publishAt: null, submissionOpensAt: null, submissionClosesAt: null, clarificationDeadlineAt: null,
     evaluationTargetDate: null, evaluationTemplateId: null, evaluationTemplateVersion: null, cancelReason: null,
     items: [], requirements: [], attachments: [], approvals: [], invitations: [], clarifications: [], addenda: [],
-    // A-7: unowned by default, which is what every RFQ created before ownership existed looks like -
+    // A-7: unowned by default, which is what every Tender created before ownership existed looks like -
     // so the tests below exercise the fallback path unless a case sets it.
     ownerUserId: null, ownerName: null, assignedApproverUserId: null, assignedApproverName: null,
     ...overrides,
@@ -371,9 +371,9 @@ describe('RfqDetailPage', () => {
   })
 
   it.each([
-    ['Draft' as const, 'Submit for review', 'RFQ submitted for review'],
-    ['InternalReview' as const, 'Approve', 'RFQ approved'],
-    ['Approved' as const, 'Publish', 'RFQ published'],
+    ['Draft' as const, 'Submit for review', 'Tender submitted for review'],
+    ['InternalReview' as const, 'Approve', 'Tender approved'],
+    ['Approved' as const, 'Publish', 'Tender published'],
   ])('%s: clicking the primary action calls its own transition and surfaces the right toast', async (state, buttonName, toastText) => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture(state) })
 
@@ -651,7 +651,7 @@ describe('RfqDetailPage', () => {
 
     renderPage(<RfqDetailPage />)
 
-    expect(await screen.findByText('This RFQ has been cancelled.')).toBeInTheDocument()
+    expect(await screen.findByText('This tender has been cancelled.')).toBeInTheDocument()
   })
 
 
@@ -666,7 +666,7 @@ describe('RfqDetailPage', () => {
     expect(screen.queryByLabelText('New deadline')).not.toBeInTheDocument()
   })
 
-  it('lists the RFQ attachments, downloads one, and offers upload only on a Draft', async () => {
+  it('lists the Tender attachments, downloads one, and offers upload only on a Draft', async () => {
     // SCR-414. addRfqAttachment / removeRfqAttachment / the download-url route have existed since
     // EPIC-07 and no screen called any of them: the tender documents could only be attached through
     // the API. Found by the batch 9 per-screen sweep.
@@ -730,7 +730,7 @@ describe('RfqDetailPage', () => {
   })
 
   it('says "Unassigned" for an RFQ that predates ownership', async () => {
-    // The control for the test above: the same element, the fallback wording. Every RFQ created before
+    // The control for the test above: the same element, the fallback wording. Every Tender created before
     // A-7 looks exactly like this fixture's default.
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 

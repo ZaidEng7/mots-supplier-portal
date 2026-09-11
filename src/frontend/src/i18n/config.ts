@@ -76,7 +76,7 @@ const resources = {
         pendingCta: 'متابعة استكمال الملف',
         erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.',  // §9's sync tone
         emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
-        emptyBody: 'ستظهر هنا دعوات طلبات عروض الأسعار عند دعوتكم للمشاركة.',
+        emptyBody: 'ستظهر هنا دعوات المناقصات عند دعوتكم للمشاركة.',
       },
       // FEAT-19.1/19.2 report screen. AUTHORED, not transcribed: no document specifies this
       // screen at all, so every string here is an invention and none of it is a §7 label set. The
@@ -288,7 +288,7 @@ const resources = {
         title: 'لوحة الحوكمة',
         kpis: {
           suppliers: 'الموردون المسجلون',
-          rfqs: 'طلبات عروض الأسعار',                    // [reused] §7's own term
+          rfqs: 'المناقصات',                    // [reused] §7's own term
           awards: 'الترسيات',                            // [reused] §8's «ترسية»
           participation: 'متوسط العروض لكل طلب',
         },
@@ -301,7 +301,7 @@ const resources = {
         // This is the SCREEN's caption for the group, which is this file's to write, and it says what the
         // count means without claiming to name a status.
         unlabelledLifecycle: 'موردون قبل الاعتماد',  // Step 3
-        rfqsByState: 'طلبات عروض الأسعار حسب الحالة',     // [reused] matches the procurement report
+        rfqsByState: 'المناقصات حسب الحالة',     // [reused] matches the procurement report
         empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
         loadFailed: 'تعذّر تحميل لوحة الحوكمة',
         retry: 'إعادة المحاولة',                         // [reused]
@@ -333,7 +333,7 @@ const resources = {
         procurement: {
           title: 'تقرير المشتريات',
           noBuyingBody: 'يغطي هذا التقرير مناقصات جهة مشترية واحدة. حسابك غير مرتبط بجهة، فلا توجد بيانات لعرضها هنا. أما تقرير الالتزام أدناه فيحصي كل مورّد مسجّل ولا يخضع لهذا النطاق.',
-          rfqsByState: 'طلبات عروض الأسعار حسب الحالة',
+          rfqsByState: 'المناقصات حسب الحالة',
           cycleTime: 'زمن الدورة',
           awardsByState: 'الترسيات حسب الحالة',
           coverageFloor: 'تُقاس أزمنة الدورة من {{date}} فصاعداً؛ الطلبات الأقدم غير مشمولة.',
@@ -370,7 +370,7 @@ const resources = {
         approvals: 'الاعتمادات',
         openApprovals: 'فتح قائمة الاعتمادات',
         emptyTitle: 'لا توجد طلبات بعد',
-        emptyBody: 'أنشئ أول طلب عرض أسعار لدعوة الموردين.',
+        emptyBody: 'أنشئ أول مناقصة لدعوة الموردين.',
         loadFailed: 'تعذر تحميل اللوحة',
         retry: 'إعادة المحاولة',
       },
@@ -421,7 +421,7 @@ const resources = {
       notifications: {
         title: 'الإشعارات',
         emptyTitle: 'لا توجد إشعارات بعد',
-        emptyBody: 'ستظهر هنا التحديثات المتعلقة بطلبات عروض الأسعار وعروضك والترسيات.',
+        emptyBody: 'ستظهر هنا التحديثات المتعلقة بالمناقصات وعروضك والترسيات.',
         markAllRead: 'تعليم الكل كمقروء',
         markRead: 'تعليم كمقروء',
         open: 'فتح',
@@ -1014,7 +1014,7 @@ const resources = {
         activated: 'تم تفعيل القالب',
         archived: 'تمت أرشفة القالب',
         forked: 'تم إنشاء نسخة جديدة من القالب',
-        referenced: 'مرتبط بطلب عرض أسعار',
+        referenced: 'مرتبط بمناقصة',
         weightTotal: 'مجموع الأوزان: {{total}}',
         addCriterion: 'إضافة معيار',
         activate: 'تفعيل',
@@ -1024,13 +1024,13 @@ const resources = {
         errors: { saveFailed: 'تعذر حفظ القالب', activateFailed: 'تعذر تفعيل القالب' },
       },
       rfq: {
-        title: 'طلبات عروض الأسعار',
-        subtitle: 'أنشئ وأدر طلبات عروض الأسعار عبر دورة حياتها الكاملة.',
+        title: 'المناقصات',
+        subtitle: 'أنشئ وأدر المناقصات عبر دورة حياتها الكاملة.',
         add: 'طلب جديد',
         listTitle: 'قائمة الطلبات',
         empty: 'لا توجد طلبات بعد',
         loadMore: 'عرض المزيد',
-        createTitle: 'إنشاء طلب عرض أسعار',
+        createTitle: 'إنشاء مناقصة',
         save: 'حفظ',
         cancel: 'إلغاء',
         created: 'تم إنشاء الطلب',
@@ -1408,7 +1408,7 @@ const resources = {
           download: 'تنزيل',                                // [reused] §7's own term
           downloadFailed: 'تعذّر تنزيل المرفق',
         },
-        title: 'طلبات عروض الأسعار',
+        title: 'المناقصات',
         subtitle: 'طلبات العروض التي دُعيت للمشاركة فيها.',
         listTitle: 'قائمة الدعوات',
         empty: 'لا توجد دعوات بعد',
@@ -1975,7 +1975,7 @@ const resources = {
         empty: 'لا نتائج',                                      // [reused]
         emptyHint: 'يُطابق البحث الكلمات كاملة أو بداياتها فقط، فصيغة الجمع لا تجد المفرد.',
         idle: 'لم يُجرَ بحث بعد. بحث واحد يشمل المناقصات والموردين وعروض الكتالوج، ولا يُعيد إلا ما يحق لك فتحه.',
-        kinds: { rfq: 'طلب عرض', supplier: 'مورّد', offering: 'عرض مُدرَج' }, // [reused] §7's «طلب عرض»
+        kinds: { rfq: 'مناقصة', supplier: 'مورّد', offering: 'عرض مُدرَج' }, // [reused] §7's «طلب عرض»
         fields: { query: 'كلمة البحث' },
         errors: { failed: 'تعذّر تنفيذ البحث' },
       },
@@ -2101,7 +2101,7 @@ const resources = {
         pendingCta: 'Continue your profile',
         erpDegraded: 'Purchase-order sync is paused. This does not affect your proposal.',
         emptyTitle: 'No invitations yet',
-        emptyBody: "RFQ invitations will appear here when a buyer invites you.",
+        emptyBody: "Tender invitations will appear here when a buyer invites you.",
       },
       notificationTemplates: {
         title: 'Notification templates',
@@ -2191,7 +2191,7 @@ const resources = {
         minutes: '{{value}} min',
         jobs: 'Recurring jobs',
         jobsDisabled: 'Recurring jobs are disabled',
-        jobsDisabledBody: 'Reminders will not be sent and RFQs will not close automatically until recurring jobs are enabled in the deployment configuration.',
+        jobsDisabledBody: 'Reminders will not be sent and tenders will not close automatically until recurring jobs are enabled in the deployment configuration.',
         jobsMissing: 'Jobs missing from the schedule',
         jobsHealthy: '{{value}} jobs registered',
         referenceData: 'Reference data',
@@ -2247,7 +2247,7 @@ const resources = {
         awardCriticalSaved: 'Flag updated',
         awardCriticalExplained: 'When an award-critical document expires, the supplier is suspended automatically (BRULE-023). The commercial register and the tax certificate are marked (D-58); changing that list is a ministry decision.',
         title: 'Reference data',
-        subtitle: 'Add, rename, and deactivate the codes RFQs and supplier profiles are built from.',
+        subtitle: 'Add, rename, and deactivate the codes tenders and supplier profiles are built from.',
         tableLabel: 'Reference table',
         addTitle: 'Add a code',
         code: 'Code',
@@ -2284,16 +2284,16 @@ const resources = {
         title: 'Governance dashboard',
         kpis: {
           suppliers: 'Registered suppliers',
-          rfqs: 'RFQs',
+          rfqs: 'Tenders',
           awards: 'Awards',
-          participation: 'Average proposals per RFQ',
+          participation: 'Average bids per tender',
         },
         awardedValue: 'Total awarded value',
         commercialWithheld: 'Commercial values are not shown',
         commercialWithheldBody: 'Under the current visibility policy, aggregate metrics are shown without commercial values.',
         suppliersByState: 'Suppliers by lifecycle state',
         unlabelledLifecycle: 'Suppliers before approval',
-        rfqsByState: 'RFQs by state',
+        rfqsByState: 'Tenders by state',
         empty: 'No data yet',
         loadFailed: 'Could not load the governance dashboard',
         retry: 'Try again',
@@ -2305,7 +2305,7 @@ const resources = {
         state: 'State',
         count: 'Count',
         interval: 'Interval',
-        sampleSize: 'RFQs measured',
+        sampleSize: 'Tenders measured',
         medianHours: 'Median hours',
         notMeasured: '(not measured)',
         noRows: 'No data',
@@ -2325,10 +2325,10 @@ const resources = {
         procurement: {
           title: 'Procurement report',
           noBuyingBody: 'This report covers the tenders of one buying body. Your account is not attached to one, so there is nothing here to report. The compliance report below counts every registered supplier and is not scoped that way.',
-          rfqsByState: 'RFQs by state',
+          rfqsByState: 'Tenders by state',
           cycleTime: 'Cycle time',
           awardsByState: 'Awards by state',
-          coverageFloor: 'Cycle times are measured from {{date}} onward; earlier RFQs are not included.',
+          coverageFloor: 'Cycle times are measured from {{date}} onward; earlier tenders are not included.',
           coverageNone: 'No recorded transitions yet, so cycle time cannot be measured.',
         },
         compliance: {
@@ -2341,9 +2341,9 @@ const resources = {
       procurementDashboard: {
         title: 'Procurement dashboard',
         from: 'From', to: 'To',
-        newRfq: 'New RFQ',
+        newRfq: 'New tender',
         kpis: {
-          activeRfqs: 'Active RFQs',
+          activeRfqs: 'Active tenders',
           closingThisWeek: 'Closing this week',
           awaitingMyAction: 'Awaiting my action',
           pendingApprovals: 'Pending approvals',
@@ -2361,17 +2361,17 @@ const resources = {
         openNotifications: 'View notifications',
         approvals: 'Approvals',
         openApprovals: 'Open approval queues',
-        emptyTitle: 'No RFQs yet',
-        emptyBody: 'Create your first RFQ to invite suppliers and collect proposals.',
+        emptyTitle: 'No tenders yet',
+        emptyBody: 'Create your first tender to invite suppliers and collect bids.',
         loadFailed: "Couldn't load the dashboard",
         retry: 'Try again',
       },
       approvals: {
         title: 'Approvals',
         subtitle: 'Work waiting for approval in your organization.',
-        rfqQueue: 'RFQs awaiting publish approval',
+        rfqQueue: 'Tenders awaiting publish approval',
         awardQueue: 'Awards awaiting approval',
-        noRfqs: 'No RFQs are waiting for approval',
+        noRfqs: 'No tenders are waiting for approval',
         noAwards: 'No awards are waiting for approval',
         loadFailed: "Couldn't load the approval queues",
         retry: 'Try again',
@@ -2410,7 +2410,7 @@ const resources = {
       notifications: {
         title: 'Notifications',
         emptyTitle: 'No notifications yet',
-        emptyBody: 'Updates about RFQs, your proposals and awards will appear here.',
+        emptyBody: 'Updates about tenders, your bids and awards will appear here.',
         markAllRead: 'Mark all as read',
         markRead: 'Mark as read',
         open: 'Open',
@@ -2451,7 +2451,7 @@ const resources = {
           ClarificationRequested: 'Clarification requested', Revised: 'Revised', Shortlisted: 'Shortlisted',
           NotSelected: 'Not selected', AwardOffered: 'Award offered', Awarded: 'Awarded',
           Declined: 'Declined', Withdrawn: 'Withdrawn',
-          Lapsed: 'Window closed', Cancelled: 'RFQ cancelled',
+          Lapsed: 'Window closed', Cancelled: 'Tender cancelled',
         },
         evaluation: {
           NotStarted: 'Not started', Assigned: 'Assigned', InProgress: 'In progress',
@@ -2926,7 +2926,7 @@ const resources = {
       },
       offeringSearch: {
         title: 'Offering Search',
-        subtitle: 'Search active suppliers’ offerings for RFQ invitation candidates.',
+        subtitle: 'Search active suppliers’ offerings for tender invitation candidates.',
         filterCategory: 'Category',
         filterAll: 'All',
         filterSearch: 'Search',
@@ -2948,7 +2948,7 @@ const resources = {
         activated: 'Template activated',
         archived: 'Template archived',
         forked: 'New template version created',
-        referenced: 'Bound to an RFQ',
+        referenced: 'Bound to a tender',
         weightTotal: 'Weight total: {{total}}',
         addCriterion: 'Add criterion',
         activate: 'Activate',
@@ -2958,16 +2958,16 @@ const resources = {
         errors: { saveFailed: 'Could not save the template', activateFailed: 'Could not activate the template' },
       },
       rfq: {
-        title: 'RFQs',
-        subtitle: 'Create and manage Requests for Quotation through their full lifecycle.',
-        add: 'New RFQ',
-        listTitle: 'RFQ List',
-        empty: 'No RFQs yet',
+        title: 'Tenders',
+        subtitle: 'Create and manage tenders through their full lifecycle.',
+        add: 'New tender',
+        listTitle: 'Tender list',
+        empty: 'No tenders yet',
         loadMore: 'Load more',
-        createTitle: 'Create RFQ',
+        createTitle: 'Create tender',
         save: 'Save',
         cancel: 'Cancel',
-        created: 'RFQ created',
+        created: 'Tender created',
         itemAdded: 'Item added',
         itemUpdated: 'Item updated',
         requirementUpdated: 'Requirement updated',
@@ -2981,12 +2981,12 @@ const resources = {
         },
         requirementAdded: 'Requirement added',
         templateBound: 'Evaluation template bound',
-        submitted: 'RFQ submitted for review',
-        returned: 'RFQ returned for edits',
-        approved: 'RFQ approved',
-        published: 'RFQ published',
+        submitted: 'Tender submitted for review',
+        returned: 'Tender returned for edits',
+        approved: 'Tender approved',
+        published: 'Tender published',
         closed: 'Submission window closed',
-        cancelled: 'RFQ cancelled',
+        cancelled: 'Tender cancelled',
         submitForReview: 'Submit for review',
         approve: 'Approve',
         publish: 'Publish',
@@ -3019,9 +3019,9 @@ const resources = {
           decisions: 'Decisions',
           managing: 'Managing this tender',
         },
-        cancelTitle: 'Cancel RFQ',
+        cancelTitle: 'Cancel tender',
         cancelWarning: 'Cancelling is final. Invited suppliers are told the tender is cancelled, and it cannot be reopened.',
-        cancelRfq: 'Cancel RFQ',
+        cancelRfq: 'Cancel tender',
         addItem: 'Add item',
         addRequirement: 'Add requirement',
         bindTemplate: 'Bind template',
@@ -3030,7 +3030,7 @@ const resources = {
         noItems: 'No items yet',
         attachments: {
           permanentWarning: 'Check these files before sending the tender for review: attachments cannot be added, replaced or removed once it leaves Draft, and an addendum cannot carry a file. Correcting one after that means cancelling the tender and authoring it again.',
-          title: 'RFQ attachments',
+          title: 'Tender attachments',
           none: 'No attachments',
           add: 'Add an attachment',
           added: 'Attachment added',
@@ -3058,13 +3058,13 @@ const resources = {
           me: 'Mine',
           unassigned: 'Unassigned',
           empty: {
-            me: 'No RFQs are assigned to you',
-            unassigned: 'Every RFQ has an owner',
+            me: 'No tenders are assigned to you',
+            unassigned: 'Every tender has an owner',
           },
         },
         ownership: {
           title: 'Ownership',
-          help: 'One officer is responsible for taking this RFQ forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail.',
+          help: 'One officer is responsible for taking this tender forward. A manager can hand it to someone else at any point; the change and the reason are recorded in the audit trail.',
           ownerLabel: 'Owner',
           approverLabel: 'Approver',
           newOwner: 'New owner',
@@ -3075,7 +3075,7 @@ const resources = {
           approverHint: 'Applied when you submit for review. Leave blank to let any manager approve.',
           anyManager: 'Any manager',
         },
-        errors: { saveFailed: 'Could not save the RFQ', transitionFailed: 'Could not perform the action' },
+        errors: { saveFailed: 'Could not save the tender', transitionFailed: 'Could not perform the action' },
         invitations: {
           title: 'Invitations',
           none: 'No suppliers invited yet',
@@ -3262,10 +3262,10 @@ const resources = {
         rank: 'Rank',
       },
       workspace: {
-        title: 'RFQ Workflow',
+        title: 'Tender workflow',
         stages: 'Lifecycle stages',
         noNextAction: 'No next action is currently available.',
-        cancelledBanner: 'This RFQ has been cancelled.',
+        cancelledBanner: 'This tender has been cancelled.',
         next: 'What happens next',
         stands: 'Where this tender stands',
         glance: 'At a glance',
@@ -3682,7 +3682,7 @@ const resources = {
         awardOffered: 'Award offered',
         retry: 'Try again',
         fields: {
-          rfq: 'RFQ', proposal: 'Proposal', state: 'State',
+          rfq: 'Tender', proposal: 'Proposal', state: 'State',
           deadline: 'Deadline', total: 'Total', actions: 'Actions',
         },
         errors: { loadFailed: 'Could not load your proposals' },
@@ -3816,7 +3816,7 @@ const resources = {
         fields: {
           job: 'Job', schedule: 'Schedule', lastRun: 'Last run', nextRun: 'Next run',
           type: 'Type', status: 'Status', created: 'Created', processed: 'Processed', actions: 'Actions',
-          rfq: 'RFQ', attempts: 'Attempts', syncedAt: 'Synced', poRef: 'PO reference',
+          rfq: 'Tender', attempts: 'Attempts', syncedAt: 'Synced', poRef: 'PO reference',
           control: 'Control', effective: 'In effect',
         },
         errors: {
@@ -3863,7 +3863,7 @@ const resources = {
         empty: 'No results',
         emptyHint: 'Search matches whole words and prefixes only, so a plural will not find a singular.',
         idle: 'Nothing searched yet. One search covers tenders, suppliers and catalogue offerings, and returns only what you are allowed to open.',
-        kinds: { rfq: 'RFQ', supplier: 'Supplier', offering: 'Offering' },
+        kinds: { rfq: 'Tender', supplier: 'Supplier', offering: 'Offering' },
         fields: { query: 'Search terms' },
         errors: { failed: 'The search could not be run' },
       },

@@ -13,11 +13,11 @@ const { NotificationTemplatesPage } = await import('./NotificationTemplatesPage'
 const TEMPLATE = {
   type: 'rfq.approved',
   titleAr: 'تمت الموافقة',
-  titleEn: 'RFQ approved',
+  titleEn: 'Tender approved',
   bodyAr: 'تمت الموافقة على {rfqCode}',
   bodyEn: 'RFQ {rfqCode} was approved',
   shippedTitleAr: 'تمت الموافقة',
-  shippedTitleEn: 'RFQ approved',
+  shippedTitleEn: 'Tender approved',
   shippedBodyAr: 'تمت الموافقة على {rfqCode}',
   shippedBodyEn: 'RFQ {rfqCode} was approved',
   isOverridden: false,

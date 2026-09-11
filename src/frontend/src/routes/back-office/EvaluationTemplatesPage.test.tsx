@@ -89,7 +89,7 @@ describe('EvaluationTemplatesPage', () => {
     renderPage(<EvaluationTemplatesPage />)
 
     expect(await screen.findByText('Bound Template (v1)')).toBeInTheDocument()
-    expect(screen.getByText('Bound to an RFQ')).toBeInTheDocument()
+    expect(screen.getByText('Bound to a tender')).toBeInTheDocument()
     expect(screen.queryByLabelText('Name (English)')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add criterion' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create new version' })).toBeInTheDocument()

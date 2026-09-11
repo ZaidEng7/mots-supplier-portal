@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { useCardHeadingId } from './cardHeading'
 
 /** maxHeight enables an inner vertical scroll (RESPONSIVE-AND-RTL.md §4.3's sticky-scroll pattern -
  * a sticky <thead> only stays put while scrolling if the scroll container is this element, not the
@@ -27,6 +28,20 @@ export function Table({ children, caption, maxHeight, flush = false }: {
    */
   flush?: boolean
 }) {
+  /*
+    A table inside a titled card names itself FROM that card's heading rather than repeating it.
+
+    The caption below is `sr-only`, so on 26 sites a screen reader announced the list's name twice -
+    and the first announcement was the worse one, because the caption ran straight into the header row
+    and the live text read "Items Items # TITLE CATEGORY QUANTITY". Deleting the caption alone would
+    have taken the accessible name with it; pointing at the heading keeps it and says it once.
+
+    A table with no card heading above it - a bare table on a page, or one in an untitled card - still
+    renders its caption, because then there is nothing else to name it.
+  */
+  const headingId = useCardHeadingId()
+  const namedByCard = headingId !== undefined
+
   return (
     <div
       className={`w-full overflow-auto ${flush ? '' : 'rounded-[var(--radius-md)]'}`}
@@ -35,8 +50,11 @@ export function Table({ children, caption, maxHeight, flush = false }: {
       {/* The one line that made 13px the most common size on every screen the audit measured: tables are
           the dominant content on 33 of the 65 screens, and this set all of them below the body floor.
           `--density-body` is 14px in the back office and 16px for a supplier. */}
-      <table className="w-full border-collapse text-[length:var(--density-body)]">
-        {caption ? <caption className="sr-only">{caption}</caption> : null}
+      <table
+        className="w-full border-collapse text-[length:var(--density-body)]"
+        aria-labelledby={namedByCard ? headingId : undefined}
+      >
+        {caption && !namedByCard ? <caption className="sr-only">{caption}</caption> : null}
         {children}
       </table>
     </div>

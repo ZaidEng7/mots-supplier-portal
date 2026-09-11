@@ -257,7 +257,18 @@ export interface ListCardLabels {
 export function ListCard({
   title, action, query, isEmpty, labels, skeleton, skeletonRows, footer, children,
 }: Readonly<{
-  title: string
+  /**
+   * The card's own name, where it has one that the page heading does not already carry.
+   *
+   * <p>Optional, and usually absent. A list screen's `<h1>` already names the list; a card that
+   * repeats it puts two names for one thing six inches apart, which the Rams audit counted as one of
+   * five removable things on the tender list alone. Pass a title only when the card holds something
+   * the page heading does not describe - a second list on the same screen, say.</p>
+   *
+   * <p>When it is absent the table inside names itself from its own caption instead, so nothing is
+   * lost to a screen reader. See `Table`.</p>
+   */
+  title?: string
   /** A control that belongs to the whole list rather than to a row - a filter, an "add" button - shown
    * beside the title. Passed straight to `Card`, so a screen adopting this component does not have to
    * keep its own `Card` just to keep its header control. */
