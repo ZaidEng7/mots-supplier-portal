@@ -157,6 +157,12 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         const string type = NotificationTypes.RfqApproved;
         var shipped = NotificationCatalogue.For(type);
 
+        // T-073: the delete below is the behaviour under test AND the restore, so it cannot be the
+        // only one. An assertion failing between the override and the revert would leave "Temporary"
+        // as the wording of a real notification for every test that ran afterwards - the product
+        // ships no overrides, so removing it is what putting it back means.
+        await using var scoped = new RevertTemplate(admin, type);
+
         (await admin.PutAsJsonAsync($"/api/v1/admin/notification-templates/{type}", new
         {
             titleAr = "مؤقت", titleEn = "Temporary", bodyAr = "مؤقت", bodyEn = "Temporary",
@@ -222,5 +228,12 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         // The control.
         var admin = await AdminAsync();
         (await admin.GetAsync("/api/v1/admin/notification-templates")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>Removes an override when the scope ends - see the T-073 note above.</summary>
+    private sealed class RevertTemplate(HttpClient admin, string type) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync() =>
+            await admin.DeleteAsync($"/api/v1/admin/notification-templates/{type}");
     }
 }

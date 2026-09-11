@@ -51,6 +51,12 @@ public sealed class DocumentTypeCategoryLinkTests(PostgresApiFixture fixture)
         var admin = await AdminAsync();
         const string type = "chamber_membership";
 
+        // T-073: the links on a SEEDED document type, which the seeder leaves empty and which
+        // RequiredDocumentTypeResolver reads to decide who must produce this document. The clear at
+        // the end of this test was a last line; a failing assertion above it left chamber_membership
+        // narrowed to one category for the rest of the run.
+        await using var scoped = new ClearLinks(admin, type);
+
         var saved = await admin.PutAsJsonAsync($"/api/v1/admin/document-type-categories/{type}",
             new { categoryCodes = new[] { "catering", "transport" } });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
@@ -165,5 +171,13 @@ public sealed class DocumentTypeCategoryLinkTests(PostgresApiFixture fixture)
         // Control.
         var admin = await AdminAsync();
         (await admin.GetAsync("/api/v1/admin/document-type-categories")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>Puts a seeded document type back to no links - see the T-073 note above.</summary>
+    private sealed class ClearLinks(HttpClient admin, string type) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync() =>
+            await admin.PutAsJsonAsync($"/api/v1/admin/document-type-categories/{type}",
+                new { categoryCodes = Array.Empty<string>() });
     }
 }

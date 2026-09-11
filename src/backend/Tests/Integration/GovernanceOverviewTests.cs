@@ -26,6 +26,35 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     /// then asserted against whatever the flag already was - which passed alone and failed in the full
     /// run. Asserting the row count turns that into a failure that names itself.</para>
     /// </summary>
+    /// <summary>
+    /// Sets the D-6 commercial-visibility flag and puts back whatever it was when the scope ends.
+    ///
+    /// <para>T-073: the flag is a seeded row in a database shared by every integration class, and the
+    /// restore used to be a bare statement at the end of the test - so a failing assertion above it
+    /// left the Ministry's commercial figures disclosed for everything that ran afterwards. Reading
+    /// the value first means the restore does not need to know what the seed says.</para>
+    /// </summary>
+    private async Task<IAsyncDisposable> CommercialVisibilityAsync(bool enabled)
+    {
+        bool original;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            original = await db.Set<SupplierFieldConfig>().AsNoTracking()
+                .Where(c => c.Category == FieldConfigCategory.GovernanceVisibility && c.FieldCode == "commercialValues")
+                .Select(c => c.IsEnabled)
+                .SingleAsync();
+        }
+
+        await SetCommercialVisibilityAsync(enabled);
+        return new RestoreVisibility(this, original);
+    }
+
+    private sealed class RestoreVisibility(GovernanceOverviewTests tests, bool original) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => new(tests.SetCommercialVisibilityAsync(original));
+    }
+
     private async Task SetCommercialVisibilityAsync(bool enabled)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -49,7 +78,7 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_ministry_sees_cross_organization_aggregates_and_no_commercial_figure_by_default()
     {
-        await SetCommercialVisibilityAsync(false);
+        await using var visibility = await CommercialVisibilityAsync(false);
 
         // Two organizations, so "cross-organization" is a claim with something to cross.
         await EvaluationSeed.CreateAsync(fixture, "Gov One");
@@ -89,19 +118,20 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
         await EvaluationSeed.CreateAsync(fixture, "Gov Flag");
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
 
-        await SetCommercialVisibilityAsync(false);
-        var withheld = await ministry.GetFromJsonAsync<JsonElement>("/api/v1/ministry/overview");
-        withheld.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Null);
+        await using (await CommercialVisibilityAsync(false))
+        {
+            var withheld = await ministry.GetFromJsonAsync<JsonElement>("/api/v1/ministry/overview");
+            withheld.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Null);
+        }
 
-        await SetCommercialVisibilityAsync(true);
-        var disclosed = await ministry.GetFromJsonAsync<JsonElement>("/api/v1/ministry/overview");
+        await using (await CommercialVisibilityAsync(true))
+        {
+            var disclosed = await ministry.GetFromJsonAsync<JsonElement>("/api/v1/ministry/overview");
 
-        disclosed.GetProperty("commercialValuesVisible").GetBoolean().Should().BeTrue();
-        disclosed.GetProperty("totalAwardedValue").ValueKind.Should().NotBe(JsonValueKind.Null,
-            "the flag is the only thing standing between the Ministry and this figure");
-
-        // Put it back, so this test does not leave a policy flag flipped for the suite.
-        await SetCommercialVisibilityAsync(false);
+            disclosed.GetProperty("commercialValuesVisible").GetBoolean().Should().BeTrue();
+            disclosed.GetProperty("totalAwardedValue").ValueKind.Should().NotBe(JsonValueKind.Null,
+                "the flag is the only thing standing between the Ministry and this figure");
+        }
     }
 
     [Fact]

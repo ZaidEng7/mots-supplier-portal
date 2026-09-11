@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.AspNetCore.Hosting;
@@ -74,7 +75,16 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
 
         // Now touch Services to actually boot the host against the migrated schema.
         _ = Services;
+
+        // T-073: the world as the seed left it, before any test has run. Compared again when the run
+        // ends - see GlobalRowSnapshot for what is in it and why.
+        await using var snapshotScope = Services.CreateAsyncScope();
+        _seededGlobals = await GlobalRowSnapshot.TakeAsync(
+            snapshotScope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
+
+    /// <summary>The shared rows as the seeder left them. Null only if InitializeAsync did not finish.</summary>
+    private IReadOnlyDictionary<string, string>? _seededGlobals;
 
     /// <summary>
     /// Every client in the suite carries <see cref="ETagAttachingHandler"/>, so §8.1's If-Match
@@ -143,7 +153,43 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
 
     async Task IAsyncLifetime.DisposeAsync()
     {
+        // T-073, and it runs BEFORE the containers go away because it needs the database.
+        //
+        // Thrown rather than asserted: this is a fixture, not a test, and xUnit surfaces a failure
+        // here as a run-level error naming this collection. That is the right shape - the leak
+        // belongs to the RUN rather than to whichever test happened to be last.
+        var drift = await DriftAsync();
+
         await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _minio.DisposeAsync().AsTask(), _clamav.DisposeAsync().AsTask());
         await base.DisposeAsync();
+
+        if (drift is not null) throw new InvalidOperationException(drift);
+    }
+
+    /// <summary>
+    /// T-073: what has changed in the globally shared rows since the seeder left them, or null.
+    ///
+    /// <para>Public so a test can ask, because the end-of-run check below reports at COLLECTION
+    /// level and xUnit v2's VSTest adapter exits 0 on a collection cleanup failure - loud in the
+    /// log, invisible to CI. <c>GlobalRowRestorationTests</c> is what makes it a gate.</para>
+    /// </summary>
+    public Task<string?> GlobalRowDriftAsync() => DriftAsync();
+
+    private async Task<string?> DriftAsync()
+    {
+        if (_seededGlobals is null) return null;
+
+        try
+        {
+            await using var scope = Services.CreateAsyncScope();
+            var after = await GlobalRowSnapshot.TakeAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>());
+            return GlobalRowSnapshot.Drift(_seededGlobals, after);
+        }
+        catch (Exception ex)
+        {
+            // A database that has already gone away is not a leak, and must not be reported as one:
+            // a false failure here would land on whatever test ran last and cost somebody an hour.
+            return $"The global-row check could not read the database at the end of the run: {ex.Message}";
+        }
     }
 }

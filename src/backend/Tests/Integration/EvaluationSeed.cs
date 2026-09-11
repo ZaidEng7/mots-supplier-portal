@@ -50,6 +50,29 @@ public static class EvaluationSeed
     /// it would mean two lifecycles drifting apart, and the one that drifts is the one nobody is
     /// looking at.</para>
     /// </summary>
+    /// <summary>
+    /// Fails at the step that failed, naming it and quoting the body.
+    ///
+    /// <para><b>Why this exists.</b> This seed drives eleven HTTP calls and checked none of them, so
+    /// a refusal anywhere surfaced three lines later as
+    /// <c>KeyNotFoundException: The given key was not present in the dictionary</c> from a
+    /// <c>GetProperty("proposalCode")</c> - which says nothing about which call was refused or why.
+    /// The window between publishing and submitting is real work on a loaded machine, and when it
+    /// loses, this is the shape the failure takes: a mystery in a file that did nothing wrong.</para>
+    ///
+    /// <para>Same family as T-090, the intermittent nobody could diagnose because the failure carried
+    /// no information.</para>
+    /// </summary>
+    private static async Task<HttpResponseMessage> Step(string name, Task<HttpResponseMessage> call)
+    {
+        var response = await call;
+        if (response.IsSuccessStatusCode) return response;
+
+        throw new InvalidOperationException(
+            $"EvaluationSeed could not complete '{name}': {(int)response.StatusCode} "
+            + $"{response.StatusCode}. Body: {await response.Content.ReadAsStringAsync()}");
+    }
+
     public static async Task<Seeded> CreateAsync(
         PostgresApiFixture fixture, string label, bool withDocuments = false, bool requiresJustification = false)
     {
@@ -85,10 +108,22 @@ public static class EvaluationSeed
             // That is the unidentified flake carried in the backlog since batch 9. The window is now an
             // hour, and the seed CLOSES it in storage when it needs it closed - the same technique
             // CrossOrganizationScopeTests adopted after the same class of failure.
-            submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
+            // An HOUR, not a second. The window used to open one second after the RFQ was created,
+            // and everything between - the item, the requirement, a supplier registration and
+            // verification, the invitation - had to finish inside it, because submit-review is
+            // refused once the window has opened. It regularly did not, and the seed reported the
+            // refusal as a missing proposalCode much further down. The window is moved open below
+            // instead, and the real job still performs the transition.
+            // An hour out, and TWO hours for the close - not two calls to UtcNow an hour out each.
+            // Those differ by microseconds, or by nothing at all when the clock does not tick between
+            // them, and a window whose close is not strictly after its open is refused. It failed 28
+            // times in a full run and passed every time in isolation, which is the signature of a
+            // race against a clock rather than against another test.
+            submissionOpensAt = DateTimeOffset.UtcNow.AddHours(1),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddHours(2),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
+        await Step("create rfq", Task.FromResult(created));
         var rfqCode = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
 
         var itemResponse = await officer.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/items", new
@@ -96,24 +131,25 @@ public static class EvaluationSeed
             titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
             categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
         });
+        await Step("add item", Task.FromResult(itemResponse));
         var itemId = (await itemResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
 
         await officer.PutAsJsonAsync($"/api/v1/rfqs/{rfqCode}/evaluation-template", new { evaluationTemplateId = templateId });
 
         var (supplier, supplierId) = await ActiveSupplierAsync(fixture, $"{label} {Guid.NewGuid():N}"[..30]);
-        await officer.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/invitations", new { supplierId });
-        await officer.PostAsync($"/api/v1/rfqs/{rfqCode}/submit-review", null);
-        await manager.PostAsync($"/api/v1/rfqs/{rfqCode}/approve", null);
-        await officer.PostAsync($"/api/v1/rfqs/{rfqCode}/publish", null);
+        await Step("invite", officer.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/invitations", new { supplierId }));
+        await Step("submit-review", officer.PostAsync($"/api/v1/rfqs/{rfqCode}/submit-review", null));
+        await Step("approve", manager.PostAsync($"/api/v1/rfqs/{rfqCode}/approve", null));
+        await Step("publish", officer.PostAsync($"/api/v1/rfqs/{rfqCode}/publish", null));
 
-        await Task.Delay(TimeSpan.FromSeconds(1.2));
+        await SubmissionWindowTestHelper.OpenAsync(fixture, rfqCode);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<RfqTimelineJob>().RunAsync(CancellationToken.None);
         }
 
-        var start = await supplier.PostAsync($"/api/v1/rfqs/{rfqCode}/proposals", null);
+        var start = await Step("start proposal", supplier.PostAsync($"/api/v1/rfqs/{rfqCode}/proposals", null));
         var proposalCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("proposalCode").GetString()!;
         await ProposalPatch.PriceItemAsync(supplier, proposalCode, itemId, 10m, 5m);
         await ProposalPatch.SetTermsAsync(supplier, proposalCode, new

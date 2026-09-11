@@ -54,6 +54,23 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
         }
     }
 
+    /// <summary>
+    /// Removes the override on <paramref name="key"/> when the scope ends, whether the test passed or
+    /// threw.
+    ///
+    /// <para>T-073: an override is a global config row read by the live send path, and these tests
+    /// deleted theirs on the last line. A failing assertion above it left ministry test wording on a
+    /// real template - the password-reset mail among them - for every test that ran afterwards. The
+    /// product ships no overrides, so deleting is the restore.</para>
+    /// </summary>
+    private static IAsyncDisposable OverrideScope(HttpClient admin, string key) => new TemplateOverride(admin, key);
+
+    private sealed class TemplateOverride(HttpClient admin, string key) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync() =>
+            await admin.DeleteAsync($"/api/v1/admin/email-templates/{key}");
+    }
+
     [Fact]
     public async Task The_list_shows_every_template_with_its_shipped_wording_before_anyone_edits_one()
     {
@@ -103,6 +120,7 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
     public async Task An_override_that_keeps_the_token_is_accepted_and_reaches_the_send_path()
     {
         var admin = await AdminAsync();
+        await using var scoped = OverrideScope(admin, EmailTemplateKeys.PasswordReset);
 
         var saved = await admin.PutAsJsonAsync($"/api/v1/admin/email-templates/{EmailTemplateKeys.PasswordReset}", new
         {
@@ -155,6 +173,8 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
     {
         var admin = await AdminAsync();
 
+        await using var scoped = OverrideScope(admin, EmailTemplateKeys.ApplicationApproved);
+
         // D-34 applied to email: a token nobody declared reaches the recipient as the literal characters
         // {supplierName} mid-sentence, and cannot be diagnosed from the sent mail.
         var refused = await admin.PutAsJsonAsync($"/api/v1/admin/email-templates/{EmailTemplateKeys.ApplicationApproved}", new
@@ -180,7 +200,7 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
             bodyEn = "<p>Hello</p>",
         })).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await admin.DeleteAsync($"/api/v1/admin/email-templates/{EmailTemplateKeys.ApplicationApproved}");
+        // The delete is the scope above, not a last line here.
     }
 
     [Fact]

@@ -21,6 +21,41 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
 {
     private Task<HttpClient> AdminClientAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
+    /// <summary>
+    /// Holds a role's CURRENT permission set and puts exactly that back when the scope ends.
+    ///
+    /// <para><b>T-073, and it fixes two faults at once.</b> The restores in this file were bare
+    /// statements at the end of a test - a failing assertion above them skipped the restore
+    /// entirely - and they restored a set written from memory rather than the one that was there.
+    /// <c>ministry_viewer</c>'s restore put back <c>governance.read</c> alone, while the seeder
+    /// grants it <c>report.read</c> as well, so the test that exists to prove role editing works was
+    /// itself quietly editing a role for the rest of the run.</para>
+    ///
+    /// <para>Reading the set first and writing it back is the only version that cannot drift: it
+    /// does not need to know what the seed grants, and it stays right when the seed changes.</para>
+    /// </summary>
+    private static async Task<IAsyncDisposable> PreserveRolePermissionsAsync(HttpClient admin, string role)
+    {
+        var current = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/roles");
+        var permissions = current.GetProperty("roles").EnumerateArray()
+            .Single(r => r.GetProperty("name").GetString() == role)
+            .GetProperty("permissions").EnumerateArray()
+            .Select(p => p.GetString()!)
+            .ToArray();
+
+        return new RolePermissions(admin, role, permissions);
+    }
+
+    private sealed class RolePermissions(HttpClient admin, string role, string[] permissions) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            var restored = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{role}/permissions", new { permissions });
+            restored.StatusCode.Should().Be(HttpStatusCode.OK,
+                "a role this test edited must be put back, or every test after it runs against the edit");
+        }
+    }
+
     [Fact]
     public async Task List_returns_every_seeded_role_with_its_current_permissions()
     {
@@ -126,11 +161,33 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
                 await roleManager.AddClaimAsync(officerRole, new System.Security.Claims.Claim("perms", permission));
             }
 
-            foreach (var role in strippedFrom.Where(r => r.Id != officerRole.Id))
+            // T-073. This restore never worked, and said nothing about it.
+            //
+            // Identity stamps every role row with a ConcurrencyStamp and bumps it on each write. The
+            // instances captured before the strip - and the ones this scope's DbContext is still
+            // tracking - carry the stamp from before the PUTs above, so AddClaimAsync returns a
+            // FAILED IdentityResult ("Optimistic concurrency failure") rather than throwing. Nothing
+            // checked the result, so the restore reported success and wrote nothing:
+            // procurement_manager and system_admin have been losing offering.search to this test
+            // ever since, and the global-row check is what finally said so.
+            //
+            // A FRESH scope is the fix. Re-fetching inside the old one returns the tracked, stale
+            // entity and fails the same way.
+            await using var restoreScope = fixture.Services.CreateAsyncScope();
+            var restoreRoleManager = restoreScope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+
+            foreach (var stale in strippedFrom.Where(r => r.Id != officerRole.Id))
             {
-                var current = await roleManager.GetClaimsAsync(role);
+                var role = await restoreRoleManager.FindByIdAsync(stale.Id.ToString());
+                if (role is null) continue;
+
+                var current = await restoreRoleManager.GetClaimsAsync(role);
                 if (current.Any(c => c.Type == "perms" && c.Value == Permissions.OfferingSearch)) continue;
-                await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("perms", Permissions.OfferingSearch));
+
+                var restored = await restoreRoleManager.AddClaimAsync(role, new System.Security.Claims.Claim("perms", Permissions.OfferingSearch));
+                restored.Succeeded.Should().BeTrue(
+                    $"offering.search must go back on {role.Name}, or every later test runs against a role this one edited. "
+                    + string.Join("; ", restored.Errors.Select(e => $"{e.Code}: {e.Description}")));
             }
         }
     }
@@ -184,6 +241,7 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
     public async Task A_valid_update_persists_and_is_audited()
     {
         var admin = await AdminClientAsync();
+        await using var preserved = await PreserveRolePermissionsAsync(admin, Roles.MinistryViewer);
 
         var response = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.MinistryViewer}/permissions",
             new { permissions = new[] { Permissions.AuditRead } });
@@ -202,14 +260,12 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         auditRow.Should().NotBeNull("every role-permission change must be audited");
         auditRow!.Changes.Should().NotBeNull().And.Contain("permissions");
 
-        // Restored, and this now matters. ministry_viewer was chosen as the subject because its
-        // permission set was EMPTY, so overwriting it damaged nothing. EPIC-18 gave the persona
-        // governance.read, and this test then stripped it for every test that ran afterwards - the
-        // governance suite passed alone and failed in the full run. The endpoint under test is still
-        // exercised the same way; the difference is that the role is put back.
-        (await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.MinistryViewer}/permissions",
-            new { permissions = new[] { Permissions.GovernanceRead } }))
-            .StatusCode.Should().Be(HttpStatusCode.OK);
+        // The restore is the `await using` at the top of this test now.
+        //
+        // It used to be these three lines, and they were wrong twice over: a failing assertion above
+        // skipped them, and they put back governance.read ALONE while the seeder also grants
+        // ministry_viewer report.read - so the fix for one leak (EPIC-18's, which made the governance
+        // suite pass alone and fail in a full run) quietly introduced another.
     }
 
     /// <summary>The real proof this feature works end-to-end, not just that the DB row changed:
@@ -219,6 +275,7 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
     public async Task A_role_permission_change_reaches_the_next_login_s_JWT()
     {
         var admin = await AdminClientAsync();
+        await using var preserved = await PreserveRolePermissionsAsync(admin, Roles.Evaluator);
         var email = $"jwtcheck-{Guid.NewGuid():N}@ministry.example";
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -246,15 +303,9 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         JwtClaims(afterToken).Should().Contain(Permissions.AuditRead,
             "the role edit must reach a fresh login's JWT, proving PermissionResolver reads live DB claims, not the static seed dictionary");
 
-        // This suite shares one Postgres database across every test in the run (PostgresApiFixture
-        // is a single collection fixture, not per-test) - the update above just overwrote the real
-        // "evaluator" role's permission set for every OTHER test still to run this session, silently
-        // dropping evaluation.submit (and anything else Roles.DefaultPermissions grants it beyond
-        // EvaluationScore). Restore the seeded default explicitly so this test's own side effect
-        // does not leak into unrelated evaluator-role tests elsewhere in the suite.
-        var restore = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.Evaluator}/permissions",
-            new { permissions = Roles.DefaultPermissions[Roles.Evaluator] });
-        restore.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Restored by the `await using` at the top. This used to be a bare statement here, reading
+        // the set from Roles.DefaultPermissions - right today, and wrong the moment a migration or an
+        // administrator grants the evaluator something the static dictionary does not list.
     }
 
     /// <summary>Regression test for a real bug caught in manual verification, not by the rest of

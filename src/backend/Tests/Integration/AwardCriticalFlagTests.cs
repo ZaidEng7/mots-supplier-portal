@@ -85,6 +85,12 @@ public sealed class AwardCriticalFlagTests(PostgresApiFixture fixture)
         var admin = await AdminAsync();
         var code = $"probe_{Guid.NewGuid():N}"[..20];
 
+        // T-073. The probe TYPE is this test's own, but the award-critical SET is not: the expiry job
+        // suspends a supplier for any type carrying the flag, and three tests assert against the set
+        // as a whole. Clearing it was this test's last line, so a failing assertion left an
+        // award-critical document type standing for the rest of the run.
+        await using var scoped = new ClearAwardCritical(admin, code);
+
         var created = await admin.PostAsJsonAsync($"/api/v1/admin/reference/document-types/{code}", new
         {
             nameAr = "نوع اختبار", nameEn = "Probe type", isRequired = false, expiryTracked = true,
@@ -130,5 +136,23 @@ public sealed class AwardCriticalFlagTests(PostgresApiFixture fixture)
         var afterClear = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/reference/document-types");
         afterClear.EnumerateArray().First(i => i.GetProperty("code").GetString() == code)
             .GetProperty("isAwardCritical").GetBoolean().Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Takes the flag back off, and deactivates the probe type so it leaves the catalogue the
+    /// administrator screen shows. D-28 refuses deletion, which is the right rule for a real type and
+    /// the reason this is deactivation rather than a DELETE.
+    /// </summary>
+    private sealed class ClearAwardCritical(HttpClient admin, string code) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await admin.PutAsJsonAsync($"/api/v1/admin/reference/document-types/{code}", new
+            {
+                nameAr = "نوع اختبار", nameEn = "Probe type", isRequired = false, expiryTracked = true,
+                isAwardCritical = false,
+            });
+            await admin.PostAsJsonAsync($"/api/v1/admin/reference/document-types/{code}/deactivate", new { });
+        }
     }
 }

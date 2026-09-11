@@ -93,12 +93,16 @@ public sealed class UiStringOverrideTests(PostgresApiFixture fixture)
         var anonymous = fixture.CreateRawClient();
         const string key = "proposal.errors.reviseFailed";
 
-        await admin.PutAsJsonAsync($"/api/v1/admin/ui-strings/en/{key}", new { value = "Could not record it" });
+        // T-073: a real product string, overridden globally. The delete was the last line, so a
+        // failing assertion left every later test - and every screen in the suite's app - reading
+        // this test's wording. It is a finally now.
+        await using (new RevertUiString(admin, "en", key))
+        {
+            await admin.PutAsJsonAsync($"/api/v1/admin/ui-strings/en/{key}", new { value = "Could not record it" });
 
-        var bundle = await anonymous.GetFromJsonAsync<JsonElement>("/api/v1/ui-strings/en");
-        bundle.GetProperty("strings").GetProperty(key).GetString().Should().Be("Could not record it");
-
-        await admin.DeleteAsync($"/api/v1/admin/ui-strings/en/{key}");
+            var bundle = await anonymous.GetFromJsonAsync<JsonElement>("/api/v1/ui-strings/en");
+            bundle.GetProperty("strings").GetProperty(key).GetString().Should().Be("Could not record it");
+        }
     }
 
     [Fact]
@@ -138,5 +142,12 @@ public sealed class UiStringOverrideTests(PostgresApiFixture fixture)
 
         var admin = await AdminAsync();
         (await admin.GetAsync("/api/v1/admin/ui-strings/")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>Removes an override when the scope ends - see the T-073 note above.</summary>
+    private sealed class RevertUiString(HttpClient admin, string language, string key) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync() =>
+            await admin.DeleteAsync($"/api/v1/admin/ui-strings/{language}/{key}");
     }
 }
