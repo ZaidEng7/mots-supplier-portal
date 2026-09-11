@@ -40,38 +40,48 @@ public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
         var body = await read.Content.ReadFromJsonAsync<JsonElement>();
         var original = body.GetProperty("isEnabled").GetBoolean();
 
-        // Satisfiable: the version the read issued is accepted.
-        var accepted = new HttpRequestMessage(HttpMethod.Put, Path)
+        // T-073: the restore is a finally, not a last line. This row is a seeded config flag the
+        // whole suite shares - it decides whether a changed bank account re-opens compliance review -
+        // and a failing assertion below used to skip the put-back entirely, leaving it flipped for
+        // every test that ran afterwards.
+        try
         {
-            Content = JsonContent.Create(new { isEnabled = !original }),
-        };
-        accepted.Headers.IfMatch.Add(etag!);
-        var first = await raw.SendAsync(accepted);
-        first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
+            // Satisfiable: the version the read issued is accepted.
+            var accepted = new HttpRequestMessage(HttpMethod.Put, Path)
+            {
+                Content = JsonContent.Create(new { isEnabled = !original }),
+            };
+            accepted.Headers.IfMatch.Add(etag!);
+            var first = await raw.SendAsync(accepted);
+            first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
 
-        // Refusable: the SAME version again, now stale, is refused rather than silently overwriting
-        // the write that just landed.
-        var stale = new HttpRequestMessage(HttpMethod.Put, Path)
+            // Refusable: the SAME version again, now stale, is refused rather than silently overwriting
+            // the write that just landed.
+            var stale = new HttpRequestMessage(HttpMethod.Put, Path)
+            {
+                Content = JsonContent.Create(new { isEnabled = original }),
+            };
+            stale.Headers.IfMatch.Add(etag!);
+            var second = await raw.SendAsync(stale);
+            second.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed,
+                "the second administrator's write must be refused, not resolved in their favour");
+
+            // And the refused write changed nothing.
+            var after = await raw.GetFromJsonAsync<JsonElement>(Path);
+            after.GetProperty("isEnabled").GetBoolean().Should().Be(!original);
+        }
+        finally
         {
-            Content = JsonContent.Create(new { isEnabled = original }),
-        };
-        stale.Headers.IfMatch.Add(etag!);
-        var second = await raw.SendAsync(stale);
-        second.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed,
-            "the second administrator's write must be refused, not resolved in their favour");
-
-        // And the refused write changed nothing.
-        var after = await raw.GetFromJsonAsync<JsonElement>(Path);
-        after.GetProperty("isEnabled").GetBoolean().Should().Be(!original);
-
-        // Put it back, so this test does not leave a global config row flipped for the suite.
-        var fresh = await raw.GetAsync(Path);
-        var restore = new HttpRequestMessage(HttpMethod.Put, Path)
-        {
-            Content = JsonContent.Create(new { isEnabled = original }),
-        };
-        restore.Headers.IfMatch.Add(fresh.Headers.ETag!);
-        (await raw.SendAsync(restore)).StatusCode.Should().Be(HttpStatusCode.OK);
+            // A FRESH read for the version: the writes above moved it, and the restore is a write
+            // like any other under §8.1.
+            var fresh = await raw.GetAsync(Path);
+            var restore = new HttpRequestMessage(HttpMethod.Put, Path)
+            {
+                Content = JsonContent.Create(new { isEnabled = original }),
+            };
+            restore.Headers.IfMatch.Add(fresh.Headers.ETag!);
+            (await raw.SendAsync(restore)).StatusCode.Should().Be(HttpStatusCode.OK);
+        }
     }
 
     [Fact]

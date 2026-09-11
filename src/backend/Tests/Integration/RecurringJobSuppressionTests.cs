@@ -89,6 +89,13 @@ public sealed class RecurringJobSuppressionTests(PostgresApiFixture fixture)
                 "VALUES ('recurring-jobs', 0, 'stale-from-an-earlier-run') ON CONFLICT DO NOTHING;");
         }
 
+        // T-073: the row is planted in the SHARED Hangfire schema, and its removal is the assertion
+        // rather than a cleanup step - so when the assertion fails the row survives, and the next
+        // test reading recurring-jobs sees a definition nobody scheduled. Removed in a finally, which
+        // costs nothing when the suppression did its job.
+        try
+        {
+
         // A fresh host over the SAME database runs the suppression path again on startup.
         await using var factory = fixture.WithWebHostBuilder(_ => { });
         using var client = factory.CreateClient();
@@ -103,6 +110,14 @@ public sealed class RecurringJobSuppressionTests(PostgresApiFixture fixture)
         remaining.Should().NotContain(KnownRecurringJobIds,
             "a definition persisted by an earlier run must be REMOVED, not merely left unregistered - " +
             "the server reads the store, not this startup's local decisions");
+        }
+        finally
+        {
+            using var cleanupScope = fixture.Services.CreateScope();
+            var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await cleanupDb.Database.ExecuteSqlRawAsync(
+                "DELETE FROM hangfire.set WHERE key = 'recurring-jobs' AND value = 'stale-from-an-earlier-run';");
+        }
     }
 
     /// <summary>

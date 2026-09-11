@@ -28,23 +28,55 @@ namespace MotsSupplierPortal.Tests.Integration;
 public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
 {
     /// <summary>
-    /// Grants report.read to a role.
+    /// Grants report.read to a role, for as long as the returned scope lives.
     ///
     /// <para><b>A-17 (batch 10) changed the default:</b> <c>procurement_manager</c> now holds
     /// report.read in <c>Roles.DefaultPermissions</c>, so the manager needs no grant here. Every
     /// other role still does, and this helper is what the tests below use to prove the gate opens
     /// as well as closes.</para>
+    ///
+    /// <para><b>T-073: it used to be permanent.</b> A role claim is a global row in a database shared
+    /// by every integration class, and this helper added one and never took it back - so
+    /// <c>procurement_officer</c> carried report.read for the rest of the run.
+    /// <c>AuthorizationFuzzTests</c> already carries a comment about being rewritten around this
+    /// exact leak, because its sweep skips routes whose permission a role holds, and
+    /// <c>RowScopeSweepTests</c> silently changes which surfaces it probes for the same reason. The
+    /// grant is now a scope: <c>await using</c> gives it try/finally semantics, so a failing
+    /// assertion still takes it back.</para>
+    ///
+    /// <para>A role that ALREADY holds the permission by default is left alone on disposal - taking
+    /// it away would be the same defect in the other direction.</para>
     /// </summary>
-    private async Task GrantReportReadAsync(string role)
+    private async Task<IAsyncDisposable> GrantReportReadAsync(string role)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
 
         var appRole = await roleManager.FindByNameAsync(role);
         var claims = await roleManager.GetClaimsAsync(appRole!);
-        if (claims.Any(c => c.Type == "perms" && c.Value == Permissions.ReportRead)) return;
+        if (claims.Any(c => c.Type == "perms" && c.Value == Permissions.ReportRead))
+        {
+            return new ReportReadGrant(fixture, role, revokeOnDispose: false);
+        }
 
         await roleManager.AddClaimAsync(appRole!, new Claim("perms", Permissions.ReportRead));
+        return new ReportReadGrant(fixture, role, revokeOnDispose: true);
+    }
+
+    /// <summary>Takes back only what the helper above actually added.</summary>
+    private sealed class ReportReadGrant(PostgresApiFixture fixture, string role, bool revokeOnDispose) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            if (!revokeOnDispose) return;
+
+            await using var scope = fixture.Services.CreateAsyncScope();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var appRole = await roleManager.FindByNameAsync(role);
+            if (appRole is null) return;
+
+            await roleManager.RemoveClaimAsync(appRole, new Claim("perms", Permissions.ReportRead));
+        }
     }
 
     /// <summary>An RFQ in a given org and state, with audited transitions at chosen times.</summary>
@@ -111,7 +143,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
         (await ungranted.GetAsync("/api/v1/reports/procurement")).StatusCode
             .Should().Be(HttpStatusCode.Forbidden, "report.read is granted to no role by default");
 
-        await GrantReportReadAsync(Roles.ProcurementOfficer);
+        await using var reportRead = await GrantReportReadAsync(Roles.ProcurementOfficer);
         var granted = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
 
         (await granted.GetAsync("/api/v1/reports/procurement")).StatusCode
@@ -123,7 +155,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
     {
         // The count-level negative. No list is involved, so no list-level test covers this: the
         // failure is a NUMBER that is too large, and every row assertion in the suite still passes.
-        await GrantReportReadAsync(Roles.ProcurementOfficer);
+        await using var reportRead = await GrantReportReadAsync(Roles.ProcurementOfficer);
 
         var mine = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var theirs = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -153,7 +185,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Cycle_time_is_measured_from_audited_transitions_and_reports_its_sample_size()
     {
-        await GrantReportReadAsync(Roles.ProcurementOfficer);
+        await using var reportRead = await GrantReportReadAsync(Roles.ProcurementOfficer);
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
 
         var start = DateTimeOffset.UtcNow.AddDays(-30);
@@ -193,7 +225,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
         // the product started. An RFQ that moved through review before then contributes nothing and
         // is silently absent, so a short history reads as a fast process. The floor makes the gap
         // visible, the way the provenance block names an absent filter rather than omitting it.
-        await GrantReportReadAsync(Roles.ProcurementOfficer);
+        await using var reportRead = await GrantReportReadAsync(Roles.ProcurementOfficer);
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
 
         var earliest = DateTimeOffset.UtcNow.AddDays(-90);
@@ -224,7 +256,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_export_carries_a_BOM_and_a_provenance_block_and_refuses_an_unknown_format()
     {
-        await GrantReportReadAsync(Roles.ProcurementOfficer);
+        await using var reportRead = await GrantReportReadAsync(Roles.ProcurementOfficer);
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         await SeedRfqAsync(org.Id, RfqState.Draft);
         var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
@@ -247,7 +279,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
     {
         // §9.2. An empty report would assert that the organization exists and has done nothing,
         // which is a different claim from "you have no organization".
-        await GrantReportReadAsync(Roles.SystemAdmin);
+        await using var reportRead = await GrantReportReadAsync(Roles.SystemAdmin);
         var orphan = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
         (await orphan.GetAsync("/api/v1/reports/procurement")).StatusCode
@@ -259,7 +291,7 @@ public sealed class ReportEndpointsTests(PostgresApiFixture fixture)
     {
         // A superseded version is still a row. Counting it would report a supplier who has already
         // replaced an expiring certificate as still having one - a compliance problem that is fixed.
-        await GrantReportReadAsync(Roles.SystemAdmin);
+        await using var reportRead = await GrantReportReadAsync(Roles.SystemAdmin);
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
         var response = await admin.GetAsync("/api/v1/reports/compliance");
