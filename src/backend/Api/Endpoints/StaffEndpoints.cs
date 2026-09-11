@@ -16,11 +16,35 @@ public sealed record InviteStaffRequest(string Email, string FullName, string Ro
 
 public sealed class InviteStaffRequestValidator : AbstractValidator<InviteStaffRequest>
 {
+    /// <summary>
+    /// The roles whose every screen is scoped to a buying body, so an account without one sees nothing.
+    ///
+    /// <para>BRULE-029 scopes every procurement query by the caller's OrganizationId. An officer or a
+    /// manager invited without one therefore signs in successfully, holds every permission their role
+    /// grants, and meets an empty product: no tenders, no dashboard figures, no approval queue - and
+    /// no error anywhere to say why, because returning nothing is the correct answer to "show me the
+    /// tenders of no organisation".</para>
+    ///
+    /// <para>The other five roles are deliberately absent. An evaluator is scoped by ASSIGNMENT and may
+    /// belong to no organisation at all; a reviewer works the national supplier registry, which belongs
+    /// to no buying body; ministry_viewer's grant is cross-organisation by BRULE-086 and pinning it to
+    /// one would narrow it; a system administrator has no tenancy. Requiring an organisation of any of
+    /// those would be refusing a legitimate invitation.</para>
+    /// </summary>
+    private static readonly string[] RequireAnOrganization = [Roles.ProcurementOfficer, Roles.ProcurementManager];
+
     public InviteStaffRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Role).NotEmpty();
+
+        RuleFor(x => x.OrganizationId)
+            .NotNull()
+            .When(x => x.Role is not null && RequireAnOrganization.Contains(x.Role, StringComparer.Ordinal))
+            .WithMessage(x =>
+                $"A '{x.Role}' works within one buying body, and every screen they have is scoped to it. "
+                + "An invitation without an organization produces an account that signs in to an empty product.");
     }
 }
 

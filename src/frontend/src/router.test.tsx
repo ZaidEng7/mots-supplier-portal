@@ -57,6 +57,38 @@ describe('route tree', () => {
     expect(unguarded).toEqual([])
   })
 
+  /**
+   * Every layout that mounts a shell also decides who may be in it.
+   *
+   * <p>The two named layouts have carried a persona refusal since a system administrator with a stale
+   * `?redirect=/dashboard` landed on a supplier dashboard that could never load. The evaluator layout
+   * did not, and no comment explained the asymmetry - so a supplier session reaching /evaluation got
+   * the back-office chrome, the dark staff rail included, and a screen whose every query answered 404.
+   * The same defect, through the one door nobody had closed.</p>
+   *
+   * <p>This asserts the shape rather than the behaviour: a layout route whose component is a shell has
+   * a body that reads the claims. It cannot prove the predicate is the right one - `reachability` and
+   * the integration suite do that - but it fails when a fourth layout is added without one.</p>
+   */
+  it('gives every shell layout a persona check, not only a session check', () => {
+    // `all` is the walk of the route tree this file already builds; the layouts are the routes that
+    // mount a shell, whether they are pathless (`*-layout`) or a real path (`/back-office`).
+    const layouts = all.filter((r) => String(r.options?.component ?? '').includes('Shell'))
+
+    // The denominator. Three layouts mount a shell; a filter that found none would pass in silence.
+    expect(layouts.length).toBeGreaterThanOrEqual(3)
+
+    const withoutPersonaCheck = layouts
+      .filter((r: AnyRoute) => {
+        const body = String(r.options?.component ?? '')
+        return body.includes('Shell') && !body.includes('claims')
+      })
+      .map((r: AnyRoute) => r.id ?? r.fullPath)
+
+    expect(withoutPersonaCheck, 'a shell layout that only checks for a session lets the wrong persona in')
+      .toEqual([])
+  })
+
   it('keeps the two shells in separate URL spaces', () => {
     // Supplier screens and back-office screens are different shells with different navigation, and a
     // path that answers under both would render one persona's chrome around the other's page.

@@ -26,6 +26,18 @@
   // Login, password reset, MFA, and the two invite-acceptance flows (staff and supplier user).
   // ========================================================================================
   {
+    // A procurement role works inside one buying body, and BRULE-029 scopes every one of its queries
+    // to that organisation. An invitation without one produces an account that signs in successfully,
+    // holds every permission the role grants, and meets an empty product - with no error, because
+    // returning nothing is the correct answer to "show me the tenders of no organisation".
+    "key": "OrganizationId.NotNull",
+    "code": "ORGANIZATION_REQUIRED",
+    "source": "drafted",
+    "ar": "يجب تحديد الجهة المشترية لهذا الدور؛ فكل شاشاته محصورة بجهة واحدة.",
+    "en": "This role works within one buying body, so the invitation must name it.",
+    "usedIn": "InviteStaffRequest"
+  },
+  {
     "key": "Email.NotEmpty",
     "code": "EMAIL_REQUIRED",
     "source": "drafted",

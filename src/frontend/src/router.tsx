@@ -369,11 +369,26 @@ const evaluatorLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'evaluator-layout',
   beforeLoad: async () => ensureAuthenticated('/evaluation'),
-  component: () => (
-    <BackOfficeShell>
-      <Outlet />
-    </BackOfficeShell>
-  ),
+  // The same refusal both other layouts carry, and the asymmetry that had no reason written beside it.
+  //
+  // This layout had `ensureAuthenticated` alone - authenticated, not "is staff" - so a supplier session
+  // that reached /evaluation got the back-office chrome, the dark staff rail included, and then a
+  // screen whose every query answered 404. That is exactly the defect the supplier layout's own
+  // comment records being found for real, arriving here by the one door nobody had closed.
+  //
+  // A supplier is refused rather than redirected, which is what the other two do: a redirect would
+  // bounce somebody who followed a link into a loop, and a 403 says what happened.
+  component: () => {
+    const claims = useAuthStore.getState().claims
+    if (claims?.supplierId) {
+      return <ErrorBoundaryScreen code="403" />
+    }
+    return (
+      <BackOfficeShell>
+        <Outlet />
+      </BackOfficeShell>
+    )
+  },
 })
 
 const evaluationDashboardRoute = createRoute({
