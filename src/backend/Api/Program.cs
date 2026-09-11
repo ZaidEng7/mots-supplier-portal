@@ -803,9 +803,9 @@ app.Use(async (context, next) =>
 // the CI diff gate below. It is published in EVERY environment for that reason: a contract that only exists
 // where the code is being written cannot be compared against what is deployed.
 //
-// Outside Development it requires the admin permission, matching §11's own rule for Scalar ("non-prod;
-// behind admin auth in prod"). The document lists every route and its shapes - not a secret, but it is a map,
-// and a map is worth asking for a name first.
+// Outside Development it requires the admin permission, matching the rule §11 states for Scalar - non-prod,
+// and behind admin auth in prod. The document lists every route and its shapes, which is not a secret, but it
+// is a map, and a map is worth asking for a name first.
 if (app.Environment.IsDevelopment())
 {
     // AllowAnonymous, and it is not a relaxation - it is a fix. NFR-SEC-004's deny-by-default

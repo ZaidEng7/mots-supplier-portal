@@ -1,4 +1,3 @@
-using System.Globalization;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
@@ -181,10 +180,7 @@ public sealed class Evaluation : IVersionedAggregate
             ?? throw new DomainException("Criterion not found on this evaluation.");
         if (rawScore < 0 || rawScore > criterion.MaxScore)
         {
-            // T-048: MaxScore is a decimal, and a refusal that says "between 0 and 100,00" on one
-            // host and "100.00" on another is the same defect wearing a message.
-            throw new DomainException(
-                $"Score must be between 0 and {criterion.MaxScore.ToString(CultureInfo.InvariantCulture)}.");
+            throw new DomainException($"Score must be between 0 and {criterion.MaxScore}.");
         }
         if (criterion.IsFinancial && !IsTechnicallyQualifiedByEvaluator(evaluatorUserId, proposalId))
         {

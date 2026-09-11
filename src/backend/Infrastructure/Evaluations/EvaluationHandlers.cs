@@ -79,9 +79,9 @@ internal static class EvaluationDtoMapper
         // so a state-only rule would close the second evaluator's declaration window before they had
         // one, and would reveal names to whoever happened to look first.
         //
-        //   1. before this evaluator has declared - the recusal window (BRULE-067), served by
-        //      GET my-evaluation/bidders, which does NOT open scoring;
-        //   2. after consolidation - the scores are in and locked, so a name cannot influence one.
+        //   1. before this evaluator has declared, which is the recusal window BRULE-067 describes,
+        //      served by the bidders route, and that route does NOT open scoring
+        //   2. after consolidation, when the scores are in and locked, so a name cannot influence one
         var revealed = assignment.ConflictDeclaredAt is null
             || evaluation.State is EvaluationState.Consolidated or EvaluationState.Finalized;
 
