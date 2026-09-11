@@ -1,3 +1,4 @@
+using System.Globalization;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
@@ -186,7 +187,8 @@ public sealed class EvaluationTemplate : IVersionedAggregate
         if (totalWeight != 100m)
         {
             throw new DomainException(
-                $"Criterion weights must sum to exactly 100 before activation; current total is {totalWeight}.");
+                $"Criterion weights must sum to exactly 100 before activation; current total is "
+                + $"{totalWeight.ToString(CultureInfo.InvariantCulture)}.");
         }
 
         Status = EvaluationTemplateStatus.Active;

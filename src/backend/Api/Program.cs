@@ -59,6 +59,27 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 
+// T-048. Every thread in this process formats and parses under the invariant culture, whatever the
+// host's locale is.
+//
+// This service writes formatted values into places where the host's locale has no business being:
+// an append-only audit row (ops.audit_log, protected by a BEFORE UPDATE OR DELETE trigger, so a
+// wrong value can never be corrected), base64 keyset cursors that a later request parses back, and
+// CSV exports a ministry reads. An unpinned process renders a decimal score of 7.5 as "7,5" on a
+// host whose locale says so, and nothing here would notice.
+//
+// The repository has been burned by ambient culture twice - SupplierDocument.cs records "a crash
+// that was reproduced" on an Arabic-locale host, and MSP-60 fixed the parsing half - and both times
+// the fix was one call site. This is the class, closed once: a new formatting site added tomorrow
+// is invariant by default rather than by whoever remembers. The call sites this pass found are
+// qualified explicitly as well, so they stay correct even on a thread that sets its own culture.
+//
+// Nothing user-facing is lost: the API speaks JSON, which is culture-invariant by specification,
+// and every human-facing number and date in this product is formatted by the SPA in the reader's
+// own language.
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Fail fast before any service reads a setting: a misconfigured non-Development deployment

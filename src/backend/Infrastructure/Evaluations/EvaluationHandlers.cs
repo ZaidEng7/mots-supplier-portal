@@ -1,5 +1,6 @@
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
+using System.Globalization;
 using System.Text.Json;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -700,7 +701,10 @@ public sealed class ScoreCriterionHandler(AppDbContext db, IScopeContext scope, 
         }
 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation.score", scope.UserId, referenceCode: rfq.ReferenceCode,
-            toState: $"{command.ProposalCode}/{command.CriterionId}={command.RawScore}", ct: ct);
+            // T-048: the score is a decimal, and this string is persisted onto an append-only audit
+            // row and exported verbatim to CSV. Qualified here as well as pinned at startup, because
+            // the startup pin is a default a thread can still override.
+            toState: $"{command.ProposalCode}/{command.CriterionId}={command.RawScore.ToString(CultureInfo.InvariantCulture)}", ct: ct);
         await db.SaveChangesAsync(ct);
         return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
     }
