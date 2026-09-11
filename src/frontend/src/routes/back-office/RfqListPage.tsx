@@ -23,6 +23,9 @@ export function RfqListPage() {
   // and the narrowing is a deliberate click.
   const [owner, setOwner] = useState<RfqOwnerFilter | 'all'>('all')
 
+  // See the table header below: a column of one repeated value is not information.
+  const showOwner = owner === 'all'
+
   // See SupplierRfqListPage for the reasoning: §6.1 makes RFQs cursor-default, so stopping at
   // page one would hide every RFQ past the 20th with no visible symptom.
   const rfqsQuery = useInfiniteQuery({
@@ -61,8 +64,13 @@ export function RfqListPage() {
         <Button onClick={() => setCreateOpen(true)}>{t('rfq.add')}</Button>
       </div>
 
+      {/*
+        No card title. The page heading above already says "Tenders" and this card said "Tender list" -
+        two names for one list, six inches apart, which the Rams audit named as one of five removable
+        things on this screen. The table takes its accessible name from the page heading instead, so
+        nothing is lost to a screen reader.
+      */}
       <ListCard
-        title={t('rfq.listTitle')}
         query={rfqsQuery}
         isEmpty={rfqs.length === 0}
         labels={{
@@ -83,12 +91,20 @@ export function RfqListPage() {
           />
         }
       >
-        <Table flush caption={t('rfq.listTitle')}>
+        <Table flush caption={t('rfq.title')}>
           <TableHead>
             <TableHeaderCell>{t('rfq.fields.reference')}</TableHeaderCell>
             <TableHeaderCell>{t('rfq.fields.title')}</TableHeaderCell>
             <TableHeaderCell>{t('rfq.fields.state')}</TableHeaderCell>
-            <TableHeaderCell>{t('rfq.fields.owner')}</TableHeaderCell>
+            {/*
+              The owner column earns its place only when the list holds more than one owner.
+
+              Filtered to "mine" every cell in it reads the same name, and filtered to "unassigned"
+              every cell reads "Unassigned" - twenty-five identical values beside a control that had
+              just been used to make them identical. Unfiltered it is the answer to "whose is this",
+              which is a question a manager opens this screen with, so the column stays there.
+            */}
+            {showOwner ? <TableHeaderCell>{t('rfq.fields.owner')}</TableHeaderCell> : null}
           </TableHead>
           <TableBody>
             {rfqs.map((rfq) => (
@@ -100,9 +116,9 @@ export function RfqListPage() {
                 </TableCell>
                 <TableCell>{rfq.titleEn}</TableCell>
                 <TableCell><StatusChip machine="rfq" value={rfq.state} /></TableCell>
-                {/* "Unassigned" in words, not an empty cell: an unowned RFQ is a row somebody
+                {/* "Unassigned" in words, not an empty cell: an unowned tender is a row somebody
                     should claim, and a blank reads as missing data rather than as an invitation. */}
-                <TableCell>{rfq.ownerName ?? t('rfq.unassigned')}</TableCell>
+                {showOwner ? <TableCell>{rfq.ownerName ?? t('rfq.unassigned')}</TableCell> : null}
               </TableRow>
             ))}
           </TableBody>

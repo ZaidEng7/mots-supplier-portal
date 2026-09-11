@@ -42,7 +42,7 @@ describe('NotificationsPage (SCR-900)', () => {
     renderPage(<NotificationsPage />)
 
     expect(await screen.findByText('No notifications yet')).toBeInTheDocument()
-    expect(screen.getByText('Updates about RFQs, your proposals and awards will appear here.')).toBeInTheDocument()
+    expect(screen.getByText('Updates about tenders, your bids and awards will appear here.')).toBeInTheDocument()
   })
 
   it('ok: renders the notification with a link to its source entity', async () => {

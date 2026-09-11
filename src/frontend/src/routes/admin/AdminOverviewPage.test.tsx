@@ -84,7 +84,7 @@ describe('AdminOverviewPage', () => {
     renderPage(<AdminOverviewPage />)
 
     expect(await screen.findByText('Recurring jobs are disabled')).toBeInTheDocument()
-    expect(screen.getByText(/RFQs will not close automatically/)).toBeInTheDocument()
+    expect(screen.getByText(/tenders will not close automatically/)).toBeInTheDocument()
     // The flag being off explains ALL the missing ids, so it must not also cry "jobs missing".
     expect(screen.queryByText('Jobs missing from the schedule')).not.toBeInTheDocument()
   })

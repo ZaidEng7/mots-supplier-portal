@@ -33,7 +33,7 @@ describe('RfqListPage', () => {
 
     renderPage(<RfqListPage />)
 
-    expect(await screen.findByText('No RFQs yet')).toBeInTheDocument()
+    expect(await screen.findByText('No tenders yet')).toBeInTheDocument()
   })
 
   it('lists RFQs with their reference code, title, and real state badge', async () => {
@@ -54,15 +54,15 @@ describe('RfqListPage', () => {
 
     renderPage(<RfqListPage />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'New RFQ' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'New tender' }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.type(within(dialog).getByLabelText('Title (Arabic)', { exact: false }), 'طلب جديد')
-    await userEvent.type(within(dialog).getByLabelText('Title (English)', { exact: false }), 'New RFQ')
+    await userEvent.type(within(dialog).getByLabelText('Title (English)', { exact: false }), 'New tender')
     await userEvent.clear(within(dialog).getByLabelText('Currency', { exact: false }))
     await userEvent.type(within(dialog).getByLabelText('Currency', { exact: false }), 'SYP')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText('RFQ created')).toBeInTheDocument()
+    expect(await screen.findByText('Tender created')).toBeInTheDocument()
   })
 
   it('names the owner, and says "Unassigned" rather than leaving the cell blank', async () => {
@@ -105,12 +105,12 @@ describe('RfqListPage', () => {
 
     renderPage(<RfqListPage />)
 
-    expect(await screen.findByText('No RFQs yet')).toBeInTheDocument()
+    expect(await screen.findByText('No tenders yet')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Mine', pressed: false }))
 
-    // "No RFQs yet" under a "Mine" filter would tell an officer their organization has none.
-    expect(await screen.findByText('No RFQs are assigned to you')).toBeInTheDocument()
+    // "No tenders yet" under a "Mine" filter would tell an officer their organization has none.
+    expect(await screen.findByText('No tenders are assigned to you')).toBeInTheDocument()
   })
 
   it('shows a retryable failure rather than an empty screen', async () => {
@@ -123,5 +123,66 @@ describe('RfqListPage', () => {
     renderPage(<RfqListPage />)
 
     await expectRetryableFailure('/api/v1/rfqs', recorded)
+  })
+})
+
+/**
+ * Three things this screen said twice, and one column that said the same thing twenty-five times.
+ *
+ * <p>The Rams audit counted five removable elements on this one list and scored the product 1 out of 3
+ * on "as little design as possible". Two of the five - the footer Help and the second Search control -
+ * were closed earlier. These are the rest.</p>
+ */
+describe('the tender list says each thing once', () => {
+  let restore: () => void
+  afterEach(() => restore?.())
+
+  it('does not repeat the page heading as a card heading', async () => {
+    restore = mockFetch({ '/api/v1/rfqs': listPage([RFQ_DRAFT, RFQ_PUBLISHED]) })
+
+    renderPage(<RfqListPage />)
+    await screen.findByText('RFQ-2026-000001')
+
+    // One VISIBLE name for one list. The page heading says "Tenders"; the card used to add
+    // "Tender list" directly beneath it. The table's own sr-only caption is the accessible name and
+    // is not a second visible heading.
+    expect(screen.getAllByRole('heading', { name: 'Tenders' })).toHaveLength(1)
+    expect(screen.queryByText('Tender list')).toBeNull()
+    expect(screen.queryByRole('heading', { name: /tender list/i })).toBeNull()
+  })
+
+  it('names the table once, for a screen reader as well as on screen', async () => {
+    restore = mockFetch({ '/api/v1/rfqs': listPage([RFQ_DRAFT, RFQ_PUBLISHED]) })
+
+    const { container } = renderPage(<RfqListPage />)
+    await screen.findByText('RFQ-2026-000001')
+
+    const table = container.querySelector('table')
+    expect(table).not.toBeNull()
+
+    // The name survives - the audit's own warning was against deleting the caption and taking the
+    // accessible name with it - and it is carried once rather than by a caption AND a heading.
+    const named = table!.getAttribute('aria-labelledby') !== null || table!.querySelector('caption') !== null
+    expect(named, 'the table must still have an accessible name').toBe(true)
+    expect(
+      table!.getAttribute('aria-labelledby') !== null && table!.querySelector('caption') !== null,
+      'and only one of the two, or a reader hears it twice',
+    ).toBe(false)
+  })
+
+  it('drops the owner column once the list is filtered to one owner', async () => {
+    restore = mockFetch({ '/api/v1/rfqs': listPage([RFQ_DRAFT, RFQ_PUBLISHED]) })
+
+    renderPage(<RfqListPage />)
+    await screen.findByText('RFQ-2026-000001')
+
+    // Unfiltered it answers "whose is this", which is a question a manager opens this screen with.
+    expect(screen.getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mine' }))
+
+    // Filtered, every cell in it holds the same name by construction - twenty-five identical values
+    // beside the control that had just been used to make them identical.
+    expect(screen.queryByRole('columnheader', { name: 'Owner' })).toBeNull()
   })
 })

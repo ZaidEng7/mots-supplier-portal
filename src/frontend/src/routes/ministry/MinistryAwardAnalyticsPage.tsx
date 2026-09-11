@@ -20,7 +20,8 @@ import { formatCurrency, formatNumber } from '../../lib/datetime'
  */
 export function MinistryAwardAnalyticsPage() {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
+  const isArabic = i18n.language.startsWith('ar')
+  const locale = isArabic ? 'ar' : 'en-GB'
 
   const query = useQuery({ queryKey: ['ministry-awards'], queryFn: getMinistryAwardAnalytics })
 
@@ -56,9 +57,23 @@ export function MinistryAwardAnalyticsPage() {
       against each other. A withheld figure sorts last rather than as zero: it is a number nobody is
       allowed to see, not a small one.
     */
-    const buckets = orientation === 'ranked'
+    const ordered = orientation === 'ranked'
       ? [...unordered].sort((a, b) => (b.value ?? b.awards ?? -1) - (a.value ?? a.awards ?? -1))
       : unordered
+
+    /*
+      A category arrives as a CODE and is read as a word.
+
+      The by-category buckets group on CategoryCode, so this screen used to print `tour_operations` on
+      a chart axis and in a table column - a domain identifier, in one language, with an underscore in
+      it - on the one chart whose form was chosen because a category name is prose too long to sit
+      under a column. The endpoint now carries both names; months and buying bodies carry none, because
+      a date and an organisation's own name are already words.
+    */
+    const buckets = ordered.map((bucket) => ({
+      ...bucket,
+      key: (isArabic ? bucket.nameAr : bucket.nameEn) ?? bucket.key,
+    }))
     return (
     <Card title={title}>
       {note ? (

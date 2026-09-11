@@ -42,7 +42,7 @@ describe('TenderSettingsPage', () => {
 
     const reassign = await screen.findByRole('button', { name: 'Reassign' })
     const deadline = screen.getByRole('button', { name: 'Change deadline' })
-    const cancel = screen.getByRole('button', { name: 'Cancel RFQ' })
+    const cancel = screen.getByRole('button', { name: 'Cancel tender' })
 
     const precedes = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     expect(precedes(reassign, cancel)).toBe(true)
@@ -58,19 +58,19 @@ describe('TenderSettingsPage', () => {
 
     renderPage(<TenderSettingsPage />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Cancel RFQ' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel tender' }))
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/final/i)).toBeInTheDocument()
 
-    const confirm = within(dialog).getByRole('button', { name: 'Cancel RFQ' })
+    const confirm = within(dialog).getByRole('button', { name: 'Cancel tender' })
     expect(confirm).toBeDisabled()
 
     await userEvent.type(within(dialog).getByLabelText('Reason'), 'Budget withdrawn')
     await waitFor(() => expect(confirm).toBeEnabled())
     await userEvent.click(confirm)
 
-    expect(await screen.findByText('RFQ cancelled')).toBeInTheDocument()
+    expect(await screen.findByText('Tender cancelled')).toBeInTheDocument()
   })
 
   it('hides the cancel section once the RFQ is Cancelled', async () => {
@@ -79,7 +79,7 @@ describe('TenderSettingsPage', () => {
     renderPage(<TenderSettingsPage />)
 
     await screen.findByText('Cancelled')
-    expect(screen.queryByRole('button', { name: 'Cancel RFQ' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel tender' })).not.toBeInTheDocument()
   })
 
   it('Published: shows the addendum form, and issuing one shows a success toast', async () => {

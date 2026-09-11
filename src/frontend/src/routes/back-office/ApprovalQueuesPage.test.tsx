@@ -27,7 +27,7 @@ describe('ApprovalQueuesPage (SCR-401)', () => {
 
     renderPage(<ApprovalQueuesPage />)
 
-    expect(await screen.findByText('RFQs awaiting publish approval')).toBeInTheDocument()
+    expect(await screen.findByText('Tenders awaiting publish approval')).toBeInTheDocument()
     expect(screen.getByText('Awards awaiting approval')).toBeInTheDocument()
     expect(screen.getByText('Catering RFQ')).toBeInTheDocument()
     expect(screen.getByText('Cleaning RFQ')).toBeInTheDocument()
@@ -54,7 +54,7 @@ describe('ApprovalQueuesPage (SCR-401)', () => {
 
     renderPage(<ApprovalQueuesPage />)
 
-    expect(await screen.findByText('No RFQs are waiting for approval')).toBeInTheDocument()
+    expect(await screen.findByText('No tenders are waiting for approval')).toBeInTheDocument()
     expect(screen.getByText('No awards are waiting for approval')).toBeInTheDocument()
   })
 })

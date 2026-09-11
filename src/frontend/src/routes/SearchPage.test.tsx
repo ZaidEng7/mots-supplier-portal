@@ -56,6 +56,64 @@ describe('SearchPage (SCR-906)', () => {
   })
   afterEach(() => restore?.())
 
+  /**
+   * The naming defect, in the place a reader met it most.
+   *
+   * <p>The server puts three unrelated values in one `context` field - an RFQ's state, a supplier's
+   * lifecycle state, and for an offering the supplier's code - and the screen printed it raw. So a
+   * search answered with `InternalReview` and `SubmissionOpen`, enum members in English, on an Arabic
+   * page as readily as an English one. Every one of those states already had an authored label.</p>
+   */
+  it('names a tender state in words rather than printing the enum member', async () => {
+    restore = mockFetch({
+      '/api/v1/search': {
+        query: 'catering',
+        hits: [hit({ context: 'InternalReview' })],
+        truncated: false,
+      },
+    })
+    routeQuery.current = 'catering'
+
+    renderPage(<SearchPage />)
+
+    expect(await screen.findByText('Internal review')).toBeInTheDocument()
+    expect(screen.queryByText('InternalReview')).toBeNull()
+  })
+
+  it('names a supplier lifecycle state the same way', async () => {
+    restore = mockFetch({
+      '/api/v1/search': {
+        query: 'barada',
+        hits: [hit({ kind: 'supplier', titleEn: 'Barada Supplies', context: 'UnderReview' })],
+        truncated: false,
+      },
+    })
+    routeQuery.current = 'barada'
+
+    renderPage(<SearchPage />)
+
+    expect(await screen.findByText('Under review')).toBeInTheDocument()
+    expect(screen.queryByText('UnderReview')).toBeNull()
+  })
+
+  it("leaves an offering's supplier code alone, because a code is not a word", async () => {
+    // The control. Without it the two tests above would pass just as well against a screen that had
+    // started translating identifiers, which is the opposite mistake and a worse one: a reference
+    // code a person cannot copy is a reference code that does not work.
+    restore = mockFetch({
+      '/api/v1/search': {
+        query: 'valves',
+        hits: [hit({ kind: 'offering', referenceCode: null, titleEn: 'Industrial valves', context: 'SUP-000001' })],
+        truncated: false,
+      },
+    })
+    routeQuery.current = 'valves'
+
+    renderPage(<SearchPage />)
+
+    expect(await screen.findByText('SUP-000001')).toBeInTheDocument()
+  })
+
   it('says what it searches before anything has been searched', () => {
     // The screen was one empty box and nothing else, which reads as unfinished rather than as a
     // starting point - and it was the destination of a top-bar control that LOOKED like a search box,

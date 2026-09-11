@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
+import { CardHeadingIdContext } from './cardHeading'
 
 interface CardProps {
   title?: string
@@ -18,6 +19,8 @@ interface CardProps {
 /** Section container per DESIGN-SYSTEM §6.7 - the surface/border/radius/padding pattern every
  * onboarding section already repeats inline, extracted so new screens don't hand-roll it again. */
 export function Card({ title, action, flush = false, children }: CardProps) {
+  const headingId = useId()
+
   return (
     <div
       className="overflow-hidden rounded-[var(--radius-lg)]"
@@ -40,7 +43,7 @@ export function Card({ title, action, flush = false, children }: CardProps) {
           style={{ borderBlockEnd: '1px solid var(--color-border)' }}
         >
           {title ? (
-            <h2 className="text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+            <h2 id={headingId} className="text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
               {title}
             </h2>
           ) : (
@@ -49,7 +52,9 @@ export function Card({ title, action, flush = false, children }: CardProps) {
           {action}
         </div>
       ) : null}
-      <div className={flush ? '' : 'p-4'}>{children}</div>
+      <div className={flush ? '' : 'p-4'}>
+        <CardHeadingIdContext.Provider value={title ? headingId : undefined}>{children}</CardHeadingIdContext.Provider>
+      </div>
     </div>
   )
 }

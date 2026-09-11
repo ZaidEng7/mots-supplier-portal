@@ -69,7 +69,20 @@ public sealed record MinistryAwardAnalyticsDto(
 
 /// <param name="Value">Null when the flag is off. The COUNT is always present, because a count of awards is
 /// an aggregate BRULE-086 grants outright and was never the thing in question.</param>
-public sealed record MinistrySpendBucketDto(string Key, int Awards, decimal? Value);
+/// <param name="NameAr">
+/// The bucket's name in Arabic, where the key is a CODE rather than a word. Null where the key already
+/// reads as one.
+///
+/// <para>The by-category buckets group on <c>CategoryCode</c>, so a Ministry reader met
+/// <c>tour_operations</c> on a chart axis and in a table column - a domain identifier, in one language,
+/// with an underscore in it. The names exist: the <c>reference.category</c> rows carry both, and the
+/// category-coverage endpoint already returns them. This carries them here too rather than asking the
+/// SPA to fetch a second endpoint to render the first one's labels.</para>
+///
+/// <para>Null for months, whose key is a date, and for buying bodies, whose key is already the
+/// organisation's own name. A caller renders the name when there is one and the key when there is not.</para>
+/// </param>
+public sealed record MinistrySpendBucketDto(string Key, int Awards, decimal? Value, string? NameAr = null, string? NameEn = null);
 
 /// <summary>
 /// SCR-606: one tender, read-only, with every bid on it.

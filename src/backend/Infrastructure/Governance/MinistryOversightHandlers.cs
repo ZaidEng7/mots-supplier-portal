@@ -328,11 +328,24 @@ public sealed class GetMinistryAwardAnalyticsHandler(AppDbContext db) : IGetMini
             .Select(g => new MinistrySpendBucketDto(g.Key, g.Count(), ValueOf(g.Select(a => a.WinningProposalId))))
             .ToList();
 
+        // The names for the codes these buckets group on. Without them a Ministry reader meets
+        // `tour_operations` on the axis of a chart whose whole reason for being a ranked bar is that a
+        // category name is prose too long to fit under a column.
+        var categoryNames = await db.Categories.AsNoTracking()
+            .Select(c => new { c.Code, c.NameAr, c.NameEn })
+            .ToDictionaryAsync(c => c.Code, c => c, ct);
+
         var byCategory = rfqCategories
             .Join(awards, c => c.RfqId, a => a.RfqId, (c, a) => new { c.CategoryCode, a.WinningProposalId })
             .GroupBy(x => x.CategoryCode)
             .OrderByDescending(g => g.Count())
-            .Select(g => new MinistrySpendBucketDto(g.Key, g.Count(), ValueOf(g.Select(x => x.WinningProposalId))))
+            .Select(g => new MinistrySpendBucketDto(
+                g.Key, g.Count(), ValueOf(g.Select(x => x.WinningProposalId)),
+                // A code with no reference row keeps its code rather than rendering blank: a category
+                // that was deleted from the reference list still awarded something, and hiding it would
+                // change the total.
+                categoryNames.TryGetValue(g.Key, out var name) ? name.NameAr : null,
+                categoryNames.TryGetValue(g.Key, out var named) ? named.NameEn : null))
             .ToList();
 
         return new MinistryAwardAnalyticsDto(
