@@ -71,8 +71,8 @@ public static class ProposalStates
     };
 
     /// <summary>
-    /// T-064: every proposal a COMPARISON should carry - the evaluation set plus the one that has
-    /// been offered the award.
+    /// T-064, then T-070: every proposal a COMPARISON should carry - the evaluation set, the one
+    /// that has been offered the award, and the three outcomes an offer resolves to.
     ///
     /// <para><b>Why this is its own set rather than a widening of InEvaluation.</b>
     /// ExecuteAwardHandler snapshots the comparison into the permanent award record, and the
@@ -80,6 +80,19 @@ public static class ProposalStates
     /// falls out of that set - so the award's own snapshot would have omitted the winning bid.
     /// Widening InEvaluation would have fixed that and simultaneously put an offered award back into
     /// the evaluator's workspace, which is a different question with a different answer.</para>
+    ///
+    /// <para><b>T-070: the outcomes belong here too, and their absence emptied the screen.</b>
+    /// Executing an award moves the winner to <c>Awarded</c> and every other live bid to
+    /// <c>NotSelected</c> - both outside the set as it stood - so a buyer who opened the comparison
+    /// one minute after the award saw the RFQ title, the item columns, and no bids under them. The
+    /// award's own frozen snapshot was never affected, which is exactly why this stayed invisible:
+    /// the snapshot is taken BEFORE the transition and a test asserts it, while nothing asserted the
+    /// live view AFTER it.</para>
+    ///
+    /// <para><c>Declined</c> is here for the same reason as the other two: a supplier declining the
+    /// offer returns the RFQ to Recommendation, and the buyer choosing an alternate is reading this
+    /// very screen to do it. The states that stay OUT are the ones that were never in a comparison -
+    /// <c>Draft</c>, <c>Withdrawn</c>, <c>Lapsed</c> and <c>Cancelled</c>.</para>
     /// </summary>
     public static readonly ProposalState[] UnderComparison =
     {
@@ -89,5 +102,8 @@ public static class ProposalStates
         ProposalState.Revised,
         ProposalState.Shortlisted,
         ProposalState.AwardOffered,
+        ProposalState.Awarded,
+        ProposalState.NotSelected,
+        ProposalState.Declined,
     };
 }
