@@ -22,13 +22,23 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
     private Task<HttpClient> AdminAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
     /// <summary>Invites a staff account through the real endpoint and returns its id.</summary>
-    private static async Task<Guid> InviteAsync(HttpClient admin, string role)
+    /// <summary>
+    /// Invites a staffer, naming a buying body where the role requires one.
+    ///
+    /// <para>A procurement officer or manager is refused without an organisation: BRULE-029 scopes
+    /// every one of their queries to it, so an invitation without one produces an account that signs in
+    /// and meets an empty product. These tests are about role administration rather than about that
+    /// rule, so the helper satisfies it instead of working around it - passing a role that needs no
+    /// organisation would have changed what the tests are about.</para>
+    /// </summary>
+    private static async Task<Guid> InviteAsync(HttpClient admin, string role, Guid? organizationId = null)
     {
         var response = await admin.PostAsJsonAsync("/api/v1/staff/invite", new
         {
             email = $"staff-{Guid.NewGuid():N}@example.com",
             fullName = "Invited Staffer",
             role,
+            organizationId,
         });
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid();
@@ -38,7 +48,8 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
     public async Task The_list_carries_the_facts_an_administrator_needs_and_no_supplier_users()
     {
         var admin = await AdminAsync();
-        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer);
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
 
         // A supplier's user exists too, and must NOT be in this list: a supplier administers their own
         // team (SCR-160), and mixing the two would put a supplier's staff in the platform list.
@@ -129,7 +140,8 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
     public async Task Changing_a_role_replaces_it_and_ends_the_sessions_carrying_the_old_one()
     {
         var admin = await AdminAsync();
-        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer);
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
 
         var changed = await admin.PutAsJsonAsync($"/api/v1/staff/{invitedId}/role", new { role = Roles.ProcurementManager });
         changed.StatusCode.Should().Be(HttpStatusCode.OK, await changed.Content.ReadAsStringAsync());
