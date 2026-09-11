@@ -475,4 +475,135 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
             .Should().Be(Shape(await fabricated.Content.ReadAsStringAsync()),
                 "a real RFQ out of scope and an RFQ that never existed must be indistinguishable");
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // T-070: the view after the award. The screen a buyer opens to answer "what did we buy, and what
+    // did we turn down" is the same screen the evaluation used, and it was empty from the moment the
+    // award executed.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The comparison still shows every bid once the award has been executed.
+    ///
+    /// <para><b>The defect.</b> <c>GetComparisonHandler</c> filters on
+    /// <c>ProposalStates.UnderComparison</c>, and executing an award moves the winner to
+    /// <c>Awarded</c> and every other live bid to <c>NotSelected</c> - neither of which was in that
+    /// set. The response stayed 200 with the RFQ title and the item columns, and no proposals under
+    /// them. Nothing anywhere claimed that emptiness was intended.</para>
+    ///
+    /// <para><b>Why nothing caught it.</b> The award's own frozen snapshot is taken BEFORE the
+    /// transition, and <c>AwardOfferChainTests</c> asserts it still contains the winning bid. That
+    /// test passes either way. This one reads the LIVE endpoint after the award, which is what a
+    /// person does.</para>
+    /// </summary>
+    [Fact]
+    public async Task After_the_award_is_executed_the_comparison_still_shows_the_winner_and_the_bid_that_lost()
+    {
+        var (referenceCode, manager, _, _, _, supplierAId, supplierBId, proposalAId, proposalBId, technicalCriterionId, financialCriterionId, orgId)
+            = await SetupEvaluationReadyRfqAsync("Compare RFQ After Award");
+        var (evaluator, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator);
+        await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
+        await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
+
+        // Both bids qualify, so both are live when the award executes - one becomes Awarded and the
+        // other NotSelected. A disqualified second bid would have proved only half of this.
+        foreach (var (proposalId, technical, financial) in new[] { (proposalAId, 90m, 80m), (proposalBId, 75m, 60m) })
+        {
+            var proposalCode = await fixture.ProposalCodeAsync(proposalId);
+            await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
+            { proposalCode, criterionId = technicalCriterionId, rawScore = technical, commentAr = (string?)null, commentEn = (string?)null });
+            await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
+            { proposalCode, criterionId = financialCriterionId, rawScore = financial, commentAr = (string?)null, commentEn = (string?)null });
+        }
+
+        (await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/finalize", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
+        {
+            winningProposalId = proposalAId,
+            justificationAr = "الأعلى تقييماً", justificationEn = "Highest evaluated bid",
+        });
+        recommend.StatusCode.Should().Be(HttpStatusCode.OK, await recommend.Content.ReadAsStringAsync());
+        (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // BRULE-073 refuses the recommender as approver, so the award needs a second manager.
+        var approver = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
+        (await approver.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var execute = await approver.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);
+        execute.StatusCode.Should().Be(HttpStatusCode.OK, await execute.Content.ReadAsStringAsync());
+
+        // The states the fix is about, asserted rather than assumed: without these two lines this
+        // test could pass against a build where execute never moved anything.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var states = await db.Proposals.AsNoTracking()
+                .Where(p => p.Id == proposalAId || p.Id == proposalBId)
+                .ToDictionaryAsync(p => p.Id, p => p.State);
+            states[proposalAId].Should().Be(Domain.Proposals.ProposalState.Awarded);
+            states[proposalBId].Should().Be(Domain.Proposals.ProposalState.NotSelected);
+        }
+
+        var response = await manager.GetAsync($"/api/v1/rfqs/{referenceCode}/comparison");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        var proposals = body.GetProperty("proposals").EnumerateArray().ToList();
+        proposals.Should().HaveCount(2, "both bids were in the comparison a moment before the award and neither was withdrawn");
+        proposals.Select(p => p.GetProperty("supplierId").GetGuid()).Should().BeEquivalentTo(new[] { supplierAId, supplierBId });
+
+        // And it is still the FULL view, not an emptied husk that happens to list two rows: the
+        // evaluation is Finalized, so pricing and scores are past the BRULE-058 gate.
+        body.GetProperty("evaluationState").GetString().Should().Be("Finalized");
+        var winner = proposals.Single(p => p.GetProperty("supplierId").GetGuid() == supplierAId);
+        winner.GetProperty("items").EnumerateArray().Should().NotBeEmpty();
+        winner.GetProperty("grandTotal").ValueKind.Should().NotBe(JsonValueKind.Null);
+        winner.GetProperty("criterionScores").ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    /// <summary>
+    /// The export is the same query, so it empties and fills with the view. Asserted separately
+    /// because a buyer who cannot open the screen reaches for the CSV, and that is exactly the
+    /// moment this would have been discovered by a person rather than by a test.
+    /// </summary>
+    [Fact]
+    public async Task The_export_after_an_award_still_carries_the_bids()
+    {
+        var (referenceCode, manager, _, _, _, _, _, proposalAId, proposalBId, technicalCriterionId, financialCriterionId, orgId)
+            = await SetupEvaluationReadyRfqAsync("Compare Export After Award");
+        var (evaluator, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator);
+        await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
+        await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
+
+        // BOTH bids are scored. The first version of this test scored only the winner, and the chain
+        // answered 404 at execute rather than at the step that was actually wrong - a submitted
+        // evaluation with an unscored bid does not consolidate into an awardable result. Every step
+        // below now asserts, so the next person to break this reads which one broke.
+        foreach (var (proposalId, technical, financial) in new[] { (proposalAId, 95m, 85m), (proposalBId, 70m, 65m) })
+        {
+            var code = await fixture.ProposalCodeAsync(proposalId);
+            await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
+            { proposalCode = code, criterionId = technicalCriterionId, rawScore = technical, commentAr = (string?)null, commentEn = (string?)null });
+            await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
+            { proposalCode = code, criterionId = financialCriterionId, rawScore = financial, commentAr = (string?)null, commentEn = (string?)null });
+        }
+
+        (await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/finalize", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var recommended = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
+        { winningProposalId = proposalAId, justificationAr = "سبب", justificationEn = "Reason" });
+        recommended.StatusCode.Should().Be(HttpStatusCode.OK, await recommended.Content.ReadAsStringAsync());
+        (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var approver = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
+        (await approver.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await approver.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var (_, rows, _) = await ExportCsvAsync(manager, referenceCode);
+
+        rows.Should().HaveCountGreaterThan(1, "a header alone is what an emptied comparison exports");
+    }
 }
