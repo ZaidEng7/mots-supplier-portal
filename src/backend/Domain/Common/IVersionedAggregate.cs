@@ -4,10 +4,17 @@ namespace MotsSupplierPortal.Domain.Common;
 /// An aggregate root carrying the row version §8.1's concurrency contract is built on.
 ///
 /// <para>The marker exists so the persistence layer can find the aggregate a request is mutating
-/// without every handler having to hand it over. <b>Nine</b> roots implement it - Supplier, Rfq,
-/// Proposal, Evaluation, EvaluationTemplate, Award, Offering, SupplierFieldConfig and Notification -
-/// and a mutable root that does NOT is a schema gap rather than an exemption: it cannot be protected
-/// from a lost update at all.</para>
+/// without every handler having to hand it over. <b>Thirteen</b> roots implement it - Supplier, Rfq,
+/// Proposal, Evaluation, EvaluationTemplate, Award, Offering, SupplierFieldConfig, Notification,
+/// NotificationTemplate, SystemSetting, EmailTemplateOverride and UiStringOverride - and a mutable
+/// root that does NOT is a schema gap rather than an exemption: it cannot be protected from a lost
+/// update at all.</para>
+///
+/// <para>This count said NINE for as long as there were thirteen. The four it left out are the
+/// configuration roots, added later and correctly given a version; the prose was not. A reader
+/// auditing "the nine" would have found them consistent and never looked at the other four, which is
+/// the particular harm in a count that is nearly right. <c>VersionedRootCountTests</c> now derives
+/// it, so the sentence cannot drift again.</para>
 ///
 /// <para><b>T-030/D-15: this is an APPLICATION-managed counter, not Postgres <c>xmin</c>.</b> It used
 /// to be xmin, and that was the defect. xmin advances only when the root ROW is written, and a child
