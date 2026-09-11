@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
+import { useShellMounted } from './shellPresence'
 
 /**
  * The footer that makes SCR-908 reachable.
@@ -10,20 +11,34 @@ import { Link } from '@tanstack/react-router'
  * screen was still unreachable — nothing anywhere in the app linked to it, so the only way in was to
  * type the address. A support answer nobody can navigate to is not a support answer.</p>
  *
- * <p>Mounted at the ROOT, below the Outlet, so it is present on the sign-in page and the error screens
- * as well as inside both shells. Help is here too for the same reason: both shells carry their own Help
- * link, but an anonymous user has no shell at all.</p>
+ * <p><b>Two footers, one at a time.</b> This one is mounted at the root, so an anonymous reader on the
+ * sign-in page or an error screen has it. Inside a shell the same links are rendered by AppShell, in the
+ * content column, and this one stands down.</p>
+ *
+ * <p>At the root it sat BELOW the shell, and the shell's sidebar is a full viewport tall - so on any
+ * page shorter than the window the footer appeared as two links stranded in a band of empty white
+ * running the full width of the screen, under the rail as well as under the page. That is what a reader
+ * saw on every short screen in the product.</p>
+ *
+ * <p><b>Help is dropped inside a shell.</b> Both shells carry their own Help destination in the rail,
+ * so offering it again six inches below is the same journey twice - one of the redundancies the Rams
+ * audit named. An anonymous reader has no rail, so at the root it stays.</p>
  */
-export function PublicFooter() {
+export function PublicFooter({ inShell = false }: Readonly<{ inShell?: boolean }>) {
   const { t } = useTranslation()
+  const shellMounted = useShellMounted()
+
+  if (!inShell && shellMounted) return null
 
   return (
     <footer
-      className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-6 text-[length:var(--text-body-sm)]"
+      className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6 text-[length:var(--text-body-sm)] ${inShell ? 'justify-start sm:px-6' : 'mt-8 justify-center'}`}
       style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
     >
       <Link to="/about" style={{ color: 'var(--color-text-secondary)' }}>{t('about.title')}</Link>
-      <Link to="/help" style={{ color: 'var(--color-text-secondary)' }}>{t('help.title')}</Link>
+      {inShell ? null : (
+        <Link to="/help" style={{ color: 'var(--color-text-secondary)' }}>{t('help.title')}</Link>
+      )}
     </footer>
   )
 }

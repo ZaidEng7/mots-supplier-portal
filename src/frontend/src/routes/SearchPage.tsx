@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import {Badge, Button, Card, Field, Input, PageHeading, SkeletonList, toneFor} from '../components/ui'
 import { search, type SearchHit } from '../api/search'
 
@@ -25,8 +25,31 @@ export function SearchPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
 
-  const [draft, setDraft] = useState('')
-  const [submitted, setSubmitted] = useState('')
+  /*
+    The query lives in the URL rather than in this component.
+
+    It was local state, which had three consequences a reader meets: the top bar could not submit into
+    this screen (so it was a link to an empty page instead of a search box), a search could not be
+    linked to or reloaded, and the back button took you out of the screen rather than back to the
+    previous search. All three are the same fact - a search IS an address.
+  */
+  const { q } = useSearch({ from: '/back-office/search' })
+  const navigate = useNavigate()
+  const submitted = q ?? ''
+  const [draft, setDraft] = useState(submitted)
+
+  // Arriving with a query in the address - from the top bar, a bookmark, or the back button - fills the
+  // box with it, so the reader can see and edit what was searched rather than facing an empty field
+  // above their own results.
+  //
+  // Adjusted during render rather than in an effect: an effect would render once with the stale box,
+  // then set state and render again, and React's own guidance for "reset state when an input changes"
+  // is this comparison. The reader never sees the intermediate frame.
+  const [lastSubmitted, setLastSubmitted] = useState(submitted)
+  if (lastSubmitted !== submitted) {
+    setLastSubmitted(submitted)
+    setDraft(submitted)
+  }
 
   const resultsQuery = useQuery({
     queryKey: ['search', submitted],
@@ -55,7 +78,8 @@ export function SearchPage() {
           className="flex items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            setSubmitted(draft)
+            const query = draft.trim()
+            void navigate({ to: '/back-office/search', search: query === '' ? {} : { q: query } })
           }}
         >
           <div className="grow">
@@ -66,6 +90,21 @@ export function SearchPage() {
           <Button type="submit" disabled={!draft.trim()}>{t('search.submit')}</Button>
         </form>
       </Card>
+
+      {/*
+        Before anything has been searched this screen was a page containing one empty box and nothing
+        else, which reads as an unfinished screen rather than as a starting point. It now says what it
+        searches and what it will not find, which is the same two sentences the results already carry
+        when they come back empty - moved to where they answer the question a reader arrives with.
+      */}
+      {submitted.trim() === '' ? (
+        <Card title={t('search.resultsTitle')}>
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('search.idle')}</p>
+          <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('search.emptyHint')}
+          </p>
+        </Card>
+      ) : null}
 
       {resultsQuery.isLoading ? <SkeletonList label={t('common.loading')} /> : null}
 

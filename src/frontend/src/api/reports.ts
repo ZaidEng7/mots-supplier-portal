@@ -38,13 +38,23 @@ export interface ComplianceReport {
   documentsExpired: number
 }
 
-export async function getProcurementReport(from?: string, to?: string): Promise<ProcurementReport> {
+export async function getProcurementReport(from?: string, to?: string): Promise<ProcurementReport | null> {
   const params = new URLSearchParams()
   if (from) params.set('from', new Date(from).toISOString())
   if (to) params.set('to', new Date(to).toISOString())
 
   const query = params.toString()
   const response = await apiFetch(`/api/v1/reports/procurement${query ? `?${query}` : ''}`)
+  /*
+    404 is not a failure here, it is an answer: this report is scoped to the caller's buying body
+    (BRULE-029), and two personas deliberately have none - the bootstrap administrator and
+    ministry_viewer. For them the handler returns null and the endpoint 404s, correctly.
+
+    It reached the screen as a thrown error, so the card offered "The report could not be loaded" and a
+    Try again that could never succeed, on every visit, for those two accounts. `null` says the honest
+    thing instead and the screen explains it.
+  */
+  if (response.status === 404) return null
   if (!response.ok) throw new Error(`reports.procurement ${response.status}`)
   return (await response.json()) as ProcurementReport
 }

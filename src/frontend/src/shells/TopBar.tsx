@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Menu, Search } from 'lucide-react'
 import { Icon } from '../components/ui/Icon'
@@ -102,22 +102,7 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
         </nav>
 
         <div className="ms-auto flex items-center gap-2">
-          {searchTo ? (
-            <Link
-              to={searchTo as never}
-              className="hidden items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-[length:var(--text-body-sm)] no-underline lg:flex"
-              style={{
-                inlineSize: '260px',
-                backgroundColor: 'var(--color-bg-app)',
-                border: '1px solid var(--color-border-input)',
-                color: 'var(--color-text-secondary)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <Icon as={Search} />
-              {t('search.title')}
-            </Link>
-          ) : null}
+          {searchTo ? <TopBarSearch searchTo={searchTo} /> : null}
 
           {/*
             Account chrome, off the path between a supplier and a tender. Rendered as text rather than
@@ -178,5 +163,56 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
         </nav>
       </div>
     </>
+  )
+}
+
+/**
+ * The search control, which is a search control.
+ *
+ * <p><b>What this replaces.</b> A `Link` 260 pixels wide, on the page background, inside a
+ * <code>--color-border-input</code> border, with a magnifier and the word "Search" in it. It was a text
+ * input in every respect a reader can see and in none that they can use: clicking it navigated, typing
+ * did nothing, and the destination was a page whose only content was the box they had just tried to
+ * type in. Two controls and a page round trip to do what one field does.</p>
+ *
+ * <p>Now it submits to the same screen with the query in the URL, which is also what makes a search
+ * linkable, reloadable and reachable with the back button.</p>
+ *
+ * <p>The query is NOT sent on every keystroke. That is the search screen's own rule and its reasoning
+ * holds here: three tables per keypress is a load test aimed at the database, and somebody typing a
+ * reference code does not want results for its first three characters.</p>
+ */
+function TopBarSearch({ searchTo }: Readonly<{ searchTo: string }>) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [draft, setDraft] = useState('')
+
+  return (
+    <form
+      role="search"
+      className="hidden items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 lg:flex"
+      style={{
+        inlineSize: '260px',
+        backgroundColor: 'var(--color-bg-app)',
+        border: '1px solid var(--color-border-input)',
+      }}
+      onSubmit={(event) => {
+        event.preventDefault()
+        const query = draft.trim()
+        if (query === '') return
+        void navigate({ to: searchTo as never, search: { q: query } as never })
+      }}
+    >
+      <Icon as={Search} />
+      <input
+        type="search"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        aria-label={t('search.title')}
+        placeholder={t('search.title')}
+        className="w-full min-w-0 bg-transparent text-[length:var(--text-body-sm)] outline-none"
+        style={{ color: 'var(--color-text-primary)' }}
+      />
+    </form>
   )
 }

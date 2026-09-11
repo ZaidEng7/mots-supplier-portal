@@ -332,6 +332,7 @@ const resources = {
         },
         procurement: {
           title: 'تقرير المشتريات',
+          noBuyingBody: 'يغطي هذا التقرير مناقصات جهة مشترية واحدة. حسابك غير مرتبط بجهة، فلا توجد بيانات لعرضها هنا. أما تقرير الالتزام أدناه فيحصي كل مورّد مسجّل ولا يخضع لهذا النطاق.',
           rfqsByState: 'طلبات عروض الأسعار حسب الحالة',
           cycleTime: 'زمن الدورة',
           awardsByState: 'الترسيات حسب الحالة',
@@ -1973,6 +1974,7 @@ const resources = {
         truncated: 'النتائج أكثر من المعروض. حدِّد البحث أكثر.',
         empty: 'لا نتائج',                                      // [reused]
         emptyHint: 'يُطابق البحث الكلمات كاملة أو بداياتها فقط، فصيغة الجمع لا تجد المفرد.',
+        idle: 'لم يُجرَ بحث بعد. بحث واحد يشمل المناقصات والموردين وعروض الكتالوج، ولا يُعيد إلا ما يحق لك فتحه.',
         kinds: { rfq: 'طلب عرض', supplier: 'مورّد', offering: 'عرض مُدرَج' }, // [reused] §7's «طلب عرض»
         fields: { query: 'كلمة البحث' },
         errors: { failed: 'تعذّر تنفيذ البحث' },
@@ -2322,6 +2324,7 @@ const resources = {
         },
         procurement: {
           title: 'Procurement report',
+          noBuyingBody: 'This report covers the tenders of one buying body. Your account is not attached to one, so there is nothing here to report. The compliance report below counts every registered supplier and is not scoped that way.',
           rfqsByState: 'RFQs by state',
           cycleTime: 'Cycle time',
           awardsByState: 'Awards by state',
@@ -3859,6 +3862,7 @@ const resources = {
         truncated: 'There are more results than shown. Narrow the search.',
         empty: 'No results',
         emptyHint: 'Search matches whole words and prefixes only, so a plural will not find a singular.',
+        idle: 'Nothing searched yet. One search covers tenders, suppliers and catalogue offerings, and returns only what you are allowed to open.',
         kinds: { rfq: 'RFQ', supplier: 'Supplier', offering: 'Offering' },
         fields: { query: 'Search terms' },
         errors: { failed: 'The search could not be run' },
