@@ -8,6 +8,9 @@ function notification(data: Record<string, string>): Notification {
     id: 'n-1', type: 'rfq.published',
     titleAr: 'عنوان', titleEn: 'Title', bodyAr: 'نص', bodyEn: 'Body',
     data: JSON.stringify(data), createdAt: '2026-09-03T10:00:00Z', readAt: null, isRead: false,
+    // T-037's classification. Irrelevant to routing, which is what this file is about, so every
+    // fixture carries the same value rather than pretending the distinction matters here.
+    isActionable: true,
   }
 }
 

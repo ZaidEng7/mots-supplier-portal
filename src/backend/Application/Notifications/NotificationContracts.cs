@@ -20,7 +20,22 @@ public sealed record NotificationDto(
     string Data,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ReadAt,
-    bool IsRead);
+    bool IsRead,
+    /// <summary>
+    /// T-037/INFORMATION-ARCHITECTURE §2: which of the two groups this row belongs to - the things
+    /// the reader must do something about, and the things that merely happened.
+    ///
+    /// <para><b>Why it is on the wire rather than worked out by the client.</b> The classification is
+    /// D-60's, it decides which notifications a person may switch off, and it lives in one set in the
+    /// domain. A second copy in the SPA would be a second answer to "is this actionable", and the two
+    /// would disagree the first time a notification type is added - which is exactly how a reader
+    /// ends up with a muted row in the column that says you must act.</para>
+    ///
+    /// <para>The bell itself refused to group for want of this flag, and said so in a comment: nothing
+    /// classified the types when it was written. D-60 then classified all of them for a different
+    /// reason, and the refusal outlived its reason.</para>
+    /// </summary>
+    bool IsActionable);
 
 public interface IListNotificationsHandler
 {

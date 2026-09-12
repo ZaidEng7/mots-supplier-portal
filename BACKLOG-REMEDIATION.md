@@ -140,7 +140,7 @@ All **inferred** unless noted: the mechanism was searched for by name across `Do
 | ~~T-034~~ | — | **Closed as part of T-059 (batch 9)** — confirmed to be the same work, as batch 6 predicted. Kept as a row so the id is not silently reused | batch 9 | Inferred | M |
 | T-035 | — | The ERPNext adapter is a stub; no real integration | Inferred | XL |
 | T-036 | — | **Split, and half of it is now a refusal rather than a gap (2026-09-07).** Preferences are SCR-901, declined under D-48/D-52 until somebody classifies which of the 30+ notification types are non-critical — the mechanism is cheap and the classification is a procurement-fairness judgement. Reminder scheduling is unaffected by that question and stays open | Reproduced (no entity) | L |
-| T-037 | — | The notification bell has no Actionable/Informational split | Reproduced (no classification) | S |
+| ~~T-037~~ | — | **Closed 2026-09-12.** The classification D-60 already made - which notifications a person may switch off - now travels on the wire as `isActionable`, and SCR-900 renders the two groups INFORMATION-ARCHITECTURE §2 asks for. The bell's own comment said the split could not be built because nothing classified the types; that stopped being true when D-60 landed, and the refusal outlived its reason by two batches. Waiting-on-you stays visible when empty and says so in words, because "is anything on me" is a question an absent section answers only by its absence. Was:The notification bell has no Actionable/Informational split | Reproduced (no classification) | S |
 | T-038 | FEAT-17.5 | Consolidated deadlines view not built | Inferred | M |
 | T-039 | FEAT-16.3 | Awards widget not built | Inferred | M |
 

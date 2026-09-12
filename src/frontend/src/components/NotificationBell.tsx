@@ -10,11 +10,15 @@ import { formatNumber } from '../lib/datetime'
  * panel grouped by *Actionable* / *Informational*; deep-links to the source entity; full history at
  * `…/notifications`".
  *
- * <p><b>This is the badge and the link, not the panel.</b> §2 describes a panel grouped into
- * Actionable and Informational - and nothing in the documents says which notification types fall
- * into which group. Inventing that split would be inventing product policy in a component, so the
- * bell links to SCR-900, where the full history already lives, and the grouping is reported as an
- * open question. The badge itself is what §2 makes load-bearing: it is how anyone knows to look.</p>
+ * <p><b>This is the badge and the link, not the panel.</b> §2 describes a panel; the bell opens
+ * SCR-900, where the full history lives and where - since T-037 - the Actionable and Informational
+ * grouping §2 asks for is rendered. A panel here would be a second copy of that screen hanging off a
+ * 24px target, and the badge is what §2 makes load-bearing: it is how anyone knows to look.</p>
+ *
+ * <p>This comment used to say the grouping could not be built because nothing classified the
+ * notification types. D-60 then classified all of them, for a different reason - deciding which a
+ * person may switch off - and the refusal outlived its reason by two batches. The classification is
+ * on the wire now, so the screen reads it rather than inventing one.</p>
  *
  * <p>The count is a count, not a list length: the badge is on every page of the app for every
  * persona, and shipping rows to render a number only becomes visibly wrong once there are many.</p>

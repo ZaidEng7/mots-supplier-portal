@@ -427,6 +427,9 @@ const resources = {
         open: 'فتح',
         bell: 'الإشعارات',
         bellWithCount: 'الإشعارات، {{count}} غير مقروء',
+        actionable: 'بانتظار إجراء منك',
+        informational: 'للعلم',
+        actionableEmpty: 'لا شيء بانتظار إجراء منك.',
       },
       common: { loading: 'جاري التحميل...', cancel: 'إلغاء', retry: 'إعادة المحاولة', loadFailed: 'تعذّر تحميل هذه البيانات. حاول مرة أخرى.', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
       // UX-WRITING.md §7 "Status labels (aligned to canonical state machines)" - transcribed
@@ -2417,6 +2420,9 @@ const resources = {
         open: 'Open',
         bell: 'Notifications',
         bellWithCount: 'Notifications, {{count}} unread',
+        actionable: 'Waiting on you',
+        informational: 'For information',
+        actionableEmpty: 'Nothing is waiting on you.',
       },
       common: { loading: 'Loading...', cancel: 'Cancel', retry: 'Try again', loadFailed: 'We could not load this. Try again.', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
       // See the Arabic block above for why these are transcription, not authorship.

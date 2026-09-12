@@ -21,6 +21,14 @@ export interface Notification {
   createdAt: string
   readAt: string | null
   isRead: boolean
+  /**
+   * T-037: which of the two groups the information architecture's notification panel puts this in.
+   *
+   * The server decides it, from the same classification that decides what a person may switch off.
+   * Working it out here would be a second answer to "is this actionable", and the two would part
+   * company the first time a notification type is added.
+   */
+  isActionable: boolean
 }
 
 export class NotificationApiError extends ProblemError {
