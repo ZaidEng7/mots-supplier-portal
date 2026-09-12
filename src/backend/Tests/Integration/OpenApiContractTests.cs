@@ -1,3 +1,8 @@
+using Microsoft.AspNetCore.Http;
+using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Api.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Routing;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
@@ -291,5 +296,52 @@ public sealed class OpenApiContractTests(PostgresApiFixture fixture)
 
         ResponseShapes(current).Except(ResponseShapes(mutilated)).Should().NotBeEmpty(
             "the comparison must detect a removed path, or the first test proves nothing");
+    }
+
+    /// <summary>
+    /// T-108: every permissioned route says which permission it needs, in the published document.
+    ///
+    /// <para>§11 makes the OpenAPI document the source for the SPA's types and the ERP client. Every
+    /// route in this API is gated, and the document said nothing about any gate - so a consumer
+    /// reading it could not tell which token reaches which route, and found out as a 403.</para>
+    ///
+    /// <para><b>The denominator is the endpoint table, not a sample.</b> The count of operations
+    /// carrying the annotation is compared against the count of endpoints carrying the metadata the
+    /// filter enforces. A transformer that silently stopped running would leave the numbers unequal;
+    /// a spot-check on one route would not notice.</para>
+    /// </summary>
+    [Fact]
+    public async Task Every_permissioned_route_names_its_permission_in_the_document()
+    {
+        var document = await CurrentDocumentAsync();
+
+        var annotated = document["paths"]!.AsObject()
+            .SelectMany(path => path.Value!.AsObject())
+            .Where(operation => operation.Value is JsonObject shape
+                                && shape.ContainsKey("x-required-permissions"))
+            .ToList();
+
+        // Non-vacuity, and it is the whole point: a document with no annotations at all would satisfy
+        // any assertion about the ones it has.
+        annotated.Should().HaveCountGreaterThan(150,
+            "nearly every route in this API is permissioned, so the annotation must be on nearly every operation");
+
+        // And the count matches what the API itself enforces, read from the endpoint table rather than
+        // from a list in this file.
+        var enforced = fixture.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Count(e => e.Metadata.GetMetadata<RequiredPermissionsMetadata>() is not null);
+
+        annotated.Should().HaveCount(enforced,
+            "the document and the filter must agree about which routes are gated - a difference means one "
+            + "of them is lying to a consumer generating a client");
+
+        // One route, read end to end, so the annotation's SHAPE is asserted rather than its presence.
+        var audit = document["paths"]!["/api/v1/audit"]!["get"]!.AsObject();
+        audit["x-required-permissions"]!.AsArray().Select(v => v!.GetValue<string>())
+            .Should().Contain(Permissions.AuditRead);
+        audit["description"]!.GetValue<string>().Should().Contain(Permissions.AuditRead,
+            "a generator that drops unknown x- extensions still carries the prose");
+        audit["responses"]!["403"].Should().NotBeNull("a permission a caller can read, with a refusal they cannot anticipate, is half an answer");
     }
 }

@@ -945,3 +945,16 @@ which is the reason Part D exists rather than an edit to Part C.
 | **What it does not close** | The payload still contains identifiers no client reads. That is a contract-shape question, not a defect, and it belongs to whoever opens `/api/v2`. |
 | **The compatibility detail** | `POST /award/recommend` accepts both. The code wins when both arrive; a caller sending two that disagree has a bug either way. Both are optional in the schema **with defaults** — a nullable parameter without one still generates as `required`, which the contract gate caught and refused, because it would have made the new field a demand on every existing caller. |
 | **Who should confirm it** | Whoever plans `/api/v2`. The removal is a one-line deletion in three records plus this row. |
+
+---
+
+### D-70 — Scalar and generated SPA types are refused; the document itself is the deliverable
+
+| | |
+|---|---|
+| **What was undecided** | T-108 records that §11 describes four things: a published OpenAPI document, a CI breaking-diff gate, a **Scalar** documentation UI, and **openapi-typescript** generation for the SPA and the ERP client. The first two are built. Whether to take the two packages the others need was nobody's call to make quietly. |
+| **What was decided** | **Neither package.** Asked and answered on 12 September 2026: no new dependencies for this. |
+| **What exists instead** | The document is published in every environment and gated by the admin permission outside development. It now carries each operation's required permission and its 403, derived from the same metadata the authorisation filter enforces - so a consumer can read which token reaches which route, which was the practical gap. The breaking-diff gate refuses removals and newly-required request fields, and it has refused two of this session's own changes. |
+| **What is knowingly not there** | An interactive documentation page, and SPA types generated from the contract. All 195 endpoints stay on hand-written clients, which means a contract change and a client change are two edits by a person rather than one regeneration. |
+| **Why that is tolerable for now** | The SPA and the API ship from one repository and one pipeline, and the contract gate catches the class of drift that hurts - a field removed or newly required. Generated types would catch a narrower class earlier, at the cost of a build step and a dependency in a product that has neither today. |
+| **Who should confirm it** | Revisit when a consumer outside this repository exists - the ERP client is the obvious one. At that point generated types stop being a convenience and start being the contract. |
