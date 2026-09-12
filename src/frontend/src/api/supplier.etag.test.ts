@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearETags, lookupETag } from './etags'
-import { getOwnSupplier } from './supplier'
+import { getOwnSupplier, updateProfile } from './supplier'
 
 /**
  * The supplier profile's own concurrency wiring, which was broken in two independent ways at once and
@@ -38,6 +38,27 @@ describe('supplier profile ETag wiring', () => {
     await getOwnSupplier()
 
     expect(lookupETag('/api/v1/suppliers/SUP-2026-000001')).toBe('"AAAABA.1bdf128d"')
+  })
+
+  /**
+   * The version a WRITE produced has to reach the `me` spelling too, because that is the one every
+   * child collection walks up to.
+   *
+   * <p>The walkthrough found this the hard way: save the company details, add an address on the next
+   * step, and the save was refused as a concurrency conflict. `updateProfile` PATCHes
+   * `/suppliers/{code}` and filed its fresh version there; `/suppliers/me/addresses` and
+   * `/suppliers/me/branches` reach `/suppliers/me`, which still held the version from the page's own
+   * read. One aggregate, two keys, refreshed one at a time.</p>
+   */
+  it('files a WRITE ETag under the me path as well, which the child collections use', async () => {
+    respondWith('"AAAABw.1bdf128d.abc12345"')
+
+    await updateProfile('SUP-2026-000001', { description: 'anything' })
+
+    expect(lookupETag('/api/v1/suppliers/SUP-2026-000001')).toBe('"AAAABw.1bdf128d.abc12345"')
+    expect(lookupETag('/api/v1/suppliers/me')).toBe('"AAAABw.1bdf128d.abc12345"')
+    // And the precondition a child write would actually send resolves to the fresh one.
+    expect(lookupETag('/api/v1/suppliers/me/branches')).toBe('"AAAABw.1bdf128d.abc12345"')
   })
 
   it('stores the server ETag verbatim, never one rebuilt from rowVersion', async () => {

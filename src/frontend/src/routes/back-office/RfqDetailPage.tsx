@@ -100,6 +100,12 @@ export function RfqDetailPage() {
    * page would fetch a list they cannot act on and get a 403 in the console for their trouble, so the query is
    * skipped rather than the button hidden.
    */
+  // Same rule as the evaluation controls below, which already follow it: a control nobody in this
+  // session can use is not shown. The tender's own Approve button did not - an officer reading a
+  // tender in Internal review was offered an enabled Approve that answers 403, three lines under a
+  // panel already telling them they do not hold the permission for it. `rfq.approve` belongs to the
+  // procurement manager alone.
+  const canApproveRfq = useAuthStore((state) => state.claims?.permissions.includes('rfq.approve') ?? false)
   const canAssignEvaluators = useAuthStore((state) => state.claims?.permissions.includes('evaluation.assign') ?? false)
   // Finalize and reopen are the MANAGER's, not the officer's - evaluation.finalize and
   // evaluation.reopen are granted to procurement_manager alone. Both buttons were rendered for
@@ -439,7 +445,7 @@ export function RfqDetailPage() {
               </p>
             </div>
           ) : null}
-          {isInternalReview ? (
+          {isInternalReview && canApproveRfq ? (
             <Button isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>{t('rfq.approve')}</Button>
           ) : null}
           {isApproved ? (

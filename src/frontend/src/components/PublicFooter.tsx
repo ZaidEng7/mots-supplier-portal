@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '../lib/authStore'
 import { Link } from '@tanstack/react-router'
 import { useShellMounted } from './shellPresence'
 
@@ -27,6 +28,11 @@ import { useShellMounted } from './shellPresence'
 export function PublicFooter({ inShell = false }: Readonly<{ inShell?: boolean }>) {
   const { t } = useTranslation()
   const shellMounted = useShellMounted()
+  // Help lives under the supplier shell, which is authenticated. Offered to a reader with no
+  // session it was a link to the sign-in page: the landing page and the sign-in page itself both
+  // carried it, so the first thing an unregistered supplier could click for help bounced them to a
+  // form. Shown only to someone who can actually reach it, until there is a public help route.
+  const signedIn = useAuthStore((state) => state.claims !== null)
 
   if (!inShell && shellMounted) return null
 
@@ -36,7 +42,7 @@ export function PublicFooter({ inShell = false }: Readonly<{ inShell?: boolean }
       style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
     >
       <Link to="/about" style={{ color: 'var(--color-text-secondary)' }}>{t('about.title')}</Link>
-      {inShell ? null : (
+      {inShell || !signedIn ? null : (
         <Link to="/help" style={{ color: 'var(--color-text-secondary)' }}>{t('help.title')}</Link>
       )}
     </footer>

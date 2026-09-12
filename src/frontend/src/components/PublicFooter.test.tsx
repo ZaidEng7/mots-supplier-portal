@@ -8,6 +8,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const { PublicFooter } = await import('./PublicFooter')
 const { useDeclareShellMounted } = await import('./shellPresence')
+const { useAuthStore } = await import('../lib/authStore')
 
 /** Stands in for a shell: the thing a shell does to this footer is declare itself. */
 function ShellProbe() {
@@ -29,11 +30,31 @@ function ShellProbe() {
  * on `/about` is authenticated and has no shell, and that page is reached FROM this footer.</p>
  */
 describe('the public footer', () => {
-  it('carries About and Help when there is no shell', () => {
+  it('carries About when there is no shell', () => {
     render(<PublicFooter />)
 
     expect(screen.getByRole('link', { name: 'about.title' })).toBeInTheDocument()
+  })
+
+  /**
+   * Help is under the supplier shell, which is authenticated, so a reader with no session following
+   * it arrived at the sign-in form - from the landing page, and from the sign-in page itself. The
+   * link is now shown only to someone who can reach what it points at.
+   */
+  it('does not offer Help to a reader with no session', () => {
+    render(<PublicFooter />)
+
+    expect(screen.queryByRole('link', { name: 'help.title' })).toBeNull()
+  })
+
+  it('offers Help once there is a session, because an error screen has no rail either', () => {
+    useAuthStore.setState({ claims: { email: 'someone@mots.local', permissions: [] } as never })
+
+    render(<PublicFooter />)
+
     expect(screen.getByRole('link', { name: 'help.title' })).toBeInTheDocument()
+
+    useAuthStore.setState({ claims: null })
   })
 
   it('stands down while a shell is on screen', () => {

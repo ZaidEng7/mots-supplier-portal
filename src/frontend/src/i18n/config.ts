@@ -75,6 +75,12 @@ const resources = {
         // §1's not-yet-approved state. Deliberately not an empty dashboard - see the report.
         pendingTitle: 'طلب التسجيل قيد المراجعة',
         pendingBody: 'سنُعلمك فور اعتماد ملفكم. يمكنك متابعة استكمال بياناتكم في هذه الأثناء.',
+        notSubmittedTitle: 'لم يكتمل ملفكم بعد',
+        notSubmittedBody: 'لم يُرسَل شيء إلى الوزارة حتى الآن. أكملوا العناصر المطلوبة في الملف ثم أرسلوه، وعندها يتسلّمه المراجع.',
+        infoRequestedTitle: 'طلب المراجع تعديلات',
+        infoRequestedBody: 'عاد طلبكم إليكم. افتحوا الملف لتروا البنود المطلوب تعديلها بالتحديد، ثم أعيدوا الإرسال.',
+        rejectedTitle: 'لم يُقبل طلبكم',
+        rejectedBody: 'القرار وسببه موجودان في صفحة الملف.',
         pendingCta: 'متابعة استكمال الملف',
         erpDegraded: 'مزامنة أمر الشراء متوقفة مؤقتاً. لا يؤثر ذلك على عرضكم.',  // §9's sync tone
         emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
@@ -1018,6 +1024,8 @@ const resources = {
         cancel: 'إلغاء',
         created: 'تم إنشاء القالب',
         criterionAdded: 'تمت إضافة المعيار',
+        criterionRemoved: 'تم حذف المعيار',
+        removeCriterion: 'حذف',
         activated: 'تم تفعيل القالب',
         archived: 'تمت أرشفة القالب',
         forked: 'تم إنشاء نسخة جديدة من القالب',
@@ -1027,7 +1035,7 @@ const resources = {
         activate: 'تفعيل',
         archive: 'أرشفة',
         fork: 'إنشاء نسخة جديدة',
-        fields: { name: 'الاسم', nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', dimension: 'البُعد', weight: 'الوزن', maxScore: 'الحد الأقصى للنقاط', scoringType: 'نوع التقييم' },
+        fields: { name: 'الاسم', nameAr: 'الاسم (عربي)', nameEn: 'الاسم (إنجليزي)', dimension: 'البُعد', weight: 'الوزن', maxScore: 'الحد الأقصى للنقاط', scoringType: 'نوع التقييم', actions: 'إجراءات' },
         errors: { saveFailed: 'تعذر حفظ القالب', activateFailed: 'تعذر تفعيل القالب' },
       },
       rfq: {
@@ -1778,6 +1786,7 @@ const resources = {
         },
         errors: {
           uploadFailed: 'تعذّر رفع المستند',                     // [reused]
+          expiryFirst: 'اختاروا تاريخ الانتهاء أولاً. هذا النوع من المستندات يسجّل تاريخ انتهاء، ولا يُقبل الرفع بدونه.',
           downloadFailed: 'تعذّر تنزيل المستند',
           historyFailed: 'تعذّر تحميل سجل الإصدارات',
         },
@@ -2108,6 +2117,16 @@ const resources = {
         openNotifications: 'View notifications',
         pendingTitle: 'Your application is under review',
         pendingBody: "We'll let you know as soon as your profile is approved. You can keep completing it in the meantime.",
+        // Three states, three true sentences. One message said "under review" to every supplier who
+        // was not yet approved - including one who had not submitted anything, so nobody was
+        // reviewing and nothing was waiting on the Ministry. Seen on a brand-new account whose own
+        // chip two lines below read "Email verified".
+        notSubmittedTitle: 'Your profile is not finished',
+        notSubmittedBody: 'Nothing has been sent to the Ministry yet. Complete the items on your profile and submit it, and a reviewer will pick it up from there.',
+        infoRequestedTitle: 'A reviewer has asked for changes',
+        infoRequestedBody: 'Your application is back with you. Open your profile to see exactly which items were flagged, then send it again.',
+        rejectedTitle: 'Your application was not accepted',
+        rejectedBody: 'The decision and its reason are on your profile.',
         pendingCta: 'Continue your profile',
         erpDegraded: 'Purchase-order sync is paused. This does not affect your proposal.',
         emptyTitle: 'No invitations yet',
@@ -2960,6 +2979,8 @@ const resources = {
         cancel: 'Cancel',
         created: 'Template created',
         criterionAdded: 'Criterion added',
+        criterionRemoved: 'Criterion removed',
+        removeCriterion: 'Remove',
         activated: 'Template activated',
         archived: 'Template archived',
         forked: 'New template version created',
@@ -2969,7 +2990,7 @@ const resources = {
         activate: 'Activate',
         archive: 'Archive',
         fork: 'Create new version',
-        fields: { name: 'Name', nameAr: 'Name (Arabic)', nameEn: 'Name (English)', dimension: 'Dimension', weight: 'Weight', maxScore: 'Max score', scoringType: 'Scoring type' },
+        fields: { name: 'Name', nameAr: 'Name (Arabic)', nameEn: 'Name (English)', dimension: 'Dimension', weight: 'Weight', maxScore: 'Max score', scoringType: 'Scoring type', actions: 'Actions' },
         errors: { saveFailed: 'Could not save the template', activateFailed: 'Could not activate the template' },
       },
       rfq: {
@@ -3684,6 +3705,7 @@ const resources = {
         },
         errors: {
           uploadFailed: 'Could not upload the document',
+          expiryFirst: 'Choose the expiry date first. This document type records one, and the upload is refused without it.',
           downloadFailed: 'Could not download the document',
           historyFailed: 'Could not load the version history',
         },

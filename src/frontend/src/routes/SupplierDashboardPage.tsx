@@ -66,10 +66,31 @@ export function SupplierDashboardPage() {
   // §1's "Not-yet-approved: dashboard replaced by onboarding progress banner linking to SCR-100".
   // Replaced, not emptied: a supplier who is not yet eligible for any invitation must not read
   // "Open invitations: 0" as a verdict on them.
+  //
+  // WHICH banner, though. There was one - "Your application is under review" - for all six
+  // not-approved states, and in three of them nobody is reviewing anything: a supplier who has not
+  // submitted was told the Ministry had their application, under a chip two lines below reading
+  // "Email verified" and beside a button inviting them to carry on filling it in. The same defect
+  // OnboardingPage's read-only message had, on the screen a new supplier sees first.
   if (!data.isApproved) {
+    const banner = (() => {
+      const state = data.onboardingState
+      if (state === 'Draft' || state === 'EmailVerified' || state === 'ProfileInProgress') {
+        return { title: t('supplierDashboard.notSubmittedTitle'), body: t('supplierDashboard.notSubmittedBody') }
+      }
+      if (state === 'InfoRequested') {
+        return { title: t('supplierDashboard.infoRequestedTitle'), body: t('supplierDashboard.infoRequestedBody') }
+      }
+      if (state === 'Rejected') {
+        return { title: t('supplierDashboard.rejectedTitle'), body: t('supplierDashboard.rejectedBody') }
+      }
+      // Submitted, UnderReview, Resubmitted: the three where it is true.
+      return { title: t('supplierDashboard.pendingTitle'), body: t('supplierDashboard.pendingBody') }
+    })()
+
     return (
-      <Card title={t('supplierDashboard.pendingTitle')}>
-        <p>{t('supplierDashboard.pendingBody')}</p>
+      <Card title={banner.title}>
+        <p>{banner.body}</p>
         <div className="mt-3 flex items-center gap-3">
           <StatusChip machine="onboarding" value={data.onboardingState} />
           <Link to="/onboarding">{t('supplierDashboard.pendingCta')}</Link>

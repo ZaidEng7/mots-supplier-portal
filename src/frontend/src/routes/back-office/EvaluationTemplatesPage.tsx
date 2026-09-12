@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Badge, Button, Card, Dialog, Field, Input, ListState, PageHeading, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
-  listEvaluationTemplates, createEvaluationTemplate, addCriterion, activateEvaluationTemplate,
+  listEvaluationTemplates, createEvaluationTemplate, addCriterion, removeCriterion, activateEvaluationTemplate,
   archiveEvaluationTemplate, forkEvaluationTemplate, EvaluationTemplateApiError,
   type EvaluationTemplate, type CriterionDimension, type ScoringType,
 } from '../../api/evaluationTemplates'
@@ -66,6 +66,28 @@ export function EvaluationTemplatesPage() {
       invalidateQuietly(queryClient, { queryKey: ['evaluation-templates'] })
       notify({ kind: 'success', title: t('evaluationTemplates.criterionAdded') })
       setCriterionDraft((prev) => ({ ...prev, [templateId]: { nameAr: '', nameEn: '', dimension: 'Technical', weight: '', maxScore: '', scoringType: 'Numeric' } }))
+    },
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
+  })
+
+  /**
+   * Removing a criterion from a Draft template.
+   *
+   * <p>The route existed and nothing called it, so a criterion added with the wrong dimension or
+   * weight could not be taken back: the total stayed wrong, activation refuses anything but 100, and
+   * the template was stranded. The only way out was to create another one and leave the mistake in
+   * the list. Found while building a template during a walkthrough.</p>
+   *
+   * <p>Offered only while the template is Draft and unreferenced, which is the same condition the
+   * criterion FORM below already uses - an Active template's criteria are what past evaluations were
+   * scored against, and those must not move.</p>
+   */
+  const removeCriterionMutation = useMutation({
+    mutationFn: ({ templateId, criterionId }: { templateId: string; criterionId: string }) =>
+      removeCriterion(templateId, criterionId),
+    onSuccess: () => {
+      invalidateQuietly(queryClient, { queryKey: ['evaluation-templates'] })
+      notify({ kind: 'success', title: t('evaluationTemplates.criterionRemoved') })
     },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
   })
@@ -143,6 +165,9 @@ export function EvaluationTemplatesPage() {
                     <TableHeaderCell>{t('evaluationTemplates.fields.dimension')}</TableHeaderCell>
                     <TableHeaderCell>{t('evaluationTemplates.fields.weight')}</TableHeaderCell>
                     <TableHeaderCell>{t('evaluationTemplates.fields.maxScore')}</TableHeaderCell>
+                    {!template.isReferenced && template.status === 'Draft' ? (
+                      <TableHeaderCell>{t('evaluationTemplates.fields.actions')}</TableHeaderCell>
+                    ) : null}
                   </TableHead>
                   <TableBody>
                     {template.criteria.map((c) => (
@@ -151,6 +176,18 @@ export function EvaluationTemplatesPage() {
                         <TableCell>{c.dimension}</TableCell>
                         <TableCell>{formatNumber(c.weight, locale, 0)}</TableCell>
                         <TableCell>{c.maxScore}</TableCell>
+                        {!template.isReferenced && template.status === 'Draft' ? (
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              isLoading={removeCriterionMutation.isPending}
+                              onClick={() => removeCriterionMutation.mutate({ templateId: template.id, criterionId: c.id })}
+                            >
+                              {t('evaluationTemplates.removeCriterion')}
+                            </Button>
+                          </TableCell>
+                        ) : null}
                       </TableRow>
                     ))}
                   </TableBody>
