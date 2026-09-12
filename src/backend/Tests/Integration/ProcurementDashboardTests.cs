@@ -198,4 +198,65 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
         problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE",
             "not MALFORMED_JSON - this is a GET carrying no JSON, and one filter value is the problem");
     }
+
+    /// <summary>
+    /// T-038/FEAT-17.5: the deadline panel carries the clarification window, not only the submission
+    /// one.
+    ///
+    /// <para>FEAT-17.5 asks for "submission/clarification/expiry" consolidated. The panel had the
+    /// first and neither of the others, so the two dates a buyer can actually MISS were the two it did
+    /// not show - a clarification window closes whether or not anyone answered the question inside
+    /// it.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_clarification_window_appears_on_the_deadline_panel()
+    {
+        var org = await OrgWithRfqsAsync($"Clar {Guid.NewGuid():N}"[..12], draftCount: 1);
+
+        // Straight to the state, because the route into Clarification is a buyer asking a supplier a
+        // question mid-evaluation and this test is about the PANEL, not that path - which
+        // RfqClarificationTests already covers end to end.
+        string rfqCode;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rfq = await db.Rfqs.Where(r => r.OrganizationId == org.OrgId).FirstAsync();
+            rfqCode = rfq.ReferenceCode;
+
+            await db.Rfqs.Where(r => r.Id == rfq.Id).ExecuteUpdateAsync(p => p
+                .SetProperty(r => r.State, RfqState.Clarification)
+                .SetProperty(r => r.ClarificationDeadlineAt, DateTimeOffset.UtcNow.AddDays(3)));
+        }
+
+        var tasks = (await DashboardAsync(org.Officer)).GetProperty("tasks").EnumerateArray().ToList();
+
+        var row = tasks.Single(t => t.GetProperty("rfqReferenceCode").GetString() == rfqCode);
+        row.GetProperty("kind").GetString().Should().Be("ClarificationClosing");
+        row.GetProperty("due").GetDateTimeOffset().Should().BeAfter(DateTimeOffset.UtcNow,
+            "the panel is about what has not happened yet");
+    }
+
+    /// <summary>
+    /// T-038: a bid's validity date appears only once the evaluation is consolidated.
+    ///
+    /// <para>Validity is a commercial term, and BRULE-058 keeps commercial values out of buyer-side
+    /// reads until consolidation - the same gate the comparison matrix applies. A row saying "a bid on
+    /// this tender expires soon" is itself the disclosure, so before that point it is absent rather
+    /// than dateless.</para>
+    ///
+    /// <para>This asserts the CLOSED half. The open half - that it appears afterwards - needs a full
+    /// evaluation and lives with the suites that already drive one.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_bid_validity_date_is_not_on_the_panel_before_consolidation()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "PanelGate");
+
+        var tasks = (await DashboardAsync(seeded.Officer)).GetProperty("tasks").EnumerateArray().ToList();
+
+        tasks.Where(t => t.GetProperty("rfqReferenceCode").GetString() == seeded.RfqCode)
+            .Select(t => t.GetProperty("kind").GetString())
+            .Should().NotContain("BidValidityExpiring",
+                "the evaluation is not consolidated, so no commercial fact about a bid may reach this screen");
+    }
 }
