@@ -14,27 +14,41 @@ two real measurements).
 
 | endpoint | persona | p50 | p95 | max |
 |---|---|---:|---:|---:|
-| procurement dashboard | officer | 6.5 | 17.3 | 19.1 |
-| comparison matrix | officer | 8.6 | 11.4 | 24.0 |
-| rfq list | officer | 1.6 | 2.2 | 3.4 |
-| rfq detail | officer | 6.5 | 8.1 | 8.8 |
-| evaluation read | officer | 5.0 | 5.8 | 6.1 |
-| supplier dashboard | supplier | 11.9 | 15.4 | 21.6 |
-| supplier profile | supplier | 7.3 | 10.4 | 11.2 |
-| my proposals | supplier | 2.4 | 3.1 | 3.7 |
-| review queue | reviewer | 3.8 | 5.2 | 6.5 |
-| review dashboard | reviewer | 4.4 | 4.9 | 5.1 |
-| ministry overview | ministry | 3.6 | 4.4 | 4.6 |
-| search (one term) | officer | 3.2 | 6.9 | 10.5 |
-| audit search | admin | 1.8 | 3.2 | **177.8** |
-| jobs monitor | admin | 6.4 | 11.1 | 12.7 |
-| outbox monitor | admin | 2.5 | 3.8 | 4.9 |
-| erp sync monitor | admin | 2.2 | 2.8 | 3.5 |
-| storage settings | admin | 6.0 | 12.1 | 16.4 |
-| security posture | admin | 2.4 | 4.8 | 6.2 |
+| procurement dashboard | officer | 7.0 | 8.8 | 12.3 |
+| comparison matrix | officer | 5.2 | 7.2 | 7.3 |
+| rfq list | officer | 4.6 | 10.1 | 11.3 |
+| rfq detail | officer | 7.5 | 10.0 | 10.5 |
+| evaluation read | officer | 6.2 | 7.8 | 8.3 |
+| supplier dashboard | supplier | 19.3 | 22.2 | 25.3 |
+| supplier profile | supplier | 11.5 | 13.3 | 15.2 |
+| my proposals | supplier | 2.4 | 3.2 | 4.2 |
+| review queue | reviewer | 4.0 | 5.1 | 5.5 |
+| review dashboard | reviewer | 5.1 | 6.2 | 6.3 |
+| ministry overview | ministry | 6.0 | 7.5 | 16.3 |
+| search (one term) | officer | 2.8 | 4.3 | 7.7 |
+| audit search | admin | 1.4 | 1.9 | 2.0 |
+| jobs monitor | admin | 6.9 | 13.1 | 18.4 |
+| outbox monitor | admin | 2.4 | 3.1 | 5.1 |
+| erp sync monitor | admin | 2.3 | 3.3 | 3.7 |
+| storage settings | admin | 6.1 | 7.7 | 9.9 |
+| security posture | admin | 1.7 | 2.2 | 2.3 |
 
-Every endpoint returned 2xx. The script prints a warning for any that did not, because a fast 404 or 403
-is not a fast read and a baseline full of them would look excellent.
+Every endpoint returned 2xx, and this time that is a measured fact rather than a reading of the status
+column. The script prints a warning for any that did not, because a fast 404 or 403 is not a fast read and
+a baseline full of them would look excellent.
+
+**Two things the previous table got wrong**, both found by re-running it during a walkthrough rather than
+by reading it:
+
+- **`evaluation read` was a 404.** It addressed `RFQ-DEMO-0004`, which the dev seed leaves at
+  SubmissionOpen — an evaluation does not exist until a tender reaches UnderEvaluation. Its 5.0 ms p50 was
+  the cost of the refusal, published as the fastest cross-aggregate read in the product. The row now
+  addresses `RFQ-DEMO-0005`, and its first cold call against a warm database took **520 ms** before the
+  warm-up discards settled it to the 6.2 ms above. That cold number is not in the table (the table is
+  warm, deliberately), but it is the reason this correction is worth more than the three digits it changed.
+- **`reviewer` and `admin` could not sign in.** The script held passwords from before the seeders
+  converged on one dev fallback, so eight of the eighteen rows — including every admin read, the slowest
+  in the product — were skipped. They are measured here.
 
 ## Writes (T-107)
 
@@ -43,10 +57,15 @@ and one of its own.
 
 | write | persona | p50 | p95 | max |
 |---|---|---:|---:|---:|
-| supplier profile edit (`PATCH /suppliers/{code}`) | supplier | 8.9 | 19.8 | 20.0 |
-| notification preferences (`PUT /notifications/preferences`) | officer | 20.7 | 31.5 | 58.6 |
+| supplier profile edit (`PATCH /suppliers/{code}`) | supplier | 7.4 | 8.6 | 9.3 |
+| notification preferences (`PUT /notifications/preferences`) | officer | 19.0 | 21.6 | 29.1 |
 
-20 samples each, 3 discarded warm-up requests, same laptop.
+30 samples each, 3 discarded warm-up requests, same laptop.
+
+**The supplier edit no longer brands the row it measures.** It used to set the description to
+"Measured by perf/baseline.py", and that string was still sitting on `SUP-DEMO-0001`'s profile screen days
+later, in place of the seeded description. It now writes back whatever the profile already held, which is
+the same repeatable write without the graffiti.
 
 **Why only two.** Every write measured here is repeatable against the same row: it sets a value to what
 it already is, or to one the next iteration overwrites. That rules out the writes a reader would most
@@ -62,7 +81,8 @@ not make would measure the harness.
 
 **It does not show the targets are met.** Four reasons, and each one alone is enough:
 
-1. **The dataset is tiny.** Six RFQs, nine users, five suppliers, three proposals, one award. The
+1. **The dataset is small.** 40 tenders, 31 suppliers and 18 awards on the database this run measured -
+   larger than the six RFQs and one award of the first run, and still nothing like production. The
    interesting reads here — the procurement dashboard and the comparison matrix — fan out across
    aggregates, and their cost is a function of how much there is to fan out over. At this size they are
    measuring query planning, not query work.
@@ -78,11 +98,14 @@ So: neither path is obviously slow, and nothing here licenses saying either is w
 
 ## The one number worth looking at
 
-`audit search` has a p50 of 1.8 ms and a **max of 177.8 ms** — a hundred-fold spread that no other
-endpoint shows. Almost certainly the first-call cost of a query plan or an index being read in, since the
-warm-up discards only three requests and this outlier landed later in the run. It is recorded rather than
-explained: guessing at a cause from one sample is how a performance myth starts. Worth a second look with
-more iterations before anyone optimises anything.
+The previous run's `audit search` outlier — p50 1.8 ms against a max of 177.8 ms — **did not reproduce**.
+This run has it at 1.4 / 1.9 / 2.0, the flattest row in the table. One sample, on a laptop, that never came
+back: recorded here so nobody optimises against it, and not carried forward as a finding.
+
+What replaces it is smaller and steadier: `supplier dashboard` is the slowest read at 19.3 ms p50, three
+times the median row, on a dashboard that fans out across proposals, invitations and documents for one
+supplier. Still two orders of magnitude inside the 300 ms target at this dataset size, so it is a note, not
+a problem.
 
 ## Next steps, in the order they matter
 

@@ -36,7 +36,13 @@ public sealed class GetGovernanceOverviewHandler(AppDbContext db) : IGetGovernan
             .Select(g => new GovernanceCountDto(g.Key.ToString(), g.Count()))
             .ToListAsync(ct);
 
-        var totalAwards = await db.Awards.AsNoTracking().CountAsync(ct);
+        // Awarded only, which every other Ministry surface already required and this one did not.
+        // An Award row exists from the moment a manager RECOMMENDS one, and stays through
+        // PendingApproval and Rejected - none of which is an award to the reader of a governance
+        // dashboard. Counting every row put 18 under "Awards" beside a total value computed from the
+        // 17 that were actually awarded, and the Awards & spend screen the tile drills into said 17.
+        // Three numbers, one word, two meanings.
+        var totalAwards = await db.Awards.AsNoTracking().CountAsync(a => a.State == AwardState.Awarded, ct);
 
         // Participation: proposals per RFQ that actually reached the market. Published-or-later, because
         // a Draft RFQ has had no chance to attract one and including it would drag the average toward
