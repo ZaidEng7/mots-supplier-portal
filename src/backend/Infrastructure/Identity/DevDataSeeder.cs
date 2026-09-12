@@ -151,6 +151,7 @@ public static class DevDataSeeder
         if (existing is { } id) return id;
 
         var organization = Organization.Create(
+            await Registrations.ReferenceCodeGenerator.NextCodeAsync(db, "ORG", CancellationToken.None),
             "وزارة السياحة - هيئة المشتريات", OrganizationNameEn, OrganizationType.MotBody,
             "procurement@mots.local", "+963110000000");
         db.Organizations.Add(organization);

@@ -539,6 +539,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             entity.ToTable("organization", "organization");
             entity.HasKey(o => o.Id);
+            // T-055: the buying body's public code, ORG-2026-000001. Unique, like every other
+            // reference code in this schema.
+            entity.Property(o => o.ReferenceCode).HasMaxLength(30).IsRequired();
+            entity.HasIndex(o => o.ReferenceCode).IsUnique();
             entity.Property(o => o.LegalNameAr).HasMaxLength(200).IsRequired();
             entity.Property(o => o.LegalNameEn).HasMaxLength(200).IsRequired();
             entity.Property(o => o.OrganizationType).HasConversion<string>().HasMaxLength(20);

@@ -31,6 +31,23 @@ public sealed class Organization
     private readonly List<OrgUnit> _orgUnits = [];
 
     public Guid Id { get; private init; }
+
+    /// <summary>
+    /// T-055/§12.4's <c>buyingOrg.code</c>: the buying body's opaque public identifier,
+    /// <c>ORG-2026-000001</c>, allocated by the same counter every other reference code uses.
+    ///
+    /// <para><b>What was there before.</b> Nothing. §12.4 documents the field; the entry assumed
+    /// <c>ExternalId</c> stood in for it, and it cannot - <c>ExternalId</c> has a private setter and
+    /// no writer anywhere in the codebase, so the documented field was null in every response the API
+    /// could produce. An ERP identifier would have been the wrong answer regardless: it belongs to
+    /// another system and is absent until that system says otherwise.</para>
+    ///
+    /// <para><b>Addressing is unchanged.</b> Routes still take the organization's id where they take
+    /// one at all, and this code is what the WIRE carries - the same split §3 draws for suppliers and
+    /// tenders. Making it addressable is a separate decision nobody has needed yet.</para>
+    /// </summary>
+    public string ReferenceCode { get; private init; } = null!;
+
     public string LegalNameAr { get; private set; } = null!;
     public string LegalNameEn { get; private set; } = null!;
     public OrganizationType OrganizationType { get; private set; }
@@ -52,14 +69,24 @@ public sealed class Organization
 
     private Organization() { }
 
-    public static Organization Create(string legalNameAr, string legalNameEn, OrganizationType organizationType, string? contactEmail = null, string? contactPhone = null)
+    /// <summary>
+    /// T-055: <paramref name="referenceCode"/> is allocated by the caller, from the shared counter.
+    ///
+    /// <para>Passed in rather than generated here for the reason every other aggregate in this
+    /// codebase passes it in: the allocator is a database statement and the domain has no database.
+    /// A caller that forgets it gets a null-reference at persistence rather than a silent blank, and
+    /// there is exactly one caller.</para>
+    /// </summary>
+    public static Organization Create(string referenceCode, string legalNameAr, string legalNameEn, OrganizationType organizationType, string? contactEmail = null, string? contactPhone = null)
     {
+        if (string.IsNullOrWhiteSpace(referenceCode)) throw new DomainException("Organization reference code is required.");
         if (string.IsNullOrWhiteSpace(legalNameAr)) throw new DomainException("Organization legal name (Arabic) is required.");
         if (string.IsNullOrWhiteSpace(legalNameEn)) throw new DomainException("Organization legal name (English) is required.");
 
         return new Organization
         {
             Id = Guid.CreateVersion7(),
+            ReferenceCode = referenceCode,
             LegalNameAr = legalNameAr,
             LegalNameEn = legalNameEn,
             OrganizationType = organizationType,

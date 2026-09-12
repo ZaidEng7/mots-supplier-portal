@@ -133,6 +133,17 @@ public sealed record SupplierRfqListItemDto(
 /// is emitted when set, since it is the only externally-meaningful identifier the aggregate has,
 /// and null otherwise. Reported as a documented field the schema cannot produce.</para>
 /// </summary>
+/// <summary>
+/// T-055: <paramref name="Code"/> is the organization's own ORG- reference code.
+///
+/// <para>It used to be <c>ExternalId</c> - the ERP's identifier for the body - which has no writer
+/// anywhere in this codebase, so the field §12.4 documents was null in every response the API could
+/// produce. An ERP identifier would have been the wrong source regardless: it belongs to another
+/// system and is absent until that system says so.</para>
+///
+/// <para>Still nullable on the DTO, and non-null in practice. A tender always has a buying body; the
+/// nullability is the projection's, not the data's.</para>
+/// </summary>
 public sealed record BuyingOrgDto(string? Code, string Name);
 
 // T-018/BRULE-035: one command for both directions - see Rfq.ChangeSubmissionDeadline on why the

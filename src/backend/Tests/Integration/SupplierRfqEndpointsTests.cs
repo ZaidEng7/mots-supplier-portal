@@ -173,4 +173,29 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         row.GetProperty("submissionDeadline").GetDateTimeOffset()
             .Should().BeCloseTo(stored!.Value, TimeSpan.FromSeconds(1));
     }
+
+    /// <summary>
+    /// T-055/§12.4: the buying body's code on the tender a supplier reads.
+    ///
+    /// <para>§12.4 documents <c>buyingOrg { code, name }</c>. The code was projected from
+    /// <c>ExternalId</c> - the ERP's identifier for the body - which has a private setter and no
+    /// writer anywhere in the codebase, so the documented field was null in every response the API
+    /// could produce. The organization now carries its own ORG- code from the same allocator every
+    /// other reference code uses.</para>
+    /// </summary>
+    [Fact]
+    public async Task The_buying_body_is_named_by_its_own_code_rather_than_by_an_erp_identifier_nothing_sets()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "OrgCode");
+
+        var listed = await seeded.Supplier.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
+        var row = listed.GetProperty("data").EnumerateArray()
+            .Single(r => r.GetProperty("rfqCode").GetString() == seeded.RfqCode);
+
+        var code = row.GetProperty("buyingOrg").GetProperty("code").GetString();
+
+        code.Should().NotBeNull("§12.4 documents this field, and it was null on every response");
+        code.Should().StartWith("ORG-", "the scheme is the one every other reference code in this product uses");
+        row.GetProperty("buyingOrg").GetProperty("name").GetString().Should().NotBeNullOrWhiteSpace();
+    }
 }
