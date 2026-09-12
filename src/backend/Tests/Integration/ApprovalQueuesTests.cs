@@ -84,7 +84,7 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
         // The manager recommends, then routes for approval - so the pending award is their own.
         await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
         {
-            winningProposalId = await WinningProposalIdAsync(seeded),
+            winningProposalCode = await WinningProposalCodeAsync(seeded),
             justificationAr = "الأفضل", justificationEn = "Best",
         });
         await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/route-for-approval", null);
@@ -149,6 +149,15 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.EvaluationTemplates.Where(t => t.Status == EvaluationTemplateStatus.Active)
             .OrderByDescending(t => t.Id).Select(t => t.Id).FirstAsync();
+    }
+
+    private async Task<string> WinningProposalCodeAsync(Seeded seeded)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Proposals
+            .Where(p => db.Rfqs.Any(r => r.Id == p.RfqId && r.ReferenceCode == seeded.RfqCode))
+            .Select(p => p.ReferenceCode).FirstAsync();
     }
 
     private async Task<Guid> WinningProposalIdAsync(Seeded seeded)

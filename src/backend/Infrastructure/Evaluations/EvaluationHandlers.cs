@@ -19,6 +19,23 @@ using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
 namespace MotsSupplierPortal.Infrastructure.Evaluations;
 
+/// <summary>
+/// T-068: proposal id to §3 reference code, for one tender.
+///
+/// <para>Every handler that returns an evaluation needs this, because a consolidated result carries a
+/// code and nothing else now. One query and one answer, here rather than in each handler - six of the
+/// eight call sites used to pass nothing, which is how a GUID reached the screen where a manager
+/// decides who wins a tender.</para>
+/// </summary>
+internal static class EvaluationProposalCodes
+{
+    internal static async Task<IReadOnlyDictionary<Guid, string>> ForRfqAsync(
+        AppDbContext db, Guid rfqId, CancellationToken ct) =>
+        await db.Proposals.AsNoTracking()
+            .Where(p => p.RfqId == rfqId)
+            .ToDictionaryAsync(p => p.Id, p => p.ReferenceCode, ct);
+}
+
 internal static class EvaluationDtoMapper
 {
     /// <param name="names">Evaluator user id to display name. Passed in rather than looked up here because
@@ -26,17 +43,30 @@ internal static class EvaluationDtoMapper
     /// manager was actually reading before batch 11.</param>
     /// <param name="proposalCodes">Proposal id to §3 reference code. Same reason as <paramref name="names"/>:
     /// the alternative is a GUID on the screen where a tender is decided.</param>
+    /// <summary>
+    /// T-068: <paramref name="proposalCodes"/> is REQUIRED now.
+    ///
+    /// <para>It used to be optional, and six of the eight call sites here left it out - so those
+    /// responses carried a null code beside a GUID, and the results table fell back to the GUID. An
+    /// optional argument whose absence produces a database identifier on a manager's screen is not
+    /// optional; it is a default that is wrong.</para>
+    /// </summary>
     public static EvaluationDto ToDto(
         EvaluationAggregate evaluation, Rfq rfq,
-        IReadOnlyDictionary<Guid, string>? names = null,
-        IReadOnlyDictionary<Guid, string>? proposalCodes = null) => new(
+        IReadOnlyDictionary<Guid, string> proposalCodes,
+        IReadOnlyDictionary<Guid, string>? names = null) => new(
         evaluation.Id, evaluation.RfqId, rfq.ReferenceCode, evaluation.State,
         [.. evaluation.Criteria.Select(ToCriterionDto)],
         [.. evaluation.Assignments.Select(a => new EvaluationAssignmentDto(
             a.EvaluatorUserId, names?.GetValueOrDefault(a.EvaluatorUserId), a.AssignedAt, a.SubmittedAt, a.RecusedAt, a.RecusalReason))],
-        [.. evaluation.Results.Select(r => new ConsolidatedResultDto(
-            r.ProposalId, proposalCodes?.GetValueOrDefault(r.ProposalId), r.TechnicallyQualified,
-            r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
+        [.. evaluation.Results
+            // A result whose proposal row has gone is dropped rather than rendered with an invented
+            // code. It cannot happen - a result is written from a live bid and nothing deletes
+            // proposals - and if it ever does, a missing row is a smaller lie than a made-up one.
+            .Where(r => proposalCodes.ContainsKey(r.ProposalId))
+            .Select(r => new ConsolidatedResultDto(
+                r.ProposalId, proposalCodes[r.ProposalId], r.TechnicallyQualified,
+                r.TechnicalWeightedScore, r.FinancialWeightedScore, r.WeightedTotal, r.Rank, r.TieUnresolved, r.TieResolutionReason))],
         evaluation.RowVersion);
 
     public static EvaluationCriterionDto ToCriterionDto(EvaluationCriterionSnapshot c) =>
@@ -315,7 +345,7 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_created", scope.UserId, referenceCode: rfq.ReferenceCode,
             toState: nameof(EvaluationState.NotStarted), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -341,7 +371,7 @@ public sealed class GetEvaluationHandler(AppDbContext db, IScopeContext scope) :
             .Where(p => resultIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.ReferenceCode, ct);
 
-        return EvaluationDtoMapper.ToDto(loaded.Value.Evaluation, loaded.Value.Rfq, names, proposalCodes);
+        return EvaluationDtoMapper.ToDto(loaded.Value.Evaluation, loaded.Value.Rfq, proposalCodes, names);
     }
 }
 
@@ -386,7 +416,7 @@ public sealed class AssignEvaluatorsHandler(AppDbContext db, IScopeContext scope
             backgroundJobs.Enqueue<EmailJobs>(job => job.SendEvaluatorAssignedEmailAsync(evaluatorUserId, rfq.Id, CancellationToken.None));
         }
 
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -421,7 +451,7 @@ public sealed class RecuseEvaluatorHandler(AppDbContext db, IScopeContext scope,
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_evaluator_recused", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: command.EvaluatorUserId.ToString(), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -525,7 +555,7 @@ public sealed class ConsolidateEvaluationHandler(AppDbContext db, IScopeContext 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_consolidated", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.Consolidated), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -573,7 +603,7 @@ public sealed class FinalizeEvaluationHandler(AppDbContext db, IScopeContext sco
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_finalized", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.Finalized), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -604,7 +634,7 @@ public sealed class ReopenEvaluationHandler(AppDbContext db, IScopeContext scope
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation_reopened", scope.UserId,
             referenceCode: rfq.ReferenceCode, toState: nameof(EvaluationState.InProgress), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -791,7 +821,7 @@ public sealed class ResolveEvaluationTieHandler(AppDbContext db, IScopeContext s
             changes: $"{{\"proposalCode\":\"{command.ProposalCode}\"}}", ct: ct);
         await db.SaveChangesAsync(ct);
 
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }
 
@@ -876,6 +906,6 @@ public sealed class DeclareConflictHandler(AppDbContext db, IScopeContext scope,
             scope.UserId, referenceCode: rfq.ReferenceCode, reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq));
+        return new EvaluationMutationResult.Success(EvaluationDtoMapper.ToDto(evaluation, rfq, await EvaluationProposalCodes.ForRfqAsync(db, rfq.Id, ct)));
     }
 }

@@ -193,6 +193,43 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// emits <c>UPDATE … WHERE RowVersion = @original</c>, and a stale caller gets zero rows affected
     /// and a <c>DbUpdateConcurrencyException</c>, which the pipeline already turns into §8.1's 412.</para>
     /// </summary>
+    /// <summary>
+    /// T-031: stamps <c>StateChangedAt</c> on every tracked aggregate whose state property actually
+    /// changed in this unit of work.
+    ///
+    /// <para><b>Actually changed</b> is the whole of it. A handler that re-assigns the same state -
+    /// re-submitting an already-submitted proposal, a no-op transition guarded elsewhere - has not
+    /// moved anything, and stamping it would make a queue report a fresh arrival for a row that has
+    /// been waiting a fortnight. EF knows the original value, so this asks rather than assumes.</para>
+    ///
+    /// <para>An ADDED aggregate is stamped too: it has just entered its first state, and a null there
+    /// would mean "unknown", which is reserved for rows that predate the column.</para>
+    /// </summary>
+    private void StampStateChanges()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is not IStateTimestamped) continue;
+            if (entry.State is not (EntityState.Added or EntityState.Modified)) continue;
+
+            // The property name is the aggregate's own declaration - see IStateTimestamped - read
+            // through the model rather than hard-coded here, so a second aggregate whose state lives
+            // under a different name needs no change in this file.
+            var stateName = (string)entry.Metadata.ClrType
+                .GetProperty(nameof(IStateTimestamped.StatePropertyName))!
+                .GetValue(null)!;
+
+            var state = entry.Property(stateName);
+            var changed = entry.State is EntityState.Added
+                || !Equals(state.CurrentValue, state.OriginalValue);
+            if (!changed) continue;
+
+            entry.Property(nameof(IStateTimestamped.StateChangedAt)).CurrentValue = now;
+        }
+    }
+
     private void BumpTouchedVersionedRoots()
     {
         foreach (var root in TouchedVersionedRoots())
@@ -283,6 +320,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// </summary>
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        StampStateChanges();
         BumpTouchedVersionedRoots();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
@@ -290,6 +328,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public override Task<int> SaveChangesAsync(
         bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        StampStateChanges();
         BumpTouchedVersionedRoots();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
@@ -500,6 +539,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             entity.ToTable("organization", "organization");
             entity.HasKey(o => o.Id);
+            // T-055: the buying body's public code, ORG-2026-000001. Unique, like every other
+            // reference code in this schema.
+            entity.Property(o => o.ReferenceCode).HasMaxLength(30).IsRequired();
+            entity.HasIndex(o => o.ReferenceCode).IsUnique();
             entity.Property(o => o.LegalNameAr).HasMaxLength(200).IsRequired();
             entity.Property(o => o.LegalNameEn).HasMaxLength(200).IsRequired();
             entity.Property(o => o.OrganizationType).HasConversion<string>().HasMaxLength(20);

@@ -37,7 +37,7 @@ public sealed class AppUserOrganizationConstraintTests(PostgresApiFixture fixtur
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var org = Organization.Create("منظمة الاختبار", "Test Org", OrganizationType.Ministry);
+        var org = Organization.Create($"ORG-2026-{Random.Shared.Next(100000, 999999)}", "منظمة الاختبار", "Test Org", OrganizationType.Ministry);
         db.Set<Organization>().Add(org);
         await db.SaveChangesAsync();
 
@@ -55,7 +55,7 @@ public sealed class AppUserOrganizationConstraintTests(PostgresApiFixture fixtur
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var org = Organization.Create("منظمة الاختبار٢", "Test Org 2", OrganizationType.Hotel);
+        var org = Organization.Create($"ORG-2026-{Random.Shared.Next(100000, 999999)}", "منظمة الاختبار٢", "Test Org 2", OrganizationType.Hotel);
         db.Set<Organization>().Add(org);
         await db.SaveChangesAsync();
 

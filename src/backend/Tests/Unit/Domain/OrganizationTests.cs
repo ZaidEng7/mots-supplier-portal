@@ -7,12 +7,12 @@ namespace MotsSupplierPortal.Tests.Unit.Domain;
 public class OrganizationTests
 {
     private static Organization CreateMinistry() =>
-        Organization.Create("وزارة السياحة", "Ministry of Tourism", OrganizationType.Ministry);
+        Organization.Create("ORG-2026-000001", "وزارة السياحة", "Ministry of Tourism", OrganizationType.Ministry);
 
     [Fact]
     public void Create_builds_an_organization_with_a_generated_v7_id_and_active_by_default()
     {
-        var org = Organization.Create("فندق الاختبار", "Test Hotel", OrganizationType.Hotel, "contact@example.com", "+963900000000");
+        var org = Organization.Create("ORG-2026-000001", "فندق الاختبار", "Test Hotel", OrganizationType.Hotel, "contact@example.com", "+963900000000");
 
         org.Id.Should().NotBe(Guid.Empty);
         org.LegalNameAr.Should().Be("فندق الاختبار");
@@ -30,7 +30,7 @@ public class OrganizationTests
     [InlineData("   ")]
     public void Create_rejects_a_blank_Arabic_legal_name(string blank)
     {
-        var act = () => Organization.Create(blank, "Test Hotel", OrganizationType.Hotel);
+        var act = () => Organization.Create("ORG-2026-000001", blank, "Test Hotel", OrganizationType.Hotel);
         act.Should().Throw<DomainException>();
     }
 
@@ -39,7 +39,7 @@ public class OrganizationTests
     [InlineData("   ")]
     public void Create_rejects_a_blank_English_legal_name(string blank)
     {
-        var act = () => Organization.Create("فندق الاختبار", blank, OrganizationType.Hotel);
+        var act = () => Organization.Create("ORG-2026-000001", "فندق الاختبار", blank, OrganizationType.Hotel);
         act.Should().Throw<DomainException>();
     }
 
@@ -52,7 +52,7 @@ public class OrganizationTests
     [InlineData(OrganizationType.Ministry)]
     public void Create_accepts_every_defined_OrganizationType(OrganizationType type)
     {
-        var org = Organization.Create("Test AR", "Test EN", type);
+        var org = Organization.Create("ORG-2026-000001", "Test AR", "Test EN", type);
         org.OrganizationType.Should().Be(type);
     }
 
@@ -60,8 +60,8 @@ public class OrganizationTests
     public void IsMinistry_is_true_only_for_the_Ministry_type()
     {
         CreateMinistry().IsMinistry.Should().BeTrue();
-        Organization.Create("Test AR", "Test EN", OrganizationType.Hotel).IsMinistry.Should().BeFalse();
-        Organization.Create("Test AR", "Test EN", OrganizationType.MotBody).IsMinistry.Should().BeFalse();
+        Organization.Create("ORG-2026-000001", "Test AR", "Test EN", OrganizationType.Hotel).IsMinistry.Should().BeFalse();
+        Organization.Create("ORG-2026-000001", "Test AR", "Test EN", OrganizationType.MotBody).IsMinistry.Should().BeFalse();
     }
 
     [Fact]

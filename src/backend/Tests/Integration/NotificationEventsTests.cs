@@ -378,7 +378,7 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Officer.PostAsJsonAsync($"/api/v1/rfqs/{life.RfqCode}/award/recommend", new
         {
-            winningProposalId = life.WinningProposalId,
+            winningProposalCode = life.WinningProposalCode,
             justificationAr = "الأفضل سعراً", justificationEn = "Best value",
         });
         await life.Officer.PostAsync($"/api/v1/rfqs/{life.RfqCode}/award/route-for-approval", null);
@@ -401,7 +401,7 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Officer.PostAsJsonAsync($"/api/v1/rfqs/{life.RfqCode}/award/recommend", new
         {
-            winningProposalId = life.WinningProposalId,
+            winningProposalCode = life.WinningProposalCode,
             justificationAr = "الأفضل", justificationEn = "Best",
         });
         await life.Officer.PostAsync($"/api/v1/rfqs/{life.RfqCode}/award/route-for-approval", null);
@@ -411,7 +411,7 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Officer.PostAsJsonAsync($"/api/v1/rfqs/{life.RfqCode}/award/recommend", new
         {
-            winningProposalId = life.WinningProposalId,
+            winningProposalCode = life.WinningProposalCode,
             justificationAr = "مبرر أوفى", justificationEn = "Fuller justification",
         });
 
@@ -447,7 +447,7 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Officer.PostAsJsonAsync($"/api/v1/rfqs/{life.RfqCode}/award/recommend", new
         {
-            winningProposalId = life.WinningProposalId,
+            winningProposalCode = life.WinningProposalCode,
             justificationAr = "الأفضل", justificationEn = "Best",
         });
         await life.Officer.PostAsync($"/api/v1/rfqs/{life.RfqCode}/award/route-for-approval", null);

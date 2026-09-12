@@ -28,6 +28,9 @@ function notification(overrides: Record<string, unknown> = {}) {
     bodyAr: 'اعتُمد الطلب RFQ-2026-000001.', bodyEn: 'RFQ RFQ-2026-000001 was approved.',
     data: JSON.stringify({ rfqCode: 'RFQ-2026-000001' }),
     createdAt: '2026-09-03T10:00:00Z', readAt: null, isRead: false,
+    // T-037: the server's classification. Actionable by default because the fixture's type is one -
+    // a test that wants the other group says so.
+    isActionable: true,
     ...overrides,
   }
 }
@@ -107,5 +110,48 @@ describe('NotificationsPage (SCR-900)', () => {
     renderPage(<NotificationsPage />)
 
     await expectRetryableFailure('/api/v1/notifications', recorded)
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // T-037: the two groups INFORMATION-ARCHITECTURE §2 asks for.
+  // -------------------------------------------------------------------------------------------
+
+  it('splits the list into what is waiting on the reader and what merely happened', async () => {
+    restore = mockFetch({
+      '/api/v1/notifications': envelope([
+        notification({ id: 'n-act', titleEn: 'Your RFQ was approved', isActionable: true }),
+        notification({ id: 'n-info', titleEn: 'A bid was withdrawn', isActionable: false }),
+      ]),
+    })
+
+    renderPage(<NotificationsPage />)
+
+    expect(await screen.findByText('Waiting on you')).toBeInTheDocument()
+    expect(screen.getByText('For information')).toBeInTheDocument()
+
+    // The rows land under the right heading, which is the assertion the grouping is FOR - two
+    // sections with everything in one of them would satisfy a looser test.
+    //
+    // Read from the document's ORDER rather than by walking up to a container: the card that holds a
+    // heading is an implementation detail of the Card component, and a test that reaches for it
+    // breaks when that component gains a wrapper. Reading order is what a person sees.
+    const page = document.body.textContent ?? ''
+    const informationalHeading = page.indexOf('For information')
+    expect(page.indexOf('Your RFQ was approved')).toBeLessThan(informationalHeading)
+    expect(page.indexOf('A bid was withdrawn')).toBeGreaterThan(informationalHeading)
+  })
+
+  it('keeps the waiting-on-you section when it is empty, and drops the other one', async () => {
+    // A reader scans this screen asking "is anything on me". An absent section answers that only by
+    // its absence, which is the one answer a person cannot see - so the first section stays and says
+    // so in words. The second is omitted, because nobody checks whether nothing happened.
+    restore = mockFetch({
+      '/api/v1/notifications': envelope([notification({ id: 'n-info', isActionable: false })]),
+    })
+
+    renderPage(<NotificationsPage />)
+
+    expect(await screen.findByText('Nothing is waiting on you.')).toBeInTheDocument()
+    expect(screen.getByText('For information')).toBeInTheDocument()
   })
 })

@@ -94,6 +94,23 @@ public static class ProposalStates
     /// very screen to do it. The states that stay OUT are the ones that were never in a comparison -
     /// <c>Draft</c>, <c>Withdrawn</c>, <c>Lapsed</c> and <c>Cancelled</c>.</para>
     /// </summary>
+    /// <summary>
+    /// T-039: the states a bid ends in - what a supplier means by "the result".
+    ///
+    /// <para><c>AwardOffered</c> is here although it is not final: an offer is a result the supplier
+    /// has to answer, and leaving it out would have the dashboard go quiet at the one moment it has
+    /// something to say. <c>Withdrawn</c>, <c>Lapsed</c> and <c>Cancelled</c> are NOT results in this
+    /// sense - nobody decided anything about the bid - and each already has its own place on the
+    /// proposals screen.</para>
+    /// </summary>
+    public static readonly ProposalState[] Resolved =
+    {
+        ProposalState.AwardOffered,
+        ProposalState.Awarded,
+        ProposalState.NotSelected,
+        ProposalState.Declined,
+    };
+
     public static readonly ProposalState[] UnderComparison =
     {
         ProposalState.Submitted,

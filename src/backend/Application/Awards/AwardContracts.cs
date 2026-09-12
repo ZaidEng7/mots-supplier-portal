@@ -12,7 +12,15 @@ public sealed record AwardApprovalDto(int StepNo, Guid? ApproverUserId, Approval
 /// Awarded (see Award.cs's own doc comment).</summary>
 public sealed record AwardDto(
     Guid Id, string RfqReferenceCode, AwardState State,
-    Guid WinningProposalId, string JustificationAr, string JustificationEn,
+    /// <summary>
+    /// The internal identifier, still on the wire and no longer read by anything - see
+    /// ConsolidatedResultDto.ProposalId and DECISIONS-TAKEN.md D-69 for why removing it waits for a
+    /// major version.
+    /// </summary>
+    Guid WinningProposalId,
+    /// <summary>T-068: the winning bid's §3 public code, which is what the award screen reads and
+    /// posts back now. It used to read and post the GUID above.</summary>
+    string WinningProposalCode, string JustificationAr, string JustificationEn,
     Guid RecommendedByUserId, DateTimeOffset RecommendedAt, int RecommendationRevision,
     IReadOnlyList<AwardApprovalDto> Approvals,
     DateTimeOffset? AwardedAt, string? ComparisonSnapshotJson,
@@ -20,7 +28,15 @@ public sealed record AwardDto(
     // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
     uint RowVersion);
 
-public sealed record RecommendAwardCommand(string RfqReferenceCode, Guid WinningProposalId, string JustificationAr, string JustificationEn);
+/// <summary>
+/// T-068: the winner is named by the bid's §3 PUBLIC code, not by its database identifier.
+///
+/// <para>The award screen used to post a GUID it had read out of a comparison response. That put an
+/// internal identifier in a client's hands, in a request body, on the one action that decides who wins
+/// a public tender - and §3 keeps internal identifiers out of payloads for exactly that reason. The
+/// caller has the code: it is what the comparison and the consolidated results now carry.</para>
+/// </summary>
+public sealed record RecommendAwardCommand(string RfqReferenceCode, string? WinningProposalCode, Guid? WinningProposalId, string JustificationAr, string JustificationEn);
 public sealed record RouteAwardForApprovalCommand(string RfqReferenceCode);
 public sealed record ApproveAwardCommand(string RfqReferenceCode);
 public sealed record RejectAwardCommand(string RfqReferenceCode, string Reason);

@@ -43,7 +43,12 @@ public sealed class RowScopeSweepTests(PostgresApiFixture fixture)
         // this sweep's question.
         "/api/v1/rfqs?owner=unassigned",
         "/api/v1/procurement/dashboard",
-        "/api/v1/approvals/queues",
+        // The approval queues. Written as /approvals/queues until T-031 needed this route for real
+        // and found it answers 404 - the path is /procurement/approvals. The sweep skipped it in
+        // silence for every persona, because a 404 is how it recognises "this persona cannot reach
+        // this surface", and a route that exists for nobody looks exactly the same. The guard below
+        // is what makes a typo here fail instead of quietly shrinking the sweep.
+        "/api/v1/procurement/approvals",
         "/api/v1/reports/procurement",
         "/api/v1/search?q=Sweep",
     ];
@@ -59,6 +64,7 @@ public sealed class RowScopeSweepTests(PostgresApiFixture fixture)
         await theirs.Officer.PostAsync($"/api/v1/rfqs/{theirs.RfqCode}/submit-review", null);
 
         var leaked = new List<string>();
+        var unreachable = new List<string>();
         var read = 0;
 
         foreach (var surface in BuyerSurfaces)
@@ -69,7 +75,11 @@ public sealed class RowScopeSweepTests(PostgresApiFixture fixture)
 
                 // A 403 is not a pass. The question is what a caller who IS allowed to ask gets back,
                 // so a surface this persona cannot reach is skipped rather than counted as scoped.
-                if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) continue;
+                if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+                {
+                    unreachable.Add($"{surface} as {persona}");
+                    continue;
+                }
 
                 response.StatusCode.Should().Be(HttpStatusCode.OK,
                     $"{surface} as {persona} must answer, or this sweep is measuring an error page");
@@ -89,6 +99,17 @@ public sealed class RowScopeSweepTests(PostgresApiFixture fixture)
         // repository has paid for more than once.
         read.Should().BeGreaterThan(5,
             "the sweep must actually be reading buyer surfaces; a pass over zero responses proves nothing");
+
+        // And the sharper version of the same worry, added after a surface in this very list turned
+        // out to be a path that exists for nobody. A route no persona can reach contributes nothing
+        // and says nothing about it, so the list silently shrinks and the count above still passes.
+        foreach (var surface in BuyerSurfaces)
+        {
+            unreachable.Count(u => u.StartsWith(surface + " as", StringComparison.Ordinal))
+                .Should().BeLessThan(2,
+                    $"'{surface}' answered 404 or 403 for BOTH personas, so this sweep is not sweeping it - "
+                    + "either the path is wrong or no buyer can reach it");
+        }
 
         // And the control: MY tender is visible to me on the list, so the assertion below is about
         // scoping rather than about an empty database.

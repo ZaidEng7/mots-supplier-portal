@@ -3,6 +3,8 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Dashboards;
 using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Evaluation;
+using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
@@ -83,7 +85,7 @@ public sealed class ProcurementDashboardHandler(AppDbContext db, IScopeContext s
             [.. pipeline
                 .OrderBy(p => p.State)
                 .Select(p => new PipelineColumnDto(p.State.ToString(), p.Count, p.NearestDeadline))],
-            await TasksAsync(rfqs, ct),
+            await TasksAsync(db, rfqs, ct),
             // §10: "Manager also gets an Approvals card". Decided from the permission rather than the
             // role name, so a tenant that moves approval to another role keeps a correct dashboard.
             ShowsApprovals: scope.HasPermission(Permissions.RfqApprove) || scope.HasPermission(Permissions.AwardApprove));
@@ -127,34 +129,107 @@ public sealed class ProcurementDashboardHandler(AppDbContext db, IScopeContext s
         return rfqApprovals + awardApprovals;
     }
 
-    /// <summary>§10's lower-left panel: "submissions closing, evaluations due, recommendations pending".</summary>
-    private static async Task<List<DashboardTaskDto>> TasksAsync(IQueryable<Rfq> rfqs, CancellationToken ct)
+    /// <summary>
+    /// §10's lower-left panel: "submissions closing, evaluations due, recommendations pending" - and,
+    /// since T-038, the two other deadlines FEAT-17.5 names.
+    ///
+    /// <para>FEAT-17.5 asks for "submission/clarification/expiry" consolidated. The panel carried the
+    /// first and neither of the others, which left out the two dates a buyer can actually MISS: a
+    /// clarification window closing on an unanswered question, and a bid expiring before the award is
+    /// signed.</para>
+    /// </summary>
+    private static async Task<List<DashboardTaskDto>> TasksAsync(AppDbContext db, IQueryable<Rfq> rfqs, CancellationToken ct)
     {
         var rows = await rfqs
             .Where(r => r.State == RfqState.SubmissionOpen
                         || r.State == RfqState.UnderEvaluation
                         || r.State == RfqState.Shortlisting
-                        || r.State == RfqState.Recommendation)
+                        || r.State == RfqState.Recommendation
+                        // T-038: the clarification window is its own state, and its deadline lives on
+                        // the RFQ. A tender sitting here with nobody answering is the case the panel
+                        // exists to surface.
+                        || r.State == RfqState.Clarification)
             .Select(r => new
             {
-                r.ReferenceCode, r.TitleAr, r.TitleEn, r.State,
-                r.SubmissionClosesAt, r.EvaluationTargetDate,
+                r.Id, r.ReferenceCode, r.TitleAr, r.TitleEn, r.State,
+                r.SubmissionClosesAt, r.EvaluationTargetDate, r.ClarificationDeadlineAt,
             })
             .ToListAsync(ct);
 
-        return [.. rows
+        var tasks = rows
             .Select(r => new DashboardTaskDto(
                 r.ReferenceCode, r.TitleAr, r.TitleEn,
                 Kind: r.State switch
                 {
                     RfqState.SubmissionOpen => DashboardTaskKinds.SubmissionClosing,
                     RfqState.UnderEvaluation => DashboardTaskKinds.EvaluationDue,
+                    RfqState.Clarification => DashboardTaskKinds.ClarificationClosing,
                     _ => DashboardTaskKinds.RecommendationPending,
                 },
-                Due: r.State == RfqState.SubmissionOpen ? r.SubmissionClosesAt : r.EvaluationTargetDate))
+                Due: r.State switch
+                {
+                    RfqState.SubmissionOpen => r.SubmissionClosesAt,
+                    RfqState.Clarification => r.ClarificationDeadlineAt,
+                    _ => r.EvaluationTargetDate,
+                }))
+            .ToList();
+
+        tasks.AddRange(await BidValidityTasksAsync(db, rows.Select(r => r.Id).ToList(), ct));
+
+        return [.. tasks
             // Soonest first, and rows with no date last rather than first - a task with no deadline
             // is not the most urgent thing on the screen.
             .OrderBy(t => t.Due is null)
             .ThenBy(t => t.Due)];
+    }
+
+    /// <summary>
+    /// T-038/FEAT-17.5's "expiry": the earliest validity date among the bids on a tender.
+    ///
+    /// <para>A tender whose leading bid expires before the award is executed has to go back to the
+    /// supplier for an extension, or be re-run. That is the largest consequence on this panel and
+    /// nothing showed it.</para>
+    ///
+    /// <para><b>Consolidated or later, only.</b> Validity is a commercial term, and BRULE-058 keeps
+    /// commercial values out of every buyer-side read until the evaluation consolidates - the same
+    /// gate the comparison matrix applies. Before that point the row is absent rather than dateless,
+    /// because "a bid on this tender expires soon" is itself the disclosure.</para>
+    /// </summary>
+    private static async Task<List<DashboardTaskDto>> BidValidityTasksAsync(
+        AppDbContext db, List<Guid> rfqIds, CancellationToken ct)
+    {
+        if (rfqIds.Count == 0) return [];
+
+        var consolidatedRfqIds = await db.Evaluations.AsNoTracking()
+            .Where(e => rfqIds.Contains(e.RfqId)
+                        && (e.State == EvaluationState.Consolidated || e.State == EvaluationState.Finalized))
+            .Select(e => e.RfqId)
+            .ToListAsync(ct);
+
+        if (consolidatedRfqIds.Count == 0) return [];
+
+        var bids = await db.Proposals.AsNoTracking()
+            .Where(p => consolidatedRfqIds.Contains(p.RfqId)
+                        && p.ValidityEnd != null
+                        && ProposalStates.UnderComparison.Contains(p.State))
+            .Select(p => new { p.RfqId, p.ValidityEnd })
+            .ToListAsync(ct);
+
+        var rfqs = await db.Rfqs.AsNoTracking()
+            .Where(r => consolidatedRfqIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.ReferenceCode, r.TitleAr, r.TitleEn })
+            .ToListAsync(ct);
+
+        return [.. bids
+            // One row per tender, at its EARLIEST expiry: the panel is a list of deadlines a person
+            // acts on, and five rows for five bids on one tender would bury the other tenders.
+            .GroupBy(b => b.RfqId)
+            .Select(g => new { RfqId = g.Key, Earliest = g.Min(b => b.ValidityEnd!.Value) })
+            .Join(rfqs, b => b.RfqId, r => r.Id, (b, r) => new DashboardTaskDto(
+                r.ReferenceCode, r.TitleAr, r.TitleEn,
+                DashboardTaskKinds.BidValidityExpiring,
+                // A date, not an instant: validity is recorded as a calendar day, and the deadline is
+                // the end of it.
+                new DateTimeOffset(b.Earliest.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero)))];
     }
 }

@@ -198,4 +198,116 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
         problem.GetProperty("code").GetString().Should().Be("INVALID_FILTER_VALUE",
             "not MALFORMED_JSON - this is a GET carrying no JSON, and one filter value is the problem");
     }
+
+    /// <summary>
+    /// T-038/FEAT-17.5: the deadline panel carries the clarification window, not only the submission
+    /// one.
+    ///
+    /// <para>FEAT-17.5 asks for "submission/clarification/expiry" consolidated. The panel had the
+    /// first and neither of the others, so the two dates a buyer can actually MISS were the two it did
+    /// not show - a clarification window closes whether or not anyone answered the question inside
+    /// it.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_clarification_window_appears_on_the_deadline_panel()
+    {
+        var org = await OrgWithRfqsAsync($"Clar {Guid.NewGuid():N}"[..12], draftCount: 1);
+
+        // Straight to the state, because the route into Clarification is a buyer asking a supplier a
+        // question mid-evaluation and this test is about the PANEL, not that path - which
+        // RfqClarificationTests already covers end to end.
+        string rfqCode;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rfq = await db.Rfqs.Where(r => r.OrganizationId == org.OrgId).FirstAsync();
+            rfqCode = rfq.ReferenceCode;
+
+            await db.Rfqs.Where(r => r.Id == rfq.Id).ExecuteUpdateAsync(p => p
+                .SetProperty(r => r.State, RfqState.Clarification)
+                .SetProperty(r => r.ClarificationDeadlineAt, DateTimeOffset.UtcNow.AddDays(3)));
+        }
+
+        var tasks = (await DashboardAsync(org.Officer)).GetProperty("tasks").EnumerateArray().ToList();
+
+        var row = tasks.Single(t => t.GetProperty("rfqReferenceCode").GetString() == rfqCode);
+        row.GetProperty("kind").GetString().Should().Be("ClarificationClosing");
+        row.GetProperty("due").GetDateTimeOffset().Should().BeAfter(DateTimeOffset.UtcNow,
+            "the panel is about what has not happened yet");
+    }
+
+    /// <summary>
+    /// T-038: a bid's validity date appears only once the evaluation is consolidated.
+    ///
+    /// <para>Validity is a commercial term, and BRULE-058 keeps commercial values out of buyer-side
+    /// reads until consolidation - the same gate the comparison matrix applies. A row saying "a bid on
+    /// this tender expires soon" is itself the disclosure, so before that point it is absent rather
+    /// than dateless.</para>
+    ///
+    /// <para>This asserts the CLOSED half. The open half - that it appears afterwards - needs a full
+    /// evaluation and lives with the suites that already drive one.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_bid_validity_date_is_not_on_the_panel_before_consolidation()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "PanelGate");
+
+        var tasks = (await DashboardAsync(seeded.Officer)).GetProperty("tasks").EnumerateArray().ToList();
+
+        tasks.Where(t => t.GetProperty("rfqReferenceCode").GetString() == seeded.RfqCode)
+            .Select(t => t.GetProperty("kind").GetString())
+            .Should().NotContain("BidValidityExpiring",
+                "the evaluation is not consolidated, so no commercial fact about a bid may reach this screen");
+    }
+
+    /// <summary>
+    /// T-038: and once the evaluation IS consolidated, the bid's validity date appears.
+    ///
+    /// <para>The other half of the gate, and the half that carries the value: a tender whose leading
+    /// bid expires before the award is executed has to go back to the supplier for an extension or be
+    /// re-run, and nothing showed it. The closed half is asserted above; this one drives a real
+    /// evaluation to Consolidated, because that is the only way to reach the branch.</para>
+    /// </summary>
+    [Fact]
+    public async Task Once_consolidated_a_bids_validity_date_appears_on_the_panel()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "PanelOpen");
+
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        Guid criterionId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            criterionId = await db.EvaluationCriterionSnapshots
+                .Where(c => c.EvaluationId == seeded.EvaluationId).Select(c => c.Id).FirstAsync();
+        }
+
+        await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new { proposalCode = seeded.ProposalCode, criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        (await seeded.Evaluator.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/submit", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/consolidate", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var tasks = (await DashboardAsync(seeded.Officer)).GetProperty("tasks").EnumerateArray().ToList();
+
+        var row = tasks.Single(t => t.GetProperty("rfqReferenceCode").GetString() == seeded.RfqCode
+                                    && t.GetProperty("kind").GetString() == "BidValidityExpiring");
+
+        // The seeded bid is valid for thirty days, and the panel carries the END of that day - validity
+        // is recorded as a calendar date and the deadline is the end of it, not its first instant.
+        DateOnly storedValidity;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            storedValidity = (await db.Proposals.AsNoTracking()
+                .Where(p => p.ReferenceCode == seeded.ProposalCode)
+                .Select(p => p.ValidityEnd).FirstAsync())!.Value;
+        }
+
+        DateOnly.FromDateTime(row.GetProperty("due").GetDateTimeOffset().UtcDateTime)
+            .Should().Be(storedValidity);
+    }
 }

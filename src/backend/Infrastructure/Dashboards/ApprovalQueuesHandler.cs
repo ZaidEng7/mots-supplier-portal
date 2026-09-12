@@ -30,12 +30,14 @@ public sealed class ApprovalQueuesHandler(AppDbContext db, IScopeContext scope) 
             .Where(r => r.OrganizationId == organizationId && r.State == RfqState.InternalReview)
             .Select(r => new ApprovalQueueItemDto(
                 r.ReferenceCode, r.TitleAr, r.TitleEn, r.State.ToString(),
-                // NOTHING records when an RFQ entered review. RfqApproval carries DecidedAt but no
-                // requested-at, and the RFQ has no state-changed-at column - so "waiting since" has
-                // no honest source and is null rather than invented from CreatedAt, which would read
-                // as "waiting for three weeks" for an RFQ drafted three weeks ago and submitted
-                // yesterday. Reported as a schema gap.
-                null,
+                // T-031 closed this. The RFQ now records when it entered its current state, so the
+                // wait is the real one rather than CreatedAt - which would have read as "waiting three
+                // weeks" for a tender drafted three weeks ago and submitted yesterday.
+                //
+                // Still nullable, and still honestly so: a tender that entered review before the
+                // column existed has no recorded instant, and the row says nothing rather than
+                // guessing.
+                r.StateChangedAt,
                 $"/api/v1/rfqs/{r.ReferenceCode}"))
             .ToListAsync(ct);
 

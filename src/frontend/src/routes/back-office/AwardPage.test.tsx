@@ -23,7 +23,7 @@ function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
     id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: TENDER_CODE, state: 'Finalized',
     criteria: [], assignments: [],
     results: [
-      { proposalId: 'proposal-a', proposalReferenceCode: 'PRP-2026-000001', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
+      { proposalId: 'proposal-a', proposalCode: 'PRP-2026-000001', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
     ],
     ...overrides,
   }
@@ -32,7 +32,7 @@ function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
 function awardFixture(overrides: Partial<Award> = {}): Award {
   return {
     id: 'award-1', rfqReferenceCode: TENDER_CODE, state: 'PendingApproval',
-    winningProposalId: 'proposal-a', justificationAr: 'الأفضل', justificationEn: 'Best overall',
+    winningProposalId: 'proposal-a', winningProposalCode: 'PRP-2026-000001', justificationAr: 'الأفضل', justificationEn: 'Best overall',
     recommendedByUserId: 'user-1', recommendedAt: '2026-08-01T00:00:00Z', recommendationRevision: 1,
     approvals: [{ stepNo: 1, approverUserId: null, decision: null, comment: null, decidedAt: null }],
     awardedAt: null, comparisonSnapshotJson: null,
@@ -154,5 +154,33 @@ describe('AwardPage', () => {
     renderPage(<AwardPage />)
 
     await expectRetryableFailure('/award', recorded)
+  })
+
+  it('recommends a winner by its public code, not by an internal identifier', async () => {
+    // T-068. This screen used to post the bid's GUID, which it had read out of the evaluation
+    // response - an internal identifier in a client's hands, on the one action that decides who wins
+    // a public tender. The assertion is on the BODY, because the visible behaviour is identical
+    // either way and only the request tells you which identifier was sent.
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      '/api/v1/rfqs/RFQ-2026-000001/award': null,
+      '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluationFixture(),
+    }, recorded)
+
+    renderPage(<AwardPage />)
+
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Select the winning proposal' }))
+    await userEvent.click(await screen.findByRole('option', { name: /PRP-2026-000001/ }))
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Justification (English)' }), 'Best overall')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Justification (Arabic)' }), 'الأفضل')
+    await userEvent.click(screen.getByRole('button', { name: 'Recommend winner' }))
+
+    const posted = recorded.find((r) => r.url.includes('/award/recommend'))
+    expect(posted, 'the recommendation must actually be sent').toBeDefined()
+
+    const body = JSON.parse(posted!.body) as Record<string, unknown>
+    expect(body.winningProposalCode).toBe('PRP-2026-000001')
+    expect(body).not.toHaveProperty('winningProposalId')
   })
 })

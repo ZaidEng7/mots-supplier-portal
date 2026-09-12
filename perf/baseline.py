@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-EPIC-26's first measurement of the read paths.
+EPIC-26's first measurement of the read and write paths.
 
 Deliberately plain: urllib and the standard library, so running it needs nothing installed. A real
 load tool (k6, NBomber) models concurrency, ramp-up and think time, and this does none of that - see
@@ -101,6 +101,26 @@ ENDPOINTS = [
 ]
 
 
+# ---------------------------------------------------------------------------------------------
+# T-107: the write half. The read table above has existed since EPIC-26; the < 800 ms write target
+# had no number at all.
+#
+# Every write here is REPEATABLE against the same row: each one sets a value to what it already is,
+# or to a value the next iteration overwrites. That rules out the writes a person would most like to
+# see - creating a tender, submitting a bid - because measuring those means leaving thirty drafts
+# behind, and a baseline that changes the dataset it measures is not a baseline. What is here is the
+# ordinary editing traffic the product actually carries between those events.
+#
+# `needs_etag` writes fetch the current version first, and that GET is NOT timed: §8.1 makes it part
+# of the caller's flow, not part of the write.
+WRITES = [
+    ("supplier profile edit", "supplier", "PATCH", "/api/v1/suppliers/{supplierCode}",
+     {"description": "Measured by perf/baseline.py"}, True),
+    ("notification preferences", "officer", "PUT", "/api/v1/notifications/preferences",
+     {"mutedTypes": []}, False),
+]
+
+
 def post_json(path: str, payload: dict) -> dict:
     request = urllib.request.Request(
         endpoint_url(path),
@@ -147,6 +167,51 @@ def measure(path: str, token: str, iterations: int) -> tuple[list[float], int]:
     status = 0
     for _ in range(iterations):
         request = urllib.request.Request(endpoint_url(path), headers={"Authorization": f"Bearer {token}"})
+        started = time.perf_counter()
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                response.read()
+                status = response.status
+        except urllib.error.HTTPError as error:
+            error.read()
+            status = error.code
+        except urllib.error.URLError:
+            status = 0
+        samples.append((time.perf_counter() - started) * 1000)
+    return samples, status
+
+
+def get_json(path: str, token: str) -> tuple[dict | None, str | None]:
+    """The body and the ETag, for writes that need a precondition."""
+    request = urllib.request.Request(endpoint_url(path), headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode()), response.headers.get("ETag")
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
+        return None, None
+
+
+def measure_write(method: str, path: str, payload: dict, token: str,
+                  iterations: int, needs_etag: bool) -> tuple[list[float], int]:
+    """
+    Latencies in milliseconds for a repeatable write, plus the status of the last response.
+
+    The ETag fetch is deliberately outside the timer. §8.1 requires If-Match on these routes, and a
+    caller already holds the version from the read that showed them the thing they are editing -
+    charging the write for a GET it does not make would measure the harness rather than the endpoint.
+    """
+    samples: list[float] = []
+    status = 0
+    for _ in range(iterations):
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        if needs_etag:
+            _, etag = get_json(path, token)
+            if etag:
+                headers["If-Match"] = etag
+
+        request = urllib.request.Request(
+            endpoint_url(path), data=json.dumps(payload).encode(), headers=headers, method=method)
+
         started = time.perf_counter()
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -229,6 +294,34 @@ def main() -> int:
 
         measure(path, token, arguments.warmup)
         samples, status = measure(path, token, arguments.iterations)
+
+        row = (label, persona, status, len(samples),
+               statistics.median(samples), percentile(samples, 0.95), max(samples))
+        results.append(row)
+        print(f"{label:<26} {persona:<9} {status:>6} {len(samples):>4} "
+              f"{row[4]:>8.1f} {row[5]:>8.1f} {row[6]:>8.1f}")
+
+    # T-107: the write half.
+    #
+    # The supplier's own code is read once and substituted into the path - §12-A/C3 addresses the
+    # profile by code, and the harness must not hard-code one that belongs to whoever seeded this
+    # database.
+    supplier_profile, _ = get_json("/api/v1/suppliers/me", tokens.get("supplier") or "")
+    supplier_code = (supplier_profile or {}).get("supplierCode")
+
+    print(f"\n{'write':<26} {'persona':<9} {'status':>6} {'n':>4} "
+          f"{'p50':>8} {'p95':>8} {'max':>8}")
+    print("-" * 78)
+
+    for label, persona, method, path, payload, needs_etag in WRITES:
+        token = tokens.get(persona)
+        if token is None or ("{supplierCode}" in path and supplier_code is None):
+            print(f"{label:<26} {persona:<9} {'skip':>6}")
+            continue
+
+        resolved = path.replace("{supplierCode}", supplier_code or "")
+        measure_write(method, resolved, payload, token, arguments.warmup, needs_etag)
+        samples, status = measure_write(method, resolved, payload, token, arguments.iterations, needs_etag)
 
         row = (label, persona, status, len(samples),
                statistics.median(samples), percentile(samples, 0.95), max(samples))

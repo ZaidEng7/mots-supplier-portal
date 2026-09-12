@@ -35,6 +35,24 @@ export interface DashboardProposal {
   validityEnd: string | null
 }
 
+/**
+ * T-039/FEAT-16.3: one resolved bid, won or lost.
+ *
+ * The value is the supplier's own priced total, so nothing here crosses the two-envelope line - it is
+ * the number they typed. Null when the bid was never priced.
+ */
+export interface DashboardAward {
+  rfqReferenceCode: string
+  rfqTitleAr: string
+  rfqTitleEn: string
+  proposalCode: string
+  /** The proposal's own state, so this chip and the one on the bid say the same word. */
+  outcome: string
+  decidedAt: string | null
+  value: number | null
+  currencyCode: string | null
+}
+
 export interface ProfileHealth {
   completeness: number
   requiredDocumentsTotal: number
@@ -60,6 +78,7 @@ export interface SupplierDashboard {
   proposals: DashboardProposal[]
   profileHealth: ProfileHealth
   erpDegraded: boolean
+  awards: DashboardAward[]
 }
 
 export class SupplierDashboardApiError extends ProblemError {

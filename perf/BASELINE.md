@@ -1,4 +1,4 @@
-# Read-path latency — first measurement (EPIC-26)
+# Read- and write-path latency — first measurement (EPIC-26)
 
 Run: `python3 perf/baseline.py --iterations 30`
 
@@ -36,6 +36,28 @@ two real measurements).
 Every endpoint returned 2xx. The script prints a warning for any that did not, because a fast 404 or 403
 is not a fast read and a baseline full of them would look excellent.
 
+## Writes (T-107)
+
+The `< 800 ms` half of the target had no number at all. It has one now, with the same caveats as above
+and one of its own.
+
+| write | persona | p50 | p95 | max |
+|---|---|---:|---:|---:|
+| supplier profile edit (`PATCH /suppliers/{code}`) | supplier | 8.9 | 19.8 | 20.0 |
+| notification preferences (`PUT /notifications/preferences`) | officer | 20.7 | 31.5 | 58.6 |
+
+20 samples each, 3 discarded warm-up requests, same laptop.
+
+**Why only two.** Every write measured here is repeatable against the same row: it sets a value to what
+it already is, or to one the next iteration overwrites. That rules out the writes a reader would most
+like to see — creating a tender, submitting a bid, executing an award — because measuring those thirty
+times means leaving thirty tenders behind, and a baseline that changes the dataset it measures is not a
+baseline. What is here is the ordinary editing traffic the product carries between those events.
+
+**The ETag fetch is not timed.** §8.1 requires `If-Match` on these routes, and a caller already holds the
+version from the read that showed them the thing they are editing. Charging the write for a `GET` it does
+not make would measure the harness.
+
 ## What this is NOT
 
 **It does not show the targets are met.** Four reasons, and each one alone is enough:
@@ -48,11 +70,11 @@ is not a fast read and a baseline full of them would look excellent.
    statistic from p95 of a quiet loop, and it is the one the target means.
 3. **It is a developer laptop.** Same machine as Postgres, no network, warm page cache, `Debug`
    configuration.
-4. **Writes are not measured at all.** The `< 800 ms` half of the target has no number here. Writes
-   change state, so measuring them repeatedly needs either a disposable database per run or a script that
-   can undo itself, and neither is written.
+4. **The writes measured are the cheap half.** Two repeatable edits, not the transactional writes that
+   matter — award execution touches an aggregate, an outbox row and an audit row in one transaction, and
+   none of that is here. See "Why only two" above for why, and what it would take.
 
-So: the read paths are not obviously slow, and nothing here licenses saying they are within target.
+So: neither path is obviously slow, and nothing here licenses saying either is within target.
 
 ## The one number worth looking at
 

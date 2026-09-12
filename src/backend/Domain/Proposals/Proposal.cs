@@ -49,7 +49,7 @@ namespace MotsSupplierPortal.Domain.Proposals;
 /// them would be dead scaffolding; this is an open gap for whichever future work adds a real delete
 /// affordance (or a codebase-wide soft-delete pass), not a decision that soft-delete doesn't
 /// apply.</para></summary>
-public sealed class Proposal : IVersionedAggregate
+public sealed class Proposal : IVersionedAggregate, IStateTimestamped
 {
     private readonly List<ProposalItem> _items = [];
     private readonly List<ProposalDocument> _documents = [];
@@ -60,6 +60,20 @@ public sealed class Proposal : IVersionedAggregate
     public Guid RfqId { get; private init; }
     public Guid SupplierId { get; private init; }
     public ProposalState State { get; private set; }
+
+    /// <summary>
+    /// T-031: when this proposal entered <see cref="State"/>.
+    ///
+    /// <para>Stamped by the persistence layer whenever the state property actually changes - see
+    /// <see cref="IStateTimestamped"/> for why it is not a line in each of the transition methods
+    /// below. Null on rows that predate the column: the instant they entered their current state was
+    /// never recorded, and inventing one from a creation date is the specific wrong answer the
+    /// approval queue's own comment warned about.</para>
+    /// </summary>
+    public DateTimeOffset? StateChangedAt { get; private set; }
+
+    /// <summary>The property whose change is a state change, for <see cref="IStateTimestamped"/>.</summary>
+    public static string StatePropertyName => nameof(State);
 
     // CommercialTerms VO fields (DOMAIN-MODEL.md §5.5) - all technical envelope, see class doc comment.
     public string? CurrencyCode { get; private set; }

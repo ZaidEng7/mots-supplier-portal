@@ -893,7 +893,7 @@ describe('RfqDetailPage evaluation panel (T-082)', () => {
     restore = mockFetch(routes('Recommendation', evaluation({
       state: 'Consolidated',
       results: [{
-        proposalId: '9f1c2d3e-0000-4000-8000-000000000001', proposalReferenceCode: 'PRP-2026-000004',
+        proposalId: '9f1c2d3e-0000-4000-8000-000000000001', proposalCode: 'PRP-2026-000004',
         technicallyQualified: true, technicalWeightedScore: 82, financialWeightedScore: 15,
         weightedTotal: 97, rank: 1,
       }],

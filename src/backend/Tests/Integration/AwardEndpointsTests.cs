@@ -192,7 +192,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, manager, _, proposalAId, _, _, _, _) = await SetupFinalizedEvaluationRfqAsync("Award SoD RFQ");
 
         var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل فنياً وسعراً", justificationEn = "Best technical and price outcome" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل فنياً وسعراً", justificationEn = "Best technical and price outcome" });
         recommend.StatusCode.Should().Be(HttpStatusCode.OK);
         var route = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
         var routeBody = await route.Content.ReadAsStringAsync();
@@ -215,7 +215,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
 
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
 
         var approve = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
@@ -231,7 +231,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
 
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
 
         var emptyReason = await otherManager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/reject", new { reason = "" });
@@ -243,7 +243,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         (await reject.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("state").GetString().Should().Be("Rejected");
 
         var reRecommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalBId, justificationAr = "بديل", justificationEn = "Alternate winner" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalBId), justificationAr = "بديل", justificationEn = "Alternate winner" });
         reRecommend.StatusCode.Should().Be(HttpStatusCode.OK);
         var reRecommendBody = await reRecommend.Content.ReadFromJsonAsync<JsonElement>();
         reRecommendBody.GetProperty("state").GetString().Should().Be("Recommended");
@@ -257,11 +257,43 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, manager, officer, proposalAId, _, _, _, _) = await SetupEvaluationRfqAsync("Award Not Finalized RFQ", finalize: false);
 
         var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
 
         recommend.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await recommend.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("detail").GetString().Should().Contain("finalized");
+    }
+
+    /// <summary>
+    /// T-068: a proposal code that names a bid on ANOTHER tender is refused.
+    ///
+    /// <para>The winner arrives as a public code now, and a code is resolved against this tender's own
+    /// bids before anything else looks at it. Without that predicate a manager could recommend a
+    /// proposal belonging to a different buying body's tender - the sort of defect a rename introduces
+    /// quietly, because both identifiers are strings and both exist.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_proposal_code_from_another_tender_cannot_be_recommended()
+    {
+        var setup = await SetupEvaluationRfqAsync("Award Foreign Code RFQ", finalize: true);
+        var (referenceCode, manager) = (setup.Item1, setup.Item2);
+
+        // A real, live bid - on somebody else's tender.
+        var elsewhere = await EvaluationSeed.CreateAsync(fixture, "AwardElsewhere");
+
+        var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
+        { winningProposalCode = elsewhere.ProposalCode, justificationAr = "الأفضل", justificationEn = "Best overall" });
+
+        recommend.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await recommend.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("detail").GetString().Should().Contain("not eligible");
+
+        // And nothing was recorded against either tender: a refusal that half-wrote an award would be
+        // worse than one that accepted the wrong bid, because it would be invisible.
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.Awards.CountAsync(a => db.Rfqs.Any(r => r.Id == a.RfqId && r.ReferenceCode == referenceCode)))
+            .Should().Be(0);
     }
 
     // ---- Issue award: atomic winner/loser update + RFQ transition ----
@@ -273,7 +305,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
 
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
         await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
 
@@ -306,7 +338,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
 
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
         await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
         var execute = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);
@@ -362,7 +394,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
 
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
         await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
         var execute = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);
@@ -421,7 +453,7 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
 
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
         await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
         await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);

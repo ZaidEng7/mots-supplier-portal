@@ -87,7 +87,7 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
                     r.CreatedAt,
                     r.PublishedAt,
                     db.Organizations.Where(o => o.Id == r.OrganizationId)
-                        .Select(o => new BuyingOrgDto(o.ExternalId, o.LegalNameEn)).FirstOrDefault(),
+                        .Select(o => new BuyingOrgDto(o.ReferenceCode, o.LegalNameEn)).FirstOrDefault(),
                     r.Items.Count(),
                     db.Proposals.Any(pr => pr.RfqId == r.Id
                         && pr.SupplierId == supplierId

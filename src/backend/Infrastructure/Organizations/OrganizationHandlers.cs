@@ -5,6 +5,7 @@ using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Registrations;
 
 namespace MotsSupplierPortal.Infrastructure.Organizations;
 
@@ -26,10 +27,14 @@ public sealed class CreateOrganizationHandler(AppDbContext db, IScopeContext sco
 {
     public async Task<OrganizationMutationResult> HandleAsync(CreateOrganizationCommand command, CancellationToken ct)
     {
+        // T-055: the same allocator every other reference code uses, on its own connection - see
+        // ReferenceCodeGenerator for why it is not inside the caller's transaction.
+        var referenceCode = await ReferenceCodeGenerator.NextCodeAsync(db, "ORG", ct);
+
         Organization org;
         try
         {
-            org = Organization.Create(command.LegalNameAr, command.LegalNameEn, command.OrganizationType, command.ContactEmail, command.ContactPhone);
+            org = Organization.Create(referenceCode, command.LegalNameAr, command.LegalNameEn, command.OrganizationType, command.ContactEmail, command.ContactPhone);
         }
         catch (DomainException ex)
         {

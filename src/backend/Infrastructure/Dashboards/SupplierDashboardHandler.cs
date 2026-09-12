@@ -110,6 +110,47 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             .Take(TopN)
             .ToListAsync(ct);
 
+        // T-039/FEAT-16.3: the supplier's own award outcomes, won and lost.
+        //
+        // The proposal list above deliberately excludes NotSelected, so a supplier who lost saw their
+        // bid vanish from this screen with no outcome on it anywhere. Losing is an outcome, and a
+        // widget that showed only wins would be a scoreboard rather than a record.
+        //
+        // The value is the supplier's own priced total - the number they typed - so no two-envelope
+        // question arises, and DecidedAt comes from the award record when there is one. A bid that was
+        // never priced has no total, which is null rather than zero.
+        var awardRows = await proposals
+            .Where(p => ProposalStates.Resolved.Contains(p.State))
+            .Select(p => new
+            {
+                p.ReferenceCode, p.State, p.Id, p.CurrencyCode,
+                Rfq = db.Rfqs.Where(r => r.Id == p.RfqId)
+                    .Select(r => new { r.ReferenceCode, r.TitleAr, r.TitleEn }).First(),
+                DecidedAt = db.Awards.Where(a => a.WinningProposalId == p.Id)
+                    .Select(a => a.AwardedAt).FirstOrDefault(),
+            })
+            // Most recently decided first, and the ones with no recorded instant last rather than
+            // first - an undated row at the top reads as the newest, which is the opposite of what is
+            // known about it.
+            .OrderBy(a => a.DecidedAt == null)
+            .ThenByDescending(a => a.DecidedAt)
+            .Take(TopN)
+            .ToListAsync(ct);
+
+        // The totals, summed IN MEMORY over the few rows above.
+        //
+        // LineTotal is computed by the aggregate rather than stored, so summing it in SQL does not
+        // translate - EF says so by name ("Translation of member 'LineTotal' ... failed. This commonly
+        // occurs when the specified member is unmapped"), and the dashboard answered 500. Re-deriving
+        // quantity times price minus discount in the query would translate and would put a second
+        // definition of a bid's total in this file, which is the worse of the two mistakes.
+        var awardedProposalIds = awardRows.Select(a => a.Id).ToList();
+        var itemsByProposal = awardedProposalIds.Count == 0
+            ? []
+            : await db.ProposalItems.AsNoTracking()
+                .Where(i => awardedProposalIds.Contains(i.ProposalId))
+                .ToListAsync(ct);
+
         var missing = await DocumentCompletenessEvaluator.GetMissingRequiredDocumentTypeCodesAsync(db, supplierId, ct);
 
         // The next required document's NAME as well as its code. The caption on this panel is the one line
@@ -165,6 +206,17 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             // else's award is not this supplier's business and would leak that it exists.
             ErpDegraded: await db.Awards.AsNoTracking().AnyAsync(
                 a => a.ErpSyncStatus == ErpSyncStatus.Failed
-                     && db.Proposals.Any(p => p.Id == a.WinningProposalId && p.SupplierId == supplierId), ct));
+                     && db.Proposals.Any(p => p.Id == a.WinningProposalId && p.SupplierId == supplierId), ct),
+            Awards: [.. awardRows.Select(a =>
+            {
+                var lines = itemsByProposal.Where(i => i.ProposalId == a.Id).ToList();
+                return new DashboardAwardDto(
+                    a.Rfq.ReferenceCode, a.Rfq.TitleAr, a.Rfq.TitleEn,
+                    a.ReferenceCode, a.State.ToString(), a.DecidedAt,
+                    // Null, not zero, for a bid that was never priced: zero is a number somebody
+                    // quoted.
+                    lines.Count == 0 ? null : lines.Sum(i => i.LineTotal),
+                    a.CurrencyCode);
+            })]);
     }
 }

@@ -47,7 +47,7 @@ export function AwardPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
-  const [winningProposalId, setWinningProposalId] = useState('')
+  const [winningProposalCode, setWinningProposalCode] = useState('')
   const [justificationAr, setJustificationAr] = useState('')
   const [justificationEn, setJustificationEn] = useState('')
   const [rejectReason, setRejectReason] = useState('')
@@ -63,8 +63,8 @@ export function AwardPage() {
     apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
 
   const recommendMutation = useMutation({
-    mutationFn: () => recommendAward(referenceCode, { winningProposalId, justificationAr, justificationEn }),
-    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('award.recommended') }); setJustificationAr(''); setJustificationEn(''); setWinningProposalId('') },
+    mutationFn: () => recommendAward(referenceCode, { winningProposalCode, justificationAr, justificationEn }),
+    onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('award.recommended') }); setJustificationAr(''); setJustificationEn(''); setWinningProposalCode('') },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('award.errors.actionFailed')) }),
   })
 
@@ -209,17 +209,19 @@ export function AwardPage() {
                   nothing outside it; a manager recommending a winner, and anyone later reading the award file,
                   needs the bid it refers to. The code is not the bidder's name, so this discloses nothing the
                   seal withholds. */}
-              <Select value={winningProposalId} onValueChange={setWinningProposalId} placeholder={t('award.selectWinner')}
+              <Select value={winningProposalCode} onValueChange={setWinningProposalCode} placeholder={t('award.selectWinner')}
                 options={qualifiedResults.map((r) => ({
-                  value: r.proposalId,
-                  label: r.proposalReferenceCode
-                    ? `${r.proposalReferenceCode} · ${t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) })}`
-                    : t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) }),
+                  // T-068: the code is the value as well as the label now. It used to be the bid's
+                  // internal identifier, which this screen then posted back as the winner - and the
+                  // label fell back to a rank alone whenever the code was absent, which it was on
+                  // every response that did not look codes up.
+                  value: r.proposalCode,
+                  label: `${r.proposalCode} · ${t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) })}`,
                 }))} />
               <Input aria-label={t('award.justificationEn')} placeholder={t('award.justificationEn')} value={justificationEn} onChange={(e) => setJustificationEn(e.target.value)} />
               <Input aria-label={t('award.justificationAr')} placeholder={t('award.justificationAr')} value={justificationAr} onChange={(e) => setJustificationAr(e.target.value)} />
               <Button size="sm" className="self-start" isLoading={recommendMutation.isPending}
-                disabled={!winningProposalId || !justificationAr || !justificationEn}
+                disabled={!winningProposalCode || !justificationAr || !justificationEn}
                 onClick={() => recommendMutation.mutate()}>
                 {award ? t('award.reRecommend') : t('award.recommend')}
               </Button>

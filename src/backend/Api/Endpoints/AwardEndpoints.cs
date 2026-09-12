@@ -7,7 +7,19 @@ using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-public sealed record RecommendAwardRequest(Guid WinningProposalId, string JustificationAr, string JustificationEn);
+/// <summary>
+/// T-068: the winner is named by the bid's public code. <c>WinningProposalId</c> is still accepted so
+/// this stays an ADDITIVE change - API-ARCHITECTURE.md's versioning table makes renaming a field a
+/// version-bump trigger, and a request that used to work must keep working. The code wins when both
+/// arrive; see DECISIONS-TAKEN.md D-69.
+/// </summary>
+public sealed record RecommendAwardRequest(
+    string JustificationAr, string JustificationEn,
+    // Defaults, so neither identifier is REQUIRED in the generated schema. The contract gate caught
+    // the alternative: a nullable parameter with no default still generates as required, which would
+    // have made `winningProposalCode` a new demand on every existing caller - the precise breakage
+    // this whole rework exists to avoid.
+    string? WinningProposalCode = null, Guid? WinningProposalId = null);
 
 public sealed class RecommendAwardRequestValidator : AbstractValidator<RecommendAwardRequest>
 {
@@ -60,7 +72,7 @@ public static class AwardEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new RecommendAwardCommand(referenceCode, request.WinningProposalId, request.JustificationAr, request.JustificationEn), ct));
+            return MapMutation(await handler.HandleAsync(new RecommendAwardCommand(referenceCode, request.WinningProposalCode, request.WinningProposalId, request.JustificationAr, request.JustificationEn), ct));
         })
         .RequirePermission(Permissions.AwardRecommend)
         .WithName("RecommendAward");

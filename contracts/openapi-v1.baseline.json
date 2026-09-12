@@ -829,13 +829,21 @@
           "justificationEn": {
             "type": "string"
           },
+          "winningProposalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "winningProposalId": {
             "format": "uuid",
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "required": [
-          "winningProposalId",
           "justificationAr",
           "justificationEn"
         ],
@@ -1699,19 +1707,27 @@
     },
     "/api/v1/admin/document-type-categories": {
       "get": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "GetDocumentTypeCategories",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/document-type-categories/{documentTypeCode}": {
       "put": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "SetDocumentTypeCategories",
         "parameters": [
           {
@@ -1736,28 +1752,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/email-templates": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ListEmailTemplates",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/email-templates/{key}": {
       "delete": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "DeleteEmailTemplate",
         "parameters": [
           {
@@ -1772,13 +1802,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       },
       "put": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "UpsertEmailTemplate",
         "parameters": [
           {
@@ -1803,15 +1840,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/erp-sync": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetErpSyncMonitor",
         "parameters": [
           {
@@ -1825,15 +1869,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/field-config": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetFieldConfig",
         "parameters": [
           {
@@ -1847,15 +1898,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/field-config/{category}/{fieldCode}": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetOneFieldConfig",
         "parameters": [
           {
@@ -1886,13 +1944,20 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       },
       "put": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "UpdateFieldConfig",
         "parameters": [
           {
@@ -1943,6 +2008,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -1952,24 +2020,35 @@
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/jobs": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetJobsMonitor",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/jobs/{jobId}/trigger": {
       "post": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "TriggerRecurringJob",
         "parameters": [
           {
@@ -1984,28 +2063,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/notification-templates": {
       "get": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "ListNotificationTemplates",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/notification-templates/{type}": {
       "delete": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "RevertNotificationTemplate",
         "parameters": [
           {
@@ -2020,13 +2113,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       },
       "put": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "UpdateNotificationTemplate",
         "parameters": [
           {
@@ -2051,15 +2151,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/outbox": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetOutboxMonitor",
         "parameters": [
           {
@@ -2073,15 +2180,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/outbox/{id}/replay": {
       "post": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ReplayOutboxMessage",
         "parameters": [
           {
@@ -2097,28 +2211,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/overview": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetAdminOverview",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/reference/{table}": {
       "get": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "ListReferenceItems",
         "parameters": [
           {
@@ -2140,15 +2268,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/reference/{table}/{code}": {
       "post": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "CreateReferenceItem",
         "parameters": [
           {
@@ -2181,13 +2316,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       },
       "put": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "UpdateReferenceItem",
         "parameters": [
           {
@@ -2220,15 +2362,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/reference/{table}/{code}/deactivate": {
       "post": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "DeactivateReferenceItem",
         "parameters": [
           {
@@ -2251,15 +2400,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/reference/{table}/{code}/reactivate": {
       "post": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "ReactivateReferenceItem",
         "parameters": [
           {
@@ -2282,28 +2438,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/roles": {
       "get": {
+        "description": "Requires the `admin.roles.manage` permission.",
         "operationId": "ListRoles",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.roles.manage"
         ]
       }
     },
     "/api/v1/admin/roles/{roleName}/permissions": {
       "put": {
+        "description": "Requires the `admin.roles.manage` permission.",
         "operationId": "UpdateRolePermissions",
         "parameters": [
           {
@@ -2328,41 +2498,62 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.roles.manage"
         ]
       }
     },
     "/api/v1/admin/security": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetSecurityPosture",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/settings": {
       "get": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "ListSystemSettings",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/settings/{key}": {
       "put": {
+        "description": "Requires the `reference.manage` permission.",
         "operationId": "UpdateSystemSetting",
         "parameters": [
           {
@@ -2387,41 +2578,62 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "reference.manage"
         ]
       }
     },
     "/api/v1/admin/storage": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "GetStorageSettings",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/ui-strings": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ListUiStringOverrides",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/admin/ui-strings/{language}/{key}": {
       "delete": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "DeleteUiStringOverride",
         "parameters": [
           {
@@ -2444,13 +2656,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       },
       "put": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "UpsertUiStringOverride",
         "parameters": [
           {
@@ -2483,15 +2702,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/audit": {
       "get": {
+        "description": "Requires the `audit.read` permission.",
         "operationId": "SearchAuditLog",
         "parameters": [
           {
@@ -2566,15 +2792,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Audit"
+        ],
+        "x-required-permissions": [
+          "audit.read"
         ]
       }
     },
     "/api/v1/audit/export": {
       "get": {
+        "description": "Requires the `audit.read` permission.",
         "operationId": "ExportAuditLog",
         "parameters": [
           {
@@ -2623,15 +2856,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Audit"
+        ],
+        "x-required-permissions": [
+          "audit.read"
         ]
       }
     },
     "/api/v1/audit/{aggregateId}": {
       "get": {
+        "description": "Requires the `audit.read` permission.",
         "operationId": "GetAuditLog",
         "parameters": [
           {
@@ -2647,10 +2887,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Audit"
+        ],
+        "x-required-permissions": [
+          "audit.read"
         ]
       }
     },
@@ -3037,17 +3283,26 @@
     },
     "/api/v1/evaluation-templates": {
       "get": {
+        "description": "Requires any one of: `evaluation.template.manage`, `rfq.edit`.",
         "operationId": "ListEvaluationTemplates",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage",
+          "rfq.edit"
         ]
       },
       "post": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "CreateEvaluationTemplate",
         "requestBody": {
           "content": {
@@ -3070,15 +3325,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       }
     },
     "/api/v1/evaluation-templates/{id}": {
       "get": {
+        "description": "Requires any one of: `evaluation.template.manage`, `rfq.edit`.",
         "operationId": "GetEvaluationTemplate",
         "parameters": [
           {
@@ -3102,15 +3364,23 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage",
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/evaluation-templates/{id}/activate": {
       "post": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "ActivateEvaluationTemplate",
         "parameters": [
           {
@@ -3144,6 +3414,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -3153,11 +3426,15 @@
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       }
     },
     "/api/v1/evaluation-templates/{id}/archive": {
       "post": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "ArchiveEvaluationTemplate",
         "parameters": [
           {
@@ -3191,6 +3468,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -3200,11 +3480,15 @@
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       }
     },
     "/api/v1/evaluation-templates/{id}/criteria": {
       "post": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "AddCriterion",
         "parameters": [
           {
@@ -3238,15 +3522,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       }
     },
     "/api/v1/evaluation-templates/{id}/criteria/{criterionId}": {
       "delete": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "RemoveCriterion",
         "parameters": [
           {
@@ -3279,13 +3570,20 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       },
       "put": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "UpdateCriterion",
         "parameters": [
           {
@@ -3328,15 +3626,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       }
     },
     "/api/v1/evaluation-templates/{id}/fork": {
       "post": {
+        "description": "Requires the `evaluation.template.manage` permission.",
         "operationId": "ForkEvaluationTemplate",
         "parameters": [
           {
@@ -3360,10 +3665,16 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "EvaluationTemplates"
+        ],
+        "x-required-permissions": [
+          "evaluation.template.manage"
         ]
       }
     },
@@ -3382,45 +3693,67 @@
     },
     "/api/v1/ministry/awards": {
       "get": {
+        "description": "Requires the `governance.read` permission.",
         "operationId": "GetMinistryAwardAnalytics",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Ministry"
+        ],
+        "x-required-permissions": [
+          "governance.read"
         ]
       }
     },
     "/api/v1/ministry/categories": {
       "get": {
+        "description": "Requires the `governance.read` permission.",
         "operationId": "GetCategoryCoverage",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Ministry"
+        ],
+        "x-required-permissions": [
+          "governance.read"
         ]
       }
     },
     "/api/v1/ministry/overview": {
       "get": {
+        "description": "Requires the `governance.read` permission.",
         "operationId": "GetGovernanceOverview",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Ministry"
+        ],
+        "x-required-permissions": [
+          "governance.read"
         ]
       }
     },
     "/api/v1/ministry/rfqs": {
       "get": {
+        "description": "Requires the `governance.read` permission.",
         "operationId": "ListMinistryRfqs",
         "parameters": [
           {
@@ -3467,15 +3800,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Ministry"
+        ],
+        "x-required-permissions": [
+          "governance.read"
         ]
       }
     },
     "/api/v1/ministry/rfqs/{referenceCode}": {
       "get": {
+        "description": "Requires the `governance.read` permission.",
         "operationId": "GetMinistryRfqDetail",
         "parameters": [
           {
@@ -3490,15 +3830,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Ministry"
+        ],
+        "x-required-permissions": [
+          "governance.read"
         ]
       }
     },
     "/api/v1/ministry/suppliers": {
       "get": {
+        "description": "Requires the `governance.read` permission.",
         "operationId": "ListMinistrySuppliers",
         "parameters": [
           {
@@ -3545,15 +3892,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Ministry"
+        ],
+        "x-required-permissions": [
+          "governance.read"
         ]
       }
     },
     "/api/v1/my-evaluations": {
       "get": {
+        "description": "Requires the `evaluation.score` permission.",
         "operationId": "ListMyAssignments",
         "parameters": [
           {
@@ -3567,10 +3921,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.score"
         ]
       }
     },
@@ -3701,6 +4061,7 @@
     },
     "/api/v1/offerings/search": {
       "get": {
+        "description": "Requires the `offering.search` permission.",
         "operationId": "SearchBuyerOfferings",
         "parameters": [
           {
@@ -3721,26 +4082,40 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Offerings"
+        ],
+        "x-required-permissions": [
+          "offering.search"
         ]
       }
     },
     "/api/v1/organizations": {
       "get": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "ListOrganizations",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       },
       "post": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "CreateOrganization",
         "requestBody": {
           "content": {
@@ -3755,15 +4130,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       }
     },
     "/api/v1/organizations/supplier-links/{linkId}": {
       "delete": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "RemoveSupplierOrgLink",
         "parameters": [
           {
@@ -3779,15 +4161,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       }
     },
     "/api/v1/organizations/supplier-links/{supplierReferenceCode}": {
       "get": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "ListSupplierOrgLinks",
         "parameters": [
           {
@@ -3802,13 +4191,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       },
       "post": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "CreateSupplierOrgLink",
         "parameters": [
           {
@@ -3833,15 +4229,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       }
     },
     "/api/v1/organizations/{organizationId}/org-units": {
       "post": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "AddOrgUnit",
         "parameters": [
           {
@@ -3867,15 +4270,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       }
     },
     "/api/v1/organizations/{organizationId}/org-units/{orgUnitId}": {
       "delete": {
+        "description": "Requires the `admin.organizations.manage` permission.",
         "operationId": "RemoveOrgUnit",
         "parameters": [
           {
@@ -3900,28 +4310,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Organizations"
+        ],
+        "x-required-permissions": [
+          "admin.organizations.manage"
         ]
       }
     },
     "/api/v1/procurement/approvals": {
       "get": {
+        "description": "Requires the `rfq.approve` permission.",
         "operationId": "ApprovalQueues",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Dashboards"
+        ],
+        "x-required-permissions": [
+          "rfq.approve"
         ]
       }
     },
     "/api/v1/procurement/dashboard": {
       "get": {
+        "description": "Requires the `rfq.read` permission.",
         "operationId": "ProcurementDashboard",
         "parameters": [
           {
@@ -3942,28 +4366,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Dashboards"
+        ],
+        "x-required-permissions": [
+          "rfq.read"
         ]
       }
     },
     "/api/v1/proposals": {
       "get": {
+        "description": "Requires the `proposal.create` permission.",
         "operationId": "ListMyProposals",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.create"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}": {
       "get": {
+        "description": "Requires the `proposal.create` permission.",
         "operationId": "GetProposalByCode",
         "parameters": [
           {
@@ -3986,13 +4424,20 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.create"
         ]
       },
       "patch": {
+        "description": "Requires the `proposal.edit` permission.",
         "operationId": "PatchProposal",
         "parameters": [
           {
@@ -4025,6 +4470,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4034,11 +4482,15 @@
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.edit"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/decline": {
       "post": {
+        "description": "Requires the `proposal.decline` permission.",
         "operationId": "DeclineAwardOffer",
         "parameters": [
           {
@@ -4081,6 +4533,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4090,11 +4545,15 @@
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.decline"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/documents": {
       "post": {
+        "description": "Requires the `proposal.edit` permission.",
         "operationId": "AddProposalDocument",
         "parameters": [
           {
@@ -4109,15 +4568,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.edit"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/documents/{documentId}": {
       "delete": {
+        "description": "Requires the `proposal.edit` permission.",
         "operationId": "RemoveProposalDocument",
         "parameters": [
           {
@@ -4141,15 +4607,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.edit"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/documents/{documentId}/download-url": {
       "get": {
+        "description": "Requires the `proposal.edit` permission.",
         "operationId": "GetOwnProposalDocumentDownloadUrl",
         "parameters": [
           {
@@ -4173,15 +4646,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.edit"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/request-clarification": {
       "post": {
+        "description": "Requires the `rfq.clarify` permission.",
         "operationId": "RequestProposalClarification",
         "parameters": [
           {
@@ -4206,15 +4686,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "rfq.clarify"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/revise": {
       "post": {
+        "description": "Requires the `proposal.revise` permission.",
         "operationId": "ReviseProposal",
         "parameters": [
           {
@@ -4247,6 +4734,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4256,11 +4746,15 @@
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.revise"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/submit": {
       "post": {
+        "description": "Requires the `proposal.submit` permission.",
         "operationId": "SubmitProposal",
         "parameters": [
           {
@@ -4293,6 +4787,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4302,11 +4799,15 @@
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.submit"
         ]
       }
     },
     "/api/v1/proposals/{referenceCode}/withdraw": {
       "post": {
+        "description": "Requires the `proposal.withdraw` permission.",
         "operationId": "WithdrawProposal",
         "parameters": [
           {
@@ -4349,6 +4850,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4358,6 +4862,9 @@
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.withdraw"
         ]
       }
     },
@@ -4464,19 +4971,27 @@
     },
     "/api/v1/reports/compliance": {
       "get": {
+        "description": "Requires the `report.read` permission.",
         "operationId": "GetComplianceReport",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Reports"
+        ],
+        "x-required-permissions": [
+          "report.read"
         ]
       }
     },
     "/api/v1/reports/compliance/export": {
       "get": {
+        "description": "Requires the `report.read` permission.",
         "operationId": "ExportComplianceReport",
         "parameters": [
           {
@@ -4490,15 +5005,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Reports"
+        ],
+        "x-required-permissions": [
+          "report.read"
         ]
       }
     },
     "/api/v1/reports/procurement": {
       "get": {
+        "description": "Requires the `report.read` permission.",
         "operationId": "GetProcurementReport",
         "parameters": [
           {
@@ -4519,15 +5041,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Reports"
+        ],
+        "x-required-permissions": [
+          "report.read"
         ]
       }
     },
     "/api/v1/reports/procurement/export": {
       "get": {
+        "description": "Requires the `report.read` permission.",
         "operationId": "ExportProcurementReport",
         "parameters": [
           {
@@ -4555,28 +5084,42 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Reports"
+        ],
+        "x-required-permissions": [
+          "report.read"
         ]
       }
     },
     "/api/v1/review/dashboard": {
       "get": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "ReviewDashboard",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Dashboards"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/review/queue": {
       "get": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "ListReviewQueue",
         "parameters": [
           {
@@ -4623,15 +5166,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/review/suppliers": {
       "get": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "ListComplianceDirectory",
         "parameters": [
           {
@@ -4685,15 +5235,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/review/{referenceCode}": {
       "get": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "GetReviewerSupplierView",
         "parameters": [
           {
@@ -4716,15 +5273,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/approve": {
       "post": {
+        "description": "Requires the `supplier.approve` permission.",
         "operationId": "ApproveApplication",
         "parameters": [
           {
@@ -4757,6 +5321,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4766,11 +5333,15 @@
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.approve"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/claim": {
       "post": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "ClaimReviewItem",
         "parameters": [
           {
@@ -4785,15 +5356,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/deactivate": {
       "post": {
+        "description": "Requires the `supplier.lifecycle.manage` permission.",
         "operationId": "DeactivateSupplier",
         "parameters": [
           {
@@ -4818,15 +5396,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.lifecycle.manage"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/pickup": {
       "post": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "PickUpApplication",
         "parameters": [
           {
@@ -4841,15 +5426,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/reactivate": {
       "post": {
+        "description": "Requires the `supplier.lifecycle.manage` permission.",
         "operationId": "ReactivateSupplier",
         "parameters": [
           {
@@ -4874,15 +5466,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.lifecycle.manage"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/reject": {
       "post": {
+        "description": "Requires the `supplier.reject` permission.",
         "operationId": "RejectApplication",
         "parameters": [
           {
@@ -4925,6 +5524,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4934,11 +5536,15 @@
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.reject"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/request-info": {
       "post": {
+        "description": "Requires the `supplier.requestInfo` permission.",
         "operationId": "RequestApplicationInfo",
         "parameters": [
           {
@@ -4981,6 +5587,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -4990,11 +5599,15 @@
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.requestInfo"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/suspend": {
       "post": {
+        "description": "Requires the `supplier.lifecycle.manage` permission.",
         "operationId": "SuspendSupplier",
         "parameters": [
           {
@@ -5019,15 +5632,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.lifecycle.manage"
         ]
       }
     },
     "/api/v1/review/{referenceCode}/unassign": {
       "post": {
+        "description": "Requires the `supplier.review` permission.",
         "operationId": "UnassignReviewItem",
         "parameters": [
           {
@@ -5042,15 +5662,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Review"
+        ],
+        "x-required-permissions": [
+          "supplier.review"
         ]
       }
     },
     "/api/v1/rfqs": {
       "get": {
+        "description": "Requires the `rfq.read` permission.",
         "operationId": "ListRfqs",
         "parameters": [
           {
@@ -5090,13 +5717,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.read"
         ]
       },
       "post": {
+        "description": "Requires the `rfq.create` permission.",
         "operationId": "CreateRfq",
         "requestBody": {
           "content": {
@@ -5111,15 +5745,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.create"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}": {
       "get": {
+        "description": "Requires the `rfq.read` permission.",
         "operationId": "GetRfq",
         "parameters": [
           {
@@ -5142,13 +5783,20 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.read"
         ]
       },
       "put": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "UpdateRfqBasics",
         "parameters": [
           {
@@ -5191,6 +5839,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5200,11 +5851,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/addenda": {
       "post": {
+        "description": "Requires the `rfq.addendum` permission.",
         "operationId": "IssueAddendum",
         "parameters": [
           {
@@ -5247,6 +5902,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5256,11 +5914,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.addendum"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/approve": {
       "post": {
+        "description": "Requires the `rfq.approve` permission.",
         "operationId": "ApproveRfq",
         "parameters": [
           {
@@ -5293,6 +5955,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5302,11 +5967,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.approve"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/assignees": {
       "get": {
+        "description": "Requires the `rfq.read` permission.",
         "operationId": "ListRfqAssignees",
         "parameters": [
           {
@@ -5321,15 +5990,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.read"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/attachments": {
       "post": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "AddRfqAttachment",
         "parameters": [
           {
@@ -5362,6 +6038,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5371,11 +6050,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/attachments/{attachmentId}": {
       "delete": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "RemoveRfqAttachment",
         "parameters": [
           {
@@ -5417,6 +6100,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5426,11 +6112,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/attachments/{attachmentId}/download-url": {
       "get": {
+        "description": "Requires the `rfq.read` permission.",
         "operationId": "GetRfqAttachmentDownloadUrl",
         "parameters": [
           {
@@ -5454,15 +6144,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.read"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award": {
       "get": {
+        "description": "Requires the `award.recommend` permission.",
         "operationId": "GetAward",
         "parameters": [
           {
@@ -5485,15 +6182,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "award.recommend"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award/approve": {
       "post": {
+        "description": "Requires the `award.approve` permission.",
         "operationId": "ApproveAward",
         "parameters": [
           {
@@ -5526,6 +6230,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5535,11 +6242,15 @@
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "award.approve"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award/execute": {
       "post": {
+        "description": "Requires the `award.approve` permission.",
         "operationId": "ExecuteAward",
         "parameters": [
           {
@@ -5572,6 +6283,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5581,11 +6295,15 @@
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "award.approve"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award/recommend": {
       "post": {
+        "description": "Requires the `award.recommend` permission.",
         "operationId": "RecommendAward",
         "parameters": [
           {
@@ -5610,15 +6328,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "award.recommend"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award/reject": {
       "post": {
+        "description": "Requires the `award.reject` permission.",
         "operationId": "RejectAward",
         "parameters": [
           {
@@ -5661,6 +6386,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5670,11 +6398,15 @@
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "award.reject"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award/retry-erp-sync": {
       "post": {
+        "description": "Requires the `integration.retry` permission.",
         "operationId": "RetryAwardErpSync",
         "parameters": [
           {
@@ -5689,15 +6421,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "integration.retry"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/award/route-for-approval": {
       "post": {
+        "description": "Requires the `award.recommend` permission.",
         "operationId": "RouteAwardForApproval",
         "parameters": [
           {
@@ -5730,6 +6469,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5739,11 +6481,15 @@
         },
         "tags": [
           "Award"
+        ],
+        "x-required-permissions": [
+          "award.recommend"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/cancel": {
       "post": {
+        "description": "Requires the `rfq.cancel` permission.",
         "operationId": "CancelRfq",
         "parameters": [
           {
@@ -5786,6 +6532,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5795,11 +6544,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.cancel"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/clarifications": {
       "post": {
+        "description": "Requires the `proposal.create` permission.",
         "operationId": "SupplierPostClarification",
         "parameters": [
           {
@@ -5824,15 +6577,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "proposal.create"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer": {
       "post": {
+        "description": "Requires the `clarification.answer` permission.",
         "operationId": "AnswerClarification",
         "parameters": [
           {
@@ -5884,6 +6644,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5893,11 +6656,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "clarification.answer"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish": {
       "post": {
+        "description": "Requires the `clarification.answer` permission.",
         "operationId": "PublishClarification",
         "parameters": [
           {
@@ -5939,6 +6706,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -5948,11 +6718,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "clarification.answer"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/close": {
       "post": {
+        "description": "Requires the `rfq.close` permission.",
         "operationId": "CloseRfqSubmission",
         "parameters": [
           {
@@ -5995,6 +6769,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6004,11 +6781,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.close"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/comparison": {
       "get": {
+        "description": "Requires the `comparison.view` permission.",
         "operationId": "GetComparison",
         "parameters": [
           {
@@ -6023,15 +6804,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Comparison"
+        ],
+        "x-required-permissions": [
+          "comparison.view"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/comparison/export": {
       "get": {
+        "description": "Requires the `comparison.view` permission.",
         "operationId": "ExportComparison",
         "parameters": [
           {
@@ -6053,10 +6841,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Comparison"
+        ],
+        "x-required-permissions": [
+          "comparison.view"
         ]
       }
     },
@@ -6118,6 +6912,7 @@
     },
     "/api/v1/rfqs/{referenceCode}/evaluation": {
       "get": {
+        "description": "Requires the `evaluation.open` permission.",
         "operationId": "GetEvaluation",
         "parameters": [
           {
@@ -6140,15 +6935,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.open"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation-template": {
       "put": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "BindEvaluationTemplate",
         "parameters": [
           {
@@ -6191,6 +6993,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6200,11 +7005,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/assignments": {
       "post": {
+        "description": "Requires the `evaluation.assign` permission.",
         "operationId": "AssignEvaluators",
         "parameters": [
           {
@@ -6229,15 +7038,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.assign"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/candidates": {
       "get": {
+        "description": "Requires the `evaluation.assign` permission.",
         "operationId": "ListEvaluatorCandidates",
         "parameters": [
           {
@@ -6252,15 +7068,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.assign"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/consolidate": {
       "post": {
+        "description": "Requires the `evaluation.consolidate` permission.",
         "operationId": "ConsolidateEvaluation",
         "parameters": [
           {
@@ -6293,6 +7116,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6302,11 +7128,15 @@
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.consolidate"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/finalize": {
       "post": {
+        "description": "Requires the `evaluation.finalize` permission.",
         "operationId": "FinalizeEvaluation",
         "parameters": [
           {
@@ -6339,6 +7169,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6348,11 +7181,15 @@
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.finalize"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/open": {
       "post": {
+        "description": "Requires the `evaluation.open` permission.",
         "operationId": "OpenEvaluation",
         "parameters": [
           {
@@ -6367,15 +7204,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.open"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/proposals/{proposalId}/documents": {
       "get": {
+        "description": "Requires the `comparison.view` permission.",
         "operationId": "GetProposalDocumentsForBuyer",
         "parameters": [
           {
@@ -6399,15 +7243,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "comparison.view"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/proposals/{proposalId}/documents/{documentId}/download-url": {
       "get": {
+        "description": "Requires the `comparison.view` permission.",
         "operationId": "GetProposalDocumentDownloadUrlForBuyer",
         "parameters": [
           {
@@ -6440,15 +7291,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "comparison.view"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/recuse": {
       "post": {
+        "description": "Requires the `evaluation.assign` permission.",
         "operationId": "RecuseEvaluator",
         "parameters": [
           {
@@ -6473,15 +7331,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.assign"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/reopen": {
       "post": {
+        "description": "Requires the `evaluation.reopen` permission.",
         "operationId": "ReopenEvaluation",
         "parameters": [
           {
@@ -6524,6 +7389,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6533,11 +7401,15 @@
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.reopen"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/evaluation/resolve-tie": {
       "post": {
+        "description": "Requires the `evaluation.consolidate` permission.",
         "operationId": "ResolveEvaluationTie",
         "parameters": [
           {
@@ -6562,15 +7434,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.consolidate"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/invitations": {
       "post": {
+        "description": "Requires the `rfq.invite` permission.",
         "operationId": "InviteSupplier",
         "parameters": [
           {
@@ -6613,6 +7492,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6622,11 +7504,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.invite"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/invitations/candidates": {
       "get": {
+        "description": "Requires the `rfq.invite` permission.",
         "operationId": "SuggestInvitationCandidates",
         "parameters": [
           {
@@ -6641,15 +7527,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.invite"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/invitations/decline": {
       "post": {
+        "description": "Requires the `proposal.create` permission.",
         "operationId": "SupplierDeclineInvitation",
         "parameters": [
           {
@@ -6674,15 +7567,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "proposal.create"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/items": {
       "post": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "AddRfqItem",
         "parameters": [
           {
@@ -6725,6 +7625,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6734,11 +7637,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/items/{itemId}": {
       "delete": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "RemoveRfqItem",
         "parameters": [
           {
@@ -6780,6 +7687,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6789,9 +7699,13 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       },
       "put": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "UpdateRfqItem",
         "parameters": [
           {
@@ -6843,6 +7757,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -6852,11 +7769,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/my-evaluation": {
       "get": {
+        "description": "Requires the `evaluation.score` permission.",
         "operationId": "GetMyEvaluation",
         "parameters": [
           {
@@ -6871,15 +7792,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.score"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/my-evaluation/bidders": {
       "get": {
+        "description": "Requires the `evaluation.score` permission.",
         "operationId": "GetConflictDeclaration",
         "parameters": [
           {
@@ -6894,15 +7822,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.score"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/my-evaluation/declare": {
       "post": {
+        "description": "Requires the `evaluation.score` permission.",
         "operationId": "DeclareConflict",
         "parameters": [
           {
@@ -6927,15 +7862,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.score"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/my-evaluation/proposals/{proposalCode}/documents/{documentId}/download-url": {
       "get": {
+        "description": "Requires the `evaluation.score` permission.",
         "operationId": "GetProposalDocumentDownloadUrlForEvaluator",
         "parameters": [
           {
@@ -6967,15 +7909,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.score"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/my-evaluation/scores": {
       "post": {
+        "description": "Requires the `evaluation.score` permission.",
         "operationId": "ScoreCriterion",
         "parameters": [
           {
@@ -7000,15 +7949,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.score"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/my-evaluation/submit": {
       "post": {
+        "description": "Requires the `evaluation.submit` permission.",
         "operationId": "SubmitEvaluatorScores",
         "parameters": [
           {
@@ -7023,15 +7979,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Evaluation"
+        ],
+        "x-required-permissions": [
+          "evaluation.submit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/proposals": {
       "get": {
+        "description": "Requires the `proposal.create` permission.",
         "operationId": "GetProposal",
         "parameters": [
           {
@@ -7054,13 +8017,20 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.create"
         ]
       },
       "post": {
+        "description": "Requires the `proposal.create` permission.",
         "operationId": "StartProposal",
         "parameters": [
           {
@@ -7075,15 +8045,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Proposals"
+        ],
+        "x-required-permissions": [
+          "proposal.create"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/publish": {
       "post": {
+        "description": "Requires the `rfq.publish` permission.",
         "operationId": "PublishRfq",
         "parameters": [
           {
@@ -7116,6 +8093,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7125,11 +8105,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.publish"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/reassign": {
       "post": {
+        "description": "Requires the `rfq.reassign` permission.",
         "operationId": "ReassignRfq",
         "parameters": [
           {
@@ -7172,6 +8156,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7181,11 +8168,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.reassign"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/received-proposals": {
       "get": {
+        "description": "Requires the `comparison.view` permission.",
         "operationId": "ListReceivedProposals",
         "parameters": [
           {
@@ -7200,15 +8191,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "comparison.view"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/received-proposals/{proposalId}": {
       "get": {
+        "description": "Requires the `comparison.view` permission.",
         "operationId": "GetReceivedProposal",
         "parameters": [
           {
@@ -7232,15 +8230,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "comparison.view"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/request-clarification": {
       "post": {
+        "description": "Requires the `rfq.clarify` permission.",
         "operationId": "RequestRfqClarification",
         "parameters": [
           {
@@ -7265,15 +8270,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.clarify"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/requirements": {
       "post": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "AddRequirement",
         "parameters": [
           {
@@ -7316,6 +8328,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7325,11 +8340,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/requirements/{requirementId}": {
       "delete": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "RemoveRequirement",
         "parameters": [
           {
@@ -7371,6 +8390,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7380,9 +8402,13 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       },
       "put": {
+        "description": "Requires the `rfq.edit` permission.",
         "operationId": "UpdateRequirement",
         "parameters": [
           {
@@ -7434,6 +8460,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7443,11 +8472,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.edit"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/resolve-clarification": {
       "post": {
+        "description": "Requires the `rfq.clarify` permission.",
         "operationId": "ResolveRfqClarification",
         "parameters": [
           {
@@ -7462,15 +8495,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.clarify"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/return": {
       "post": {
+        "description": "Requires the `rfq.review` permission.",
         "operationId": "ReturnRfqForEdits",
         "parameters": [
           {
@@ -7513,6 +8553,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7522,11 +8565,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.review"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/submit-review": {
       "post": {
+        "description": "Requires the `rfq.submit_review` permission.",
         "operationId": "SubmitRfqForReview",
         "parameters": [
           {
@@ -7575,6 +8622,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7584,11 +8634,15 @@
         },
         "tags": [
           "Rfqs"
+        ],
+        "x-required-permissions": [
+          "rfq.submit_review"
         ]
       }
     },
     "/api/v1/rfqs/{referenceCode}/workspace": {
       "get": {
+        "description": "Requires the `rfq.read` permission.",
         "operationId": "GetWorkspace",
         "parameters": [
           {
@@ -7603,10 +8657,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Workspace"
+        ],
+        "x-required-permissions": [
+          "rfq.read"
         ]
       }
     },
@@ -7634,6 +8694,7 @@
     },
     "/api/v1/staff": {
       "get": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ListStaff",
         "parameters": [
           {
@@ -7666,10 +8727,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Staff"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
@@ -7698,6 +8765,7 @@
     },
     "/api/v1/staff/invite": {
       "post": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "InviteStaff",
         "requestBody": {
           "content": {
@@ -7712,15 +8780,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Staff"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/staff/{userId}/deactivate": {
       "post": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "DeactivateStaff",
         "parameters": [
           {
@@ -7736,15 +8811,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Staff"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/staff/{userId}/reactivate": {
       "post": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ReactivateStaff",
         "parameters": [
           {
@@ -7760,15 +8842,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Staff"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/staff/{userId}/reset-mfa": {
       "post": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ResetStaffMfa",
         "parameters": [
           {
@@ -7784,15 +8873,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Staff"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/staff/{userId}/role": {
       "put": {
+        "description": "Requires the `admin.users.manage` permission.",
         "operationId": "ChangeStaffRole",
         "parameters": [
           {
@@ -7818,15 +8914,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Staff"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },
     "/api/v1/supplier-directory": {
       "get": {
+        "description": "Requires the `supplier.directory.read` permission.",
         "operationId": "ListSupplierDirectory",
         "parameters": [
           {
@@ -7880,10 +8983,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.directory.read"
         ]
       }
     },
@@ -7933,6 +9042,7 @@
     },
     "/api/v1/suppliers/me/accept-terms": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "AcceptTerms",
         "parameters": [
           {
@@ -7957,6 +9067,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -7966,6 +9079,9 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
@@ -7984,6 +9100,7 @@
     },
     "/api/v1/suppliers/me/addresses": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "AddAddress",
         "parameters": [
           {
@@ -8018,6 +9135,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8027,11 +9147,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/addresses/{addressId}": {
       "delete": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "RemoveAddress",
         "parameters": [
           {
@@ -8065,6 +9189,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8074,9 +9201,13 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       },
       "put": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateAddress",
         "parameters": [
           {
@@ -8120,6 +9251,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8129,6 +9263,9 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
@@ -8188,6 +9325,7 @@
     },
     "/api/v1/suppliers/me/bank-accounts": {
       "post": {
+        "description": "Requires the `supplier.bankAccount.manage` permission.",
         "operationId": "AddBankAccount",
         "parameters": [
           {
@@ -8222,6 +9360,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8231,11 +9372,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.bankAccount.manage"
         ]
       }
     },
     "/api/v1/suppliers/me/bank-accounts/{bankAccountId}": {
       "delete": {
+        "description": "Requires the `supplier.bankAccount.manage` permission.",
         "operationId": "RemoveBankAccount",
         "parameters": [
           {
@@ -8269,6 +9414,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8278,9 +9426,13 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.bankAccount.manage"
         ]
       },
       "put": {
+        "description": "Requires the `supplier.bankAccount.manage` permission.",
         "operationId": "UpdateBankAccount",
         "parameters": [
           {
@@ -8324,6 +9476,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8333,11 +9488,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.bankAccount.manage"
         ]
       }
     },
     "/api/v1/suppliers/me/bank-accounts/{bankAccountId}/reveal": {
       "post": {
+        "description": "Requires the `supplier.bankAccount.manage` permission.",
         "operationId": "RevealBankAccount",
         "parameters": [
           {
@@ -8353,15 +9512,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.bankAccount.manage"
         ]
       }
     },
     "/api/v1/suppliers/me/bank-accounts/{bankAccountId}/set-default": {
       "post": {
+        "description": "Requires the `supplier.bankAccount.manage` permission.",
         "operationId": "SetDefaultBankAccount",
         "parameters": [
           {
@@ -8395,6 +9561,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8404,11 +9573,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.bankAccount.manage"
         ]
       }
     },
     "/api/v1/suppliers/me/branches": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "AddBranch",
         "parameters": [
           {
@@ -8443,6 +9616,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8452,11 +9628,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/branches/{branchId}": {
       "delete": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "RemoveBranch",
         "parameters": [
           {
@@ -8490,6 +9670,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8499,9 +9682,13 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       },
       "put": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateBranch",
         "parameters": [
           {
@@ -8545,6 +9732,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8554,11 +9744,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/category-links": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "LinkCategory",
         "parameters": [
           {
@@ -8593,6 +9787,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8602,11 +9799,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/category-links/{categoryCode}": {
       "delete": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UnlinkCategory",
         "parameters": [
           {
@@ -8639,6 +9840,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8648,11 +9852,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/contacts": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "AddContact",
         "parameters": [
           {
@@ -8687,6 +9895,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8696,11 +9907,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/contacts/{contactId}": {
       "delete": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "RemoveContact",
         "parameters": [
           {
@@ -8734,6 +9949,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8743,9 +9961,13 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       },
       "put": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateContact",
         "parameters": [
           {
@@ -8789,6 +10011,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8798,6 +10023,9 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
@@ -8816,6 +10044,7 @@
     },
     "/api/v1/suppliers/me/legal-info": {
       "put": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateLegalInfo",
         "requestBody": {
           "content": {
@@ -8838,15 +10067,22 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/logo": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UploadLogo",
         "parameters": [
           {
@@ -8871,6 +10107,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -8880,6 +10119,9 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
@@ -8898,17 +10140,25 @@
     },
     "/api/v1/suppliers/me/offerings": {
       "get": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "ListOfferings",
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Offerings"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       },
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "CreateOffering",
         "requestBody": {
           "content": {
@@ -8923,15 +10173,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Offerings"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/offerings/{offeringId}": {
       "get": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "GetOffering",
         "parameters": [
           {
@@ -8955,13 +10212,20 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Offerings"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       },
       "put": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateOffering",
         "parameters": [
           {
@@ -9005,6 +10269,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9014,11 +10281,15 @@
         },
         "tags": [
           "Offerings"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/offerings/{offeringId}/deactivate": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "DeactivateOffering",
         "parameters": [
           {
@@ -9052,6 +10323,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9061,11 +10335,15 @@
         },
         "tags": [
           "Offerings"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/representatives": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "AddRepresentative",
         "parameters": [
           {
@@ -9100,6 +10378,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9109,11 +10390,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/representatives/{representativeId}": {
       "delete": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "RemoveRepresentative",
         "parameters": [
           {
@@ -9147,6 +10432,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9156,9 +10444,13 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       },
       "put": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateRepresentative",
         "parameters": [
           {
@@ -9202,6 +10494,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9211,11 +10506,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/representatives/{representativeId}/set-primary": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "SetPrimaryRepresentative",
         "parameters": [
           {
@@ -9249,6 +10548,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9258,11 +10560,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/resubmit-application": {
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "ResubmitApplication",
         "parameters": [
           {
@@ -9287,6 +10593,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9296,11 +10605,15 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
     "/api/v1/suppliers/me/users": {
       "get": {
+        "description": "Requires the `supplier.user.manage` permission.",
         "operationId": "ListSupplierUsers",
         "parameters": [
           {
@@ -9333,13 +10646,20 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "SupplierUsers"
+        ],
+        "x-required-permissions": [
+          "supplier.user.manage"
         ]
       },
       "post": {
+        "description": "Requires the `supplier.user.manage` permission.",
         "operationId": "InviteSupplierUser",
         "requestBody": {
           "content": {
@@ -9354,15 +10674,22 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "SupplierUsers"
+        ],
+        "x-required-permissions": [
+          "supplier.user.manage"
         ]
       }
     },
     "/api/v1/suppliers/me/users/{userId}/disable": {
       "post": {
+        "description": "Requires the `supplier.user.manage` permission.",
         "operationId": "DisableSupplierUser",
         "parameters": [
           {
@@ -9378,10 +10705,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "SupplierUsers"
+        ],
+        "x-required-permissions": [
+          "supplier.user.manage"
         ]
       }
     },
@@ -9418,6 +10751,7 @@
     },
     "/api/v1/suppliers/{supplierCode}": {
       "patch": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UpdateSupplierProfile",
         "parameters": [
           {
@@ -9460,6 +10794,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9469,6 +10806,9 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
@@ -9526,6 +10866,7 @@
         ]
       },
       "post": {
+        "description": "Requires the `supplier.edit` permission.",
         "operationId": "UploadDocument",
         "parameters": [
           {
@@ -9540,10 +10881,16 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
           }
         },
         "tags": [
           "Documents"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
         ]
       }
     },
@@ -9611,6 +10958,7 @@
     },
     "/api/v1/suppliers/{supplierCode}/documents/{documentCode}/approve": {
       "post": {
+        "description": "Requires the `supplier.document.review` permission.",
         "operationId": "ApproveDocument",
         "parameters": [
           {
@@ -9651,6 +10999,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9660,11 +11011,15 @@
         },
         "tags": [
           "Documents"
+        ],
+        "x-required-permissions": [
+          "supplier.document.review"
         ]
       }
     },
     "/api/v1/suppliers/{supplierCode}/documents/{documentCode}/reject": {
       "post": {
+        "description": "Requires the `supplier.document.review` permission.",
         "operationId": "RejectDocument",
         "parameters": [
           {
@@ -9715,6 +11070,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9724,11 +11082,15 @@
         },
         "tags": [
           "Documents"
+        ],
+        "x-required-permissions": [
+          "supplier.document.review"
         ]
       }
     },
     "/api/v1/suppliers/{supplierCode}/onboarding/submit": {
       "post": {
+        "description": "Requires the `supplier.submit` permission.",
         "operationId": "SubmitSupplierApplication",
         "parameters": [
           {
@@ -9761,6 +11123,9 @@
               }
             }
           },
+          "403": {
+            "description": "FORBIDDEN"
+          },
           "412": {
             "description": "ETAG_MISMATCH"
           },
@@ -9770,6 +11135,9 @@
         },
         "tags": [
           "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.submit"
         ]
       }
     },

@@ -218,7 +218,7 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         finalize.EnsureSuccessStatusCode();
 
         var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalId, justificationAr = "الأفضل", justificationEn = "Best overall" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalId), justificationAr = "الأفضل", justificationEn = "Best overall" });
         recommend.EnsureSuccessStatusCode();
         var route = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
         route.EnsureSuccessStatusCode();

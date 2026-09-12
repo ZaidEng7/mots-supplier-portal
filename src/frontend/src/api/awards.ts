@@ -19,7 +19,10 @@ export interface Award {
   id: string
   rfqReferenceCode: string
   state: AwardState
+  /** The internal identifier. Still on the wire, read by nothing - see D-69. */
   winningProposalId: string
+  /** T-068: the winning bid's public code, which is what this app reads and posts. */
+  winningProposalCode: string
   justificationAr: string
   justificationEn: string
   recommendedByUserId: string
@@ -58,7 +61,7 @@ export async function getAward(rfqReferenceCode: string): Promise<Award | null> 
 
 export async function recommendAward(
   rfqReferenceCode: string,
-  payload: { winningProposalId: string; justificationAr: string; justificationEn: string },
+  payload: { winningProposalCode: string; justificationAr: string; justificationEn: string },
 ): Promise<Award> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/award/recommend`, {
     method: 'POST',

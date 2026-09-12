@@ -16,12 +16,39 @@ public sealed record PipelineColumnDto(string State, int Count, DateTimeOffset? 
 /// <summary>One row of §10's "Deadlines &amp; tasks" panel.</summary>
 public sealed record DashboardTaskDto(string RfqReferenceCode, string TitleAr, string TitleEn, string Kind, DateTimeOffset? Due);
 
-/// <summary>§10's task kinds: "submissions closing, evaluations due, recommendations pending".</summary>
+/// <summary>
+/// §10's task kinds: "submissions closing, evaluations due, recommendations pending" - plus the two
+/// FEAT-17.5 names and this panel did not carry.
+///
+/// <para><b>T-038.</b> FEAT-17.5 asks for a consolidated deadline view of
+/// "submission/clarification/expiry". The panel had the first and neither of the others, so the two
+/// dates a buyer can actually MISS were the two it did not show: a clarification window that closes
+/// with a supplier's question unanswered, and a bid whose validity lapses before the award is
+/// signed.</para>
+/// </summary>
 public static class DashboardTaskKinds
 {
     public const string SubmissionClosing = "SubmissionClosing";
     public const string EvaluationDue = "EvaluationDue";
     public const string RecommendationPending = "RecommendationPending";
+
+    /// <summary>FEAT-17.5's "clarification". The window closes whether or not anyone answered.</summary>
+    public const string ClarificationClosing = "ClarificationClosing";
+
+    /// <summary>
+    /// FEAT-17.5's "expiry", read as the expiry a BUYER can act on: a bid's own validity date.
+    ///
+    /// <para>A tender whose leading bid expires before the award is executed has to go back to the
+    /// supplier for an extension, or be re-run. It is the deadline on this screen with the largest
+    /// consequence and it was the one nothing showed.</para>
+    ///
+    /// <para><b>Only once the evaluation is consolidated.</b> Validity is a commercial term, and
+    /// BRULE-058 keeps commercial values out of every buyer-side read until consolidation - the same
+    /// gate the comparison matrix applies. Before that point this kind does not appear at all, rather
+    /// than appearing with the date withheld, because a row that says "a bid expires soon" is itself
+    /// the disclosure.</para>
+    /// </summary>
+    public const string BidValidityExpiring = "BidValidityExpiring";
 }
 
 public sealed record ProcurementDashboardDto(

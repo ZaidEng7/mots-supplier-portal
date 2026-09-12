@@ -931,3 +931,30 @@ which is the reason Part D exists rather than an edit to Part C.
 | **Why** | The ASVS L2 review and the WCAG 2.2 AA audit in both languages each need a person with the right specialism, and neither is assigned. Write-path p95 and LCP/INP need a load-testing environment that does not exist yet; when it does, the work is short, because the harness is written and the read-path baseline was taken with it. |
 | **What is in place meanwhile, and what it is not** | Every permissioned route is now called as every persona that lacks its permission, and a refusal is required - a server error counts as a failure. That sweep is new and it found real defects. **It is coverage, not a review:** it proves the gates we built behave as intended and cannot find a class of attack nobody thought to test for. The same holds for accessibility - `axe` runs on every build and catches what a tool can catch; it cannot tell you whether a screen reader can complete a tender in Arabic. The monitoring dashboard states that only read paths are measured rather than implying a full baseline exists. |
 | **Who should confirm it** | Whoever owns the later testing pass, against M9. |
+
+---
+
+### D-69 — The internal identifiers stay on the wire until a major version removes them
+
+| | |
+|---|---|
+| **What was undecided** | T-068 asks for raw database identifiers to stop appearing in API payloads. The evaluator half was done in batch 9. The buyer half — `ConsolidatedResultDto.ProposalId`, `AwardDto.WinningProposalId`, and the `winningProposalId` a client posts back — was open, and closing it the obvious way means deleting fields from a shipped contract. |
+| **What was decided** | The **codes are added and the screens use only them**; the identifiers **stay on the wire**, read by nothing. Removing them waits for `/api/v2`. |
+| **Why** | `API-ARCHITECTURE.md`'s versioning table names "removing/renaming a field" as a version-bump trigger, and this repository's own contract gate refuses the diff. Bypassing that gate to close a backlog row would have been the exact failure this project keeps finding in its instruments: a check that exists, fires correctly, and is then edited away by the person it fired at. |
+| **What this closes, which is the defect the row describes** | The award screen posted a GUID it had read from a comparison response, and the tender detail screen RENDERED one whenever the code was absent — which was on every response from the six handlers that never looked codes up. Neither happens now: the code is required on the wire, every handler supplies it, and both screens read only the code. |
+| **What it does not close** | The payload still contains identifiers no client reads. That is a contract-shape question, not a defect, and it belongs to whoever opens `/api/v2`. |
+| **The compatibility detail** | `POST /award/recommend` accepts both. The code wins when both arrive; a caller sending two that disagree has a bug either way. Both are optional in the schema **with defaults** — a nullable parameter without one still generates as `required`, which the contract gate caught and refused, because it would have made the new field a demand on every existing caller. |
+| **Who should confirm it** | Whoever plans `/api/v2`. The removal is a one-line deletion in three records plus this row. |
+
+---
+
+### D-70 — Scalar and generated SPA types are refused; the document itself is the deliverable
+
+| | |
+|---|---|
+| **What was undecided** | T-108 records that §11 describes four things: a published OpenAPI document, a CI breaking-diff gate, a **Scalar** documentation UI, and **openapi-typescript** generation for the SPA and the ERP client. The first two are built. Whether to take the two packages the others need was nobody's call to make quietly. |
+| **What was decided** | **Neither package.** Asked and answered on 12 September 2026: no new dependencies for this. |
+| **What exists instead** | The document is published in every environment and gated by the admin permission outside development. It now carries each operation's required permission and its 403, derived from the same metadata the authorisation filter enforces - so a consumer can read which token reaches which route, which was the practical gap. The breaking-diff gate refuses removals and newly-required request fields, and it has refused two of this session's own changes. |
+| **What is knowingly not there** | An interactive documentation page, and SPA types generated from the contract. All 195 endpoints stay on hand-written clients, which means a contract change and a client change are two edits by a person rather than one regeneration. |
+| **Why that is tolerable for now** | The SPA and the API ship from one repository and one pipeline, and the contract gate catches the class of drift that hurts - a field removed or newly required. Generated types would catch a narrower class earlier, at the cost of a build step and a dependency in a product that has neither today. |
+| **Who should confirm it** | Revisit when a consumer outside this repository exists - the ERP client is the obvious one. At that point generated types stop being a convenience and start being the contract. |

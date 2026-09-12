@@ -189,4 +189,39 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
         var saved = await supplier.PutAsJsonAsync(Route, new { mutedTypes = new[] { Muteable } });
         saved.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    /// <summary>
+    /// T-037: the classification reaches the SPA, which is what lets SCR-900 group a reader's
+    /// notifications into "waiting on you" and "for information".
+    ///
+    /// <para>Asserted on the wire rather than on the domain set, because the defect this closes was a
+    /// screen that could not see the classification - the set has existed since D-60. Both values
+    /// appear in one response, so a field hard-coded either way fails.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_listed_notification_says_whether_it_is_waiting_on_the_reader()
+    {
+        var (client, userId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer);
+
+        // Written through the real materialiser, the one place a notification row is created.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var materialiser = scope.ServiceProvider.GetRequiredService<INotificationMaterialiser>();
+            var data = new Dictionary<string, string?> { ["rfqCode"] = "RFQ-2026-000001" };
+
+            await materialiser.MaterialiseAsync(
+                new NotificationRequest(Actionable, userId, $"classify-actionable:{Guid.NewGuid():N}", data));
+            await materialiser.MaterialiseAsync(
+                new NotificationRequest(Muteable, userId, $"classify-informational:{Guid.NewGuid():N}", data));
+        }
+
+        var listed = await client.GetFromJsonAsync<JsonElement>("/api/v1/notifications");
+        var rows = listed.GetProperty("data").EnumerateArray().ToList();
+
+        rows.Single(r => r.GetProperty("type").GetString() == Actionable)
+            .GetProperty("isActionable").GetBoolean().Should().BeTrue();
+        rows.Single(r => r.GetProperty("type").GetString() == Muteable)
+            .GetProperty("isActionable").GetBoolean().Should().BeFalse(
+                "a type a person may switch off is, by D-60's own definition, one that is not waiting on them");
+    }
 }

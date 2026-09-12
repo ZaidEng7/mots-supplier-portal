@@ -130,7 +130,12 @@ builder.Services.AddOpenTelemetry()
 // §8.1's precondition, documented rather than only enforced - see ConcurrencyOpenApiTransformer for what
 // the published document was missing and who it cost.
 builder.Services.AddOpenApi(options =>
-    options.AddOperationTransformer<MotsSupplierPortal.Api.Concurrency.ConcurrencyOpenApiTransformer>());
+{
+    options.AddOperationTransformer<MotsSupplierPortal.Api.Concurrency.ConcurrencyOpenApiTransformer>();
+    // T-108: every route is gated by a permission and the document said so about none of them.
+    // Derived from the same metadata the filter enforces - see PermissionOpenApiTransformer.
+    options.AddOperationTransformer<MotsSupplierPortal.Api.Authorization.PermissionOpenApiTransformer>();
+});
 
 // Global: every enum (AddressKind, OnboardingState, SupplierLegalType, DocumentTypeKind, ...)
 // reads/writes its string name on the wire, not a raw integer - applies to every Minimal API
