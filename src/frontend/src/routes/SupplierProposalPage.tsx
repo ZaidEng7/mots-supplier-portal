@@ -4,6 +4,7 @@ import { Dialog } from '../components/ui/Dialog'
 import { ReasonDialog } from '../components/ReasonDialog'
 import { useTranslation } from 'react-i18next'
 import { getPublicSettings } from '../api/systemSettings'
+import { fetchIncoterms } from '../api/reference'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import {Button, Card, Field, Input, PageHeading, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
@@ -47,6 +48,7 @@ export function SupplierProposalPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
 
+  const incotermsQuery = useQuery({ queryKey: ['incoterms'], queryFn: fetchIncoterms })
   const rfqQuery = useQuery({ queryKey: ['supplier-rfq', referenceCode], queryFn: () => getInvitedRfq(referenceCode) })
   const proposalQuery = useQuery({
     queryKey: ['proposal', referenceCode],
@@ -302,7 +304,30 @@ export function SupplierProposalPage() {
           <div className="flex flex-wrap items-end gap-2">
             <Input aria-label={t('proposal.currency')} placeholder={t('proposal.currency')} value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} className="w-20" />
             <Input aria-label={t('proposal.paymentTerms')} placeholder={t('proposal.paymentTerms')} value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
-            <Input aria-label={t('proposal.incoterm')} placeholder={t('proposal.incoterm')} value={incotermCode} onChange={(e) => setIncotermCode(e.target.value)} className="w-24" />
+            {/* T-072: a select, not a free-text box. It was a text input validated by nothing, so a
+                bidder could type "ASAP" into a field the comparison matrix prints beside real
+                delivery terms - and two bids naming the same term differently compared as if they
+                were different. The options are the server's own list, so nothing offered here can be
+                refused on save. */}
+            <Field label={t('proposal.incoterm')}>
+              {(p) => (
+                <Select
+                  id={p.id}
+                  aria-describedby={p['aria-describedby']}
+                  value={incotermCode}
+                  onValueChange={setIncotermCode}
+                  options={[
+                    // A bid may legitimately quote no delivery term at all - a domestic service
+                    // contract has none - so "not stated" is an option rather than a gap.
+                    { value: '', label: t('proposal.incotermUnset') },
+                    ...(incotermsQuery.data ?? []).map((incoterm) => ({
+                      value: incoterm.code,
+                      label: `${incoterm.code} - ${isArabic ? incoterm.nameAr : incoterm.nameEn}`,
+                    })),
+                  ]}
+                />
+              )}
+            </Field>
             <Input type="date" aria-label={t('proposal.validityEnd')} value={validityEnd} onChange={(e) => setValidityEnd(e.target.value)} />
             <Button size="sm" isLoading={termsMutation.isPending} onClick={() => termsMutation.mutate()}>{t('proposal.saveTerms')}</Button>
           </div>

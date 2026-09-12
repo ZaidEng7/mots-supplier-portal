@@ -223,9 +223,19 @@ public sealed class SetCommercialTermsHandler(AppDbContext db, IScopeContext sco
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
+        // T-072. The same rule as the merge-patch path. This handler's ROUTE was retired when
+        // §12.5 moved the edit onto PATCH - it is registered in DI and mapped by nothing - so the
+        // check is unreachable today. Added anyway: the cost is four lines, and a handler that is
+        // re-mapped later without it is the shape this whole entry is about.
+        var (knownIncoterm, resolvedIncoterm) = await IncotermRule.ResolveAsync(db, command.IncotermCode, ct);
+        if (!knownIncoterm)
+        {
+            return new ProposalResult.InvalidState(await IncotermRule.RefusalDetailAsync(db, command.IncotermCode, ct));
+        }
+
         try
         {
-            proposal!.SetCommercialTerms(command.CurrencyCode, command.PaymentTerms, command.IncotermCode,
+            proposal!.SetCommercialTerms(command.CurrencyCode, command.PaymentTerms, resolvedIncoterm,
                 command.DeliveryTermsAr, command.DeliveryTermsEn, command.Warranty, command.ValidityStart, command.ValidityEnd);
         }
         catch (DomainException ex)

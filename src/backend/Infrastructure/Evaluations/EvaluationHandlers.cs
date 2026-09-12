@@ -1,5 +1,6 @@
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
+using System.Globalization;
 using System.Text.Json;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -78,9 +79,9 @@ internal static class EvaluationDtoMapper
         // so a state-only rule would close the second evaluator's declaration window before they had
         // one, and would reveal names to whoever happened to look first.
         //
-        //   1. before this evaluator has declared - the recusal window (BRULE-067), served by
-        //      GET my-evaluation/bidders, which does NOT open scoring;
-        //   2. after consolidation - the scores are in and locked, so a name cannot influence one.
+        //   1. before this evaluator has declared, which is the recusal window BRULE-067 describes,
+        //      served by the bidders route, and that route does NOT open scoring
+        //   2. after consolidation, when the scores are in and locked, so a name cannot influence one
         var revealed = assignment.ConflictDeclaredAt is null
             || evaluation.State is EvaluationState.Consolidated or EvaluationState.Finalized;
 
@@ -700,7 +701,10 @@ public sealed class ScoreCriterionHandler(AppDbContext db, IScopeContext scope, 
         }
 
         await auditLogger.LogAsync("Evaluation", evaluation.Id, "evaluation.score", scope.UserId, referenceCode: rfq.ReferenceCode,
-            toState: $"{command.ProposalCode}/{command.CriterionId}={command.RawScore}", ct: ct);
+            // T-048: the score is a decimal, and this string is persisted onto an append-only audit
+            // row and exported verbatim to CSV. Qualified here as well as pinned at startup, because
+            // the startup pin is a default a thread can still override.
+            toState: $"{command.ProposalCode}/{command.CriterionId}={command.RawScore.ToString(CultureInfo.InvariantCulture)}", ct: ct);
         await db.SaveChangesAsync(ct);
         return new MyEvaluationResult.Success(EvaluationDtoMapper.ToMyDto(evaluation, rfq, scope.UserId!.Value, bids));
     }

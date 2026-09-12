@@ -38,10 +38,16 @@ public sealed class AdminOverviewTests(PostgresApiFixture fixture)
         body.GetProperty("usersByRole").EnumerateArray().Should().NotBeEmpty();
         body.GetProperty("totalRoles").GetInt32().Should().BeGreaterThan(0);
 
-        // Reference-data health: all five tables, each with an active count. A table at zero active
-        // codes blocks registration, and that is the fault this tile exists to surface.
+        // Reference-data health: EVERY table the registry declares, each with an active count. A
+        // table at zero active codes blocks registration, and that is the fault this tile exists to
+        // surface.
+        //
+        // The count comes from ReferenceTables.All rather than a literal - it was 5, and T-072's
+        // sixth table made the literal and the equivalence assertion below disagree with each other.
+        // The pair still has teeth: the count catches a duplicate row and the equivalence catches a
+        // table the screen forgot.
         var tables = body.GetProperty("referenceData").EnumerateArray().ToList();
-        tables.Should().HaveCount(5);
+        tables.Should().HaveCount(ReferenceTables.All.Length);
         tables.Select(t => t.GetProperty("table").GetString())
             .Should().BeEquivalentTo(ReferenceTables.All);
         tables.Should().OnlyContain(t => t.GetProperty("active").GetInt32() > 0,

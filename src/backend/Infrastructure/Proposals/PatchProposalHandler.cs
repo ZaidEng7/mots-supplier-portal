@@ -44,7 +44,7 @@ public sealed class PatchProposalHandler(AppDbContext db, IScopeContext scope, I
 
             if (patch.Mentions("commercialTerms"))
             {
-                var outcome = ApplyCommercialTerms(proposal!, patch.Member("commercialTerms"));
+                var outcome = await ApplyCommercialTermsAsync(proposal!, patch.Member("commercialTerms"), ct);
                 if (outcome is not null) return outcome;
                 touched.Add("proposal_terms_updated");
             }
@@ -135,7 +135,7 @@ public sealed class PatchProposalHandler(AppDbContext db, IScopeContext scope, I
         return null;
     }
 
-    private static ProposalPatchResult? ApplyCommercialTerms(Proposal proposal, JsonNode? node)
+    private async Task<ProposalPatchResult?> ApplyCommercialTermsAsync(Proposal proposal, JsonNode? node, CancellationToken ct)
     {
         if (node is null)
         {
@@ -168,10 +168,21 @@ public sealed class PatchProposalHandler(AppDbContext db, IScopeContext scope, I
                 : throw new DomainException($"'{member}' must be a date in yyyy-MM-dd form.");
         }
 
+        // T-072: the delivery term names a row in the Incoterm table, or this is refused. Checked
+        // BEFORE the aggregate is touched, so a bad code leaves the proposal exactly as it was
+        // rather than half-applied.
+        var submittedIncoterm = Current("incotermCode", proposal.IncotermCode);
+        var (knownIncoterm, resolvedIncoterm) = await IncotermRule.ResolveAsync(db, submittedIncoterm, ct);
+        if (!knownIncoterm)
+        {
+            return new ProposalPatchResult.Invalid("commercialTerms.incotermCode", "UNKNOWN_INCOTERM",
+                await IncotermRule.RefusalDetailAsync(db, submittedIncoterm, ct));
+        }
+
         proposal.SetCommercialTerms(
             Current("currencyCode", proposal.CurrencyCode) ?? string.Empty,
             Current("paymentTerms", proposal.PaymentTerms),
-            Current("incotermCode", proposal.IncotermCode),
+            resolvedIncoterm,
             Current("deliveryTermsAr", proposal.DeliveryTermsAr),
             Current("deliveryTermsEn", proposal.DeliveryTermsEn),
             Current("warranty", proposal.Warranty),
