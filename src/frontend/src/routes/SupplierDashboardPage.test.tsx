@@ -308,4 +308,26 @@ describe('SupplierDashboardPage (SCR-120)', () => {
 
     expect(await screen.findByText('None of your bids has been decided yet.')).toBeInTheDocument()
   })
+
+  it('shows an outcome for a bid that was never priced, without inventing a zero', async () => {
+    // T-039's other branch: value and currency both absent. A bid can be declined or rejected before
+    // anyone priced it, and "—" is the truth there while "SYP 0" is a number somebody would have had
+    // to quote.
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': dashboard({
+        awards: [{
+          rfqReferenceCode: 'RFQ-2026-000011', rfqTitleAr: 'خدمة', rfqTitleEn: 'Unpriced bid',
+          proposalCode: 'PRO-2026-000011', outcome: 'NotSelected',
+          decidedAt: null, value: null, currencyCode: null,
+        }],
+      }),
+      '/api/v1/notifications/unread-count': { count: 0 },
+    })
+
+    renderPage(<SupplierDashboardPage />)
+
+    expect(await screen.findByText('Unpriced bid')).toBeInTheDocument()
+    // No currency string anywhere in the row - the amount is absent rather than zero.
+    expect(screen.queryByText(/SYP/)).not.toBeInTheDocument()
+  })
 })
