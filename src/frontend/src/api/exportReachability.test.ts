@@ -25,7 +25,6 @@ const USED_ONLY_INSIDE_THE_API_LAYER: Record<string, string> = {
   lookupETag: 'Read by apiFetch when it attaches If-Match.',
   ownerPrefixOf: 'Read by apiFetch to decide where a fresh ETag goes back, see etags.ts for why the store cannot deduce it.',
   forgetETags: 'Called by apiFetch after a mutation: a version cached for a row that just moved is a 412 waiting to happen.',
-  clearETags: 'Called on sign-out, and by tests that need an empty store. In-memory per tab, so nothing else should be clearing it.',
   problemMessage: 'RFC 9457 rendering, used by the api modules own error classes.',
   hasCode: 'Problem-code predicate used by the api layer error types.',
   hasProblemProse: 'Predicate used by the api layer error types, beside hasCode and for the same reason: it answers whether a problem document carried prose a reader should see, which is what sets isProblemError on every one of them. A shared predicate is not a capability, and inlining it into nineteen constructors to satisfy this check would be the wrong trade.',

@@ -55,7 +55,7 @@ public sealed class OfferingConcurrencyTests(PostgresApiFixture fixture)
 
         // Formatted by the API's OWN encoder rather than hand-rolled here. A test that reimplements
         // the format proves the test agrees with itself, not that the caller's ETag is accepted.
-        var etag = ETag.Format((uint)body.GetProperty("rowVersion").GetInt64());
+        var etag = ETag.ForPrecondition((uint)body.GetProperty("rowVersion").GetInt64());
 
         return (client, offeringId, etag);
     }

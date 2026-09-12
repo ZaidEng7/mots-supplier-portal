@@ -21,6 +21,10 @@ public sealed record GovernanceOverviewDto(
     IReadOnlyList<GovernanceCountDto> SuppliersByLifecycleState,
     int TotalRfqs,
     IReadOnlyList<GovernanceCountDto> RfqsByState,
+    /// <summary>Awards in the Awarded state, not Award ROWS. A recommendation that has not been
+    /// approved is a row here from the moment it is made, and calling it an award on the Ministry's
+    /// headline tile disagreed with both the value beside it and the Awards &amp; spend screen it
+    /// drills into, which have always counted Awarded only.</summary>
     int TotalAwards,
     /// <summary>Proposals received per published RFQ, to one decimal. Participation is the metric
     /// BRULE-086's "governance" is about - whether the market is actually competing - and it is an

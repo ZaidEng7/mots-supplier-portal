@@ -4,6 +4,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -154,6 +155,52 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
         // The control: the persona the rule names does get it.
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
         (await ministry.GetAsync("/api/v1/ministry/overview")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// The headline tile counts AWARDS, not award rows.
+    ///
+    /// <para>Found on the demonstration database during a walkthrough: the governance dashboard said
+    /// 18 while the Awards &amp; spend screen said 17, and the total value beside the 18 was computed
+    /// from the 17. One of the rows was a recommendation nobody had approved.</para>
+    ///
+    /// <para>The arrangement is the control: a Recommended row is inserted, so a handler that counts
+    /// rows fails this test rather than passing because the database happened to hold none.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_recommendation_nobody_approved_is_not_counted_as_an_award()
+    {
+        var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
+        var before = (await ministry.GetFromJsonAsync<JsonElement>("/api/v1/ministry/overview"))
+            .GetProperty("totalAwards").GetInt32();
+
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "Gov Recommended");
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rfqId = await db.Rfqs.AsNoTracking()
+                .Where(r => r.ReferenceCode == seeded.RfqCode).Select(r => r.Id).SingleAsync();
+            db.Awards.Add(Award.Recommend(rfqId, seeded.ProposalId,
+                "توصية لم تُعتمد", "A recommendation nobody approved", Guid.CreateVersion7()));
+            await db.SaveChangesAsync();
+        }
+
+        var after = (await ministry.GetFromJsonAsync<JsonElement>("/api/v1/ministry/overview"))
+            .GetProperty("totalAwards").GetInt32();
+
+        after.Should().Be(before,
+            "a Recommended row is not an award, and the tile sits beside a value computed from Awarded only");
+
+        // And the count is the Awarded count in storage, not merely unchanged by this one row.
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var awarded = await db.Awards.AsNoTracking().CountAsync(a => a.State == AwardState.Awarded);
+            var rows = await db.Awards.AsNoTracking().CountAsync();
+
+            rows.Should().BeGreaterThan(awarded, "the arrangement above must actually have left a non-Awarded row");
+            after.Should().Be(awarded);
+        }
     }
 
     [Fact]

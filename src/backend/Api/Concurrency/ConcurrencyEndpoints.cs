@@ -152,7 +152,28 @@ public static class ConcurrencyEndpoints
     /// </summary>
     public static void SetETag(this HttpContext context, uint rowVersion)
     {
-        context.Response.Headers.ETag = ETag.Format(rowVersion);
+        context.Response.Headers.ETag = ETag.Format(rowVersion, ResourceKey(context));
+    }
+
+    /// <summary>
+    /// What the tag is a tag OF: this path, as seen by this caller.
+    ///
+    /// <para>Both halves are load-bearing. The path separates two different resources that happen to sit
+    /// at the same row version. The subject separates two CALLERS at one path - <c>/suppliers/me</c> is a
+    /// different resource for every supplier, and it is the path this defect was reported on: one
+    /// supplier's browser served another's profile because the two tags were identical.</para>
+    ///
+    /// <para>The query string is deliberately not included. A list's version belongs to the rows, not to
+    /// the page or sort the caller asked for, and folding the query in would issue a fresh tag for every
+    /// permutation and defeat the conditional read §8.1 asks for.</para>
+    /// </summary>
+    private static string ResourceKey(HttpContext context)
+    {
+        var subject = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? context.User.FindFirst("sub")?.Value
+            ?? "anonymous";
+
+        return $"{context.Request.Path.Value?.ToLowerInvariant()}|{subject}";
     }
 
     /// <summary>True when the caller already holds this version and should be sent a bare 304.</summary>
@@ -167,7 +188,7 @@ public static class ConcurrencyEndpoints
         // MatchesCurrentRepresentation, not TryParse: a 304 tells the caller the body it already has is still
         // right, and a body from an older build is not - a field added to a DTO moves no row version, so
         // comparing versions alone kept warm clients on the old shape indefinitely. See ETag's own note.
-        return header.Split(',').Any(candidate => ETag.MatchesCurrentRepresentation(candidate, rowVersion));
+        return header.Split(',').Any(candidate => ETag.MatchesCurrentRepresentation(candidate, rowVersion, ResourceKey(context)));
     }
 
     private static IResult Problem(HttpContext http, int status, string type, string title, string code, string detail) =>

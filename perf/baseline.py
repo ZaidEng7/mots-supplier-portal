@@ -26,16 +26,23 @@ import urllib.request
 
 # The personas the measured endpoints belong to. Passwords are the dev seed's - this script only ever
 # talks to a local development server, and RUNBOOK.md prints the same values.
+#
+# ONE password for every seeded account, which is DevDataSeeder.Password. This script held two others -
+# motsreview2026 and motsadmin2026 - from before the seeders converged on a single fallback, and both
+# were refused. The harness reported that as "could not sign in" and carried on, so eight of the
+# eighteen measured reads (the reviewer's two and the admin's six, the slowest in the product) were
+# silently absent from the table rather than marked failing. Read the constant's name, not this list,
+# if they ever disagree again: src/backend/Infrastructure/Identity/DevDataSeeder.cs.
 PERSONAS = {
     "officer": ("officer@mots.local", "motsdemo2026"),
     "manager": ("manager@mots.local", "motsdemo2026"),
     "supplier": ("supplier@mots.local", "motsdemo2026"),
-    "reviewer": ("reviewer@mots.local", "motsreview2026"),
+    "reviewer": ("reviewer@mots.local", "motsdemo2026"),
     "ministry": ("ministry@mots.local", "motsdemo2026"),
     # system_admin is the only role in Mfa:RequiredRoles, so its login needs a TOTP code. Included rather
     # than skipped because the admin screens carry the heaviest reads in the product - the jobs monitor
     # probes Hangfire storage, and the storage panel probes MinIO and ClamAV on every request.
-    "admin": ("admin@mots.local", "motsadmin2026"),
+    "admin": ("admin@mots.local", "motsdemo2026"),
 }
 
 TOTP_SECRET_SQL = (
@@ -80,7 +87,11 @@ ENDPOINTS = [
     ("comparison matrix", "officer", "/api/v1/rfqs/RFQ-DEMO-0004/comparison"),
     ("rfq list", "officer", "/api/v1/rfqs?pageSize=25"),
     ("rfq detail", "officer", "/api/v1/rfqs/RFQ-DEMO-0004"),
-    ("evaluation read", "officer", "/api/v1/rfqs/RFQ-DEMO-0004/evaluation"),
+    # RFQ-DEMO-0005, not -0004 like its neighbours: an evaluation exists only once a tender reaches
+    # UnderEvaluation, and -0004 is seeded SubmissionOpen. This row measured that tender's 404 - 5 ms,
+    # the fastest "read" in the table - which is the precise failure the note under the table warns
+    # about, sitting inside the table. The real read is two orders of magnitude slower.
+    ("evaluation read", "officer", "/api/v1/rfqs/RFQ-DEMO-0005/evaluation"),
     ("supplier dashboard", "supplier", "/api/v1/suppliers/me/dashboard"),
     ("supplier profile", "supplier", "/api/v1/suppliers/me"),
     ("my proposals", "supplier", "/api/v1/proposals"),
@@ -113,9 +124,14 @@ ENDPOINTS = [
 #
 # `needs_etag` writes fetch the current version first, and that GET is NOT timed: §8.1 makes it part
 # of the caller's flow, not part of the write.
+# The supplier edit's payload is filled in at run time from the profile's own current description, so
+# the write sets the field to exactly what it already held. The constant that used to sit here -
+# "Measured by perf/baseline.py" - was left behind in the demonstration database, where it replaced
+# SUP-DEMO-0001's seeded description and showed on the supplier profile screen. A baseline that brands
+# the data it measures is the same defect as one that changes it.
 WRITES = [
     ("supplier profile edit", "supplier", "PATCH", "/api/v1/suppliers/{supplierCode}",
-     {"description": "Measured by perf/baseline.py"}, True),
+     {"description": None}, True),
     ("notification preferences", "officer", "PUT", "/api/v1/notifications/preferences",
      {"mutedTypes": []}, False),
 ]
@@ -308,6 +324,7 @@ def main() -> int:
     # database.
     supplier_profile, _ = get_json("/api/v1/suppliers/me", tokens.get("supplier") or "")
     supplier_code = (supplier_profile or {}).get("supplierCode")
+    supplier_description = (supplier_profile or {}).get("description")
 
     print(f"\n{'write':<26} {'persona':<9} {'status':>6} {'n':>4} "
           f"{'p50':>8} {'p95':>8} {'max':>8}")
@@ -320,6 +337,8 @@ def main() -> int:
             continue
 
         resolved = path.replace("{supplierCode}", supplier_code or "")
+        if "description" in payload and payload["description"] is None:
+            payload = {**payload, "description": supplier_description}
         measure_write(method, resolved, payload, token, arguments.warmup, needs_etag)
         samples, status = measure_write(method, resolved, payload, token, arguments.iterations, needs_etag)
 
