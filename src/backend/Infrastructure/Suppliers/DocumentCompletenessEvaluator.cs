@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
@@ -19,6 +20,65 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 /// </summary>
 public static class DocumentCompletenessEvaluator
 {
+    /// <summary>
+    /// T-002/§12.2's <c>documentsSummary</c>: the required set, and how many of it are approved,
+    /// pending a decision, or refused.
+    ///
+    /// <para>Counted over the LATEST version of each required type, because that is the one that
+    /// decides anything - a rejected version superseded by an approved one is history, and counting it
+    /// would tell a supplier they still have a problem they fixed.</para>
+    ///
+    /// <para>The four numbers deliberately do not sum: a required type with nothing uploaded appears in
+    /// none of the three, so the shortfall is <c>Required - (Approved + Pending + Rejected)</c>. An
+    /// expiring or expired document is in none of them either - it was approved once and is not now,
+    /// which is exactly the case BRULE-018 re-opens a profile for.</para>
+    /// </summary>
+    public static async Task<DocumentsSummaryDto> GetDocumentsSummaryAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
+    {
+        var requiredTypes = await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct);
+        if (requiredTypes.Count == 0) return new DocumentsSummaryDto(0, 0, 0, 0);
+
+        var latestBySupplier = await db.SupplierDocuments
+            .Where(d => d.SupplierId == supplierId && d.IsLatestVersion)
+            .ToListAsync(ct);
+
+        var approved = 0;
+        var pending = 0;
+        var rejected = 0;
+
+        foreach (var type in requiredTypes)
+        {
+            var latest = latestBySupplier.FirstOrDefault(d => d.DocumentTypeId == type.Id);
+            if (latest is null) continue;
+
+            switch (latest.State)
+            {
+                case DocumentState.Approved:
+                    approved++;
+                    break;
+                // Uploaded and UnderReview are one number to a supplier: they have sent it and are
+                // waiting. PendingScan belongs here too - the file is in, and the wait happens to be on
+                // the scanner rather than on a reviewer. ScanRejected does NOT: nothing is waiting on
+                // anybody, and the supplier has to send another file.
+                case DocumentState.PendingScan:
+                case DocumentState.Uploaded:
+                case DocumentState.UnderReview:
+                    pending++;
+                    break;
+                case DocumentState.Rejected:
+                case DocumentState.ScanRejected:
+                    rejected++;
+                    break;
+                default:
+                    // Expired and ExpiringSoon, counted in none of the three on purpose - see the
+                    // summary above.
+                    break;
+            }
+        }
+
+        return new DocumentsSummaryDto(requiredTypes.Count, approved, pending, rejected);
+    }
+
     public static async Task<IReadOnlyList<string>> GetMissingRequiredDocumentTypeCodesAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
     {
         // BRULE-016, live since D-59: the required set is conditioned on the supplier's categories.

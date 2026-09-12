@@ -12,7 +12,7 @@ public enum SupplierSyncStatus
 /// Central supplier master the portal owns until ERP approval (docs/architecture/DOMAIN-MODEL.md §5.3).
 /// The domain — not the API, not the UI — is the sole authority on legal state transitions.
 /// </summary>
-public sealed class Supplier : IVersionedAggregate
+public sealed class Supplier : IVersionedAggregate, ILastModified
 {
     private readonly List<Representative> _representatives = [];
     private readonly List<Address> _addresses = [];
@@ -39,6 +39,19 @@ public sealed class Supplier : IVersionedAggregate
     public string? TermsAcceptedVersion { get; private set; }
     public DateTimeOffset? TermsAcceptedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
+
+    /// <summary>
+    /// T-003/§12.2's <c>updatedAt</c>. Set by <c>AppDbContext</c> wherever this root's version is
+    /// advanced - see <see cref="ILastModified"/> for why it is stamped there and not by each of the
+    /// thirty-two handlers that write a supplier.
+    ///
+    /// <para>Equal to <see cref="CreatedAt"/> on a supplier nobody has edited yet, rather than null.
+    /// "Never modified" and "modified at the moment it was created" are the same fact to a reader
+    /// deciding whether their copy is stale, and a nullable field would make every consumer write the
+    /// same coalesce.</para>
+    /// </summary>
+    public DateTimeOffset UpdatedAt { get; private set; }
+
     public uint RowVersion { get; private set; }
 
     /// <summary>FEAT-03.6/FR-ONB-012 [ASSUMPTION]: no assignment model is specified anywhere in
@@ -78,6 +91,7 @@ public sealed class Supplier : IVersionedAggregate
         string primaryRepresentativeEmail,
         string? primaryRepresentativePhone = null)
     {
+        var now = DateTimeOffset.UtcNow;
         var supplier = new Supplier
         {
             Id = Guid.CreateVersion7(),
@@ -85,7 +99,10 @@ public sealed class Supplier : IVersionedAggregate
             DisplayNameAr = displayNameAr,
             DisplayNameEn = displayNameEn,
             OnboardingState = SupplierOnboardingState.Draft,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
+            // Equal to CreatedAt, from ONE clock read rather than two: a supplier whose updatedAt is a
+            // few ticks after its createdAt reads as "edited since creation" to anything comparing them.
+            UpdatedAt = now,
         };
 
         supplier.LegalInfo = Domain.Suppliers.LegalInfo.Create(

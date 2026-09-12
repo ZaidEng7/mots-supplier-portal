@@ -45,8 +45,11 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         var requiredDocumentTypeCount =
             (await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplier.Id, ct)).Count;
 
+        // T-002/§12.2's documentsSummary, on the read path for the same reason as the fraction above.
+        var documentsSummary = await DocumentCompletenessEvaluator.GetDocumentsSummaryAsync(db, supplier.Id, ct);
+
         return new GetSupplierResult.Found(
-            SupplierDtoMapper.ToDto(supplier, incomplete, missingDocumentTypes, requiredDocumentTypeCount));
+            SupplierDtoMapper.ToDto(supplier, incomplete, missingDocumentTypes, requiredDocumentTypeCount, documentsSummary));
     }
 
     public async Task<GetSupplierResult> HandleOwnAsync(CancellationToken ct)
@@ -79,7 +82,9 @@ public sealed class GetSupplierHandler(AppDbContext db, IScopeContext scope) : I
         var requiredDocumentTypeCount =
             (await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplier.Id, ct)).Count;
 
+        var documentsSummary = await DocumentCompletenessEvaluator.GetDocumentsSummaryAsync(db, supplier.Id, ct);
+
         return new GetSupplierResult.Found(
-            SupplierDtoMapper.ToDto(supplier, incomplete, missingDocumentTypes, requiredDocumentTypeCount));
+            SupplierDtoMapper.ToDto(supplier, incomplete, missingDocumentTypes, requiredDocumentTypeCount, documentsSummary));
     }
 }

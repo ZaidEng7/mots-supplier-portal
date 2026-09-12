@@ -206,6 +206,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             root.State = EntityState.Modified;
             var property = root.Property(nameof(IVersionedAggregate.RowVersion));
             property.CurrentValue = unchecked((uint)property.CurrentValue! + 1);
+
+            // T-003. A root that records when it last changed is stamped HERE, in the same statement
+            // block that advances its version - the two facts describe one event, and writing them
+            // apart is how they come to disagree. Roots that do not declare ILastModified are
+            // untouched, so this costs nothing until one does.
+            if (root.Entity is ILastModified)
+            {
+                root.Property(nameof(ILastModified.UpdatedAt)).CurrentValue = DateTimeOffset.UtcNow;
+            }
         }
     }
 
