@@ -37,6 +37,26 @@ public sealed record BankAccountDto(
     string CurrencyCode,
     bool IsDefault);
 
+/// <summary>
+/// §12.2's <c>documentsSummary</c>. T-002: documented, and computed by nothing.
+///
+/// <para><b>What the four numbers count.</b> <c>Required</c> is the set of document types THIS
+/// supplier must hold, resolved by <c>RequiredDocumentTypeResolver</c> - the same function the submit
+/// gate and the completeness fraction ask, so the three cannot disagree about what is required.
+/// <c>Approved</c>, <c>Pending</c> and <c>Rejected</c> count those required types by the state of
+/// their LATEST version: approved, awaiting a decision, or refused.</para>
+///
+/// <para><b>They do not have to add up, and that is the useful part.</b> A required type with nothing
+/// uploaded counts in none of the three, so <c>required - (approved + pending + rejected)</c> is the
+/// number of documents the supplier has not sent at all. A summary that forced the totals to match
+/// would have to invent a fourth state for "absent", which is the one state a document does not
+/// have.</para>
+///
+/// <para>An expiring or expired document counts as neither approved nor pending: it was approved once
+/// and is not now, which is precisely why BRULE-018 re-opens the profile for it.</para>
+/// </summary>
+public sealed record DocumentsSummaryDto(int Required, int Approved, int Pending, int Rejected);
+
 /// <summary>Supplier-facing profile. FEAT-04.10's ERP mapping fields (ExternalId/SyncStatus/
 /// LastSyncedAt) are deliberately NOT here - they're read-only to STAFF, not visible to the
 /// supplier at all; see ErpSyncDto/ReviewerSupplierViewDto for the staff-facing view.</summary>
@@ -99,7 +119,25 @@ public sealed record SupplierDto(
     /// <para>Nullable rather than defaulted to 0: "not computed on this response" and "this supplier
     /// has done nothing" are different facts, and a zero would assert the second on every edit.</para>
     /// </summary>
-    double? ProfileCompleteness = null);
+    double? ProfileCompleteness = null,
+    /// <summary>
+    /// §12.2's <c>documentsSummary</c>, on the READ path only - the same precedent
+    /// <c>IncompleteDocumentTypeCodes</c> and <c>ProfileCompleteness</c> already set, and for the same
+    /// reason: it needs a document query the mutation handlers have no reason to run.
+    ///
+    /// <para>Null means "not computed on this response". A zeroed summary would say this supplier
+    /// needs no documents, which is the opposite of what an omission means.</para>
+    /// </summary>
+    DocumentsSummaryDto? DocumentsSummary = null,
+    /// <summary>
+    /// T-003/§12.2's <c>updatedAt</c>. Stamped by the persistence layer wherever this supplier's row
+    /// version advances, so the timestamp and the version describe the same event.
+    ///
+    /// <para>Nullable on the DTO and never null in practice: every persisted supplier carries one, and
+    /// the nullability is here so a test or a caller constructing this record by hand is not forced to
+    /// invent an instant.</para>
+    /// </summary>
+    DateTimeOffset? UpdatedAt = null);
 
 public abstract record GetSupplierResult
 {

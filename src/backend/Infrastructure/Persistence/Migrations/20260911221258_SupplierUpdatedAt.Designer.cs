@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using NpgsqlTypes;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911221258_SupplierUpdatedAt")]
+    partial class SupplierUpdatedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1880,128 +1883,6 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("document_type_category", "reference");
-                });
-
-            modelBuilder.Entity("MotsSupplierPortal.Domain.ReferenceData.Incoterm", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("NameAr")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("NameEn")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("incoterm", "reference");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000601"),
-                            Code = "EXW",
-                            IsActive = true,
-                            NameAr = "تسليم المصنع",
-                            NameEn = "Ex Works"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000602"),
-                            Code = "FCA",
-                            IsActive = true,
-                            NameAr = "تسليم الناقل",
-                            NameEn = "Free Carrier"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000603"),
-                            Code = "CPT",
-                            IsActive = true,
-                            NameAr = "النقل مدفوع حتى",
-                            NameEn = "Carriage Paid To"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000604"),
-                            Code = "CIP",
-                            IsActive = true,
-                            NameAr = "النقل والتأمين مدفوعان حتى",
-                            NameEn = "Carriage and Insurance Paid To"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000605"),
-                            Code = "DAP",
-                            IsActive = true,
-                            NameAr = "التسليم في المكان",
-                            NameEn = "Delivered at Place"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000606"),
-                            Code = "DPU",
-                            IsActive = true,
-                            NameAr = "التسليم في المكان بعد التفريغ",
-                            NameEn = "Delivered at Place Unloaded"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000607"),
-                            Code = "DDP",
-                            IsActive = true,
-                            NameAr = "التسليم خالص الرسوم",
-                            NameEn = "Delivered Duty Paid"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000608"),
-                            Code = "FAS",
-                            IsActive = true,
-                            NameAr = "التسليم بجانب السفينة",
-                            NameEn = "Free Alongside Ship"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000609"),
-                            Code = "FOB",
-                            IsActive = true,
-                            NameAr = "التسليم على ظهر السفينة",
-                            NameEn = "Free on Board"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-00000000060a"),
-                            Code = "CFR",
-                            IsActive = true,
-                            NameAr = "التكلفة وأجرة الشحن",
-                            NameEn = "Cost and Freight"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-00000000060b"),
-                            Code = "CIF",
-                            IsActive = true,
-                            NameAr = "التكلفة والتأمين وأجرة الشحن",
-                            NameEn = "Cost, Insurance and Freight"
-                        });
                 });
 
             modelBuilder.Entity("MotsSupplierPortal.Domain.ReferenceData.Region", b =>

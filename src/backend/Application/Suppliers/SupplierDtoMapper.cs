@@ -8,7 +8,8 @@ public static class SupplierDtoMapper
         Supplier supplier,
         IReadOnlyList<string>? incompleteDocumentTypeCodes = null,
         IReadOnlyList<string>? missingRequiredDocumentTypeCodes = null,
-        int requiredDocumentTypeCount = 0)
+        int requiredDocumentTypeCount = 0,
+        DocumentsSummaryDto? documentsSummary = null)
     {
         var primaryPhone = supplier.Representatives.FirstOrDefault(r => r.IsPrimary)?.Phone;
 
@@ -51,6 +52,11 @@ public static class SupplierDtoMapper
                 ? null
                 : ProfileCompleteness.Ratio(
                     missingItems: supplier.GetMissingProfileFields().Count + missingRequiredDocumentTypeCodes.Count,
-                    totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredDocumentTypeCount));
+                    totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredDocumentTypeCount),
+            documentsSummary,
+            // T-003. Emitted from every call site, unlike the two document-derived fields above: the
+            // timestamp is on the row this mapper already has, so there is no query to skip and no
+            // reason for a mutation response to carry a different answer than a read.
+            supplier.UpdatedAt);
     }
 }
