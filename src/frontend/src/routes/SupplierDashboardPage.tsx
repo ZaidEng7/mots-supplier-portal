@@ -9,7 +9,7 @@ import { Card } from '../components/ui/Card'
 import {PageHeading, QueryError} from '../components/ui/ListScreen'
 import { StatusChip } from '../components/ui/StatusChip'
 import { SkeletonGrid, SkeletonList } from '../components/ui/Skeleton'
-import { formatDate, formatDeadline, formatNumber } from '../lib/datetime'
+import { formatDate, formatDeadline, formatNumber, formatCurrency } from '../lib/datetime'
 import { dismiss, isDismissed } from '../lib/dismissedChips'
 
 /**
@@ -180,6 +180,35 @@ export function SupplierDashboardPage() {
                 </li>
               ))}
             </ul>
+          </Card>
+
+          {/* T-039/FEAT-16.3: the outcomes, won and lost.
+              
+              The proposals panel above excludes NotSelected, so a supplier who lost watched their bid
+              disappear from this screen with no result anywhere on it. Losing is an outcome, and the
+              screen a supplier opens first is where they look for it. */}
+          <Card title={t('supplierDashboard.awards')}>
+            {(data.awards ?? []).length === 0 ? (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierDashboard.awardsEmpty')}</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {(data.awards ?? []).map((award) => (
+                  <li key={award.proposalCode} className="flex flex-wrap items-center justify-between gap-2">
+                    <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode: award.rfqReferenceCode }}>
+                      {isArabic ? award.rfqTitleAr : award.rfqTitleEn}
+                    </Link>
+                    <span className="flex items-center gap-2">
+                      {award.value !== null ? (
+                        <bdi className="num text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                          {formatCurrency(award.value, award.currencyCode ?? 'SYP', locale)}
+                        </bdi>
+                      ) : null}
+                      <StatusChip machine="proposal" value={award.outcome} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
 

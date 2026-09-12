@@ -41,6 +41,8 @@ function dashboard(overrides: Record<string, unknown> = {}) {
       nextRequiredDocumentNameAr: 'السجل التجاري', nextRequiredDocumentNameEn: 'Commercial Registration',
     },
     erpDegraded: false,
+    // T-039: no decided bids unless a test says otherwise, which is the state a new supplier is in.
+    awards: [],
     ...overrides,
   }
 }
@@ -263,5 +265,47 @@ describe('SupplierDashboardPage (SCR-120)', () => {
 
     await expectRetryableFailure('/notifications/unread-count', recorded)
     expect(screen.getByText('Open invitations')).toBeInTheDocument()
+  })
+
+  it('shows award results, including the ones the supplier lost', async () => {
+    // FEAT-16.3's acceptance is "award outcomes shown", and the proposals panel above deliberately
+    // excludes NotSelected - so before this widget a supplier who lost watched their bid vanish from
+    // the screen they open first, with no outcome anywhere on it.
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': dashboard({
+        awards: [
+          {
+            rfqReferenceCode: 'RFQ-2026-000009', rfqTitleAr: 'توريد', rfqTitleEn: 'Catering for the summit',
+            proposalCode: 'PRO-2026-000009', outcome: 'Awarded',
+            decidedAt: '2026-09-01T10:00:00Z', value: 125000, currencyCode: 'SYP',
+          },
+          {
+            rfqReferenceCode: 'RFQ-2026-000010', rfqTitleAr: 'نقل', rfqTitleEn: 'Transport for the delegation',
+            proposalCode: 'PRO-2026-000010', outcome: 'NotSelected',
+            decidedAt: '2026-08-20T10:00:00Z', value: 88000, currencyCode: 'SYP',
+          },
+        ],
+      }),
+      '/api/v1/notifications/unread-count': { count: 0 },
+    })
+
+    renderPage(<SupplierDashboardPage />)
+
+    expect(await screen.findByText('Award results')).toBeInTheDocument()
+    expect(screen.getByText('Catering for the summit')).toBeInTheDocument()
+    expect(screen.getByText('Transport for the delegation')).toBeInTheDocument()
+  })
+
+  it('says so when nothing has been decided, rather than hiding the widget', async () => {
+    // An absent panel and an empty one say different things to a supplier waiting on a result: the
+    // first reads as "this product does not tell you", the second as "not yet".
+    restore = mockFetch({
+      '/api/v1/suppliers/me/dashboard': dashboard(),
+      '/api/v1/notifications/unread-count': { count: 0 },
+    })
+
+    renderPage(<SupplierDashboardPage />)
+
+    expect(await screen.findByText('None of your bids has been decided yet.')).toBeInTheDocument()
   })
 })

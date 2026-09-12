@@ -64,6 +64,33 @@ public sealed record ActionRequiredDto(
     int ClarificationsAnswered,
     int AwardOffers);
 
+/// <summary>
+/// T-039/FEAT-16.3: one award outcome on the supplier's own dashboard.
+///
+/// <para><b>What was missing.</b> The dashboard counted award OFFERS and listed live proposals, and
+/// its proposal list excludes <c>NotSelected</c> - so a supplier who lost saw their bid disappear
+/// from the dashboard with no outcome anywhere on it. The outcome existed on the proposals screen and
+/// on the bid itself; the screen a supplier opens first said nothing.</para>
+///
+/// <para><b>Losing is an outcome.</b> This list carries every resolved bid, won or not: FEAT-16.3's
+/// acceptance is "award outcomes shown", and a widget that showed only wins would be a scoreboard
+/// rather than a record. A supplier deciding whether to bid again needs both.</para>
+///
+/// <para><b>The value is the supplier's own bid</b>, taken from their own proposal, so no two-envelope
+/// question arises - it is the number they typed. Null when the bid was never priced.</para>
+/// </summary>
+public sealed record DashboardAwardDto(
+    string RfqReferenceCode,
+    string RfqTitleAr,
+    string RfqTitleEn,
+    string ProposalCode,
+    /// <summary>The proposal's own state - Awarded, NotSelected, Declined or AwardOffered - rather
+    /// than a derived word, so the chip on this widget and the chip on the bid say the same thing.</summary>
+    string Outcome,
+    DateTimeOffset? DecidedAt,
+    decimal? Value,
+    string? CurrencyCode);
+
 public sealed record SupplierDashboardDto(
     string SupplierReferenceCode,
     string DisplayNameAr,
@@ -83,7 +110,11 @@ public sealed record SupplierDashboardDto(
     IReadOnlyList<DashboardProposalDto> Proposals,
     ProfileHealthDto ProfileHealth,
     /// <summary>§1's "ERP-degraded" state. True when this supplier's own award failed to sync.</summary>
-    bool ErpDegraded);
+    bool ErpDegraded,
+    /// <summary>T-039/FEAT-16.3. Empty when this supplier has no resolved bid yet, which is a state
+    /// the screen renders rather than hides - a new supplier should see the widget that will hold
+    /// their results.</summary>
+    IReadOnlyList<DashboardAwardDto> Awards);
 
 public interface ISupplierDashboardHandler
 {

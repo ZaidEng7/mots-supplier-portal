@@ -233,4 +233,62 @@ public sealed class SupplierDashboardTests(PostgresApiFixture fixture)
         var profile = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         profile.GetProperty("profileCompleteness").GetDouble().Should().Be(dashboard);
     }
+
+    /// <summary>
+    /// T-039/FEAT-16.3: the supplier's own award outcomes reach their dashboard, including the ones
+    /// they lost.
+    ///
+    /// <para>The proposals panel on this dashboard excludes <c>NotSelected</c> by design, so before
+    /// this list a supplier who lost watched their bid disappear from the screen they open first,
+    /// with no outcome on it anywhere. FEAT-16.3's acceptance is "award outcomes shown", and a widget
+    /// carrying only wins would be a scoreboard rather than a record.</para>
+    ///
+    /// <para>Driven through the real award chain rather than by writing states into the database: the
+    /// question is whether an outcome a buyer PRODUCED arrives on the supplier's screen, and a test
+    /// that sets ProposalState by hand would pass against a build where nothing ever set it.</para>
+    /// </summary>
+    [Fact]
+    public async Task An_award_outcome_reaches_the_suppliers_own_dashboard()
+    {
+        var seeded = await EvaluationSeed.CreateAsync(fixture, "DashAward");
+
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
+            new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
+
+        Guid criterionId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            criterionId = await db.EvaluationCriterionSnapshots
+                .Where(c => c.EvaluationId == seeded.EvaluationId).Select(c => c.Id).FirstAsync();
+        }
+
+        await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
+            new { proposalCode = seeded.ProposalCode, criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        await seeded.Evaluator.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/submit", null);
+        await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/consolidate", null);
+        await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/finalize", null);
+        await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
+        {
+            winningProposalId = seeded.ProposalId,
+            justificationAr = "الأفضل", justificationEn = "Best value",
+        });
+        await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/route-for-approval", null);
+
+        // A different manager, because BRULE-073 refuses the recommender as approver.
+        var approver = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, seeded.OrgId);
+        (await approver.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/approve", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await approver.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/execute", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var dashboard = await seeded.Supplier.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/dashboard");
+        var awards = dashboard.GetProperty("awards").EnumerateArray().ToList();
+
+        var row = awards.Single(a => a.GetProperty("rfqReferenceCode").GetString() == seeded.RfqCode);
+        row.GetProperty("outcome").GetString().Should().Be("Awarded");
+        row.GetProperty("proposalCode").GetString().Should().Be(seeded.ProposalCode);
+        // Their own priced total, which is the number they typed - no two-envelope question arises.
+        row.GetProperty("value").GetDecimal().Should().BeGreaterThan(0);
+    }
 }
