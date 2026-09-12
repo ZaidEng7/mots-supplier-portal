@@ -22,7 +22,7 @@ namespace MotsSupplierPortal.Domain.Rfqs;
 /// (no Outbox handler consumes an RFQ event to sync it), so adding unused sync columns now would
 /// be dead scaffolding; add them together with the actual ERP integration when it is built.</para>
 /// </summary>
-public sealed class Rfq : IVersionedAggregate
+public sealed class Rfq : IVersionedAggregate, IStateTimestamped
 {
     private readonly List<RfqItem> _items = [];
     private readonly List<Requirement> _requirements = [];
@@ -41,6 +41,20 @@ public sealed class Rfq : IVersionedAggregate
     public string? DescriptionEn { get; private set; }
     public string CurrencyCode { get; private set; } = null!;
     public RfqState State { get; private set; }
+
+    /// <summary>
+    /// T-031: when this rfq entered <see cref="State"/>.
+    ///
+    /// <para>Stamped by the persistence layer whenever the state property actually changes - see
+    /// <see cref="IStateTimestamped"/> for why it is not a line in each of the transition methods
+    /// below. Null on rows that predate the column: the instant they entered their current state was
+    /// never recorded, and inventing one from a creation date is the specific wrong answer the
+    /// approval queue's own comment warned about.</para>
+    /// </summary>
+    public DateTimeOffset? StateChangedAt { get; private set; }
+
+    /// <summary>The property whose change is a state change, for <see cref="IStateTimestamped"/>.</summary>
+    public static string StatePropertyName => nameof(State);
 
     /// <summary>
     /// A-7: the officer who owns this RFQ, as a person rather than as a role.
