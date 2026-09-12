@@ -92,32 +92,32 @@ export function EvaluationTemplatesPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
   })
 
-  const activateMutation = useMutation({
-    mutationFn: (templateId: string) => activateEvaluationTemplate(templateId),
+  /**
+   * The three whole-template transitions, which differ only in the call, the success wording and -
+   * for activate alone - which failure message to use.
+   *
+   * <p>They were three copies of the same seven lines, and adding a fourth for criterion removal made
+   * it four. Written once here: the shape is identical by construction rather than by three people
+   * remembering to keep it so.</p>
+   */
+  // Named `use...` because it calls a hook: three unconditional calls, same order every render.
+  const useTemplateAction = (
+    call: (templateId: string) => Promise<unknown>,
+    successKey: string,
+    failureKey = 'evaluationTemplates.errors.saveFailed',
+  ) => useMutation({
+    mutationFn: (templateId: string) => call(templateId),
     onSuccess: () => {
       invalidateQuietly(queryClient, { queryKey: ['evaluation-templates'] })
-      notify({ kind: 'success', title: t('evaluationTemplates.activated') })
+      notify({ kind: 'success', title: t(successKey) })
     },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.activateFailed')) }),
+    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t(failureKey)) }),
   })
 
-  const archiveMutation = useMutation({
-    mutationFn: (templateId: string) => archiveEvaluationTemplate(templateId),
-    onSuccess: () => {
-      invalidateQuietly(queryClient, { queryKey: ['evaluation-templates'] })
-      notify({ kind: 'success', title: t('evaluationTemplates.archived') })
-    },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
-  })
-
-  const forkMutation = useMutation({
-    mutationFn: (templateId: string) => forkEvaluationTemplate(templateId),
-    onSuccess: () => {
-      invalidateQuietly(queryClient, { queryKey: ['evaluation-templates'] })
-      notify({ kind: 'success', title: t('evaluationTemplates.forked') })
-    },
-    onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
-  })
+  const activateMutation = useTemplateAction(
+    activateEvaluationTemplate, 'evaluationTemplates.activated', 'evaluationTemplates.errors.activateFailed')
+  const archiveMutation = useTemplateAction(archiveEvaluationTemplate, 'evaluationTemplates.archived')
+  const forkMutation = useTemplateAction(forkEvaluationTemplate, 'evaluationTemplates.forked')
 
   const draftFor = (id: string) => criterionDraft[id] ?? { nameAr: '', nameEn: '', dimension: 'Technical' as CriterionDimension, weight: '', maxScore: '', scoringType: 'Numeric' as ScoringType }
   const setDraft = (id: string, patch: Partial<ReturnType<typeof draftFor>>) =>
