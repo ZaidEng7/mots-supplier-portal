@@ -8,6 +8,7 @@ import { useAuthStore } from '../lib/authStore'
 import { PublicFooter } from '../components/PublicFooter'
 import { useDeclareShellMounted } from '../components/shellPresence'
 import { logout as apiLogout } from '../api/auth'
+import { clearETags } from '../api/etags'
 
 export interface AppShellProps {
   groups: readonly NavGroup[]
@@ -54,6 +55,12 @@ export function AppShell({
   const handleLogout = async () => {
     await apiLogout()
     clearSession()
+    // The ETag store is per tab and in memory, and `exportReachability.test.ts` has always described
+    // clearETags as "called on sign-out" - while nothing called it. The full page load below happened
+    // to empty the Map, so the documentation was true by accident and would have stopped being true
+    // the day sign-out became a client-side navigation. One version belonging to the previous account,
+    // sent as a precondition by the next one, is the shape of bug that takes a day to find.
+    clearETags()
     window.location.href = '/login'
   }
 

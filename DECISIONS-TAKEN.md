@@ -958,3 +958,18 @@ which is the reason Part D exists rather than an edit to Part C.
 | **What is knowingly not there** | An interactive documentation page, and SPA types generated from the contract. All 195 endpoints stay on hand-written clients, which means a contract change and a client change are two edits by a person rather than one regeneration. |
 | **Why that is tolerable for now** | The SPA and the API ship from one repository and one pipeline, and the contract gate catches the class of drift that hurts - a field removed or newly required. Generated types would catch a narrower class earlier, at the cost of a build step and a dependency in a product that has neither today. |
 | **Who should confirm it** | Revisit when a consumer outside this repository exists - the ERP client is the obvious one. At that point generated types stop being a convenience and start being the contract. |
+
+---
+
+### D-71 — Authenticated reads forbid cache reuse without revalidation, which is more than the security document asks for
+
+| | |
+|---|---|
+| **What was undecided** | `SECURITY-ARCHITECTURE.md` §5.5's header table asks for `Cache-Control: no-store` on "auth and document responses", and that is exactly what was built. It says nothing about the rest of the authenticated surface, which answered with an ETag and no cache directives at all. Whether to go beyond the table was nobody's call to make quietly. |
+| **What was decided** | Every response under `/api/v1/` now carries cache directives. The four families the document names keep `no-store`; everything else gets `private, no-cache` plus `Vary: Authorization`. |
+| **Why, and why it is not a preference** | A stored response carrying a validator and no explicit freshness is the one case RFC 9111 §4.2.2 lets a cache reuse on its own authority, and a browser keys that entry on the URL. `/api/v1/suppliers/me` is one URL for every supplier. A user reported the consequence before anyone found it by reading: they registered an account, opened "Complete your supplier profile", and were shown the previous account's legal name, registration number and Approved state. |
+| **Why `no-cache` and not `no-store` everywhere** | §8.1 specifies conditional reads on these ETags - "If-None-Match -> 304 Not Modified (saves bandwidth on polling)". `no-store` would delete a documented feature in order to fix a bug. `no-cache` keeps the stored copy and forbids using it without asking the server, which puts the token check in front of every reuse and leaves the 304 path intact. |
+| **The second half, which mattered more** | The entity-tag encoded a row version and a build stamp. Two different resources at version 3 therefore carried the identical tag, so revalidation itself leaked: the second supplier's conditional read sent the first one's tag, it matched their own row version, and the 304 sent the browser back to the first supplier's body. The tag now includes the request path and the authenticated subject. `If-Match` still reads the version half alone, deliberately - that header asks about the row, and the handler has already loaded the row the path names. |
+| **What this does not change** | The document's own table. `docs/` is externally owned and read-only to this work, so §5.5 still describes the narrower rule. This row is the record that the wider one is deliberate. |
+| **Who should confirm it** | Whoever owns `SECURITY-ARCHITECTURE.md`, at the next revision of §5.5. |
+

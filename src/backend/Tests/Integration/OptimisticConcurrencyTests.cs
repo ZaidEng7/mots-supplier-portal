@@ -34,7 +34,7 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
         // the encoding could pass against a server that encodes differently.
         if (ifMatch is { } version)
         {
-            request.Headers.TryAddWithoutValidation("If-Match", ETag.Format(version));
+            request.Headers.TryAddWithoutValidation("If-Match", ETag.ForPrecondition(version));
         }
 
         return request;

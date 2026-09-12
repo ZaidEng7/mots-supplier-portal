@@ -94,13 +94,21 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var requirementBody = await requirement.Content.ReadFromJsonAsync<JsonElement>();
         var mandatoryRequirementId = requirementBody.GetProperty("requirements").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation-template", new { evaluationTemplateId = templateId });
-        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = supplierA });
-        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = supplierB });
-        await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null);
-        await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/approve", null);
+        // Every step asserted and named. These five used to discard their responses, so when one of them
+        // failed the suite reported it as an unexplained 409 on the publish below - which is how three
+        // tests in one full run said "Expected OK, found Conflict" about a transition that was never the
+        // problem. A step that fails now says which step and quotes the body.
+        var step = (string name, Task<HttpResponseMessage> call) =>
+            SetupStep.Of(nameof(ProposalEndpointsTests), name, call);
+
+        await step("set evaluation template", officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation-template", new { evaluationTemplateId = templateId }));
+        await step("invite supplier A", officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = supplierA }));
+        await step("invite supplier B", officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = supplierB }));
+        await step("submit for review", officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null));
+        await step("approve", manager.PostAsync($"/api/v1/rfqs/{referenceCode}/approve", null));
         var publish = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/publish", null);
-        publish.StatusCode.Should().Be(HttpStatusCode.OK);
+        publish.StatusCode.Should().Be(HttpStatusCode.OK,
+            await publish.Content.ReadAsStringAsync());
 
         await Task.Delay(TimeSpan.FromSeconds(1.2));
         await RunTimelineJobAsync();

@@ -134,10 +134,12 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         var (client, _) = await VerifiedSupplierAsync($"NotModified {Guid.NewGuid():N}"[..30]);
 
         var first = await client.GetAsync("/api/v1/suppliers/me");
-        var version = VersionFrom(first);
 
+        // The tag the server actually issued, echoed back - which is what a client does, and what the
+        // header means. It is no longer reconstructible from the version alone: a tag now identifies the
+        // resource and the caller as well, so that one supplier's validator cannot speak for another's.
         using var conditional = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me");
-        conditional.Headers.TryAddWithoutValidation("If-None-Match", ETag.Format(version));
+        conditional.Headers.TryAddWithoutValidation("If-None-Match", first.Headers.ETag!.Tag);
         var second = await client.SendAsync(conditional);
 
         second.StatusCode.Should().Be(HttpStatusCode.NotModified);
@@ -151,8 +153,15 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         // header being present.
         var (client, _) = await VerifiedSupplierAsync($"NotModifiedCtl {Guid.NewGuid():N}"[..30]);
 
+        // The server's own tag with ONLY its version half changed, so the build and resource halves still
+        // match exactly. A tag invented from scratch would now differ in three ways at once and could pass
+        // this control while the version comparison was broken.
+        var real = (await client.GetAsync("/api/v1/suppliers/me")).Headers.ETag!.Tag.Trim('"');
+        var halves = real.Split('.', 2);
+        var wrongVersion = $"\"{(halves[0] == "AAAAAQ" ? "AAAAAg" : "AAAAAQ")}.{halves[1]}\"";
+
         using var conditional = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me");
-        conditional.Headers.TryAddWithoutValidation("If-None-Match", ETag.Format(1u));
+        conditional.Headers.TryAddWithoutValidation("If-None-Match", wrongVersion);
         var response = await client.SendAsync(conditional);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -190,7 +199,7 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         {
             Content = JsonContent.Create(new { description = "with precondition", currencyCode = "SYP" }),
         };
-        request.Headers.TryAddWithoutValidation("If-Match", ETag.Format(VersionFrom(read)));
+        request.Headers.TryAddWithoutValidation("If-Match", ETag.ForPrecondition(VersionFrom(read)));
 
         var response = await raw.SendAsync(request);
 
@@ -281,7 +290,7 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         {
             Content = JsonContent.Create(new { email = "stray@example.com" }),
         };
-        request.Headers.TryAddWithoutValidation("If-Match", ETag.Format(1u));
+        request.Headers.TryAddWithoutValidation("If-Match", ETag.ForPrecondition(1u));
 
         var response = await raw.SendAsync(request);
 
@@ -333,7 +342,7 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         {
             Content = JsonContent.Create(RfqBasics(titleEn)),
         };
-        request.Headers.TryAddWithoutValidation("If-Match", ETag.Format(version));
+        request.Headers.TryAddWithoutValidation("If-Match", ETag.ForPrecondition(version));
         return await client.SendAsync(request);
     }
 

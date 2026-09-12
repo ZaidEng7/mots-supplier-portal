@@ -801,6 +801,31 @@ app.Use(async (context, next) =>
     {
         headers.Append("Cache-Control", "no-store");
     }
+    else if (path.StartsWith("/api/v1/", StringComparison.OrdinalIgnoreCase))
+    {
+        // EVERY OTHER authenticated read, which had no Cache-Control at all - and an ETag.
+        //
+        // That combination is the one RFC 9111 §4.2.2 lets a cache treat heuristically: a stored
+        // response with a validator and no explicit freshness MAY be reused without asking anyone.
+        // The browser then keys the entry on the URL, and `Authorization` is a request header it has
+        // no reason to consider unless `Vary` names it. So two people signing into the same browser
+        // share one entry per URL.
+        //
+        // Found by a supplier who registered a new account, opened "Complete your supplier profile"
+        // and was shown the PREVIOUS account's profile - legal name, registration number and an
+        // Approved state that was not theirs. Reproduced exactly: a plain fetch of
+        // /api/v1/suppliers/me returned the earlier user's body, the same fetch with cache: no-store
+        // returned the right one. The server was never asked.
+        //
+        // `no-cache` rather than `no-store`, deliberately. §8.1 builds conditional reads on these
+        // ETags - "If-None-Match -> 304 Not Modified (saves bandwidth on polling)" - and no-store
+        // would delete that feature to fix this bug. `no-cache` keeps the stored copy and forbids
+        // using it without revalidating, so the 304 path still works and every reuse passes through
+        // the token check first. `private` keeps shared caches out of it, and `Vary: Authorization`
+        // keys the entry by bearer token for any cache that gets as far as storing one.
+        headers.Append("Cache-Control", "private, no-cache");
+        headers.Append("Vary", "Authorization");
+    }
 
     await next();
 });

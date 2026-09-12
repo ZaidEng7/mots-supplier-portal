@@ -63,15 +63,8 @@ public static class EvaluationSeed
     /// <para>Same family as T-090, the intermittent nobody could diagnose because the failure carried
     /// no information.</para>
     /// </summary>
-    private static async Task<HttpResponseMessage> Step(string name, Task<HttpResponseMessage> call)
-    {
-        var response = await call;
-        if (response.IsSuccessStatusCode) return response;
-
-        throw new InvalidOperationException(
-            $"EvaluationSeed could not complete '{name}': {(int)response.StatusCode} "
-            + $"{response.StatusCode}. Body: {await response.Content.ReadAsStringAsync()}");
-    }
+    private static Task<HttpResponseMessage> Step(string name, Task<HttpResponseMessage> call) =>
+        SetupStep.Of(nameof(EvaluationSeed), name, call);
 
     public static async Task<Seeded> CreateAsync(
         PostgresApiFixture fixture, string label, bool withDocuments = false, bool requiresJustification = false)

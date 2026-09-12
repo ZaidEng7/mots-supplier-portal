@@ -58,11 +58,50 @@ public static class ETag
     /// reads back, so <c>If-Match</c> keeps working exactly as before; the build half is what makes a cached
     /// body from an older deployment stop matching.</para>
     /// </summary>
-    public static string Format(uint rowVersion)
+    public static string Format(uint rowVersion, string resourceKey)
+    {
+        Span<byte> bytes = stackalloc byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32BigEndian(bytes, rowVersion);
+        return $"\"{Base64Url(bytes)}.{BuildTag}.{Discriminator(resourceKey)}\"";
+    }
+
+    /// <summary>
+    /// A tag asserting a ROW VERSION and nothing else, for a caller sending <c>If-Match</c>.
+    ///
+    /// <para>Separate from <see cref="Format(uint, string)"/> because the two headers ask different
+    /// questions. <c>If-Match</c> asks "am I writing over the row I read", which <see cref="TryParse"/>
+    /// answers from the version half alone - so a precondition never needs the resource discriminator, and
+    /// tests that construct one should not have to invent a resource key to say "version 4".</para>
+    /// </summary>
+    public static string ForPrecondition(uint rowVersion)
     {
         Span<byte> bytes = stackalloc byte[sizeof(uint)];
         BinaryPrimitives.WriteUInt32BigEndian(bytes, rowVersion);
         return $"\"{Base64Url(bytes)}.{BuildTag}\"";
+    }
+
+    /// <summary>
+    /// Eight hex characters identifying WHICH resource a tag belongs to.
+    ///
+    /// <para><b>Why a tag needs this.</b> The tag encoded a row version and a build and nothing else, so
+    /// every resource sitting at version 3 carried the byte-identical tag <c>"AAAAAw.&lt;build&gt;"</c> -
+    /// one supplier's profile, another supplier's profile, an unrelated tender. An entity-tag is supposed
+    /// to identify a representation (RFC 9110 §8.8.3); this one identified a number.</para>
+    ///
+    /// <para>What that cost: two suppliers signing into the same browser share one cache entry for
+    /// <c>/api/v1/suppliers/me</c>. The second one's conditional read sent the first one's tag, it matched
+    /// the second one's own row version, the server answered 304 Not Modified, and the browser served the
+    /// FIRST supplier's body - legal name, registration number and an Approved onboarding state that
+    /// belonged to someone else. Reported by the person it happened to.</para>
+    ///
+    /// <para>The key passed in is the request path plus the authenticated subject, so the tag is specific
+    /// to one resource as seen by one caller. Truncated to eight characters because it only has to differ:
+    /// it is a discriminator inside a validator, not a secret and not a checksum of the body.</para>
+    /// </summary>
+    private static string Discriminator(string resourceKey)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(resourceKey));
+        return Convert.ToHexString(hash)[..8].ToLowerInvariant();
     }
 
     /// <summary>
@@ -89,7 +128,7 @@ public static class ETag
     /// running server - a matching <c>If-None-Match</c> answered 304 while a plain read returned the new
     /// field.</para>
     /// </summary>
-    public static bool MatchesCurrentRepresentation(string? candidate, uint rowVersion)
+    public static bool MatchesCurrentRepresentation(string? candidate, uint rowVersion, string resourceKey)
     {
         if (string.IsNullOrWhiteSpace(candidate)) return false;
 
@@ -97,14 +136,11 @@ public static class ETag
         if (value.StartsWith("W/", StringComparison.Ordinal)) value = value[2..];
         value = value.Trim('"');
 
-        var separator = value.IndexOf('.', StringComparison.Ordinal);
-        // No build half at all means a tag issued before this scheme existed - which is exactly the stale-body
-        // case, so it does not match.
-        if (separator < 0) return false;
-
-        if (!string.Equals(value[(separator + 1)..], BuildTag, StringComparison.Ordinal)) return false;
-
-        return TryParse(value[..separator], out var version) && version == rowVersion;
+        // Whole-string equality against the tag this request would emit, rather than three separate
+        // comparisons. A candidate missing any half - a tag from before the build discriminator existed, or
+        // from before the resource discriminator did - simply is not equal, which is the right answer for
+        // both: each of those older shapes is exactly the stale-body case the comparison exists to refuse.
+        return string.Equals(value, Format(rowVersion, resourceKey).Trim('"'), StringComparison.Ordinal);
     }
 
     public static bool TryParse(string? headerValue, out uint rowVersion)
@@ -116,10 +152,15 @@ public static class ETag
         if (value.StartsWith("W/", StringComparison.Ordinal)) value = value[2..];
         value = value.Trim('"');
 
-        // Everything from the first '.' is the build discriminator - see Format. Dropped here so a tag issued
-        // by any build still yields the row version a caller is asserting: a client that read a version before
-        // a deploy and writes after it is making a legitimate claim about the row, and refusing it over a
-        // suffix would turn a working guard into a 412 nobody can explain.
+        // Everything from the first '.' is discriminator - the build, and now the resource - see Format.
+        // Dropped here so a tag issued by any build still yields the row version a caller is asserting: a
+        // client that read a version before a deploy and writes after it is making a legitimate claim about
+        // the row, and refusing it over a suffix would turn a working guard into a 412 nobody can explain.
+        //
+        // This is about If-Match, which asks "am I writing over the row I read" - a question about the DATA.
+        // The resource half is therefore NOT enforced here, and that is a deliberate line rather than an
+        // oversight: the handler has already loaded the row the path names, so the version is compared
+        // against that row and not against whatever the tag came from.
         var separator = value.IndexOf('.', StringComparison.Ordinal);
         if (separator >= 0) value = value[..separator];
 
