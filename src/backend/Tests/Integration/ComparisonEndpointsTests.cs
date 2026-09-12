@@ -522,7 +522,7 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
 
         var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
         {
-            winningProposalId = proposalAId,
+            winningProposalCode = await fixture.ProposalCodeAsync(proposalAId),
             justificationAr = "الأعلى تقييماً", justificationEn = "Highest evaluated bid",
         });
         recommend.StatusCode.Should().Be(HttpStatusCode.OK, await recommend.Content.ReadAsStringAsync());
@@ -594,7 +594,7 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/finalize", null)).StatusCode.Should().Be(HttpStatusCode.OK);
         var recommended = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
-        { winningProposalId = proposalAId, justificationAr = "سبب", justificationEn = "Reason" });
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalAId), justificationAr = "سبب", justificationEn = "Reason" });
         recommended.StatusCode.Should().Be(HttpStatusCode.OK, await recommended.Content.ReadAsStringAsync());
         (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 

@@ -23,7 +23,7 @@ function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
     id: 'eval-1', rfqId: 'rfq-1', rfqReferenceCode: TENDER_CODE, state: 'Finalized',
     criteria: [], assignments: [],
     results: [
-      { proposalId: 'proposal-a', proposalReferenceCode: 'PRP-2026-000001', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
+      { proposalId: 'proposal-a', proposalCode: 'PRP-2026-000001', technicallyQualified: true, technicalWeightedScore: 80, financialWeightedScore: 30, weightedTotal: 110, rank: 1 },
     ],
     ...overrides,
   }
@@ -32,7 +32,7 @@ function evaluationFixture(overrides: Partial<Evaluation> = {}): Evaluation {
 function awardFixture(overrides: Partial<Award> = {}): Award {
   return {
     id: 'award-1', rfqReferenceCode: TENDER_CODE, state: 'PendingApproval',
-    winningProposalId: 'proposal-a', justificationAr: 'الأفضل', justificationEn: 'Best overall',
+    winningProposalId: 'proposal-a', winningProposalCode: 'PRP-2026-000001', justificationAr: 'الأفضل', justificationEn: 'Best overall',
     recommendedByUserId: 'user-1', recommendedAt: '2026-08-01T00:00:00Z', recommendationRevision: 1,
     approvals: [{ stepNo: 1, approverUserId: null, decision: null, comment: null, decidedAt: null }],
     awardedAt: null, comparisonSnapshotJson: null,

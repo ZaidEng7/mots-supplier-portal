@@ -270,7 +270,7 @@ public sealed class SupplierDashboardTests(PostgresApiFixture fixture)
         await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/finalize", null);
         await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
         {
-            winningProposalId = seeded.ProposalId,
+            winningProposalCode = seeded.ProposalCode,
             justificationAr = "الأفضل", justificationEn = "Best value",
         });
         await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/route-for-approval", null);

@@ -319,8 +319,12 @@ public sealed class EvaluationEndpointsTests(PostgresApiFixture fixture)
         consolidate.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await consolidate.Content.ReadFromJsonAsync<JsonElement>();
         var results = body.GetProperty("results").EnumerateArray().ToList();
-        var resultA = results.Single(r => r.GetProperty("proposalId").GetGuid() == proposalAId);
-        var resultB = results.Single(r => r.GetProperty("proposalId").GetGuid() == proposalBId);
+        // T-068: matched by the public code, because the internal id is no longer on the wire - which
+        // is the change. A consolidated result names the bid the way §3 says a payload may.
+        var codeA = await fixture.ProposalCodeAsync(proposalAId);
+        var codeB = await fixture.ProposalCodeAsync(proposalBId);
+        var resultA = results.Single(r => r.GetProperty("proposalCode").GetString() == codeA);
+        var resultB = results.Single(r => r.GetProperty("proposalCode").GetString() == codeB);
         resultA.GetProperty("technicallyQualified").GetBoolean().Should().BeTrue();
         resultA.GetProperty("rank").GetInt32().Should().Be(1);
         resultB.GetProperty("technicallyQualified").GetBoolean().Should().BeFalse();

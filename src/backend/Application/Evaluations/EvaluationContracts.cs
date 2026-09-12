@@ -41,11 +41,25 @@ public interface IListEvaluatorCandidatesHandler
 
 /// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
 /// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>
-/// <param name="ProposalReferenceCode">§3's opaque public identifier for the bid. Added because the results
-/// table was rendering <paramref name="ProposalId"/> - the internal GUID - on the screen where a manager
-/// decides who wins a tender. Null only if the proposal row has gone, which the screen falls back on.</param>
+/// <param name="ProposalCode">
+/// §3's opaque public identifier for the bid, and now REQUIRED rather than nullable.
+///
+/// <para><b>T-068.</b> The code was nullable and six of the eight handlers that build this response
+/// never looked one up, so most responses carried a null code beside the GUID - and the results table
+/// fell back to rendering the GUID, which is the exact failure the code was added to stop. Every
+/// handler supplies it now, so there is no fallback left to get wrong.</para>
+/// </param>
+/// <param name="ProposalId">
+/// The internal identifier, still on the wire and no longer read by anything.
+///
+/// <para><b>Why it is still here.</b> T-068 wants it gone, and removing it is a BREAKING change:
+/// API-ARCHITECTURE.md's versioning table names "removing/renaming a field" as a version-bump trigger,
+/// and the contract gate in <c>OpenApiContractTests</c> refuses it - correctly. The screens no longer
+/// read it and the award request no longer takes it, so the defect the entry describes is closed; the
+/// field's removal belongs to whoever opens /api/v2. See DECISIONS-TAKEN.md D-69.</para>
+/// </param>
 public sealed record ConsolidatedResultDto(
-    Guid ProposalId, string? ProposalReferenceCode, bool TechnicallyQualified, decimal TechnicalWeightedScore,
+    Guid ProposalId, string ProposalCode, bool TechnicallyQualified, decimal TechnicalWeightedScore,
     decimal? FinancialWeightedScore, decimal WeightedTotal, int? Rank, bool TieUnresolved = false,
     string? TieResolutionReason = null);
 

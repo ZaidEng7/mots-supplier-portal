@@ -18,14 +18,39 @@ namespace MotsSupplierPortal.Infrastructure.Awards;
 
 internal static class AwardDtoMapper
 {
-    public static AwardDto ToDto(Award award, string rfqReferenceCode) => new(
+    /// <summary>
+    /// T-068: <paramref name="winningProposalCode"/> is passed in rather than read here, because this
+    /// mapper is static and has no DbContext - the same shape the evaluation mapper settled on for the
+    /// same reason.
+    /// </summary>
+    public static AwardDto ToDto(Award award, string rfqReferenceCode, string winningProposalCode) => new(
         award.Id, rfqReferenceCode, award.State,
-        award.WinningProposalId, award.JustificationAr, award.JustificationEn,
+        award.WinningProposalId, winningProposalCode, award.JustificationAr, award.JustificationEn,
         award.RecommendedByUserId, award.RecommendedAt, award.RecommendationRevision,
         [.. award.Approvals.Select(a => new AwardApprovalDto(a.StepNo, a.ApproverUserId, a.Decision, a.Comment, a.DecidedAt))],
         award.AwardedAt, award.ComparisonSnapshotJson,
         award.ErpSyncStatus, award.ExternalPurchaseOrderRef, award.ErpSyncedAt, award.ErpRetryCount,
         award.RowVersion);
+}
+
+/// <summary>
+/// T-068: the winning bid's public code, for the response that names it.
+///
+/// <para>One query in one place. The award record stores the proposal's id - it is a foreign key and
+/// has to be - and what the API emits is the code, so exactly one translation is needed and this is
+/// it.</para>
+/// </summary>
+file static class AwardWinner
+{
+    public static async Task<string> CodeAsync(AppDbContext db, Award award, CancellationToken ct) =>
+        await db.Proposals.AsNoTracking()
+            .Where(p => p.Id == award.WinningProposalId)
+            .Select(p => p.ReferenceCode)
+            .FirstOrDefaultAsync(ct)
+        // A recommendation always points at a live bid, and nothing deletes proposals. An empty
+        // string rather than a throw if that ever stops being true: an award screen that renders a
+        // blank winner is a bug report, and one that 500s on a read is an outage.
+        ?? string.Empty;
 }
 
 file static class AwardLoader
@@ -47,7 +72,11 @@ public sealed class GetAwardHandler(AppDbContext db, IScopeContext scope) : IGet
     public async Task<AwardDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct)
     {
         var loaded = await AwardLoader.LoadScopedAsync(db, scope, rfqReferenceCode, ct);
-        return loaded is null || loaded.Value.Award is null ? null : AwardDtoMapper.ToDto(loaded.Value.Award, loaded.Value.Rfq.ReferenceCode);
+        if (loaded is null || loaded.Value.Award is null) return null;
+
+        return AwardDtoMapper.ToDto(
+            loaded.Value.Award, loaded.Value.Rfq.ReferenceCode,
+            await AwardWinner.CodeAsync(db, loaded.Value.Award, ct));
     }
 }
 
@@ -71,7 +100,25 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
         {
             return new AwardMutationResult.InvalidState("Cannot recommend an award: the evaluation has not been finalized.");
         }
-        var result = evaluation.Results.FirstOrDefault(r => r.ProposalId == command.WinningProposalId);
+        // T-068: the winner arrives as a public code, resolved to a bid ON THIS TENDER before anything
+        // else looks at it - a code from another tender resolves to nothing here rather than to
+        // somebody else's proposal.
+        //
+        // The GUID is still accepted, because removing a request field is a breaking change and this
+        // endpoint shipped taking one (D-69). The code wins when both arrive: it is the identifier
+        // §3 sanctions, and a caller sending two that disagree has a bug either way.
+        var winner = command.WinningProposalCode is { Length: > 0 } code
+            ? await db.Proposals.FirstOrDefaultAsync(p => p.ReferenceCode == code && p.RfqId == rfq.Id, ct)
+            : command.WinningProposalId is { } id
+                ? await db.Proposals.FirstOrDefaultAsync(p => p.Id == id && p.RfqId == rfq.Id, ct)
+                : null;
+
+        if (winner is null)
+        {
+            return new AwardMutationResult.InvalidState("The recommended proposal is not eligible for award.");
+        }
+
+        var result = evaluation.Results.FirstOrDefault(r => r.ProposalId == winner.Id);
         if (result is null || !result.TechnicallyQualified)
         {
             return new AwardMutationResult.InvalidState("Cannot recommend this proposal: it did not pass technical qualification in the finalized evaluation.");
@@ -87,7 +134,7 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
             return new AwardMutationResult.InvalidState(
                 "Cannot recommend an award: the top of the ranking is a tie that no tie-break rule resolved. Resolve it with a reason first.");
         }
-        var proposal = await db.Proposals.FirstOrDefaultAsync(p => p.Id == command.WinningProposalId && p.RfqId == rfq.Id, ct);
+        var proposal = winner;
         // T-051: proposals now reach UnderReview and Shortlisted, so eligibility can no longer mean
         // "still Submitted" - that predicate was written when the middle of the lifecycle was
         // unreachable and every proposal sat in Submitted until it was awarded. §4.1's award path is
@@ -104,14 +151,14 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
         {
             if (existingAward is null)
             {
-                award = Award.Recommend(rfq.Id, command.WinningProposalId, command.JustificationAr, command.JustificationEn, scope.UserId!.Value);
+                award = Award.Recommend(rfq.Id, winner.Id, command.JustificationAr, command.JustificationEn, scope.UserId!.Value);
                 db.Awards.Add(award);
                 action = "award.recommended";
             }
             else
             {
                 award = existingAward;
-                award.ReRecommend(command.WinningProposalId, command.JustificationAr, command.JustificationEn, scope.UserId!.Value);
+                award.ReRecommend(winner.Id, command.JustificationAr, command.JustificationEn, scope.UserId!.Value);
                 action = "award.re_recommended";
             }
         }
@@ -152,7 +199,7 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
         await auditLogger.LogAsync("Award", award.Id, action, scope.UserId, referenceCode: rfq.ReferenceCode,
             toState: nameof(AwardState.Recommended), reason: null, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode));
+        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
 }
 
@@ -226,7 +273,7 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
         await auditLogger.LogAsync("Award", award.Id, "award.pending_approval", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(AwardState.Recommended), toState: nameof(AwardState.PendingApproval), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode));
+        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
 }
 
@@ -299,7 +346,7 @@ public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IA
         await auditLogger.LogAsync("Award", award.Id, "award.approved", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(AwardState.PendingApproval), toState: nameof(AwardState.Approved), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode));
+        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
 }
 
@@ -336,7 +383,7 @@ public sealed class RejectAwardHandler(AppDbContext db, IScopeContext scope, IAu
         await auditLogger.LogAsync("Award", award.Id, "award.rejected", scope.UserId, referenceCode: rfq.ReferenceCode,
             fromState: nameof(AwardState.PendingApproval), toState: nameof(AwardState.Rejected), reason: command.Reason, ct: ct);
         await db.SaveChangesAsync(ct);
-        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode));
+        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
 }
 
@@ -437,7 +484,7 @@ public sealed class ExecuteAwardHandler(
             backgroundJobs.Enqueue<EmailJobs>(job => job.SendAwardRegretEmailAsync(userId, rfq.Id, CancellationToken.None));
         }
 
-        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode));
+        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
 }
 
@@ -461,6 +508,6 @@ public sealed class RetryErpSyncHandler(AppDbContext db, IScopeContext scope, IA
         await auditLogger.LogAsync("Award", award.Id, "award.erp_po_retried", scope.UserId, referenceCode: rfq.ReferenceCode,
             toState: nameof(ErpSyncStatus.Requested), ct: ct);
         await db.SaveChangesAsync(ct);
-        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode));
+        return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
 }

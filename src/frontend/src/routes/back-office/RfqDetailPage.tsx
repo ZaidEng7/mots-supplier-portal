@@ -1048,11 +1048,15 @@ export function RfqDetailPage() {
                         </TableHead>
                         <TableBody>
                           {[...evaluation.results].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)).map((r) => (
-                            <TableRow key={r.proposalId}>
+                            <TableRow key={r.proposalCode}>
                               <TableCell>{r.rank ?? '—'}</TableCell>
                               {/* §3's reference code, with the internal id only as a fallback. This cell was the
                                   GUID - on the screen where a tender is decided. */}
-                              <TableCell>{r.proposalReferenceCode ?? r.proposalId}</TableCell>
+                              {/* T-068: the code, with no fallback. This cell used to read `?? r.proposalId`, so the
+                                  screen where a manager decides who wins a tender rendered a database GUID
+                                  whenever the code was absent - which was on every response from a handler
+                                  that did not look codes up. The code is required on the wire now. */}
+                              <TableCell>{r.proposalCode}</TableCell>
                               <TableCell>
                                 <Badge tone={r.technicallyQualified ? 'success' : 'danger'}>
                                   {r.technicallyQualified ? t('evaluation.qualifiedYes') : t('evaluation.qualifiedNo')}

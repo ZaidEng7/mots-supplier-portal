@@ -58,7 +58,7 @@ public sealed class AwardOfferChainTests(PostgresApiFixture fixture)
 
         var recommend = await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
         {
-            winningProposalId = seeded.ProposalId,
+            winningProposalCode = seeded.ProposalCode,
             justificationAr = "الأفضل سعراً وجودة", justificationEn = "Best value",
         });
         recommend.StatusCode.Should().Be(HttpStatusCode.OK, await recommend.Content.ReadAsStringAsync());
@@ -261,7 +261,7 @@ public sealed class AwardOfferChainTests(PostgresApiFixture fixture)
 
         var refused = await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
         {
-            winningProposalId = seeded.ProposalId,
+            winningProposalCode = seeded.ProposalCode,
             justificationAr = "الأفضل", justificationEn = "Best",
         });
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest, await refused.Content.ReadAsStringAsync());
@@ -295,7 +295,7 @@ public sealed class AwardOfferChainTests(PostgresApiFixture fixture)
         // The control: with the tie resolved, the same recommendation now succeeds.
         var accepted = await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
         {
-            winningProposalId = seeded.ProposalId,
+            winningProposalCode = seeded.ProposalCode,
             justificationAr = "الأفضل", justificationEn = "Best",
         });
         accepted.StatusCode.Should().Be(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
