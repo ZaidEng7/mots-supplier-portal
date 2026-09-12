@@ -46,6 +46,11 @@ public sealed class GetAdminOverviewHandler(
             await HealthAsync(ReferenceTables.Currencies, db.Set<Currency>().Select(c => c.IsActive), ct),
             await HealthAsync(ReferenceTables.UnitsOfMeasure, db.Set<UnitOfMeasure>().Select(u => u.IsActive), ct),
             await HealthAsync(ReferenceTables.Regions, db.Set<Region>().Select(r => r.IsActive), ct),
+            // T-072's sixth table. This list is hand-written while the test reads
+            // ReferenceTables.All, which is the right way round: a table added to the registry and
+            // not to this screen fails loudly, rather than going missing from the one place an
+            // administrator checks whether a catalogue is empty.
+            await HealthAsync(ReferenceTables.Incoterms, db.Set<Incoterm>().Select(i => i.IsActive), ct),
         };
 
         var pending = await db.OutboxMessages.CountAsync(m => m.SyncStatus == OutboxSyncStatus.Pending, ct);

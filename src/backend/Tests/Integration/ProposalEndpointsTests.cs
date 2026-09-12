@@ -839,4 +839,87 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.Rfqs.Where(r => r.ReferenceCode == referenceCode).Select(r => r.OrganizationId).FirstAsync();
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // T-072: the delivery term on a bid. It was a free varchar(10) validated by nothing, so the
+    // comparison matrix printed whatever a supplier typed beside the real Incoterms.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_delivery_term_that_is_not_an_incoterm_is_refused_and_the_offer_is_named()
+    {
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"Incoterm {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"IncotermOther {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Incoterm RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+
+        var refused = await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
+        {
+            currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "ASAP",
+            deliveryTermsAr = "٣ أيام", deliveryTermsEn = "3 days",
+            warranty = (string?)null,
+            validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
+            validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
+        });
+
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // §7's problem+json, which the middleware conforms every non-2xx into: the handler's
+        // `error` becomes `code` and its message becomes `detail`.
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("code").GetString().Should().Be("UNKNOWN_INCOTERM");
+        // The refusal carries the list. A bidder told only "invalid" has to guess at a standard they
+        // may not have to hand, which is how "ASAP" got typed into this field in the first place.
+        problem.GetProperty("detail").GetString().Should().Contain("FOB").And.Contain("DDP");
+
+        // And nothing was written: a refusal that half-applied the terms would leave a currency set
+        // and a delivery term missing.
+        var proposal = await supplierA.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        proposal.GetProperty("incotermCode").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task A_delivery_term_is_stored_in_the_standards_own_case()
+    {
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"IncotermCase {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"IncotermCaseB {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Incoterm case RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+
+        // A supplier typing "fob" means FOB. Refusing that would be pedantry; storing it would put
+        // the free-text problem straight back, because a comparison groups by the stored string.
+        var accepted = await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
+        {
+            currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = " fob ",
+            deliveryTermsAr = "٣ أيام", deliveryTermsEn = "3 days",
+            warranty = (string?)null,
+            validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
+            validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
+        });
+        accepted.StatusCode.Should().Be(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
+
+        var proposal = await supplierA.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
+        proposal.GetProperty("incotermCode").GetString().Should().Be("FOB");
+    }
+
+    [Fact]
+    public async Task Terms_with_no_delivery_term_at_all_are_still_accepted()
+    {
+        // The control that keeps the rule narrow. §12.5 has the field optional and a domestic service
+        // contract quotes no Incoterm; a rule that required one would refuse a legitimate bid.
+        var (supplierA, supplierAId) = await ActiveSupplierAsync($"IncotermNone {Guid.NewGuid():N}"[..30]);
+        var (_, supplierBId) = await ActiveSupplierAsync($"IncotermNoneB {Guid.NewGuid():N}"[..30]);
+        var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Incoterm none RFQ");
+        var proposalCode = await supplierA.StartProposalAsync(referenceCode);
+
+        var accepted = await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
+        {
+            currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = (string?)null,
+            deliveryTermsAr = "٣ أيام", deliveryTermsEn = "3 days",
+            warranty = (string?)null,
+            validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
+            validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
+        });
+
+        accepted.StatusCode.Should().Be(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
+    }
 }
