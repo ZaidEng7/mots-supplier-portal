@@ -23,6 +23,8 @@ export function ButtonLink({ to, params, variant = 'secondary', size = 'sm', chi
 }>) {
   const appearance = buttonAppearance(variant, size)
   return (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the router's typed `to` cannot be
+    // expressed through a generic wrapper without duplicating its route union here.
     <Link to={to as never} params={params as never} {...appearance}>
       {children}
     </Link>
