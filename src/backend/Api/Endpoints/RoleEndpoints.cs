@@ -1,10 +1,12 @@
+// Lists the roles and edits what a role grants. System administrators only.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Identity;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record UpdateRolePermissionsRequest(IReadOnlyList<string> Permissions);
 
@@ -16,7 +18,6 @@ public sealed class UpdateRolePermissionsRequestValidator : AbstractValidator<Up
     }
 }
 
-/// <summary>FR-ADM-002: system_admin lists roles and edits a role's permission set.</summary>
 public static class RoleEndpoints
 {
     public static void MapRoleEndpoints(this IEndpointRouteBuilder app)

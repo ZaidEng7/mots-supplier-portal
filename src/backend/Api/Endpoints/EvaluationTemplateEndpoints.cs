@@ -1,3 +1,47 @@
+// The scoring templates: listing them, reading one, creating and editing criteria, activating, archiving and
+// forking.
+//
+// Whether a criterion requires a written justification is the template author's decision, because the rule
+// declines to say which criteria need one. Omitting it means no, which is what a template written before the
+// field existed asked for.
+//
+//
+// WHY THE PERMISSION IS ON EACH ROUTE AND NOT ON THE GROUP
+//
+// It used to be on the group, and a group-level check applies to every route including the reads, so widening
+// one route could not undo it. The officer stayed forbidden no matter what the list declared.
+//
+// The reads have to be wider than the writes. Anybody who may bind a template to a tender needs to see the
+// list, and binding is gated on editing a tender, which a procurement officer holds while the
+// template-management permission is a manager's. So the officer could bind a template they were forbidden to
+// list: the picker came back empty, and a tender could not reach internal review at all, because binding one
+// is a precondition of submitting it. That is the same family of defect as a step built for a persona the
+// permissions would not let complete it.
+//
+// The writes still require the management permission, individually and visibly. Only the reads are wider.
+//
+// The single-item read needs its permission stated for a second reason: moving the check off the group left
+// that route with nothing but a requirement to be signed in, which would have let any account, a supplier
+// included, read a buying body's scoring scheme. Caught by the generated permission catalogue, which noticed
+// the route had dropped out of the table entirely.
+//
+//
+// THE MISSING VERSION HEADER
+//
+// Every route here returns a shape whose version field is documented as the one a caller sends back as a
+// write precondition, and nothing emitted it. Meanwhile activating and archiving both demand that
+// precondition, and the list carried no version either, so a client could never obtain what those two
+// required.
+//
+// The effect was that activating a template through the interface was impossible: it was refused every time.
+// Found by walking a tender through from an empty database, where a template has to be created and activated
+// before any tender can go to internal review.
+//
+// Forking does not require a precondition, because it reads an existing template and writes a new one, so
+// there is no version of the fork to assert.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
@@ -5,8 +49,6 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record CreateEvaluationTemplateRequest(string NameAr, string NameEn);
 
@@ -22,8 +64,6 @@ public sealed class CreateEvaluationTemplateRequestValidator : AbstractValidator
 public sealed record CriterionRequest(
     string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore,
     decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn,
-    // T-021/BRULE-061: the template author decides, because the rule declines to say which criteria
-    // need one. Omitted means false, which is what a template written before the field asked for.
     bool RequiresJustification = false);
 
 public sealed class CriterionRequestValidator : AbstractValidator<CriterionRequest>
@@ -38,8 +78,6 @@ public sealed class CriterionRequestValidator : AbstractValidator<CriterionReque
     }
 }
 
-/// <summary>FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07 - EPIC-07's evaluation-template
-/// binding needs a real, Active template to bind to.</summary>
 public static class EvaluationTemplateEndpoints
 {
     private static IResult MapMutation(EvaluationTemplateMutationResult result) => result switch
@@ -52,22 +90,11 @@ public static class EvaluationTemplateEndpoints
 
     public static void MapEvaluationTemplateEndpoints(this IEndpointRouteBuilder app)
     {
-        // The permission moved OFF the group in batch 12 and onto each route.
-        //
-        // A group filter applies to every route including the GET, so a route-level widening cannot
-        // undo it - the officer stayed forbidden no matter what the list declared. The writes still
-        // require evaluation.template.manage, individually and visibly; only the read is wider.
         var group = app.MapGroup("/api/v1/evaluation-templates").WithTags("EvaluationTemplates")
             .RequireAuthorization();
 
         group.MapGet("/", async (IListEvaluationTemplatesHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.HandleAsync(ct)))
-        // Readable by whoever may BIND a template as well as by whoever maintains them. Binding is
-        // gated on rfq.edit (RfqEndpoints, BindEvaluationTemplate) and a procurement officer holds
-        // that but not evaluation.template.manage - so the officer could bind a template they were
-        // forbidden to list, the picker came back empty, and a tender could not reach internal review
-        // because binding one is a precondition of submitting it. Same family as D-43 and D-44: a
-        // step built for a persona the permissions would not let complete it.
         .RequireAnyPermission(Permissions.EvaluationTemplateManage, Permissions.RfqEdit)
         .WithName("ListEvaluationTemplates");
 
@@ -77,10 +104,6 @@ public static class EvaluationTemplateEndpoints
             return template is null ? Results.NotFound() : Results.Ok(template);
         })
         .WithETag()
-        // Same audience as the list, and it must be stated HERE: moving the permission off the group
-        // left this route with nothing but RequireAuthorization, which would have let any signed-in
-        // account - a supplier included - read a buying body's scoring scheme. Caught by the generated
-        // permission catalogue, which noticed the route had dropped out of the table entirely.
         .RequireAnyPermission(Permissions.EvaluationTemplateManage, Permissions.RfqEdit)
         .WithName("GetEvaluationTemplate");
 
@@ -95,17 +118,6 @@ public static class EvaluationTemplateEndpoints
 
             return MapMutation(await handler.HandleAsync(new CreateEvaluationTemplateCommand(request.NameAr, request.NameEn), ct));
         })
-        // Added in batch 12. Every route below returns EvaluationTemplateDto, whose RowVersion carries the
-        // comment "the version this read saw, emitted as the ETag and sent back as If-Match" - and nothing
-        // emitted it. Meanwhile activate and archive declare RequireIfMatch, and the list GET carries no
-        // ETag either, so a client could never obtain the version those two demand. (Fork does not require
-        // one: it reads an existing template and writes a NEW one, so there is no version of the fork to
-        // assert. The comment said "activate, archive and fork" until phase 2's sweep enumerated the routes
-        // that actually carry the marker.)
-        //
-        // The effect was that activating a template through the interface was impossible: it answered 428
-        // every time. Found by walking a tender from an empty database, where a template has to be created
-        // and activated before any RFQ can go to internal review.
         .RequirePermission(Permissions.EvaluationTemplateManage)
         .WithFreshETag()
         .WithName("CreateEvaluationTemplate");

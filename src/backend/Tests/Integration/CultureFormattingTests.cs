@@ -99,14 +99,17 @@ public sealed class CultureFormattingTests(PostgresApiFixture fixture)
         // The other half, and the one that survives a new formatting site nobody qualifies. Read off
         // the composition root rather than off a running thread: the fixture builds the host, so the
         // pin has already run by the time any test observes it.
-        var source = File.ReadAllText(ProgramFile());
+        var source = File.ReadAllText(CulturePinningFile());
 
         source.Should().Contain("CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture",
             "an unpinned process formats by the host's locale, which is how T-048 reopened");
         source.Should().Contain("CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.InvariantCulture");
     }
 
-    private static string ProgramFile()
+    // The pin moved out of Program.cs when the start-up file was split by concern; it is the same two
+    // statements, in the file that now owns observability. The check is on the statements, not on which
+    // file holds them, so it follows them rather than being deleted.
+    private static string CulturePinningFile()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MotsSupplierPortal.slnx")))
@@ -115,7 +118,7 @@ public sealed class CultureFormattingTests(PostgresApiFixture fixture)
         }
 
         directory.Should().NotBeNull("the check cannot find the backend solution root from the test binaries");
-        var file = Path.Combine(directory!.FullName, "Api", "Program.cs");
+        var file = Path.Combine(directory!.FullName, "Api", "Startup", "ObservabilityRegistration.cs");
         File.Exists(file).Should().BeTrue($"expected {file}");
         return file;
     }

@@ -1,15 +1,14 @@
-using MotsSupplierPortal.Api.Errors;
+// The refusal a caller gets when they send a partial update in the wrong format.
+//
+// The partial-update endpoints accept only the merge-patch content type. Refusing plain JSON rather
+// than accepting it is the whole point: the endpoint acts on the difference between a field that was
+// omitted and a field that was explicitly set to nothing, and a caller sending plain JSON has not said
+// which of those they mean.
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-/// <summary>
-/// §7.1's <c>/errors/unsupported-media-type</c> (415, <c>MIME_NOT_ALLOWED</c>), used by §12.5's
-/// PATCH to refuse anything that is not <c>application/merge-patch+json</c>.
-///
-/// <para>Refusing rather than accepting <c>application/json</c> is the whole point: RFC 7396's
-/// absent-versus-null distinction is what the endpoint acts on, and a caller sending plain JSON has
-/// not said which semantics it means.</para>
-/// </summary>
+using MotsSupplierPortal.Api.Errors;
+
 internal sealed class UnsupportedMediaTypeResult : IResult
 {
     public Task ExecuteAsync(HttpContext httpContext) =>

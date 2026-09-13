@@ -1,3 +1,24 @@
+// The bid comparison: one read-only screen, and its export.
+//
+// There is no request body and no filter or sort in the query string, and that absence is itself the
+// protection. The question worth asking of a comparison endpoint is whether its query can be coaxed into
+// revealing the pricing the two-envelope rule is holding back, and an endpoint with no query has nowhere for
+// that to go wrong.
+//
+// The export is the same handler, the same permission and the same route prefix, which is the whole argument:
+// it has no query of its own and therefore no second place for the financial gate to be wrong. It renders
+// whatever the screen would have rendered, and where the gate left a value empty it prints a not-yet-visible
+// marker rather than a zero.
+//
+// The format is chosen from a named set rather than a free string, so an unrecognised value is refused
+// instead of quietly answered in whichever format happens to be the default. That is the same rule every
+// other filter value in this API follows.
+//
+// A tender outside the caller's scope is indistinguishable from one that does not exist, and the export must
+// not become the endpoint that tells them apart.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Comparison;
@@ -5,11 +26,6 @@ using MotsSupplierPortal.Application.Reporting;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Reporting;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>FEAT-12.1..12.4/FR-CMP-001..004: read-only, no request body, no query-string
-/// sort/filter parameter - see GetComparisonHandler's own doc comment on why that absence is
-/// itself the mitigation for "can the query be coaxed into leaking gated data".</summary>
 public static class ComparisonEndpoints
 {
     public static void MapComparisonEndpoints(this IEndpointRouteBuilder app)
@@ -24,15 +40,6 @@ public static class ComparisonEndpoints
         .WithTags("Comparison")
         .WithName("GetComparison");
 
-        // FR-CMP-005: the export EPIC-12 deferred as priority C and flagged rather than dropped.
-        //
-        // Same handler, same permission, same route prefix. That is the whole two-envelope
-        // argument: this endpoint has no query of its own and therefore no second place for the
-        // financial gate to be wrong. It renders whatever the screen would have rendered, and where
-        // the gate left a value null it prints the "not yet visible" marker rather than a zero.
-        //
-        // ?format is whitelisted rather than free: an unrecognised format silently falling back to
-        // one the caller did not ask for is the same class of defect as a silently ignored filter.
         app.MapGet("/api/v1/rfqs/{referenceCode}/comparison/export", async (
             string referenceCode,
             string? format,
@@ -47,8 +54,6 @@ public static class ComparisonEndpoints
             }
 
             var comparison = await handler.HandleAsync(referenceCode, ct);
-            // §9.2: an RFQ outside the caller's scope is indistinguishable from one that does not
-            // exist, and the export must not become the endpoint that tells them apart.
             if (comparison is null) return Results.NotFound();
 
             var locale = RegistrationEndpoints.ResolveLocale(httpContext.Request.Headers.AcceptLanguage);
@@ -109,11 +114,6 @@ public static class ComparisonEndpoints
     }
 }
 
-/// <summary>
-/// The formats the comparison export offers. A named set rather than a free string so an
-/// unrecognised value is refused instead of silently answered in whichever format happens to be the
-/// default - the same rule every other filter value in this API follows.
-/// </summary>
 public static class ComparisonExportFormats
 {
     public const string Pdf = "pdf";

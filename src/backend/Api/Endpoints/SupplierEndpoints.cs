@@ -1,3 +1,99 @@
+// The supplier's own profile: reading it, editing it, its logo, its representatives, addresses, contacts,
+// branches, bank accounts and categories, accepting the terms, and submitting for review.
+//
+// Everything here is the caller's own company, resolved from their token rather than from a path parameter,
+// so the interface never needs to know its own reference code to drive registration. Where a code does appear
+// in the path it is checked against that scope first, and an unknown code and somebody else's code give the
+// same not-found answer.
+//
+// Reading the profile needs no particular permission beyond being signed in, because any of a supplier's
+// users may look up their own company's record.
+//
+//
+// A TRUE PARTIAL UPDATE
+//
+// Every field on the profile patch is wrapped, so omitting one leaves it untouched while sending it as
+// nothing clears it.
+//
+// They used to be plain nullable fields, which made an omitted field indistinguishable from an explicit
+// clear, and silently wiped anything the caller did not resend. Found in review.
+//
+// Only what was actually sent is validated, because an omitted currency is not an invalid currency.
+//
+//
+// VALIDATION WORTH KNOWING ABOUT
+//
+// Which legal-information fields are required is configuration rather than code, so a ministry can change it.
+// Length limits stay fixed, because those are column widths; only requiredness is configurable.
+//
+// Those configurable failures are raised with the validation library's own standard code rather than a bare
+// message, so the message catalogue resolves them to Arabic exactly as a declared rule would. Without the
+// code they would fall through to English.
+//
+// A founding date in the future is refused. No company has one. The screen offered one, because the date
+// picker's calendar ran into next month, and this validation accepted it, so the registry could show a
+// supplier founded after today. It is refused here as well as in the form, because the form is one of several
+// ways in and the finance-system import is another.
+//
+// A bank account's number is optional on an update, where sending nothing leaves the stored encrypted value
+// untouched.
+//
+//
+// THE STALE-WRITE ANSWER
+//
+// A lost update is a failed precondition rather than a conflict. This route used to answer conflict with the
+// current version in the body, which predates the current contract; conflict now means only what the
+// contract says it means. The winner's version travels back on the header rather than in the body, because
+// that is where a client looking to re-read and retry is already looking.
+//
+// A field the caller is not currently permitted to edit is refused rather than answered as a conflict,
+// because that is a permission outcome rather than a clash of state.
+//
+//
+// WRITE PRECONDITIONS ON THE CHILD ROUTES
+//
+// Every route that edits a child of the profile, from representatives through to category links, requires the
+// caller to say which version they read.
+//
+// They all moved the profile's version while guarding nothing, so two of a company's users editing different
+// contacts both won, and the second silently overwrote something invisible.
+//
+// It is safe to require here because the precondition is obtainable: the profile read already issues the
+// version as a tag. That check is the rule this project learned the hard way on another resource, where a
+// guarded write had no read that could supply its precondition and therefore refused every caller.
+//
+// The bank-account reveal does not carry it, because it is a read and a read has nothing to lose to a
+// concurrent write.
+//
+// The logo upload and accepting the terms do carry it. The logo is a field of the profile, and the version
+// moved on every upload while guarding nothing, so two users uploading different logos both won and the
+// second silently replaced the first. Accepting the terms records a version and a timestamp and gates
+// submission, so a stale caller re-accepting an older version of the terms over a newer acceptance is the one
+// lost update here with a compliance consequence rather than a cosmetic one.
+//
+//
+// THE ONE ROUTE THAT WAS MISSING ITS RESPONSE VERSION
+//
+// Out of twenty-three writes on this profile, one changed the supplier and answered with no version at all,
+// so every client kept asserting the version it read before that write, and the next guarded save on the same
+// page was refused with nothing on screen to explain it.
+//
+// Found by filling in registration as a supplier: save the legal details, choose a currency, save again, and
+// the currency is silently gone after a reload.
+//
+//
+// OTHER NOTES
+//
+// The logo was a dead field for a while: the domain could set one and nothing called it.
+//
+// Bank accounts are gated on their own narrower permission, held by a supplier's administrator only, never on
+// the general profile-edit permission.
+//
+// Accepting the terms is recorded with its version and a timestamp, and it gates submission alongside profile
+// completeness and the required documents.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Concurrency;
 using FluentValidation.Results;
 using MotsSupplierPortal.Api.Errors;
@@ -11,12 +107,6 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>True PATCH: every field is a <see cref="Patch{T}"/>, so omitting one leaves it
-/// untouched while sending it as null clears it. Previously these were plain nullables, which made
-/// an omitted field indistinguishable from an explicit null and silently wiped anything the caller
-/// did not resend (found in review 2026-08-28).</summary>
 public sealed record UpdateProfileRequest(
     Patch<string?> Description,
     Patch<string?> Website,
@@ -28,7 +118,6 @@ public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProf
 {
     public UpdateProfileRequestValidator(AppDbContext db)
     {
-        // Only validate what was actually sent - an omitted currency is not an invalid currency.
         RuleFor(x => x.CurrencyCode.Value).Length(3)
             .When(x => x.CurrencyCode.IsSet && x.CurrencyCode.Value is not null);
         RuleFor(x => x.CurrencyCode.Value)
@@ -40,9 +129,6 @@ public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProf
 
 public sealed record UpdateLegalInfoRequest(string LegalNameAr, string LegalNameEn, string? RegistrationNumber, string? TaxId, SupplierLegalType SupplierType, DateOnly? EstablishedOn);
 
-/// <summary>FEAT-04.2 [ASSUMPTION 2026-08-27]: requiredness is config-driven
-/// (SupplierFieldConfig, category LegalInfoRequired) rather than hardcoded - MaximumLength stays
-/// a fixed schema constraint (column width), only NotEmpty/required-ness is configurable.</summary>
 public sealed class UpdateLegalInfoRequestValidator : AbstractValidator<UpdateLegalInfoRequest>
 {
     public UpdateLegalInfoRequestValidator(AppDbContext db)
@@ -59,9 +145,6 @@ public sealed class UpdateLegalInfoRequestValidator : AbstractValidator<UpdateLe
                 .Select(c => c.FieldCode)
                 .ToListAsync(ct);
 
-            // The failures are raised with FluentValidation's own NotEmpty error code rather than a
-            // bare message, so §7.2's catalogue resolves them to Arabic exactly as a declared
-            // NotEmpty rule would. Without the code they would fall through to the English below.
             if (required.Contains("legalNameAr") && string.IsNullOrWhiteSpace(request.LegalNameAr))
                 context.AddFailure(new ValidationFailure(nameof(request.LegalNameAr), "'Legal Name Ar' must not be empty.") { ErrorCode = "NotEmptyValidator" });
             if (required.Contains("legalNameEn") && string.IsNullOrWhiteSpace(request.LegalNameEn))
@@ -73,10 +156,6 @@ public sealed class UpdateLegalInfoRequestValidator : AbstractValidator<UpdateLe
 if (required.Contains("establishedOn") && request.EstablishedOn is null)
                 context.AddFailure(nameof(request.EstablishedOn), "'Established On' must not be empty.");
 
-            // A founding date in the future is not a date any company has. The screen offered one -
-            // the picker's calendar ran into next month - and this validator took it, so the
-            // registry could show a supplier founded after today. Refused here as well as in the
-            // form, because the form is one of several ways in and the ERP import is another.
             if (request.EstablishedOn is { } founded && founded > DateOnly.FromDateTime(DateTime.UtcNow.Date))
                 context.AddFailure(nameof(request.EstablishedOn), "'Established On' cannot be in the future.");
         });
@@ -166,8 +245,6 @@ public sealed class AddBankAccountRequestValidator : AbstractValidator<AddBankAc
     }
 }
 
-/// <summary>AccountNumber is optional here (see UpdateBankAccountCommand's doc comment) - null
-/// leaves the existing encrypted value untouched.</summary>
 public sealed record UpdateBankAccountRequest(string AccountHolderName, string BankName, string? BranchName, string? AccountNumber, string? SwiftBic, string CurrencyCode);
 
 public sealed class UpdateBankAccountRequestValidator : AbstractValidator<UpdateBankAccountRequest>
@@ -189,8 +266,6 @@ public static class SupplierEndpoints
     {
         var group = app.MapGroup("/api/v1/suppliers").WithTags("Suppliers");
 
-        // Authenticated + row-scoped (STORY-01.8.1); no specific permission needed - any
-        // authenticated supplier user may look up their own supplier record.
         group.MapGet("/{referenceCode}", async (
             string referenceCode,
             IGetSupplierHandler handler,
@@ -224,18 +299,11 @@ public static class SupplierEndpoints
         .WithETag()
         .WithName("GetOwnSupplier");
 
-        // §8.1: a lost update is a PRECONDITION failure, not a conflict. This returned 409
-        // { error: "concurrency_conflict", currentRowVersion } under MSP-65, which predates the
-        // contract; 409 now means only what §7.1 says it means. The winner's version travels back
-        // as the ETag header rather than a body field, because that is where a client looking to
-        // re-read and retry will already be looking for it.
         static IResult MapProfileResult(UpdateProfileResult result) => result switch
         {
             UpdateProfileResult.Success s => Results.Ok(s.Supplier),
             UpdateProfileResult.NotFoundOrOutOfScope => Results.NotFound(),
             UpdateProfileResult.Conflict c => new StaleVersionResult(c.CurrentRowVersion),
-            // MSP-77: 403, not 409 - the caller is not permitted to edit this field right now,
-            // which is an authorization outcome rather than a state clash.
             UpdateProfileResult.NotEditable n => Results.Json(
                 new { error = "field_not_flagged", detail = n.Reason },
                 statusCode: StatusCodes.Status403Forbidden),
@@ -254,12 +322,6 @@ public static class SupplierEndpoints
             _ => Results.Problem(),
         };
 
-        // Self-service: the caller's own supplier record, resolved from the JWT's supplierId
-        // claim (row-scoped) rather than a path parameter - the SPA never needs to know its
-        // own reference code to drive onboarding.
-        // §12-A/C3, §12.2: "PATCH /suppliers/{supplierCode} - edit draft profile". The handler still
-        // scopes to the caller's own SupplierId; the code in the path is checked against that scope
-        // FIRST, and an unknown code and someone else's code are the same 404 (§9.2).
         group.MapPatch("/{supplierCode}", async (
             string supplierCode,
             UpdateProfileRequest request,
@@ -282,7 +344,6 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("UpdateSupplierProfile");
 
-        // FEAT-04.2/MSP-51.
         group.MapPut("/me/legal-info", async (
             UpdateLegalInfoRequest request,
             IValidator<UpdateLegalInfoRequest> validator,
@@ -297,16 +358,9 @@ public static class SupplierEndpoints
             return MapProfileResult(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
-        // The one mutating supplier route that was missing this, out of twenty-three.
-        //
-        // It changes the supplier and answered with no ETag, so every client kept asserting the version
-        // it read BEFORE the write - and the next guarded save on the same page came back 412 with
-        // nothing on screen to explain it. Found by filling in onboarding as a supplier: save the legal
-        // details, choose a currency, save again, and the currency is silently gone after a reload.
         .WithFreshETag()
         .WithName("UpdateLegalInfo");
 
-        // FEAT-04.1: previously a dead field (SetLogo existed, nothing called it).
         group.MapPost("/me/logo", async (
             HttpRequest request,
             IUploadLogoHandler handler,
@@ -333,10 +387,6 @@ public static class SupplierEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
-        // T-030 split (4). A logo is a field of the Supplier root, and split (1) already moved the root's
-        // version on every upload while guarding nothing - so two of a supplier's users uploading different
-        // logos both won and the second silently replaced the first. The precondition is obtainable from
-        // GET /suppliers/me, which is the batch-3 Offering test this guard has to pass.
         .RequireIfMatch()
         .WithFreshETag()
         .WithName("UploadLogo")
@@ -355,21 +405,6 @@ public static class SupplierEndpoints
         .RequireAuthorization()
         .WithName("GetLogoDownloadUrl");
 
-        // ─── T-030 split (3): the supplier's own child writes now carry §8.1's precondition ───────
-        //
-        // Every route from here to the category links edits a CHILD of the Supplier aggregate, and every
-        // one of them moved the root's RowVersion after split (1) while guarding nothing. Two suppliers'
-        // users editing different contacts on the same profile both won, and the second silently
-        // overwrote nothing visible - which is exactly the "decoration" MSP-65 described, one level down.
-        //
-        // Safe to require here because the precondition is OBTAINABLE: GET /suppliers/me already issues
-        // the root's version as a strong ETag (see .WithETag() above), which is the check batch 3's
-        // Offering lesson insists on - a guarded write needs a read that issues its precondition.
-        //
-        // NOT added to /me/bank-accounts/{id}/reveal: it reads, and a read has nothing to lose to a
-        // concurrent write. /me/logo and /me/accept-terms DO carry it now - split (4), batch 11 - as do
-        // the document routes in DocumentEndpoints.
-        // FEAT-04.4/MSP-52: add/edit/remove representatives with primary designation.
         group.MapPost("/me/representatives", async (
             AddRepresentativeRequest request,
             IValidator<AddRepresentativeRequest> validator,
@@ -419,7 +454,6 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("SetPrimaryRepresentative");
 
-        // FEAT-04.3/MSP-52.
         group.MapPost("/me/addresses", async (
             AddAddressRequest request,
             IValidator<AddAddressRequest> validator,
@@ -462,7 +496,6 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("RemoveAddress");
 
-        // FEAT-04.4/MSP-52.
         group.MapPost("/me/contacts", async (
             AddContactRequest request,
             IValidator<AddContactRequest> validator,
@@ -505,7 +538,6 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("RemoveContact");
 
-        // FEAT-04.5/MSP-53.
         group.MapPost("/me/branches", async (
             AddBranchRequest request,
             IValidator<AddBranchRequest> validator,
@@ -548,7 +580,6 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("RemoveBranch");
 
-        // FEAT-04.6/MSP-53: supplier.bankAccount.manage (supplier_admin only), never supplier.edit.
         group.MapPost("/me/bank-accounts", async (
             AddBankAccountRequest request,
             IValidator<AddBankAccountRequest> validator,
@@ -611,7 +642,6 @@ public static class SupplierEndpoints
         .RequirePermission(Permissions.SupplierBankAccountManage)
         .WithName("RevealBankAccount");
 
-        // FEAT-04.7/MSP-54.
         group.MapPost("/me/category-links", async (LinkCategoryRequest request, IManageCategoryLinkHandler handler, CancellationToken ct) =>
             MapMutation(await handler.LinkAsync(new LinkCategoryCommand(request.CategoryCode), ct)))
         .RequirePermission(Permissions.SupplierEdit)
@@ -626,8 +656,6 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("UnlinkCategory");
 
-        // BRULE-009: explicit T&C acceptance, recorded with version + timestamp, gating
-        // submit alongside profile completeness and required documents (BRULE-004).
         group.MapPost("/me/accept-terms", async (
             IAcceptTermsHandler handler,
             CancellationToken ct) =>
@@ -643,15 +671,10 @@ public static class SupplierEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
-        // T-030 split (4). BRULE-009 records an acceptance with its version and timestamp, and this write
-        // gates submission - so a stale caller re-accepting an OLD terms version over a newer acceptance is
-        // the one lost update on this aggregate with a compliance consequence rather than a cosmetic one.
         .RequireIfMatch()
         .WithFreshETag()
         .WithName("AcceptTerms");
 
-        // §12.2: "POST /suppliers/{supplierCode}/onboarding/submit - ProfileInProgress -> Submitted",
-        // and §3's transition-as-sub-resource-POST rule names the same path.
         group.MapPost("/{supplierCode}/onboarding/submit", async (
             string supplierCode,
             ISupplierCodeScope codeScope,
@@ -678,10 +701,6 @@ public static class SupplierEndpoints
     }
 }
 
-/// <summary>
-/// §8.1's 412 for the one handler that detects staleness itself rather than letting EF throw.
-/// Carries the winner's current version back as an ETag so the client can re-read deliberately.
-/// </summary>
 internal sealed record StaleVersionResult(uint CurrentRowVersion) : IResult
 {
     public Task ExecuteAsync(HttpContext httpContext)

@@ -1,11 +1,63 @@
+// The unauthenticated front door: registering a supplier, verifying an email address, and resending that
+// verification.
+//
+// All three are public by design, and that is declared explicitly rather than left to be inferred from a
+// missing guard, so the application's deny-by-default floor does not silently close them.
+//
+// Two of the three sit at paths the contract names. Resending a verification is not named anywhere, so it
+// keeps its current path; moving it would be an invention, and it is reported as a documented silence rather
+// than guessed at.
+//
+//
+// REGISTRATION
+//
+// Whether registration is open at all is checked before validation and before the per-target rate limit. A
+// closed portal should not tell an applicant their password is weak, and should not spend one of their five
+// attempts a minute to say the front door is shut.
+//
+// A closed portal is refused rather than answered not-found. The route exists and the refusal is a policy; a
+// not-found would send an integrator looking for a path that had moved. The body names the reason, so the
+// interface can say what to do next instead of showing a generic failure. The name becomes the
+// machine-readable code and the sentence becomes the human-readable detail, and that detail must not read as
+// "you are not allowed", which is what a bare refusal's title says.
+//
+// A successful registration, an email already taken and a registration number already taken all return the
+// identical response: same status, same body shape. A caller cannot learn whether either was already
+// registered. A weak password stays a distinct refusal, because that is a property of the password submitted,
+// true or false for any email including ones that will never exist, so it leaks nothing about the target. The
+// existing account, not the person submitting, is notified directly on either duplicate.
+//
+// Registration has its own tighter rate limit, overriding the group's, because a registration attempt is more
+// consequential than a sign-in: it writes rows and sends mail. The per-target limit sits on top of the
+// per-address one, so somebody spreading an attack across many addresses at one target email is still
+// throttled.
+//
+//
+// THE LANGUAGE HEADER
+//
+// A new account's language is taken from the request's language header, and only the two the product ships
+// are accepted. That header can carry preference weights, region variants and languages this product does not
+// support at all, so this reads only the primary part of the first entry and falls back to Arabic, which is
+// the account default and the interface's own fallback, rather than guessing at a closest match.
+//
+//
+// VERIFICATION
+//
+// An expired or invalid token is refused as unprocessable rather than as a bad request. It used to answer the
+// latter with a different name. Unprocessable is also the right shape: the request was well-formed and the
+// token was simply not usable, which is a refusal about meaning rather than a failure to parse.
+//
+// Resending is rate-limited per address by the group and per target here.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
+using MotsSupplierPortal.Api.Startup;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record RegisterSupplierRequest(
     string DisplayNameAr,
@@ -40,12 +92,6 @@ public sealed class ResendVerificationRequestValidator : AbstractValidator<Resen
 
 public static class RegistrationEndpoints
 {
-    /// <summary>MSP-69: "ar" or "en" only, matching AppUser.Language's scheme and the frontend's
-    /// own supportedLngs (src/frontend/src/i18n/config.ts). Accept-Language can carry q-values,
-    /// region subtags (en-US), and languages this product doesn't support at all - this reads only
-    /// the primary subtag of the first entry and falls back to "ar" (AppUser.Language's own
-    /// default, and the frontend's fallbackLng) for anything else, rather than guessing at a
-    /// closest match.</summary>
     public static string ResolveLocale(string? acceptLanguageHeader)
     {
         if (string.IsNullOrWhiteSpace(acceptLanguageHeader)) return "ar";
@@ -57,16 +103,8 @@ public static class RegistrationEndpoints
 
     public static void MapRegistrationEndpoints(this IEndpointRouteBuilder app)
     {
-        // Public by design: this is the unauthenticated front door (STORY-02.1.1). Declared
-        // explicitly so the deny-by-default FallbackPolicy (MSP-67) does not silently close it,
-        // and so the intent is visible rather than inferred from a missing guard.
-        // §12-A/C4. §12.1 names two of these three routes and puts both under /auth:
-        //   "POST /auth/register - supplier self-registration (starts onboarding at Draft)"
-        //   "POST /auth/verify-email - moves onboarding Draft -> EmailVerified"
-        // resend-verification is NOT named by §12 and keeps its current path; moving it would be an
-        // invention, and it is reported as a documented silence rather than guessed at.
-        var group = app.MapGroup("/api/v1/auth").WithTags("Registrations").RequireRateLimiting("auth-strict").AllowAnonymous();
-        var legacyGroup = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting("auth-strict").AllowAnonymous();
+        var group = app.MapGroup("/api/v1/auth").WithTags("Registrations").RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy).AllowAnonymous();
+        var legacyGroup = app.MapGroup("/api/v1/registrations").WithTags("Registrations").RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy).AllowAnonymous();
 
         group.MapPost("/register", async (
             RegisterSupplierRequest request,
@@ -77,19 +115,8 @@ public static class RegistrationEndpoints
             ISystemSettingReader settings,
             CancellationToken ct) =>
         {
-            // FR-REG-002/T-060: registration mode. Checked BEFORE validation and before the
-            // per-target limiter, because a closed portal should not tell an applicant their password
-            // is weak, and should not spend one of their five attempts a minute to say the front door
-            // is shut.
-            //
-            // 403 rather than 404: the route exists and the refusal is a policy. A 404 would send an
-            // integrator looking for a path that had moved. The body names the reason so the SPA can
-            // say what to do next instead of showing a generic failure.
             if (await settings.GetAsync(SystemSettings.RegistrationMode, ct) == SystemSettings.RegistrationClosed)
             {
-                // `error` becomes §7's code (REGISTRATION_CLOSED) and `message` becomes its detail -
-                // see ProblemDetailsMiddleware. The detail is what a person reads, and it must not
-                // read as "you are not allowed", which is what a bare 403 title says.
                 return Results.Json(
                     new
                     {
@@ -105,8 +132,6 @@ public static class RegistrationEndpoints
                 return ValidationProblems.From(validation);
             }
 
-            // Per-target on top of the group's per-IP "auth-strict" policy (SECURITY-ARCHITECTURE
-            // §5.1) - a distributed-IP attacker spamming one target email is still throttled.
             if (!perTargetRateLimiter.TryAcquire("register", request.Email.Trim().ToLowerInvariant()))
             {
                 return RateLimitResults.TooManyRequests(httpContext);
@@ -126,18 +151,8 @@ public static class RegistrationEndpoints
                     locale),
                 ct);
 
-            // MSP-73: Success, DuplicateEmail, and DuplicateRegistrationNumber all return the
-            // identical response - same status, same body shape - so a caller cannot learn
-            // whether an email or registration number was already taken. WeakPassword stays a
-            // distinct 400: it is a property of the SUBMITTED password, true or false for any
-            // email including ones that will never exist, so it leaks nothing about the target.
-            // The existing account (not the submitter) is notified directly on either duplicate -
-            // see RegisterSupplierHandler's NotifyExistingSupplierAsync.
             return result switch
             {
-                // §12.1 names this field `supplierCode`, and §12.2's own rename (R-9) already settled
-                // that spelling for the supplier's public code everywhere else. Renamed here for
-                // consistency; the value and the enumeration-safe shape are unchanged.
                 RegisterSupplierResult.Success s => Results.Ok(new { message = "registration_received", supplierCode = s.SupplierReferenceCode }),
                 RegisterSupplierResult.DuplicateEmail => Results.Ok(new { message = "registration_received", supplierCode = (string?)null }),
                 RegisterSupplierResult.DuplicateRegistrationNumber => Results.Ok(new { message = "registration_received", supplierCode = (string?)null }),
@@ -146,10 +161,7 @@ public static class RegistrationEndpoints
             };
         })
         .WithName("RegisterSupplier")
-        // NFR-SEC-009: overrides the group's "auth-strict" for this route specifically - tighter
-        // than login/verify/resend-verification because a registration attempt is more
-        // consequential (writes rows, sends email). See Program.cs's RegisterRateLimitPolicy.
-        .RequireRateLimiting("register-strict");
+        .RequireRateLimiting(HttpTransportRegistration.RegisterRateLimitPolicy);
 
         group.MapPost("/verify-email", async (
             VerifyEmailRequest request,
@@ -161,10 +173,6 @@ public static class RegistrationEndpoints
             return result switch
             {
                 VerifyEmailResult.Success => Results.Ok(new { verified = true }),
-                // §12.1: "Expired/invalid token -> 422 (VERIFICATION_TOKEN_INVALID)". It answered 400
-                // with a different slug. 422 is also the right shape: the request was well-formed and
-                // the token was simply not usable, which is a semantic refusal rather than a parse
-                // failure. The middleware turns the identifier into §7's SCREAMING_SNAKE code.
                 VerifyEmailResult.InvalidOrExpiredToken => Results.UnprocessableEntity(
                     new { error = "verification_token_invalid" }),
                 _ => Results.Problem(),
@@ -172,7 +180,6 @@ public static class RegistrationEndpoints
         })
         .WithName("VerifyEmail");
 
-        // STORY-02.2.1 AC3: resend is rate-limited per-IP (group policy above) + per-target.
         legacyGroup.MapPost("/resend-verification", async (
             ResendVerificationRequest request,
             IValidator<ResendVerificationRequest> validator,

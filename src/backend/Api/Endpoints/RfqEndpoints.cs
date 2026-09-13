@@ -1,3 +1,180 @@
+// The tender routes: the list, the detail, the content edits, the invitations, the clarifications, the
+// addenda, and every state change from draft through to award approval.
+//
+// Each state change is gated on the permission the written process table names for that actor.
+//
+//
+// ONE COLLECTION, TWO PERSONAS
+//
+// The list and the detail serve both a buyer and a supplier. The contract heads this route as the
+// supplier-facing list of tenders they were invited to, documents a buyer-only transition in the same
+// section, and says the visible fields depend on who is asking. So the route converges and the caller's own
+// scope decides, rather than there being two addresses.
+//
+// The route converges and the handlers do not. Each persona keeps its own handler and its own response
+// shape, and the route only chooses between them.
+//
+// That is deliberate. A single handler deciding field by field what to include would make a cross-persona
+// leak a run-time branch, where today it is structurally impossible: the supplier's handler has no code path
+// that can emit a buyer-only field, because its response shape has no such member. Convergence was required
+// by the contract; giving up that property was not.
+//
+// Both are gated on reading tenders rather than creating them. A procurement manager must approve tenders and
+// holds no authoring permission, so gating a read on authoring locked the approver out of the list they
+// approve from. The supplier roles hold the read permission too, because the permission is the gate and the
+// row scoping is the filter.
+//
+// The list is ordered newest-created-first. The contract's own worked example gives newest-published, and that
+// cannot be this list's key: this is the buyer's list, which is mostly drafts, and a draft has never been
+// published, so paging on that column silently drops every row where it is empty. Creation time is the
+// recorded divergence and it is total over the same set.
+//
+//
+// THE TWO HAND-PARSED FILTERS
+//
+// The count flag and the owner filter are parsed here rather than bound, for the reason every other list in
+// this API gives: bound directly, an unreadable value is refused as a malformed body, which names no field on
+// a request that has no body.
+//
+// The owner filter is validated for every caller rather than only on the buyer's branch. A supplier who sends
+// it must be told the filter is not theirs rather than served a list that quietly ignored it. The supplier's
+// list has no owner to filter on at all, because ownership is a buyer-internal fact that stays inside the
+// buying organization, so it is refused rather than ignored.
+//
+//
+// REQUEST SHAPES WORTH A NOTE
+//
+// Moving a deadline takes the new deadline itself rather than a duration, because a duration needs an anchor
+// and this route would have to pick one. It also takes a mandatory reason. There is no cap on an extension,
+// because a cap would invent a fairness rule; a required reason makes every extension defensible or obviously
+// indefensible without inventing one, and a supplier being told why their deadline moved is simply better
+// than being told that it did.
+//
+// That request deliberately has no must-be-in-the-future rule here. The domain owns it, and duplicating it
+// would give two answers to the same question the day one of them changed.
+//
+// A requirement's expected envelope is optional and only meaningful when the requirement asks for a document.
+//
+// Reassigning a tender takes a mandatory reason, because the audit row is the operation's whole purpose.
+//
+// Submitting for review may name the manager the pass is waiting on. The body is optional, so every existing
+// caller that posted nothing keeps working: naming an approver is an addition to this transition rather than
+// a new requirement of it, and there is no routing rule that would let the server fill it in.
+//
+// Answering a clarification no longer takes a publish flag. Answering publishes to every invitee, so a flag
+// whose only remaining legal value is true would be a lie the caller could tell.
+//
+//
+// THE FOUR REFUSAL SHAPES
+//
+// An illegal state change answers conflict, naming the current state and what may legally follow. Every
+// tender transition answered a plain bad request before that was built.
+//
+// A deadline move the caller is not permitted to make in that direction is refused rather than answered
+// not-found. The caller demonstrably can see this tender, because they reached here holding the edit
+// permission on it, so hiding its existence protects nothing, and hiding the reason would leave an officer
+// unable to tell a wrong direction from something broken.
+//
+// Naming an ineligible new owner is unprocessable. The payload is well-formed and names a real user; what is
+// wrong is a fact about that user the client could not have known.
+//
+// A supplier who was not invited gets not-found and never a refusal, so the API does not reveal that a tender
+// exists.
+//
+//
+// TWO INVENTED PATHS, REPORTED AS SUCH
+//
+// Declining an invitation hangs off the invitations sub-resource. The contract names that sub-resource and
+// makes state changes posts on a sub-resource, and names no decline transition anywhere, so this composes two
+// documented rules rather than transcribing a documented path: the invitation is what is being declined.
+//
+// The supplier's clarification question moved onto this collection from the supplier prefix, because the
+// contract lists clarifications as a sub-resource of a tender, and the buyer's answer and publish routes were
+// already here.
+//
+//
+// CORRECTING A LINE
+//
+// Updating an item is an update rather than a second create, because correcting a line is the same line with
+// better values. The domain had add and remove with nothing between them, so a mistyped quantity could only
+// be fixed by deleting the line, which renumbers every line after it.
+//
+//
+// ATTACHMENTS
+//
+// Files are stored directly, with no virus-scanning quarantine step. That pipeline belongs to supplier
+// documents, and scanning generally is tagged as needing business confirmation, so this is a deliberate scope
+// decision rather than a silently skipped security step.
+//
+// The read of an attachment did not exist for a while, so a buyer could attach the specification an invited
+// supplier is meant to bid against and that supplier could never open it.
+//
+// It is gated on reading tenders rather than editing them, because an invited supplier must reach it and
+// holds no editing permission on a buyer's tender. The row scoping is the handler's: it means your own
+// organization's tender for staff, and a tender you were invited to once it is published for a supplier, and
+// neither is expressible as a declarative rule.
+//
+//
+// THREE ROUTES WITHOUT A PERMISSION FILTER, EACH FOR ITS OWN REASON
+//
+// Moving a deadline has none, and this was got wrong first. Extending is the officer's under the edit
+// permission and shortening is the manager's under its own, and a manager does not hold the edit permission.
+// A route requiring it therefore refused the manager before the handler ran, which is the very caller the rule
+// names for shortening. There is no any-of-these-permissions filter in this codebase, and adding one to
+// express a rule that is really about direction would be the wrong shape. Both checks live in the handler,
+// which is the only place the direction is known.
+//
+//
+// TWO TRANSITIONS WITHOUT A WRITE PRECONDITION
+//
+// The two evaluation-stage clarification transitions deliberately do not require one, which is an exception
+// to the rule rather than an oversight.
+//
+// The process table names an evaluator as an actor for them, and an evaluator holds no tender-read permission
+// and does not necessarily belong to an organization at all, so they cannot read the tender, cannot obtain its
+// version, and would be refused on a route the process document says is theirs.
+//
+// The guard exists to stop lost updates, and neither of these transitions carries state another writer could
+// overwrite. Reported as the permission gap it is rather than closed by widening what an evaluator can read.
+//
+//
+// THE MISSING PRECONDITION RESPONSE ON TEMPLATE BINDING
+//
+// Binding an evaluation template is a child write like items, requirements, attachments and invitations, all
+// of which return the new version. Binding changes the tender, so the interface drops the version it was
+// holding, and with no fresh one to put back the next guarded action found nothing and was refused.
+//
+// That next action is submitting for review, and binding a template is a precondition of it, so the two
+// always happen in that order and a tender could never leave draft through the interface. It was the same
+// omission as one on the supplier's legal information, not the deliberate split in this file between child
+// writes and state changes.
+//
+//
+// THE BIDS RECEIVED
+//
+// The list of bids against a tender and the read of one sit behind the comparison permission, which already
+// means "may see bid-level data", rather than a new one. Inventing a second permission for the same class of
+// data puts the rule in two places and they drift. What limits the answer is which stage the evaluation has
+// reached, not the gate.
+//
+// One bid is addressed by its internal identifier, because that is the identifier a buyer holds. The
+// divergence from the rule that internal identifiers stay out of addresses is recorded where the buyer's
+// document read records it, rather than widened by inventing a second addressing scheme for one route.
+//
+//
+// OWNERSHIP
+//
+// Reassigning requires a write precondition, because ownership is a field on the tender and moving it is a
+// write that must not overwrite a concurrent one.
+//
+//
+// PRECONDITION RESPONSES
+//
+// Every guarded write and every transition puts the new version on its own response, so the next one has a
+// precondition to send without waiting for a re-read.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
@@ -7,8 +184,6 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record RfqBasicsRequest(
     string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
@@ -27,19 +202,10 @@ public sealed class RfqBasicsRequestValidator : AbstractValidator<RfqBasicsReque
     }
 }
 
-// T-018: the deadline rather than a duration - a duration needs an anchor (D-22's problem) and this
-// endpoint would have to pick one.
-//
-// A-6: and a REASON, mandatory. BRULE-035 puts no cap on an extension and A-6 keeps it uncapped, because
-// a cap would invent a fairness rule; a required reason makes every extension defensible or obviously
-// indefensible without inventing one, and a supplier being told WHY their deadline moved is simply
-// better than being told that it did.
 public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline, string Reason);
 
 public sealed class ChangeSubmissionDeadlineRequestValidator : AbstractValidator<ChangeSubmissionDeadlineRequest>
 {
-    // Deliberately no "must be in the future" rule here: the domain owns that, and duplicating it
-    // would give two answers to the same question the day one of them changed.
     public ChangeSubmissionDeadlineRequestValidator()
     {
         RuleFor(x => x.SubmissionDeadline).NotEmpty();
@@ -65,7 +231,6 @@ public sealed class RfqItemRequestValidator : AbstractValidator<RfqItemRequest>
 
 public sealed record RequirementRequest(
     string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
-    // A-2: optional, and only meaningful when the requirement asks for a document.
     MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
 
 public sealed class RequirementRequestValidator : AbstractValidator<RequirementRequest>
@@ -86,8 +251,6 @@ public sealed class ReturnForEditsRequestValidator : AbstractValidator<ReturnFor
     public ReturnForEditsRequestValidator() => RuleFor(x => x.Comments).NotEmpty().MaximumLength(2000);
 }
 
-/// <summary>A-7: hand the RFQ to another officer. The reason is mandatory - the audit row is the
-/// operation's whole purpose.</summary>
 public sealed record ReassignRfqRequest(Guid NewOwnerUserId, string Reason);
 
 public sealed class ReassignRfqRequestValidator : AbstractValidator<ReassignRfqRequest>
@@ -99,14 +262,12 @@ public sealed class ReassignRfqRequestValidator : AbstractValidator<ReassignRfqR
     }
 }
 
-/// <summary>A-7: optionally name the manager this review pass is waiting on.</summary>
 public sealed record SubmitForReviewRequest(Guid? AssignedApproverUserId);
 
 public sealed record CloseSubmissionRequest(string? Reason);
 
 public sealed record CancelRfqRequest(string Reason);
 
-/// <summary>T3-36. §3.1's guard for "Request clarification" is "Reason; targeted supplier(s)".</summary>
 public sealed record RequestClarificationTransitionRequest(string Reason);
 
 public sealed class RequestClarificationTransitionRequestValidator : AbstractValidator<RequestClarificationTransitionRequest>
@@ -124,8 +285,6 @@ public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqReque
 
 public sealed record InviteSupplierRequest(Guid SupplierId);
 
-/// <summary>A-4: the `publish` field is gone. Answering publishes to every invitee, so a flag whose
-/// only remaining legal value is true would be a lie the caller could tell.</summary>
 public sealed record AnswerClarificationRequest(string Answer);
 
 public sealed class AnswerClarificationRequestValidator : AbstractValidator<AnswerClarificationRequest>
@@ -146,28 +305,17 @@ public sealed class IssueAddendumRequestValidator : AbstractValidator<IssueAdden
     }
 }
 
-/// <summary>FEAT-07.1..07.10/FR-RFQ-001..013. State-transition endpoints are permission-guarded
-/// per BUSINESS-PROCESSES.md §3.1's own actor/permission column (verified directly against that
-/// table, not inferred) - rfq.publish already existed in the catalog before this session; the rest
-/// are new (Permissions.cs's own doc comments explain each).</summary>
 public static class RfqEndpoints
 {
     private static IResult MapMutation(RfqMutationResult result) => result switch
     {
         RfqMutationResult.Success s => Results.Ok(s.Rfq),
         RfqMutationResult.NotFoundOrOutOfScope => Results.NotFound(),
-        // §3: "Illegal transitions return 409 Conflict … listing the current state and the allowed
-        // next states." Every RFQ transition answered 400 before T3-36.
         RfqMutationResult.IllegalTransition illegal => IllegalTransitionResult.For(illegal.CurrentState, illegal.Message),
         RfqMutationResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
-        // T-018: a 403, not a 404. The caller demonstrably CAN see this RFQ - they reached here
-        // holding rfq.edit on it - so §9.2's hide-existence rule has nothing to protect, and hiding
-        // the reason would leave an officer unable to tell "wrong direction" from "broken".
         RfqMutationResult.DeadlineChangeNotPermitted =>
             Results.Json(new { error = "deadline_change_not_permitted" }, statusCode: StatusCodes.Status403Forbidden),
 
-        // A-7: a 422. The payload is well-formed and names a real user; what is wrong is a fact about
-        // that user the client could not have known.
         RfqMutationResult.IneligibleUser ineligible =>
             Results.UnprocessableEntity(new { error = "ineligible_user", message = ineligible.Message }),
 
@@ -178,8 +326,6 @@ public static class RfqEndpoints
         _ => Results.Problem(),
     };
 
-    /// <summary>Supplier-side result mapping, moved here with the routes it serves. 404 (never
-    /// 403) for a non-invited supplier, per §9.2's "avoid leaking existence".</summary>
     private static IResult MapSupplierResult(SupplierRfqResult result) => result switch
     {
         SupplierRfqResult.Success s => Results.Ok(s.Rfq),
@@ -192,16 +338,6 @@ public static class RfqEndpoints
     {
         var group = app.MapGroup("/api/v1/rfqs").WithTags("Rfqs");
 
-        // §12-A/C1: ONE collection, two personas. §12.4 heads this route "supplier-facing list of
-        // invited/published RFQs" while documenting a buyer transition in the same section, and
-        // §9.2 scopes by the caller's own supplierId/orgId rather than by path.
-        //
-        // The route converges; the HANDLERS DO NOT. Each persona keeps its own handler and its own
-        // DTO, and the endpoint only chooses between them. That is deliberate: a single handler
-        // deciding per-field what to include would make a cross-persona leak a runtime branch,
-        // where today it is structurally impossible - SupplierListInvitedRfqsHandler has no code
-        // path that can emit a buyer-only field because its DTO has no such member. Convergence
-        // was required by the contract; giving up that property was not.
         group.MapGet("/", async (
             string? cursor, int? pageSize, string? withCount, string? owner, HttpContext httpContext,
             IScopeContext scope,
@@ -209,18 +345,11 @@ public static class RfqEndpoints
             ISupplierListInvitedRfqsHandler supplierHandler,
             CancellationToken ct) =>
         {
-            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
-            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
-            // no body, and one that names no field. Parsed as text so the refusal is the same
-            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
             if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
             {
                 return FilterValues.InvalidFilterValue("withCount", badWithCount!);
             }
 
-            // A-7's ?owner=. Validated for EVERY caller, not only the buyer branch: a supplier who
-            // passes it must be told the filter is not theirs rather than served a list that quietly
-            // ignored it, which is the same silent-widening failure IsAllowedLiteralOrGuid exists for.
             if (!FilterValues.IsAllowedLiteralOrGuid(owner, RfqListFilterValues.OwnerLiterals, out var invalidOwner))
             {
                 return FilterValues.InvalidFilterValue("owner", invalidOwner!);
@@ -229,30 +358,16 @@ public static class RfqEndpoints
             var wantsCount = FilterValues.BoolOrFalse(withCount);
             if (scope.SupplierId is not null)
             {
-                // The supplier list has no owner to filter on - ownership is a buyer-internal fact,
-                // and BRULE-029 keeps it inside the buying organization. Refused rather than ignored.
                 if (owner is not null) return FilterValues.InvalidFilterValue("owner", owner);
                 return ListResponse.Ok(httpContext, await supplierHandler.HandleAsync(cursor, pageSize, wantsCount, ct), pageSize);
             }
 
             return ListResponse.Ok(httpContext, await buyerHandler.HandleAsync(cursor, pageSize, wantsCount, owner, ct), pageSize);
         })
-        // rfq.read, not rfq.create: procurement_manager must approve RFQs (BUSINESS-PROCESSES.md
-        // §3.1) and holds no authoring permission, so gating a read on create locked the approver
-        // out of the list they approve from. Supplier roles hold it too now - §9.2 makes the
-        // permission the gate and row-scope the filter, and a supplier reading the RFQs they were
-        // invited to is a read of an RFQ.
         .RequirePermission(Permissions.RfqRead)
-        // §6.3 gives "-publishedAt" as its worked example of an RFQ list default. It cannot be this
-        // list's key: this is the BUYER's list, which is mostly Drafts, and a draft has no
-        // PublishedAt - a keyset on a nullable column silently drops every row where it is null.
-        // -createdAt is the documented divergence, and is total over the same set.
         .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"], "owner"))
         .WithName("ListRfqs");
 
-        // §12.4, explicitly: *"Fields visible per persona are row-scoped (a supplier never sees
-        // other suppliers' proposals or the evaluation internals)"* and *"- for buyers -
-        // invitations[]"*. Same dispatch-not-branch reasoning as the list above.
         group.MapGet("/{referenceCode}", async (
             string referenceCode,
             IScopeContext scope,
@@ -272,9 +387,6 @@ public static class RfqEndpoints
         .WithETag()
         .WithName("GetRfq");
 
-        // §3 lists "/rfqs/{rfqCode}/clarifications" as an RFQ sub-resource. The supplier-side POST
-        // moves here from /suppliers/me/rfqs/{code}/clarifications; the buyer-side answer/publish
-        // routes were already on this collection.
         group.MapPost("/{referenceCode}/clarifications", async (
             string referenceCode,
             PostClarificationRequest request,
@@ -290,10 +402,6 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierPostClarification");
 
-        // INVENTION - reported as such. §3 names "/rfqs/{rfqCode}/invitations" as the sub-resource
-        // and makes state transitions POSTs on a sub-resource, but names no decline transition
-        // anywhere. This composes the two documented rules rather than transcribing a documented
-        // path: the invitation is what is being declined, so the transition hangs off it.
         group.MapPost("/{referenceCode}/invitations/decline", async (
             string referenceCode, DeclineInvitationRequest request, ISupplierDeclineInvitationHandler handler, CancellationToken ct) =>
             MapSupplierResult(await handler.HandleAsync(new DeclineInvitationCommand(referenceCode, request.Reason), ct)))
@@ -336,8 +444,6 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("UpdateRfqBasics");
 
@@ -391,9 +497,6 @@ public static class RfqEndpoints
         .WithFreshETag()
         .WithName("AddRfqItem");
 
-        // PUT rather than a second POST: correcting a line is the same line with better values, and
-        // the aggregate had Add and Remove with nothing between them - so a mistyped quantity could
-        // only be fixed by deleting the line, which renumbers every line after it.
         group.MapPut("/{referenceCode}/items/{itemId:guid}", async (
             string referenceCode,
             Guid itemId,
@@ -471,10 +574,6 @@ public static class RfqEndpoints
         .WithFreshETag()
         .WithName("RemoveRequirement");
 
-        // FEAT-07.2/FR-RFQ-003. Stored via IFileStorage directly (no AV-scan quarantine flow -
-        // that pipeline is SupplierDocument-specific; OQ-014 already tags AV scanning generally
-        // as [REQUIRES BUSINESS CONFIRMATION], so this is a real, deliberate scope decision for
-        // this session, not a silently-skipped security step).
         group.MapPost("/{referenceCode}/attachments", async (
             string referenceCode,
             HttpRequest request,
@@ -489,8 +588,6 @@ public static class RfqEndpoints
             if (file is null || file.Length == 0) return Results.BadRequest(new { error = "file_required" });
 
             var caption = form["caption"].ToString();
-            // Server-side key, and the quarantine gap both these paths share, are explained once in
-            // AttachmentStorageKey rather than twice here.
             var storageKey = AttachmentStorageKey.For(AttachmentStorageKey.RfqAttachmentPrefix);
 
             await using (var stream = file.OpenReadStream())
@@ -507,14 +604,6 @@ public static class RfqEndpoints
         .WithFreshETag()
         .WithName("AddRfqAttachment");
 
-        // T3-01: the read path FEAT-07.2 never had. Upload and delete existed; a buyer could attach
-        // the specification an invited supplier is meant to bid against, and that supplier could
-        // never open it.
-        //
-        // Gated on rfq.read rather than rfq.edit: an invited SUPPLIER must reach this, and they hold
-        // no editing permission on a buyer's RFQ. Row scope is the handler's - it is "your
-        // organization's RFQ" for staff and "an RFQ you were invited to, once published" for a
-        // supplier, and neither is expressible as a declarative policy.
         group.MapGet("/{referenceCode}/attachments/{attachmentId:guid}/download-url", async (
             string referenceCode,
             Guid attachmentId,
@@ -544,24 +633,9 @@ public static class RfqEndpoints
             MapMutation(await handler.HandleAsync(new BindEvaluationTemplateCommand(referenceCode, request.EvaluationTemplateId), ct)))
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
-        // A child-resource write, like items, requirements, attachments and invitations - all of which
-        // carry this. Binding mutates the RFQ, so apiFetch drops the version the client was holding;
-        // with no fresh one to put back, the NEXT guarded action found nothing and answered 428. That
-        // next action is submit-for-review, and binding a template is a precondition of it, so the two
-        // always happen in that order and the tender could never leave Draft through the interface.
-        //
-        // Same omission as PUT /suppliers/me/legal-info, not the deliberate split in this file between
-        // child writes and state transitions: every other child write here already has it.
         .WithFreshETag()
         .WithName("BindEvaluationTemplate");
 
-        // T-018/BRULE-035. NO permission filter on the route, deliberately, and this was got wrong
-        // first: BRULE-035 gives extension to the officer (rfq.edit) and shortening to the manager
-        // (rfq.deadline.shorten), and procurement_manager does NOT hold rfq.edit. A route requiring
-        // rfq.edit therefore 403'd the manager before the handler ran - the very caller the rule names
-        // for shortening. There is no "any of these permissions" filter in this codebase, and adding
-        // one to express a rule that is really "it depends on the direction" would be the wrong shape.
-        // Both checks live in the handler, which is the only place the direction is known.
         group.MapPost("/{referenceCode}/deadline", async (
             string referenceCode, ChangeSubmissionDeadlineRequest request,
             IValidator<ChangeSubmissionDeadlineRequest> validator,
@@ -576,30 +650,18 @@ public static class RfqEndpoints
         .RequireAuthorization()
         .RequireIfMatch()
         .WithETag()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ChangeSubmissionDeadline");
 
-        // The body is OPTIONAL (`SubmitForReviewRequest?`), so every existing caller that posted
-        // nothing keeps working - naming an approver is an addition to this transition, not a new
-        // requirement of it, and A-7 has no routing rule that would let the server fill it in.
         group.MapPost("/{referenceCode}/submit-review", async (
             string referenceCode, SubmitForReviewRequest? request, ISubmitRfqForReviewHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(
                 new SubmitRfqForReviewCommand(referenceCode, request?.AssignedApproverUserId), ct)))
         .RequirePermission(Permissions.RfqSubmitReview)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("SubmitRfqForReview");
 
-        // T-082 / SCR-430: the bids received against this RFQ.
-        //
-        // Behind comparison.view - the permission that already means "may see bid-level data" -
-        // rather than a new one: inventing a second permission for the same class of data puts the
-        // rule in two places and they drift. What limits the answer is the tier, not the gate.
         group.MapGet("/{referenceCode}/received-proposals", async (
             string referenceCode, IListBuyerProposalsHandler handler, CancellationToken ct) =>
         {
@@ -609,9 +671,6 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.ComparisonView)
         .WithName("ListReceivedProposals");
 
-        // T-082 / SCR-431. Keyed by proposal GUID for the same reason the buyer's document read is -
-        // that is the identifier a buyer holds, and the §3 divergence is recorded there rather than
-        // widened by inventing a second addressing scheme for one route.
         group.MapGet("/{referenceCode}/received-proposals/{proposalId:guid}", async (
             string referenceCode, Guid proposalId, IGetBuyerProposalHandler handler, CancellationToken ct) =>
         {
@@ -644,11 +703,7 @@ public static class RfqEndpoints
                 new ReassignRfqCommand(referenceCode, request.NewOwnerUserId, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqReassign)
-        // Ownership is a field on the aggregate, so moving it is a write that must not overwrite a
-        // concurrent one - §8.1, the same guard every other RFQ mutation carries.
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ReassignRfq");
 
@@ -666,8 +721,6 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqReview)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ReturnRfqForEdits");
 
@@ -676,8 +729,6 @@ public static class RfqEndpoints
             MapMutation(await handler.HandleAsync(new ApproveRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqApprove)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ApproveRfq");
 
@@ -687,8 +738,6 @@ public static class RfqEndpoints
         .RequirePermission(Permissions.RfqPublish)
         .RequireIfMatch()
         .RequireIdempotencyKey()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("PublishRfq");
 
@@ -697,14 +746,9 @@ public static class RfqEndpoints
             MapMutation(await handler.HandleAsync(new CloseRfqSubmissionCommand(referenceCode, request.Reason), ct)))
         .RequirePermission(Permissions.RfqClose)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("CloseRfqSubmission");
 
-        // T3-36. §3.1's two clarification transitions. Named POST sub-resources, per §3's rule of
-        // thumb: "if an operation moves an aggregate through its state machine, it is a named
-        // transition endpoint". Distinct paths from /clarifications, which is the supplier Q&A.
         group.MapPost("/{referenceCode}/request-clarification", async (
             string referenceCode, RequestClarificationTransitionRequest request,
             IValidator<RequestClarificationTransitionRequest> validator,
@@ -716,20 +760,12 @@ public static class RfqEndpoints
             return MapMutation(await handler.HandleAsync(new RequestRfqClarificationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqClarify)
-        // NO RequireIfMatch, and this is a deliberate exception to §8.1's "transition POST" rule
-        // rather than an oversight. §3.1 names `evaluator` as an actor for this transition, and an
-        // evaluator holds neither `rfq.read` nor, necessarily, an OrganizationId - so they cannot
-        // GET the RFQ, cannot obtain its ETag, and would be answered 428 on a route the process
-        // document says is theirs. §8.1's guard exists to stop lost updates; neither of these
-        // transitions carries state that another writer could overwrite. Reported as the permission
-        // gap it is rather than closed by widening what an evaluator can read.
         .WithName("RequestRfqClarification");
 
         group.MapPost("/{referenceCode}/resolve-clarification", async (
             string referenceCode, IResolveRfqClarificationHandler handler, CancellationToken ct) =>
             MapMutation(await handler.HandleAsync(new ResolveRfqClarificationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqClarify)
-        // Same exception, same reason - see RequestRfqClarification above.
         .WithName("ResolveRfqClarification");
 
         group.MapPost("/{referenceCode}/cancel", async (
@@ -746,8 +782,6 @@ public static class RfqEndpoints
         })
         .RequirePermission(Permissions.RfqCancel)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("CancelRfq");
 

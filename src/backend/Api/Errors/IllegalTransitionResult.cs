@@ -1,29 +1,26 @@
+// The refusal a caller gets when they try a state change the resource does not allow: a 409, naming
+// the current state and every state that could legally come next.
+//
+// This did not exist. Every tender transition answered a plain 400 saying the state was invalid, so a
+// client could not tell "your payload is wrong" from "this resource has moved on", and had nothing to
+// reconcile against. Adding three states to the tender lifecycle is what made the gap matter: it
+// changes what follows evaluation, and a caller who cannot read the allowed set has no way to learn
+// it.
+//
+// It is one result type for every kind of resource rather than one per resource. Bids used to answer
+// 400 for the same situation, so one product had two conventions for "this has moved on". Taking the
+// state and its allowed set as plain text keeps a single type; a second copy typed to bids would be
+// the second-of-everything this project keeps paying for.
+//
+// The state names are the code's own names, matching every other state on the wire. They are not the
+// display labels, which are translated and belong to the interface.
+
+namespace MotsSupplierPortal.Api.Errors;
+
 using System.Text.Json.Nodes;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 
-namespace MotsSupplierPortal.Api.Errors;
-
-/// <summary>
-/// §3: "Illegal transitions return <c>409 Conflict</c>
-/// (<c>type: …/errors/invalid-state-transition</c>) listing the current state and the allowed next
-/// states", and §12.4 spells the code: <c>ILLEGAL_TRANSITION</c>, "includes <c>allowedNext</c>".
-///
-/// <para><b>This did not exist.</b> Every RFQ transition answered 400
-/// <c>{ error: "invalid_state" }</c>, so a client could not tell "your payload is wrong" from "this
-/// resource has moved on", and had nothing to reconcile against. T3-36 is what made the gap
-/// load-bearing: adding three states changes what follows UnderEvaluation, and a caller that cannot
-/// read the allowed set has no way to learn it.</para>
-///
-/// <para>State names are the enum's own, matching every other state on the wire (the DTOs already
-/// emit <c>rfq.State.ToString()</c>) - not the display labels, which are localized and belong to
-/// UX-WRITING §7.</para>
-/// </summary>
-/// <para><b>T-065: generalised rather than duplicated.</b> Proposal endpoints answered 400 for the
-/// same situation, so one product had two conventions for "this resource has moved on" - and Phase 1
-/// of batch 7 made the proposal machine something callers actually hit. Taking the state and its
-/// allowed set as strings keeps ONE result type for every aggregate; a second copy parameterised on
-/// ProposalState would be the second-anything this project keeps paying for.</para>
 internal sealed record IllegalTransitionResult(string CurrentState, IReadOnlyList<string> AllowedNext, string Message) : IResult
 {
     public static IllegalTransitionResult For(RfqState state, string message) =>

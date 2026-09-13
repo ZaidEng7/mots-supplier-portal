@@ -1,3 +1,21 @@
+// The award routes: recommending a winner, routing it for approval, approving or rejecting it, issuing it,
+// and retrying the finance-system sync. Each one is gated on the permission the written process names for
+// that actor.
+//
+// The winner is named by the bid's public code. The internal identifier is still accepted, so this stays a
+// purely additive change: renaming a field on the wire would force a version bump, and a request that used
+// to work must keep working. The code wins when both arrive.
+//
+// Both identifiers carry defaults, so neither generates as required in the published schema. The contract
+// check caught the alternative: a nullable field with no default still generates as required, which would
+// have made the new code a new demand on every existing caller, the precise breakage this rework exists to
+// avoid.
+//
+// Every transition puts the new version on its own response, so a second transition on the same award has a
+// precondition to send without waiting for a re-read.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
@@ -5,20 +23,8 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Awards;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>
-/// T-068: the winner is named by the bid's public code. <c>WinningProposalId</c> is still accepted so
-/// this stays an ADDITIVE change - API-ARCHITECTURE.md's versioning table makes renaming a field a
-/// version-bump trigger, and a request that used to work must keep working. The code wins when both
-/// arrive; see DECISIONS-TAKEN.md D-69.
-/// </summary>
 public sealed record RecommendAwardRequest(
     string JustificationAr, string JustificationEn,
-    // Defaults, so neither identifier is REQUIRED in the generated schema. The contract gate caught
-    // the alternative: a nullable parameter with no default still generates as required, which would
-    // have made `winningProposalCode` a new demand on every existing caller - the precise breakage
-    // this whole rework exists to avoid.
     string? WinningProposalCode = null, Guid? WinningProposalId = null);
 
 public sealed class RecommendAwardRequestValidator : AbstractValidator<RecommendAwardRequest>
@@ -37,9 +43,6 @@ public sealed class RejectAwardRequestValidator : AbstractValidator<RejectAwardR
     public RejectAwardRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
-/// <summary>FEAT-14.1..14.6/FR-AWD-001..007. State-transition endpoints are permission-guarded per
-/// BUSINESS-PROCESSES.md §6.1's own actor/permission column (verified directly against that table),
-/// same discipline as RfqEndpoints/EvaluationEndpoints.</summary>
 public static class AwardEndpoints
 {
     private static IResult MapMutation(AwardMutationResult result) => result switch
@@ -81,8 +84,6 @@ public static class AwardEndpoints
             MapMutation(await handler.HandleAsync(new RouteAwardForApprovalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardRecommend)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("RouteAwardForApproval");
 
@@ -91,8 +92,6 @@ public static class AwardEndpoints
         .RequirePermission(Permissions.AwardApprove)
         .RequireIfMatch()
         .RequireIdempotencyKey()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ApproveAward");
 
@@ -107,8 +106,6 @@ public static class AwardEndpoints
         })
         .RequirePermission(Permissions.AwardReject)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("RejectAward");
 
@@ -116,8 +113,6 @@ public static class AwardEndpoints
             MapMutation(await handler.HandleAsync(new ExecuteAwardCommand(referenceCode), ct)))
         .RequirePermission(Permissions.AwardApprove)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ExecuteAward");
 

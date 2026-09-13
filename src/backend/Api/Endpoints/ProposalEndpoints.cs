@@ -1,3 +1,130 @@
+// The bid routes: starting one, editing it, attaching files, submitting, withdrawing, declining an award, and
+// the buyer's clarification request.
+//
+// Every handler resolves the caller's own bid from their own company, taken from their token. There is no
+// route here, or anywhere in this codebase, that can return another supplier's bid.
+//
+// Permissions follow the written process table exactly. Starting and viewing are open to both of a supplier's
+// roles, as is editing a draft. Submitting, withdrawing and declining are the supplier's administrator only.
+//
+//
+// TWO COLLECTIONS, AND WHY
+//
+// Creating and discovering a bid hang off the tender, because that is where a bid comes from. Everything
+// addressing an existing bid is top-level, by the bid's own public code, because the contract addresses a
+// bid's sub-resources that way and a resource whose parts are addressable there must be addressable there
+// itself.
+//
+// The read at the code-addressed path is an invention: the contract documents the partial update and the
+// submission on that path and no read.
+//
+//
+// ONE PARTIAL UPDATE REPLACING FIVE ROUTES
+//
+// A single partial update replaces five separate writes: terms, narrative, one line's pricing, deleting a
+// line, and answering a requirement.
+//
+// They are retired outright rather than deprecated. Two ways to edit one resource is how the wrong one
+// becomes permanent, and with write preconditions in force they would also be five separate version checks
+// over what a supplier experiences as one edit.
+//
+// The body is read as raw JSON rather than a typed shape, because a merge patch distinguishes a member that
+// is absent, meaning leave it alone, from one explicitly set to nothing, meaning delete it, and a
+// deserialised shape cannot tell those apart: both arrive as nothing.
+//
+// Only the merge-patch content type is accepted. Accepting plain JSON would leave the meaning ambiguous at
+// exactly the point where absent-versus-empty decides whether a supplier keeps their warranty text.
+//
+// The retired routes each ran their own validation before touching anything, and the message catalogue is
+// keyed by those rules, so retiring the routes must not retire their validation. The same validators run here
+// over the same shapes, with each failure re-pathed to where it actually sits in the patch body, because
+// those paths exist so the editor can put an error onto the input the user typed in.
+//
+// Nothing present in the patch being invalid is a success, including when nothing is present at all, which
+// the standard makes a legitimate no-op rather than an error.
+//
+//
+// VALIDATION THAT EXISTS BECAUSE OF REAL FAILURES
+//
+// A unit price must be greater than zero. It was greater than or equal, so a zero-price line was accepted
+// while the contract said it could not be. Ruled in favour of the contract, whose own message says so in both
+// languages.
+//
+// Every free-text field on the commercial terms now has a length limit matching its column, and only the
+// currency code used to have one. Anything longer reached the database and came back as a raw
+// value-too-long error, surfaced to the bidder as an unexpected failure with nothing naming the field or the
+// limit. Typing a twelve-character delivery term is enough to do it, which is how this was found while
+// filling in a bid.
+//
+// A failure for a value a person typed is the wrong answer twice over: it tells them the system broke rather
+// than that the input was too long, and it puts an unhandled exception in the log for something that is not
+// an incident.
+//
+//
+// REFUSALS
+//
+// An illegal state change answers conflict, naming the current state and what could legally follow. The
+// tender routes have answered that way for a while and bids answered a plain bad request, so one product
+// carried two conventions for "this resource has moved on".
+//
+// A refusal with no state attached keeps its plain bad request. Those are shaped like validation, such as a
+// missing withdrawal reason, and have no set of allowed next states to offer. The rule governs transitions
+// rather than every rejection.
+//
+// An incomplete submission is unprocessable with a code naming what is missing. The middleware turns the
+// identifier the domain threw into the code, so there is no second mapping table.
+//
+//
+// FILES
+//
+// The supplier declares which envelope a file belongs to. Anything unreadable, absent, or simply not sent
+// stays on the commercial side: the parse failing must not be the thing that opens a file up, so the fallback
+// is the gated side rather than the last value tried.
+//
+// A supplier reading their own file has no envelope gate, because the two-envelope rule is about what a
+// buyer may see during scoring and not about a bidder reading their own bid. That read is gated on editing
+// rather than creating, which both supplier roles hold, and reading a file back is strictly narrower than the
+// upload that put it there.
+//
+//
+// DECLINING AN AWARD
+//
+// It takes a mandatory reason, the same shape and the same length limit as a withdrawal, because both are a
+// supplier ending their own participation and both owe an explanation to the record.
+//
+// No acceptance window is enforced. The written rule tags one as an assumption and names no duration.
+//
+//
+// THE IDEMPOTENCY KEY ON SUBMIT
+//
+// Submitting requires one. The contract names it first among the financially and legally significant
+// transitions, and it is the one a double-click actually threatens.
+//
+//
+// WHY THE BUYER'S CLARIFICATION REQUEST HAS NO WRITE PRECONDITION
+//
+// This is the lesson from another resource applied before shipping rather than after. A guarded write needs a
+// read that issues its precondition, and a buyer has none for a bid: the bid read is supplier-scoped, so an
+// officer calling it gets not-found. An officer therefore could not obtain what the guard would demand, and
+// every clarification request would be refused with a message saying the resource had changed when nothing
+// had.
+//
+// The write is still safe, because the domain refuses any state but under-review, so a stale request cannot
+// silently overwrite anything.
+//
+// It reuses the withdrawal request shape, because both carry exactly one mandatory reason and its validator
+// already enforces that. A second identical shape would be a second thing to keep in step.
+//
+// It is gated on the same clarification permission the tender-level one uses rather than a new one.
+//
+//
+// PRECONDITION RESPONSES
+//
+// Every guarded write puts the new version on its own response, so a second write has a precondition to send
+// without waiting for a re-read.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using System.Text.Json.Nodes;
 using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
@@ -9,8 +136,6 @@ using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
 public sealed record SetItemPricingRequest(decimal Quantity, decimal UnitPrice, decimal? Discount, int? LeadTimeDays, string? NotesAr, string? NotesEn);
 
 public sealed class SetItemPricingRequestValidator : AbstractValidator<SetItemPricingRequest>
@@ -18,9 +143,6 @@ public sealed class SetItemPricingRequestValidator : AbstractValidator<SetItemPr
     public SetItemPricingRequestValidator()
     {
         RuleFor(x => x.Quantity).GreaterThan(0);
-        // §7.2 documents this rule by name and by message: PRICE_NON_POSITIVE, «يجب أن يكون سعر
-        // الوحدة أكبر من صفر». It was GreaterThanOrEqualTo(0), so a zero-price bid line was accepted
-        // while the contract said it could not be - ruled in favour of the contract.
         RuleFor(x => x.UnitPrice).GreaterThan(0);
     }
 }
@@ -29,20 +151,6 @@ public sealed record SetCommercialTermsRequest(
     string CurrencyCode, string? PaymentTerms, string? IncotermCode,
     string? DeliveryTermsAr, string? DeliveryTermsEn, string? Warranty, DateOnly? ValidityStart, DateOnly? ValidityEnd);
 
-/// <summary>
-/// Lengths mirror the column widths in AppDbContext, and that is the whole point of them being here.
-///
-/// <para>Only CurrencyCode was validated. Every other field on this request is free text with a column
-/// width behind it, so anything longer reached Postgres and came back as
-/// <c>22001: value too long for type character varying(10)</c> - surfaced to the bidder as
-/// <c>500 An unexpected error occurred</c>, with nothing naming the field or the limit. Typing a
-/// twelve-character incoterm is enough to do it, which is how this was found: "DDP Damascus" while
-/// filling in a bid.</para>
-///
-/// <para>A 500 for a value a person typed is the wrong answer twice over - it tells them the system
-/// broke rather than that the input was too long, and it puts an unhandled exception in the log for
-/// something that is not an incident.</para>
-/// </summary>
 public sealed class SetCommercialTermsRequestValidator : AbstractValidator<SetCommercialTermsRequest>
 {
     public SetCommercialTermsRequestValidator()
@@ -76,8 +184,6 @@ public sealed class WithdrawProposalRequestValidator : AbstractValidator<Withdra
     public WithdrawProposalRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
-// T-064: same shape and same bound as a withdrawal - both are a supplier ending their own
-// participation and both owe an explanation to the record.
 public sealed record DeclineAwardOfferRequest(string Reason);
 
 public sealed class DeclineAwardOfferRequestValidator : AbstractValidator<DeclineAwardOfferRequest>
@@ -85,33 +191,12 @@ public sealed class DeclineAwardOfferRequestValidator : AbstractValidator<Declin
     public DeclineAwardOfferRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
-/// <summary>FEAT-09.1..09.6/FR-PRP-001..008: the supplier's own proposal against one RFQ - nested
-/// under the same "/api/v1/suppliers/me/rfqs/{referenceCode}" base SupplierRfqEndpoints already
-/// uses, since a Proposal only ever makes sense in the context of the RFQ it answers, even though
-/// it is its own aggregate root (Proposal.cs's own doc comment). Every handler resolves the caller's
-/// own Proposal by their own SupplierId - there is no route here, or anywhere in this codebase yet,
-/// that can return another supplier's Proposal (FEAT-09.8/FR-PRP-012).
-///
-/// <para>Permissions follow BUSINESS-PROCESSES.md §4.1's own actor column exactly: ProposalCreate
-/// for start/view (both supplier roles), ProposalEdit for Draft content (both), ProposalSubmit for
-/// submit (supplier_admin only), ProposalWithdraw for withdraw (supplier_admin only).</para></summary>
 public static class ProposalEndpoints
 {
     private static IResult MapResult(ProposalResult result) => result switch
     {
         ProposalResult.Success s => Results.Ok(s.Proposal),
         ProposalResult.NotFoundOrNotInvited => Results.NotFound(),
-        // T-065, §3: "Illegal transitions return 409 Conflict (type: …/errors/invalid-state-transition)
-        // listing the current state and the allowed next states." RFQ endpoints have answered that
-        // since T3-36; proposals answered 400, so one product carried two conventions for "this
-        // resource has moved on" - and batch 7 made the proposal machine something callers hit.
-        //
-        // A refusal with no state attached keeps its 400: those are shaped like validation ("a
-        // withdrawal reason is required") and have no allowed-next set to offer. §3 governs
-        // transitions, not every rejection.
-        // T-066: §12.5 answers an incomplete submission with 422 and a code. The middleware turns
-        // `error` into §7's SCREAMING_SNAKE code, so PROPOSAL_ITEMS_REQUIRED comes out of the
-        // identifier the domain threw - no second mapping table.
         ProposalResult.Incomplete incomplete =>
             Results.UnprocessableEntity(new { error = incomplete.Error, message = incomplete.Message }),
 
@@ -132,12 +217,6 @@ public static class ProposalEndpoints
         _ => Results.Problem(),
     };
 
-
-    /// <summary>
-    /// Runs the retired sub-routes' validators over the merge patch, re-pathing each failure to the
-    /// member it came from. Returns null when everything present is valid - including when nothing
-    /// is present, which RFC 7396 makes a legitimate no-op rather than an error.
-    /// </summary>
     private static async Task<IResult?> ValidatePatchAsync(
         JsonObject patch,
         IValidator<SetItemPricingRequest> itemValidator,
@@ -210,15 +289,6 @@ public static class ProposalEndpoints
 
     public static void MapProposalEndpoints(this IEndpointRouteBuilder app)
     {
-        // §12-A/C2. Two collections, per §3 and §12.5:
-        //  - creation and discovery hang off the RFQ ("/rfqs/{rfqCode}/proposals", §3's own
-        //    sub-resource example, and §12.5's "POST /rfqs/{rfqCode}/proposals" heading);
-        //  - everything addressing an EXISTING proposal is top-level by its own public code
-        //    ("/proposals/{proposalCode}/items" in §3, "PATCH /proposals/{proposalCode}" and
-        //    "POST /proposals/{proposalCode}/submit" in §12.5).
-        //
-        // The six edit sub-routes below move with the tree but keep their current shape - §12.5's
-        // collapse into one JSON Merge Patch is the next batch, deliberately not started here.
         var rfqScoped = app.MapGroup("/api/v1/rfqs/{referenceCode}/proposals").WithTags("Proposals");
         var group = app.MapGroup("/api/v1/proposals/{referenceCode}").WithTags("Proposals");
 
@@ -227,9 +297,6 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("StartProposal");
 
-        // SCR-150: the supplier's own proposals across every RFQ. Scoped by the caller's SupplierId,
-        // never by a parameter - a supplier id in the request would be an authorization decision made
-        // by the client.
         app.MapGet("/api/v1/proposals", async (IListMyProposalsHandler handler, CancellationToken ct) =>
         {
             var proposals = await handler.HandleAsync(ct);
@@ -245,28 +312,12 @@ public static class ProposalEndpoints
         .WithETag()
         .WithName("GetProposal");
 
-        // §12-A/C2: the code-addressed read. §3 addresses a proposal's sub-resources at
-        // /proposals/{proposalCode}/…, so the resource itself must be readable there too;
-        // §12 documents PATCH and submit on this path but no GET, so the GET is an invention.
         group.MapGet("/", async (string referenceCode, IGetProposalByCodeHandler handler, CancellationToken ct) =>
             MapResult(await handler.HandleAsync(referenceCode, ct)))
         .RequirePermission(Permissions.ProposalCreate)
         .WithETag()
         .WithName("GetProposalByCode");
 
-        // §12.5: "PATCH /proposals/{proposalCode} - edit draft (line items, terms) with If-Match",
-        // returning "200 OK with recomputed totals and new ETag". §4 states the rule normatively:
-        // "PATCH | Partial update (JSON Merge Patch, RFC 7396) of draft-editable resources".
-        //
-        // This ONE route replaces five: PUT /terms, PUT /narrative, PUT /items/{id},
-        // DELETE /items/{id} and POST /requirements/{id}/answer. They are retired outright rather
-        // than deprecated - two ways to edit one resource is how the wrong one becomes permanent,
-        // and with §8.1 in force they would also be five separate version checks over what a
-        // supplier experiences as one edit.
-        //
-        // The body is read as a JsonNode, not a DTO, because merge patch distinguishes an ABSENT
-        // member ("leave it") from an explicit null ("delete it") and a deserialised DTO cannot -
-        // both arrive as null. See ProposalMergePatch.
         group.MapPatch("/", async (
             string referenceCode,
             HttpContext http,
@@ -276,9 +327,6 @@ public static class ProposalEndpoints
             IValidator<AnswerRequirementRequest> answerValidator,
             CancellationToken ct) =>
         {
-            // RFC 7396 defines its own media type, and §4 names merge patch specifically. Accepting
-            // application/json here would leave the semantics ambiguous at exactly the point where
-            // absent-versus-null decides whether a supplier keeps their warranty text.
             var contentType = http.Request.ContentType ?? string.Empty;
             if (!contentType.StartsWith(MergePatchContentType, StringComparison.OrdinalIgnoreCase))
             {
@@ -291,11 +339,6 @@ public static class ProposalEndpoints
                 return ValidationProblems.MalformedMergePatch(http);
             }
 
-            // The sub-routes each ran a FluentValidation validator before touching the aggregate, and
-            // §7.2's catalogue is keyed by those rules. Retiring the routes must not retire their
-            // validation, so the same validators run here over the same shapes - with the failures
-            // re-pathed to where they actually live in the patch body (items[0].unitPrice, not
-            // UnitPrice), because §7.2's paths exist so the editor can map an error onto an input.
             var invalid = await ValidatePatchAsync(patch, itemValidator, termsValidator, answerValidator, ct);
             if (invalid is not null) return invalid;
 
@@ -304,13 +347,9 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalEdit)
         .RequireIfMatch()
         .WithETag()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("PatchProposal");
 
-        // FEAT-09.3/FR-PRP-004: same inline IFileStorage pattern as RfqEndpoints' attachment upload
-        // (no AV-scan quarantine flow here either - see ManageProposalDocumentHandler's own comment).
         group.MapPost("/documents", async (
             string referenceCode,
             HttpRequest request,
@@ -326,14 +365,9 @@ public static class ProposalEndpoints
 
             var caption = form["caption"].ToString();
 
-            // T-028/D-7: the supplier declares the envelope. Anything unparseable, absent, or
-            // simply not sent stays Commercial - the parse FAILING must not be the thing that opens
-            // a file up, so the fallback is the gated side rather than the last value tried.
             var envelope = Enum.TryParse<ProposalDocumentEnvelope>(form["envelope"].ToString(), ignoreCase: true, out var parsed)
                 ? parsed
                 : ProposalDocumentEnvelope.Commercial;
-            // Server-side key, and the quarantine gap both these paths share, are explained once in
-            // AttachmentStorageKey rather than twice here.
             var storageKey = AttachmentStorageKey.For(AttachmentStorageKey.ProposalDocumentPrefix);
 
             await using (var stream = file.OpenReadStream())
@@ -348,9 +382,6 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalEdit)
         .WithName("AddProposalDocument");
 
-        // T-028: the supplier's own read of their own file. No envelope gate - see
-        // GetOwnProposalDocumentDownloadUrlHandler on why the two-envelope rule does not apply to a
-        // bidder reading their own bid.
         group.MapGet("/documents/{documentId:guid}/download-url", async (
             string referenceCode, Guid documentId,
             IGetOwnProposalDocumentDownloadUrlHandler handler, CancellationToken ct) =>
@@ -359,8 +390,6 @@ public static class ProposalEndpoints
                 ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
                 _ => Results.NotFound(),
             })
-        // ProposalEdit rather than ProposalCreate: both supplier roles hold it, and reading a file
-        // back is strictly narrower than the upload that put it there.
         .RequirePermission(Permissions.ProposalEdit)
         .WithName("GetOwnProposalDocumentDownloadUrl");
 
@@ -370,9 +399,6 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalEdit)
         .WithName("RemoveProposalDocument");
 
-        // T-064/§4.1: "AwardOffered -> Declined | Supplier declines | supplier_admin /
-        // proposal.decline | Within acceptance window ([ASSUMPTION])". No window is enforced - see
-        // Proposal.OfferAward and DECISIONS-TAKEN.md D-21.
         group.MapPost("/decline", async (
             string referenceCode, DeclineAwardOfferRequest request,
             IValidator<DeclineAwardOfferRequest> validator,
@@ -387,8 +413,6 @@ public static class ProposalEndpoints
         .RequirePermission(Permissions.ProposalDecline)
         .RequireIfMatch()
         .WithETag()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("DeclineAwardOffer");
 
@@ -396,12 +420,7 @@ public static class ProposalEndpoints
             MapResult(await handler.HandleAsync(new SubmitProposalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.ProposalSubmit)
         .RequireIfMatch()
-        // §8.2: "required for financially/legally significant transitions: proposal.submit,
-        // award.approve, rfq.publish". This is the one the document names first, and the one a
-        // double-click actually threatens.
         .RequireIdempotencyKey()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("SubmitProposal");
 
@@ -419,13 +438,9 @@ public static class ProposalEndpoints
         })
         .RequirePermission(Permissions.ProposalWithdraw)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("WithdrawProposal");
 
-        // T-051, §4.1: UnderReview -> ClarificationRequested. Buyer-side, so rfq.clarify - the same
-        // permission the RFQ-level clarification already uses, not a new one.
         group.MapPost("/request-clarification", async (
             string referenceCode,
             WithdrawProposalRequest request,
@@ -433,9 +448,6 @@ public static class ProposalEndpoints
             IRequestProposalClarificationHandler handler,
             CancellationToken ct) =>
         {
-            // Reuses WithdrawProposalRequest: both carry exactly one mandatory Reason, and its
-            // validator already enforces that. A second identical request type would be a second
-            // thing to keep in step.
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
@@ -443,20 +455,8 @@ public static class ProposalEndpoints
                 new RequestProposalClarificationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqClarify)
-        // No RequireIfMatch, deliberately, and this is the Offering lesson from batch 3 applied
-        // BEFORE shipping rather than after: a guarded write needs a read that ISSUES its
-        // precondition, and a buyer has none for a proposal. GET /proposals/{code} is supplier-scoped
-        // - an officer calling it gets a 404 - so an officer literally cannot obtain the ETag this
-        // would demand, and every request-clarification would 412 with a message saying the resource
-        // changed when nothing had.
-        //
-        // The write is still safe: RequestClarification refuses any state but UnderReview, so a
-        // concurrent second request is a 409 rather than a silent overwrite. Recorded as the reason
-        // rather than left as an omission - if a buyer-facing proposal read is ever added, this
-        // should take the header with it.
         .WithName("RequestProposalClarification");
 
-        // §4.1: ClarificationRequested -> Revised, supplier_admin / proposal.revise.
         group.MapPost("/revise", async (
             string referenceCode,
             IReviseProposalHandler handler,
@@ -464,8 +464,6 @@ public static class ProposalEndpoints
             MapResult(await handler.HandleAsync(new ReviseProposalCommand(referenceCode), ct)))
         .RequirePermission(Permissions.ProposalRevise)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ReviseProposal");
     }

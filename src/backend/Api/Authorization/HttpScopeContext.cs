@@ -1,9 +1,16 @@
-using System.IdentityModel.Tokens.Jwt;
-using MotsSupplierPortal.Application.Common;
+// Reads the facts that decide which rows a caller may see, off the current request's token.
+//
+// Who the user is, which supplier they belong to, which organization they belong to, and which
+// permissions they hold. Handlers ask this rather than reaching for the request themselves.
+//
+// HasPermission reads the same claim the permission filter checks. It is the same permission system,
+// just readable from inside a handler rather than enforced at the route.
 
 namespace MotsSupplierPortal.Api.Authorization;
 
-/// <summary>Reads the row-scoping context from the current request's JWT claims.</summary>
+using System.IdentityModel.Tokens.Jwt;
+using MotsSupplierPortal.Application.Common;
+
 public sealed class HttpScopeContext(IHttpContextAccessor accessor) : IScopeContext
 {
     private System.Security.Claims.ClaimsPrincipal? User => accessor.HttpContext?.User;
@@ -16,8 +23,6 @@ public sealed class HttpScopeContext(IHttpContextAccessor accessor) : IScopeCont
 
     public Guid? OrganizationId => Guid.TryParse(User?.FindFirst("organizationId")?.Value, out var id) ? id : null;
 
-    // Same claim type PermissionEndpointFilter checks ("perms") - this is the same permission
-    // system, just readable from a handler instead of enforced at the endpoint gate.
     public bool HasPermission(string permission) =>
         User?.Claims.Any(c => c.Type == "perms" && c.Value == permission) ?? false;
 }

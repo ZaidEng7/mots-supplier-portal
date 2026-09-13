@@ -1,19 +1,19 @@
-using MotsSupplierPortal.Application.Common;
+// Returns a page of a list, attaching the warning header the contract requires when a caller asked for
+// more rows than the documented ceiling.
+//
+// The page size defaults to twenty, the minimum is one and the maximum is a hundred. A larger request is
+// served at the ceiling and warned about rather than refused.
+//
+// The header's exact shape is a choice rather than a transcription. The contract requires that a warning
+// is sent and says nothing about its code or its wording. The relevant standard defines the syntax as a
+// code, an agent and a quoted text, and reserves one code for a miscellaneous warning whose text is meant
+// for a person to read. That is the closest standard fit, and a dash is the conventional agent
+// placeholder when the sender is the server itself. Flagged as a documented silence.
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-/// <summary>
-/// Returns a list envelope, attaching the `Warning` header API-ARCHITECTURE.md §6.1 requires when a
-/// caller asked for more rows than the documented ceiling: *"`pageSize` default 20, min 1, max 100
-/// (`&gt; 100` → clamped + `Warning` header)"*.
-///
-/// <para><b>The header's format is a choice, not a transcription.</b> §6.1 mandates *that* a Warning
-/// header is sent and says nothing about its code or text (§6.4 mentions one too, equally
-/// unspecified). RFC 7234 §5.5 defines the syntax as `warn-code warn-agent "warn-text"`, and
-/// reserves <b>199</b> for a miscellaneous warning whose text is meant for a human. That is the
-/// closest standard fit; `-` is the conventional agent placeholder when the sender is the origin
-/// server. Flagged in the batch report as a documented silence.</para>
-/// </summary>
+using MotsSupplierPortal.Application.Common;
+
 internal static class ListResponse
 {
     public static IResult Ok<T>(HttpContext context, ListEnvelope<T> page, int? requestedPageSize)

@@ -1,44 +1,82 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
+// Reshapes every failure response into one standard format, in one place.
+//
+// This is the piece that makes the rest of the folder work, and it is worth understanding before
+// reading any endpoint, because it explains something that otherwise looks like a mess.
+//
+//
+// WHY IT IS A MIDDLEWARE RATHER THAN 230 EDITS
+//
+// The contract requires the standard format on every failure response. The endpoints produce failure
+// bodies in at least five different shapes: the framework's own validation response, a bare
+// not-found with no body at all, an object carrying just an error name, one carrying an error and a
+// message, and one carrying an error and details.
+//
+// Rewriting each site would have been around 230 edits whose correctness could only be checked by
+// reading all of them, and it would leave the next new endpoint free to invent a sixth shape.
+// Reshaping at the boundary makes conformance a property of the pipeline rather than a habit of
+// whoever writes the next endpoint.
+//
+// So: when you see an endpoint return a plain object like an error name and a message, that is not a
+// gap in the contract. It is the internal shorthand this middleware translates. Do not "fix" those
+// endpoints to build the full format themselves; that is this file's job.
+//
+//
+// WHAT SURVIVES THE TRANSLATION
+//
+// An error name in the body becomes the machine-readable code, upper-cased, because the contract
+// requires that form. Every distinction the handlers already draw therefore survives, and the
+// interface's existing checks keep a machine-readable home.
+//
+// Only an identifier becomes a code. Several handlers put the domain's own full sentence in that
+// field, and the contract is explicit that the code is a short machine-stable name, so upper-casing a
+// sentence would produce neither a code nor a readable message. A sentence goes to the detail
+// instead, where human-readable explanation belongs, and the code falls back to one derived from the
+// status. LooksLikeIdentifier is what tells the two apart: short, and no spaces.
+//
+// Anything else the body carried is kept as an extra field rather than dropped. The standard permits
+// extra fields, and silently losing the list of missing fields would break the registration flow that
+// reads it.
+//
+// A body that is already in the standard format passes through untouched, so the query-filter guards
+// keep their exact behaviour and stop being special cases.
+//
+//
+// WHAT IT BUFFERS, AND WHY ONLY THAT
+//
+// Only a response that turns out to be a failure is buffered. The first version buffered every
+// response into memory, which breaks streaming: the audit export writes its rows straight to the wire
+// precisely so that a large export never has to fit in memory, and holding it there to inspect a
+// status it was never going to fail with is both a correctness and a memory regression.
+//
+// ErrorCapturingStream is what makes that work. It passes writes straight through while the response
+// still looks successful and starts capturing once the status says otherwise.
+//
+//
+// THE TWO CAUGHT EXCEPTIONS
+//
+// A malformed-request exception is thrown by the framework for an unreadable body, a field the API
+// does not model, or a bad route value. It carries its own status, usually a 400, and swallowing it
+// into a server error would turn a client's mistake into ours. A test asserts that refusal on an
+// unmodelled field, so this is a regression guard as well as a correctness one.
+//
+// Anything else becomes a server error. The exception is logged in full, because losing the
+// diagnostic would be the opposite mistake, and the response is built from the request alone, so
+// there is no path from the exception to the body.
+//
+// Neither path can rewrite a response that has already started going out. Truncating one mid-flight
+// would be worse than leaving its shape unconformed.
 
 namespace MotsSupplierPortal.Api.Errors;
 
-/// <summary>
-/// Conforms every non-2xx response to §7's problem+json shape, in one place.
-///
-/// <para><b>Why a response-shaping middleware rather than editing ~230 call sites.</b> §7 says
-/// "every non-2xx (except 304)", and the endpoints produce error bodies in at least five shapes
-/// today: ASP.NET's ValidationProblem, bare <c>Results.NotFound()</c> with no body at all,
-/// <c>{ error }</c>, <c>{ error, message }</c>, <c>{ error, details }</c>. Rewriting each site would
-/// be ~230 edits whose correctness could only be checked by reading all of them, and would leave
-/// the next new endpoint free to invent a sixth shape. Shaping at the boundary makes conformance a
-/// property of the pipeline instead of a habit of authors.</para>
-///
-/// <para><b>Existing error identifiers are preserved, not discarded.</b> A body carrying
-/// <c>{ "error": "invalid_state" }</c> becomes <c>"code": "INVALID_STATE"</c> - §7 requires
-/// SCREAMING_SNAKE - so every distinction the handlers already draw survives the migration, and the
-/// SPA's existing sentinels keep a machine-readable home. Anything else the body carried
-/// (<c>message</c>, <c>details</c>, <c>missingFields</c>) is preserved as an extension member
-/// rather than dropped: RFC 9457 permits extensions, and silently losing
-/// <c>missingFields</c> would break the onboarding submit flow that reads it.</para>
-///
-/// <para><b>Bodies that are already problem+json pass through untouched</b>, so the filter guards
-/// (§6.2's unknown-filter, §6.3's unknown sort key, the page cap) keep their exact behaviour and
-/// stop being special cases: they now produce the same media type as everything else and are simply
-/// not rewritten twice.</para>
-/// </summary>
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
 public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<ProblemDetailsMiddleware> logger)
 {
     public async Task InvokeAsync(HttpContext context)
     {
         var originalBody = context.Response.Body;
 
-        // Buffer ONLY what turns out to be an error. The first version buffered every response into
-        // a MemoryStream, which breaks streaming endpoints - the audit export writes an
-        // IAsyncEnumerable straight to the wire precisely so a large export never materialises, and
-        // holding it in memory to inspect a status it was never going to fail with is both a
-        // correctness and a memory regression. This stream passes writes straight through until it
-        // sees a non-2xx status, and only then starts capturing.
         using var buffer = new MemoryStream();
         var interceptor = new ErrorCapturingStream(context, originalBody, buffer);
         context.Response.Body = interceptor;
@@ -49,10 +87,6 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         }
         catch (BadHttpRequestException badRequest)
         {
-            // ASP.NET throws this for a malformed body, an unmodelled field under strict binding, a
-            // bad route value. It CARRIES its own status (usually 400) and swallowing it into a 500
-            // would turn a client error into a server one - which is both wrong and a regression:
-            // ProfilePatchSemanticsTests asserts NFR-SEC-005's 400 on an unmodelled field.
             context.Response.Body = originalBody;
             if (!context.Response.HasStarted)
             {
@@ -65,9 +99,6 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         }
         catch (Exception ex)
         {
-            // §7: a 500 carries no stack, SQL or internal message. The exception is LOGGED in full -
-            // losing the diagnostic entirely would be the opposite mistake - and the response is
-            // built from the request context alone, so there is no path from ex to the body.
             context.Response.Body = originalBody;
             logger.LogError(ex, "Unhandled exception handling {Method} {Path}", context.Request.Method, context.Request.Path);
 
@@ -82,12 +113,8 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         await interceptor.FlushPassThroughAsync();
         buffer.Seek(0, SeekOrigin.Begin);
 
-        // 304 is excluded by §7 by name, and a 2xx is not an error. A response already committed to
-        // the wire cannot be rewritten, and silently truncating it would be worse than leaving the
-        // shape unconformed.
         if (context.Response.StatusCode < 400 || context.Response.HasStarted)
         {
-            // Already written straight through by the interceptor; nothing captured.
             return;
         }
 
@@ -128,18 +155,8 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         return problem;
     }
 
-    /// <summary>
-    /// <c>{ "error": "invalid_state" }</c> → <c>INVALID_STATE</c>. ASP.NET's ValidationProblem
-    /// carries no error field, so a 422 from it falls back to the documented VALIDATION_FAILED
-    /// (§7.2's own worked example uses exactly that code).
-    /// </summary>
     private static string CodeFrom(JsonObject? source, int status)
     {
-        // Only an IDENTIFIER becomes a code. Several handlers put the domain's own sentence in
-        // `error` ("Cannot deactivate from lifecycle state 'Active'; only 'Suspended' is valid…"),
-        // and §7 is explicit that code is a "machine-stable app error code (SCREAMING_SNAKE)" -
-        // uppercasing a sentence produces neither a code nor a readable message. A sentence goes to
-        // `detail`, where §7 puts human-readable explanation, and the code falls back to the status.
         if (source?["error"]?.GetValue<string>() is { Length: > 0 } error && LooksLikeIdentifier(error))
         {
             return error.ToUpperInvariant().Replace('-', '_');
@@ -163,8 +180,6 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         };
     }
 
-    /// <summary>An identifier: short, no whitespace - the shape `invalid_state` has and a domain
-    /// sentence does not.</summary>
     private static bool LooksLikeIdentifier(string value) =>
         value.Length <= 64 && !value.Any(char.IsWhiteSpace);
 
@@ -173,9 +188,6 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         if (source?["message"]?.GetValue<string>() is { Length: > 0 } message) return message;
         if (source?["detail"]?.GetValue<string>() is { Length: > 0 } detail) return detail;
 
-        // The sentence-shaped `error` case: it is the explanation, so it lands in detail rather
-        // than being lost. NFR-CMP-003/BRULE-097 require the caller to be told which state was
-        // required, and that text only exists here.
         if (source?["error"]?.GetValue<string>() is { Length: > 0 } sentence && !LooksLikeIdentifier(sentence))
         {
             return sentence;
@@ -204,12 +216,6 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         _ => "An unexpected error occurred.",
     };
 
-    /// <summary>
-    /// Members the handlers already return and callers already read - notably
-    /// <c>missingFields</c> on the onboarding submit 422, and ASP.NET's own <c>errors</c> map -
-    /// are carried through as RFC 9457 extension members. Dropping them would conform the shape by
-    /// breaking the behaviour.
-    /// </summary>
     private static void CarryExtensions(JsonObject? source, JsonObject problem)
     {
         if (source is null) return;
@@ -222,11 +228,6 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         }
     }
 
-    /// <summary>
-    /// Passes writes straight to the real body while the response looks successful, and captures
-    /// them once the status says otherwise. Keeps streaming endpoints streaming while still letting
-    /// an error body be rewritten into §7's shape.
-    /// </summary>
     private sealed class ErrorCapturingStream(HttpContext context, Stream passThrough, MemoryStream capture) : Stream
     {
         private bool? _capturing;

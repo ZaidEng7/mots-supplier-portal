@@ -1,27 +1,105 @@
-using Microsoft.Net.Http.Headers;
-using MotsSupplierPortal.Api.Errors;
+// The preconditions that stop two people overwriting each other, applied as route filters so the rule
+// is declared next to the route rather than re-implemented in each handler.
+//
+// Four things live here: the filter that demands a precondition on a write, the two filters that put a
+// version on a response, and the markers that make both facts enumerable from the route table.
+//
+//
+// REQUIREIFMATCH: A WRITE MUST SAY WHICH VERSION IT READ
+//
+// Every update and every state change on an existing resource must send the version it is writing over.
+//
+// A missing header is a 428 saying the precondition is required. An unreadable one is a 412 saying the
+// precondition failed, because a value that cannot be read cannot match the current version. Answering
+// 400 would tell the client its syntax was wrong, when what matters is that its precondition failed, and
+// 412 is the answer the interface already knows how to recover from.
+//
+// A wildcard is refused rather than honoured. It means "any current version", which is legal in the
+// standard but is exactly the overwrite this guard exists to stop, because it asserts nothing about what
+// the caller actually read.
+//
+// Whether the record has actually moved is not decided here. Only the database can answer that, so a
+// well-formed version travels on to the save and comes back as a concurrency failure, which the pipeline
+// turns into the same 412.
+//
+// Only a route that declares the requirement binds the header to its write. A stray precondition header
+// on a route outside the contract must not quietly gate that write: the caller was not promised a
+// precondition there, and enforcing one would turn a header it sent for some other resource into a
+// failure it cannot explain.
+//
+//
+// WITHETAG AND WITHFRESHETAG: A RESPONSE CARRIES ITS VERSION
+//
+// WithETag is the read half. The current version goes out as a tag, and a conditional read that already
+// holds it gets a not-modified answer instead of a body. The body is dropped and the tag stays, because
+// a not-modified answer is still an answer about a specific version.
+//
+// The check happens after the handler runs rather than before, because the version is only known once
+// the resource has been loaded. That still saves the body and the work of serialising it, which is what
+// the contract asks it to save. It does not save the query, and the contract does not claim it should.
+//
+// WithFreshETag is the write half: it puts the new version on a mutation's own response. It is separate
+// from WithETag rather than a reuse of it, because that one also answers conditional reads, and a
+// not-modified answer on a request that has already changed the record would be a lie about what
+// happened.
+//
+// It matters because the interface drops its cached version the moment a write succeeds. A kept version
+// would be stale by definition and turn the next save into an unexplainable failure. Without a fresh tag
+// on the response, a supplier editing two contacts in a row would be refused on the second until a
+// re-read landed. Returning the version the write produced closes that window rather than racing a
+// refetch.
+//
+// Both filters find the version by looking for a property of that name on whatever the handler returned,
+// rather than being typed to a particular response shape. That is deliberate: the several resources
+// involved return unrelated shapes through result types of their own, and threading a type through each
+// would mean editing every handler's result mapping to expose the version a second time. The response
+// shapes already carry the version for exactly this purpose, so the filter looks for that one property
+// and does nothing when it is absent, which is what makes it safe to put on a route whose not-found
+// branch returns no value at all.
+//
+// It accepts the version as either of two number types. One response shape widened its version long
+// before this contract existed, to keep it exactly representable in the wire format. Both describe the
+// same underlying number.
+//
+//
+// WHAT A TAG IS A TAG OF
+//
+// ResourceKey is the path plus the signed-in subject, and both halves are load-bearing.
+//
+// The path separates two different resources that happen to sit at the same version. The subject
+// separates two callers at one path: the current-supplier route is a different resource for every
+// supplier, and it is the path this defect was actually reported on, where one supplier's browser served
+// another's profile because the two tags were identical.
+//
+// The query string is deliberately left out. A list's version belongs to its rows rather than to the page
+// or the sort order the caller asked for, and folding the query in would issue a fresh tag for every
+// combination and defeat the conditional read entirely.
+//
+// IsNotModified accepts a list of candidate tags, which is legal for a read unlike for a write: any one
+// matching means not modified. It compares whole representations rather than just versions, because a
+// not-modified answer tells the caller the body it already has is still right, and a body from an older
+// build is not. A field added to a response shape moves no version, so comparing versions alone kept warm
+// clients on the old shape indefinitely.
+//
+//
+// THE TWO MARKERS
+//
+// RequiresIfMatchMetadata says "this route refuses a write without a precondition" and
+// EmitsETagMetadata says "this route hands out one". They exist so both facts are enumerable.
+//
+// The contract has two halves declared in different places: a write demands a version, and some read has
+// to have issued one for the path the client will write to. A sweep of the codebase found five separate
+// writes where the second half was missing, each with a different cause, and every one was invisible
+// until somebody pressed the button. The route compiled, the filter ran, and the only symptom was a
+// refusal in a browser. A marker on the route table turns "did anyone check?" into a test.
 
 namespace MotsSupplierPortal.Api.Concurrency;
 
-/// <summary>
-/// §8.1's preconditions, applied as an endpoint filter so the rule is declared next to the route
-/// rather than re-implemented in each handler.
-/// </summary>
+using Microsoft.Net.Http.Headers;
+using MotsSupplierPortal.Api.Errors;
+
 public static class ConcurrencyEndpoints
 {
-    /// <summary>
-    /// Marks a mutation as requiring <c>If-Match</c>, per §8.1: "Mutating PUT/PATCH/transition POST
-    /// on an existing resource MUST send If-Match".
-    ///
-    /// <para>Missing → <b>428</b> <c>IF_MATCH_REQUIRED</c>. Unparseable → <b>412</b>
-    /// <c>ETAG_MISMATCH</c>, because a value that cannot be read cannot match the current version;
-    /// answering 400 would tell the client its syntax was wrong when what matters is that its
-    /// precondition failed, and 412 is the status the SPA already reconciles from.</para>
-    ///
-    /// <para>The STALE case is not decided here - only the database can say whether the row moved,
-    /// so a well-formed version travels on to the save and comes back as a
-    /// <c>DbUpdateConcurrencyException</c>, which the pipeline converts to the same 412.</para>
-    /// </summary>
     public static RouteHandlerBuilder RequireIfMatch(this RouteHandlerBuilder builder) =>
         builder.AddEndpointFilter(async (context, next) =>
         {
@@ -35,9 +113,6 @@ public static class ConcurrencyEndpoints
                     "This resource requires the ETag of the version you are editing, sent as If-Match.");
             }
 
-            // "*" means "any current version", which is a valid If-Match under RFC 9110 but is
-            // exactly the lost-update the guard exists to stop: it asserts nothing about what the
-            // caller read. Refused rather than honoured.
             if (header.Trim() == "*" || !ETag.TryParse(header, out var expected))
             {
                 return Problem(http, StatusCodes.Status412PreconditionFailed,
@@ -45,34 +120,14 @@ public static class ConcurrencyEndpoints
                     "The If-Match value is not an ETag this API issued.");
             }
 
-            // Only an endpoint that declares the requirement binds the header to the write. A
-            // stray If-Match on an endpoint outside §8.1's list must not quietly gate that write:
-            // the caller was not promised a precondition there, and enforcing one would turn a
-            // header it sent for some other resource into a 412 it cannot explain.
             http.Items[ExpectedVersionKey] = expected;
 
             return await next(context);
         })
-        // Declared as metadata as well as behaviour, so the endpoint table itself can be asked which
-        // routes demand a precondition. A filter alone is invisible to anything that does not send a
-        // request, and five of batch 13's thirteen findings were writes whose precondition no read could
-        // supply - see IfMatchPreconditionSweepTests, which reads this marker.
         .WithMetadata(RequiresIfMatchMetadata.Instance);
 
-    /// <summary>Where the validated expected version is published for the persistence layer.</summary>
     public const string ExpectedVersionKey = "MotsSupplierPortal.ExpectedRowVersion";
 
-    /// <summary>
-    /// Emits §8.1's ETag from whatever the handler returned, and turns a matching
-    /// <c>If-None-Match</c> into a 304.
-    ///
-    /// <para>Reflective rather than generic over a DTO type, deliberately: the six aggregates return
-    /// six unrelated DTOs through result unions of their own, and threading a type parameter through
-    /// each would mean editing every handler's result mapping to expose the version a second time.
-    /// The DTO already carries <c>RowVersion</c> for exactly this purpose, so the filter looks for
-    /// that one property and does nothing when it is absent - which is what makes it safe to apply
-    /// to an endpoint whose 404 branch returns no value at all.</para>
-    /// </summary>
     public static RouteHandlerBuilder WithETag(this RouteHandlerBuilder builder) =>
         builder.AddEndpointFilter(async (context, next) =>
         {
@@ -82,30 +137,13 @@ public static class ConcurrencyEndpoints
             {
                 context.HttpContext.SetETag(rowVersion);
 
-                // §8.1: "Conditional reads: If-None-Match -> 304 Not Modified (saves bandwidth on
-                // polling, e.g. RFQ detail)." The body is dropped; the ETag stays, because a 304 is
-                // still an answer about a specific version.
                 if (context.HttpContext.IsNotModified(rowVersion)) return Results.StatusCode(StatusCodes.Status304NotModified);
             }
 
             return result;
         })
-        // Marked so the sweep can tell which reads can actually hand a client its precondition.
         .WithMetadata(EmitsETagMetadata.Instance);
 
-    /// <summary>
-    /// T-030 split (3): puts the NEW version on a mutation's own response.
-    ///
-    /// <para>Separate from <see cref="WithETag"/> rather than reusing it, because that one also
-    /// implements §8.1's conditional-read half - <c>If-None-Match → 304</c> - and a 304 on a POST that
-    /// has already changed the row would be a lie about what happened.</para>
-    ///
-    /// <para>Why it matters here: the SPA drops its cached version the moment a mutation succeeds (a kept
-    /// version would be stale by definition and turn the next save into an unexplainable 412). Without a
-    /// fresh ETag on the response, a supplier editing two contacts in a row would hit 428 on the second
-    /// until a re-read landed. Returning the version the write produced closes that window instead of
-    /// racing a refetch.</para>
-    /// </summary>
     public static RouteHandlerBuilder WithFreshETag(this RouteHandlerBuilder builder) =>
         builder.AddEndpointFilter(async (context, next) =>
         {
@@ -118,15 +156,12 @@ public static class ConcurrencyEndpoints
 
             return result;
         })
-        // Same marker: a mutation's fresh ETag is a precondition source for the NEXT write on that path.
         .WithMetadata(EmitsETagMetadata.Instance);
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> VersionProperties = new();
 
     private static uint? RowVersionOf(object value)
     {
-        // `long` as well as `uint`: SupplierDto widened the version years before §8.1 existed, to
-        // keep it exactly representable in JSON. Both describe the same xmin.
         var property = VersionProperties.GetOrAdd(value.GetType(), static t =>
         {
             var p = t.GetProperty("RowVersion");
@@ -141,32 +176,11 @@ public static class ConcurrencyEndpoints
         };
     }
 
-    /// <summary>
-    /// §8.1's read half: the current version goes out as a strong ETag, and a conditional read that
-    /// already has it gets a 304 instead of a body.
-    ///
-    /// <para>The 304 is checked BEFORE the handler runs where possible - here it is checked after,
-    /// because the version is only known once the resource is loaded. That still saves the body and
-    /// the serialisation, which is what §8.1 asks it to save ("saves bandwidth on polling"); it does
-    /// not save the query, and §8.1 does not claim it should.</para>
-    /// </summary>
     public static void SetETag(this HttpContext context, uint rowVersion)
     {
         context.Response.Headers.ETag = ETag.Format(rowVersion, ResourceKey(context));
     }
 
-    /// <summary>
-    /// What the tag is a tag OF: this path, as seen by this caller.
-    ///
-    /// <para>Both halves are load-bearing. The path separates two different resources that happen to sit
-    /// at the same row version. The subject separates two CALLERS at one path - <c>/suppliers/me</c> is a
-    /// different resource for every supplier, and it is the path this defect was reported on: one
-    /// supplier's browser served another's profile because the two tags were identical.</para>
-    ///
-    /// <para>The query string is deliberately not included. A list's version belongs to the rows, not to
-    /// the page or sort the caller asked for, and folding the query in would issue a fresh tag for every
-    /// permutation and defeat the conditional read §8.1 asks for.</para>
-    /// </summary>
     private static string ResourceKey(HttpContext context)
     {
         var subject = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -176,18 +190,12 @@ public static class ConcurrencyEndpoints
         return $"{context.Request.Path.Value?.ToLowerInvariant()}|{subject}";
     }
 
-    /// <summary>True when the caller already holds this version and should be sent a bare 304.</summary>
     public static bool IsNotModified(this HttpContext context, uint rowVersion)
     {
         var header = context.Request.Headers[HeaderNames.IfNoneMatch].ToString();
         if (string.IsNullOrWhiteSpace(header)) return false;
         if (header.Trim() == "*") return true;
 
-        // A list of candidates is legal here, unlike If-Match: any one matching means not modified.
-        //
-        // MatchesCurrentRepresentation, not TryParse: a 304 tells the caller the body it already has is still
-        // right, and a body from an older build is not - a field added to a DTO moves no row version, so
-        // comparing versions alone kept warm clients on the old shape indefinitely. See ETag's own note.
         return header.Split(',').Any(candidate => ETag.MatchesCurrentRepresentation(candidate, rowVersion, ResourceKey(context)));
     }
 
@@ -200,17 +208,6 @@ public static class ConcurrencyEndpoints
     }
 }
 
-/// <summary>
-/// "This route refuses a write without If-Match." Present on every endpoint that calls
-/// <see cref="ConcurrencyEndpoints.RequireIfMatch"/>.
-///
-/// <para>It exists so the requirement is <b>enumerable</b>. §8.1's contract has two halves and they are
-/// declared in different places: a write demands a version, and some read has to have issued one for the
-/// path the client will write to. Batch 13 found five separate writes where the second half was missing,
-/// each with a different cause, and every one of them was invisible until somebody pressed the button -
-/// the endpoint compiled, the filter ran, and the only symptom was a 428 in a browser. A marker on the
-/// endpoint table turns "did anyone check?" into a test.</para>
-/// </summary>
 public sealed class RequiresIfMatchMetadata
 {
     public static readonly RequiresIfMatchMetadata Instance = new();
@@ -218,10 +215,6 @@ public sealed class RequiresIfMatchMetadata
     private RequiresIfMatchMetadata() { }
 }
 
-/// <summary>
-/// "This route sends an ETag." Present on every endpoint that calls
-/// <see cref="ConcurrencyEndpoints.WithETag"/> or <see cref="ConcurrencyEndpoints.WithFreshETag"/>.
-/// </summary>
 public sealed class EmitsETagMetadata
 {
     public static readonly EmitsETagMetadata Instance = new();

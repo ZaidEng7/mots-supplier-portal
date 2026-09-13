@@ -1,18 +1,41 @@
+// The ministry's governance screens: a read across every buying organization, which nothing else in this API
+// does.
+//
+// Before these existed the ministry's persona held an empty permission set and could sign in and reach
+// nothing at all.
+//
+// Every route here is gated on the governance permission rather than on reading tenders or reading reports.
+// Both of those are scoped to one organization, and this read deliberately is not. A route that skips row
+// scoping must be reachable only by the persona whose whole purpose is to cross organizations.
+//
+// Filter values are named in one place for the same reason they are elsewhere: an unrecognised value reaching
+// a handler applies no filter at all, and an unfiltered list that reads as a filtered one is worse than an
+// error.
+//
+//
+// READ THIS BEFORE WIDENING ANYTHING HERE
+//
+// Four of these screens show commercial figures, and they shipped without the written sign-off that was asked
+// for first.
+//
+// The default position was that the ministry sees aggregate figures only. A relayed decision said the ministry
+// may see commercial figures and required written sign-off first: a name, a date and a scope. A later recorded
+// decision notes that these four shipped without it, at the product owner's direction, to the widest scope
+// offered: live tenders included and per-bidder values shown.
+//
+// So a ministry viewer can read what each named supplier has bid on a tender that is still open. That is
+// recorded here rather than buried, because it is the fact somebody widening this surface needs to know.
+//
+// The category and sector coverage screen is different and was never in question. Every figure on it is a
+// count, so it sits squarely inside the aggregate-only grant and does not touch the commercial-visibility
+// question at all.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Governance;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>
-/// EPIC-18/FR-DSH-005/SCR-600: the Ministry's governance overview.
-///
-/// <para>Before this, <c>ministry_viewer</c> held an EMPTY permission set - the persona could log in
-/// and reach nothing at all, which is the EPIC-11 defect at persona scale.</para>
-/// </summary>
-/// <summary>What the Ministry's two list endpoints accept as filter values. Named here for the reason
-/// ReviewQueueFilterValues gives: an unrecognised value that reaches a handler applies no predicate at all,
-/// and an unfiltered list that reads as a filtered one is worse than an error.</summary>
 public static class MinistryFilterValues
 {
     public static readonly IReadOnlySet<string> RfqStates = new HashSet<string>(StringComparer.Ordinal)
@@ -35,26 +58,9 @@ public static class GovernanceEndpoints
         app.MapGet("/api/v1/ministry/overview", async (
             IGetGovernanceOverviewHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.HandleAsync(ct)))
-        // governance.read, not rfq.read or report.read: both of those are row-scoped to one
-        // organization, and this read deliberately is not. A cross-organization read must be reachable
-        // only by the persona whose whole purpose is to cross organizations.
         .RequirePermission(Permissions.GovernanceRead)
         .WithTags("Ministry")
         .WithName("GetGovernanceOverview");
-
-        // ── SCR-601, 602, 603, 606 ────────────────────────────────────────────────────────────────
-        //
-        // The four screens BRULE-087's aggregate-only default refused for two batches, built under D-66.
-        //
-        // Read that decision before widening anything here. D-57 relayed that the Ministry may see commercial
-        // figures and required written sign-off first - a name, a date and a scope. D-66 records that these
-        // shipped WITHOUT it, at the product owner's direction, to the widest scope offered: live tenders
-        // included, per-bidder values shown. A `ministry_viewer` can therefore read what each named supplier
-        // has bid on a tender that is still open.
-        //
-        // governance.read gates all four, like every other Ministry read: these routes skip organization
-        // scoping deliberately, and a route that skips row-scoping must be reachable only by the persona
-        // whose whole purpose is to cross organizations.
 
         app.MapGet("/api/v1/ministry/rfqs", async (
             string? cursor, int? pageSize, string? withCount, string? state, string? q,
@@ -119,10 +125,6 @@ public static class GovernanceEndpoints
         .WithTags("Ministry")
         .WithName("GetMinistryRfqDetail");
 
-        // SCR-604: category and sector coverage. Squarely inside BRULE-086's aggregate grant - every figure
-        // is a count, so this is one of the two Ministry screens that were never refused under BRULE-087 and
-        // were absent anyway (T-100). It does not touch the commercial-visibility question D-57 is waiting on
-        // a signature for, because no figure here is commercial.
         app.MapGet("/api/v1/ministry/categories", async (
             IGetCategoryCoverageHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.HandleAsync(ct)))
