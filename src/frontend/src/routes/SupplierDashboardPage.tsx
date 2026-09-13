@@ -24,6 +24,22 @@ import { dismiss, isDismissed } from '../lib/dismissedChips'
  * error branch: it failing must leave the KPI row, the invitations and the health card standing.
  * That is the requirement most easily lost by writing one page-level error state.</p>
  */
+/**
+ * Which message a not-yet-approved supplier is shown, by their own state.
+ *
+ * <p>One message - "Your application is under review" - used to serve all six states. A brand-new
+ * account read it under a chip saying "Email verified", beside a button inviting them to carry on
+ * filling the profile in, while nobody was reviewing anything. The three states absent from this
+ * table fall through to `pending`, and those are exactly the three where the sentence is true.</p>
+ */
+const BANNER_BY_STATE: Record<string, 'notSubmitted' | 'infoRequested' | 'rejected'> = {
+  Draft: 'notSubmitted',
+  EmailVerified: 'notSubmitted',
+  ProfileInProgress: 'notSubmitted',
+  InfoRequested: 'infoRequested',
+  Rejected: 'rejected',
+}
+
 export function SupplierDashboardPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -66,10 +82,19 @@ export function SupplierDashboardPage() {
   // §1's "Not-yet-approved: dashboard replaced by onboarding progress banner linking to SCR-100".
   // Replaced, not emptied: a supplier who is not yet eligible for any invitation must not read
   // "Open invitations: 0" as a verdict on them.
+  //
+  // WHICH banner, though. There was one - "Your application is under review" - for all six
+  // not-approved states, and in three of them nobody is reviewing anything: a supplier who has not
+  // submitted was told the Ministry had their application, under a chip two lines below reading
+  // "Email verified" and beside a button inviting them to carry on filling it in. The same defect
+  // OnboardingPage's read-only message had, on the screen a new supplier sees first.
   if (!data.isApproved) {
+    // A table rather than a chain of ifs - see BANNER_BY_STATE.
+    const banner = BANNER_BY_STATE[data.onboardingState] ?? 'pending'
+
     return (
-      <Card title={t('supplierDashboard.pendingTitle')}>
-        <p>{t('supplierDashboard.pendingBody')}</p>
+      <Card title={t(`supplierDashboard.${banner}Title`)}>
+        <p>{t(`supplierDashboard.${banner}Body`)}</p>
         <div className="mt-3 flex items-center gap-3">
           <StatusChip machine="onboarding" value={data.onboardingState} />
           <Link to="/onboarding">{t('supplierDashboard.pendingCta')}</Link>

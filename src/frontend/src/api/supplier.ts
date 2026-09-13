@@ -154,7 +154,7 @@ export class SupplierApiError extends ProblemError {
  */
 
 /**
- * Parses a supplier response and files its ETag under the SUPPLIER-CODE path.
+ * Parses a supplier response and files its ETag under BOTH spellings of this one resource.
  *
  * Every write here answers with the whole profile and a fresh ETag, and `apiFetch` already re-files
  * that under the prefix the precondition came from - which is `/suppliers/me`, because that is the
@@ -162,12 +162,23 @@ export class SupplierApiError extends ProblemError {
  * followed by a profile save refreshed one prefix and asserted against the other, and the second save
  * answered 412 on a page where nothing else had touched the record.
  *
+ * <p><b>Both, not one.</b> Filing only under the code path left the other direction open, and the
+ * walkthrough fell into it: save the company details on step 1, go to step 3, add an address, and the
+ * save was refused with "This resource changed after you loaded it" on a record nobody else had
+ * touched. The PATCH had filed version 7 under `/suppliers/{code}`, while `/suppliers/me/addresses`
+ * and `/suppliers/me/branches` walk up to `/suppliers/me` - still holding version 6 from the page's
+ * own read. Two keys for one aggregate, refreshed one at a time. A full page reload cleared it, which
+ * is exactly why it survived: every fix attempt began with a reload.</p>
+ *
  * Routing every profile-returning call through here keeps the two paths carrying the same version.
  */
 async function profileFrom(res: Response): Promise<SupplierProfile> {
   const etag = res.headers.get('ETag')
   const profile = await parseOrThrow<SupplierProfile>(res)
-  if (etag) rememberETag(`/api/v1/suppliers/${profile.supplierCode}`, etag)
+  if (etag) {
+    rememberETag(`/api/v1/suppliers/${profile.supplierCode}`, etag)
+    rememberETag('/api/v1/suppliers/me', etag)
+  }
   return profile
 }
 

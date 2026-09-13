@@ -99,6 +99,20 @@ export async function addCriterion(templateId: string, payload: CriterionPayload
   }))
 }
 
+/**
+ * Removes one criterion from a Draft template.
+ *
+ * <p>The route has existed since the template work landed; nothing in the SPA called it. So a
+ * criterion added by mistake was permanent: weights could never be brought back to 100, the template
+ * could never be activated, and the only way out was to abandon it and start another. Found by adding
+ * one with the wrong dimension while walking the product.</p>
+ */
+export async function removeCriterion(templateId: string, criterionId: string): Promise<EvaluationTemplate> {
+  return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/criteria/${criterionId}`, {
+    method: 'DELETE',
+  }))
+}
+
 export async function activateEvaluationTemplate(templateId: string): Promise<EvaluationTemplate> {
   return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/activate`, { method: 'POST' }))
 }

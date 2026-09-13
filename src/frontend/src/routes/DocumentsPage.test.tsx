@@ -213,12 +213,43 @@ describe('DocumentsPage (SCR-130)', () => {
 
     renderPage(<DocumentsPage />)
 
+    // The date is filled in first, as a supplier would: this type records an expiry, and the screen
+    // now refuses the upload itself when that field is empty. What is under test here is the OTHER
+    // refusal - the one only the server can make - so the local guard must be satisfied to reach it.
+    await userEvent.type(await screen.findByLabelText(/^expires$/i), '2020-01-01')
+
     await userEvent.upload(
       await screen.findByLabelText(/^upload/i),
       new File(['scan'], 'cr.pdf', { type: 'application/pdf' }),
     )
 
     expect(await screen.findByText('The expiry date is in the past.')).toBeInTheDocument()
+  })
+
+  /**
+   * The refusal the screen makes for itself, because the server's version of it was invisible.
+   *
+   * <p>Choosing a file for a type that records an expiry, with the date still empty, sent the upload,
+   * took a 400 saying "This document type requires an expiry date", and changed nothing on screen -
+   * so the supplier's reading was that the control did not work. Found walking onboarding as a new
+   * supplier, on the tax certificate.</p>
+   */
+  it('will not send an upload for an expiry-tracked type until the date is filled in', async () => {
+    const recorded: Parameters<typeof mockFetch>[1] = []
+    restore = mockFetch({
+      '/api/v1/suppliers/me': PROFILE,
+      '/api/v1/suppliers/SUP-000001/documents': { __byMethod: { GET: [docType({ latestDocument: null })] } },
+    }, recorded)
+
+    renderPage(<DocumentsPage />)
+
+    await userEvent.upload(
+      await screen.findByLabelText(/^upload/i),
+      new File(['scan'], 'cr.pdf', { type: 'application/pdf' }),
+    )
+
+    expect(await screen.findByText(/Choose the expiry date first/i)).toBeInTheDocument()
+    expect(recorded.some((r) => r.method === 'POST')).toBe(false)
   })
 
   it('labels the control "replace" once a version exists', async () => {

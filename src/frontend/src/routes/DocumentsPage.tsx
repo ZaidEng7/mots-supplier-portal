@@ -40,6 +40,9 @@ export function DocumentsPage() {
   const [attentionOnly, setAttentionOnly] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [expiry, setExpiry] = useState<Record<string, string>>({})
+  // Which rows were asked to upload before their expiry date was filled in. Kept per row, because
+  // the table shows every document type at once and a page-level message would not say which.
+  const [expiryMissing, setExpiryMissing] = useState<Record<string, boolean>>({})
 
   const profile = useQuery({ queryKey: ['supplier-profile'], queryFn: getOwnSupplier })
   const supplierCode = profile.data?.supplierCode
@@ -145,13 +148,19 @@ export function DocumentsPage() {
                 <TableCell>
                   <div className="flex flex-wrap items-end gap-2">
                     {row.expiryTracked ? (
-                      <Field label={t('documents.fields.expiry')}>
+                      <Field
+                        label={t('documents.fields.expiry')}
+                        error={expiryMissing[row.documentTypeId] ? t('documents.errors.expiryFirst') : undefined}
+                      >
                         {(p) => (
                           <Input
                             {...p}
                             type="date"
                             value={expiry[row.documentTypeId] ?? ''}
-                            onChange={(e) => setExpiry((prev) => ({ ...prev, [row.documentTypeId]: e.target.value }))}
+                            onChange={(e) => {
+                              setExpiry((prev) => ({ ...prev, [row.documentTypeId]: e.target.value }))
+                              setExpiryMissing((prev) => ({ ...prev, [row.documentTypeId]: false }))
+                            }}
                           />
                         )}
                       </Field>
@@ -166,6 +175,18 @@ export function DocumentsPage() {
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
+                          // Refused here rather than at the server, because the server's refusal was
+                          // invisible: choosing a file for a type that records an expiry, with the
+                          // date still empty, sent the upload, took a 400 saying "This document type
+                          // requires an expiry date", and left the row exactly as it was. Nothing on
+                          // screen changed, so the supplier's own reading was that the button did
+                          // not work. Found walking onboarding as a new supplier.
+                          if (row.expiryTracked && !expiry[row.documentTypeId]) {
+                            setExpiryMissing((prev) => ({ ...prev, [row.documentTypeId]: true }))
+                            e.target.value = ''
+                            return
+                          }
+                          setExpiryMissing((prev) => ({ ...prev, [row.documentTypeId]: false }))
                           uploadMutation.mutate({
                             typeId: row.documentTypeId,
                             file,

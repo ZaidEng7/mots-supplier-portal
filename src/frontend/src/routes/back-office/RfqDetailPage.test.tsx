@@ -377,6 +377,14 @@ describe('RfqDetailPage', () => {
   ])('%s: clicking the primary action calls its own transition and surfaces the right toast', async (state, buttonName, toastText) => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture(state) })
 
+    // Approve is the manager's, so the session has to hold it for the button to be on the page at
+    // all - an officer is now shown no Approve rather than one that answers 403.
+    useAuthStore.setState({
+      accessToken: 'token',
+      status: 'authenticated',
+      claims: { userId: 'u-1', email: 'manager@example.test', organizationId: 'org-1', permissions: ['rfq.approve'] },
+    } as never)
+
     renderPage(<RfqDetailPage />)
 
     await userEvent.click(await screen.findByRole('button', { name: buttonName }))
