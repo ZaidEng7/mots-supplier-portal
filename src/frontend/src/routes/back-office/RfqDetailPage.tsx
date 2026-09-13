@@ -83,6 +83,9 @@ export function RfqDetailPage() {
   // procurement manager alone.
   const canApproveRfq = useAuthStore((state) => state.claims?.permissions.includes('rfq.approve') ?? false)
   const canAssignEvaluators = useAuthStore((state) => state.claims?.permissions.includes('evaluation.assign') ?? false)
+  // Who this session is, for the scoring link below: an evaluation is scored by the people ASSIGNED
+  // to it, so holding a permission is not enough to have a scoring screen of one's own.
+  const currentUserId = useAuthStore((state) => state.claims?.userId)
   // Finalize and reopen are the MANAGER's, not the officer's - evaluation.finalize and
   // evaluation.reopen are granted to procurement_manager alone. Both buttons were rendered for
   // anyone who could see the evaluation panel, so a procurement officer was shown an enabled
@@ -909,7 +912,17 @@ export function RfqDetailPage() {
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between">
                     <StatusChip machine="evaluation" value={evaluation.state} />
-                    {evaluation.state !== 'NotStarted' ? (
+                    {/*
+                      "My evaluation" belongs to an evaluator ASSIGNED to this tender, and to nobody
+                      else. It was shown to whoever could see the panel, so a procurement manager -
+                      who opens the evaluation, assigns the evaluators and consolidates their scores,
+                      but does not score - was offered a scoring screen with nothing on it and no
+                      explanation. Asked directly: "if I cannot evaluate as a manager, why is there
+                      an evaluate button for the manager?" Holding a permission is not the test here;
+                      being on the assignment list is.
+                    */}
+                    {evaluation.state !== 'NotStarted'
+                      && evaluation.assignments.some((a) => a.evaluatorUserId === currentUserId && !a.recusedAt) ? (
                       <ButtonLink to="/back-office/rfqs/$referenceCode/my-evaluation" params={{ referenceCode }}>
                         {t('evaluation.my.title')}
                       </ButtonLink>

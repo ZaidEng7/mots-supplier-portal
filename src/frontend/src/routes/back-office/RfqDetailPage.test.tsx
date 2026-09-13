@@ -817,6 +817,45 @@ describe('RfqDetailPage evaluation panel (T-082)', () => {
     }
   }
 
+  /**
+   * "My evaluation" is an assigned evaluator's screen, and nobody else's.
+   *
+   * <p>It was shown to whoever could see the evaluation panel, so a procurement manager - who opens
+   * the evaluation, assigns the evaluators and consolidates their scores, but does not score - was
+   * offered a scoring screen with nothing on it. Asked directly by the person it happened to: "if I
+   * cannot evaluate as a manager, why is there an evaluate button for the manager?"</p>
+   */
+  it('offers the scoring screen only to an evaluator assigned to this tender', async () => {
+    signInWith(['evaluation.assign', 'evaluation.consolidate'])
+    restore = mockFetch(routes('UnderEvaluation', evaluation({
+      assignments: [{
+        evaluatorUserId: 'someone-else', evaluatorName: 'Nadia Suleiman',
+        assignedAt: '2026-09-01T09:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null,
+      }],
+    })))
+
+    renderPage(<RfqDetailPage />)
+
+    await screen.findByText('Nadia Suleiman')
+    expect(screen.queryByRole('link', { name: /my evaluation/i })).not.toBeInTheDocument()
+  })
+
+  it('offers it to the evaluator whose assignment it is', async () => {
+    // The control: the same panel, the same permissions, one thing different - this session is on
+    // the assignment list. Without it the test above would pass against a link nobody ever sees.
+    signInWith(['evaluation.score'])
+    restore = mockFetch(routes('UnderEvaluation', evaluation({
+      assignments: [{
+        evaluatorUserId: 'u-manager-1', evaluatorName: 'The signed-in evaluator',
+        assignedAt: '2026-09-01T09:00:00Z', submittedAt: null, recusedAt: null, recusalReason: null,
+      }],
+    })))
+
+    renderPage(<RfqDetailPage />)
+
+    expect(await screen.findByRole('link', { name: /my evaluation/i })).toBeInTheDocument()
+  })
+
   it('names the evaluator rather than printing their GUID', async () => {
     signInWith(['evaluation.assign'])
     restore = mockFetch(routes('UnderEvaluation', evaluation({
