@@ -1,3 +1,24 @@
+// SCR-400, the procurement dashboard, at /procurement, P0, per SCREEN-SPECIFICATIONS.md §10.
+//
+// §10's regions in order: a PageHeader with the period filter and a "New RFQ" primary action, the five-tile KPI row, the
+// pipeline board, and a two-column lower body of deadlines and activity. The activity column is EPIC-15's notification centre
+// LINKED rather than rebuilt - §10 names SCR-900 for it, and a second feed would be a second thing to keep correct. §10 also
+// says "Manager also gets an Approvals card -> SCR-401", which is what the last card is.
+//
+// Every number renders through formatNumber, so a KPI tile cannot read "14" beside a date reading «٣٠ أغسطس». That
+// inconsistency is the reason R-1 was ruled on.
+//
+// THE TONED TILES are the two figures on the row that mean somebody is WAITING rather than reporting how things stand, and
+// they are toned only while the count is above zero: an amber nought is not a warning, it is the absence of one, and a row
+// where every tile is coloured is a row where colour has stopped meaning anything.
+//
+// The period filter is §10's. Empty means all time, and the server keeps never-published RFQs either way, so choosing a
+// period narrows what was published without emptying the board's left columns.
+//
+// The KPI row is 2x2 on phones per §10's mobile note, widening with the viewport. The pipeline board becomes "a horizontally
+// scrollable stage strip" at that width, also §10's - and the scroll lives on THAT container rather than the page, so the
+// board reflows at 320px without the document itself scrolling sideways.
+
 import { useState } from 'react'
 import { Metric, MetricRow } from '../../components/ui'
 import { useTranslation } from 'react-i18next'
@@ -11,23 +32,6 @@ import { SkeletonGrid, SkeletonList } from '../../components/ui/Skeleton'
 import { formatDeadline, formatNumber } from '../../lib/datetime'
 import { PageHeading } from '../../components/ui/ListScreen'
 
-/**
- * SCR-400 — the procurement dashboard. `/procurement`, P0, SCREEN-SPECIFICATIONS.md §10.
- *
- * <p>§10's regions in order: PageHeader with the period filter and a "New RFQ" primary action, the
- * five-tile KPI row, the pipeline board, and a two-column lower body of deadlines and activity. The
- * activity column is EPIC-15's notification centre linked rather than rebuilt - §10 names SCR-900
- * for it, and a second feed would be a second thing to keep correct.</p>
- *
- * <p>Every number renders through `formatNumber`, so a KPI tile cannot read "14" beside a date
- * reading «٣٠ أغسطس». That inconsistency is the reason R-1 was ruled on.</p>
- */
-/**
- * The two figures on this row that mean somebody is waiting, rather than reporting how things stand.
- *
- * <p>Toned only while the count is above zero: an amber nought is not a warning, it is the absence of
- * one, and a row where every tile is coloured is a row where colour has stopped meaning anything.</p>
- */
 const WAITING = new Set(['awaitingMyAction', 'pendingApprovals'])
 
 export function ProcurementDashboardPage() {
@@ -35,8 +39,6 @@ export function ProcurementDashboardPage() {
   const isArabic = i18n.language.startsWith('ar')
   const locale = isArabic ? 'ar' : 'en-GB'
 
-  // §10's "period filter". Empty means all time; the server keeps never-published RFQs either way,
-  // so choosing a period narrows what was published without emptying the board's left columns.
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
@@ -78,7 +80,6 @@ export function ProcurementDashboardPage() {
       ) : null}
 
       {kpis ? (
-        // §10's KPI row. 2×2 on phones per its mobile note, widening with the viewport.
         <MetricRow>
           {([
             ['activeRfqs', kpis.activeRfqs],
@@ -105,9 +106,6 @@ export function ProcurementDashboardPage() {
               <p style={{ color: 'var(--color-text-secondary)' }}>{t('procurementDashboard.emptyBody')}</p>
             </div>
           ) : (
-            // §10's mobile note: "the pipeline board becomes a horizontally scrollable stage strip".
-            // The scroll lives on THIS container, not the page, so the board reflows at 320px without
-            // the document itself scrolling sideways.
             <div className="overflow-x-auto">
               <ul className="flex gap-3" style={{ minWidth: 'min-content' }}>
                 {query.data.pipeline.map((column) => (
@@ -152,12 +150,10 @@ export function ProcurementDashboardPage() {
         </Card>
 
         <div className="flex flex-col gap-4">
-          {/* §10 names SCR-900 for this column. Linked, not rebuilt. */}
           <Card title={t('procurementDashboard.activity')}>
             <Link to="/back-office/notifications">{t('procurementDashboard.openNotifications')}</Link>
           </Card>
 
-          {/* §10: "Manager also gets an Approvals card → SCR-401." */}
           {query.data?.showsApprovals ? (
             <Card title={t('procurementDashboard.approvals')}>
               <Link to="/back-office/procurement/approvals">{t('procurementDashboard.openApprovals')}</Link>

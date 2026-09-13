@@ -1,3 +1,24 @@
+// SCR-700. system_admin had no landing page at all, so "it renders, and the operational facts are on it" is the first thing
+// worth asserting.
+//
+// The KPIs render, summing users across roles.
+//
+// A drained outbox is distinguished from a stuck one: with nothing pending the age must not read as "0 minutes old", which
+// would look like a message that arrived this instant. Its control names the age and warns when the outbox is backed up.
+//
+// Recurring jobs being switched off is SURFACED, which today is only a startup log line - and the flag being off explains ALL
+// the missing ids, so it must not also cry "jobs missing". When jobs are enabled and one never registered, the missing ids
+// are named, untranslated on purpose, because the operator compares them against the deployment.
+//
+// A reference table with no active codes is warned about: that blocks registration, and nothing else in the product says so.
+//
+// A failed read offers a retry instead of a blank page.
+//
+// The last pair is B-1 and BRULE-011: the screen says when a draining outbox is reaching a log file rather than an ERP.
+// MarkSynced is never called because the only transport writes a log line, so the rule "ExternalId is assigned after an ERP
+// ACK" passes because nothing exercises it - and an operator reading a healthy outbox tile would conclude the integration
+// works. The control is that nothing is said about the transport when a real one is configured.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import { mockFetch, renderPage } from '../../test/renderPage'
@@ -31,8 +52,6 @@ function overview(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** SCR-700. `system_admin` had no landing page at all, so "it renders, and the operational facts are
- * on it" is the first thing worth asserting. */
 describe('AdminOverviewPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -54,14 +73,11 @@ describe('AdminOverviewPage', () => {
 
     renderPage(<AdminOverviewPage />)
 
-    // Nothing pending: the age must not read as "0 minutes old", which would look like a message that
-    // arrived this instant.
     expect(await screen.findByText('Nothing pending')).toBeInTheDocument()
     expect(screen.queryByText('Failed messages need attention')).not.toBeInTheDocument()
   })
 
   it('names the age and warns when the outbox is backed up', async () => {
-    // The control for the test above.
     restore = mockFetch({
       '/api/v1/admin/overview': overview({
         outbox: { pending: 6, failed: 2, oldestPendingAgeMinutes: 180, erpTransportConfigured: true },
@@ -85,7 +101,6 @@ describe('AdminOverviewPage', () => {
 
     expect(await screen.findByText('Recurring jobs are disabled')).toBeInTheDocument()
     expect(screen.getByText(/tenders will not close automatically/)).toBeInTheDocument()
-    // The flag being off explains ALL the missing ids, so it must not also cry "jobs missing".
     expect(screen.queryByText('Jobs missing from the schedule')).not.toBeInTheDocument()
   })
 
@@ -104,12 +119,10 @@ describe('AdminOverviewPage', () => {
     renderPage(<AdminOverviewPage />)
 
     expect(await screen.findByText('Jobs missing from the schedule')).toBeInTheDocument()
-    // Untranslated on purpose: the operator compares it against the deployment.
     expect(screen.getByText('reminder-sweep')).toBeInTheDocument()
   })
 
   it('warns when a reference table has no active codes', async () => {
-    // A table at zero active codes blocks registration, and nothing else in the product says so.
     restore = mockFetch({
       '/api/v1/admin/overview': overview({
         referenceData: [{ table: 'currencies', active: 0, inactive: 3 }],
@@ -131,9 +144,6 @@ describe('AdminOverviewPage', () => {
   })
 
   it('says when a draining outbox is reaching a log file rather than an ERP', async () => {
-    // B-1/BRULE-011. MarkSynced is never called because the only transport writes a log line, so the rule
-    // "ExternalId is assigned after an ERP ACK" passes because nothing exercises it. An operator reading a
-    // healthy outbox tile would conclude the integration works.
     restore = mockFetch({
       '/api/v1/admin/overview': overview({
         outbox: { pending: 3, failed: 0, oldestPendingAgeMinutes: 2, erpTransportConfigured: false },
@@ -147,7 +157,6 @@ describe('AdminOverviewPage', () => {
   })
 
   it('says nothing about the transport when a real one is configured', async () => {
-    // The control.
     restore = mockFetch({ '/api/v1/admin/overview': overview() })
 
     renderPage(<AdminOverviewPage />)

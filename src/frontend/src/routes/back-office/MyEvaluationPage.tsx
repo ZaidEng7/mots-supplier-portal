@@ -1,3 +1,47 @@
+// FEAT-11.3, 11.5 and FR-EVL-003 through 006: the evaluator's own scoring workspace.
+//
+// Blind to every other evaluator's scores - see getMyEvaluation - and the financial criteria for a proposal are greyed out
+// until that proposal passes technical qualification for THIS evaluator. Never gated by hiding alone: the server refuses the
+// write regardless, see ScoreCriterionHandler.
+//
+// A-8 AND BRULE-067: THE DECLARATION COMES FIRST, and the workspace query waits for it. `enabled` is the whole mechanism.
+// Reading my-evaluation opens scoring as a documented side effect, so loading both at once would pass the declaration window
+// before the evaluator had seen a single name - which is precisely the window BRULE-067's recusal needs.
+//
+// The recusal declaration is shown once, before any scoring, and the bidder names are HERE and nowhere else during the
+// evaluation. An evaluator who recognises a conflict says so and is recused with their reason; one who does not proceeds, and
+// from that point on the bids are pseudonymous until consolidation. Nobody has to recuse themselves from a bidder they cannot
+// see, because the declaration already happened.
+//
+// While scoring is open the bidder is ANONYMOUS, and named at the two moments where the name is the point: before scoring
+// opens, which is the recusal declaration, and after consolidation, when the scores are locked. That supersedes D-19, which
+// widened this view to include the name precisely so recusal was possible - A-8 moves recusal earlier instead. The pseudonym
+// is always shown, so a committee can discuss "Bidder B" either way.
+//
+// T-067 twice. The SPECIFICATION is on the screen where the scoring happens: before this an evaluator held neither rfq.read
+// nor comparison.view, so the requirement they were scoring against was not reachable from anywhere in the product - see
+// EvaluatorVisibilityTests. And the bid's own technical content is here too, which is what is being scored. A supporting file
+// opens in two steps, because §4.2 mandates a signed URL rather than a streamed body: the route returns the URL and the
+// browser follows it, and a failure is surfaced as a toast rather than a silent no-op, because an evaluator who clicks a
+// filename and gets nothing has no way to tell a permission refusal from a dead link.
+//
+// BRULE-061's COMMENT travels with the score, in ONE language - whichever the evaluator is working in. The domain accepts
+// either and requires neither to be translated, and that is deliberate: this is internal evidence for a procurement file,
+// written by the person making the judgment and read by the committee and later by an auditor. Demanding both languages from
+// an evaluator would produce a machine-translated second copy or stop the score being recorded at all. A criterion that
+// requires justification cannot be saved without one, and the domain refuses it either way - the point of checking here is
+// that the evaluator learns it from the BUTTON rather than from a red toast after the score is typed.
+//
+// The comment drafts are kept apart from the score drafts rather than folded into one object, because a criterion can have a
+// comment with no score typed yet and the save button reads the two conditions separately.
+//
+// A failed fetch is its own branch: without it the screen renders its empty state and tells the reader there is nothing here.
+//
+// THE HEADING is the tender, then which of its six views you are on. It used to name the VIEW, which is what the strip
+// immediately below already says - and the strip was nested inside the heading's own flex row, so it sat beside the title
+// rather than under it. The link beside it goes to SCR-501's brief, which carries the one thing this screen cannot show
+// without becoming a wall of text: each criterion's scoring guidance, as the template author wrote it.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,28 +57,15 @@ import {
   getConflictDeclaration, declareConflict,
 } from '../../api/evaluations'
 
-/** FEAT-11.3/11.5/FR-EVL-003..006: the evaluator's own scoring workspace - blind to every other
- * evaluator's scores (see getMyEvaluation's own doc comment), and the financial criteria for a
- * proposal are greyed out (never gated by hiding alone - the server refuses the write regardless,
- * see ScoreCriterionHandler) until that proposal passes technical qualification for THIS
- * evaluator. */
 export function MyEvaluationPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode/my-evaluation' })
   const { t, i18n } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
-  /* Kept apart from the score drafts rather than folded into one object: a criterion can have a comment
-     with no score typed yet, and the save button reads the two conditions separately. */
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
 
-  /**
-   * T-067: opens a technical supporting file. Two steps, because §4.2 mandates a signed URL rather
-   * than a streamed body - the route returns the URL and the browser follows it. A failure is
-   * surfaced as a toast rather than a silent no-op, because an evaluator who clicks a filename and
-   * gets nothing has no way to tell a permission refusal from a dead link.
-   */
   const openProposalDocument = async (rfqCode: string, proposalCode: string, documentId: string, fileName: string) => {
     try {
       const url = await evaluatorProposalDocumentUrl(rfqCode, proposalCode, documentId)
@@ -44,13 +75,6 @@ export function MyEvaluationPage() {
     }
   }
 
-  /*
-    A-8/BRULE-067: the declaration comes FIRST, and the workspace query waits for it.
-
-    `enabled` is the whole mechanism. Reading my-evaluation opens scoring as a documented side effect,
-    so loading both at once would pass the declaration window before the evaluator had seen a single
-    name - which is precisely the window BRULE-067's recusal needs.
-  */
   const declarationQuery = useQuery({
     queryKey: ['conflict-declaration', referenceCode],
     queryFn: () => getConflictDeclaration(referenceCode),
@@ -77,14 +101,6 @@ export function MyEvaluationPage() {
   const errorMessage = (err: unknown, fallback: string) =>
     apiErrorMessage(err, fallback, t('common.concurrencyConflict'))
 
-  /**
-   * BRULE-061's comment travels with the score, in ONE language - whichever the evaluator is working in.
-   *
-   * <p>The domain accepts either and requires neither to be translated, and that is deliberate: this is
-   * internal evidence for a procurement file, written by the person making the judgment and read by the
-   * committee and later by an auditor. Demanding both languages from an evaluator would produce a
-   * machine-translated second copy or stop the score being recorded at all.</p>
-   */
   const scoreMutation = useMutation({
     mutationFn: ({ proposalCode, criterionId, rawScore, comment }: { proposalCode: string; criterionId: string; rawScore: number; comment: string }) =>
       scoreCriterion(referenceCode, {
@@ -108,14 +124,6 @@ export function MyEvaluationPage() {
     return <SkeletonList label={t('common.loading')} />
   }
 
-  /*
-    A-8: the recusal declaration, shown once, before any scoring.
-
-    The bidder names are HERE and nowhere else during the evaluation. An evaluator who recognises a
-    conflict says so and is recused with their reason; one who does not proceeds, and from that point on
-    the bids are pseudonymous until consolidation. Nobody has to recuse themselves from a bidder they
-    cannot see, because the declaration already happened.
-  */
   if (declarationRequired) {
     const bidders = declarationQuery.data?.bidders ?? []
     return (
@@ -154,8 +162,6 @@ export function MyEvaluationPage() {
   if (evaluationQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
-  // A failed fetch is not an empty result: without this the screen below renders its
-  // empty state and tells the reader there is nothing here.
   if (evaluationQuery.isError) return <QueryError error={evaluationQuery.error} onRetry={() => void evaluationQuery.refetch()} />
 
 
@@ -171,15 +177,10 @@ export function MyEvaluationPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The tender, then which of its six views you are on. The heading here used to name the view,
-          which is what the strip immediately below already says. The strip was also nested inside the
-          heading's own flex row, so it sat beside the title rather than under it. */}
       <TenderHeader
         referenceCode={referenceCode}
         actions={
           <div className="flex items-center gap-3">
-          {/* SCR-501. The brief carries the one thing this screen cannot show without becoming a wall of
-              text: each criterion's scoring guidance, as the template author wrote it. */}
           <Link
             to="/back-office/rfqs/$referenceCode/brief"
             params={{ referenceCode }}
@@ -193,11 +194,6 @@ export function MyEvaluationPage() {
       />
       <TenderTabs referenceCode={referenceCode} />
 
-      {/*
-        T-067: the SPECIFICATION, on the screen where the scoring happens. Before this an evaluator
-        held neither rfq.read nor comparison.view, so the requirement they were scoring against was
-        not reachable from anywhere in the product - see EvaluatorVisibilityTests.
-      */}
       <Card title={`${t('evaluation.my.specification')}: ${isArabic ? evaluation.rfqTitleAr : evaluation.rfqTitleEn}`}>
         {(isArabic ? evaluation.rfqDescriptionAr : evaluation.rfqDescriptionEn) ? (
           <p className="mb-3">{isArabic ? evaluation.rfqDescriptionAr : evaluation.rfqDescriptionEn}</p>
@@ -241,15 +237,6 @@ export function MyEvaluationPage() {
               <Badge tone={qualified ? 'success' : 'warning'}>
                 {qualified ? t('evaluation.my.qualified') : t('evaluation.my.notQualified')}
               </Badge>
-              {/*
-                A-8: the bidder is ANONYMOUS while scoring is open, and named at the two moments where
-                the name is the point - before scoring opens, which is the recusal declaration
-                (BRULE-067), and after consolidation, when the scores are locked. Supersedes D-19,
-                which widened this view to include the name precisely so recusal was possible; A-8
-                moves recusal earlier instead.
-
-                The pseudonym is always shown, so a committee can discuss "Bidder B" either way.
-              */}
               <span style={{ color: 'var(--color-text-secondary)' }}>
                 {isArabic ? proposal.bidderLabelAr : proposal.bidderLabelEn}
               </span>
@@ -262,7 +249,6 @@ export function MyEvaluationPage() {
               )}
             </div>
 
-            {/* T-067: the bid's own technical content, which is what is being scored. */}
             {narrative ? (
               <section className="mb-3">
                 <h3 className="mb-1 text-[length:var(--text-h4)]">{t('evaluation.my.narrative')}</h3>
@@ -309,9 +295,6 @@ export function MyEvaluationPage() {
                 const savedComment = (isArabic ? existing?.commentAr : existing?.commentEn)
                   ?? existing?.commentEn ?? existing?.commentAr ?? ''
                 const comment = commentDrafts[key] ?? savedComment
-                /* BRULE-061: a criterion that requires justification cannot be saved without one. The
-                   domain refuses it either way; the point of checking here is that the evaluator learns
-                   it from the button rather than from a red toast after the score is typed. */
                 const justificationMissing = (criterion.requiresJustification ?? false) && comment.trim() === ''
                 return (
                   <div key={criterion.id} className="flex flex-col gap-1">

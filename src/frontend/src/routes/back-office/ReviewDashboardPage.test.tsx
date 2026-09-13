@@ -1,3 +1,11 @@
+// SCR-300. FR-DSH-002's KPIs and the expiry watchlist render.
+//
+// Aging is reported as a DURATION and never as a breach: no document defines a review SLA, so the screen must not imply a
+// threshold, and that assertion is what stops "9 days" quietly becoming "overdue" later.
+//
+// Its control is the empty case: with no open cases there is no duration to report, and the screen says that plainly rather
+// than showing a zero that reads as "instant".
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderPage, mockFetch } from '../../test/renderPage'
@@ -38,8 +46,6 @@ describe('ReviewDashboardPage (SCR-300)', () => {
   })
 
   it('reports aging as a duration and never as a breach', async () => {
-    // No document defines a review SLA, so the screen must not imply a threshold. This is the
-    // assertion that stops "9 days" quietly becoming "overdue" later.
     restore = mockFetch({ '/api/v1/review/dashboard': reviewDashboard() })
 
     renderPage(<ReviewDashboardPage />)
@@ -50,8 +56,6 @@ describe('ReviewDashboardPage (SCR-300)', () => {
   })
 
   it('says so plainly when there is nothing open', async () => {
-    // The control for the aging line: with no open cases there is no duration to report, and the
-    // screen says that rather than showing a zero that reads as "instant".
     restore = mockFetch({
       '/api/v1/review/dashboard': reviewDashboard({ oldestOpenCaseAgeDays: null, expiryWatchlist: [] }),
     })

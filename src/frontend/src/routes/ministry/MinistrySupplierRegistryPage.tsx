@@ -1,3 +1,14 @@
+// SCR-601 at /ministry/suppliers, for ministry_viewer.
+//
+// The registry as an overseer reads it: who is registered, what they are registered for, whether they can currently trade,
+// and what they have won. Under D-66 the last of those carries a value.
+//
+// Not the compliance directory. SCR-307 shows a reviewer the state of each supplier's DOCUMENTS, which is that persona's
+// work and nobody else's business. This one shows population and participation.
+//
+// The award count is the aggregate BRULE-086 always granted; the value beside it is what the commercial-visibility flag
+// governs.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
@@ -6,15 +17,6 @@ import { listMinistrySuppliers } from '../../api/governance'
 import { nextPageParam } from '../../api/listEnvelope'
 import { formatCurrency, formatDate, formatNumber } from '../../lib/datetime'
 
-/**
- * SCR-601, `/ministry/suppliers`, `ministry_viewer`.
- *
- * <p>The registry as an overseer reads it: who is registered, what they are registered for, whether they can
- * currently trade, and what they have won. Under D-66 the last of those carries a value.</p>
- *
- * <p><b>Not the compliance directory.</b> SCR-307 shows a reviewer the state of each supplier's DOCUMENTS,
- * which is that persona's work and nobody else's business. This one shows population and participation.</p>
- */
 export function MinistrySupplierRegistryPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -97,8 +99,6 @@ export function MinistrySupplierRegistryPage() {
               <TableCell>{formatNumber(supplier.submittedProposals, locale, 0)}</TableCell>
               <TableCell>
                 {formatNumber(supplier.awardsWon, locale, 0)}
-                {/* The count is the aggregate BRULE-086 always granted; the value beside it is what
-                    D-66 added, and it is null while the flag is off rather than zero. */}
                 {supplier.awardedValue !== null && supplier.awardsWon > 0 ? (
                   <div className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
                     {formatCurrency(supplier.awardedValue, null, locale)}

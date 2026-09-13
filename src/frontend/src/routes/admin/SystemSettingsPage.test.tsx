@@ -1,3 +1,11 @@
+// SCR-724. Every one of these settings used to be a const, a seed row or an appsettings key.
+//
+// The screen says whether a setting is OVERRIDDEN or still running on its default, which is the distinction it exists for: a
+// plain value column cannot tell "nobody decided" from "an administrator chose 30".
+//
+// It renders the bounds the SERVER sent rather than a second copy of them. It saves an edited value and clears the draft. A
+// refusal names the RULE that was broken instead of saying invalid. And a failed read offers a retry instead of a blank page.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -34,14 +42,11 @@ const MODE = {
   maximum: null,
 }
 
-/** SCR-724. Every one of these settings used to be a const, a seed row or an appsettings key. */
 describe('SystemSettingsPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
 
   it('says whether a setting is overridden or still running on its default', async () => {
-    // The distinction the screen exists for: a plain value column cannot tell "nobody decided" from
-    // "an administrator chose 30".
     restore = mockFetch({
       '/api/v1/admin/settings': [
         WINDOW,

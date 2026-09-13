@@ -1,3 +1,17 @@
+// SCR-150: the supplier's index of their own bids. Two rules are worth holding - a DRAFT offers "continue" rather than
+// "open", and a supplier sees their OWN price in every state, because the two-envelope seal governs what the BUYER may
+// see rather than whether a supplier can read their own bid.
+//
+// So: a proposal is listed with its codes, state and total; a sealed-state proposal shows the supplier its own price,
+// because UnderEvaluation is a state in which the BUYER cannot see that number and hiding a bid from the person who
+// wrote it would be a bug that looks like a security feature; a draft is labelled "continue" and a submitted proposal
+// "open"; and a proposal with no deadline and no total renders as neither rather than showing NaN - a draft on an RFQ
+// whose window has not opened has neither, and formatting null through the number formatter is how "NaN" reaches a
+// screen.
+//
+// The last two are the states either side of the list: it says the list is empty rather than rendering an empty table,
+// and it offers a retry when the list cannot be read.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderPage, mockFetch } from '../test/renderPage'
@@ -23,11 +37,6 @@ function proposal(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/**
- * SCR-150. The supplier's index of their own bids. Two rules are worth holding: a DRAFT offers
- * "continue" rather than "open", and a supplier sees their OWN price in every state - the
- * two-envelope seal governs what the BUYER may see, not whether a supplier can read their own bid.
- */
 describe('MyProposalsPage (SCR-150)', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -43,9 +52,6 @@ describe('MyProposalsPage (SCR-150)', () => {
   })
 
   it('shows a sealed-state proposal its own price', async () => {
-    // UnderEvaluation is a state in which the BUYER cannot see this number. The supplier can: the
-    // seal is about disclosure to the other side, and hiding a bid from the person who wrote it
-    // would be a bug that looks like a security feature.
     restore = mockFetch({ '/api/v1/proposals': [proposal({ state: 'UnderEvaluation' })] })
 
     renderPage(<MyProposalsPage />)
@@ -65,8 +71,6 @@ describe('MyProposalsPage (SCR-150)', () => {
   })
 
   it('renders a proposal with no deadline and no total rather than showing NaN', async () => {
-    // A draft on an RFQ whose window has not opened has neither. Formatting null through the number
-    // formatter is how "NaN" reaches a screen.
     restore = mockFetch({ '/api/v1/proposals': [proposal({ state: 'Draft', submissionDeadline: null, totalValue: null, currencyCode: null })] })
 
     renderPage(<MyProposalsPage />)

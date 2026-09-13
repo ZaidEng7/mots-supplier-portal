@@ -1,3 +1,55 @@
+// SCR-721 and SCR-722 at /back-office/operations, for system_admin, P1 - plus SCR-723, SCR-726 and SCR-725 as three more
+// panels. Each panel is lifted out of the page's own return, so each is read on its own terms.
+//
+// T-083 left the first two as counters on the admin dashboard - "six jobs registered", "n pending" - which tells an
+// operator that something is wrong and nothing about what. Two inventory rows, one screen, for the same reason the
+// reference-data page covers five: they are the same job. An operator asking "is the system moving?" reads schedules and the
+// queue together, and two routes would mean checking one, forming half a picture, and navigating.
+//
+// SCR-723's retry calls the AWARD endpoint that already exists rather than a new admin one: §6.1's guard that only a Failed
+// sync retries lives there, and a second path would be a second copy of that guard to keep in step.
+//
+// NO PAUSE CONTROL, and the screen says why. Hangfire has no paused state for a recurring job: the only way to stop one is
+// to delete the registration, which would make "an operator paused this" indistinguishable from "a deployment dropped it" -
+// the exact fault the missing-job row exists to surface. The global switch stays the supported way to stop schedules.
+//
+// A triggered run invalidates BOTH lists rather than only the jobs one, because several of these jobs are what drains the
+// outbox, so a run the operator just asked for changes the other half of this screen.
+//
+// THE JOBS PANEL says the global switch is off ONCE, above the table, rather than per row: when recurring jobs are switched
+// off globally every NextExecution on the screen is a lie, and repeating that warning six times would train the reader to
+// skip it. The unregistered row is the one that matters most, and it is the one with the least data on it.
+//
+// THE OUTBOX PANEL keeps the payload behind a toggle rather than in the row: it is the thing an operator needs before
+// deciding to replay, and the thing that would make every row unreadable if it were always shown. Replay is offered only
+// where it means something - replaying a Pending message duplicates work already queued, and replaying a Sent one would send
+// an integration event twice, when the outbox exists to make delivery exactly-once. The server refuses both; the button does
+// not pretend otherwise.
+//
+// THE ERP PANEL says the transport is a stand-in BEFORE any row is read. EPIC-23's adapter has not landed, so what is
+// registered is a logging stand-in that accepts everything and sends nothing - a column of Synced without that line would be
+// an instrument asserting something untrue. The external reference is shown even when empty on a Synced row, because that
+// combination means the adapter claimed success and returned no reference, which nobody would notice in a count. And per
+// §6.1 only a Failed sync retries: the button follows the domain rather than offering an action the aggregate would refuse.
+//
+// THE SECURITY PANEL is SCR-726: a REPORT, with no edit control, and the note at the bottom says why rather than leaving the
+// reader to wonder whether the save button is missing. Every number is read from the thing that ENFORCES it - IdentityOptions,
+// the configured clock skew, the expression LoginHandler uses - so the panel cannot keep showing an old policy after someone
+// changes the real one.
+//
+// Its composition row is spelled out as a DECISION rather than left as four blank checkboxes: no forced digit, case or symbol
+// is NIST 800-63B followed on purpose, and a reader who does not know that would file it as a weakness. The clock skew is
+// shown with the token lifetime rather than on its own row, because the only thing it means is that the lifetime is longer
+// than it says. And an empty MFA-required list is named in words rather than shown as an em dash: it means NOBODY is
+// required to hold a second factor, which is a finding rather than a blank.
+//
+// THE STORAGE PANEL is SCR-725, read-only for the same reason as the one above: the cap and the allow-list are §4.1's
+// security control, and the document rules administrators DO own live on SCR-710's screen. Reachability comes first and as a
+// chip, because it is the only thing on the card that can be wrong right now - a red one there explains every failing upload
+// in the building. The cap is in megabytes, because nobody reads 20971520 as twenty. And both halves of each type pair are
+// shown, because the PAIRING is the rule: a .pdf whose bytes are a PNG is refused, and a list of bare extensions would hide
+// that.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,24 +61,6 @@ import {
 } from '../../api/admin'
 import { retryAwardErpSync } from '../../api/awards'
 
-/**
- * SCR-721 + SCR-722, `/back-office/operations`, `system_admin`, P1.
- *
- * <p>T-083 left both as counters on the admin dashboard — "six jobs registered", "n pending" — which
- * tells an operator that something is wrong and nothing about what. Two inventory rows, one screen,
- * for the same reason the reference-data page covers five: they are the same job. An operator asking
- * "is the system moving?" reads schedules and the queue together, and two routes would mean checking
- * one, forming half a picture, and navigating.</p>
- *
- * <p>SCR-723 is the third card. Its retry calls the award endpoint that already exists rather than a new
- * admin one: §6.1's guard that only a Failed sync retries lives there, and a second path would be a
- * second copy of that guard to keep in step.</p>
- *
- * <p><b>No pause control, and the screen says why.</b> Hangfire has no paused state for a recurring
- * job: the only way to stop one is to delete the registration, which would make "an operator paused
- * this" indistinguishable from "a deployment dropped it" — the exact fault the missing-job row exists
- * to surface. The global switch stays the supported way to stop schedules.</p>
- */
 const JOB_TONES = { Succeeded: 'success', Failed: 'danger' } as const
 const SYNC_TONES = { Sent: 'success', Failed: 'danger' } as const
 const ERP_TONES = { Synced: 'success', Failed: 'danger' } as const
@@ -50,8 +84,6 @@ export function OperationsPage() {
     mutationFn: (jobId: string) => triggerRecurringJob(jobId),
     onSuccess: async () => {
       notify({ kind: 'success', title: t('operations.jobTriggered') })
-      // Both, not just the jobs list: several of these jobs are what drains the outbox, so a run the
-      // operator just asked for changes the other half of this screen.
       await queryClient.invalidateQueries({ queryKey: ['admin-jobs'] })
       await queryClient.invalidateQueries({ queryKey: ['admin-outbox'] })
     },
@@ -80,16 +112,10 @@ export function OperationsPage() {
   })
 
 
-  /** The jobs panel, lifted out of the page's own return so each is read on its own terms. */
   function renderJobs() {
     return (
       <>
         <Card title={t('operations.jobsTitle')}>
-          {/*
-            Said once, above the table, rather than per row. When recurring jobs are switched off globally
-            every NextExecution on the screen is a lie, and repeating that warning six times would train
-            the reader to skip it.
-          */}
           {jobsQuery.data && !jobsQuery.data.recurringEnabled ? (
             <output className="block mb-3 rounded-[var(--radius-md)] p-3"
               style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger-fg)' }}>
@@ -121,7 +147,6 @@ export function OperationsPage() {
                   <TableRow key={job.id}>
                     <TableCell>
                       <span className="font-mono text-[length:var(--text-body-sm)]">{job.id}</span>
-                      {/* The row that matters most, and it is the one with the least data on it. */}
                       {!job.registered ? (
                         <span className="ms-2"><Badge tone="danger">{t('operations.notRegistered')}</Badge></span>
                       ) : null}
@@ -161,7 +186,6 @@ export function OperationsPage() {
     )
   }
 
-  /** The outbox panel, lifted out of the page's own return so each is read on its own terms. */
   function renderOutbox() {
     return (
       <>
@@ -218,9 +242,6 @@ export function OperationsPage() {
                   <TableRow key={message.id}>
                     <TableCell>
                       <span className="font-mono text-[length:var(--text-body-sm)]">{message.type}</span>
-                      {/* The payload is behind a toggle rather than in the row: it is the thing an operator
-                          needs before deciding to replay, and the thing that would make every row
-                          unreadable if it were always shown. */}
                       <span className="ms-2">
                         <Button variant="ghost" onClick={() => setExpanded(expanded === message.id ? null : message.id)}>
                           {expanded === message.id ? t('operations.hidePayload') : t('operations.showPayload')}
@@ -241,10 +262,6 @@ export function OperationsPage() {
                     <TableCell>{formatDateTime(message.createdAt, locale)}</TableCell>
                     <TableCell>{message.processedAt ? formatDateTime(message.processedAt, locale) : '—'}</TableCell>
                     <TableCell>
-                      {/* Offered only where it means something. Replaying a Pending message duplicates work
-                          already queued, and replaying a Sent one would send an integration event twice —
-                          the outbox exists to make delivery exactly-once. The server refuses both; the
-                          button does not pretend otherwise. */}
                       {message.syncStatus === 'Failed' ? (
                         <Button variant="ghost" disabled={replayMutation.isPending} onClick={() => replayMutation.mutate(message.id)}>
                           {t('operations.replay')}
@@ -263,16 +280,10 @@ export function OperationsPage() {
     )
   }
 
-  /** The erp panel, lifted out of the page's own return so each is read on its own terms. */
   function renderErp() {
     return (
       <>
         <Card title={t('operations.erpTitle')}>
-          {/*
-            Said before any row is read. EPIC-23's adapter has not landed, so what is registered is a
-            logging stand-in that accepts everything and sends nothing - a column of Synced without this
-            line would be an instrument asserting something untrue.
-          */}
           {erpQuery.data && !erpQuery.data.transportConfigured ? (
             <output className="block mb-3 rounded-[var(--radius-md)] p-3"
               style={{ backgroundColor: 'var(--color-warning-bg)', color: 'var(--color-warning-fg)' }}>
@@ -326,13 +337,9 @@ export function OperationsPage() {
                     <TableCell>{row.erpRetryCount}</TableCell>
                     <TableCell>{row.erpSyncedAt ? formatDateTime(row.erpSyncedAt, locale) : '—'}</TableCell>
                     <TableCell>
-                      {/* Shown even when empty on a Synced row, because that combination means the adapter
-                          claimed success and returned no reference - which nobody would notice in a count. */}
                       <span className="font-mono text-[length:var(--text-body-sm)]">{row.externalPurchaseOrderRef ?? '—'}</span>
                     </TableCell>
                     <TableCell>
-                      {/* §6.1: only a Failed sync retries. The button follows the domain rather than
-                          offering an action the aggregate would refuse. */}
                       {row.erpSyncStatus === 'Failed' ? (
                         <Button variant="ghost" disabled={retryErpMutation.isPending}
                           onClick={() => retryErpMutation.mutate(row.rfqReferenceCode)}>
@@ -352,16 +359,9 @@ export function OperationsPage() {
     )
   }
 
-  /** The security panel, lifted out of the page's own return so each is read on its own terms. */
   function renderSecurity() {
     return (
       <>
-        {/*
-          SCR-726. A REPORT, with no edit control, and the note at the bottom says why rather than leaving
-          the reader to wonder whether the save button is missing. Every number here is read from the thing
-          that enforces it - IdentityOptions, the configured clock skew, the expression LoginHandler uses -
-          so this panel cannot keep showing an old policy after someone changes the real one.
-        */}
         <Card title={t('operations.securityTitle')}>
           {securityQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
           {securityQuery.isError ? (
@@ -386,9 +386,6 @@ export function OperationsPage() {
                 </TableRow>
                 <TableRow>
                   <TableCell>{t('operations.security.composition')}</TableCell>
-                  {/* Spelled out as a decision, not left as four blank checkboxes: no forced digit, case or
-                      symbol is NIST 800-63B followed on purpose, and a reader who does not know that would
-                      file it as a weakness. */}
                   <TableCell>
                     {[
                       securityQuery.data.password.requireDigit ? t('operations.security.digit') : null,
@@ -409,8 +406,6 @@ export function OperationsPage() {
                 </TableRow>
                 <TableRow>
                   <TableCell>{t('operations.security.accessToken')}</TableCell>
-                  {/* The skew is shown with the lifetime rather than on its own row, because the only thing
-                      it means is that the lifetime is longer than it says. */}
                   <TableCell>
                     {t('operations.security.accessTokenValue', {
                       minutes: securityQuery.data.session.accessTokenMinutes,
@@ -427,8 +422,6 @@ export function OperationsPage() {
                   <TableCell>
                     {securityQuery.data.mfaRequiredRoles.length > 0
                       ? securityQuery.data.mfaRequiredRoles.join(', ')
-                      /* Not "—": an empty list means NOBODY is required to hold a second factor, which is a
-                         finding rather than a blank. */
                       : t('operations.security.mfaNone')}
                   </TableCell>
                 </TableRow>
@@ -462,14 +455,9 @@ export function OperationsPage() {
     )
   }
 
-  /** The storage panel, lifted out of the page's own return so each is read on its own terms. */
   function renderStorage() {
     return (
       <>
-        {/*
-          SCR-725. Read-only for the same reason as the panel above: the cap and the allow-list are §4.1's
-          security control, and the document rules administrators DO own live on SCR-710's screen.
-        */}
         <Card title={t('operations.storageTitle')}>
           {storageQuery.isLoading ? <SkeletonTable label={t('common.loading')} /> : null}
           {storageQuery.isError ? (
@@ -482,8 +470,6 @@ export function OperationsPage() {
           {storageQuery.data ? (
             <>
               <div className="mb-3 flex flex-wrap gap-2">
-                {/* Reachability first and as a chip, because it is the only thing on this card that can be
-                    wrong right now. A red one here explains every failing upload in the building. */}
                 <Badge tone={storageQuery.data.objectStorageReachable ? 'success' : 'danger'}>
                   {t('operations.storage.objectStore')}: {t(storageQuery.data.objectStorageReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
                 </Badge>
@@ -505,14 +491,11 @@ export function OperationsPage() {
                 <TableBody>
                   <TableRow>
                     <TableCell>{t('operations.storage.maxUpload')}</TableCell>
-                    {/* Megabytes, because nobody reads 20971520 as twenty. */}
                     <TableCell>{t('operations.storage.megabytes', { count: Math.round(storageQuery.data.maxUploadBytes / (1024 * 1024)) })}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>{t('operations.storage.allowedTypes')}</TableCell>
                     <TableCell>
-                      {/* Both halves of each pair, because the pairing IS the rule: a .pdf whose bytes are a
-                          PNG is refused, and a list of bare extensions would hide that. */}
                       <span className="font-mono text-[length:var(--text-body-sm)]">
                         {Object.entries(storageQuery.data.allowedTypes).map(([ext, type]) => `${ext} → ${type}`).join(', ')}
                       </span>

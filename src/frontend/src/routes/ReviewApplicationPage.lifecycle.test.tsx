@@ -1,10 +1,22 @@
+// MSP-63: the reviewer's lifecycle actions, asserted through the rendered page.
+//
+// This is the first page-level test in the project, and it exists because the two defects this feature produced were both
+// invisible to unit tests: the profile grid crashed on render, and the reason dialog carried a stale reason between
+// actions. Both needed the page. The route param is mocked rather than served by a real router - see renderPage for why
+// the harness deliberately has no router.
+//
+// An active supplier is offered suspension and nothing else; a suspended one reactivate and deactivate; and a deactivated
+// one NOTHING, which is the assertion that matters most - Deactivated is terminal in the domain, so a button here would
+// promise the reviewer something the server refuses with 409.
+//
+// The last test is BRULE-096 through the page rather than the component: a reason is required before the action can be
+// confirmed, because the reason becomes the audit record.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch } from '../test/renderPage'
 
-// The route param, mocked rather than served by a real router - see renderPage for why the harness
-// deliberately has no router.
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
   return { ...actual, useParams: () => ({ referenceCode: 'SUP-2026-000038' }), Link: 'a' }
@@ -30,13 +42,6 @@ function viewFor(lifecycleState: string) {
   }
 }
 
-/**
- * MSP-63: the reviewer's lifecycle actions, asserted through the rendered page.
- *
- * This is the first page-level test in the project, and it exists because the two defects this
- * feature produced were both invisible to unit tests: the profile grid crashed on render, and the
- * reason dialog carried a stale reason between actions. Both needed the page.
- */
 describe('ReviewApplicationPage lifecycle actions', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -62,8 +67,6 @@ describe('ReviewApplicationPage lifecycle actions', () => {
   })
 
   it('offers no lifecycle action once deactivated, because it is terminal', async () => {
-    // The assertion that matters most. Deactivated is terminal in the domain; a button here would
-    // promise the reviewer something the server refuses with 409.
     restore = mockFetch({ '/api/v1/review/SUP-2026-000038': viewFor('Deactivated') })
 
     renderPage(<ReviewApplicationPage />)
@@ -75,7 +78,6 @@ describe('ReviewApplicationPage lifecycle actions', () => {
   })
 
   it('requires a reason before the lifecycle action can be confirmed', async () => {
-    // BRULE-096 through the page rather than the component: the reason becomes the audit record.
     restore = mockFetch({ '/api/v1/review/SUP-2026-000038': viewFor('Active') })
 
     renderPage(<ReviewApplicationPage />)

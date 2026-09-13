@@ -1,3 +1,19 @@
+// SCR-500: the evaluator's own queue.
+//
+// Empty shows §4's "Nothing to evaluate", with no call to action. The populated case shows the assignment, its progress
+// and a link into the scoring workspace - the tender-stopper this screen exists to fix, a navigable path into EPIC-11's
+// workspace.
+//
+// A submitted assignment offers to be VIEWED rather than scored: IA §4.3 makes the workspace read-only for that
+// evaluator after EvaluatorSubmitted, so the entry point must not invite them to score again.
+//
+// Switching tabs asks the SERVER for that tab. The tab is a server-side filter rather than a client-side slice, because
+// the tab an assignment belongs in is derived from its own submission state, and deriving it twice is how the two
+// disagree.
+//
+// The last test renders Eastern Arabic numerals under Arabic. R-1 covers counts, and a progress reading "3 of 12" beside
+// an Eastern-digit date is exactly the inconsistency the ruling was made to prevent.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -46,13 +62,10 @@ describe('EvaluationDashboardPage (SCR-500)', () => {
     expect(await screen.findByText('Catering RFQ')).toBeInTheDocument()
     expect(screen.getByText('3 of 12 scored')).toBeInTheDocument()
 
-    // The tender-stopper this screen exists to fix: a navigable path into EPIC-11's workspace.
     expect(screen.getByText('Start scoring')).toBeInTheDocument()
   })
 
   it('a submitted assignment offers to be viewed rather than scored', async () => {
-    // IA §4.3: after EvaluatorSubmitted the workspace is read-only for that evaluator, so the entry
-    // point must not invite them to score again.
     restore = mockFetch({
       '/api/v1/my-evaluations': [assignment({ submittedAt: '2026-09-02T10:00:00Z', tab: 'Submitted' })],
     })
@@ -78,14 +91,10 @@ describe('EvaluationDashboardPage (SCR-500)', () => {
     await screen.findByText('Nothing to evaluate')
     await userEvent.click(screen.getByRole('tab', { name: 'Submitted' }))
 
-    // The tab is a server-side filter, not a client-side slice: the tab an assignment belongs in is
-    // derived from its own submission state, and deriving it twice is how the two disagree.
     expect(requested.some((url) => url.includes('tab=Submitted'))).toBe(true)
   })
 
   it('renders Eastern Arabic numerals under Arabic', async () => {
-    // R-1 covers counts. A progress reading "3 of 12" beside an Eastern-digit date is exactly the
-    // inconsistency the ruling was made to prevent.
     const restoreFetch = mockFetch({ '/api/v1/my-evaluations': [assignment()] })
     await i18n.changeLanguage('ar')
     restore = () => { restoreFetch(); void i18n.changeLanguage('en') }

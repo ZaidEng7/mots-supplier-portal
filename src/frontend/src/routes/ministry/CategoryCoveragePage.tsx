@@ -1,3 +1,22 @@
+// SCR-604 at /ministry/categories, for ministry_viewer.
+//
+// One of the two Ministry screens that were never refused and were absent anyway (T-100). SCR-601, 602, 603 and 606 wait on
+// D-57's signature; this one never needed it, because every figure is a count and none of them is commercial.
+//
+// THE EMPTY ROWS ARE THE CONTENT. A coverage screen is read to find the categories the market is not serving, so a category
+// with no suppliers is listed with its zeroes and counted in the summary - not filtered out, which is what a list built from
+// the supplier links would have done while looking complete. The headline is the GAP rather than the total: "how many
+// categories has nobody registered for" is the question this screen answers.
+//
+// TWO SUPPLIER COLUMNS, NOT ONE. Approved is the pool a tender can draw on; active is who can actually trade today. They
+// differ exactly when somebody is suspended, and a single number would show a category as covered when its only supplier
+// cannot bid. A category that was tendered and never awarded is flagged too: that is a market being asked and not answered.
+//
+// The list is STATED to be flat rather than drawn as a tree. The inventory row calls SCR-604 a category TREE; the reference
+// list is flat by design (MSP-54), and a screen that rendered a hierarchy would be inventing one.
+//
+// The coverage chart sits on the screen whose numbers it draws rather than being moved to a reporting page of its own.
+
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Card, PageHeading, SkeletonTable, Table, TableBody, TableCell, TableHead, TableRow } from '../../components/ui'
@@ -5,21 +24,6 @@ import { CoverageChart } from '../../components/charts/CoverageChart'
 import { formatNumber } from '../../lib/datetime'
 import { getCategoryCoverage } from '../../api/governance'
 
-/**
- * SCR-604, `/ministry/categories`, `ministry_viewer`.
- *
- * <p><b>One of the two Ministry screens that were never refused and were absent anyway</b> (T-100).
- * SCR-601/602/603/606 wait on D-57's signature; this one never needed it, because every figure is a count
- * and none of them is commercial.</p>
- *
- * <p><b>The empty rows are the content.</b> A coverage screen is read to find the categories the market is
- * not serving, so a category with no suppliers is listed with its zeroes and counted in the summary — not
- * filtered out, which is what a list built from the supplier links would have done while looking complete.</p>
- *
- * <p><b>Two supplier columns, not one.</b> Approved is the pool a tender can draw on; active is who can
- * actually trade today. They differ exactly when somebody is suspended, and a single number would show a
- * category as covered when its only supplier cannot bid.</p>
- */
 export function CategoryCoveragePage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -44,8 +48,6 @@ export function CategoryCoveragePage() {
     <div className="flex flex-col gap-6">
       <PageHeading title={t('categoryCoverage.title')} subtitle={t('categoryCoverage.subtitle')} />
 
-      {/* The headline is the gap, not the total: "how many categories has nobody registered for" is the
-          question this screen answers, and it is the one figure a reader would otherwise count by eye. */}
       <Card title={t('categoryCoverage.summary')}>
         <p className="text-[length:var(--text-h3)]" style={{ color: 'var(--color-text-primary)' }}>
           {t('categoryCoverage.uncovered', {
@@ -54,8 +56,6 @@ export function CategoryCoveragePage() {
           })}
         </p>
         {categoriesAreFlat ? (
-          // Stated rather than drawn. The inventory row calls SCR-604 a category TREE; the reference list is
-          // flat by design (MSP-54), and a screen that rendered a hierarchy would be inventing one.
           <p className="mt-2 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('categoryCoverage.flatNote')}
           </p>
@@ -67,11 +67,6 @@ export function CategoryCoveragePage() {
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('categoryCoverage.empty')}</p>
         ) : (
           <>
-          {/* The comp's coverage chart, on the screen whose numbers it draws rather than moved to a
-              reporting page. Both figures were already in the table, two columns apart, and the gap
-              between them - approved against able to bid today - is the thing this screen exists to
-              show. A category with a short dark segment and a long pale one has suppliers who cannot
-              act, which is a different problem from having none at all. */}
           <div className="mb-4">
             <CoverageChart
               data={categories.map((category) => ({
@@ -101,8 +96,6 @@ export function CategoryCoveragePage() {
                   <TableCell>{formatNumber(category.tenders, locale, 0)}</TableCell>
                   <TableCell>
                     {formatNumber(category.awardedTenders, locale, 0)}
-                    {/* A category that was tendered and never awarded is a market being asked and not
-                        answering - worth a flag, because the two numbers side by side are easy to skim past. */}
                     {category.tenders > 0 && category.awardedTenders === 0 ? (
                       <span className="ms-2">
                         <Badge tone="info">{t('categoryCoverage.noAward')}</Badge>

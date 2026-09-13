@@ -1,14 +1,29 @@
+// SCR-402. The screen half of the capability T-099 recorded as missing on both sides: an officer looking for who could supply
+// something had to start from the OFFERING search, so a registered supplier with no catalogue entries was invisible to the
+// person deciding whom to invite.
+//
+// A supplier lists with its categories and offering count, and the category CODE is resolved to its label from the reference
+// list rather than printed raw - a buyer reading "catering" is reading a database value.
+//
+// A SUSPENDED supplier shows with its status rather than being hidden: D-55's standard is held to here, so the row exists and
+// says why it is not invitable, where hiding it would leave a buyer who knows the company is registered with no explanation
+// anywhere. And the absence of a catalogue is STATED rather than left as an empty cell that reads like a loading bug.
+//
+// The category and status filters go to the SERVER rather than being applied in the browser: filtering client-side would be
+// wrong the moment the registry exceeds one page, because the screen would narrow twenty rows and call it the answer - so that
+// test asserts the query string rather than the table.
+//
+// The next page is offered when the server says there is one, which is MSP-84's lesson applied to a list that grows without
+// bound: a page-one-only screen hides everything after the first page with nothing visibly wrong.
+//
+// And nothing matching says so, instead of rendering an empty table.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { mockFetch, renderPage, type RecordedRequest } from '../../test/renderPage'
 import { SupplierDirectoryPage } from './SupplierDirectoryPage'
 
-/**
- * SCR-402. The screen half of the capability T-099 recorded as missing on both sides: an officer looking
- * for who could supply something had to start from the OFFERING search, so a registered supplier with no
- * catalogue entries was invisible to the person deciding whom to invite.
- */
 
 const DIRECTORY = '/api/v1/supplier-directory'
 const CATEGORIES = '/api/v1/reference/categories'
@@ -49,28 +64,21 @@ describe('SupplierDirectoryPage', () => {
 
     expect(await screen.findByText('Al-Sham Trading')).toBeInTheDocument()
     expect(screen.getByText('SUP-2026-000001')).toBeInTheDocument()
-    // The category CODE is resolved to its label from the reference list, not printed raw - a buyer
-    // reading "catering" is reading a database value.
     expect(screen.getByText('Catering')).toBeInTheDocument()
     expect(screen.getByText('Damascus')).toBeInTheDocument()
   })
 
   it('shows a suspended supplier with its status rather than hiding it', async () => {
-    // The decision D-55's standard is held to here: the row exists and says why it is not invitable.
-    // Hiding it would leave a buyer who knows the company is registered with no explanation anywhere.
     restore = mockFetch(fixtures())
 
     renderPage(<SupplierDirectoryPage />)
 
     expect(await screen.findByText('Suspended Co')).toBeInTheDocument()
     expect(screen.getByText('Suspended')).toBeInTheDocument()
-    // And the absence of a catalogue is stated, not left as an empty cell that reads like a loading bug.
     expect(screen.getByText('No categories recorded')).toBeInTheDocument()
   })
 
   it('sends the category and status filters to the server rather than filtering in the browser', async () => {
-    // Filtering client-side would be wrong the moment the registry exceeds one page: the screen would
-    // narrow twenty rows and call it the answer. This asserts the query string instead of the table.
     const recorded: RecordedRequest[] = []
     restore = mockFetch(fixtures(), recorded)
 
@@ -90,8 +98,6 @@ describe('SupplierDirectoryPage', () => {
     renderPage(<SupplierDirectoryPage />)
     await screen.findByText('Al-Sham Trading')
 
-    // MSP-84's lesson, applied to a list that grows without bound: a page-one-only screen hides
-    // everything after the first page with nothing visibly wrong.
     expect(screen.getByRole('button', { name: /load more/i })).toBeInTheDocument()
   })
 

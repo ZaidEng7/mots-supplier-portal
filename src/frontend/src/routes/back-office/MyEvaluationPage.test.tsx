@@ -1,3 +1,46 @@
+// FEAT-11.3 and FR-EVL-003 through 005: the two-envelope gate's frontend half - a UI convenience only, hide and disable, never
+// the real gate, which is ScoreCriterionHandler and is proven server-side in the backend integration suite. This file proves
+// the financial input is disabled pre-qualification and becomes enabled once the fixture reports the proposal qualified.
+//
+// THE FIXTURES. Link is mocked to a plain anchor as well as the param, because the header links to SCR-501's brief and this
+// harness has no router - the same treatment every other page test that renders a link uses. The default evaluator has
+// already declared, so the window is shut and the workspace is what renders. And the default bid models what the SERVER sends
+// while scoring is open: the pseudonym, and NULL for every identity field - a fixture carrying a name there would be a shape
+// the API cannot produce, and the test would prove nothing about the screen's real input.
+//
+// Several tests declare the declaration state EXPLICITLY. Without it the longest-match in mockFetch answers the bidders read
+// with the my-evaluation fixture, whose declarationRequired is undefined, and the page then works for an accidental reason -
+// which is not a test.
+//
+// Not assigned shows the not-assigned message instead of a crash. The financial score input is disabled until the proposal is
+// technically qualified, and enabled once it is, with a save that toasts.
+//
+// BRULE-061: a criterion requiring justification cannot be saved until one is written. The defect this closes: the flag was on
+// the wire since EPIC-07 and the scoring form sent commentAr and commentEn as null unconditionally, so scoring such a
+// criterion answered a domain refusal the evaluator had no field to satisfy. The rule is enforced server-side either way -
+// what is asserted here is that the screen states it before the score is thrown away. The justification is sent in ONE
+// language, the evaluator's own: BRULE-061 accepts either and requires no translation, and this harness runs in English, so
+// commentEn carries the text and commentAr stays null. That is asserted on the REQUEST rather than on the screen, because
+// which field the words land in is the part a later refactor could silently change.
+//
+// A submitted evaluation shows the already-submitted message instead of a submit button.
+//
+// T-067: the bid content the evaluator is scoring renders, which was absent entirely before - the page printed a proposal
+// GUID as the bid's identity and nothing else. The bid is identified by its PSEUDONYM while scoring is open rather than by its
+// owner, and the specification is on the same screen as the scoring.
+//
+// A-8, superseding D-19: the bidder identity is WITHHELD while scoring is open, and the evaluator is told so plainly rather
+// than left to wonder whether the data is missing. The control is that the bidder is NAMED once the identity is revealed -
+// the server decides when, before scoring opens for BRULE-067's recusal declaration and after consolidation when the scores
+// are locked, and the screen renders whichever it is given. Both labels show, so a comment written under the pseudonym still
+// reads.
+//
+// THE DECLARATION comes first, and the page asks for it before it will load the workspace. A-8 and BRULE-067: this is the ONE
+// moment the bidder names are shown, and it has to come first, because reading my-evaluation opens scoring as a side effect
+// and a page that loaded both at once would pass the window before the evaluator saw a name. The workspace read must NOT have
+// happened - that is the part that would have opened scoring. Recusal needs a reason and continuing does not, and the last
+// test sends that reason.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -6,21 +49,16 @@ import type { MyEvaluation } from '../../api/evaluations'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  // Link as a plain anchor as well as the param, because the header now links to SCR-501's brief and this
-  // harness has no router - same treatment as every other page test that renders a link.
   return { ...actual, useParams: () => ({ referenceCode: 'RFQ-2026-000001' }), useRouterState: () => '/back-office/rfqs/RFQ-2026-000001', Link: 'a' }
 })
 
 const { MyEvaluationPage } = await import('./MyEvaluationPage')
 
-/** A-8: this evaluator has already declared, so the window is shut and the workspace is what renders. */
 const DECLARED = { declarationRequired: false, bidders: [] }
 
 function myEvaluationFixture(overrides: Partial<MyEvaluation> = {}): MyEvaluation {
   return {
     rfqReferenceCode: 'RFQ-2026-000001', state: 'InProgress', submittedAt: null,
-    // T-067: the specification the bids answer, which an evaluator could not reach from anywhere in
-    // the product before this.
     rfqTitleAr: 'طلب تجريبي', rfqTitleEn: 'Catering RFQ',
     rfqDescriptionAr: null, rfqDescriptionEn: null,
     rfqItems: [], rfqRequirements: [],
@@ -30,9 +68,6 @@ function myEvaluationFixture(overrides: Partial<MyEvaluation> = {}): MyEvaluatio
     ],
     proposals: [{
       proposalCode: 'PRP-2026-000001',
-      // A-8: the default fixture models what the SERVER sends while scoring is open - the pseudonym,
-      // and NULL for every identity field. A fixture carrying a name here would be a shape the API
-      // cannot produce, and the test would prove nothing about the screen's real input.
       bidderLabelAr: 'مورّد أ', bidderLabelEn: 'Bidder A',
       supplierReferenceCode: null,
       supplierDisplayNameAr: null, supplierDisplayNameEn: null,
@@ -45,10 +80,6 @@ function myEvaluationFixture(overrides: Partial<MyEvaluation> = {}): MyEvaluatio
   }
 }
 
-/** FEAT-11.3/FR-EVL-003..005: the two-envelope gate's frontend half - a UI convenience only (hide/
- * disable), never the real gate (that is ScoreCriterionHandler, proven server-side in the backend
- * integration suite). This file proves the financial input is disabled pre-qualification and
- * becomes enabled once the fixture reports the proposal qualified. */
 describe('MyEvaluationPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -63,9 +94,6 @@ describe('MyEvaluationPage', () => {
 
   it('disables the financial score input until the proposal is technically qualified', async () => {
     restore = mockFetch({
-      // A-8: declared explicitly. Without it the longest-match in mockFetch answers the bidders read
-      // with the my-evaluation fixture, whose `declarationRequired` is undefined - the page then works
-      // for an accidental reason, which is not a test.
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture(),
     })
@@ -108,10 +136,6 @@ describe('MyEvaluationPage', () => {
   })
 
   it('BRULE-061: a criterion requiring justification cannot be saved until one is written', async () => {
-    // The defect this closes: the flag was on the wire since EPIC-07 and the scoring form sent
-    // commentAr/commentEn as null unconditionally, so scoring such a criterion answered a domain
-    // refusal the evaluator had no field to satisfy. The rule is enforced server-side either way -
-    // what is asserted here is that the screen states it before the score is thrown away.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture({
@@ -132,9 +156,6 @@ describe('MyEvaluationPage', () => {
   })
 
   it('sends the justification in ONE language - the evaluator\'s own', async () => {
-    // BRULE-061 accepts either language and requires no translation, and this harness runs in English,
-    // so commentEn carries the text and commentAr stays null. Asserted on the REQUEST rather than on
-    // the screen: which field the words land in is the part a later refactor could silently change.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
@@ -170,11 +191,7 @@ describe('MyEvaluationPage', () => {
   })
 
   it('renders the bid content the evaluator is scoring, which was absent entirely before T-067', async () => {
-    // The defect this page had: it printed a proposal GUID as the bid's identity and nothing else.
     restore = mockFetch({
-      // A-8: declared explicitly. Without it the longest-match in mockFetch answers the bidders read
-      // with the my-evaluation fixture, whose `declarationRequired` is undefined - the page then works
-      // for an accidental reason, which is not a test.
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture(),
     })
@@ -182,20 +199,13 @@ describe('MyEvaluationPage', () => {
     renderPage(<MyEvaluationPage />)
 
     expect(await screen.findByText('We use 300-thread cotton.')).toBeInTheDocument()
-    // A-8: the bid is identified by its pseudonym while scoring is open, not by its owner.
     expect(screen.getByText('Bidder A')).toBeInTheDocument()
     expect(screen.getByText(/PRP-2026-000001/)).toBeInTheDocument()
-    // The specification, on the same screen as the scoring.
     expect(screen.getByText(/Catering RFQ/)).toBeInTheDocument()
   })
 
   it('withholds the bidder identity while scoring is open', async () => {
-    // A-8, and this supersedes D-19. The evaluator sees a stable pseudonym and is told plainly that the
-    // identity is withheld, rather than being left to wonder whether the data is missing.
     restore = mockFetch({
-      // A-8: declared explicitly. Without it the longest-match in mockFetch answers the bidders read
-      // with the my-evaluation fixture, whose `declarationRequired` is undefined - the page then works
-      // for an accidental reason, which is not a test.
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture(),
     })
@@ -208,9 +218,6 @@ describe('MyEvaluationPage', () => {
   })
 
   it('names the bidder once the identity is revealed', async () => {
-    // The control. The server decides when - before scoring opens, which is BRULE-067's recusal
-    // declaration, and after consolidation, when the scores are locked - and the screen renders
-    // whichever it is given. Both labels show, so a comment written under the pseudonym still reads.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': DECLARED,
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation': myEvaluationFixture({
@@ -235,9 +242,6 @@ describe('MyEvaluationPage', () => {
   })
 
   it('asks for a conflict declaration before it will load the workspace', async () => {
-    // A-8/BRULE-067. This is the ONE moment the bidder names are shown, and it has to come first:
-    // reading my-evaluation opens scoring as a side effect, so a page that loaded both at once would
-    // pass the window before the evaluator saw a name.
     const calls: { url: string; method: string; body: string }[] = []
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/my-evaluation/bidders': {
@@ -252,10 +256,8 @@ describe('MyEvaluationPage', () => {
     expect(await screen.findByText('Conflict of interest declaration')).toBeInTheDocument()
     expect(screen.getByText('Test Supplies Co')).toBeInTheDocument()
 
-    // The workspace read must NOT have happened - that is the part that would have opened scoring.
     expect(calls.some((c) => c.url.endsWith('/my-evaluation'))).toBe(false)
 
-    // Recusal needs a reason; continuing does not.
     expect(screen.getByRole('button', { name: 'I have a conflict — recuse me' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'No conflict — continue' })).toBeEnabled()
   })

@@ -1,3 +1,29 @@
+// FR-DOC-009's required-versus-optional grouping.
+//
+// The requirement's other halves - state chips, expiry countdowns, localisation - were already built. Grouping was the
+// missing one, and it was missing in a way that reads as complete: every document was on the page, isRequired was on the
+// DTO, and nothing was broken. The supplier simply could not tell which documents blocked their submission without opening
+// each one, which is the entire purpose of the grouping.
+//
+// The harness has no router by design, and OnboardingStepNav reads useRouterState for the current path, so that is stubbed
+// rather than the whole route tree being wired up for a test about document grouping.
+//
+// Each document lands under the heading matching its required flag, asserted SCOPED TO EACH SECTION rather than against
+// the page: a test that only checked both names appear somewhere would pass on the flat list this replaced, because the
+// defect was never a missing document but a missing distinction.
+//
+// Required documents come before optional ones, asserted through document POSITION rather than array order - the API
+// returned them the other way round in that test, so it fails if the grouping ever just renders what it was given. And
+// required-first is correct in RTL for the same reason it is in LTR.
+//
+// With no optional documents the section SAYS so rather than hiding. With no required types the heading is omitted
+// entirely, which is not an empty state: a required group with nothing in it means the document-type catalogue is
+// misconfigured, and a reassuring "none required" would present a configuration fault as a finished checklist.
+//
+// The last test is the rejection reason's own render path, Task #21's - the --color-danger-fg fixed for dark-mode AA
+// contrast in that task - which every other test in this file leaves unexercised, since they only seed a null latest
+// document.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import { renderPage, mockFetch } from '../test/renderPage'
@@ -5,9 +31,6 @@ import type { DocumentTypeStatus } from '../api/documents'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
-  // The harness has no router by design (see renderPage). OnboardingStepNav reads
-  // useRouterState for the current path, so it is stubbed rather than the whole route tree
-  // being wired up for a test about document grouping.
   return {
     ...actual,
     Link: 'a',
@@ -49,15 +72,6 @@ function mount(documents: ReturnType<typeof documentType>[]) {
   })
 }
 
-/**
- * FR-DOC-009: required-vs-optional grouping.
- *
- * The requirement's other halves - state chips, expiry countdowns, localisation - were already
- * built. Grouping was the missing one, and it was missing in a way that reads as complete: every
- * document was on the page, `isRequired` was on the DTO, and nothing was broken. The supplier simply
- * could not tell which documents blocked their submission without opening each one, which is the
- * entire purpose of the grouping.
- */
 describe('OnboardingPage document grouping', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -74,9 +88,6 @@ describe('OnboardingPage document grouping', () => {
     const required = await screen.findByRole('heading', { name: 'Required documents' })
     const optional = await screen.findByRole('heading', { name: 'Optional documents' })
 
-    // Scoped to each section rather than asserted against the page. A test that only checked both
-    // names appear somewhere would pass on the flat list this replaced - the defect was never a
-    // missing document, it was a missing distinction.
     const requiredSection = required.closest('section')!
     const optionalSection = optional.closest('section')!
 
@@ -99,9 +110,6 @@ describe('OnboardingPage document grouping', () => {
     const required = await screen.findByRole('heading', { name: 'Required documents' })
     const optional = await screen.findByRole('heading', { name: 'Optional documents' })
 
-    // Reading order, asserted through document position rather than array order - the API returned
-    // them the other way round above, so this fails if the grouping ever just renders what it was
-    // given. Required-first is correct in RTL for the same reason it is in LTR.
     expect(required.compareDocumentPosition(optional))
       .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
@@ -115,9 +123,6 @@ describe('OnboardingPage document grouping', () => {
   })
 
   it('omits the required heading entirely when the catalogue has no required types', async () => {
-    // Not an empty state - a required group with nothing in it means the document-type catalogue is
-    // misconfigured, and a reassuring "none required" would present a configuration fault as a
-    // finished checklist.
     restore = mount([documentType('chamber_membership', false)])
 
     renderPage(<OnboardingPage />)
@@ -128,9 +133,6 @@ describe('OnboardingPage document grouping', () => {
   })
 
   it('shows the rejection reason on a document that was rejected', async () => {
-    // Task #21: this is the reason text's own render path (--color-danger-fg, fixed for dark-mode
-    // AA contrast this task) - unexercised by every other test in this file, which only seeds
-    // latestDocument: null.
     const rejected = {
       ...documentType('commercial_registration', true),
       latestDocument: {

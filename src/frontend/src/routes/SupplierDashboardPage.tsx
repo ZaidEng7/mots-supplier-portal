@@ -1,3 +1,47 @@
+// SCR-120, the supplier dashboard, per SCREEN-SPECIFICATIONS.md §1.
+//
+// §1's regions in order: a PageHeader with greeting and status badge, the conditional action-required strip, the four-tile
+// KPI row, and a two-column body that stacks on mobile - invitations and proposals inline-start, profile health and
+// notifications inline-end.
+//
+// WIDGET FAILURES ARE ISOLATED. §1 is explicit that there should be a "per-widget ErrorPanel + retry (isolated failures
+// don't blank the page)", so the notification panel has its own query and its own error branch: it failing must leave the
+// KPI row, the invitations and the health card standing. That is the requirement most easily lost by writing one
+// page-level error state, and the panel's own error message is where it is made visible - that widget says it failed and
+// everything around it still renders.
+//
+// THE NOT-YET-APPROVED BANNER replaces the dashboard rather than emptying it, per §1's "Not-yet-approved: dashboard
+// replaced by onboarding progress banner linking to SCR-100": a supplier who is not yet eligible for any invitation must
+// not read "Open invitations: 0" as a verdict on them.
+//
+// Which banner, though. There was one - "Your application is under review" - for all six not-approved states, and in three
+// of them nobody is reviewing anything: a supplier who had not submitted was told the Ministry had their application,
+// under a chip two lines below reading "Email verified" and beside a button inviting them to carry on filling it in. The
+// same defect OnboardingPage's read-only message had, on the screen a new supplier sees first. The message is chosen from
+// a TABLE rather than a chain of ifs, and the three states absent from it fall through to the pending wording - which are
+// exactly the three where that sentence is true.
+//
+// THE LOADING STATE covers the header too. §1 says the "header shows name immediately from session", but the session store
+// holds no company name - reported as a gap. Its skeletons are labelled with the SCREEN rather than with a widget: a
+// skeleton whose accessible name is "Open invitations" is indistinguishable from the loaded tile of that name, to a
+// screen reader and, as this cost me, to a test.
+//
+// THE DOCUMENT LINKS land in the onboarding wizard's documents step. §1 links these to SCR-106 and SCR-130, and this app
+// has no /documents route, so they go where document upload actually lives. Reported as a route the inventory names and
+// the SPA does not have.
+//
+// T-039 and FEAT-16.3: THE AWARD OUTCOMES, won and lost. The proposals panel above excludes NotSelected, so a supplier who
+// lost watched their bid disappear from this screen with no result anywhere on it. Losing is an outcome, and the screen a
+// supplier opens first is where they look for it.
+//
+// TWO RTL NOTES from §1. Countdowns keep their digits LTR-internal while the line flows RTL, which is what <bdi> is for
+// and what RESPONSIVE-AND-RTL §5.3 requires. And the progress meter "fills from inline-start" through logical properties,
+// so it grows right-to-left under Arabic - a meter filling left-to-right on an Arabic page reads as emptying.
+//
+// The next required document shows its NAME, falling back to the code only if the reference row has somehow gone. A
+// supplier was being shown "commercial_registration" there - a database value on the one line that tells them what to do
+// next, which made it the least useful place in the product for it.
+
 import { useState } from 'react'
 import { Metric, MetricRow } from '../components/ui'
 import { useTranslation } from 'react-i18next'
@@ -12,26 +56,6 @@ import { SkeletonGrid, SkeletonList } from '../components/ui/Skeleton'
 import { formatDate, formatDeadline, formatNumber, formatCurrency } from '../lib/datetime'
 import { dismiss, isDismissed } from '../lib/dismissedChips'
 
-/**
- * SCR-120 — the supplier dashboard. SCREEN-SPECIFICATIONS.md §1.
- *
- * <p>§1's regions in order: PageHeader with greeting and status badge, the conditional
- * action-required strip, the four-tile KPI row, and a two-column body that stacks on mobile —
- * invitations and proposals inline-start, profile health and notifications inline-end.</p>
- *
- * <p><b>Widget failures are isolated.</b> §1 is explicit that "per-widget ErrorPanel + retry
- * (isolated failures don't blank the page)", so the notification panel has its own query and its own
- * error branch: it failing must leave the KPI row, the invitations and the health card standing.
- * That is the requirement most easily lost by writing one page-level error state.</p>
- */
-/**
- * Which message a not-yet-approved supplier is shown, by their own state.
- *
- * <p>One message - "Your application is under review" - used to serve all six states. A brand-new
- * account read it under a chip saying "Email verified", beside a button inviting them to carry on
- * filling the profile in, while nobody was reviewing anything. The three states absent from this
- * table fall through to `pending`, and those are exactly the three where the sentence is true.</p>
- */
 const BANNER_BY_STATE: Record<string, 'notSubmitted' | 'infoRequested' | 'rejected'> = {
   Draft: 'notSubmitted',
   EmailVerified: 'notSubmitted',
@@ -47,8 +71,6 @@ export function SupplierDashboardPage() {
 
   const query = useQuery({ queryKey: ['supplier-dashboard'], queryFn: getSupplierDashboard })
 
-  // A SEPARATE query, on purpose: §1's "Recent notifications" is its own widget, and one widget's
-  // failure must not blank the page.
   const notifications = useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: unreadNotificationCount,
@@ -60,11 +82,6 @@ export function SupplierDashboardPage() {
   if (query.isPending) {
     return (
       <div className="flex flex-col gap-4">
-        {/* §1: "header shows name immediately from session" - but the session store holds no
-            company name, so the skeleton covers the header too. Reported as a gap. */}
-        {/* Labelled with the SCREEN, not a widget: a skeleton whose accessible name is "Open
-            invitations" is indistinguishable from the loaded tile of that name - to a screen reader
-            and, as this cost me, to a test. */}
         <SkeletonGrid label={t('supplierDashboard.title')} items={4} columns={4} />
         <SkeletonList label={t('supplierDashboard.title')} rows={5} />
       </div>
@@ -79,17 +96,7 @@ export function SupplierDashboardPage() {
     )
   }
 
-  // §1's "Not-yet-approved: dashboard replaced by onboarding progress banner linking to SCR-100".
-  // Replaced, not emptied: a supplier who is not yet eligible for any invitation must not read
-  // "Open invitations: 0" as a verdict on them.
-  //
-  // WHICH banner, though. There was one - "Your application is under review" - for all six
-  // not-approved states, and in three of them nobody is reviewing anything: a supplier who has not
-  // submitted was told the Ministry had their application, under a chip two lines below reading
-  // "Email verified" and beside a button inviting them to carry on filling it in. The same defect
-  // OnboardingPage's read-only message had, on the screen a new supplier sees first.
   if (!data.isApproved) {
-    // A table rather than a chain of ifs - see BANNER_BY_STATE.
     const banner = BANNER_BY_STATE[data.onboardingState] ?? 'pending'
 
     return (
@@ -104,9 +111,6 @@ export function SupplierDashboardPage() {
   }
 
   const chips = ([
-    // §1 links these to SCR-106/130. This app has no /documents route - document upload lives in
-    // the onboarding wizard's documents step - so they land there. Reported as a route the
-    // inventory names and the SPA does not have.
     ['expiringDocuments', data.actionRequired.expiringDocuments, '/onboarding'],
     ['rejectedDocuments', data.actionRequired.rejectedDocuments, '/onboarding'],
     ['invitationsClosingSoon', data.actionRequired.invitationsClosingSoon, '/rfqs'],
@@ -173,8 +177,6 @@ export function SupplierDashboardPage() {
                     </Link>
                     <span className="flex items-center gap-2">
                       {invitation.submissionClosesAt ? (
-                        // §1's RTL note: countdowns keep their digits LTR-internal while the line
-                        // flows RTL. <bdi> is what RTL §5.3 requires for exactly this.
                         <bdi className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                           {formatDeadline(invitation.submissionClosesAt, locale)}
                         </bdi>
@@ -207,11 +209,6 @@ export function SupplierDashboardPage() {
             </ul>
           </Card>
 
-          {/* T-039/FEAT-16.3: the outcomes, won and lost.
-              
-              The proposals panel above excludes NotSelected, so a supplier who lost watched their bid
-              disappear from this screen with no result anywhere on it. Losing is an outcome, and the
-              screen a supplier opens first is where they look for it. */}
           <Card title={t('supplierDashboard.awards')}>
             {(data.awards ?? []).length === 0 ? (
               <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierDashboard.awardsEmpty')}</p>
@@ -239,9 +236,6 @@ export function SupplierDashboardPage() {
 
         <div className="flex flex-col gap-4">
           <Card title={t('supplierDashboard.profileHealth')}>
-            {/* §1's RTL note: "Progress meter fills from inline-start". Logical properties, so it
-                grows right-to-left under Arabic - a meter filling left-to-right on an Arabic page
-                reads as emptying. */}
             <div role="progressbar"
               aria-valuenow={Math.round(data.profileHealth.completeness * 100)}
               aria-valuemin={0} aria-valuemax={100}
@@ -262,9 +256,6 @@ export function SupplierDashboardPage() {
               })}
             </p>
             <p style={{ color: 'var(--color-text-secondary)' }}>
-              {/* The NAME, falling back to the code only if the reference row has somehow gone. A supplier
-                  was being shown "commercial_registration" here - a database value on the one line that tells
-                  them what to do next, which made it the least useful place in the product for it. */}
               {data.profileHealth.nextRequiredDocumentTypeCode
                 ? t('supplierDashboard.nextDocument', {
                     code: (isArabic
@@ -279,8 +270,6 @@ export function SupplierDashboardPage() {
 
           <Card title={t('supplierDashboard.notifications')}>
             {notifications.isError ? (
-              // The isolated-failure requirement, made visible: this widget says it failed and
-              // everything around it still renders.
               <QueryError error={notifications.error} onRetry={() => void notifications.refetch()} />
             ) : (
               <Link to="/notifications">{t('supplierDashboard.openNotifications')}</Link>

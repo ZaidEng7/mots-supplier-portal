@@ -1,3 +1,25 @@
+// FEAT-14.1 through 14.6: the page shows the right action for each Award state, and surfaces the segregation-of-duties
+// refusal with its own dedicated message rather than the generic fallback.
+//
+// With no award yet it shows the recommend form built from qualified evaluation results. At PendingApproval it shows approve
+// and reject, and approving toasts.
+//
+// The SoD refusal is exercised through the client-side error mapping directly, via a rejected promise: mockFetch is
+// method-agnostic and always answers 200, so it cannot produce the shape the API would actually return.
+//
+// Awarded with a failed ERP sync shows the retry button, and §7.6's LABEL rather than the raw enum member the page used to
+// print. Awarded and synced shows the external PO reference and no retry. Awarded with nothing asked of the ERP yet renders
+// NO sync chip at all - that test waits for the awarded view before asserting an absence, so it cannot pass on an empty
+// page, and the reason is that §7.6 has no row for NotRequested while the two wrong answers are both one line away: the raw
+// enum member, and the pending label claiming a request is in flight.
+//
+// A failure shows a retryable error rather than an empty award screen.
+//
+// The last test is T-068: a winner is recommended by its public CODE rather than an internal identifier. This screen used to
+// post the bid's GUID, which it had read out of the evaluation response - an internal identifier in a client's hands, on the
+// one action that decides who wins a public tender. The assertion is on the BODY, because the visible behaviour is identical
+// either way and only the request tells you which identifier was sent.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -41,8 +63,6 @@ function awardFixture(overrides: Partial<Award> = {}): Award {
   }
 }
 
-/** FEAT-14.1..14.6: proves the page shows the right action for each Award state, and surfaces the
- * segregation-of-duties error with its own dedicated message rather than the generic fallback. */
 describe('AwardPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -77,10 +97,6 @@ describe('AwardPage', () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/award': awardFixture(),
       '/api/v1/rfqs/RFQ-2026-000001/evaluation': evaluationFixture(),
-      // mockFetch is method-agnostic and always 200s; simulate the SoD refusal shape the API
-      // would actually return by overriding the award route's own body for this test's approve
-      // click - since mockFetch always answers 200 for any method, exercise the client-side error
-      // mapping directly via a rejected promise instead.
     })
 
     renderPage(<AwardPage />)
@@ -106,7 +122,6 @@ describe('AwardPage', () => {
 
     renderPage(<AwardPage />)
 
-    // UX-WRITING.md §7.6's label, not the raw enum member the page used to print.
     expect(await screen.findByText('ERP sync status: Sync failed')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Retry sync' }))
 
@@ -134,11 +149,8 @@ describe('AwardPage', () => {
 
     renderPage(<AwardPage />)
 
-    // Waits for the awarded view before asserting an absence, so this cannot pass on an empty page.
     expect(await screen.findByText(/Awarded/)).toBeInTheDocument()
 
-    // UX-WRITING.md §7.6 has no row for NotRequested. The two wrong answers are both one line away:
-    // the raw enum member, and the pending label claiming a request is in flight.
     expect(screen.queryByText(/ERP sync status/)).not.toBeInTheDocument()
     expect(screen.queryByText(/NotRequested/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Sync pending/)).not.toBeInTheDocument()
@@ -157,10 +169,6 @@ describe('AwardPage', () => {
   })
 
   it('recommends a winner by its public code, not by an internal identifier', async () => {
-    // T-068. This screen used to post the bid's GUID, which it had read out of the evaluation
-    // response - an internal identifier in a client's hands, on the one action that decides who wins
-    // a public tender. The assertion is on the BODY, because the visible behaviour is identical
-    // either way and only the request tells you which identifier was sent.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/award': null,

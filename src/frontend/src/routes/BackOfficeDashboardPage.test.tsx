@@ -1,3 +1,10 @@
+// T-084. This is the shared back-office landing page, and it renders entirely from the ACCESS TOKEN's claims, with no
+// queries. So what is worth asserting is that it reads them and survives their absence: a dashboard that threw on a
+// session whose token has no permissions would lock a persona out of the shell rather than showing them an empty one.
+//
+// The second test is the case that matters: claims come from decoding a JWT, and decodeClaims returns null for anything
+// it cannot parse, so a page that assumed an object would take the whole shell down with it.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderPage } from '../test/renderPage'
@@ -5,12 +12,6 @@ import { renderPage } from '../test/renderPage'
 const { BackOfficeDashboardPage } = await import('./BackOfficeDashboardPage')
 const { useAuthStore } = await import('../lib/authStore')
 
-/**
- * T-084. This is the shared back-office landing page, and it renders entirely from the ACCESS TOKEN's
- * claims - no queries. So what is worth asserting is that it reads them and survives their absence: a
- * dashboard that throws on a session whose token has no permissions would lock a persona out of the shell
- * rather than showing them an empty one.
- */
 describe('BackOfficeDashboardPage', () => {
   afterEach(() => {
     useAuthStore.setState({ accessToken: null, claims: null, status: 'idle', expired: false, lastEmail: null })
@@ -31,8 +32,6 @@ describe('BackOfficeDashboardPage', () => {
   })
 
   it('renders for a session with no claims at all rather than throwing', () => {
-    // The case that matters: claims come from decoding a JWT, and decodeClaims returns null for anything it
-    // cannot parse. A page that assumed an object would take the whole shell down with it.
     useAuthStore.setState({ accessToken: 'token', status: 'authenticated', claims: null })
 
     renderPage(<BackOfficeDashboardPage />)

@@ -1,3 +1,60 @@
+// Two groups: the Required-versus-Missing chip escalation, and the submit gate.
+//
+// The fetch stub is hand-rolled, because mockFetch answers by URL alone and this flow needs the SAME url to answer
+// differently depending on method and call order: the submit POST must fail with the server's 422 while the GETs keep
+// succeeding. The 422's missing fields are the real contract, API-ARCHITECTURE §12.2's "incomplete required docs/fields ->
+// 422 listing exactly what is missing". Routes are code-addressed per §12-A/C3, ordered most-specific first because
+// /suppliers/me is still a real route this page reads the code from.
+//
+// THE CHIPS are the product owner's ruling in two states: a required document nobody has uploaded rests as Required or
+// مطلوب - UX-WRITING §7.2's first row, and the first entry in SCR-106's StatusBadge set - and becomes Missing only once the
+// supplier has tried to advance and it is still absent. Neither label is a member of the document state machine: this is a
+// validation display state, driven by the server's own 422 list rather than by a client-side completeness rule that could
+// disagree with the server about what actually blocks submission.
+//
+// So it rests as Required before any submit attempt, renders مطلوب under the ar locale, and escalates ONLY the documents
+// the SERVER named after a failed submit. That limit is the point: an optional document is untouched - SCR-106's "optional
+// docs never block" - and so would a required one the server did not list, which is what stops this from being a
+// client-side "everything empty is missing" rule. A profile-field name in the 422 list is ignored when escalating
+// documents, because the server mixes missing PROFILE fields into the same array as document type codes, and a profile
+// field must not surface as a missing document or escalate a chip - the toast still reports the failure, and the document
+// chips do not move.
+//
+// THE ERROR SUMMARY is ACCESSIBILITY.md §7's: "error summary at submit: a focusable summary region (role='alert' or moved
+// focus) listing each error as a link jumping to its field - essential for long onboarding forms and SR users". A colour
+// change on a chip inside a long list announces nothing, so the test asserts the region exists with the right role, names
+// the blocking document, AND links to that document's row - all three, because a role="alert" that says "submission
+// failed" and nothing else satisfies the role and not the requirement.
+//
+// Its POSITION is the original audit's §F6: "the role='alert' blocker list renders AFTER the whole document list, its
+// links point backwards, and nothing moves focus to it. A keyboard user who presses Submit must Shift+Tab back past every
+// document control to reach the explanation." Document order is the assertion rather than styling, because
+// compareDocumentPosition is what a keyboard and a screen reader both walk: the summary must precede the button that
+// produced it AND the rows it links to, and moving the block back to the bottom of the page fails both halves.
+//
+// And FOCUS MOVES to it, which is §7's other half - "a focusable summary region (role='alert' or moved focus)".
+// role="alert" announces; it does not move the caret. Without it the supplier is left standing on Submit, and the links in
+// the summary are only reachable by hunting for them.
+//
+// THE GATE is what a supplier reads before they can submit. This card used to list every requirement with a badge on each,
+// so a supplier read eight rows to find the two that were not done - and the button those rows were about sat 200 lines
+// below, disabled, with nothing on the screen saying why. Nothing asserted any of it.
+//
+// It lists only what is outstanding and says why submit is unavailable. The card is titled with the ANSWER rather than the
+// question, because a supplier came to find out how much is left and "Before you can submit" made them read the list to
+// learn it; that is asserted as a HEADING, because the step cards say the same sentence about their own share of the same
+// list, which is correct on both and ambiguous to a bare text query. Two outstanding items and no more: before this the
+// card listed all eight requirements with a badge on each, so the two that mattered were two rows among eight - counted
+// inside the list rather than by the word "Missing", which each row used to carry and the title now says once. And how
+// much is left is said to a screen reader as well as drawn: six requirements, two outstanding.
+//
+// It does not offer to submit an application already with a reviewer. The gate is about an ACTION, and saying "Ready to
+// submit" above an application that has already BEEN submitted invites one that no longer exists - which is what the first
+// version of this card did, caught in a screenshot rather than by a test, so here is the test.
+//
+// The last one is the denominator for that: it says it is ready and enables submit once nothing is outstanding, because a
+// gate that always said "before you can submit" would pass the other test and be useless.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -37,14 +94,6 @@ const supplier = {
 
 const DOCUMENTS = [documentType('commercial_registration', true), documentType('chamber_membership', false)]
 
-/**
- * `mockFetch` answers by URL alone, and this flow needs the SAME url to answer differently
- * depending on method and call order: the submit POST must fail with the server's 422, while the
- * GETs keep succeeding. Hand-rolled for that reason.
- *
- * @param missingFields what the server names in its 422 - the real contract, API-ARCHITECTURE §12.2:
- * *"Incomplete required docs/fields → `422` listing exactly what is missing"*.
- */
 function mockApi(missingFields: string[]) {
   const original = globalThis.fetch
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
@@ -59,8 +108,6 @@ function mockApi(missingFields: string[]) {
     if (url.includes('/onboarding/submit') && method === 'POST') {
       return json({ error: 'incomplete_profile', missingFields }, 422)
     }
-    // §12-A/C3: supplier routes are code-addressed; ordered most-specific first because
-    // `/suppliers/me` is still a real route this page reads the code from.
     if (url.includes('/documents')) return json(DOCUMENTS)
     if (url.includes('/annotations/active')) return json(null)
     if (url.includes('/suppliers/me')) return json(supplier)
@@ -71,15 +118,6 @@ function mockApi(missingFields: string[]) {
   return () => { globalThis.fetch = original }
 }
 
-/**
- * The product owner's ruling, in two states: a required document nobody has uploaded rests as
- * `Required`/مطلوب (UX-WRITING §7.2's first row, and the first entry in SCR-106's StatusBadge set),
- * and becomes `Missing` only once the supplier has tried to advance and it is still absent.
- *
- * <p><b>Not a `DocumentState`.</b> Neither label is a member of the document state machine - this is
- * a validation display state, driven by the server's own 422 list rather than by a client-side
- * completeness rule that could disagree with the server about what actually blocks submission.</p>
- */
 describe('required-vs-missing document chips', () => {
   let restore: () => void
   afterEach(async () => {
@@ -109,11 +147,6 @@ describe('required-vs-missing document chips', () => {
     expect(screen.queryByText('ناقص')).toBeNull()
   })
 
-  /**
-   * The escalation, and its limit: only the documents the SERVER named change. An optional document
-   * is untouched (SCR-106: "optional docs never block"), and so would a required one the server did
-   * not list - which is what stops this from being a client-side "everything empty is missing" rule.
-   */
   it('escalates only the documents the server named, after a failed submit', async () => {
     restore = mockApi(['commercial_registration'])
 
@@ -129,16 +162,6 @@ describe('required-vs-missing document chips', () => {
     expect(within(optionalSection).queryByText('Required')).toBeNull()
   })
 
-  /**
-   * ACCESSIBILITY.md §7: *"Error summary at submit: a focusable summary region (`role="alert"` or
-   * moved focus) listing each error as a link jumping to its field - essential for long onboarding
-   * forms and SR users."*
-   *
-   * <p>A colour change on a chip inside a long list announces nothing. This asserts the region
-   * exists with the right role, names the blocking document, and links to that document's row -
-   * all three, because a `role="alert"` that says "submission failed" and nothing else satisfies
-   * the role and not the requirement.</p>
-   */
   it('announces the blocking documents in an alert region that links to each row', async () => {
     restore = mockApi(['commercial_registration'])
 
@@ -153,15 +176,6 @@ describe('required-vs-missing document chips', () => {
     expect(document.getElementById('document-row-commercial_registration')).not.toBeNull()
   })
 
-  /**
-   * Original audit §F6: *"the `role="alert"` blocker list renders AFTER the whole document list, its
-   * links point backwards, and nothing moves focus to it. A keyboard user who presses Submit must
-   * Shift+Tab back past every document control to reach the explanation."*
-   *
-   * <p>Document order is the assertion, not styling: `compareDocumentPosition` is what a keyboard and
-   * a screen reader both walk. The summary must precede the button that produced it AND the rows it
-   * links to - move the block back to the bottom of the page and both halves fail.</p>
-   */
   it('places the summary ahead of the submit button and the documents it names', async () => {
     restore = mockApi(['commercial_registration'])
 
@@ -180,11 +194,6 @@ describe('required-vs-missing document chips', () => {
     expect(precedes(alert, document.getElementById('document-row-commercial_registration')!)).toBe(true)
   })
 
-  /**
-   * The other half of ACCESSIBILITY.md §7: *"a focusable summary region (`role="alert"` **or moved
-   * focus**)"*. `role="alert"` announces; it does not move the caret. Without this the supplier is
-   * left standing on Submit, and the links in the summary are only reachable by hunting for them.
-   */
   it('moves focus to the summary so its links are the next thing in the tab order', async () => {
     restore = mockApi(['commercial_registration'])
 
@@ -195,17 +204,12 @@ describe('required-vs-missing document chips', () => {
     await waitFor(() => expect(document.activeElement).toBe(alert))
   })
 
-  /**
-   * The server's 422 mixes missing PROFILE fields into the same array as document type codes. A
-   * profile field must not surface as a missing document, and must not escalate a chip.
-   */
   it('ignores profile-field names in the 422 list when escalating documents', async () => {
     restore = mockApi(['legalNameEn'])
 
     renderPage(<OnboardingPage />)
     await userEvent.click(await screen.findByRole('button', { name: 'Submit application' }))
 
-    // The toast still reports the failure; the document chips do not move.
     await screen.findByText('Profile incomplete')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByText('Required')).toBeInTheDocument()
@@ -213,13 +217,6 @@ describe('required-vs-missing document chips', () => {
   })
 })
 
-/**
- * The gate: what a supplier reads before they can submit.
- *
- * <p>This card used to list every requirement with a badge on each, so a supplier read eight rows to
- * find the two that were not done - and the button those rows were about sat 200 lines below, disabled,
- * with nothing on the screen saying why. Nothing asserted any of it.</p>
- */
 describe('the submit gate', () => {
   let restore: () => void
   afterEach(() => {
@@ -233,31 +230,19 @@ describe('the submit gate', () => {
 
     renderPage(<OnboardingPage />)
 
-    // The card is titled with the answer rather than the question. A supplier came to find out how much
-    // is left, and "Before you can submit" made them read the list to learn it.
-    //
-    // Asserted as a heading: the step cards say the same sentence about their own share of the same
-    // list, which is correct on both and ambiguous to a bare text query.
     expect(await screen.findByRole('heading', { name: '2 things left' })).toBeInTheDocument()
     expect(screen.getByText('Available once the items above are done.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit application' })).toBeDisabled()
 
-    // Two outstanding items and no more. Before this the card listed all eight requirements with a
-    // badge on each, so the two that mattered were two rows among eight. Counted inside the list rather
-    // than by the word "Missing", which each row used to carry and the title now says once.
     const outstanding = screen.getByRole('list', { name: 'What is left' })
     expect(within(outstanding).getAllByRole('listitem')).toHaveLength(2)
 
-    // How much is left, said to a screen reader as well as drawn. Six requirements, two outstanding.
     const bar = screen.getByRole('progressbar', { name: 'Application progress' })
     expect(bar).toHaveAttribute('aria-valuemax', '6')
     expect(bar).toHaveAttribute('aria-valuenow', '4')
   })
 
   it('does not offer to submit an application that is already with a reviewer', async () => {
-    // The gate is about an action. Saying "Ready to submit" above an application that has already BEEN
-    // submitted invites one that no longer exists - which is what the first version of this card did,
-    // caught in a screenshot rather than by a test, so here is the test.
     restore = mockApi([])
     ;(supplier as { onboardingState: string }).onboardingState = 'Submitted'
 
@@ -272,8 +257,6 @@ describe('the submit gate', () => {
   })
 
   it('says it is ready, and enables submit, once nothing is outstanding', async () => {
-    // The denominator for the test above: a gate that always said "before you can submit" would pass
-    // that one and be useless.
     restore = mockApi([])
     ;(supplier as { missingProfileFields: string[] }).missingProfileFields = []
 

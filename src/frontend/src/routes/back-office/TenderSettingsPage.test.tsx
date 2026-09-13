@@ -1,3 +1,29 @@
+// The comp's Settings tab: everything done TO a tender rather than what the tender is.
+//
+// Every test here moved from the workspace's own file unchanged except for the component it renders. The forms did not change;
+// only the screen they live on did, and a test that had to be rewritten to follow them would have been evidence that
+// something else changed too.
+//
+// THE ORDERING CLAIM is asserted rather than described, and it is now a claim about this screen rather than about the whole
+// tender: it used to say an officer meets the line items before the button that cancels the tender, and the items are on
+// another screen entirely - so what is left to be right about is that cancelling comes after every reversible thing here.
+//
+// CANCEL asks before it acts, warns that it is final, and still requires a reason. §D1: this was an inline reason field beside
+// a `ghost` button - the lowest-emphasis variant in the system - for an action that tells every invited supplier their tender
+// is gone. It now gets the same treatment the supplier's proposal withdrawal got: danger variant, a dialog, and a warning. The
+// mandatory reason is unchanged, because the reason is the audit record. The section is hidden once the RFQ is Cancelled.
+//
+// A Published RFQ shows the addendum form, and issuing one toasts.
+//
+// THE DEADLINE CONTROL is offered on a Published RFQ and not on a Draft one (T-018): an extension the officer cannot trigger
+// is the same defect shape as T-067, where the rule permits it and no surface reaches it. It is disabled until BOTH the date
+// and a reason are given, which is the guard in the direction that refuses - and the reason is sent (A-6), because BRULE-035
+// leaves an extension uncapped so the reason is what makes it defensible, and D-12 called the audit row the control while a
+// row recording only that someone moved a date is not one. The date alone leaves it disabled.
+//
+// The last test sends the new owner AND the reason, and will not reassign without both: an owner without a stated reason is
+// the audit row this operation exists for, written empty.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -18,23 +44,10 @@ const { TenderSettingsPage } = await import('./TenderSettingsPage')
 
 const REFERENCE_ROUTES = TENDER_ROUTES
 
-/**
- * The comp's Settings tab: everything done TO a tender rather than what the tender is.
- *
- * <p>Every test here moved from  unchanged except for the component it renders.
- * The forms did not change; only the screen they live on did, and a test that had to be rewritten to
- * follow them would have been evidence that something else changed too.</p>
- */
 describe('TenderSettingsPage', () => {
   let restore: (() => void) | undefined
   afterEach(() => { restore?.(); restore = undefined })
 
-  /**
-   * The ordering claim, asserted rather than described, and now a claim about this screen rather than
-   * about the whole tender. It used to say an officer meets the line items before the button that
-   * cancels the tender; the items are on another screen entirely, so what is left to be right about is
-   * that cancelling comes after every reversible thing on this one.
-   */
   it('puts the irreversible control after every reversible one', async () => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
 
@@ -50,10 +63,6 @@ describe('TenderSettingsPage', () => {
   })
 
   it('cancel asks before it acts, warns that it is final, and still requires a reason', async () => {
-    // §D1: this was an inline reason field beside a `ghost` button - the lowest-emphasis variant in the
-    // system - for an action that tells every invited supplier their tender is gone. It now gets the
-    // same treatment the supplier's proposal withdrawal got: danger variant, a dialog, and a warning.
-    // The mandatory reason is unchanged, because the reason is the audit record.
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 
     renderPage(<TenderSettingsPage />)
@@ -97,23 +106,16 @@ describe('TenderSettingsPage', () => {
   })
 
   it('offers the deadline control on a Published RFQ and not on a Draft one', async () => {
-    // T-018: an extension the officer cannot trigger is the same defect shape as T-067 - the rule
-    // permits it and no surface reaches it.
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published') })
 
     renderPage(<TenderSettingsPage />)
 
     expect(await screen.findByLabelText('New deadline')).toBeInTheDocument()
-    // A-6: and a reason, which the server now requires. Disabled until BOTH are given - the guard in
-    // the direction that refuses.
     expect(screen.getByLabelText('Reason for the change')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
   })
 
   it('sends the deadline reason and will not submit without one', async () => {
-    // A-6. BRULE-035 leaves an extension uncapped, so the reason is what makes it defensible; D-12
-    // called the audit row the control, and a row that records only that someone moved a date is not
-    // one.
     const calls: { url: string; method: string; body: string }[] = []
     restore = mockFetch({
       ...REFERENCE_ROUTES,
@@ -124,7 +126,6 @@ describe('TenderSettingsPage', () => {
     renderPage(<TenderSettingsPage />)
 
     await userEvent.type(await screen.findByLabelText('New deadline'), '2026-12-01T10:00')
-    // Still disabled: the date alone is not enough.
     expect(screen.getByRole('button', { name: 'Change deadline' })).toBeDisabled()
 
     await userEvent.type(screen.getByLabelText('Reason for the change'), 'The Ministry extended the tender period.')
@@ -148,8 +149,6 @@ describe('TenderSettingsPage', () => {
     await userEvent.click(await screen.findByRole('combobox', { name: 'New owner' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Second Officer' }))
 
-    // Still disabled: an owner without a stated reason is the audit row this operation exists for,
-    // written empty.
     expect(screen.getByRole('button', { name: 'Reassign' })).toBeDisabled()
 
     await userEvent.type(screen.getByLabelText('Reason for the handover'), 'The first officer is on leave.')

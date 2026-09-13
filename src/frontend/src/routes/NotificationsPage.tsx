@@ -1,3 +1,36 @@
+// SCR-900, the notification centre: /notifications, all authenticated personas, P0.
+//
+// States per SCREEN-INVENTORY: auth, since the route is behind the shell's guard, then load, empty, ok, error and mobile.
+// Loading uses SkeletonList rather than a spinner, per DESIGN-SYSTEM.md §6.13 and the component built in Batch 0.
+//
+// Grouped by day, with read and unread state and a per-item link to the object, per §6.14's description of the persistent
+// notification list. The day key is the locale-formatted date, so the heading and the grouping can never disagree about
+// which day a row belongs to. Unread carries weight and read does not - §10's "non-intrusive", because the read ones are
+// history rather than something demanding attention. Each row's link target is resolved ONCE: calling the resolver in the
+// condition and again in the JSX ran the same resolution twice per row and needed a non-null assertion to compile, which
+// is two ways for the two calls to disagree, on a list that can be long.
+//
+// T-037: AND NOW GROUPED FIRST by whether it is waiting on the reader. INFORMATION-ARCHITECTURE §2 asks for Actionable
+// and Informational, and this screen - like the bell that links to it - did not have them, because nothing classified the
+// types. D-60 classified all of them for a different reason, which notifications a person may switch off, and the server
+// now sends that classification, so the split is read rather than invented here. The two sections keep the by-day grouping
+// inside them: a reader scanning for what they must do wants the shorter list first, and a reader catching up still wants
+// their history in order.
+//
+// Waiting-on-you comes first and is present EVEN WHEN EMPTY, because a reader scanning this screen is asking "is anything
+// on me", and an absent section answers that question only by its absence - which is the one answer a person cannot see.
+// The other half is omitted when empty rather than shown as a blank card: nobody scans this screen to confirm that
+// nothing merely happened.
+//
+// THE PAGE'S OWN NAME sits above whichever of the four states it is in. This screen had no <h1> at all: its name was
+// carried by a card's header band, which renders at body size, so the notification centre was the one screen in the
+// product a reader could land on with no page title. Four early returns is why - each rendered its own Card title and
+// none of them was the page. One shell, four bodies.
+//
+// The empty state is UX-WRITING.md §4's formula: a title saying what this is, one line saying why it is empty, and no
+// primary action - there is nothing for a reader to create here, and §4 shows the action column as "-" for exactly that
+// shape, the reviewer's empty queue.
+
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,25 +43,6 @@ import { Card } from '../components/ui/Card'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { formatDateTime } from '../lib/datetime'
 
-/**
- * SCR-900 — the notification centre. `/notifications`, all authenticated personas, P0.
- *
- * <p>States per SCREEN-INVENTORY: auth (the route is behind the shell's guard), load, empty, ok,
- * error, mobile. Loading uses `SkeletonList` rather than a spinner, per DESIGN-SYSTEM.md §6.13 and
- * the component built in Batch 0.</p>
- *
- * <p>Grouped by day with read/unread state and a per-item link to the object, per §6.14's
- * description of the persistent notification list.</p>
- *
- * <p><b>T-037: and now grouped first by whether it is waiting on the reader.</b>
- * INFORMATION-ARCHITECTURE §2 asks for Actionable and Informational, and this screen - like the bell
- * that links to it - did not have them, because nothing classified the types. D-60 classified all of
- * them for a different reason (which notifications a person may switch off), and the server now sends
- * that classification, so the split is read rather than invented here.</p>
- *
- * <p>The two sections keep the by-day grouping inside them. A reader scanning for what they must do
- * wants the shorter list first, and a reader catching up still wants their history in order.</p>
- */
 export function NotificationsPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -45,14 +59,6 @@ export function NotificationsPage() {
   const readMutation = useMutation({ mutationFn: markNotificationRead, onSuccess: invalidate })
   const readAllMutation = useMutation({ mutationFn: markAllNotificationsRead, onSuccess: invalidate })
 
-  /**
-   * The page's own name, above whichever of the four states it is in.
-   *
-   * <p>This screen had no `<h1>` at all: its name was carried by a card's header band, which renders at
-   * body size, so the notification centre was the one screen in the product a reader could land on with
-   * no page title. Four early returns is why - each rendered its own `Card title=` and none of them was
-   * the page. One shell, four bodies.</p>
-   */
   const shell = (body: ReactNode) => (
     <div className="flex flex-col gap-6">
       <PageHeading title={t('notifications.title')} />
@@ -79,9 +85,6 @@ export function NotificationsPage() {
   const notifications = query.data?.data ?? []
 
   if (notifications.length === 0) {
-    // UX-WRITING.md §4's empty-state formula: title (what this is), one line (why it is empty),
-    // and no primary action - there is nothing for a reader to create here, and §4 shows the
-    // action column as "—" for exactly that shape (the reviewer's empty queue).
     return shell(
       <Card>
         <div className="py-8 text-center">
@@ -92,8 +95,6 @@ export function NotificationsPage() {
     )
   }
 
-  // Grouped by day (§6.14). The key is the locale-formatted date, so the heading and the grouping
-  // can never disagree about which day a row belongs to.
   const byDay = (rows: Notification[]) => {
     const groups = new Map<string, Notification[]>()
     for (const notification of rows) {
@@ -111,17 +112,12 @@ export function NotificationsPage() {
           <h3 className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>{day}</h3>
           <ul className="flex flex-col gap-2">
             {dayRows.map((notification) => {
-              // Resolved once. Calling it in the condition and again in the JSX ran the same
-              // resolution twice per row and needed a non-null assertion to compile - two ways for
-              // the two calls to disagree, on a list that can be long.
               const route = notificationRoute(notification)
 
               return (
               <li key={notification.id}
                 className="flex flex-col gap-1 rounded-[var(--radius-md)] p-3"
                 style={{
-                  // Unread carries weight, read does not. §10: "non-intrusive", and the read ones
-                  // are history rather than something demanding attention.
                   background: notification.isRead ? 'transparent' : 'var(--color-brand-subtle)',
                   border: '1px solid var(--color-border)',
                 }}
@@ -159,9 +155,6 @@ export function NotificationsPage() {
 
   return shell(
     <div className="flex flex-col gap-6">
-      {/* T-037/IA §2. Waiting-on-you comes first and is present even when it is empty: a reader
-          scanning this screen is asking "is anything on me", and an absent section answers that
-          question only by its absence, which is the one answer a person cannot see. */}
       <Card
         title={t('notifications.actionable')}
         action={
@@ -176,8 +169,6 @@ export function NotificationsPage() {
           : rowsFor(actionable)}
       </Card>
 
-      {/* The other half is omitted when empty rather than shown as a blank card: nobody scans this
-          screen to confirm that nothing merely happened. */}
       {informational.length > 0 ? (
         <Card title={t('notifications.informational')}>
           {rowsFor(informational)}

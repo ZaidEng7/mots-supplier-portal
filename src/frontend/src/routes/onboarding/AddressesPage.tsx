@@ -1,3 +1,12 @@
+// The onboarding step for a supplier's addresses and branches, with a dialog for each.
+//
+// Both are children of the supplier aggregate, so every write returns the whole profile and the page re-renders from that.
+// Editing is gated on the onboarding state: while an application is with a reviewer these forms are read-only, because a
+// supplier changing the addresses under a review is changing what is being reviewed.
+//
+// A failed profile read is its own branch. The wizard step cannot be filled in from a profile that failed to load, and the
+// form would otherwise render as though the supplier simply had none.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -240,8 +249,6 @@ export function AddressesPage() {
   if (profileQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
-  // The wizard step cannot be filled in from a profile that failed to load, and the
-  // form below would otherwise render as though the supplier simply had none.
   if (profileQuery.isError) return <QueryError error={profileQuery.error} onRetry={() => void profileQuery.refetch()} />
 
 

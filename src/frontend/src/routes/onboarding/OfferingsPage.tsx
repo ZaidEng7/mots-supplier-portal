@@ -1,3 +1,18 @@
+// The onboarding step where a supplier declares which categories they can serve.
+//
+// Editing is gated on the onboarding state: a supplier under review who can still change their categories is changing the
+// basis on which they are being reviewed, and Approved is the same argument after the fact.
+//
+// D-66: THE CHECKBOX THAT WROTE, DID NOT RE-TICK, AND SAID NOTHING WHEN IT FAILED. Two changes, and the second is the one
+// that mattered. The response body is still used - it is the server's own view of the profile - but the query is ALSO
+// invalidated, so the tick comes from a re-read rather than from trusting that this particular response carried the
+// collection. And there is now an error branch: a refused toggle told the supplier nothing at all, on the one screen whose
+// completion gates their whole application.
+//
+// Stated plainly: the missing re-tick was reported twice from the walkthrough and could not be reproduced from the source -
+// the handler does update the aggregate and the response does carry the categories. What is fixed is that neither path
+// depends on that any more: success re-reads, failure speaks.
+
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Card, PageHeading, QueryError, SkeletonList, useToast} from '../../components/ui'
@@ -24,20 +39,6 @@ export function OfferingsPage() {
 
   const onProfile = (data: SupplierProfile) => queryClient.setQueryData(['own-supplier'], data)
 
-  /**
-   * D-66: the checkbox that wrote and did not re-tick, and said nothing when it failed.
-   *
-   * <p>Two changes, and the second is the one that mattered. The response body is still used - it is the
-   * server's own view of the profile - but the query is ALSO invalidated, so the tick comes from a re-read
-   * rather than from trusting that this particular response carried the collection. And there is now an
-   * error branch: a refused toggle told the supplier nothing at all, on the one screen whose completion
-   * gates their whole application.</p>
-   *
-   * <p><b>Stated plainly:</b> the missing re-tick was reported twice from the walkthrough and could not be
-   * reproduced from the source - the handler does update the aggregate and the response does carry the
-   * categories. What is fixed here is that neither path depends on that any more: success re-reads, failure
-   * speaks.</p>
-   */
   const toggleMutation = useMutation({
     mutationFn: ({ code, linked }: { code: string; linked: boolean }) => (linked ? unlinkCategory(code) : linkCategory(code)),
     onSuccess: (data) => {

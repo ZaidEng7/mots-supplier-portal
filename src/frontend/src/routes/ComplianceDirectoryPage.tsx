@@ -1,3 +1,15 @@
+// SCR-307: the whole registry as the compliance reviewer sees it.
+//
+// Why the review queue is not enough. The queue answers "what is waiting for me" and a case leaves it the moment it is
+// decided. Everything that happens to a supplier AFTERWARDS happened on no screen: a certificate expires months later,
+// the daily job moves it to Expired, BRULE-023 may suspend the supplier for an award-critical one - and the only way a
+// reviewer could look at that supplier was to already know their reference code and type it into the address bar. F-6
+// found the same gap from the other end, for decided applications. The row is the route to the case for the same reason.
+//
+// The three document counts are shown separately, never summed. Expiring is a prompt and expired is a bar; one combined
+// number would tell a reviewer something needs attention without saying whether a supplier is currently unable to hold a
+// contract. Each carries its own tone, and a single word stands where there is nothing to report.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
@@ -7,20 +19,6 @@ import { listComplianceDirectory, type ComplianceSupplier } from '../api/supplie
 import { nextPageParam } from '../api/listEnvelope'
 import { formatDate } from '../lib/datetime'
 
-/**
- * SCR-307: the whole registry as the compliance reviewer sees it.
- *
- * <p><b>Why the review queue is not enough.</b> The queue answers "what is waiting for me" and a case
- * leaves it the moment it is decided. Everything that happens to a supplier AFTERWARDS happened on no
- * screen: a certificate expires months later, the daily job moves it to Expired, BRULE-023 may suspend the
- * supplier for an award-critical one — and the only way a reviewer could look at that supplier was to
- * already know their reference code and type it into the address bar. F-6 found the same gap from the other
- * end, for decided applications.</p>
- *
- * <p><b>The three document counts are shown separately, never summed.</b> Expiring is a prompt and expired
- * is a bar; one combined number would tell a reviewer something needs attention without saying whether a
- * supplier is currently unable to hold a contract.</p>
- */
 export function ComplianceDirectoryPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -93,8 +91,6 @@ export function ComplianceDirectoryPage() {
             {suppliers.map((s) => (
               <TableRow key={s.supplierCode}>
                 <TableCell>
-                  {/* The row is the route to the case. Without this the reviewer's only way into an
-                      approved supplier was to type the code into the address bar - F-6 again. */}
                   <Link to="/back-office/review/$referenceCode" params={{ referenceCode: s.supplierCode }}>
                     {isArabic ? s.displayNameAr : s.displayNameEn}
                   </Link>
@@ -119,7 +115,6 @@ export function ComplianceDirectoryPage() {
   )
 }
 
-/** The three counts, each with its own tone, and a single word when there is nothing to report. */
 function DocumentHealth({ supplier }: { supplier: ComplianceSupplier }) {
   const { t } = useTranslation()
   const { expiredDocumentCount, expiringDocumentCount, rejectedDocumentCount } = supplier

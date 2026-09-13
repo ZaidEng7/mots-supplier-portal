@@ -1,3 +1,38 @@
+// Everything done TO a tender rather than everything the tender IS: who owns it, when it closes, what has been issued against
+// it, and calling it off.
+//
+// Why this is its own screen. The workspace stacked these five forms below the tender's own contents, so a buyer opening a
+// tender to read its line items scrolled past a reassignment control, a deadline control, an addendum form and a cancel
+// button to reach them. The comp files them behind a Settings tab for the same reason every application does: they are rare,
+// they are consequential, and they are not what the page is about.
+//
+// Nothing here changed except where it lives. Every gate is the one it had - hide-never-gate throughout, because the endpoints
+// re-enforce permissions the UI does not hold.
+//
+// THE HEAD is the tender's identity, said the same way on all six of its views. This screen already named the tender and its
+// code; what it did not carry was who owns it or when bidding closes, which the tender's own view has always shown. One
+// record, one head.
+//
+// A-7's REASSIGNMENT is shown for every non-closed state rather than only Draft, because ownership moves when people do rather
+// than when a tender does. Hide-never-gate as everywhere else: the endpoint re-enforces rfq.reassign, which officers do not
+// hold, so an officer sees this card and gets a 403 rather than being told the control does not exist. Its reason is
+// mandatory - the audit row is the whole point of the operation, and a row saying only that ownership moved answers nothing a
+// month later. The owner list comes from its own query, because the tender list's owner column and the "mine" filter read a
+// different one.
+//
+// F-4's EDIT DETAILS is the tender's own fields, editable while Draft - which is what Draft is documented to mean.
+// PUT /api/v1/rfqs/{code} and updateRfqBasics both existed and nothing called either, so an officer who typed the submission
+// window wrongly at creation had two options: cancel the tender and author it again, or ask an engineer to issue the PUT. Both
+// happened during the walkthrough. Draft only, and that is the domain's rule rather than this screen's - UpdateBasics calls
+// EnsureDraftEditable, because bidders price against what they were shown.
+//
+// T-018 and BRULE-035's DEADLINE CHANGE is available while Published or SubmissionOpen, the same two states the domain
+// allows. Its reason is mandatory (A-6): a deadline moved with no stated basis is what the ruling exists to prevent, and the
+// supplier reads it on their own view of the RFQ.
+//
+// The cancel reason comes from that section's own dialog rather than from state up here: it is that section's own working
+// value and nothing else reads it.
+
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -18,19 +53,6 @@ import { CancelSection } from './rfq/sections/CancelSection'
 import { TenderTabs } from './rfq/TenderTabs'
 import { TenderHeader } from './rfq/TenderHeader'
 
-/**
- * Everything done TO a tender rather than everything the tender IS: who owns it, when it closes, what
- * has been issued against it, and calling it off.
- *
- * <p><b>Why this is its own screen.</b> The workspace stacked these five forms below the tender's own
- * contents, so a buyer opening a tender to read its line items scrolled past a reassignment control, a
- * deadline control, an addendum form and a cancel button to reach them. The comp files them behind a
- * Settings tab for the same reason every application does: they are rare, they are consequential, and
- * they are not what the page is about.</p>
- *
- * <p>Nothing here changed except where it lives. Every gate is the one it had - hide-never-gate
- * throughout, because the endpoints re-enforce permissions the UI does not hold.</p>
- */
 export function TenderSettingsPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
   const { t, i18n } = useTranslation()
@@ -66,7 +88,6 @@ export function TenderSettingsPage() {
     mutationFn: () => reassignRfq(referenceCode, newOwnerDraft, reassignReason),
     onSuccess: () => {
       invalidate()
-      // The list's owner column and the "mine" filter both read from a different query.
       invalidateQuietly(queryClient, { queryKey: ['rfqs'] })
       notify({ kind: 'success', title: t('rfq.ownership.reassigned') })
       setNewOwnerDraft(''); setReassignReason('')
@@ -100,8 +121,6 @@ export function TenderSettingsPage() {
   })
 
   const cancelMutation = useMutation({
-    // The reason comes from the section's dialog rather than from state up here: it is that section's
-    // own working value and nothing else reads it.
     mutationFn: (reason: string) => cancelRfq(referenceCode, reason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.cancelled') }) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
@@ -116,17 +135,10 @@ export function TenderSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The tender's identity, said the same way on all six of its views. This screen already named
-          the tender and its code; what it did not carry was who owns it or when bidding closes, which
-          the tender's own view has always shown. One record, one head. */}
       <TenderHeader referenceCode={referenceCode} />
       <TenderTabs referenceCode={referenceCode} />
 
       <div className="flex flex-col gap-4">
-          {/* A-7. Shown for every non-closed state rather than only Draft: ownership moves when people
-              do, not when a tender does. Hide-never-gate as everywhere else - the endpoint re-enforces
-              rfq.reassign, which officers do not hold, so an officer sees this card and gets a 403 rather
-              than being told the control does not exist. */}
           {canCancel ? (
             <Card title={t('rfq.ownership.title')}>
               <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -140,8 +152,6 @@ export function TenderSettingsPage() {
                   onValueChange={setNewOwnerDraft}
                   options={(assigneesQuery.data?.owners ?? []).map((o) => ({ value: o.userId, label: o.fullName }))}
                 />
-                {/* Mandatory. The audit row is the whole point of this operation, and a row saying only
-                    that ownership moved answers nothing a month later. */}
                 <Input
                   aria-label={t('rfq.ownership.reason')}
                   placeholder={t('rfq.ownership.reason')}
@@ -160,18 +170,6 @@ export function TenderSettingsPage() {
             </Card>
           ) : null}
 
-          {/*
-            * F-4: the tender's own fields, editable while Draft - which is what Draft is documented to mean.
-            *
-            * `PUT /api/v1/rfqs/{code}` and `updateRfqBasics` both existed and nothing called either, so an
-            * officer who typed the submission window wrongly at creation had two options: cancel the tender
-            * and author it again, or ask an engineer to issue the PUT. Both happened during the walkthrough.
-            *
-            * Draft only, and that is the domain's rule rather than this screen's: UpdateBasics calls
-            * EnsureDraftEditable, because bidders price against what they were shown.
-            */}
-          {/* T-018/BRULE-035: changeable while Published or SubmissionOpen, the same two states the
-              domain accepts. Same gate as the addendum control above, and for the same reason. */}
           {canIssueAddendum ? (
             <Card title={t('rfq.deadline.title')}>
               <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -184,8 +182,6 @@ export function TenderSettingsPage() {
                   value={deadlineDraft}
                   onChange={(e) => setDeadlineDraft(e.target.value)}
                 />
-                {/* A-6: mandatory. A deadline moved with no stated basis is what the ruling exists to
-                    prevent, and the supplier reads this on their own view of the RFQ. */}
                 <Input
                   aria-label={t('rfq.deadline.reason')}
                   placeholder={t('rfq.deadline.reason')}

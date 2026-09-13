@@ -1,3 +1,19 @@
+// SCR-501. The row T-102 left unresolved, and the reason it could not be resolved from the screen alone: each criterion's
+// guidance never reached the evaluator at all.
+//
+// Each criterion renders with the guidance the template author wrote. Where there is none the screen SAYS it was not
+// recorded rather than leaving the cell blank: a tender that bound its template before the snapshot carried guidance has
+// none, a blank cell reads as a loading failure, and the alternative - showing the template's CURRENT text - would show an
+// instruction this tender never bound.
+//
+// The weights are totalled, because 60 means nothing on its own.
+//
+// The criteria that will refuse a score without a justification are marked: BRULE-061 is enforced server-side and the
+// scoring form does not read the flag, so this is where an evaluator finds out before their score is refused.
+//
+// The mandatory requirements the bids had to answer are shown, and a failed load says the brief could not be read rather
+// than rendering an empty shell.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { mockFetch, renderPage } from '../../test/renderPage'
@@ -10,10 +26,6 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { MyEvaluationBriefPage } = await import('./MyEvaluationBriefPage')
 
-/**
- * SCR-501. The row T-102 left unresolved, and the reason it could not be resolved from the screen alone:
- * each criterion's guidance never reached the evaluator at all.
- */
 
 const EVALUATION = '/api/v1/rfqs/RFQ-2026-000001/my-evaluation'
 
@@ -62,9 +74,6 @@ describe('MyEvaluationBriefPage', () => {
   })
 
   it('says guidance was not recorded, rather than leaving the cell blank', async () => {
-    // A tender that bound its template before the snapshot carried guidance has none, and a blank cell
-    // reads as a loading failure. The alternative - showing the template's CURRENT text - would show an
-    // instruction this tender never bound.
     restore = mockFetch({ [EVALUATION]: evaluation() })
 
     renderPage(<MyEvaluationBriefPage referenceCode="RFQ-2026-000001" />)
@@ -81,8 +90,6 @@ describe('MyEvaluationBriefPage', () => {
   })
 
   it('marks the criteria that will refuse a score without a justification', async () => {
-    // BRULE-061 is enforced server-side and the scoring form does not read the flag, so this is where an
-    // evaluator finds out before their score is refused.
     restore = mockFetch({ [EVALUATION]: evaluation() })
 
     renderPage(<MyEvaluationBriefPage referenceCode="RFQ-2026-000001" />)

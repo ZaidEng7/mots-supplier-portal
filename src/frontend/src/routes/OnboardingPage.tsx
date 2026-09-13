@@ -1,3 +1,146 @@
+// The onboarding wizard's profile step: the company details, the terms, the documents, and the gate that submits the
+// application.
+//
+// THE REQUIRED-FIELD LIST matches SupplierDto.missingProfileFields' exact string values, from Supplier.cs's
+// GetMissingProfileFields, rather than arbitrary display keys - keep it in sync if the backend list changes. The gate's
+// progress bar is a fraction OF those five fields plus the terms, derived from the list rather than typed as a number, so
+// a field added to it moves the bar instead of leaving a bar that quietly measures the wrong whole.
+//
+// A FOUNDING DATE IN THE FUTURE is not a date anyone can have. The field accepted one - the picker's own calendar offered
+// next month - and the server stored it. The input's `max` is today for the same reason: a company cannot have been
+// founded tomorrow, and the picker should not offer it.
+//
+// THE EXPIRY COUNTDOWN is FEAT-05.8's "N days" for documents approaching or past expiry, next to the state chip. It uses
+// Western digits - numberingSystem latn - to match the rest of the app's tabular-numeral convention, per ASSUMPTIONS.md
+// FEAT-27.3, rather than the locale's native digits.
+//
+// THE DOCUMENT ROW is the comp's: the document's name and what a supplier needs to know about it on the leading side,
+// its state and the control that changes that state together on the trailing side. The chip used to lead the row, so a
+// column of them was the first thing read and the names came second - and the two facts a supplier acts on, that a
+// document is optional and that one expires soon, were inline fragments between them. Those two are now the one line a
+// supplier needs beyond the name: neither is a state, since the chip says the state, and both are what somebody deciding
+// what to do next actually reads.
+//
+// The comp adds a third line there, "PDF or image, up to 20 MB". Nothing in this client knows the accepted types or the
+// size limit; both are server-side, and printing a guess beside an upload control is how a supplier learns the rule by
+// having a file rejected. It goes to the product owner as a question rather than into the copy.
+//
+// Each row carries a stable anchor id so the submit error summary can link to it, per ACCESSIBILITY §7's error-summary
+// requirement, with tabIndex -1 so the link can move focus there at all - a plain <li> is not focusable. Document states
+// resolve through StatusChip like every other machine (T2-33's addendum). And one class in here was text-fg-muted, which
+// this project never defines - Tailwind dropped it silently.
+//
+// REQUIRED AND OPTIONAL DOCUMENTS are separate sections rather than one list, per FR-DOC-009. isRequired was already on the
+// DTO and simply never read, so the supplier could not tell which of these blocked their submission without opening each
+// one - which is the whole point of the grouping. Required comes first in both directions: that is reading order, and it is
+// correct in RTL for the same reason it is in LTR. They are PARTITIONED rather than filtered twice, so a type that is
+// somehow neither cannot vanish from the page - every document the API returned appears in exactly one group. A required
+// group with nothing in it would mean the document-type catalogue is empty, which is a configuration fault rather than an
+// empty state, so its heading is omitted entirely rather than showing a reassuring "none"; the optional group passes an
+// empty label, because having no optional documents is ordinary.
+//
+// THE UPLOAD carries an expiry date. The backend rejects an expiry-tracked type's upload without one, per BRULE-020 and
+// UploadDocumentHandler, and this field is what was missing on this side of that contract. BRULE-020 also rejects a date
+// that is not strictly after today - "a document cannot be filed as current while already expired" - so `min` on the input
+// keeps the native picker from offering an invalid choice in the first place, and the button is gated the same way the
+// empty-date case already was, for a date typed in manually instead of picked.
+//
+// After an upload the PROFILE is re-read, because a document write changes the supplier's row version and answers with a
+// DOCUMENT, so nothing hands the client the aggregate's new version. Without that re-read the next guarded save on this
+// page - accepting the terms, most often - had no version to assert and was refused. Reported twice from this screen, with
+// a page reload as the only way through, because a reload is exactly this re-read.
+//
+// THE SCAN POLL exists because the AV scan is asynchronous - DocumentScanJob is a background job, a document sits in
+// PendingScan until it completes, and nothing was pushing that update to the client. The DB row was always correct; only a
+// manual reload ever showed it, which read as the status chip being permanently stuck. So it polls while anything is still
+// scanning and stops once nothing is, and it polls in the BACKGROUND too: React Query pauses refetchInterval while the tab
+// is not visible or focused by default, which is reasonable for most polling and wrong for a scan the supplier is actively
+// waiting on - switching tabs for a few seconds should not leave the chip stuck the same way the missing poll did.
+//
+// The supplier routes are addressed by supplier code now, per §12-A/C3, §12.2 and §12.3. The code comes from the profile
+// the page already loads, so no extra request is made for it, and the dependent queries are gated on having it rather
+// than firing with an empty string.
+//
+// MSP-65 and NFR-USE-004: a concurrency conflict is a distinct, actionable situation - the user's work was NOT saved
+// because someone else edited first - so it gets its own localized message telling them to reload, rather than the generic
+// "could not save". And a failed fetch is not an empty result: without that branch the screen renders its empty state and
+// tells the reader there is nothing here.
+//
+// WHAT THE SERVER SAID WAS STILL MISSING on the last submit attempt drives both the escalation of each required document's
+// chip from Required to Missing and the error summary. API-ARCHITECTURE §12.2: the submit endpoint returns "422 listing
+// exactly what is missing", so this is the server's answer rather than a second, client-side completeness rule that could
+// disagree with it. That 422's missingFields mixes missing PROFILE fields with missing DOCUMENT TYPE CODES, because
+// SubmitApplicationHandler concatenates the two, and intersecting against the real document catalogue is what separates
+// them - which also means a profile-field name can never be rendered as a missing document, nor a code the catalogue no
+// longer has.
+//
+// FOCUS FOLLOWS THE ANNOUNCEMENT. role="alert" announces to a screen reader; it does not move the keyboard caret, so the
+// supplier who pressed Submit is left standing at the button with the explanation elsewhere on the page. Focusing the
+// summary puts the link to each blocking row one Tab away. That hook is declared before the loading and error branches,
+// because those return early and a hook after them is a hook that sometimes does not run. It is keyed on the server's
+// list, so a second failed submit naming a different document re-focuses; when the 422 named only profile fields no
+// summary is rendered and the call is a no-op. The toast stays as well, because ACCESSIBILITY §6 says not to move focus to
+// toasts, so it cannot be the only announcement of a blocking failure - the summary region is the accessible one.
+//
+// THE ERROR SUMMARY itself is ACCESSIBILITY.md §7's: "a focusable summary region (role='alert' or moved focus) listing each
+// error as a link jumping to its field - essential for long onboarding forms and SR users". The chip escalation alone is a
+// colour and a word inside a long list, and a screen-reader user would have to walk every row to find what is blocking
+// them. SCREEN-SPECIFICATIONS §2's SCR-106 adds "Errors are per-card, aria-live" - the per-card half is the chip, and this
+// is the summary §7 additionally requires at submit. It sits ABOVE the gate rather than below the documents, and that is
+// the whole point of it: it used to render after the entire document list, so its links pointed backwards and a keyboard
+// user who pressed Submit had to Shift+Tab past every document control to reach the sentence explaining why. Now it
+// precedes both the button that produced it and the rows it names.
+//
+// THE GATE used to be a checklist of every requirement with a badge on each, so a supplier read eight rows to find the two
+// that were not done - and the button those rows were about sat 200 lines below, disabled, with nothing saying why. It now
+// lists ONLY what is outstanding, says everything else is saved, and carries the submit it gates; when nothing is
+// outstanding it says that instead, which is the one moment on this screen worth being unambiguous about. What is
+// outstanding is derived from the same two sources the checklist used - the server's missingProfileFields and the terms
+// flag - so it cannot disagree with the badge on a section further down, and it is listed in the order a supplier will
+// meet it.
+//
+// The card is titled with the ANSWER rather than the question, which is the comp's: "Two things left" is what a supplier
+// came to find out, and "Before you can submit" made them read the list to learn it. It is the same string the step cards
+// use, because it is the same sentence about the same list. The outstanding items are CHIPS rather than badge-and-label
+// rows: every row carried the word "Missing", which is what the card's own title now says once, and eight repetitions of it
+// were eight things to read past to reach the two names that mattered. The bar is the comp's and is the one thing on the
+// card that says how MUCH is left rather than what, and it carries the same two numbers to a screen reader through
+// role="progressbar", because a coloured strip says nothing to one.
+//
+// The gate is not rendered once the application is with a reviewer. A gate saying "Ready to submit" above an application
+// that has already BEEN submitted is worse than no gate: it invites an action that no longer applies.
+//
+// THE HEADING is an instruction while there is something to do and a name once there is not. "Complete your supplier
+// profile" was the heading over an approved, complete, unchangeable profile.
+//
+// WHY THE SCREEN IS READ-ONLY is said per state, rather than with one message for every reason it might be. There was a
+// single string - "Your application is with a reviewer" - shown for every non-editable state. Six states are non-editable,
+// and in two of them nobody is reviewing anything: an APPROVED supplier was told their application was still with a
+// reviewer, under a page headed "Complete your supplier profile", for a profile that was complete and decided. Found by a
+// Rams audit reading the screen as an approved supplier sees it. The three that really are with a reviewer keep the
+// original words, the two that are decided say so, and anything else falls back to the plain fact - the screen cannot be
+// changed - rather than to a guess about why.
+//
+// THE READ-ONLY BANNER is the comp's. It used to be one green sentence at the bottom of the profile card, where a supplier
+// found it after filling in fields that would not save - the notice arrived after the disappointment it was meant to
+// prevent. What it does NOT say is the comp's third line, "you can still upload a replacement document at any time":
+// documents are gated by the same canEdit as every other control on this screen, so while an application is with a
+// reviewer nothing can be uploaded. The comp promises a behaviour the product does not have, so the words change rather
+// than the code, and the gap goes to the product owner as a question.
+//
+// WHAT A REVIEWER FLAGGED is NAMED. The banner showed the reviewer's sentence and nothing else, so a supplier read "change
+// this document" with three documents on the page and no way to tell which one - while the product knew exactly, and was
+// already using the same list to decide which rows stay editable. Reported by a buyer watching a supplier try to act on it.
+//
+// THE TERMS CARD says the document has not been published. The About page has always said so - "Terms of use and the
+// privacy notice have not been issued yet" - and this card did not, while its checkbox asked the supplier to confirm they
+// had READ it. Nobody could have. The claim is gone and the fact is here, so a supplier accepting knows exactly what they
+// are accepting and what state it is in. That makes the screen truthful; whether recording acceptance of an unpublished
+// document is acceptable at all is the Ministry's question rather than this component's - reported, not decided. The card
+// then shows two independent facts rather than one refined twice: whether the terms have been accepted, and whether this
+// supplier can still act. An accepted application shows when and which version; an editable one that has not accepted
+// shows the checkbox; a read-only one shows neither.
+
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -34,8 +177,6 @@ const legalSchema = z.object({
   registrationNumber: z.string().optional(),
   taxId: z.string().optional(),
   supplierType: z.enum(SUPPLIER_TYPES),
-  // A founding date in the future is not a date anyone can have. The field accepted one - the
-  // picker's own calendar offered next month - and the server stored it.
   establishedOn: z.string().optional().refine(
     (value) => !value || value <= new Date().toISOString().slice(0, 10),
     { message: 'establishedInFuture' },
@@ -52,21 +193,10 @@ const profileSchema = z.object({
 })
 type ProfileFormValues = z.infer<typeof profileSchema>
 
-// Matches SupplierDto.missingProfileFields' exact string values (Domain/Suppliers/Supplier.cs
-// GetMissingProfileFields), not arbitrary display keys - keep in sync if the backend list changes.
 const REQUIRED_FIELDS = ['legalInfo', 'currencyCode', 'address', 'categoryLink', 'primaryContactPhone'] as const
 
-/**
- * What the gate's progress bar is a fraction OF: the five required profile fields plus the terms.
- *
- * <p>Derived from `REQUIRED_FIELDS` rather than typed as a number, so a field added to that list moves
- * the bar with it instead of leaving a bar that quietly measures the wrong whole.</p>
- */
 const GATE_REQUIREMENTS = REQUIRED_FIELDS.length + 1
 
-// FEAT-05.8: "N days" countdown for documents approaching/past expiry, next to the state chip.
-// Western digits (numberingSystem latn) to match the rest of the app's tabular-numeral convention
-// (ASSUMPTIONS.md FEAT-27.3), not the locale's native digits.
 function expiryCountdownLabel(expiryDate: string, locale: string): string {
   const days = Math.round((new Date(expiryDate + 'T00:00:00Z').getTime() - Date.now()) / 86_400_000)
   const rtf = new Intl.RelativeTimeFormat(`${locale}-u-nu-latn`, { numeric: 'auto' })
@@ -121,7 +251,6 @@ function LogoUploader({ profile, canEdit, onProfile }: { profile: SupplierProfil
   )
 }
 
-/** Stable per-document anchor, so the submit error summary can link to the row it names. */
 function documentAnchorId(code: string): string {
   return `document-row-${code}`
 }
@@ -142,20 +271,13 @@ function DocumentGroup({
   isReadOnly: boolean
   isInfoRequested: boolean
   flaggedDocCodes: Set<string>
-  /** Document type codes the server named in its last submit rejection. */
   blockingDocCodes: Set<string>
   supplierCode: string
 }) {
-  // A required group with nothing in it would mean the document-type catalogue is empty, which is a
-  // configuration fault rather than an empty state - so the heading is omitted entirely rather than
-  // showing a reassuring "none". The optional group passes an emptyLabel because having no optional
-  // documents is ordinary.
   if (documents.length === 0 && emptyLabel === undefined) return null
 
   return (
     <section>
-      {/* text-fg-muted was a class this project never defines - Tailwind dropped it and these two
-          lines rendered at the inherited colour. The token is what the rest of the product uses. */}
       <h3 className="mb-2 text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-muted)' }}>{heading}</h3>
       {documents.length === 0 ? (
         <p className="text-[length:var(--text-body)]" style={{ color: 'var(--color-text-muted)' }}>{emptyLabel}</p>
@@ -176,7 +298,6 @@ function DocumentGroup({
   )
 }
 
-/** What the chip beside a document type should say, or nothing when there is nothing to say. */
 function documentChipValue(state: string | null | undefined, isRequired: boolean, isBlocking: boolean): string | null {
   if (state) return state
   if (isRequired) return isBlocking ? 'Missing' : 'Required'
@@ -186,9 +307,7 @@ function documentChipValue(state: string | null | undefined, isRequired: boolean
 function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
   doc: DocumentTypeStatus
   canEdit: boolean
-  /** §12-A/C3: uploads are addressed by supplier code (§12.3). */
   supplierCode: string
-  /** True once a submit attempt came back naming this document type as still missing. */
   isBlocking: boolean
 }) {
   const { t, i18n } = useTranslation()
@@ -196,13 +315,6 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
   const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const isArabic = i18n.language.startsWith('ar')
-  // Backend rejects an expiry-tracked type's upload with no expiryDate (BRULE-020,
-  // UploadDocumentHandler) - this field is what was missing on this side of that contract.
-  // BRULE-020 also rejects a date that isn't strictly after today ("a document cannot be
-  // filed as current while already expired") - min= on the input keeps the native picker
-  // from offering an invalid choice in the first place, and minExpiryDate gates the button
-  // the same way the empty-date case already was, for a date typed in manually instead of
-  // picked.
   const [expiryDate, setExpiryDate] = useState('')
   const minExpiryDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
   const expiryInvalid = doc.expiryTracked && (!expiryDate || expiryDate <= new Date().toISOString().slice(0, 10))
@@ -211,11 +323,6 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
     mutationFn: (file: File) => uploadDocument(supplierCode, doc.documentTypeId, file, undefined, doc.expiryTracked ? expiryDate : undefined),
     onSuccess: () => {
       invalidateQuietly(queryClient, { queryKey: ['own-documents'] })
-      // And the profile, which the upload moved: a document write changes the supplier's row
-      // version, and it answers with a DOCUMENT, so nothing hands the client the aggregate's new
-      // version. Without this re-read the next guarded save on this page - accepting the terms,
-      // most often - had no version to assert and was refused. Reported twice from this screen,
-      // with a page reload as the only way through, because a reload is exactly this re-read.
       invalidateQuietly(queryClient, { queryKey: ['own-supplier'] })
       notify({ kind: 'success', title: t('onboarding.documentUploaded') })
     },
@@ -233,18 +340,6 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
   const state = doc.latestDocument?.state
   const label = isArabic ? doc.nameAr : doc.nameEn
 
-  /**
-   * The one line a supplier needs about this document beyond its name.
-   *
-   * <p>Both halves were already on the row, as fragments between the chip and the name: whether a type
-   * is optional, and how long an approved one has left. Neither is a state - the chip says the state -
-   * and both are what somebody deciding what to do next actually reads.</p>
-   *
-   * <p>The comp adds a third line here, "PDF or image, up to 20 MB". Nothing in this client knows the
-   * accepted types or the size limit; both are server-side, and printing a guess beside an upload
-   * control is how a supplier learns the rule by having a file rejected. It goes to the product owner
-   * as a question rather than into the copy.</p>
-   */
   const expiry = doc.latestDocument?.expiryDate
   const hint = !doc.isRequired
     ? t('onboarding.optionalHint')
@@ -253,21 +348,12 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
       : null
 
   return (
-    // id: the error summary below links straight to this row, per ACCESSIBILITY §7's error-summary
-    // requirement. tabIndex -1 so the link can move focus here at all - a plain <li> is not focusable.
     <li
       id={documentAnchorId(doc.code)}
       tabIndex={-1}
       className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3"
       style={{ border: '1px solid var(--color-border)' }}
     >
-      {/*
-        The comp's row: the document's name and what a supplier needs to know about it on the left, its
-        state and the control that changes that state together on the right. The chip used to lead the
-        row, so a column of them was the first thing read and the names came second - and the two facts
-        a supplier acts on, that a document is optional and that one expires soon, were inline fragments
-        between them.
-      */}
       <div className="flex min-w-0 flex-col gap-0.5">
         <span style={{ color: 'var(--color-text-primary)' }}>{label}</span>
         {hint ? (
@@ -282,18 +368,6 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
         ) : null}
       </div>
       <div className="flex flex-none items-center gap-2">
-        {/* T2-33 addendum: document states resolve through StatusChip like every other machine. The
-            no-document branch is not a DocumentState, but it still has documented labels, so it routes
-            through the same chip rather than a hand-rolled Badge:
-
-            - `Required` (§7.2's first row; SCR-106 lists it first in its StatusBadge set) is the
-              RESTING label for a required type with nothing uploaded.
-            - `Missing` is what that becomes once the supplier has attempted to submit and this document
-              is still absent. Driven by the server's own 422 list (§12.2: "422 listing exactly what is
-              missing"), never by client-side guesswork about what will block.
-            - An OPTIONAL type with no upload gets no chip at all. Calling it "Required" would be false,
-              and SCR-106 is explicit that "optional docs never block"; the hint beside the name already
-              says what it is. */}
         {documentChipValue(state, doc.isRequired, isBlocking) ? (
           <StatusChip machine="document" value={documentChipValue(state, doc.isRequired, isBlocking)!} />
         ) : null}
@@ -351,13 +425,6 @@ export function OnboardingPage() {
 
   const profileQuery = useQuery({ queryKey: ['own-supplier'], queryFn: getOwnSupplier })
   const currenciesQuery = useQuery({ queryKey: ['currencies'], queryFn: fetchCurrencies })
-  // The AV scan is async (DocumentScanJob, a background job) - a document sits in PendingScan
-  // until it completes, and nothing was pushing that update to the client. The DB row was always
-  // correct; only a manual reload (a fresh query) ever showed it, which read as the status chip
-  // being permanently stuck. Poll while anything is still scanning, stop once nothing is.
-  // §12-A/C3: the supplier routes are addressed by supplier code now (§12.2, §12.3). The code
-  // comes from the profile the page already loads, so no extra request is made for it - and the
-  // dependent queries below are gated on having it rather than firing with an empty string.
   const supplierCode = profileQuery.data?.supplierCode ?? ''
 
   const documentsQuery = useQuery({
@@ -365,10 +432,6 @@ export function OnboardingPage() {
     enabled: supplierCode !== '',
     queryFn: () => listOwnDocuments(supplierCode),
     refetchInterval: (query) => (query.state.data?.some((d) => d.latestDocument?.state === 'PendingScan') ? 2000 : false),
-    // React Query pauses refetchInterval while the tab isn't visible/focused by default
-    // (refetchIntervalInBackground) - reasonable for most polling, wrong for a scan the supplier
-    // is actively waiting on: switching tabs for a few seconds shouldn't leave the chip stuck the
-    // same way the missing poll did.
     refetchIntervalInBackground: true,
   })
   const annotationQuery = useQuery({ queryKey: ['own-annotation'], queryFn: getOwnActiveAnnotation })
@@ -400,9 +463,6 @@ export function OnboardingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileQuery.data])
 
-  // MSP-65 / NFR-USE-004: a concurrency conflict is a distinct, actionable situation - the user's
-  // work was NOT saved because someone else edited first - so it gets its own localized message
-  // telling them to reload, not the generic "could not save".
   const notifySaveError = (err: unknown) => {
     if (err instanceof SupplierApiError && err.isFieldNotFlagged) {
       notify({
@@ -460,24 +520,8 @@ export function OnboardingPage() {
     onError: (err) => notifySaveError(err),
   })
 
-  // What the server said was still missing on the last submit attempt. Drives BOTH the escalation
-  // of each required document's chip from `Required` to `Missing` and the error summary below.
-  // API-ARCHITECTURE §12.2: the submit endpoint returns "422 listing exactly what is missing", so
-  // this is the server's answer rather than a second, client-side completeness rule that could
-  // disagree with it.
   const [submitBlockers, setSubmitBlockers] = useState<string[]>([])
 
-  /**
-   * Focus follows the announcement. `role="alert"` announces to a screen reader; it does not move the
-   * keyboard caret, so the supplier who pressed Submit is left standing at the button with the
-   * explanation elsewhere on the page. Focusing the summary puts the link to each blocking row one Tab
-   * away.
-   *
-   * <p>Declared here rather than beside the summary because the loading and error branches below return
-   * early, and a hook after them is a hook that sometimes does not run. Keyed on the server's list, so a
-   * second failed submit naming a different document re-focuses; when the 422 named only profile fields
-   * no summary is rendered and the optional call is a no-op.</p>
-   */
   const blockerSummaryRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (submitBlockers.length > 0) blockerSummaryRef.current?.focus()
@@ -492,8 +536,6 @@ export function OnboardingPage() {
     onError: (err) => {
       if (err instanceof SupplierApiError && err.missingFields) {
         setSubmitBlockers(err.missingFields)
-        // The toast stays: ACCESSIBILITY §6 says not to move focus to toasts, so it cannot be the
-        // only announcement of a blocking failure. The summary region below is the accessible one.
         notify({ kind: 'danger', title: t('onboarding.incomplete'), description: err.missingFields.join(', ') })
       } else {
         notify({ kind: 'danger', title: t('onboarding.submitFailed') })
@@ -519,8 +561,6 @@ export function OnboardingPage() {
   if (profileQuery.isLoading) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>{t('common.loading')}</p>
   }
-  // A failed fetch is not an empty result: without this the screen below renders its
-  // empty state and tells the reader there is nothing here.
   if (profileQuery.isError) return <QueryError error={profileQuery.error} onRetry={() => void profileQuery.refetch()} />
 
 
@@ -529,11 +569,6 @@ export function OnboardingPage() {
   const state = profile?.onboardingState
   const isInfoRequested = state === 'InfoRequested'
 
-  /**
-   * What is still standing between this supplier and a submitted application, in the order they will
-   * meet it. Derived from the same two sources the checklist used - the server's `missingProfileFields`
-   * and the terms flag - so this cannot disagree with the badge on a section further down.
-   */
   const outstanding = [
     ...REQUIRED_FIELDS.filter((field) => missing.has(field)).map((field) => ({
       key: field,
@@ -547,19 +582,6 @@ export function OnboardingPage() {
   const isEditableState = state === 'EmailVerified' || state === 'ProfileInProgress' || isInfoRequested
   const isReadOnly = !isEditableState
 
-  /**
-   * WHY this screen is read-only, rather than one message for every reason it might be.
-   *
-   * <p>There was a single string here - "Your application is with a reviewer" - shown for every
-   * non-editable state. Six states are non-editable, and in two of them nobody is reviewing anything:
-   * an APPROVED supplier was told their application was still with a reviewer, under a page headed
-   * "Complete your supplier profile", for a profile that was complete and decided. Found by a Rams
-   * audit reading the screen as an approved supplier sees it.</p>
-   *
-   * <p>The three that really are with a reviewer keep the original words. The two that are decided say
-   * so. Anything else falls back to the plain fact - the screen cannot be changed - rather than to a
-   * guess about why.</p>
-   */
   const readOnlyMessage = (() => {
     if (state === 'Submitted' || state === 'UnderReview' || state === 'Resubmitted') {
       return { title: t('onboarding.readOnlyTitle'), body: t('onboarding.readOnlyBody') }
@@ -578,15 +600,9 @@ export function OnboardingPage() {
   const currencyOptions = (currenciesQuery.data ?? []).map((c) => ({ value: c.code, label: c.code }))
   const documents = documentsQuery.data ?? []
 
-  // Partitioned rather than filtered twice, so a type that is somehow neither cannot vanish from
-  // the page: every document the API returned appears in exactly one group.
   const requiredDocuments = documents.filter((doc) => doc.isRequired)
   const optionalDocuments = documents.filter((doc) => !doc.isRequired)
 
-  // The 422's `missingFields` mixes missing PROFILE fields with missing DOCUMENT TYPE CODES
-  // (SubmitApplicationHandler concatenates the two). Intersecting against the real document
-  // catalogue is what separates them - and it means a profile-field name can never be rendered as
-  // a missing document, nor a code the catalogue no longer has.
   const isArabic = i18n.language.startsWith('ar')
   const submitBlockerCodes = new Set(submitBlockers)
   const blockingDocuments = requiredDocuments.filter((doc) => submitBlockerCodes.has(doc.code))
@@ -601,8 +617,6 @@ export function OnboardingPage() {
 
   return (
     <FormMeasure>
-      {/* An instruction while there is something to do, a name once there is not. "Complete your
-          supplier profile" was the heading over an approved, complete, unchangeable profile. */}
       <PageHeading
         title={isReadOnly ? t('onboarding.titleReadOnly') : t('onboarding.title')}
         meta={<StatusChip machine="onboarding" value={profile.onboardingState} />}
@@ -610,17 +624,6 @@ export function OnboardingPage() {
 
       <OnboardingStepNav />
 
-      {/*
-        The comp's read-only banner. This used to be one green sentence at the bottom of the profile
-        card, where a supplier found it after filling in fields that would not save - the notice arrived
-        after the disappointment it was meant to prevent.
-
-        What it does NOT say is the comp's third line, "you can still upload a replacement document at
-        any time". Documents are gated by the same `canEdit` as every other control on this screen, so
-        while an application is with a reviewer nothing can be uploaded. The comp promises a behaviour
-        the product does not have, so the words change rather than the code, and the gap goes to the
-        product owner as a question.
-      */}
       {isReadOnly ? (
         <div
           role="status"
@@ -643,12 +646,6 @@ export function OnboardingPage() {
           </h2>
           <p style={{ color: 'var(--color-text-primary)' }}>{annotation.reason}</p>
 
-          {/*
-            WHAT was flagged, named. The banner showed the reviewer's sentence and nothing else, so a
-            supplier read "change this document" with three documents on the page and no way to tell
-            which one - while the product knew exactly, and was already using the same list to decide
-            which rows stay editable. Reported by a buyer watching a supplier try to act on it.
-          */}
           {flaggedDocCodes.size > 0 || flaggedFields.size > 0 ? (
             <div className="mt-3">
               <p className="mb-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -667,21 +664,6 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      {/*
-        ACCESSIBILITY.md §7, error summary: *"a focusable summary region (`role="alert"` or moved
-        focus) listing each error as a link jumping to its field - essential for long onboarding
-        forms and SR users."* The chip escalation alone is a colour and a word inside a long list;
-        a screen-reader user would have to walk every row to find what is blocking them. This
-        region is the announcement, and each entry jumps to the row it names.
-
-        SCREEN-SPECIFICATIONS §2 (SCR-106) adds *"Errors are per-card, `aria-live`"* - the per-card
-        half is the chip; this is the summary §7 additionally requires at submit.
-
-        It sits ABOVE the gate rather than below the documents, and that is the whole point of it.
-        It used to render after the entire document list: its links pointed backwards, and a keyboard
-        user who pressed Submit had to Shift+Tab past every document control to reach the sentence
-        explaining why. Now it precedes both the button that produced it and the rows it names.
-      */}
       {blockingDocuments.length > 0 ? (
         <div
           ref={blockerSummaryRef}
@@ -707,23 +689,8 @@ export function OnboardingPage() {
         </div>
       ) : null}
 
-      {/*
-        The gate. It used to be a checklist of every requirement with a badge on each, so a supplier read
-        eight rows to find the two that were not done - and the button those rows were about sat 200 lines
-        below, disabled, with nothing saying why.
-
-        This lists ONLY what is outstanding, says everything else is saved, and carries the submit it
-        gates. When nothing is outstanding it says that instead, which is the one moment on this screen
-        worth being unambiguous about.
-      */}
-      {/* Not rendered once the application is with a reviewer. A gate saying "Ready to submit" above an
-          application that has already BEEN submitted is worse than no gate: it invites an action that no
-          longer exists, and the read-only notice further down already says what state this is in. */}
       {!isReadOnly ? (
       <Card
-        // The comp titles this card with the answer rather than with the question: "Two things left" is
-        // what a supplier came to find out, and "Before you can submit" made them read the list to learn
-        // it. The same string the step cards use, because it is the same sentence about the same list.
         title={outstanding.length === 0 ? t('onboarding.gateReady') : t('onboarding.stepStatus.left', { count: outstanding.length })}
         action={
           <div className="flex flex-col items-end gap-1">
@@ -753,11 +720,6 @@ export function OnboardingPage() {
             {t('onboarding.gateHelp')}
           </p>
         ) : null}
-        {/*
-          The bar is the comp's, and it is the one thing on this card that says how MUCH is left rather
-          than what. It carries the same two numbers to a screen reader through `role="progressbar"`,
-          because a coloured strip says nothing to one.
-        */}
         <div
           role="progressbar"
           aria-label={t('onboarding.gateProgressLabel')}
@@ -776,9 +738,6 @@ export function OnboardingPage() {
           />
         </div>
         {outstanding.length > 0 ? (
-          // Chips rather than badge-and-label rows. Every row carried the word "Missing", which is what
-          // the card's own title now says once, and eight repetitions of it were eight things to read
-          // past to reach the two names that mattered.
           <ul aria-label={t('onboarding.gateOutstandingLabel')} className="m-0 flex list-none flex-wrap gap-2 p-0">
             {outstanding.map((item) => (
               <li
@@ -832,9 +791,6 @@ export function OnboardingPage() {
               label={t('onboarding.fields.establishedOn')}
               error={legalForm.formState.errors.establishedOn ? t('onboarding.errors.establishedInFuture') : undefined}
             >
-              {/* `max` is today's date: a company cannot have been founded tomorrow, and the picker
-                  was offering next month. The schema refuses it as well - `max` only stops the
-                  calendar, and a date typed straight into the field ignores it. */}
               {(p) => (
                 <Input
                   type="date"
@@ -904,22 +860,9 @@ export function OnboardingPage() {
       </Card>
 
       <Card title={t('onboarding.termsTitle')}>
-        {/*
-          The document this card asks about has not been published. The About page has always said so
-          ("Terms of use and the privacy notice have not been issued yet"); this card did not, and its
-          checkbox asked the supplier to confirm they had READ it. Nobody could have. The claim is gone
-          and the fact is here, so a supplier accepting knows exactly what they are accepting and what
-          state it is in.
-
-          This makes the screen truthful. Whether recording acceptance of an unpublished document is
-          acceptable at all is the Ministry's question, not this component's - reported, not decided.
-        */}
         <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('onboarding.termsPending')}
         </p>
-        {/* Two independent facts, not one refined twice: whether the terms have been accepted, and
-            whether this supplier can still act. An accepted application shows when and which version;
-            an editable one that has not accepted shows the checkbox; a read-only one shows neither. */}
         {profile.termsAcceptedAt ? (
           <p style={{ color: 'var(--color-success-fg)' }}>
             {t('onboarding.termsAcceptedNotice', {
@@ -949,13 +892,6 @@ export function OnboardingPage() {
         ) : null}
       </Card>
 
-      {/*
-        FR-DOC-009: required and optional documents are separate sections rather than one list.
-        isRequired was already on the DTO and simply never read - the supplier could not tell which
-        of these blocked their submission without opening each one, which is the whole point of the
-        grouping. Required comes first in both directions; that is reading order, and it is correct
-        in RTL for the same reason it is in LTR.
-      */}
       <Card title={t('onboarding.documents')}>
         <div className="flex flex-col gap-5">
           <DocumentGroup

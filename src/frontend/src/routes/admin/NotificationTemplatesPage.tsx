@@ -1,3 +1,18 @@
+// SCR-715 at /back-office/notification-templates, for system_admin, P1 (FR-ADM-007).
+//
+// The 29 notification texts were a compiled catalogue, so rewording one - a sentence a supplier reads when their application
+// is rejected - was a redeploy.
+//
+// Each type shows the shipped words next to the current ones, in the locale being edited. That is what makes revert honest:
+// an administrator can see what they would be restoring before they do it.
+//
+// The available tokens come from the server per type. A token the payload cannot fill reaches the supplier as the literal
+// characters {price}, so the write refuses it and this screen names which ones were wrong rather than reporting a generic
+// failure.
+//
+// Rows are COLLAPSED by default: 29 types with four bilingual fields each is a page nobody can scan, and the question an
+// administrator arrives with is "which of these has been changed" - which the badge answers without opening anything.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,19 +26,6 @@ import {
   type NotificationTemplateDraft,
 } from '../../api/notificationTemplates'
 
-/**
- * SCR-715, `/back-office/notification-templates`, `system_admin`, P1 (FR-ADM-007).
- *
- * <p>The 29 notification texts were a compiled catalogue, so rewording one - a sentence a supplier
- * reads when their application is rejected - was a redeploy.</p>
- *
- * <p>Each type shows the shipped words next to the current ones. That is what makes revert honest:
- * an administrator can see what they would be restoring before they do it.</p>
- *
- * <p>The available tokens come from the server per type. A token the payload cannot fill reaches the
- * supplier as the literal characters <code>{'{price}'}</code>, so the write refuses it and this screen
- * names which ones were wrong rather than reporting a generic failure.</p>
- */
 export function NotificationTemplatesPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -137,9 +139,6 @@ export function NotificationTemplatesPage() {
                 </Button>
               </div>
 
-              {/* Collapsed by default: 29 types with four bilingual fields each is a page nobody can
-                  scan, and the question an administrator arrives with is "which of these has been
-                  changed", which the badge answers without opening anything. */}
               {isOpen ? (
                 <div className="flex flex-col gap-3">
                   <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -163,7 +162,6 @@ export function NotificationTemplatesPage() {
                     {(p) => <Input {...p} value={draft.bodyEn} onChange={(e) => setField('bodyEn', e.target.value)} />}
                   </Field>
 
-                  {/* What revert would restore, in the locale being edited. */}
                   <div className="rounded-[var(--radius-md)] p-3" style={{ border: '1px solid var(--color-border)' }}>
                     <p className="text-[length:var(--text-body-sm)] font-[var(--fw-medium)]">
                       {t('notificationTemplates.shippedCopy')}

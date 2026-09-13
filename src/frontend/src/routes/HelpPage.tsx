@@ -1,20 +1,22 @@
+// SCR-907: help, written from what the software actually does.
+//
+// The inventory calls for "FAQ, contextual guidance, contact support", and the guidance here is deliberately narrow:
+// every answer describes a behaviour that exists in this codebase and can be checked against it. Nothing explains a
+// policy, because a help page that invents a rule is worse than no help page - a user would act on it.
+//
+// Contact support says the channel is not configured. No address, phone number or hours appear anywhere in this
+// repository, and those belong to the ministry rather than to an implementation. An invented address would send real
+// users nowhere.
+//
+// Each question is the card's NAME, so it belongs in the header band rather than in a hand-written heading inside a
+// hand-rolled surface - Card draws both. And every answer ends somewhere the user can act, because guidance that stops
+// at an explanation makes the reader hunt for the screen it just described.
+
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { PageHeading } from '../components/ui/ListScreen'
 import { Card } from '../components/ui/Card'
 
-/**
- * SCR-907 — help, written from what the software actually does.
- *
- * <p>The inventory calls for "FAQ, contextual guidance, contact support", and the guidance here is
- * deliberately narrow: every answer below describes a behaviour that exists in this codebase and can
- * be checked against it. Nothing explains a policy, because a help page that invents a rule is worse
- * than no help page - a user would act on it.</p>
- *
- * <p><b>Contact support says the channel is not configured.</b> No address, phone number or hours
- * appear anywhere in this repository, and those belong to the ministry rather than to an
- * implementation. An invented address would send real users nowhere.</p>
- */
 export function HelpPage() {
   const { t } = useTranslation()
 
@@ -35,14 +37,10 @@ export function HelpPage() {
 
       <section className="flex flex-col gap-3">
         {topics.map((topic) => (
-          // The question is the card's name, so it belongs in the header band rather than in a
-          // hand-written heading inside a hand-rolled surface. Card draws both.
           <Card key={topic.key} title={t(`help.topics.${topic.key}.question`)}>
             <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               {t(`help.topics.${topic.key}.answer`)}
             </p>
-            {/* Every answer ends somewhere the user can act, because guidance that stops at an
-                explanation makes the reader hunt for the screen it just described. */}
             <Link to={topic.to} className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-link)' }}>
               {t(`help.topics.${topic.key}.action`)}
             </Link>

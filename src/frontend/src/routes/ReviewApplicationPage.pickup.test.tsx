@@ -1,3 +1,12 @@
+// Task #19: pickUpMutation's onSuccess calls the shared invalidate helper, which contained two of the eight
+// no-floating-promises findings, now routed through invalidateQuietly. Nothing in this file's sibling lifecycle test
+// exercises a mutation success path.
+//
+// It counts GET calls rather than reusing the shared mockFetch harness, which always returns the same declared body and so
+// cannot distinguish "refetched" from "never fetched again" - a stateless mock would make an assertion here pass whether or
+// not invalidate() actually ran. The GET count rising from 1, the initial load, to 2, the post-pickup refetch, is the one
+// signal that actually proves it did.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -26,16 +35,6 @@ const view = {
   annotationHistory: [],
 }
 
-/**
- * Task #19: pickUpMutation's onSuccess calls the shared `invalidate` helper, which contains two of
- * the eight no-floating-promises findings (now routed through invalidateQuietly). Nothing in this
- * file's sibling lifecycle test exercises a mutation success path.
- *
- * Counts GET calls rather than reusing the shared mockFetch harness, which always returns the same
- * declared body and so cannot distinguish "refetched" from "never fetched again" - a stateless mock
- * would make an assertion here pass whether or not invalidate() actually ran. The GET count rising
- * from 1 (initial load) to 2 (post-pickup refetch) is the one signal that actually proves it did.
- */
 describe('ReviewApplicationPage pick-up flow', () => {
   let restore: () => void
   afterEach(() => restore?.())

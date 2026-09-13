@@ -1,3 +1,15 @@
+// SCR-300, the onboarding review dashboard, at /review, P0, FR-DSH-002.
+//
+// Presentation over the queue PR #80 built: the list itself is still SCR-301, and this is the KPI layer plus FR-DSH-002's
+// document-expiry watchlist.
+//
+// AGING IS A DURATION and says nothing about lateness. No document defines a review SLA - BUSINESS-PROCESSES §2 names the
+// timer and never its length - so the tile reports how long the oldest open case has waited and stops there. Calling it
+// "overdue" would invent a commitment.
+//
+// The toned figures are the ones that mean an application is sitting with nobody, or with this reader, and they follow the
+// procurement dashboard's rule: toned only while the count is above zero.
+
 import { useTranslation } from 'react-i18next'
 import { Metric, MetricRow } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
@@ -10,20 +22,6 @@ import { SkeletonGrid, SkeletonList } from '../../components/ui/Skeleton'
 import { formatNumber } from '../../lib/datetime'
 import { PageHeading } from '../../components/ui/ListScreen'
 
-/**
- * SCR-300 — the onboarding review dashboard. `/review`, P0, FR-DSH-002.
- *
- * <p>Presentation over the queue PR #80 built: the list itself is still SCR-301, and this is the
- * KPI layer plus FR-DSH-002's document-expiry watchlist.</p>
- *
- * <p><b>Aging is a duration and says nothing about lateness.</b> No document defines a review SLA -
- * BUSINESS-PROCESSES §2 names the timer and never its length - so the tile reports how long the
- * oldest open case has waited and stops there. Calling it "overdue" would invent a commitment.</p>
- */
-/**
- * The figures here that mean an application is sitting with nobody, or with this reader. Same rule as
- * the procurement dashboard: toned only while the count is above zero.
- */
 const WAITING = new Set(['pending', 'unassigned'])
 
 export function ReviewDashboardPage() {

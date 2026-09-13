@@ -1,3 +1,22 @@
+// SCR-724 at /back-office/settings, for system_admin, P1 (FR-ADM-006).
+//
+// Registration mode was a value nothing read, the default currency was a seed row, and the two document-expiry windows were
+// appsettings keys - so changing any of them was a redeploy.
+//
+// Each row states whether it is OVERRIDDEN or still running on the default, and that distinction is the point of the screen:
+// "nobody has decided" and "an administrator chose 30" look identical in a plain value column, and only the second one has
+// an author and a date.
+//
+// The rules come from the server with each setting - bounds, allowed values, kind - so this screen renders the right control
+// without keeping a second copy of the catalogue that could disagree with the one that validates. The help text under a
+// control follows from them: a list of integers needs a format hint, a bounded integer needs its bounds, everything else
+// needs nothing - and an unbounded one must NOT be given a range hint with null in it.
+//
+// Drafts are per key, so editing one setting does not discard what was typed into another.
+//
+// A refusal names the RULE that was broken, because showing "invalid" instead would leave an administrator guessing which of
+// the bounds they crossed.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -5,25 +24,6 @@ import {Badge, Button, Card, Field, Input, PageHeading, Select, SkeletonList, us
 import { formatDateTime } from '../../lib/datetime'
 import { getSystemSettings, updateSystemSetting, type SystemSetting } from '../../api/systemSettings'
 
-/**
- * SCR-724, `/back-office/settings`, `system_admin`, P1 (FR-ADM-006).
- *
- * <p>Registration mode was a value nothing read, the default currency was a seed row, and the two
- * document-expiry windows were appsettings keys - so changing any of them was a redeploy.</p>
- *
- * <p>Each row states whether it is <em>overridden</em> or still running on the default. That
- * distinction is the point of the screen: "nobody has decided" and "an administrator chose 30" look
- * identical in a plain value column, and only the second one has an author and a date.</p>
- *
- * <p>The rules come from the server with each setting - bounds, allowed values, kind - so this screen
- * renders the right control without keeping a second copy of the catalogue that could disagree with
- * the one that validates.</p>
- */
-/**
- * The help text under a setting's control. A list of integers needs a format hint; a bounded integer
- * needs its bounds; everything else needs nothing, and an unbounded one must NOT be given a range hint
- * with `null` in it.
- */
 function hintFor(setting: SystemSetting, t: (key: string, opts?: Record<string, unknown>) => string): string | undefined {
   if (setting.kind === 'IntegerList') return t('systemSettings.hints.integerList')
   if (setting.minimum !== null && setting.maximum !== null) {
@@ -40,7 +40,6 @@ export function SystemSettingsPage() {
 
   const query = useQuery({ queryKey: ['system-settings'], queryFn: getSystemSettings })
 
-  // Per-key drafts, so editing one setting does not discard what was typed into another.
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -63,8 +62,6 @@ export function SystemSettingsPage() {
       notify({ kind: 'success', title: t('systemSettings.saved') })
     },
     onError: (error: Error & { reason?: string }, variables) => {
-      // The server names the rule that was broken; showing "invalid" instead would leave an
-      // administrator guessing which of the bounds they crossed.
       setErrors((prev) => ({
         ...prev,
         [variables.key]: t(`systemSettings.errors.${error.reason ?? 'unknown'}`, {
@@ -134,7 +131,6 @@ export function SystemSettingsPage() {
               )}
 
               <div className="flex flex-wrap items-center gap-3">
-                {/* The distinction the screen exists for. */}
                 {setting.isOverridden ? (
                   <Badge tone="info">
                     {setting.updatedAt

@@ -1,3 +1,15 @@
+// SCR-602 at /ministry/rfqs, for ministry_viewer.
+//
+// Every tender in the country, whoever is running it. The row names the buying body and, where a tender has been awarded,
+// what it went for - neither of which any aggregate governance read carried. That is D-66's widening, and D-57 records the
+// argument it overrode.
+//
+// Newest first: a monitor is read from the top. The review queue sorts the other way for the opposite reason - a queue is
+// worked from the case that has waited longest.
+//
+// A null award value means one of two different things and the em dash covers both: the tender has not been awarded, or the
+// policy flag withholds the figure.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
@@ -7,16 +19,6 @@ import { listMinistryRfqs } from '../../api/governance'
 import { nextPageParam } from '../../api/listEnvelope'
 import { formatCurrency, formatDate } from '../../lib/datetime'
 
-/**
- * SCR-602, `/ministry/rfqs`, `ministry_viewer`.
- *
- * <p><b>Every tender in the country, whoever is running it.</b> The row names the buying body and, where a
- * tender has been awarded, what it went for — neither of which any aggregate governance read carried. That
- * is D-66's widening, and `D-57` records the argument it overrode.</p>
- *
- * <p>Newest first: a monitor is read from the top. The review queue sorts the other way for the opposite
- * reason — a queue is worked from the case that has waited longest.</p>
- */
 export function MinistryRfqMonitorPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -90,9 +92,6 @@ export function MinistryRfqMonitorPage() {
                 {rfq.submissionClosesAt ? formatDate(rfq.submissionClosesAt, locale) : '—'}
               </TableCell>
               <TableCell>
-                {/* Null here means one of two different things, and the em dash covers both: this
-                    tender has not been awarded, or the commercial-visibility flag is off. The detail
-                    page says which - a list row has no room to. */}
                 {rfq.awardedValue === null
                   ? '—'
                   : formatCurrency(rfq.awardedValue, rfq.currencyCode, locale)}

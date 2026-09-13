@@ -1,3 +1,23 @@
+// The registration form: the first screen a supplier ever sees.
+//
+// THE VALIDATION MESSAGES are i18n KEYS, translated where they are rendered. Every rule here carried Zod's default before
+// batch 12, so the first screen a supplier ever sees told them "Too small: expected string to have >=1 characters" -
+// library internals, in English, on an Arabic-first product. The mismatch rule was worse: it already used a key,
+// passwords_must_match, and nothing translated it, so the literal token was printed under the field. The schema is
+// module-scope and `t` is a hook, so the key travels in `message` and the translation happens at the field - which also
+// keeps the schema out of every render.
+//
+// MSP-73: submission success and the reference code are tracked separately on purpose. A duplicate email or registration
+// number now returns the same 200 with referenceCode null - see api/auth.ts - and the confirmation screen must still show
+// for that case exactly as it does for a genuine new registration, or the response-shape change would silently break the
+// one thing it exists to protect: a legitimate user re-registering by mistake gets no different an experience than a
+// first-time one.
+//
+// FR-REG-002 and T-060: a closed portal must not render a form that cannot be submitted. The server refuses it either
+// way - this is the message, not the control. A FAILED settings read renders the form, because the setting defaults to
+// open and a settings endpoint that is briefly unavailable must not look like a closed ministry. And a portal that closed
+// between loading this page and submitting it says so, rather than reporting a generic failure the applicant would retry.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,17 +29,6 @@ import { ApiError, registerSupplier } from '../api/auth'
 import { useQuery } from '@tanstack/react-query'
 import { getPublicSettings } from '../api/systemSettings'
 
-/**
- * Messages are i18n KEYS, translated where they are rendered.
- *
- * Every rule here carried Zod's default before batch 12, so the first screen a supplier ever sees told
- * them "Too small: expected string to have >=1 characters" - library internals, in English, on an
- * Arabic-first product. The mismatch rule was worse: it already used a key, `passwords_must_match`,
- * and nothing translated it, so the literal token was printed under the field.
- *
- * The schema is module-scope and `t` is a hook, so the key travels in `message` and the translation
- * happens at the field. Keeping the schema out of the component also keeps it out of every render.
- */
 const schema = z
   .object({
     displayNameAr: z.string().min(1, 'register.errors.required'),
@@ -40,21 +49,10 @@ type FormValues = z.infer<typeof schema>
 
 export function RegisterPage() {
   const { t } = useTranslation()
-  // MSP-73: submission success and referenceCode are tracked separately on purpose. A duplicate
-  // email/registration number now returns the same 200 with referenceCode: null (see
-  // api/auth.ts) - the confirmation screen must still show for that case exactly as it does for
-  // a genuine new registration, or the response shape change would silently break the one thing
-  // it exists to protect: a legitimate user re-registering by mistake gets no different an
-  // experience than a first-time one.
   const [submitted, setSubmitted] = useState(false)
   const [referenceCode, setReferenceCode] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // FR-REG-002/T-060. A closed portal must not render a form that cannot be submitted. The server
-  // refuses it either way - this is the message, not the control.
-  //
-  // A FAILED read renders the form: the setting defaults to open, and a settings endpoint that is
-  // briefly unavailable must not look like a closed ministry.
   const settingsQuery = useQuery({ queryKey: ['public-settings'], queryFn: getPublicSettings })
   const registrationClosed = settingsQuery.data?.['registration.mode'] === 'closed'
 
@@ -85,8 +83,6 @@ export function RegisterPage() {
       if (err instanceof ApiError && err.status === 400) {
         setFormError(t('register.weakPassword'))
       } else if (err instanceof ApiError && err.status === 403) {
-        // Closed between loading this page and submitting it. Says so, rather than reporting a
-        // generic failure the applicant would retry.
         setFormError(t('register.closedBody'))
       } else {
         setFormError(t('register.failed'))

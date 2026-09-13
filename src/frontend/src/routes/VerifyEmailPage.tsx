@@ -1,3 +1,12 @@
+// Consuming an email-verification token.
+//
+// The three outcomes of one request are rendered as three independent branches rather than a chain: each is a different
+// thing to say, not a refinement of the one before.
+//
+// The screen had no title in any of the three states, so a reader who followed a link from an email and hit the failure
+// branch was shown an error with nothing saying what had failed. It uses AuthHeading rather than PageHeading, because
+// this card IS the viewport.
+
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearch } from '@tanstack/react-router'
@@ -37,8 +46,6 @@ export function VerifyEmailPage() {
     }
   }
 
-  // Three outcomes of one request, rendered as three independent branches rather than a chain: each is
-  // a different thing to say, not a refinement of the one before.
   const isVerified = status === 'success'
 
   return (
@@ -47,9 +54,6 @@ export function VerifyEmailPage() {
         className="w-full max-w-sm rounded-[var(--radius-lg)] p-8 text-center"
         style={{ backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}
       >
-        {/* The screen had no title in any of its three states, so a reader who followed a link from an
-            email and hit the failure branch was shown an error with nothing saying what had failed.
-            AuthHeading rather than PageHeading: this card IS the viewport. */}
         <AuthHeading title={t('auth.verifyEmailTitle')} />
         {status === 'pending' ? (
           <output className="block" style={{ color: 'var(--color-text-secondary)' }}>

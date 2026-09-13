@@ -1,3 +1,12 @@
+// SCR-600. The persona held an EMPTY permission set before EPIC-18, so "it renders at all" is the first thing worth
+// asserting - and the KPIs use catalogue labels rather than raw enum names.
+//
+// It says WHY the commercial figure is absent rather than rendering a blank. D-6 and BRULE-087: the flag is off by default,
+// and a viewer seeing an empty tile cannot tell policy from an empty ministry, which is the whole reason the response
+// echoes the flag. Its control is the same screen, the same shape, the flag flipped.
+//
+// The last test offers a retry instead of a blank page when the read fails.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import { mockFetch, renderPage } from '../../test/renderPage'
@@ -23,8 +32,6 @@ function overview(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** SCR-600. The persona held an EMPTY permission set before EPIC-18, so "it renders at all" is the
- * first thing worth asserting. */
 describe('MinistryOverviewPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -37,13 +44,10 @@ describe('MinistryOverviewPage', () => {
     expect(await screen.findByText('Governance dashboard')).toBeInTheDocument()
     expect(screen.getByText('Registered suppliers')).toBeInTheDocument()
     expect(screen.getByText('12')).toBeInTheDocument()
-    // Catalogue labels, not raw enum names.
     expect(screen.getByText('Open for submissions')).toBeInTheDocument()
   })
 
   it('says WHY the commercial figure is absent rather than rendering a blank', async () => {
-    // D-6/BRULE-087: the flag is off by default. A viewer seeing an empty tile cannot tell policy from
-    // an empty ministry, which is the whole reason the response echoes the flag.
     restore = mockFetch({ '/api/v1/ministry/overview': overview() })
 
     renderPage(<MinistryOverviewPage />)
@@ -53,7 +57,6 @@ describe('MinistryOverviewPage', () => {
   })
 
   it('shows the commercial figure once the policy flag is on', async () => {
-    // The control for the test above: the same screen, the same shape, the flag flipped.
     restore = mockFetch({
       '/api/v1/ministry/overview': overview({ totalAwardedValue: 1250.5, commercialValuesVisible: true }),
     })

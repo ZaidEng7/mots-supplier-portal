@@ -1,3 +1,47 @@
+// B-1. The front door had NO component test: nothing asserted what a wrong password, a locked account, an unverified email
+// or a bad TOTP code does. The e2e axe sweep proved this page MOUNTS in both locales, which is a different claim - it says
+// nothing about the four states a user actually hits.
+//
+// Each state is asserted through the rendered output, and each of the specific ones is distinguished from the generic
+// failure: a locked account that reads "invalid email or password" sends the user round the loop that locked them out in
+// the first place.
+//
+// The field matchers are regexes, because the Field component appends a required marker inside the label, so the
+// accessible name is "Email *" rather than "Email".
+//
+// A wrong password is reported without saying which half was wrong - MSP-73's reasoning applied to sign-in, where the
+// message must not tell an attacker that the EMAIL was right, so one message covers both halves. A locked account says so
+// rather than repeating "invalid credentials": A-14 keeps 423 distinct from 429 precisely so a client can tell them
+// apart, and this is what that distinction is FOR, because a locked user told "invalid email or password" tries again,
+// which is the loop that locked them. An unverified user is sent to verify their email instead of retrying.
+//
+// THE MFA CHALLENGE uses the REAL wire shape: ProblemDetailsMiddleware conforms every error and emits §7's `code`, with no
+// `error` key. The page used to read body.error, so this never matched and every MFA account - including every
+// system_admin - was shown "Invalid email or password" instead of the code step. mfa_required is a 401 and must not read
+// as a failed sign-in, and the password is kept to re-submit, because LoginHandler expects all three on the second call
+// and a page that dropped it would fail with a message about the code.
+//
+// A bad TOTP code is reported as a bad code rather than as a bad password. That test needs two DIFFERENT responses from
+// one route - the first leg is the challenge, the second is the wrong code - and mockFetch answers a route with one body,
+// so it installs its own two-stage stub, which is also the honest shape since the real endpoint answers differently on
+// the second call. Reporting it as "invalid email or password" would send the user back to re-type credentials that were
+// already accepted.
+//
+// THE HAPPY PATH is the control for all of the above, and it also pins where each persona lands. A supplier and a staff
+// user land in different shells, and the claim that decides it is supplierId, which is also what the router's own guard
+// reads. The token's signature is irrelevant in these tests: authStore decodes, it does not verify - the server does that.
+//
+// An evaluator goes to their OWN dashboard rather than the shared placeholder. Found by signing in as the seeded
+// evaluator: they landed on /back-office/dashboard, which lists their permissions and says a summary will appear later,
+// and nothing in the nav linked to /evaluation - their dashboard and their assignment list both existed, reachable only
+// by typing the address.
+//
+// An administrator is NOT sent to the evaluator dashboard. A system_admin holds all 104 permissions, evaluation.score
+// among them, so a check that asked only "does this account score" sent the administrator to the evaluator's screen on
+// every sign-in. The question has to be "is this account ONLY an evaluator", and rfq.read is what separates them. The
+// control is that other staff still route to the back-office dashboard, keyed on the permission, so an officer or an
+// administrator is unaffected.
+
 import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -17,15 +61,6 @@ vi.mock('@tanstack/react-router', async () => {
 const { LoginPage } = await import('./LoginPage')
 const { useAuthStore } = await import('../lib/authStore')
 
-/**
- * B-1. The front door had NO component test: nothing asserted what a wrong password, a locked account,
- * an unverified email or a bad TOTP code does. The e2e axe sweep proved this page MOUNTS in both
- * locales, which is a different claim - it says nothing about the four states a user actually hits.
- *
- * Each state is asserted through the rendered output, and each of the specific ones is distinguished
- * from the generic failure: a locked account that reads "invalid email or password" sends the user
- * round the loop that locked them out in the first place.
- */
 describe('LoginPage failure states', () => {
   let restore: () => void
   beforeEach(() => {
@@ -34,8 +69,6 @@ describe('LoginPage failure states', () => {
   })
   afterEach(() => restore?.())
 
-  // Regex matchers: the Field component appends a required marker inside the label, so the accessible
-  // name is "Email *" rather than "Email".
   const signIn = async (email = 'user@example.com', password = 'a-password') => {
     await userEvent.type(await screen.findByLabelText(/Email/), email)
     await userEvent.type(screen.getByLabelText(/Password/), password)
@@ -43,8 +76,6 @@ describe('LoginPage failure states', () => {
   }
 
   it('reports a wrong password without saying which half was wrong', async () => {
-    // MSP-73's reasoning applied to sign-in: the message must not tell an attacker that the EMAIL was
-    // right, so one message covers both halves.
     restore = mockFetch({ '/api/v1/auth/login': { __status: 401, code: 'INVALID_CREDENTIALS' } })
 
     renderPage(<LoginPage />)
@@ -56,9 +87,6 @@ describe('LoginPage failure states', () => {
   })
 
   it('says an account is locked rather than repeating "invalid credentials"', async () => {
-    // A-14 keeps 423 distinct from 429 precisely so a client can tell them apart, and this is what that
-    // distinction is FOR: a locked user told "invalid email or password" tries again, which is the loop
-    // that locked them.
     restore = mockFetch({ '/api/v1/auth/login': { __status: 423, code: 'ACCOUNT_LOCKED' } })
 
     renderPage(<LoginPage />)
@@ -78,23 +106,17 @@ describe('LoginPage failure states', () => {
 
   it('asks for a TOTP code when the account requires MFA, and keeps the password to re-submit', async () => {
     const calls: { url: string; method: string; body: string }[] = []
-    // The REAL wire shape: ProblemDetailsMiddleware conforms every error and emits §7's `code`, with no
-    // `error` key. The page used to read `body.error`, so this never matched and every MFA account -
-    // including every system_admin - was shown "Invalid email or password" instead of the code step.
     restore = mockFetch({ '/api/v1/auth/login': { __status: 401, code: 'MFA_REQUIRED' } }, calls)
 
     renderPage(<LoginPage />)
     await signIn('admin@ministry.example', 'the-password')
 
-    // The second step, not an error: `mfa_required` is a 401 and must not read as a failed sign-in.
     expect(await screen.findByText('Two-factor verification')).toBeInTheDocument()
     expect(screen.queryByText('Invalid email or password')).not.toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText(/Authenticator code/), '123456')
     await userEvent.click(screen.getByRole('button', { name: 'Verify' }))
 
-    // The same credentials plus the code - LoginHandler expects all three on the second call, so a page
-    // that dropped the password would fail with a message about the code.
     const second = JSON.parse(calls.filter((c) => c.url.includes('/auth/login')).at(-1)!.body)
     expect(second.email).toBe('admin@ministry.example')
     expect(second.password).toBe('the-password')
@@ -102,9 +124,6 @@ describe('LoginPage failure states', () => {
   })
 
   it('reports a bad TOTP code as a bad code, not as a bad password', async () => {
-    // Two DIFFERENT responses from one route: the first leg is the challenge, the second is the wrong
-    // code. mockFetch answers a route with one body, so this test installs its own two-stage stub -
-    // which is also the honest shape, since the real endpoint answers differently on the second call.
     const original = globalThis.fetch
     let leg = 0
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -125,19 +144,12 @@ describe('LoginPage failure states', () => {
     await userEvent.type(screen.getByLabelText(/Authenticator code/), '000000')
     await userEvent.click(screen.getByRole('button', { name: 'Verify' }))
 
-    // A bad code is a bad code. Reporting it as "invalid email or password" would send the user back to
-    // re-type credentials that were already accepted.
     expect(await screen.findByText('Incorrect code, try again')).toBeInTheDocument()
   })
 
   it('stores the session and routes a supplier to their dashboard on success', async () => {
-    // The control for all of the above: the happy path still works, and a supplier and a staff user land
-    // in different shells - the claim that decides it is supplierId, which is also what the router's own
-    // guard reads.
     restore = mockFetch({
       '/api/v1/auth/login': {
-        // A token whose payload carries a supplierId. Signature is irrelevant here: authStore decodes,
-        // it does not verify - the server does that.
         accessToken: `header.${btoa(JSON.stringify({ sub: 'u-1', supplierId: 's-1', perms: [] }))}.sig`,
       },
     })
@@ -150,9 +162,6 @@ describe('LoginPage failure states', () => {
   })
 
   it('routes an evaluator to their own dashboard, not the shared placeholder', async () => {
-    // Found by signing in as the seeded evaluator: they landed on /back-office/dashboard, which lists their
-    // permissions and says a summary will appear later, and nothing in the nav linked to /evaluation. Their
-    // dashboard and their assignment list both existed - reachable only by typing the address.
     restore = mockFetch({
       '/api/v1/auth/login': {
         accessToken: `header.${btoa(JSON.stringify({ sub: 'u-2', perms: ['evaluation.score', 'evaluation.submit'] }))}.sig`,
@@ -166,9 +175,6 @@ describe('LoginPage failure states', () => {
   })
 
   it('does not send an administrator to the evaluator dashboard', async () => {
-    // A system_admin holds all 104 permissions, evaluation.score among them, so a check that asked
-    // only "does this account score" sent the administrator to the evaluator's screen on every sign-in.
-    // The question has to be "is this account ONLY an evaluator", and rfq.read is what separates them.
     restore = mockFetch({
       '/api/v1/auth/login': {
         accessToken: `header.${btoa(JSON.stringify({
@@ -185,7 +191,6 @@ describe('LoginPage failure states', () => {
   })
 
   it('still routes other staff to the back-office dashboard', async () => {
-    // The control: keyed on the permission, so an officer or an administrator is unaffected.
     restore = mockFetch({
       '/api/v1/auth/login': {
         accessToken: `header.${btoa(JSON.stringify({ sub: 'u-3', perms: ['rfq.read', 'rfq.create'] }))}.sig`,

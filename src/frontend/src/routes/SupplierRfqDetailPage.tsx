@@ -1,3 +1,18 @@
+// FEAT-08.4, 08.6, FR-INV-004 and FR-INV-006: the supplier's own view of an invited RFQ.
+//
+// A non-invited supplier never reaches a rendered page here - getInvitedRfq 404s server-side and the query's error state
+// is shown instead. No client-side visibility decision is ever made.
+//
+// The heading carries the tender's name, with the code and the invitation's state as the facts that identify it.
+//
+// THE ATTACHMENTS are SCR-142's. The payload has carried them since EPIC-08 and nothing rendered them, so an invited
+// supplier could read the RFQ and never reach the tender documents it depends on - the one thing they need before pricing
+// anything. Found by the per-screen sweep, batch 9 phase 12a. Download goes through the same download-url exchange the
+// buyer uses: the URL is short-lived and issued per request (D-16), so it is fetched on the click rather than rendered
+// into the page.
+//
+// A-6: the supplier is told WHY their deadline moved, on the screen where the deadline is.
+
 import { formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,9 +24,6 @@ import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq, declineInvitation, postClarification, SupplierRfqApiError } from '../api/supplierRfqs'
 import { getRfqAttachmentDownloadUrl } from '../api/rfqs'
 
-/** FEAT-08.4/08.6/FR-INV-004/006: the supplier's own view of an invited RFQ. A non-invited
- * supplier never reaches a rendered page here - getInvitedRfq 404s server-side and the query's
- * error state is shown instead (no client-side visibility decision is ever made). */
 export function SupplierRfqDetailPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
   const { t, i18n } = useTranslation()
@@ -64,9 +76,6 @@ export function SupplierRfqDetailPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          {/* The tender's name, with the code and the invitation's state as the facts that identify
-              this particular one. It read "RFQ-2026-000001 — Catering services" before, which led with
-              the way you find a tender again rather than with what it is. */}
           <PageHeading
             title={isArabic ? rfq.titleAr : rfq.titleEn}
             subtitle={rfq.rfqCode}
@@ -126,15 +135,6 @@ export function SupplierRfqDetailPage() {
         )}
       </Card>
 
-      {/*
-        SCR-142. The payload has carried `attachments` since EPIC-08 and nothing rendered them, so an
-        invited supplier could read the RFQ and never reach the tender documents it depends on - the
-        one thing they need before pricing anything. Found by the per-screen sweep (batch 9 phase 12a).
-
-        Download goes through the same `download-url` exchange the buyer uses: the URL is short-lived
-        and issued per request (D-16), so it is fetched on the click rather than rendered into the page.
-      */}
-      {/* A-6: the supplier is told WHY their deadline moved, on the screen where the deadline is. */}
       {rfq.submissionDeadlineChangeReason ? (
         <Card title={t('supplierRfq.deadlineChanged.title')}>
           <p>{rfq.submissionDeadlineChangeReason}</p>

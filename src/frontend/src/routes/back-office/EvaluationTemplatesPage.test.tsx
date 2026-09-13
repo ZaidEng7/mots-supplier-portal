@@ -1,3 +1,19 @@
+// FEAT-11.1: the invariants this page exists to surface - the domain's weight-sum rejection reaching the user as a real
+// toast rather than only passing server-side, and a referenced template's edit affordances being replaced by Fork rather than
+// merely hidden.
+//
+// A template renders with its status, weight total and criteria. Creating one toasts.
+//
+// The weight-sum rejection reproduces the domain's real text - EvaluationTemplate.Activate's own message shape, "Criterion
+// weights must sum to exactly 100..." - arriving through EvaluationTemplateApiError rather than as a client-invented
+// validation string. mockFetch is stateless and always returns 200, so a non-200 refusal needs a custom fetch mock.
+//
+// A referenced template hides the edit form and offers Fork instead of Activate or archive-then-edit.
+//
+// The last test asserts two halves nothing did before: that the error branch RENDERS, and that the control inside it does
+// anything. asyncStateCoverage proves the branch exists in the source; a retry button wired to nothing looks identical to one
+// that works.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -21,9 +37,6 @@ const REFERENCED_TEMPLATE = {
   ],
 }
 
-/** FEAT-11.1: covers the invariants this page exists to surface - the domain's weight-sum
- * rejection reaching the user as a real toast (not just passing server-side), and a referenced
- * template's edit affordances being replaced by Fork rather than merely hidden. */
 describe('EvaluationTemplatesPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -54,10 +67,6 @@ describe('EvaluationTemplatesPage', () => {
     expect(await screen.findByText('Template created')).toBeInTheDocument()
   })
 
-  /** Reproduces the domain's real rejection text (EvaluationTemplate.Activate's own message
-   * shape - "Criterion weights must sum to exactly 100...") arriving through
-   * EvaluationTemplateApiError, not a client-invented validation string. mockFetch is stateless
-   * and always returns 200 (renderPage.tsx), so a non-200 refusal needs a custom fetch mock. */
   it('shows the domain weight-sum rejection message when adding a criterion fails', async () => {
     const original = globalThis.fetch
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -96,9 +105,6 @@ describe('EvaluationTemplatesPage', () => {
   })
 
   it('shows a retryable failure rather than an empty screen', async () => {
-    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
-    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
-    // button wired to nothing looks identical to one that works.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({ '/api/v1/evaluation-templates': { __status: 500 } }, recorded)
 

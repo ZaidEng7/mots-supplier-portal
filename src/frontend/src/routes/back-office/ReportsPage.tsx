@@ -1,3 +1,42 @@
+// FEAT-19.1 and FEAT-19.2, at /back-office/reports. Two reports on one screen, in that order.
+//
+// THE ENTIRE SCREEN DESIGN HERE IS AN INVENTION and is marked as one. The IA gives this route and a report.read gate and
+// nothing else - no layout, no states, no component list - and the question to the documentation owner has not come back. So
+// it is built on the shape SCR-400 and SCR-120 already established in this product: page header, filter row, results tables,
+// export action. A report screen is a filtered table and the design system has every part of one; if a specification arrives
+// later the rework is layout, not logic.
+//
+// NO SCR ID IS CLAIMED. Screen ids are cross-referenced from the specifications, the backlog and the tests, so an invented one
+// would corrupt that inventory rather than fill a hole in it. This screen is referred to by its route.
+//
+// Every number renders through formatNumber, so a count cannot read "14" beside a date reading «٣٠ أغسطس» - the inconsistency
+// R-1 was ruled on. State keys render through StatusChip, never as raw enum names.
+//
+// A FAILED DOWNLOAD says so, because otherwise it is completely silent: the browser simply does nothing, which is
+// indistinguishable from a slow one.
+//
+// THE NO-BUYING-BODY CASE is not an error, and it used to be reported as one. The procurement report counts one buying body's
+// tenders, and two personas deliberately belong to none - the bootstrap administrator and the Ministry viewer, whose grant is
+// cross-organization by BRULE-086 and would be narrowed by pinning it to one. The endpoint answers 404 for them, correctly,
+// and the card said "The report could not be loaded" with a Try again that could never work: a retry of a question this
+// account is not able to ask. The compliance report below is unscoped, which is why it loads for the same accounts - and the
+// two sitting side by side, one broken and one fine, is what made it read as a fault.
+//
+// THE COVERAGE FLOOR is stated on the screen and not only in the export. Cycle time is derived from audit rows, which began
+// when that logging was added, so RFQs that moved earlier contribute to nothing and are silently absent - and without that
+// line a short history reads as a fast process.
+//
+// AN UNMEASURED INTERVAL is never a zero. "No RFQ has reached award" and "award takes no time" are different facts and only
+// one of them is true.
+//
+// THE REGISTRY SCOPE is said on the screen too, not only in the export's provenance: these counts cover every supplier in the
+// ministry because Supplier carries no organization, and a reader who assumes otherwise reads them as their own
+// organization's numbers.
+//
+// THE STATE TABLE is extracted because there are four of them and the RTL, numeral and chip rules have to hold identically in
+// all four - one implementation is the only way that stays true. Table already scrolls wide content inside its own container,
+// so the page body still never scrolls sideways and the hand-rolled wrapper that used to say so is gone with it.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -13,24 +52,6 @@ import { Field } from '../../components/ui/Field'
 import { Input } from '../../components/ui/Input'
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../components/ui/Table'
 
-/**
- * FEAT-19.1 and FEAT-19.2, at `/back-office/reports`.
- *
- * <p><b>The entire screen design here is an INVENTION and is marked as one.</b> The IA gives this
- * route and a `report.read` gate and nothing else - no layout, no states, no component list - and
- * the question to the documentation owner has not come back. So it is built on the shape SCR-400 and
- * SCR-120 already established in this product: page header, filter row, results tables, export
- * action. A report screen is a filtered table and the design system has every part of one; if a
- * specification arrives later the rework is layout, not logic.</p>
- *
- * <p><b>No SCR id is claimed.</b> Screen ids are cross-referenced from the specifications, the
- * backlog and the tests, so an invented one would corrupt that inventory rather than fill a hole in
- * it. This screen is referred to by its route.</p>
- *
- * <p>Every number renders through `formatNumber`, so a count cannot read "14" beside a date reading
- * «٣٠ أغسطس» - the inconsistency R-1 was ruled on. State keys render through StatusChip, never as
- * raw enum names.</p>
- */
 export function ReportsPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -55,8 +76,6 @@ export function ReportsPage() {
     try {
       await downloadReport(kind, format, from || undefined, to || undefined)
     } catch {
-      // A failed download is otherwise completely silent - the browser simply does nothing, which
-      // is indistinguishable from a slow one.
       setDownloadError(true)
     }
   }
@@ -79,7 +98,6 @@ export function ReportsPage() {
         <p role="alert" style={{ color: 'var(--color-danger-fg)' }}>{t('reports.downloadFailed')}</p>
       ) : null}
 
-      {/* ---------------------------------------------------------------- FEAT-19.1 */}
       <Card title={t('reports.procurement.title')}>
         <div className="mb-3 flex flex-wrap gap-2">
           <Button size="sm" variant="ghost" onClick={() => download('procurement', 'pdf')}>
@@ -99,18 +117,6 @@ export function ReportsPage() {
           </>
         ) : null}
 
-        {/*
-          Not an error, and it used to be reported as one.
-
-          This report counts one buying body's tenders, and two personas deliberately belong to none -
-          the bootstrap administrator and the Ministry viewer, whose grant is cross-organization by
-          BRULE-086 and would be narrowed by pinning it to one. The endpoint answers 404 for them,
-          correctly, and the card said "The report could not be loaded" with a Try again that could
-          never work: a retry of a question this account is not able to ask.
-
-          The compliance report below is unscoped, which is why it loads for the same accounts - and the
-          two sitting side by side, one broken and one fine, is what made it read as a fault.
-        */}
         {procurement.isSuccess && procurement.data === null ? (
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('reports.procurement.noBuyingBody')}</p>
         ) : null}
@@ -130,12 +136,6 @@ export function ReportsPage() {
             <section>
               <h3 className="mb-2 text-[length:var(--text-h4)]">{t('reports.procurement.cycleTime')}</h3>
 
-              {/*
-                The coverage floor, stated on the screen and not only in the export. Cycle time is
-                derived from audit rows, which began when that logging was added - RFQs that moved
-                earlier contribute to nothing and are silently absent. Without this line a short
-                history reads as a fast process.
-              */}
               <p className="mb-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {procurement.data.coverageFloor
                   ? t('reports.procurement.coverageFloor', {
@@ -150,17 +150,11 @@ export function ReportsPage() {
                   <TableBody>
                     {procurement.data.cycleTimes.map((interval) => (
                       <TableRow key={interval.key}>
-                        {/* The interval names the row, so it stays a header cell rather than becoming a
-                            data cell: a screen reader announces it with every figure beside it. */}
                         <TableHeaderCell scope="row" className="font-[var(--fw-regular)]">
                           {t(`reports.intervals.${interval.key}`)}
                         </TableHeaderCell>
                         <TableCell className="num">{formatNumber(interval.sampleSize, locale, 0)}</TableCell>
                         <TableCell className="num">
-                          {/*
-                            Never a zero for an unmeasured interval. "No RFQ has reached award" and
-                            "award takes no time" are different facts and only one of them is true.
-                          */}
                           {interval.medianHours === null
                             ? t('reports.notMeasured')
                             : formatNumber(interval.medianHours, locale, 1)}
@@ -185,7 +179,6 @@ export function ReportsPage() {
         ) : null}
       </Card>
 
-      {/* ---------------------------------------------------------------- FEAT-19.2 */}
       <Card title={t('reports.compliance.title')}>
         <div className="mb-3 flex flex-wrap gap-2">
           <Button size="sm" variant="ghost" onClick={() => download('compliance', 'pdf')}>
@@ -207,11 +200,6 @@ export function ReportsPage() {
 
         {compliance.data ? (
           <div className="flex flex-col gap-5">
-            {/*
-              Said on the screen, not only in the export's provenance. These counts cover every
-              supplier in the ministry because Supplier carries no organization - a reader who
-              assumes otherwise reads them as their own organization's numbers.
-            */}
             <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
               {t('reports.compliance.registryScope')}
             </p>
@@ -242,10 +230,6 @@ export function ReportsPage() {
   )
 }
 
-/**
- * A state/count table. Extracted because there are four of them and the RTL, numeral and chip rules
- * have to hold identically in all four - one implementation is the only way that stays true.
- */
 function CountTable({
   caption, machine, rows, locale, stateHeader, countHeader, emptyLabel,
 }: {
@@ -266,8 +250,6 @@ function CountTable({
           {emptyLabel}
         </p>
       ) : (
-        // Table already scrolls wide content inside its own container, so the page body still never
-        // scrolls sideways and the hand-rolled wrapper that used to say so is gone with it.
         <Table caption={caption}>
           <TableHead labels={[stateHeader, countHeader]} />
           <TableBody>

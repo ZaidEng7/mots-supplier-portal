@@ -1,3 +1,16 @@
+// FEAT-06.1 and FEAT-06.2: the CRUD UI had zero test coverage before this. The backend CRUD is tested in
+// OfferingTests.cs, but nothing exercised the form, the create, edit and deactivate mutation flows, or FEAT-06.2's
+// flexible-attribute editor round-trip.
+//
+// The payload helpers come first: an attribute row with an empty key is dropped rather than rejecting the save, no rows
+// sends null rather than an empty object, and keys are trimmed. The inverse converts a null or absent attributes map to
+// an empty row list and a populated one to key-value rows.
+//
+// Then the page: an offering is created with a flexible attribute round-tripped through the form, a deactivation shows
+// its success toast, and a failure shows a retryable error rather than an empty screen. That last one asserts two halves
+// nothing did before - that the error branch RENDERS, and that the control inside it does anything. asyncStateCoverage
+// proves the branch exists in the source; a retry button wired to nothing looks identical to one that works.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -6,9 +19,6 @@ import { toPayload, attributesToRows } from './OfferingCatalogPage'
 
 const { OfferingCatalogPage } = await import('./OfferingCatalogPage')
 
-/** FEAT-06.1/FEAT-06.2: the CRUD UI had zero test coverage before this - the backend CRUD is
- * tested in OfferingTests.cs, but nothing exercised the form, the create/edit/deactivate mutation
- * flows, or the FEAT-06.2 flexible-attribute editor's round-trip logic. */
 describe('toPayload', () => {
   const base = {
     nameAr: 'خدمة', nameEn: 'Service', description: '', categoryCode: 'tour_operations',
@@ -91,9 +101,6 @@ describe('OfferingCatalogPage', () => {
   })
 
   it('shows a retryable failure rather than an empty screen', async () => {
-    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
-    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
-    // button wired to nothing looks identical to one that works.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({ '/api/v1/suppliers/me/offerings': { __status: 500 } }, recorded)
 

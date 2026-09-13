@@ -1,3 +1,9 @@
+// The supplier's own catalogue of what they sell: create, edit and deactivate.
+//
+// The attribute editor is FEAT-06.2's [ASSUMPTION]: flexible key/value rows rather than a per-category schema - see
+// Offering.AttributesJson for why. Rows with an empty key are dropped when the payload is built rather than rejected in
+// the form, so a half-filled trailing row does not block a save.
+
 import { formatCurrency } from '../lib/datetime'
 import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
@@ -20,9 +26,6 @@ const schema = z.object({
   unitOfMeasureCode: z.string().min(1),
   priceAmount: z.string().optional(),
   currencyCode: z.string().optional(),
-  // FEAT-06.2 [ASSUMPTION]: flexible key/value rows, not a per-category schema - see
-  // Offering.AttributesJson's doc comment for why. Rows with an empty key are dropped in
-  // toPayload rather than rejected here, so a half-filled trailing row doesn't block save.
   attributes: z.array(z.object({ key: z.string(), value: z.string() })),
 })
 export type FormValues = z.infer<typeof schema>

@@ -1,3 +1,22 @@
+// SCR-606 at /ministry/rfqs/:code, for ministry_viewer - read-only, and the screen D-66 is really about.
+//
+// What this shows that nothing else in the product shows anyone outside the buying body: every bid on a tender, with the
+// bidding supplier NAMED and its total, whatever state the tender is in - including still open for submissions. A-8
+// anonymises bidders for the evaluators themselves while scoring runs; this screen deliberately does not, because that is
+// the scope D-57 offered and D-66 chose.
+//
+// There is one line it does not cross: a Draft bid is never listed. A draft has been offered to nobody, and no reading of
+// D-57 covers a supplier's unfinished thinking.
+//
+// When the commercial-visibility flag is off the values render as WITHHELD rather than as zero, and the banner says so.
+// "Policy withholds this" and "they bid nothing" are different facts, and a no-value cell has two different meanings that
+// confusing would be the worst thing this screen could do.
+//
+// Read-only is stated as a FACT about this screen rather than as a hint: a ministry_viewer holds governance.read and no
+// write permission at all.
+//
+// The route's own component reads the param and hands it down, so the page above it is testable as a prop.
+
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
@@ -5,20 +24,6 @@ import {Badge, Card, PageHeading, SkeletonList, StatusChip, Table, TableBody, Ta
 import { getMinistryRfqDetail } from '../../api/governance'
 import { formatCurrency, formatDate, formatNumber } from '../../lib/datetime'
 
-/**
- * SCR-606, `/ministry/rfqs/:code`, `ministry_viewer` — read-only, and the screen D-66 is really about.
- *
- * <p><b>What this shows that nothing else in the product shows anyone outside the buying body:</b> every bid
- * on a tender, with the bidding supplier named and its total, whatever state the tender is in — including
- * still open for submissions. A-8 anonymises bidders for the evaluators themselves while scoring runs; this
- * screen deliberately does not, because that is the scope D-57 offered and D-66 chose.</p>
- *
- * <p>There is one line it does not cross: a Draft bid is never listed. A draft has been offered to nobody,
- * and no reading of D-57 covers a supplier's unfinished thinking.</p>
- *
- * <p>When the commercial-visibility flag is off, the values render as withheld rather than as zero, and the
- * banner says so. "Policy withholds this" and "they bid nothing" are different facts.</p>
- */
 export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string }) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -52,9 +57,6 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <StatusChip machine="rfq" value={summary.state} />
-          {/* Read-only is a fact about this screen, not a hint: a ministry_viewer holds governance.read and
-              nothing else, so every write route in the product answers them 403. Saying so beats letting
-              them look for a button that was never there. */}
           <Badge tone="neutral">{t('ministryRfqDetail.readOnly')}</Badge>
         </div>
       </div>
@@ -94,9 +96,6 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
               {t('ministryRfqs.fields.awarded')}
             </dt>
             <dd>
-              {/* No value has two different meanings, and confusing them would be the worst thing this
-                  screen could do: either nothing has been awarded, or the figure exists and disclosure
-                  policy withholds it. */}
               {(() => {
                 if (summary.awardedValue !== null) return formatCurrency(summary.awardedValue, summary.currencyCode, locale)
                 return commercialValuesVisible ? t('ministryRfqDetail.notAwarded') : t('ministryRfqDetail.withheld')
@@ -158,7 +157,6 @@ export function MinistryRfqDetailPage({ referenceCode }: { referenceCode: string
   )
 }
 
-/** The route's own component: reads the param and hands it down, so the page above is testable as a prop. */
 export function MinistryRfqDetailRoute() {
   const { referenceCode } = useParams({ from: '/back-office/ministry/rfqs/$referenceCode' })
   return <MinistryRfqDetailPage referenceCode={referenceCode} />

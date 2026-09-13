@@ -1,3 +1,22 @@
+// SCR-720. Three audit endpoints existed and no screen called any of them.
+//
+// The actor is named, and a system action SAYS "System" rather than leaving the cell blank, because "who did this" is the
+// first question asked of an audit row - and the transition renders as one, with the states the row actually carries.
+//
+// THE FILTERS GO TO THE SERVER rather than narrowing the page already held. Filtering in the browser would show only the
+// current page's matches and read as the filter working - the same silent narrowing the server's 422 refusal exists to
+// prevent. The control is that the first request carried no filters at all.
+//
+// A REFUSED FILTER VALUE shows against the field the server named, rather than as a page-level failure: a compliance officer
+// with six filter boxes needs to know which one to fix. Its control is a 500, which has no field to point at and must not be
+// rendered as one filter's problem.
+//
+// An empty FILTERED search is told apart from an empty log, because "no audit rows" under a filter would tell an
+// administrator the platform has recorded nothing.
+//
+// And the filters the server says it applied are echoed from META rather than from local state: what the server applied and
+// what the boxes contain can differ, and the first is the one that produced these rows.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -30,7 +49,6 @@ function page(rows: unknown[], overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** SCR-720. Three audit endpoints existed and no screen called any of them. */
 describe('AuditExplorerPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -43,9 +61,7 @@ describe('AuditExplorerPage', () => {
     renderPage(<AuditExplorerPage />)
 
     expect(await screen.findByText('A Manager')).toBeInTheDocument()
-    // "Who did this" is the first question asked of an audit row, so a system action says so.
     expect(screen.getByText('System')).toBeInTheDocument()
-    // And the transition renders as one, with the states the row actually carries.
     expect(screen.getByText('Draft → InternalReview')).toBeInTheDocument()
   })
 
@@ -60,12 +76,9 @@ describe('AuditExplorerPage', () => {
     await userEvent.type(screen.getByLabelText('Action'), 'rfq_reassigned')
     await userEvent.click(screen.getByRole('button', { name: 'Search' }))
 
-    // Filtering in the browser would show only the current page's matches and read as the filter
-    // working - the same silent narrowing the server's 422 refusal exists to prevent.
     await waitFor(() => {
       expect(recorded.some((r) => r.url.includes('aggregateType=Rfq') && r.url.includes('action=rfq_reassigned'))).toBe(true)
     })
-    // The control: the first request carried no filters at all.
     expect(recorded[0].url).not.toContain('aggregateType')
   })
 
@@ -81,16 +94,12 @@ describe('AuditExplorerPage', () => {
 
     renderPage(<AuditExplorerPage />)
 
-    // Against the field, not as a page-level failure: a compliance officer with six filter boxes needs
-    // to know which one to fix.
     expect(await screen.findByText("'not-a-guid' is not a value the 'actorUserId' filter accepts."))
       .toBeInTheDocument()
     expect(screen.queryByText('Could not load the audit log')).not.toBeInTheDocument()
   })
 
   it('falls back to a page-level failure when the server names no field', async () => {
-    // The control for the test above: a 500 has no field to point at, and must not be rendered as one
-    // filter's problem.
     restore = mockFetch({ '/api/v1/audit': { __status: 500 } })
 
     renderPage(<AuditExplorerPage />)
@@ -108,7 +117,6 @@ describe('AuditExplorerPage', () => {
     await userEvent.type(screen.getByLabelText('Action'), 'nothing_matches_this')
     await userEvent.click(screen.getByRole('button', { name: 'Search' }))
 
-    // "No audit rows" under a filter would tell an administrator the platform has recorded nothing.
     expect(await screen.findByText('No audit rows match these filters')).toBeInTheDocument()
   })
 
@@ -119,8 +127,6 @@ describe('AuditExplorerPage', () => {
 
     renderPage(<AuditExplorerPage />)
 
-    // From meta, not from local state: what the server applied and what the boxes contain can differ,
-    // and the first is the one that produced these rows.
     expect(await screen.findByText('Filters applied: aggregateType=Rfq')).toBeInTheDocument()
   })
 })

@@ -1,3 +1,11 @@
+// SCR-401. Both queues the inventory names render.
+//
+// The copy says the queues belong to the ORGANIZATION rather than to the reader, because nothing resolves a single named
+// approver and copy claiming "assigned to you" would be a claim the system cannot make.
+//
+// Each queue says it is empty SEPARATELY, because "no approvals" over a merged list would hide which half is empty - and the
+// two queues are worked by different actions.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderPage, mockFetch } from '../../test/renderPage'
@@ -34,8 +42,6 @@ describe('ApprovalQueuesPage (SCR-401)', () => {
   })
 
   it('says the queues belong to the organization, not to the reader', async () => {
-    // Nothing resolves a single named approver, so copy claiming "assigned to you" would be a claim
-    // the system cannot make.
     restore = mockFetch({
       '/api/v1/procurement/approvals': { rfqPublishApprovals: [], awardApprovals: [] },
     })
@@ -46,8 +52,6 @@ describe('ApprovalQueuesPage (SCR-401)', () => {
   })
 
   it('empty: each queue says so separately', async () => {
-    // Separately, because "no approvals" over a merged list would hide which half is empty - and the
-    // two queues are worked by different actions.
     restore = mockFetch({
       '/api/v1/procurement/approvals': { rfqPublishApprovals: [], awardApprovals: [] },
     })

@@ -1,3 +1,16 @@
+// SCR-715. Rewording a sentence a supplier reads on rejection used to be a redeploy.
+//
+// The screen answers "which of these has been changed" without opening anything, because rows are COLLAPSED: 29 types with
+// four bilingual fields each is not a scannable page.
+//
+// The available tokens are named from the server, per type, alongside what revert would restore - so the offer is not
+// guesswork. A refusal names the tokens the notification cannot fill instead of reporting a generic failure.
+//
+// Revert is offered only on a type that has been overridden, because otherwise the shipped wording is already what is in
+// force, and it takes an override back to that wording.
+//
+// A failed read offers a retry instead of a blank page.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -25,7 +38,6 @@ const TEMPLATE = {
   availableTokens: ['rfqCode'],
 }
 
-/** SCR-715. Rewording a sentence a supplier reads on rejection used to be a redeploy. */
 describe('NotificationTemplatesPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -43,7 +55,6 @@ describe('NotificationTemplatesPage', () => {
     expect(await screen.findByText('rfq.approved')).toBeInTheDocument()
     expect(screen.getByText('Shipped wording')).toBeInTheDocument()
     expect(screen.getByText(/^Changed /)).toBeInTheDocument()
-    // Collapsed: 29 types with four bilingual fields each is not a scannable page.
     expect(screen.queryByLabelText('Title (Arabic)')).not.toBeInTheDocument()
   })
 
@@ -56,7 +67,6 @@ describe('NotificationTemplatesPage', () => {
 
     expect(screen.getByText('Available tokens: {rfqCode}')).toBeInTheDocument()
     expect(screen.getByLabelText('Title (Arabic)')).toBeInTheDocument()
-    // What revert would restore, so the offer is not guesswork.
     expect(screen.getByText('Shipped wording (what revert restores)')).toBeInTheDocument()
   })
 
@@ -85,7 +95,6 @@ describe('NotificationTemplatesPage', () => {
     renderPage(<NotificationTemplatesPage />)
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 
-    // Nothing to revert to: the shipped wording is already what is in force.
     expect(screen.queryByRole('button', { name: 'Restore the shipped wording' })).not.toBeInTheDocument()
   })
 

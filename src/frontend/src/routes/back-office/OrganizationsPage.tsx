@@ -1,3 +1,15 @@
+// Task #7, Stage C's admin screen: the buying bodies, their internal units, and the links between an organization and a
+// supplier.
+//
+// Three dialogs and a section, one per write: create an Organization, manage its OrgUnits, and look a supplier up to link or
+// unlink it.
+//
+// The supplier-link section reads nothing until somebody actually looks a supplier up, because its query is keyed on a
+// reference code the reader types - so the screen has no list to show before that and does not ask for one.
+//
+// A link is only ever created by the explicit action here. Nothing in registration, onboarding or approval creates one as a
+// side effect, which is the guarantee this stage's ticket required and the integration suite asserts.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'

@@ -1,3 +1,34 @@
+// SCR-716 at /back-office/ui-strings, for system_admin, P2.
+//
+// Correcting one word used to mean a code change and a deployment, because every string is compiled into i18n/config.ts.
+// ARABIC-REVIEW.md is a long list of corrections waiting on exactly that, and the people who own the wording are not the
+// people who own releases.
+//
+// The shipped string is shown beside the override so an administrator can see what they are replacing - without it, the
+// screen is a text box next to a key nobody can read. The editor is pre-filled with the string being replaced rather than
+// blank, because an administrator fixing one word should not have to retype the sentence around it.
+//
+// THE KEY LIST is every key the running bundle actually has, flattened to the dotted paths the API stores. It is read from
+// the BUNDLE rather than from a list on the server: the server does not hold the SPA's key set and never can, because it
+// lives in the compiled bundle, so any list it kept would be a second, always-stale copy. The screen that IS the bundle is
+// the only honest source, which is why key selection happens here and the API accepts any key.
+//
+// It is sorted with an explicit comparator rather than a bare .sort(), which compares UTF-16 code units: that puts every
+// uppercase segment ahead of every lowercase one, so rfq.Status would sort before rfq.actions and a human scanning the list
+// for a key would not find it where they looked. And it is capped at fifty, because the bundle has well over a thousand keys
+// and a datalist of all of them is a browser hang rather than a search.
+//
+// THE LANGUAGE FIELD threads the Field's props through and gives a placeholder, and both matter: Select names its Radix
+// trigger from the placeholder, so without one the trigger had no accessible name at all - axe reported button-name at
+// CRITICAL impact and the e2e a11y sweep failed on this page - and discarding the props meant the visible label's htmlFor
+// pointed at nothing.
+//
+// No overrides is NOT a defect: it means the product reads exactly as it was built, which is the correct state for a fresh
+// deployment.
+//
+// The removal control says "Restore" rather than "delete": what the click does is bring back the shipped string, and naming
+// it after the storage would make an administrator hesitate over the one action that is always safe.
+
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -5,14 +36,6 @@ import i18n from '../../i18n/config'
 import {Badge, Button, Card, Field, Input, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { listUiStringOverrides, upsertUiStringOverride, deleteUiStringOverride } from '../../api/uiStrings'
 
-/**
- * Every key the running bundle actually has, flattened to the dotted paths the API stores.
- *
- * <p><b>Read from the bundle rather than from a list on the server.</b> The server does not hold the
- * SPA's key set and never can — it lives in the compiled bundle — so any list it kept would be a second,
- * always-stale copy. The screen that IS the bundle is the only honest source, which is why key selection
- * happens here and the API accepts any key.</p>
- */
 function flattenKeys(node: unknown, prefix = ''): string[] {
   if (typeof node === 'string') return [prefix]
   if (typeof node !== 'object' || node === null) return []
@@ -20,16 +43,6 @@ function flattenKeys(node: unknown, prefix = ''): string[] {
     .flatMap(([segment, child]) => flattenKeys(child, prefix ? `${prefix}.${segment}` : segment))
 }
 
-/**
- * SCR-716, `/back-office/ui-strings`, `system_admin`, P2.
- *
- * <p>Correcting one word used to mean a code change and a deployment, because every string is compiled
- * into i18n/config.ts. ARABIC-REVIEW.md is a long list of corrections waiting on exactly that, and the
- * people who own the wording are not the people who own releases.</p>
- *
- * <p>The shipped string is shown beside the override so an administrator can see what they are replacing —
- * without it, the screen is a text box next to a key nobody can read.</p>
- */
 export function UiStringsPage() {
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -44,14 +57,9 @@ export function UiStringsPage() {
 
   const allKeys = useMemo(() => {
     const bundle = i18n.getResourceBundle(language, 'translation') as unknown
-    // Sorted with an explicit comparator, not bare .sort(), which compares UTF-16 code units: that
-    // puts every uppercase segment ahead of every lowercase one, so `rfq.Status` would sort before
-    // `rfq.actions` and a human scanning the list for a key would not find it where they looked.
     return flattenKeys(bundle).sort((a, b) => a.localeCompare(b))
   }, [language])
 
-  // Capped at fifty, because the bundle has well over a thousand keys and a datalist of all of them is a
-  // browser hang rather than a search.
   const matches = useMemo(() => {
     if (search.trim().length < 2) return []
     const needle = search.trim().toLowerCase()
@@ -92,10 +100,6 @@ export function UiStringsPage() {
         <div className="flex flex-col gap-4">
           <div className="max-w-[14rem]">
             <Field label={t('uiStrings.fields.language')}>
-              {/* The Field's props are threaded through and a placeholder is given, and both matter: Select
-                  names its Radix trigger from `placeholder`, so without one the trigger had no accessible name
-                  at all - axe reported button-name at CRITICAL impact and the e2e a11y sweep failed on this
-                  page. Discarding `p` also meant the visible label's htmlFor pointed at nothing. */}
               {(p) => (
                 <Select
                   {...p}
@@ -120,8 +124,6 @@ export function UiStringsPage() {
                     variant="ghost"
                     onClick={() => {
                       setSelectedKey(key)
-                      // Pre-filled with the string being replaced, not blank: an administrator fixing one
-                      // word should not have to retype the sentence around it.
                       setDraft(i18n.getFixedT(language, 'translation')(key) as string)
                     }}
                   >
@@ -171,8 +173,6 @@ export function UiStringsPage() {
         ) : null}
 
         {overridesQuery.data && overridesQuery.data.length === 0 ? (
-          /* Not a defect: no overrides means the product reads exactly as it was built, which is the
-             correct state for a fresh deployment. */
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('uiStrings.empty')}</p>
         ) : null}
 
@@ -193,9 +193,6 @@ export function UiStringsPage() {
                   <TableCell><Badge tone="neutral">{row.language}</Badge></TableCell>
                   <TableCell>{row.value}</TableCell>
                   <TableCell>
-                    {/* "Restore", not "delete": what the click does is bring back the shipped string, and
-                        naming it after the storage would make an administrator hesitate over the one
-                        action that is always safe. */}
                     <Button variant="ghost" disabled={deleteMutation.isPending}
                       onClick={() => deleteMutation.mutate({ language: row.language, key: row.key })}>
                       {t('uiStrings.restore')}

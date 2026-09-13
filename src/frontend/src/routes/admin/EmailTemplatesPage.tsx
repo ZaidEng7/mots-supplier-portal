@@ -1,3 +1,21 @@
+// T-076 at /back-office/email-templates, for system_admin.
+//
+// Split out of T-061 for a reason that shows up on this screen: an in-app notification that loses a token reads badly, and an
+// email that loses {verifyUrl} locks the recipient out of the account they are creating - and nothing in the system can
+// tell, because the send succeeded and the body was valid. So the required tokens are shown per template, the server refuses
+// a save that drops one, and the refusal names which token in which language. Anything other than the server's two named
+// refusals is a generic save failure.
+//
+// The shipped wording sits beside the editor with its tokens intact, so revert is not guesswork and an administrator can see
+// which placeholders they are allowed to use. Required tokens come first and in a stronger tone: these are the ones a save
+// is refused for.
+//
+// The editor is PRE-FILLED with whatever is in force - the override if there is one, the shipped copy otherwise - because an
+// empty editor would make every edit a rewrite from scratch.
+//
+// Revert is only offered where there is something to revert TO. On a shipped row it would be a button that answers 404, and
+// naming it "revert" would imply the shipped words are a change.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -7,19 +25,6 @@ import {
   EmailTemplateError, type EmailTemplateRow,
 } from '../../api/emailTemplates'
 
-/**
- * T-076, `/back-office/email-templates`, `system_admin`.
- *
- * <p>Split out of T-061 for a reason that shows up on this screen: an in-app notification that loses a token
- * reads badly, and an email that loses <code>{'{verifyUrl}'}</code> locks the recipient out of the account
- * they are creating — and nothing in the system can tell, because the send succeeded and the body was valid.
- * So the required tokens are shown per template, the server refuses a save that drops one, and the refusal
- * names which token in which language.</p>
- *
- * <p>The shipped wording sits beside the editor with its tokens intact, so revert is not guesswork and an
- * administrator can see which placeholders they are allowed to use.</p>
- */
-/** The server's two named refusals, and their strings. Anything else is a generic save failure. */
 const REASON_KEYS: Record<string, string> = {
   MISSING_REQUIRED_TOKENS: 'emailTemplates.errors.missingTokens',
   UNKNOWN_TOKENS: 'emailTemplates.errors.unknownTokens',
@@ -69,8 +74,6 @@ export function EmailTemplatesPage() {
   const startEditing = (row: EmailTemplateRow) => {
     setEditing(row.key)
     setRejectedTokens([])
-    // Pre-filled with whatever is in force — the override if there is one, the shipped copy otherwise. An
-    // empty editor would make every edit a rewrite from scratch.
     setDraft(row.override ?? {
       subjectAr: row.shipped.subjectAr,
       subjectEn: row.shipped.subjectEn,
@@ -101,7 +104,6 @@ export function EmailTemplatesPage() {
             ) : (
               <Badge tone="neutral">{t('emailTemplates.shippedWording')}</Badge>
             )}
-            {/* Required first and in a stronger tone: these are the ones a save is refused for. */}
             {row.requiredTokens.map((token) => (
               <Badge key={token} tone="danger">{`{${token}}`} {t('emailTemplates.required')}</Badge>
             ))}
@@ -167,8 +169,6 @@ export function EmailTemplatesPage() {
               <p dir="ltr" style={{ color: 'var(--color-text-primary)' }}>{(row.override ?? row.shipped).subjectEn}</p>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => startEditing(row)}>{t('emailTemplates.edit')}</Button>
-                {/* Only offered where there is something to revert TO. On a shipped row it would be a button
-                    that answers 404, and naming it "revert" would imply the shipped words are a change. */}
                 {row.override ? (
                   <Button variant="ghost" disabled={revertMutation.isPending} onClick={() => revertMutation.mutate(row.key)}>
                     {t('emailTemplates.revert')}

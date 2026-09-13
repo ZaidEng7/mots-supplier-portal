@@ -1,3 +1,26 @@
+// FEAT-08.6 and FR-INV-006: this list is itself invitation-scoped server-side, and the page renders whatever
+// /api/v1/suppliers/me/rfqs returns without any client-side visibility filtering.
+//
+// THE T2-32 REGRESSION comes first. Before the fix this page read `rfqsQuery.data ?? []` and went straight to the
+// length === 0 branch, so a supplier with invitations was told "No invitations yet" for the whole flight of the request -
+// and permanently if it failed. Loading and empty must be distinguishable, which is asserted in both directions. The
+// fetch in that test deliberately never settles: that is the only way to observe the pending state without racing the
+// resolution.
+//
+// Invited RFQs are listed with reference, title and the caller's own invitation status, using only the projected
+// SupplierRfqListItemDto fields - the list no longer returns the whole aggregate, so a fixture carrying items,
+// attachments or clarifications would be lying about the wire.
+//
+// THE PAGING test is the consumer half of the backend's keyset paging. Before this page used useInfiniteQuery it fetched
+// page one and stopped, so a supplier with more than 20 invitations simply never saw the rest - no error, no empty state,
+// nothing visibly wrong. It asserts page two is APPENDED rather than swapped in: the page-one row must still be on screen
+// after "Load more", because a page that replaced its data instead of accumulating would pass a "row from page two is
+// visible" check while losing everything above it.
+//
+// The last two are the failure. It says the fetch failed rather than "no invitations yet" - T2-32 fixed
+// loading-versus-empty and left failure sharing the empty branch, so a supplier whose list could not load was told they
+// had no invitations, which is a reason to stop looking - and the Try again button actually tries again.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -10,21 +33,10 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { SupplierRfqListPage } = await import('./SupplierRfqListPage')
 
-/** FEAT-08.6/FR-INV-006: this list is itself invitation-scoped server-side - the page renders
- * whatever /api/v1/suppliers/me/rfqs returns without any client-side visibility filtering. */
 describe('SupplierRfqListPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
 
-  /**
-   * T2-32 regression. Before the fix this page read `rfqsQuery.data ?? []` and went straight to the
-   * `length === 0` branch, so a supplier with invitations was told "No invitations yet" for the
-   * whole flight of the request - and permanently if it failed. Loading and empty must be
-   * distinguishable, which is what this asserts in both directions.
-   *
-   * The fetch deliberately never settles: that is the only way to observe the pending state
-   * without racing the resolution.
-   */
   it('shows the loading skeleton and NOT the empty copy while the query is still pending', () => {
     const original = globalThis.fetch
     globalThis.fetch = (() => new Promise(() => {})) as typeof fetch
@@ -45,8 +57,6 @@ describe('SupplierRfqListPage', () => {
   })
 
   it('lists invited RFQs with reference, title, and my invitation status', async () => {
-    // Only the projected `SupplierRfqListItemDto` fields - the list no longer returns the whole
-    // aggregate, so a fixture carrying items/attachments/clarifications would be lying about the wire.
     restore = mockFetch({
       '/api/v1/rfqs': listPage([
         {
@@ -63,15 +73,6 @@ describe('SupplierRfqListPage', () => {
     expect(screen.getByText('Invited')).toBeInTheDocument()
   })
 
-  /**
-   * The consumer half of the backend's keyset paging. Before this page used useInfiniteQuery it
-   * fetched page one and stopped, so a supplier with more than 20 invitations simply never saw the
-   * rest - no error, no empty state, nothing visibly wrong.
-   *
-   * <p>Asserts that page two is APPENDED, not swapped in: the page-one row must still be on screen
-   * after "Load more". A page that replaced its data instead of accumulating would pass a
-   * "row from page two is visible" check while losing everything above it.</p>
-   */
   it('appends the next page when Load more is used, keeping the rows already shown', async () => {
     const item = (code: string) => ({
       rfqCode: code, titleAr: 'طلب', titleEn: `RFQ ${code}`,
@@ -100,8 +101,6 @@ describe('SupplierRfqListPage', () => {
   })
 
   it('says the fetch failed rather than "no invitations yet"', async () => {
-    // T2-32 fixed loading-vs-empty and left failure sharing the empty branch: a supplier whose list
-    // could not load was told they had no invitations, which is a reason to stop looking.
     restore = mockFetch({ '/api/v1/rfqs': { __status: 500 } })
 
     renderPage(<SupplierRfqListPage />)

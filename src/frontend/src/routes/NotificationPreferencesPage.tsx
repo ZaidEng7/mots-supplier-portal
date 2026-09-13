@@ -1,3 +1,21 @@
+// SCR-901 at /settings/notifications, for every authenticated persona.
+//
+// This screen was refused for two batches, and correctly. D-48 and D-52: FR-NOT-004 says "opt-out of non-critical only"
+// and nothing classified the 32 notification types, so building it would have meant deciding inside a preferences screen
+// whether a supplier may switch off the message telling them they have won. D-60 made that decision, phase 1 recorded the
+// classification, and this is the screen it was for.
+//
+// The always-on types are LISTED, not hidden. Half of what a preferences screen owes its reader is what they will be told
+// regardless, and the four families D-60 protects - invitations, clarification requests, award outcomes, document expiry -
+// are exactly the ones somebody would go looking for first. A screen that omitted them would read as broken to the one
+// user who checked.
+//
+// The WHOLE SET is sent on save rather than a request per toggle: the state of this screen is one decision, and N
+// independent requests would let it end up half-applied with no way to tell.
+//
+// Local edits are keyed by type and empty until the reader touches something, so a failed save leaves the screen showing
+// what the SERVER holds rather than an optimistic guess.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -5,22 +23,6 @@ import { Badge, Button, Card, PageHeading, SkeletonList, useToast } from '../com
 import { getNotificationPreferences, setNotificationPreferences, type NotificationPreference } from '../api/notifications'
 import { invalidateQuietly } from '../lib/queryClient'
 
-/**
- * SCR-901, `/settings/notifications`, every authenticated persona.
- *
- * <p><b>This screen was refused for two batches, and correctly.</b> D-48/D-52: FR-NOT-004 says "opt-out of
- * non-critical only" and nothing classified the 32 notification types, so building it would have meant
- * deciding inside a preferences screen whether a supplier may switch off the message telling them they have
- * won. D-60 made that decision; phase 1 recorded the classification; this is the screen it was for.</p>
- *
- * <p><b>The always-on types are LISTED, not hidden.</b> Half of what a preferences screen owes its reader is
- * what they will be told regardless — and the four families D-60 protects (invitations, clarification
- * requests, award outcomes, document expiry) are exactly the ones somebody would go looking for first. A
- * screen that omitted them would read as broken to the one user who checked.</p>
- *
- * <p><b>The whole set is sent on save,</b> not a request per toggle: the state of this screen is one
- * decision, and N independent requests would let it end up half-applied with no way to tell.</p>
- */
 export function NotificationPreferencesPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -32,8 +34,6 @@ export function NotificationPreferencesPage() {
     queryFn: getNotificationPreferences,
   })
 
-  /** Local edits, keyed by type. Empty until the reader touches something, so a failed save leaves the
-   * screen showing what the SERVER holds rather than an optimistic guess. */
   const [pending, setPending] = useState<Record<string, boolean> | null>(null)
 
   const save = useMutation({
@@ -107,8 +107,6 @@ export function NotificationPreferencesPage() {
         </div>
       </Card>
 
-      {/* Listed, not hidden. D-60's four families are the ones a user would look for first, and a screen
-          that left them out would read as broken to exactly that reader. */}
       <Card title={t('notificationPreferences.alwaysOn')}>
         <p className="mb-4 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('notificationPreferences.alwaysOnHint')}

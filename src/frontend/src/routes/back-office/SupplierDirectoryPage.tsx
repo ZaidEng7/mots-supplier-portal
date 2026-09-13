@@ -1,3 +1,21 @@
+// SCR-402: the supplier directory a buyer browses before deciding whom to invite.
+//
+// Why this is not the offering search. That screen searches catalogue ENTRIES, so a registered supplier with no offerings
+// recorded was invisible to the officer choosing invitees - and recording a catalogue is optional. This lists the companies,
+// with their categories and how many live offerings each one has, so "nothing in the catalogue yet" is a fact on the row
+// instead of an absence from the list.
+//
+// SUSPENDED SUPPLIERS ARE LISTED, greyed by their own status chip rather than hidden. A buyer who knows a company is
+// registered must be able to find it; hiding it produces the harder question - where did they go - with no answer on any
+// screen.
+//
+// It is PAGED rather than first-page-only. The registry grows without bound, and a page-one fetch would hide every supplier
+// after the first twenty with nothing visibly wrong - the defect MSP-84 recorded on the review queue, which is the same shape
+// of list.
+//
+// The status chip reads the `onboarding` machine, because §7.1 groups onboarding and lifecycle states in one table and both
+// live there: there is no separate lifecycle namespace to read from.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
@@ -7,18 +25,6 @@ import { nextPageParam } from '../../api/listEnvelope'
 import { fetchCategories } from '../../api/reference'
 import { localisedName } from '../../lib/localised'
 
-/**
- * SCR-402: the supplier directory a buyer browses before deciding whom to invite.
- *
- * <p><b>Why this is not the offering search.</b> That screen searches catalogue ENTRIES, so a registered
- * supplier with no offerings recorded was invisible to the officer choosing invitees — and recording a
- * catalogue is optional. This lists the companies, with their categories and how many live offerings each
- * one has, so "nothing in the catalogue yet" is a fact on the row instead of an absence from the list.</p>
- *
- * <p><b>Suspended suppliers are listed, greyed by their own status chip rather than hidden.</b> A buyer who
- * knows a company is registered must be able to find it; hiding it produces the harder question — where did
- * they go — with no answer on any screen.</p>
- */
 export function SupplierDirectoryPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -34,9 +40,6 @@ export function SupplierDirectoryPage() {
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 
-  // Paged, not first-page-only. The registry grows without bound and a page-one fetch would hide every
-  // supplier after the first twenty with nothing visibly wrong - the defect MSP-84 recorded on the review
-  // queue, which is the same shape of list.
   const directoryQuery = useInfiniteQuery({
     queryKey: ['supplier-directory', filters.category, filters.lifecycleState, filters.q],
     queryFn: ({ pageParam }) => listSupplierDirectory(pageParam, filters),
@@ -75,8 +78,6 @@ export function SupplierDirectoryPage() {
             placeholder={t('supplierDirectory.filterState')}
             options={[
               { value: 'all', label: t('supplierDirectory.filterAll') },
-              // §7.1 groups onboarding and lifecycle states in one table, and the `onboarding`
-              // machine is where both live - there is no separate lifecycle namespace to read from.
               { value: 'Active', label: t('status.onboarding.Active') },
               { value: 'Suspended', label: t('status.onboarding.Suspended') },
             ]}

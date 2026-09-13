@@ -1,3 +1,34 @@
+// SCR-720 at /back-office/audit, for system_admin, P2 (FR-AUD-004).
+//
+// Three audit endpoints existed and no screen called any of them. The supplier-facing two were closed in T-079 by putting
+// them on the supplier's own settings screen; this is the third - the platform-wide search and its filtered CSV export,
+// behind audit.read.
+//
+// EVERY FILTER IS APPLIED SERVER-SIDE, and nothing is filtered here. The API refuses an unrecognised value with a 422 naming
+// the field (MSP-75), and filtering a page in the browser would silently reintroduce the exact defect that refusal exists to
+// prevent: a search narrowed to one actor answering with every actor's rows, on the screen a compliance officer trusts most.
+//
+// The refusal is shown against the FIELD it names. A malformed id or date is a mistake somebody can correct, and "invalid
+// request" would leave them guessing which of six boxes to fix.
+//
+// TWO PIECES OF STATE, not one: what is typed, and what was searched. Refetching on every keystroke would issue a query per
+// character against the widest read in the product, and a filter half-typed is a filter that means something else.
+//
+// The export takes the SAME filters as the list, so a refusal there names the same field - but it is a separate request and
+// can fail on its own, for instance on a session that expired between the two.
+//
+// WHICH FILTERS THE SERVER SAYS IT APPLIED are echoed from meta.filtersApplied, so "no rows" can be told apart from "the
+// filter you thought you set was not one of them".
+//
+// The card is OUTSIDE the state rather than inside it: loading used to render a bare skeleton and failure a card with a
+// DIFFERENT title, so the screen changed shape twice on its way to a table. The "error and no refused field" condition is
+// kept exactly as it was, because a refused FIELD is not a failed request - the query succeeded and the server declined one
+// column - so it must not render as one.
+//
+// TWO CELLS SAY SOMETHING RATHER THAN NOTHING. An em dash stands for a row that is not a transition, because most audit
+// actions are not and a blank cell reads as data the trail failed to record. And a system actor is named in words rather
+// than left empty, because "who did this" is the first question asked of an audit row.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
@@ -5,29 +36,11 @@ import {Button, Card, Field, Input, ListCard, PageHeading, Table, TableBody, Tab
 import { formatDateTime } from '../../lib/datetime'
 import { AuditApiError, downloadAuditLog, searchAuditLog, type AuditSearchFilters } from '../../api/audit'
 
-/**
- * SCR-720, `/back-office/audit`, `system_admin`, P2 (FR-AUD-004).
- *
- * <p>Three audit endpoints existed and no screen called any of them. The supplier-facing two were
- * closed in T-079 by putting them on the supplier's own settings screen; this is the third — the
- * platform-wide search and its filtered CSV export, behind `audit.read`.</p>
- *
- * <p><b>Every filter is applied server-side, and nothing is filtered here.</b> The API refuses an
- * unrecognised value with a 422 naming the field (MSP-75), and filtering a page in the browser would
- * silently reintroduce the exact defect that refusal exists to prevent: a search narrowed to one actor
- * answering with every actor's rows, on the screen a compliance officer trusts most.</p>
- *
- * <p><b>The refusal is shown against the field it names.</b> A malformed id or date is a mistake
- * somebody can correct, and "invalid request" would leave them guessing which of six boxes to fix.</p>
- */
 export function AuditExplorerPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
   const { notify } = useToast()
 
-  // Two pieces of state, not one: what is typed, and what was searched. Refetching on every keystroke
-  // would issue a query per character against the widest read in the product, and a filter half-typed
-  // is a filter that means something else.
   const [draft, setDraft] = useState<AuditSearchFilters>({})
   const [applied, setApplied] = useState<AuditSearchFilters>({})
   const [rejectedField, setRejectedField] = useState<string | null>(null)
@@ -57,8 +70,6 @@ export function AuditExplorerPage() {
     try {
       await downloadAuditLog(applied)
     } catch (raised) {
-      // The export takes the SAME filters as the list, so a refusal here names the same field - but it
-      // is a separate request and can fail on its own (a session that expired between the two).
       setRejectedField(raised instanceof AuditApiError ? raised.field ?? null : null)
       notify({ kind: 'danger', title: t('auditExplorer.errors.exportFailed') })
     }
@@ -111,8 +122,6 @@ export function AuditExplorerPage() {
           </Button>
           <Button size="sm" variant="secondary" onClick={() => void exportCsv()}>{t('auditExplorer.export')}</Button>
         </div>
-        {/* Which filters the SERVER says it applied, echoed from meta.filtersApplied - so "no rows"
-            can be told apart from "the filter you thought you set was not one of them". */}
         {query.data?.pages[0]?.meta?.filtersApplied?.length ? (
           <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('auditExplorer.filtersApplied', { filters: query.data.pages[0].meta.filtersApplied.join(', ') })}
@@ -120,11 +129,6 @@ export function AuditExplorerPage() {
         ) : null}
       </Card>
 
-      {/* The card is outside the state, not inside it: loading used to render a bare skeleton and failure
-          a card with a DIFFERENT title, so the screen changed shape twice on its way to a table.
-
-          `error && !refusedField` is kept exactly as it was. A refused FIELD is not a failed request -
-          the query succeeded and the server declined one column - so it must not render as one. */}
       <ListCard
         title={t('auditExplorer.resultsTitle')}
         query={{ ...query, isPending: query.isLoading, isError: !!error && !refusedField, error }}
@@ -150,11 +154,7 @@ export function AuditExplorerPage() {
                 <TableCell>{formatDateTime(row.occurredAt, locale)}</TableCell>
                 <TableCell><code>{row.action}</code></TableCell>
                 <TableCell>{row.aggregateType} · <code>{row.aggregateId}</code></TableCell>
-                {/* An em dash for a row that is not a transition - most audit actions are not,
-                    and a blank cell reads as data the trail failed to record. */}
                 <TableCell>{row.fromState || row.toState ? `${row.fromState ?? '—'} → ${row.toState ?? '—'}` : '—'}</TableCell>
-                {/* A system actor has no label. Said in words rather than left empty, because
-                    "who did this" is the first question asked of an audit row. */}
                 <TableCell>{row.actorLabel ?? t('auditExplorer.systemActor')}</TableCell>
               </TableRow>
             ))}

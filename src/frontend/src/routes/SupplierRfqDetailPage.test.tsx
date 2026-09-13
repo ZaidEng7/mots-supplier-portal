@@ -1,3 +1,22 @@
+// FEAT-08.4, 08.6, FR-INV-004 and FR-INV-006: the supplier's own view. It proves the decline flow, and that a server-side
+// 404 rather than a client filter is what a non-invited supplier would hit here.
+//
+// The RFQ items and the current invitation status render; declining shows a success toast; the decline action is hidden
+// once already declined; and a non-invited supplier gets a not-found message from the server's own 404.
+//
+// A PublishedToAll clarification renders with no asker-identity field at all, and asking a new question shows a success
+// toast. The asker's own question is marked "My question".
+//
+// THE ATTACHMENTS are SCR-142's. The payload carried them since EPIC-08 and nothing rendered them, so an invited supplier
+// could read the RFQ and never reach the documents it depends on - found by the batch 9 per-screen sweep. The URL is
+// short-lived and issued per request (D-16), so it must be fetched on the click rather than rendered into the page where
+// it would outlive its own validity. With none, the card says so rather than rendering empty.
+//
+// The last pair is A-6's deadline reason. The notification cannot carry it - BRULE-091's allow-list is identifiers and
+// public codes, and it already refused a DATE on the grounds that a date is content - so the message points here and the
+// reason is waiting on the RFQ, beside the deadline it explains. Its control is that no card appears when the deadline
+// has not moved.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -29,8 +48,6 @@ const ATTACHMENT = {
   uploadedAt: '2026-09-01T10:00:00Z',
 }
 
-/** FEAT-08.4/08.6/FR-INV-004/006: the supplier's own view - proves the decline flow and that a
- * server-side 404 (not a client filter) is what a non-invited supplier would hit here. */
 describe('SupplierRfqDetailPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -113,9 +130,6 @@ describe('SupplierRfqDetailPage', () => {
   })
 
   it('lists the tender attachments and downloads one on demand', async () => {
-    // SCR-142. The payload carried `attachments` since EPIC-08 and nothing rendered them: an invited
-    // supplier could read the RFQ and never reach the documents it depends on. Found by the batch 9
-    // per-screen sweep.
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed', { attachments: [ATTACHMENT] }),
@@ -129,8 +143,6 @@ describe('SupplierRfqDetailPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Download' }))
 
-    // The URL is short-lived and issued per request (D-16), so it must be fetched on the click and
-    // not rendered into the page where it would outlive its own validity.
     await vi.waitFor(() => expect(open).toHaveBeenCalledWith('https://storage.example/signed', '_blank', 'noopener,noreferrer'))
     open.mockRestore()
   })
@@ -144,9 +156,6 @@ describe('SupplierRfqDetailPage', () => {
   })
 
   it('tells the supplier why their deadline moved', async () => {
-    // A-6. The notification cannot carry the reason - BRULE-091's allow-list is identifiers and public
-    // codes, and it already refused a DATE on the grounds that a date is content - so the message points
-    // here and the reason is waiting on the RFQ, beside the deadline it explains.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed', {
         submissionDeadlineChangeReason: 'The Ministry extended the tender period.',
@@ -161,7 +170,6 @@ describe('SupplierRfqDetailPage', () => {
   })
 
   it('shows no deadline-change card when the deadline has not moved', async () => {
-    // The control.
     restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001': fixture('Viewed') })
 
     renderPage(<SupplierRfqDetailPage />)

@@ -1,24 +1,26 @@
+// A card is a component, not a set of classes copied between screens.
+//
+// What was wrong. Card exists and owns §6.7's surface - a token background, a 1px border, --radius-lg, the faintest step
+// on the shadow scale, and an <h2> title at --text-h4. Fifteen panels across four screens re-declared all of that
+// inline, which is the same failure the page heading had: the component exists, most screens ignore it, and the copies
+// drift. One of them had already lost the shadow.
+//
+// What this does not forbid. The token itself. A warning banner, a KPI strip and a form are allowed to be rounded
+// surfaces without being cards; what they may not do is reproduce the card's WHOLE signature - the surface background
+// AND the border AND a --text-h4 heading, in one element's vicinity - because at that point they are a card written out
+// longhand.
+//
+// The exemptions are panels that carry the full signature for a reason, each entry saying why.
+//
+// The sweep asserts it reads the route tree it claims to, then that no screen writes a card out longhand. The last test
+// is the control, and it also pins the other half: a rounded surface that is not pretending to be a card stays allowed.
+
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 
-/**
- * A card is a component, not a set of classes copied between screens.
- *
- * <p><b>What was wrong.</b> `Card` exists and owns §6.7's surface — a token background, a 1px border,
- * `--radius-lg`, the faintest step on the shadow scale, and an `<h2>` title at `--text-h4`. Fifteen
- * panels across four screens re-declared all of that inline, which is the same failure the page heading
- * had: the component exists, most screens ignore it, and the copies drift. One of them had already lost
- * the shadow.</p>
- *
- * <p><b>What this does not forbid.</b> The token itself. A warning banner, a KPI strip and a form are
- * allowed to be rounded surfaces without being cards; what they may not do is reproduce the card's
- * <i>whole</i> signature - the surface background AND the border AND a `--text-h4` heading - because at
- * that point they are a card written out longhand.</p>
- */
 const ROUTES = resolve(process.cwd(), 'src/routes')
 
-/** Panels that carry the full signature for a reason. Each entry says why. */
 const EXEMPT: Record<string, string> = {}
 
 function routeFiles(dir = ROUTES): string[] {
@@ -30,7 +32,6 @@ function routeFiles(dir = ROUTES): string[] {
   })
 }
 
-/** The card's whole signature: its surface, its border, and a section heading, in one element's vicinity. */
 function hasHandRolledCard(source: string): boolean {
   const openings = [...source.matchAll(/className="[^"]*rounded-\[var\(--radius-lg\)\][^"]*p-6"/g)]
   return openings.some((match) => {
@@ -63,7 +64,6 @@ describe('every card comes from the Card component', () => {
     const banner = `<div className="rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: 'var(--warning-50)' }}>`
 
     expect(hasHandRolledCard(longhand)).toBe(true)
-    // A rounded surface that is not pretending to be a card stays allowed.
     expect(hasHandRolledCard(banner)).toBe(false)
   })
 })

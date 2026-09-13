@@ -1,3 +1,10 @@
+// Task #19: resubmitMutation's onSuccess - queryClient.invalidateQueries, now invalidateQuietly - was one of the eight
+// no-floating-promises findings, and the last one not otherwise exercised by a test in this PR.
+//
+// resubmitMutation shows no success toast, only onProfile and the invalidate, so this counts GET calls to the annotation
+// endpoint - the same technique ReviewApplicationPage.pickup.test.tsx uses - rather than reusing the shared mockFetch
+// harness, which always returns the same declared body and cannot distinguish "refetched" from "never fetched again".
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -30,15 +37,6 @@ const annotation = {
   resolvedAt: null,
 }
 
-/**
- * Task #19: resubmitMutation's onSuccess (queryClient.invalidateQueries, now invalidateQuietly)
- * was one of the eight no-floating-promises findings, and the last one not otherwise exercised by
- * a test in this PR. resubmitMutation shows no success toast (only onProfile + invalidate), so this
- * counts GET calls to the annotation endpoint - the same technique used for
- * ReviewApplicationPage.pickup.test.tsx - rather than reusing the shared mockFetch harness, which
- * always returns the same declared body and cannot distinguish "refetched" from "never fetched
- * again".
- */
 describe('OnboardingPage resubmit flow', () => {
   let restore: () => void
   afterEach(() => restore?.())

@@ -1,3 +1,32 @@
+// FEAT-14.1 through 14.6 and FR-AWD-001 through 007: the award, from recommendation to issued PO.
+//
+// Every action here HIDES only, never gates - the server re-enforces its own guard on state, segregation of duties and
+// supplier-active regardless of what this page shows, the same rule as every other page in this codebase. Issuing is the
+// case that shows why it matters: it requires award.approve, the same permission as approving it and one the officer who
+// recommended does not hold, and the button used to render for anyone who could open the screen - so an officer was offered
+// an Issue that answered 403 every time.
+//
+// A failed fetch is its own branch. An award screen that renders "no recommendation yet" because the fetch failed is the
+// worst version of this defect in the product: it invites the officer to start the process again.
+//
+// THE ERP SYNC LABELS are UX-WRITING.md §7.6's three, keyed by enum member. NotRequested is absent DELIBERATELY, and absence
+// is how it renders: §7.6 has no row for it because it is not a sync state - nothing has been asked of the ERP yet - so
+// there is nothing to transcribe, and the two wrong answers are both available by accident, namely printing the raw enum
+// name, which is what this page did, showing a procurement officer the string "NotRequested", or reusing the pending label,
+// which claims a request is in flight when none was made. The helper returns null and the caller renders no chip. It is
+// typed as a Record over the enum MINUS that member, so adding a fifth ErpSyncStatus fails the type-check here rather than
+// falling through to a missing translation key at runtime.
+//
+// THE HEADING is the tender, then which of its six views you are on. It used to name the VIEW - "Award" joined to a
+// reference code - which is what the strip immediately below already says, while the tender's own name appeared nowhere on
+// the screen.
+//
+// THE WINNER is chosen by the proposal's §3 CODE, in the label as well as the value. "Rank 1 - 86.00" identifies a row on
+// this screen and nothing outside it, and a manager recommending a winner - or anyone later reading the award file - needs
+// the bid it refers to; the code is not the bidder's name, so this discloses nothing the seal withholds. T-068 made the code
+// the value too: it used to be the bid's internal identifier, which this screen then posted back as the winner, and the
+// label fell back to a rank alone whenever the code was absent, which it was on every response that did not look codes up.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../lib/authStore'
@@ -12,22 +41,6 @@ import { TenderTabs } from './rfq/TenderTabs'
 import { TenderHeader } from './rfq/TenderHeader'
 import { apiErrorMessage } from '../../api/problem'
 
-/** FEAT-14.1..14.6/FR-AWD-001..007. Every action here hides only, never gates - the server
- * re-enforces its own guard (state, segregation of duties, supplier-active) regardless of what
- * this page shows, same rule as every other page in this codebase. */
-/**
- * UX-WRITING.md §7.6's three ERP sync labels, keyed by enum member.
- *
- * <p><b>`NotRequested` is absent deliberately, and absence is how it renders.</b> §7.6 has no row for
- * it because it is not a sync state - nothing has been asked of the ERP yet - so there is nothing to
- * transcribe, and the two wrong answers are both available by accident: printing the raw enum name
- * (what this page did before, showing a procurement officer the string "NotRequested") or reusing
- * the pending label, which claims a request is in flight when none was made. The function returns
- * null and the caller renders no chip.</p>
- *
- * <p>Typed as Record over the enum MINUS that one member, so adding a fifth ErpSyncStatus fails the
- * type-check here rather than falling through to a missing translation key at runtime.</p>
- */
 const ERP_SYNC_LABEL_KEYS: Record<Exclude<ErpSyncStatus, 'NotRequested'>, string> = {
   Requested: 'status.erpSync.Requested',
   Synced: 'status.erpSync.Synced',
@@ -109,8 +122,6 @@ export function AwardPage() {
   })
 
   if (awardQuery.isError || evaluationQuery.isError) {
-    // An award screen that renders "no recommendation yet" because the fetch failed is the worst
-    // version of this defect in the product: it invites the officer to start the process again.
     return <QueryError error={awardQuery.error} onRetry={() => { void awardQuery.refetch(); void evaluationQuery.refetch() }} />
   }
 
@@ -123,9 +134,6 @@ export function AwardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The tender, then which of its six views you are on. The heading here used to name the view -
-          "Award" joined to a reference code - which is what the strip immediately below already says,
-          while the tender's own name appeared nowhere on the screen. */}
       <TenderHeader referenceCode={referenceCode} />
       <TenderTabs referenceCode={referenceCode} />
 
@@ -170,10 +178,6 @@ export function AwardPage() {
               <p style={{ color: 'var(--color-danger-solid)' }}>{t('award.rejectionReason')}: {lastApproval.comment}</p>
             ) : null}
 
-            {/* Issuing requires award.approve - the same permission as approving it, and one the
-                officer who recommended does not hold. The button was rendered for anyone who could
-                open this screen, so an officer was offered an Issue that answered 403 every time.
-                Hide, never gate: AwardEndpoints re-enforces the permission regardless. */}
             {award.state === 'Approved' && canApproveAward ? (
               <Button isLoading={executeMutation.isPending} onClick={() => executeMutation.mutate()}>{t('award.execute')}</Button>
             ) : null}
@@ -205,16 +209,8 @@ export function AwardPage() {
             <p style={{ color: 'var(--color-text-secondary)' }}>{t('award.noQualifiedProposals')}</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {/* The proposal's §3 code in the label. "Rank 1 — 86.00" identifies a row on this screen and
-                  nothing outside it; a manager recommending a winner, and anyone later reading the award file,
-                  needs the bid it refers to. The code is not the bidder's name, so this discloses nothing the
-                  seal withholds. */}
               <Select value={winningProposalCode} onValueChange={setWinningProposalCode} placeholder={t('award.selectWinner')}
                 options={qualifiedResults.map((r) => ({
-                  // T-068: the code is the value as well as the label now. It used to be the bid's
-                  // internal identifier, which this screen then posted back as the winner - and the
-                  // label fell back to a rank alone whenever the code was absent, which it was on
-                  // every response that did not look codes up.
                   value: r.proposalCode,
                   label: `${r.proposalCode} · ${t('award.winnerOption', { rank: r.rank, total: r.weightedTotal.toFixed(2) })}`,
                 }))} />
