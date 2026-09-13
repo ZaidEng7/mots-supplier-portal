@@ -1,11 +1,24 @@
-using MotsSupplierPortal.Domain.Common;
+// Something a supplier says it can provide, so buyers can find it.
+//
+// It is its own record rather than part of the supplier, because nothing about an offering takes part
+// in the supplier's own rules, such as profile completeness or having exactly one primary
+// representative. There is no reason to route every read and write through the supplier, so SupplierId
+// is a plain link, the same shape a category link uses.
+//
+// RowVersion is the version that refuses a lost update, and this is the record where its absence hurt
+// most: a supplier's catalogue is edited by every user at that company, so two people editing one
+// offering silently overwrote each other with no error and no trace.
+//
+// AttributesJson holds flexible extra attributes as JSON, such as a capacity of fifty guests. It is
+// deliberately not a schema enforced per category: no per-category attribute schema exists anywhere in
+// reference data to check against, and building the admin screen to define one is a feature nobody has
+// asked for here. Serialised JSON in a plain string column is the same convention the audit log's
+// changes and the outbox's payload use.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>FEAT-06.1/FR-OFF-001: what a supplier says it can provide, for buyer discovery.
-/// Deliberately its own root rather than a member of the Supplier aggregate's owned collections
-/// (Representative[], Address[], etc.) - nothing about Offering participates in Supplier's own
-/// invariants (submit-completeness, primary-representative, and so on), so there is no reason to
-/// route every read/write through Supplier. SupplierId is a plain FK, same shape as CategoryLink.</summary>
+using MotsSupplierPortal.Domain.Common;
+
 public sealed class Offering : IVersionedAggregate
 {
     public Guid Id { get; init; }
@@ -20,21 +33,7 @@ public sealed class Offering : IVersionedAggregate
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; init; }
 
-    /// <summary>
-    /// T-029: §8.1's xmin-backed version. Offering is the aggregate where its absence bit hardest -
-    /// a supplier's catalogue is edited by every supplier_user at that supplier, so two people
-    /// editing one offering silently overwrote each other with no error and no trace.
-    ///
-    /// <para>No migration: xmin is a Postgres system column that already exists on every table, so
-    /// this is a mapping change rather than a schema one.</para>
-    /// </summary>
     public uint RowVersion { get; private set; }
 
-    /// <summary>FEAT-06.2 [ASSUMPTION]: flexible key-value attributes (e.g. "capacity": "50
-    /// guests"), not a per-category enforced schema - no per-category attribute-schema entity
-    /// exists anywhere in reference data to bind against, and FEAT-06.2's own AC ("attribute
-    /// schema by category") describes a real admin surface no one has asked for here. Same jsonb
-    /// convention as AuditLog.Changes/OutboxMessage.PayloadJson: a plain string column holding
-    /// serialized JSON, not EF's native JSON mapping.</summary>
     public string? AttributesJson { get; set; }
 }

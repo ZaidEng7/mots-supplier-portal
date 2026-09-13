@@ -1,9 +1,21 @@
+// One bid's consolidated outcome, computed when the committee's scores are gathered. One row per bid.
+//
+// TechnicallyQualified is the two-envelope gate's own confirmation. A bid that fails it is excluded
+// from the ranking regardless of any financial score it accumulated.
+//
+// The scores and the rank are the result of that gathering.
+//
+// TieUnresolved means this result is still tied with another after every tie-break rule has been
+// applied, and no person has settled it. The ranks are still assigned, because a list with no order is
+// useless, but the award flow refuses to offer the top rank while any top-ranked result carries this,
+// because at that point the ordering between them came from nothing a rule decided. The principle is
+// to be deterministic where the rules decide and to refuse to decide where they do not.
+//
+// TieResolvedByUserId and TieResolutionReason record who settled a tie and why. Both are null while a
+// tie is unresolved, and null when there was never a tie.
+
 namespace MotsSupplierPortal.Domain.Evaluation;
 
-/// <summary>FEAT-11.6/FR-EVL-007, BRULE-063/064: one row per proposal, computed at Consolidate().
-/// TechnicallyQualified is the two-envelope gate's own consolidated confirmation (OQ-009) - a
-/// proposal that fails it is excluded from ranking regardless of any financial score it may have
-/// accumulated (BRULE-064: "not shortlist-eligible ... regardless of total").</summary>
 public sealed class ConsolidatedResult
 {
     public Guid Id { get; init; }
@@ -15,19 +27,8 @@ public sealed class ConsolidatedResult
     public decimal WeightedTotal { get; internal set; }
     public int? Rank { get; internal set; }
 
-    /// <summary>
-    /// A-1/BRULE-069: this result is tied with another one after EVERY tie-break rung, and the tie has
-    /// not been resolved by a person.
-    ///
-    /// <para>The ranks are still assigned - a list with no order is useless - but the award flow
-    /// refuses to offer rank 1 while any rank-1 result carries this, because at that point the
-    /// ordering between them came from nothing a rule decided. D-8's principle: deterministic where
-    /// the rules decide, refusing to decide where they do not.</para>
-    /// </summary>
     public bool TieUnresolved { get; internal set; }
 
-    /// <summary>Who resolved the tie and why, once a person has. Null while unresolved and null when
-    /// there was never a tie to resolve.</summary>
     public Guid? TieResolvedByUserId { get; internal set; }
 
     public string? TieResolutionReason { get; internal set; }

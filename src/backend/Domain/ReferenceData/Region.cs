@@ -1,8 +1,12 @@
+// A governorate or region, used by a supplier's addresses.
+//
+// One of the six reference lists the ministry maintains, alongside currencies,
+// categories, units of measure, document types and Incoterms. They all share the same
+// shape: a code, a name in both languages, and a flag that retires an entry without
+// deleting it.
+
 namespace MotsSupplierPortal.Domain.ReferenceData;
 
-/// <summary>00-foundational-decisions.md / DATABASE-MODEL.md: Region is a standard reference-data
-/// lookup table (same tier as Currency/DocumentType/Category/UnitOfMeasure/Incoterm), used by
-/// Address.RegionId (STORY-04.3.1: "region from reference data").</summary>
 public sealed class Region
 {
     public Guid Id { get; init; }

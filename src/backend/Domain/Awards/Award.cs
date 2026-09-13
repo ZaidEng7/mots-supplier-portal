@@ -1,32 +1,38 @@
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// The decision that concludes a tender: a manager recommends a winner, a different manager
+// approves it, and the award is issued.
+//
+//   Recommend        a manager names the winning bid and writes a justification
+//   RouteForApproval  sends it to an approver and opens an approval step
+//   Approve / Reject  the approver decides; a rejection sends it back to be re-recommended
+//   ExecuteAward      issues the award and freezes the comparison as it stood
+//
+// The approver must not be the recommender. That rule is enforced in the request handler
+// and again here, because this object already knows who recommended and a second cheap
+// check costs nothing.
+//
+// Once the state is Awarded the decision can never change. There is no lock flag to forget
+// to check: every method above accepts only a state before Awarded, so once it is Awarded
+// none of them has a path that succeeds. The state machine is the lock.
+//
+// The exception is the finance handshake - ErpSyncStatus, ExternalPurchaseOrderRef,
+// ErpSyncedAt, ErpRetryCount - which must keep moving after the award is final, because a
+// tender only reaches Completed once the purchase order is acknowledged. Those fields
+// track an infrastructure outcome, not a procurement decision, which is why they are not
+// part of the frozen award file.
+//
+// Re-recommending after a rejection overwrites the recommendation and increments its
+// revision number. Past approval rows are kept, including the rejection, as the record of
+// the earlier cycle.
+//
+// ComparisonSnapshotJson is the comparison table as it stood at the moment of award. It is
+// captured once and never re-queried, so the file shows what the decision was actually
+// made on.
 
 namespace MotsSupplierPortal.Domain.Awards;
 
-/// <summary>The recommendation -&gt; approval -&gt; decision chain that concludes an RFQ
-/// (docs/architecture/DOMAIN-MODEL.md §5.8), its own aggregate root (schema "award"), referenced by
-/// RfqId - same "own bounded context, referenced by id" shape as Proposal/Evaluation.
-///
-/// <para><b>OQ-004, resolved:</b> confirmed back when EPIC-07 was built - single approver, final
-/// decision, not the multi-level/amount-band hierarchy BUSINESS-RULES.md's BRULE-072/074 still
-/// describe as `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`. This build never creates more than
-/// one active <see cref="Approval"/> per approval cycle and never checks an authority-limit band -
-/// <see cref="Approvals"/> stays array-shaped only so a real multi-step chain later is a config/data
-/// extension, not a schema migration, exactly matching RfqApproval's own precedent.</para>
-///
-/// <para><b>Immutability post-Awarded (FEAT-14.7/FR-AWD-008/BRULE-083), enforced structurally, not
-/// by convention:</b> every mutating method below (<see cref="ReRecommend"/>, <see
-/// cref="RouteForApproval"/>, <see cref="Approve"/>, <see cref="Reject"/>, <see
-/// cref="ExecuteAward"/>) guards on a PRE-Awarded state and throws otherwise - once <see
-/// cref="State"/> is Awarded, none of them has a reachable success path, because Awarded is not one
-/// of any of their accepted "from" states. There is no separate "lock" flag to forget to check; the
-/// state machine itself is the lock. The one exception is the ERP sync fields
-/// (<see cref="ErpSyncStatus"/>, <see cref="ExternalPurchaseOrderRef"/>, <see cref="ErpSyncedAt"/>,
-/// <see cref="ErpRetryCount"/>) - these are deliberately NOT part of the immutable award file: they
-/// track an ASYNCHRONOUS INFRASTRUCTURE SYNC outcome, not a procurement decision, and BRULE-077/079
-/// require them to keep changing after Awarded (Requested -&gt; Synced|Failed -&gt; retry) for the
-/// award to ever reach RFQ Completion. The decision itself - Recommendation, Approvals,
-/// AwardDecision fields, ComparisonSnapshotJson - never changes again.</para></summary>
+using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed class Award : IVersionedAggregate
 {
     private readonly List<Approval> _approvals = [];
@@ -37,9 +43,6 @@ public sealed class Award : IVersionedAggregate
     public DateTimeOffset CreatedAt { get; private init; }
     public uint RowVersion { get; private set; }
 
-    // Recommendation - single owned entity per DOMAIN-MODEL.md's own "Award 1 *-- 1 Recommendation"
-    // cardinality, overwritten (with an incrementing revision counter) on re-recommend rather than
-    // accumulating a list nothing in the docs specifies the shape of.
     public Guid WinningProposalId { get; private set; }
     public string JustificationAr { get; private set; } = null!;
     public string JustificationEn { get; private set; } = null!;
@@ -47,12 +50,9 @@ public sealed class Award : IVersionedAggregate
     public DateTimeOffset RecommendedAt { get; private set; }
     public int RecommendationRevision { get; private set; }
 
-    // AwardDecision - set once, at ExecuteAward, never again.
     public DateTimeOffset? AwardedAt { get; private set; }
     public string? ComparisonSnapshotJson { get; private set; }
 
-    // ERP sync sub-flow - mutable post-Awarded, deliberately excluded from the immutable award
-    // file; see this class's own doc comment.
     public ErpSyncStatus ErpSyncStatus { get; private set; } = ErpSyncStatus.NotRequested;
     public string? ExternalPurchaseOrderRef { get; private set; }
     public DateTimeOffset? ErpSyncedAt { get; private set; }
@@ -62,10 +62,6 @@ public sealed class Award : IVersionedAggregate
 
     private Award() { }
 
-    /// <summary>FEAT-14.1/FR-AWD-001, BRULE-071: "may be recorded only after evaluation is
-    /// Finalized and the recommended proposal passes all thresholds" - both cross-aggregate facts
-    /// (Evaluation lives elsewhere), resolved by the handler before calling this, same split as
-    /// every other cross-aggregate guard in this codebase.</summary>
     public static Award Recommend(Guid rfqId, Guid winningProposalId, string justificationAr, string justificationEn, Guid recommendedByUserId)
     {
         if (string.IsNullOrWhiteSpace(justificationAr) || string.IsNullOrWhiteSpace(justificationEn))
@@ -87,10 +83,6 @@ public sealed class Award : IVersionedAggregate
         };
     }
 
-    /// <summary>BUSINESS-PROCESSES.md §6.1 "Rejected -&gt; Recommended: Re-recommend ... New/again
-    /// justification ... New recommendation revision". Approval history is not cleared - prior
-    /// Approval rows (including the rejection) stay in <see cref="Approvals"/> as the audit record
-    /// of the earlier cycle; RouteForApproval() adds a fresh one for this cycle.</summary>
     public void ReRecommend(Guid winningProposalId, string justificationAr, string justificationEn, Guid recommendedByUserId)
     {
         if (State != AwardState.Rejected)
@@ -124,10 +116,6 @@ public sealed class Award : IVersionedAggregate
         _approvals.LastOrDefault(a => a.Decision is null)
         ?? throw new DomainException("No pending approval step to decide.");
 
-    /// <summary>BRULE-073, defense in depth: the primary enforcement point for segregation of
-    /// duties is the API handler (BUSINESS-PROCESSES.md §6.1's own "Approver ≠ recommender"
-    /// column), but the check is repeated here too since RecommendedByUserId is already on this
-    /// aggregate and a second, cheap guard against the exact same invariant costs nothing.</summary>
     public void Approve(Guid approverUserId)
     {
         if (State != AwardState.PendingApproval)
@@ -167,11 +155,6 @@ public sealed class Award : IVersionedAggregate
         State = AwardState.Rejected;
     }
 
-    /// <summary>FEAT-14.4/FEAT-14.5/FR-AWD-004/005: "execute award" - sets the AwardDecision fields
-    /// and immediately requests ERP sync (BUSINESS-PROCESSES.md §6's own "Awarded -&gt;
-    /// ErpPoRequested: Outbox emit" is drawn as the very next step, not a separate later action).
-    /// <paramref name="comparisonSnapshotJson"/> is the frozen EPIC-12 comparison view at the moment
-    /// of award (FEAT-14.7) - captured here, never re-queried live once Awarded.</summary>
     public void ExecuteAward(string comparisonSnapshotJson)
     {
         if (State != AwardState.Approved)
@@ -184,9 +167,6 @@ public sealed class Award : IVersionedAggregate
         ErpSyncStatus = ErpSyncStatus.Requested;
     }
 
-    /// <summary>BRULE-078/079: called by AwardErpSyncJob once the (stub) ERP adapter acknowledges.
-    /// Never regresses AwardState - see this class's own doc comment on why the ERP sub-flow is a
-    /// separate field.</summary>
     public void MarkErpSynced(string externalPurchaseOrderRef)
     {
         if (ErpSyncStatus is not (ErpSyncStatus.Requested or ErpSyncStatus.Failed))
@@ -202,8 +182,6 @@ public sealed class Award : IVersionedAggregate
         ErpSyncedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>BRULE-077: the award itself is untouched by this - AwardState stays Awarded,
-    /// final, regardless of how many times this is called.</summary>
     public void MarkErpFailed()
     {
         if (ErpSyncStatus != ErpSyncStatus.Requested)
@@ -214,8 +192,6 @@ public sealed class Award : IVersionedAggregate
         ErpRetryCount++;
     }
 
-    /// <summary>BUSINESS-PROCESSES.md §6.1 "ErpPoFailed -&gt; ErpPoRequested: Retry ...
-    /// system,system_admin / integration.retry".</summary>
     public void RetryErpSync()
     {
         if (ErpSyncStatus != ErpSyncStatus.Failed)

@@ -1,10 +1,12 @@
+// One evaluator's score for one criterion on one bid. Unique per evaluation, evaluator, bid and
+// criterion.
+//
+// This row is the unit that blind scoring is enforced against: while the evaluation is in progress or
+// awaiting consolidation, every read filters to the signed-in evaluator's own rows, so no evaluator
+// can see another's scores before they are gathered.
+
 namespace MotsSupplierPortal.Domain.Evaluation;
 
-/// <summary>FEAT-11.3/FR-EVL-003/004, DATABASE-MODEL.md §2.6: one evaluator's score for one
-/// (Proposal, Criterion) pair - unique(EvaluationId, EvaluatorUserId, ProposalId, CriterionId).
-/// This is the row-level unit blind scoring (OQ-005/BRULE-058) is enforced against: every read
-/// path in this build filters to `EvaluatorUserId == scope.UserId` while the evaluation is
-/// InProgress/EvaluatorSubmitted - see GetMyScoresHandler's own doc comment for the actual query.</summary>
 public sealed class EvaluatorScore
 {
     public Guid Id { get; init; }

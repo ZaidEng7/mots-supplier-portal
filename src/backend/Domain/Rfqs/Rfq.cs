@@ -1,27 +1,261 @@
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Suppliers;
-
-using MotsSupplierPortal.Domain.Proposals;
+// A tender: what a buying body is asking to purchase, who is invited to bid, and when. It is
+// buyer-internal until it is published.
+//
+// This record, not the API and not the interface, is the only authority on which state changes are
+// legal. AllowedNextFrom is declared here beside the transitions rather than in an endpoint, because a
+// machine whose legal moves live somewhere other than the record itself has two answers to the same
+// question, and the one clients see is the one nobody runs.
+//
+// The finance-system fields that suppliers and organizations carry are deliberately absent. No sync of
+// tenders is wired up, so unused columns now would be dead scaffolding; they arrive with the real
+// integration.
+//
+//
+// OWNERSHIP
+//
+// OwnerUserId is the officer who owns this tender, as a person rather than as a role.
+//
+// It exists because scoping a tender to its organization and stopping there meant every rule reading
+// "notify the officer" reached the whole pool of officers and nobody was on record as responsible for
+// a tender. That is an accountability gap, and it surfaced independently in three places: who gets
+// notified, the buyer's "awaiting my action" tile, and the reassignment nobody could perform.
+//
+// The creator owns it at creation. That is not a placeholder to revisit: whoever wrote the tender is
+// the one person unambiguously responsible for it the moment it exists, and reassignment handles every
+// case after that.
+//
+// It is nullable and stays nullable. Every tender created before ownership existed has no owner and
+// cannot be given one without guessing. The audit trail records who created each one, but a creator is
+// not necessarily today's owner, and writing a guess into an ownership column is worse than an honest
+// blank. An unowned tender falls back to the pool everywhere the owner is consulted, and the blank is
+// a fact the buyer's list shows so somebody can claim it.
+//
+// Reassign refuses on completed and cancelled tenders, because those are finished, nothing is owed by
+// anyone, and recording a responsibility that cannot be discharged is worse than recording none. An
+// awarded tender is still reassignable, because post-award work exists and somebody has to own it.
+//
+// It also refuses when the new owner is already the owner. The point of the method is the audit row the
+// caller writes beside it, and a row saying ownership changed from a person to the same person is a
+// false entry in an append-only trail.
+//
+// Whether the nominee is actually an officer of this organization is a question about users, which is
+// a different record, so the handler checks it before calling.
+//
+//
+// TIMESTAMPS
+//
+// StateChangedAt is when the tender entered its current state, stamped by the persistence layer
+// whenever the state actually changes rather than by a line in each transition below. It is null on
+// rows that predate the column, because the moment those tenders entered their current state was never
+// recorded, and inventing one from a creation date would be a wrong answer rather than a missing one.
+//
+// PublishAt and PublishedAt are different things and both are needed. PublishAt is a scheduled time,
+// freely editable, an intention. PublishedAt is when the tender was actually published: set once, in
+// Publish, and never again, because re-publishing is not a state this machine has and amending a live
+// tender in place is forbidden anyway. A tender published immediately has no scheduled time at all.
+//
+// PublishedAt is null for every tender never published, which is why the buyer's list does not page on
+// it: that list is mostly drafts, and paging on a nullable column drops them. The buyer's list pages on
+// creation time instead.
+//
+//
+// EDITING
+//
+// Content is fully editable only while the tender is a draft. "Restricted during internal review" is
+// implemented as no content edits at all while under review: the reviewer has to return it for edits
+// first. Once published it is locked, and an addendum is the only way to change anything.
+//
+// UpdateItem and UpdateRequirement correct a line or a requirement in place. They exist because the
+// record had add and remove and nothing in between, so a mistyped quantity could only be fixed by
+// deleting the line and typing it again, and deleting renumbers everything after it. An officer who
+// meant to add one line and added three had no way to correct any of them.
+//
+// UpdateItem deliberately leaves the line number alone. This is the same line with better values, and
+// a correction that reordered the tender would move every reference to "item 2" underneath the person
+// reading it.
+//
+// Removing an item renumbers the rest so line numbers stay a dense run from one upward. The database
+// would tolerate gaps, but the authoring screen's line-number column expects a dense sequence.
+//
+// A requirement's expected envelope is advisory guidance for the supplier, and it is refused on a
+// requirement that asks for no document, because it would have nothing to attach to and would render
+// as guidance about a file the supplier is never asked for.
+//
+// BindEvaluationTemplate stores the exact template version the caller resolved plus a frozen copy of
+// that version's criteria. The tender never reads the live template again after this, even if that
+// version is later forked.
+//
+//
+// THE SUBMISSION WINDOW
+//
+// The close must be strictly after the open. The database merely requires that it is not before; this
+// is stricter, because a zero-length window admits no bids at all.
+//
+// The written rule also asks for a minimum open window and offers three business days as an
+// illustration rather than a decision. No number is enforced here, because inventing one would settle
+// an open business question as though it had been decided.
+//
+// ChangeSubmissionDeadline handles both extending and shortening. One method, because the validity
+// rules are identical and the only difference is who may call it, which is an access question the
+// endpoint answers. It returns whether this was a shortening, so the caller can pick the right audit
+// event and notification without working it out again.
+//
+// There is no cap on an extension. A cap is a fairness rule with an invented number in it, and a wrong
+// cap blocks a legitimate extension during a real procurement with no way round it. The audit row and
+// the notification to every invitee are what make an abusive extension visible instead.
+//
+// The new deadline must still be in the future and after the window opened. Those are not policy but
+// coherence: a deadline in the past closes the tender on the timeline job's next run, so accepting one
+// would let a shortening become an immediate close as a side effect, skipping the rules that closing
+// has. And a close before the open leaves a window that never existed.
+//
+// A reason is mandatory, and this record enforces it rather than leaving it to the interface. A
+// deadline moved with no stated basis is exactly what the requirement exists to prevent, and a second
+// caller, a job or a future bulk tool, must not be able to bypass it by not going through the API.
+//
+// The reason is kept here so it is readable where the deadline is, on the tender, by the buyer and by
+// every invited supplier. It is deliberately not in the notification, because the notification payload
+// is restricted to identifiers and public codes, and free text is content by any reading. The
+// notification says the deadline moved and points at the tender; the reason is waiting there.
+//
+// One consequence is worth stating: when no separate clarification deadline was set, the clarification
+// window falls back to the submission deadline, so extending the deadline also reopens clarifications.
+// That is the fallback behaving as designed, since a supplier given more time to bid should be able to
+// ask about what they are bidding on, but nothing else says it out loud.
+//
+//
+// INVITATIONS
+//
+// InviteSupplier is allowed from draft through to an open window, and not after the window closes. That
+// single guard covers both identifying a candidate before review and inviting somebody late while the
+// window is still open.
+//
+// Only active suppliers may be invited, and that is not checked here, because a supplier's lifecycle
+// lives on a different record. The handler verifies it before calling. That split is used for every
+// cross-record precondition in this codebase.
+//
+// MarkInvitationViewed is called the first time an invited supplier opens the tender, and does nothing
+// once the invitation has moved past viewed, so re-reading never pushes a later status backwards.
+//
+// DeclineInvitation is the supplier's own refusal, with an optional reason. It is refused once the
+// invitation carries a submitted bid, because withdrawing a live bid is a different action from
+// declining an invitation nobody ever acted on.
+//
+//
+// CLARIFICATIONS DURING THE WINDOW
+//
+// Questions may be asked while the tender is published or its window is open, and before the
+// clarification deadline where one was set. When none was set, the window falls back to the submission
+// deadline.
+//
+// That fallback is a judgement call, and neither document states it. The alternative, that no
+// clarification deadline means no window at all, would make the field's optionality meaningless, so
+// "unset means it tracks the submission window" is the reading that keeps the field coherent.
+//
+// Only invited suppliers may ask, and the handler enforces that. This record only enforces the window.
+//
+// Answering publishes the answer to every invitee. That reverses what was originally built. The code
+// followed a recorded interim decision to keep answers private to the asker with publishing as a
+// separate act, while the business rule says the opposite in as many words: material answers are
+// broadcast to all invitees with the questioner anonymised. The conflict was resolved in favour of the
+// business rule, because a private answer hands one bidder an advantage created by the buyer, and equal
+// information to all bidders is the fundamental fairness principle in tendering.
+//
+// The asker is never identified in what other invitees receive: what is sent to a supplier carries no
+// asker at all and works out on the server whether the reader is the one who asked. So the reason
+// privacy was wanted, a bidder not revealing their thinking to competitors, survives. Only the
+// information advantage goes.
+//
+// Answering again is refused. A buyer correcting an answer is a new clarification, not a silent
+// rewrite of an audited one. And a question stays private until it is answered; nothing here publishes
+// an unanswered thread.
+//
+// PublishClarification promotes an answer that was given privately at first.
+//
+//
+// ADDENDA
+//
+// IssueAddendum is allowed only once the tender is actually published, since an unpublished tender uses
+// ordinary draft edits, and only while suppliers can still act on it, since after the window closes
+// there is nothing left to tell them in time to matter.
+//
+//
+// THE TRANSITIONS
+//
+// SubmitForReview moves a draft into internal review. It requires at least one line, deadlines that are
+// set and in the future, a bound evaluation template, and at least one invited supplier.
+//
+// The two date checks are named separately rather than as "dates", plural. The refusal a person
+// actually meets is one date in the past and the other perfectly fine, and being told "dates" sends
+// them to check the one that was never wrong. This was walked into: a window set to open a few minutes
+// ahead had opened by the time the form was finished, and the message did not say which end had lapsed.
+//
+// The approver may be named, and the name is recorded on the pending step so that "notify the approver"
+// resolves to a person rather than to everyone who holds the approval permission. It is optional, and a
+// blank is not a defect: there is no approval-routing rule to fall back on, because routing by amount
+// and multi-level chains are undecided, so choosing a manager here would invent the routing rather than
+// record a decision. An un-nominated pass notifies the pool exactly as before, and whoever decides it
+// is recorded as having decided it.
+//
+// ReturnForEdits sends it back to draft with the reviewer's comments. It resolves the pending approval
+// step as rejected rather than deleting it, so the review history survives across passes.
+//
+// Approve resolves the pending step and moves the tender to approved.
+//
+// Publish makes it visible to the invited suppliers. Its written guard also requires that every invited
+// supplier is active, and that is checked by the handler before this method is called, which refuses
+// the whole operation if any is not.
+//
+// OpenSubmissions and the deadline-driven close are driven by the scheduled timeline job rather than by
+// a person. Those methods enforce only the state guard; the caller decides when the time has come.
+//
+// Close also serves a manual early close by an officer, where a reason is required. The scheduled close
+// at the deadline carries no reason, because there is nothing to explain.
+//
+// OpenEvaluation moves a closed tender into evaluation and creates the evaluation. Its written guard
+// requires at least one submitted bid, which is a fact about bids, so the handler checks it.
+//
+// RequestEvaluationClarification is the evaluation-phase clarification, not the question-and-answer
+// during the submission window. The two share a word and nothing else: one pauses the evaluation of a
+// tender, the other is a question a supplier asks before bidding.
+//
+// ResolveEvaluationClarification returns it to evaluation. The written guard, a response received or
+// the window elapsed, is not checkable here, because neither fact lives on this record. The state guard
+// is what this method can enforce, and the officer's judgement is what the transition records. Named
+// rather than pretended.
+//
+// BeginShortlisting requires the evaluation to be consolidated, which is a fact about the evaluation,
+// so the caller checks it.
+//
+// RecordRecommendation records the named winner, and RouteAwardForApproval sends it to the approver.
+//
+// RouteAwardForApproval also accepts a tender still in evaluation, deliberately. Every tender that
+// exists today reached approval directly from evaluation, because the three intermediate states were
+// unreachable until they were built. There is no back-fill, and a guard admitting only the new path
+// would strand those rows.
+//
+// ReturnToRecommendation is the tender's half of a supplier declining an award: the award frees up and
+// the tender goes back to recommendation so an alternate can be chosen. This transition was listed as
+// legal and unimplemented for a while, which meant the API promised a move it could not make. The award
+// rejection path still does not use it, and that is recorded rather than changed, because rejection is
+// a different flow with its own notifications.
+//
+// MarkAwarded is the tender's side of issuing an award; both happen in the same save.
+//
+// MarkCompleted waits until the finance system acknowledges the purchase order and its reference is
+// stored, rather than firing when the award is issued.
+//
+// Cancel works from any state before awarded, with a mandatory reason, and is final.
+//
+// AllowedNextFrom lists what a caller may attempt next, which is what an illegal transition's refusal
+// reports back. Evaluation still lists award approval directly, because of the rows described above.
 
 namespace MotsSupplierPortal.Domain.Rfqs;
 
-/// <summary>A buyer-authored Request for Quotation (docs/architecture/DOMAIN-MODEL.md §5.4);
-/// buyer-internal until Published. The domain - not the API, not the UI - is the sole authority on
-/// legal state transitions (BUSINESS-PROCESSES.md's own framing, same as Supplier.cs).
-///
-/// <para><b>Scope of this build (FEAT-07.1..07.10, this session):</b> Draft through
-/// SubmissionOpen/SubmissionClosed, plus Cancel from any pre-Awarded state. UnderEvaluation onward
-/// (Clarification/Shortlisting/Recommendation/AwardApproval/Awarded/Completed) are real
-/// <see cref="RfqState"/> values per the canonical state machine, but NO domain method on this
-/// aggregate transitions into them yet - that behavior belongs to EPIC-11/12/13/14
-/// (FEAT-07.7, left as an explicit stub, not half-built).</para>
-///
-/// <para><b>FEAT-07.11 (ERP mapping fields) is also an explicit stub this session:</b>
-/// <c>ExternalId</c>/<c>SyncStatus</c>/<c>LastSyncedAt</c> are deliberately NOT present on this
-/// aggregate. Unlike Supplier/Organization, RFQ has no ERP push/pull integration wired up yet
-/// (no Outbox handler consumes an RFQ event to sync it), so adding unused sync columns now would
-/// be dead scaffolding; add them together with the actual ERP integration when it is built.</para>
-/// </summary>
+using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Domain.Proposals;
+
 public sealed class Rfq : IVersionedAggregate, IStateTimestamped
 {
     private readonly List<RfqItem> _items = [];
@@ -42,61 +276,18 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
     public string CurrencyCode { get; private set; } = null!;
     public RfqState State { get; private set; }
 
-    /// <summary>
-    /// T-031: when this rfq entered <see cref="State"/>.
-    ///
-    /// <para>Stamped by the persistence layer whenever the state property actually changes - see
-    /// <see cref="IStateTimestamped"/> for why it is not a line in each of the transition methods
-    /// below. Null on rows that predate the column: the instant they entered their current state was
-    /// never recorded, and inventing one from a creation date is the specific wrong answer the
-    /// approval queue's own comment warned about.</para>
-    /// </summary>
     public DateTimeOffset? StateChangedAt { get; private set; }
 
-    /// <summary>The property whose change is a state change, for <see cref="IStateTimestamped"/>.</summary>
     public static string StatePropertyName => nameof(State);
 
-    /// <summary>
-    /// A-7: the officer who owns this RFQ, as a person rather than as a role.
-    ///
-    /// <para><b>Why this exists.</b> BRULE-029 scopes an RFQ to its Organization and stops there, so
-    /// every §3.1 rule reading "notify the officer" reached the whole role-and-organization pool and
-    /// no individual was on record as responsible for a tender. That is an accountability gap rather
-    /// than a convenience one, and it surfaced independently in three epics - the notification
-    /// recipients, SCR-400's "Awaiting my action" tile, and the reassignment nobody could perform.</para>
-    ///
-    /// <para><b>Nullable, and it stays nullable.</b> Every RFQ created before A-7 has no owner and
-    /// cannot be given one retroactively without guessing; the audit trail records who created each
-    /// one but a creator is not necessarily today's owner, and writing a guess into an ownership
-    /// column is worse than an honest null. An unowned RFQ therefore falls back to the pool
-    /// everywhere the owner is consulted - see NotificationRecipients.RfqOwnerAsync and
-    /// DECISIONS-TAKEN.md D-38. A null here means "nobody has claimed this", which is a fact the
-    /// buyer's list shows so it can be claimed.</para>
-    /// </summary>
     public Guid? OwnerUserId { get; private set; }
 
     public DateTimeOffset? PublishAt { get; private set; }
 
-    /// <summary>
-    /// When this RFQ was actually published. §12.4's list DTO specifies <c>publishedAt</c> and §6.3
-    /// names <c>-publishedAt</c> as the RFQ list's default sort; neither was satisfiable, because
-    /// <see cref="PublishAt"/> is a nullable, freely-editable SCHEDULED time - an intent, not a
-    /// record. An RFQ published immediately has PublishAt null.
-    ///
-    /// <para>Set once, in <see cref="Publish"/>, and never again: a re-publish is not a state this
-    /// machine has, and BRULE-038 forbids amending a live tender in place anyway.</para>
-    ///
-    /// <para>Null for every RFQ that has never been published, which is why it is NOT the buyer
-    /// list's keyset column - that list is mostly Drafts and a keyset on a nullable column drops
-    /// them. The buyer list stays on -createdAt, the divergence recorded in Batch 0.2.</para>
-    /// </summary>
     public DateTimeOffset? PublishedAt { get; private set; }
     public DateTimeOffset? SubmissionOpensAt { get; private set; }
     public DateTimeOffset? SubmissionClosesAt { get; private set; }
 
-    /// <summary>A-6: why the deadline was last moved, and when. Readable on the RFQ by the buyer and by
-    /// every invited supplier - see ChangeSubmissionDeadline on why it is here and not in the
-    /// notification payload.</summary>
     public string? SubmissionDeadlineChangeReason { get; private set; }
 
     public DateTimeOffset? SubmissionDeadlineChangedAt { get; private set; }
@@ -142,9 +333,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
             DescriptionEn = descriptionEn,
             CurrencyCode = currencyCode,
             State = RfqState.Draft,
-            // A-7: the creator owns it. Not a default that has to be revisited later - whoever
-            // authored the RFQ is the one person who is unambiguously responsible for it at the
-            // moment it exists, and reassignment is the mechanism for every case after that.
             OwnerUserId = ownerUserId,
             PublishAt = publishAt,
             SubmissionOpensAt = submissionOpensAt,
@@ -155,22 +343,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         };
     }
 
-    /// <summary>
-    /// A-7: hand this RFQ to another officer.
-    ///
-    /// <para>Refused on <see cref="RfqState.Completed"/> and <see cref="RfqState.Cancelled"/>: those
-    /// are terminal, no further action is owed by anyone, and an ownership change there would record
-    /// a responsibility that cannot be discharged. <see cref="RfqState.Awarded"/> is deliberately
-    /// still reassignable - post-award work exists, and somebody has to own it.</para>
-    ///
-    /// <para>Refused when the new owner is already the owner. The point of this method is the audit
-    /// row the caller writes beside it, and a row saying ownership changed from a person to the same
-    /// person is a false entry in an append-only trail.</para>
-    ///
-    /// <para><b>Eligibility is NOT checked here.</b> Whether the nominee is an officer of this
-    /// organization is a question about Users, a different aggregate - the same cross-aggregate split
-    /// InviteSupplier already uses for BRULE-032 - so the handler verifies it before calling.</para>
-    /// </summary>
     public void Reassign(Guid newOwnerUserId)
     {
         if (State is RfqState.Completed or RfqState.Cancelled)
@@ -185,15 +357,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         OwnerUserId = newOwnerUserId;
     }
 
-    /// <summary>BRULE-033: submissionCloseAt must be strictly after submissionOpenAt (matches the
-    /// DB CHECK `submission_closes_at >= submission_opens_at` - domain is stricter, using > rather
-    /// than >=, since a zero-length window admits no submissions at all).
-    ///
-    /// <para><b>Ambiguity flagged, not resolved:</b> BRULE-033 also requires "a minimum open
-    /// window" and gives "e.g. 3 business days" as an illustrative, not confirmed, example, tagged
-    /// [ASSUMPTION]. No specific number is enforced here - inventing one would be silently
-    /// resolving an open business question as if it were decided. Only close-after-open is
-    /// enforced; a real minimum-window rule needs a business-confirmed number.</para></summary>
     private static void EnsureTimelineConsistent(DateTimeOffset? opensAt, DateTimeOffset? closesAt)
     {
         if (opensAt is not null && closesAt is not null && closesAt <= opensAt)
@@ -202,11 +365,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         }
     }
 
-    /// <summary>FEAT-07.10/FR-RFQ-012: full edit only in Draft. "Restricted in InternalReview" is
-    /// implemented as "no content edits while under review" - the reviewer must ReturnForEdits
-    /// (back to Draft) before the officer can change anything. "Locked after Published except
-    /// addenda" - the addenda exception (FEAT-10.4) is EPIC-10 territory, not built this session;
-    /// nothing here creates an addenda path, so Published+ is simply locked for now.</summary>
     private void EnsureDraftEditable()
     {
         if (State != RfqState.Draft)
@@ -264,18 +422,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         return item;
     }
 
-    /// <summary>
-    /// Corrects a line already on the tender, in Draft, without changing its line number.
-    ///
-    /// <para><b>Why this exists.</b> The aggregate had Add and Remove and nothing between them, so a
-    /// mistyped quantity could only be fixed by deleting the line and typing it again - and deleting
-    /// renumbers everything after it. An officer who meant to add one line and added three had no way
-    /// to correct any of them.</para>
-    ///
-    /// <para>LineNo is deliberately untouched: this is the same line with better values, and a
-    /// correction that reorders the tender would move every reference to "item 2" underneath the
-    /// person reading it.</para>
-    /// </summary>
     public void UpdateItem(Guid itemId, string titleAr, string titleEn, string? specificationAr, string? specificationEn,
         string categoryCode, decimal quantity, string unitOfMeasureCode, bool isUnitPrice, bool isOptional)
     {
@@ -301,23 +447,17 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         EnsureDraftEditable();
         var item = _items.FirstOrDefault(i => i.Id == itemId) ?? throw new DomainException("RFQ item not found.");
         _items.Remove(item);
-        // Renumber so LineNo stays a dense 1..N sequence - the DB unique(rfq_id, line_no)
-        // constraint (DATABASE-MODEL.md §2.3) would otherwise tolerate gaps fine, but a dense
-        // sequence is what the authoring UI's line-number column expects to render.
         for (var i = 0; i < _items.Count; i++) _items[i].LineNo = i + 1;
     }
 
     public Requirement AddRequirement(
         string textAr, string textEn, bool isMandatory, string? documentTypeCode,
-        // A-2: which envelope a document answering this belongs in. Advisory to the supplier.
         ProposalDocumentEnvelope? expectedEnvelope = null)
     {
         EnsureDraftEditable();
         if (string.IsNullOrWhiteSpace(textAr)) throw new DomainException("Requirement text (Arabic) is required.");
         if (string.IsNullOrWhiteSpace(textEn)) throw new DomainException("Requirement text (English) is required.");
 
-        // A-2: an envelope expectation on a requirement that asks for no document has nothing to attach
-        // to, and would render as guidance about a file the supplier is never asked for.
         if (expectedEnvelope is not null && string.IsNullOrWhiteSpace(documentTypeCode))
         {
             throw new DomainException("An expected envelope only applies to a requirement that asks for a document.");
@@ -337,9 +477,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         return requirement;
     }
 
-    /// <summary>Corrects a requirement already on the tender, in Draft. Same reasoning as
-    /// <see cref="UpdateItem"/>: the aggregate had Add and Remove and nothing between them, so a typo
-    /// in the text a bidder answers could only be fixed by deleting the requirement.</summary>
     public void UpdateRequirement(Guid requirementId, string textAr, string textEn, bool isMandatory,
         string? documentTypeCode, ProposalDocumentEnvelope? expectedEnvelope = null)
     {
@@ -393,10 +530,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         _attachments.Remove(attachment);
     }
 
-    /// <summary>FR-RFQ-004/DOMAIN-MODEL.md §5.4: binds a version-snapshotted
-    /// EvaluationTemplateRef{Id, snapshotVersion} - the caller passes the exact template Id/Version
-    /// it resolved plus a pre-serialized JSON snapshot of that version's criteria (the RFQ never
-    /// re-reads the live template after this point, even if that version is later forked).</summary>
     public void BindEvaluationTemplate(Guid evaluationTemplateId, int evaluationTemplateVersion, string snapshotJson)
     {
         EnsureDraftEditable();
@@ -407,13 +540,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         EvaluationTemplateSnapshotJson = snapshotJson;
     }
 
-    /// <summary>FEAT-08.1/FR-INV-001/BRULE-032: invite a candidate supplier. Allowed from Draft
-    /// through SubmissionOpen (not after SubmissionClosed) - this is what lets a candidate be
-    /// identified before InternalReview (closing SubmitForReview's own gap below) while also
-    /// covering FEAT-08.5's late-invite-while-open case with a single guard. "Only Active suppliers
-    /// invitable" (BRULE-032) is NOT checked here - Supplier lifecycle lives on a different
-    /// aggregate, so the caller (handler) verifies Active before invoking this, same cross-aggregate
-    /// split already used for EvaluationTemplate.MarkReferenced.</summary>
     public Invitation InviteSupplier(Guid supplierId)
     {
         if (State is RfqState.SubmissionClosed or RfqState.UnderEvaluation or RfqState.Clarification
@@ -439,9 +565,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         return invitation;
     }
 
-    /// <summary>FEAT-08.6/FR-INV-006: called by the supplier-facing detail endpoint the first time
-    /// an invited supplier views the RFQ. A no-op once the invitation has moved past Invited, so
-    /// re-viewing never regresses a later status back to Viewed.</summary>
     public void MarkInvitationViewed(Guid supplierId)
     {
         var invitation = _invitations.FirstOrDefault(i => i.SupplierId == supplierId)
@@ -452,10 +575,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         invitation.ViewedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>FEAT-08.4/FR-INV-004: supplier-initiated decline, optional reason. Refused once the
-    /// invitation already carries a Submitted proposal - withdrawing a live proposal is EPIC-09's
-    /// FEAT-09.6 (Withdraw), a different action from declining an invitation that was never acted
-    /// on.</summary>
     public void DeclineInvitation(Guid supplierId, string? reason)
     {
         var invitation = _invitations.FirstOrDefault(i => i.SupplierId == supplierId)
@@ -470,13 +589,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         invitation.RespondedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>FEAT-10.5/FR-CLR-005: the clarification window is Published or SubmissionOpen, and
-    /// (when set) before ClarificationDeadlineAt - a refinement of the submission window
-    /// (DOMAIN-MODEL.md §5.4's Timeline VO groups clarificationDeadline alongside submissionWindow),
-    /// falling back to SubmissionClosesAt when no separate deadline was set. Judgment call, flagged:
-    /// neither doc states this fallback explicitly; the alternative (no deadline = no window at all)
-    /// would make ClarificationDeadlineAt's optionality meaningless, so "unset means it tracks the
-    /// submission window" is the reading that keeps the field's own nullability coherent.</summary>
     private void EnsureClarificationWindowOpen()
     {
         if (State is not (RfqState.Published or RfqState.SubmissionOpen))
@@ -490,9 +602,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         }
     }
 
-    /// <summary>FEAT-10.1/FR-CLR-001: invited-supplier-only is enforced by the caller (handler),
-    /// same cross-aggregate split as InviteSupplier's own Active check - this method only enforces
-    /// the window.</summary>
     public Clarification PostClarificationQuestion(Guid supplierId, string question)
     {
         EnsureClarificationWindowOpen();
@@ -510,25 +619,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         return clarification;
     }
 
-    /// <summary>
-    /// FEAT-10.2/FR-CLR-002. <b>Answering publishes to every invitee</b> (A-4, batch 10).
-    ///
-    /// <para>This reverses the shipped default. The code was built to ASM-044 and OQ-008's recorded
-    /// interim - private to the asker, with publishing as a separate act - while BRULE-036 says the
-    /// opposite in as many words: "answers deemed material are broadcast to <b>all</b> invitees
-    /// (anonymized questioner)". A-4 resolves the two documents in favour of the business rule,
-    /// because a private answer hands one bidder an advantage created by the buyer, and equal
-    /// information to all bidders is the fundamental fairness principle in tendering.</para>
-    ///
-    /// <para>The asker is never identified in what other invitees receive - see
-    /// SupplierClarificationDto, which carries no asker at all and computes IsMine server-side. So
-    /// the reason OQ-008 wanted privacy (a bidder not revealing their thinking to competitors)
-    /// survives; only the information advantage goes.</para>
-    ///
-    /// <para>Refused once already answered: a buyer correcting an answer is a new clarification, not
-    /// a silent rewrite of the audited one. And a QUESTION stays private until it is answered -
-    /// nothing here publishes an unanswered thread.</para>
-    /// </summary>
     public void AnswerClarification(Guid clarificationId, string answer)
     {
         var clarification = _clarifications.FirstOrDefault(c => c.Id == clarificationId)
@@ -544,8 +634,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         clarification.Visibility = ClarificationVisibility.PublishedToAll;
     }
 
-    /// <summary>FEAT-10.2/FR-CLR-002: promotes an already-privately-answered clarification to
-    /// PublishedToAll - the explicit publish action for a question answered privately at first.</summary>
     public void PublishClarification(Guid clarificationId)
     {
         var clarification = _clarifications.FirstOrDefault(c => c.Id == clarificationId)
@@ -562,10 +650,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         clarification.Visibility = ClarificationVisibility.PublishedToAll;
     }
 
-    /// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: the first real use of "locked after Published
-    /// except addenda" - allowed only once actually Published (an unpublished RFQ still uses normal
-    /// Draft edits) and only while suppliers can still act on it (not after SubmissionClosed, since
-    /// there is nothing left to inform them about in time to matter).</summary>
     public Addendum IssueAddendum(string titleAr, string titleEn, string descriptionAr, string descriptionEn, Guid issuedByUserId)
     {
         if (State is not (RfqState.Published or RfqState.SubmissionOpen))
@@ -592,20 +676,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         return addendum;
     }
 
-    /// <summary>Draft -> InternalReview (BUSINESS-PROCESSES.md §3.1: "Draft | InternalReview |
-    /// Submit for review | procurement_officer / rfq.submit_review | >=1 RfqItem; deadlines set &amp;
-    /// future; EvaluationTemplateRef bound; >=1 candidate supplier identified").
-    ///
-    /// <para><b>EPIC-08 gap closed:</b> "&gt;=1 candidate supplier identified" is now enforced
-    /// against real Invitation rows (previously unenforced pending EPIC-08 - see git history on
-    /// this method for the flagged gap this replaces).</para></summary>
-    /// <para><b>A-7:</b> <paramref name="assignedApproverUserId"/> names the manager this pass is
-    /// waiting on, and is recorded on the pending step so "notify the approver" resolves to a person
-    /// rather than to everyone holding <c>rfq.approve</c>. Optional, and null is not a defect: this
-    /// build has no approval-routing rule to fall back on - BRULE-072/074's amount thresholds and
-    /// OQ-004's chain are undecided (T-075) - so choosing a manager here would be inventing the
-    /// routing rather than recording a decision. An un-nominated pass notifies the manager pool
-    /// exactly as before, and whoever decides it is recorded as having decided it.</para>
     public void SubmitForReview(Guid? assignedApproverUserId = null)
     {
         if (State != RfqState.Draft)
@@ -620,10 +690,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         {
             throw new DomainException("Cannot submit for review: submission open/close dates must be set.");
         }
-        // Named separately rather than as "dates", plural, for both. The refusal a person actually meets
-        // is one date in the past and the other fine, and being told "dates" sends them to check the one
-        // that was never wrong. Walked into: a window set to open a few minutes ahead had opened by the
-        // time the form was finished, and the message did not say which end had lapsed.
         if (SubmissionOpensAt <= DateTimeOffset.UtcNow)
         {
             throw new DomainException(
@@ -655,10 +721,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         _approvals.LastOrDefault(a => a.Decision is null)
         ?? throw new DomainException("No pending approval found for this review pass.");
 
-    /// <summary>InternalReview -> Draft ("return for edits", BUSINESS-PROCESSES.md §3.1: reason/
-    /// comments provided by procurement_manager / rfq.review). Resolves the pending RfqApproval to
-    /// Rejected with the reviewer's comments rather than deleting it, so the review history is
-    /// preserved across passes (see RfqApproval's own doc comment).</summary>
     public void ReturnForEdits(Guid approverUserId, string comments)
     {
         if (State != RfqState.InternalReview)
@@ -679,9 +741,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Draft;
     }
 
-    /// <summary>InternalReview -> Approved (BUSINESS-PROCESSES.md §3.1: procurement_manager /
-    /// rfq.approve). OQ-004 interim: single approver resolves the one pending RfqApproval step -
-    /// see RfqApproval's own doc comment for why this is modeled as an array even so.</summary>
     public void Approve(Guid approverUserId)
     {
         if (State != RfqState.InternalReview)
@@ -697,15 +756,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Approved;
     }
 
-    /// <summary>Approved -> Published (BUSINESS-PROCESSES.md §3.1: procurement_officer /
-    /// rfq.publish; guard "Approved; invited suppliers are Active; submission open/close dates
-    /// valid").
-    ///
-    /// <para><b>EPIC-08 gap closed, cross-aggregate:</b> "invited suppliers are Active" is now
-    /// enforced, but not inside this method - Supplier lifecycle lives on a different aggregate, so
-    /// PublishRfqHandler checks every invited supplier's LifecycleState before calling Publish() and
-    /// refuses the whole operation (without ever calling this method) if any is not Active. Same
-    /// split already used for EvaluationTemplate.MarkReferenced.</para></summary>
     public void Publish()
     {
         if (State != RfqState.Approved)
@@ -721,10 +771,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         PublishedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>Published -> SubmissionOpen (BUSINESS-PROCESSES.md §3.1: system, "now &gt;=
-    /// submissionOpenAt"). Driven by the scheduled RfqTimelineJob (FEAT-07.6/FR-PWF-004), not a
-    /// user action - see that job for the actual time check; this method only enforces the state
-    /// guard, the caller decides when to call it.</summary>
     public void OpenSubmissionWindow()
     {
         if (State != RfqState.Published)
@@ -735,10 +781,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.SubmissionOpen;
     }
 
-    /// <summary>SubmissionOpen -> SubmissionClosed (BUSINESS-PROCESSES.md §3.1: system on deadline,
-    /// or procurement_officer / rfq.close with reason for early close). <paramref name="reason"/>
-    /// is required only for a manual early close - the scheduled deadline-driven close carries no
-    /// reason since there is nothing to explain.</summary>
     public void CloseSubmissionWindow(string? reason, bool isEarlyClose)
     {
         if (State != RfqState.SubmissionOpen)
@@ -753,16 +795,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.SubmissionClosed;
     }
 
-    /// <summary>SubmissionClosed -> UnderEvaluation (BUSINESS-PROCESSES.md §3.1:
-    /// procurement_officer,procurement_manager / evaluation.open; guard "&gt;=1 Submitted proposal
-    /// [ASSUMPTION] else re-tender/cancel; committee assignable"; "Create Evaluation; unlock
-    /// scoring"). EPIC-11's real prerequisite: FEAT-07.7 left UnderEvaluation onward as an
-    /// enum-only stub; this is the one transition into it this build actually needs, closing that
-    /// specific piece of the stub rather than the whole thing (Clarification/Shortlisting/
-    /// Recommendation/AwardApproval/Awarded/Completed remain unreachable, EPIC-13/14
-    /// territory). The ">=1 Submitted proposal" guard is cross-aggregate (Proposal lives in a
-    /// different aggregate) - OpenEvaluationHandler checks it before calling this, same split as
-    /// every other cross-aggregate guard in this codebase.</summary>
     public void OpenEvaluation()
     {
         if (State != RfqState.SubmissionClosed)
@@ -773,33 +805,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.UnderEvaluation;
     }
 
-    /// <summary>EPIC-14/FEAT-14.2: the RFQ side-effect of routing an Award recommendation for
-    /// approval. Guards on UnderEvaluation, not Recommendation - DOMAIN-MODEL.md's own canonical
-    /// machine routes UnderEvaluation -&gt; Clarification* -&gt; Shortlisting -&gt; Recommendation
-    /// -&gt; AwardApproval, but EPIC-13 (the workspace epic that would ever move an RFQ through
-    /// Clarification/Shortlisting/Recommendation) isn't built, so those three states remain
-    /// unreachable by any method on this aggregate - same "real values, no transition method yet"
-    /// stub OpenEvaluation's own doc comment already documents for the states after it. Routing an
-    /// Award for approval is the one real trigger THIS epic needs into AwardApproval, so it accepts
-    /// UnderEvaluation directly rather than a three-state chain nothing can produce yet.</summary>
-    /// <summary>
-    /// T3-36. BUSINESS-PROCESSES.md §3.1: "UnderEvaluation | Clarification | Request clarification |
-    /// `procurement_officer`,`evaluator` / `rfq.clarify` | Reason; targeted supplier(s)".
-    ///
-    /// <para>This is the EVALUATION-phase clarification, not the submission-window Q&amp;A that
-    /// <see cref="PostClarificationQuestion"/> serves. The two share a word and nothing else: one pauses the
-    /// evaluation of an RFQ, the other is a question a supplier asks before bidding.</para>
-    /// </summary>
-    /// <summary>
-    /// §3's rule: "Illegal transitions return 409 Conflict … listing the current state and the
-    /// allowed next states."
-    ///
-    /// <para>Declared here, beside the transitions, rather than in an endpoint: a machine whose
-    /// legal moves live somewhere other than the aggregate has two answers to the same question, and
-    /// the one clients see is the one nobody runs. T3-36 makes this load-bearing - Clarification,
-    /// Shortlisting and Recommendation change what follows UnderEvaluation, and a stale list would
-    /// tell a caller the old answer.</para>
-    /// </summary>
     public static IReadOnlyList<RfqState> AllowedNextFrom(RfqState state) => state switch
     {
         RfqState.Draft => [RfqState.InternalReview, RfqState.Cancelled],
@@ -809,8 +814,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         RfqState.SubmissionOpen => [RfqState.SubmissionClosed, RfqState.Cancelled],
         RfqState.SubmissionClosed => [RfqState.UnderEvaluation, RfqState.Cancelled],
 
-        // T3-36: three states that were previously unreachable now sit here. UnderEvaluation also
-        // still lists AwardApproval, because rows written before this change reach it directly.
         RfqState.UnderEvaluation =>
             [RfqState.Clarification, RfqState.Shortlisting, RfqState.AwardApproval, RfqState.Cancelled],
         RfqState.Clarification => [RfqState.UnderEvaluation, RfqState.Cancelled],
@@ -820,7 +823,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         RfqState.AwardApproval => [RfqState.Awarded, RfqState.Recommendation, RfqState.Cancelled],
         RfqState.Awarded => [RfqState.Completed],
 
-        // Terminal. Cancel is reachable from "any pre-Awarded state", which these are not.
         RfqState.Completed or RfqState.Cancelled => [],
         _ => [],
     };
@@ -840,14 +842,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Clarification;
     }
 
-    /// <summary>
-    /// §3.1: "Clarification | UnderEvaluation | Clarification resolved | `procurement_officer` /
-    /// `rfq.clarify` | Response received or window elapsed".
-    ///
-    /// <para>The guard the table names - "response received or window elapsed" - is not checkable
-    /// here: neither fact lives on this aggregate. The state guard is what this method can enforce,
-    /// and the officer's judgement is what the transition records. Named rather than pretended.</para>
-    /// </summary>
     public void ResolveClarification()
     {
         if (State != RfqState.Clarification)
@@ -858,15 +852,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.UnderEvaluation;
     }
 
-    /// <summary>
-    /// §3.1: "UnderEvaluation | Shortlisting | Begin shortlisting |
-    /// `procurement_officer`,`procurement_manager` / `evaluation.consolidate` | Evaluation
-    /// Consolidated/Finalized (§5)".
-    ///
-    /// <para>The guard is cross-aggregate - it is the EVALUATION that must be consolidated - so the
-    /// caller checks it, exactly as every other cross-aggregate precondition in this codebase is
-    /// checked by the handler that holds both aggregates.</para>
-    /// </summary>
     public void BeginShortlisting()
     {
         if (State != RfqState.UnderEvaluation)
@@ -877,11 +862,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Shortlisting;
     }
 
-    /// <summary>
-    /// §3.1: "Shortlisting | Recommendation | Record recommendation |
-    /// `procurement_officer`,`procurement_manager` / `award.recommend` | ≥1 proposal passes
-    /// thresholds; justification captured".
-    /// </summary>
     public void RecordRecommendation()
     {
         if (State != RfqState.Shortlisting)
@@ -894,11 +874,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
 
     public void EnterAwardApproval()
     {
-        // §3.1's own row is "Recommendation | AwardApproval | Route for approval". UnderEvaluation is
-        // ALSO accepted, and deliberately: every RFQ that exists today reached AwardApproval from
-        // UnderEvaluation, because the three intermediate states were unreachable until T3-36. A row
-        // written before this change must keep transitioning exactly as it did - there is no backfill,
-        // and a guard that only admitted the new path would strand it.
         if (State is not (RfqState.Recommendation or RfqState.UnderEvaluation))
         {
             throw new DomainException(
@@ -907,17 +882,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.AwardApproval;
     }
 
-    /// <summary>
-    /// T-064/§4.1: <c>AwardOffered -&gt; Declined ... "Free the award for alternate; RFQ returns to
-    /// <c>Recommendation</c>"</c>. The RFQ's own half of a declined offer.
-    ///
-    /// <para><b>This transition was already listed and already unimplemented.</b>
-    /// <see cref="AllowedNextFrom"/> has carried <c>AwardApproval -&gt; Recommendation</c> since the
-    /// award reject path was built, and nothing performed it - so the API promised a transition it
-    /// could not make. T-064 needed exactly this move, so it is built here. The award REJECT path
-    /// still does not use it; that is recorded rather than changed, because reject is a different
-    /// flow with its own notifications.</para>
-    /// </summary>
     public void ReturnToRecommendation()
     {
         if (State != RfqState.AwardApproval)
@@ -929,39 +893,8 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Recommendation;
     }
 
-    /// <summary>
-    /// T-018/BRULE-035: <i>"Deadline extension while <c>Published</c>/<c>SubmissionOpen</c>:
-    /// <c>procurement_officer</c> may extend <c>submissionCloseAt</c> (audit
-    /// <c>rfq.deadline_extended</c>, notify all invitees). Shortening the window requires
-    /// <c>procurement_manager</c> <c>[ASSUMPTION]</c>."</i>
-    ///
-    /// <para>One method for both directions, because the validity rules are identical and the
-    /// difference is who may call it - which is an access-control question the endpoint answers, not
-    /// a domain one. Returns whether this was a shortening so the caller can pick the audit event and
-    /// the notification without re-deriving it.</para>
-    ///
-    /// <para><b>No bound on an extension (D-12).</b> A cap is a fairness rule with an invented number
-    /// in it, and a wrong cap blocks a legitimate extension during a real procurement with no
-    /// override. The audit row and the notification to every invitee are what make an abusive
-    /// extension visible instead.</para>
-    ///
-    /// <para><b>But the new deadline must be in the future, and after the window opened.</b> Those are
-    /// not policy, they are coherence: a deadline in the past closes the RFQ on the timeline job's
-    /// next run, so accepting one would let a "shortening" become an immediate close by side effect
-    /// rather than through <c>Close()</c>, skipping its own rules. And a close before the open leaves
-    /// a window that never existed.</para>
-    ///
-    /// <para><b>Consequence worth stating:</b> when no separate <c>ClarificationDeadlineAt</c> was
-    /// set, the clarification window falls back to this date (see <c>CanAskClarification</c>), so
-    /// extending the submission deadline also reopens clarifications. That is the fallback behaving as
-    /// designed rather than a side effect to suppress - a supplier given more time to bid should be
-    /// able to ask about what they are bidding on - but it is recorded because nothing else says it.</para>
-    /// </summary>
     public bool ChangeSubmissionDeadline(DateTimeOffset newCloseAt, string reason)
     {
-        // A-6: mandatory, and the domain enforces it rather than only the validator - a deadline moved
-        // with no stated basis is the thing the requirement exists to prevent, and a second caller
-        // (a job, a future bulk tool) must not be able to bypass it by not going through the API.
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new DomainException("A reason is required to change the submission deadline.");
@@ -996,20 +929,11 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         var isShortening = newCloseAt < SubmissionClosesAt;
         SubmissionClosesAt = newCloseAt;
 
-        // A-6: kept on the aggregate so it is readable where the deadline is - on the RFQ, for the buyer
-        // and for every invited supplier.
-        //
-        // NOT in the notification payload, and that is BRULE-091 rather than an oversight: the
-        // allow-list is identifiers and public codes only, it already refused `submissionDeadline` in
-        // T-018 on the grounds that a date is content, and a free-text reason is content by any reading.
-        // So the notification says the deadline moved and points at the RFQ; the reason is waiting there.
         SubmissionDeadlineChangeReason = reason;
         SubmissionDeadlineChangedAt = DateTimeOffset.UtcNow;
         return isShortening;
     }
 
-    /// <summary>EPIC-14/FEAT-14.4/FEAT-14.6/FR-AWD-004/006: AwardApproval -&gt; Awarded, the RFQ's
-    /// own side of Award.ExecuteAward() - both happen in the same handler/SaveChanges call.</summary>
     public void MarkAwarded()
     {
         if (State != RfqState.AwardApproval)
@@ -1019,9 +943,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Awarded;
     }
 
-    /// <summary>EPIC-14/FEAT-14.6/FR-AWD-006/BRULE-079: Awarded -&gt; Completed, triggered once the
-    /// ERP acknowledges the Purchase Order and ExternalPurchaseOrderRef is stored - the AwardErpSyncJob's
-    /// own doc comment covers why this waits for that ACK rather than firing at Awarded itself.</summary>
     public void Complete()
     {
         if (State != RfqState.Awarded)
@@ -1031,8 +952,6 @@ public sealed class Rfq : IVersionedAggregate, IStateTimestamped
         State = RfqState.Completed;
     }
 
-    /// <summary>Cancel from any pre-Awarded state (BUSINESS-PROCESSES.md §3.1: procurement_manager
-    /// / rfq.cancel, reason mandatory). Terminal - Cancelled has no outgoing transition.</summary>
     public void Cancel(string reason)
     {
         if (State is RfqState.Awarded or RfqState.Completed or RfqState.Cancelled)

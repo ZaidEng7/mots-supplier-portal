@@ -1,8 +1,14 @@
+// One line the tender is asking for: what it is, how much of it, and in what unit.
+//
+// CategoryCode and UnitOfMeasureCode point at reference data by code rather than by a database link.
+// The handler checks that the code exists and is active. That is the same convention every other
+// reference to a code follows in this project.
+//
+// IsUnitPrice says whether the supplier prices per unit or for the line as a whole. IsOptional says
+// whether the supplier has to price it at all.
+
 namespace MotsSupplierPortal.Domain.Rfqs;
 
-/// <summary>A requested line item (DOMAIN-MODEL.md §5.4). Category/UoM referential integrity is
-/// validated by the handler against a code, not a DB FK - same established convention as
-/// Offering/CategoryLink (see OfferingContracts.cs's own doc comment for why).</summary>
 public sealed class RfqItem
 {
     public Guid Id { get; init; }

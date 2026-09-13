@@ -1,9 +1,20 @@
+// One weighted scoring dimension inside an evaluation template.
+//
+// It is only ever changed through the template's own methods, never constructed or edited directly by
+// outside code. That is the same convention every child of a supplier follows.
+//
+// RequiresJustification means a score against this criterion cannot be submitted without a comment.
+// The written rule leaves it open which criteria need one, so the flag sits on the criterion and the
+// template's author decides, which is where the rule itself points. Nothing here decides that, say,
+// every commercial criterion needs a justification: that would invent the policy the rule declines to
+// state, and it would be invisible to the person who wrote the template.
+//
+// It defaults to off, because a template written before the field existed did not ask for
+// justifications, and switching them on retroactively would refuse scores that were legitimate when
+// the template was approved.
+
 namespace MotsSupplierPortal.Domain.Evaluation;
 
-/// <summary>One weighted scoring dimension within an EvaluationTemplate (DOMAIN-MODEL.md §5.6).
-/// Mutated only via EvaluationTemplate's own methods (AddCriterion/UpdateCriterion/RemoveCriterion) -
-/// never constructed or edited directly by external code, matching Supplier's own child-entity
-/// convention (e.g. Representative/Address).</summary>
 public sealed class Criterion
 {
     public Guid Id { get; init; }
@@ -17,19 +28,6 @@ public sealed class Criterion
     public ScoringType ScoringType { get; set; }
     public string? GuidanceAr { get; set; }
     public string? GuidanceEn { get; set; }
-    /// <summary>
-    /// T-021/BRULE-061: "Criteria requiring justification cannot be submitted without a comment."
-    ///
-    /// <para>The rule tags WHICH criteria require one as <c>[ASSUMPTION]</c>, so the flag sits on
-    /// the criterion and the template author sets it - which is where the document points. Nothing
-    /// here decides that, say, every Commercial criterion needs a justification: that would be
-    /// inventing the policy the rule declines to state, and it would be invisible to the person who
-    /// authored the template.</para>
-    ///
-    /// <para>Defaults to false. A template written before this field existed did not ask for
-    /// justifications, and turning them on retroactively would refuse scores that were legitimate
-    /// when the template was approved.</para>
-    /// </summary>
     public bool RequiresJustification { get; set; }
 
     public int SortOrder { get; set; }

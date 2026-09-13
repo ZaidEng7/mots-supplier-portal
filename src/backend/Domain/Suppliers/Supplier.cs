@@ -1,5 +1,231 @@
-using MotsSupplierPortal.Domain.Common;
+// A supplier company: its profile, the people and places attached to it, where it is in registration
+// and review, and whether it may currently trade.
+//
+// The portal owns this record until the ministry's finance system approves it.
+//
+// This record, not the API and not the interface, is the only authority on which state changes are
+// legal.
+//
+//
+// TWO STATE MACHINES, and they answer different questions
+//
+// OnboardingState is how far the company has got through registration and review, from draft to
+// approved or rejected.
+//
+// LifecycleState is whether an approved supplier may currently trade: active, suspended or
+// deactivated, and none at all before approval.
+//
+// IsEligibleToParticipate is the single answer to "may this supplier be invited to a tender or submit a
+// bid?", and it requires both halves. Onboarding must have reached approved, because an applicant
+// mid-review is not eligible however healthy its lifecycle looks, and the lifecycle must be active,
+// because suspended and deactivated are both excluded from new selection while existing obligations are
+// handled by policy elsewhere.
+//
+// It lives here on the record so that the tender side and the bid side cannot each invent their own
+// eligibility rule and drift apart. Neither had consumers when it was written, which is exactly why its
+// tests enumerate every combination of the two states rather than the interesting ones: a rule with no
+// callers is trivially correct, and only exhaustive assertions stand in for the real callers.
+//
+//
+// THE THREE EDITING GATES
+//
+// EnsureEditable is the strict gate: editing is allowed while the company is filling in its profile, or
+// when a reviewer has asked for something, and not once it is approved.
+//
+// EnsureContactDetailsEditable is the looser gate, for how to reach the company. Every child collection
+// used to share the strict gate, and that gate stops at approval, so an approved supplier could not
+// change a contact, a representative, an address or a branch. People leave and offices move. A buyer
+// whose only named contact has left the company cannot ask a question, and the supplier had no way to
+// fix it. That was never a rule anybody wrote; it was the registration gate applied to data
+// registration was never about.
+//
+// What stays behind the strict gate is deliberate. Legal identity is what the reviewer approved, and
+// bank details are where an award gets paid. Changing either after approval is a claim that needs
+// checking rather than a correction, so both keep the strict gate until somebody decides what re-review
+// such a change should trigger.
+//
+// EnsureEditableForComplianceField is the third gate, for the fields the ministry has marked as
+// compliance-critical: legal identity, bank accounts and category links. Those stay editable after
+// approval, because otherwise a legitimately changed bank account could never be updated at all. Editing
+// one while approved sends the application back to review rather than silently accepting the change, and
+// the lifecycle stays active throughout, so the supplier is not suspended merely for having an edit
+// pending. Which fields count is configuration the caller resolves and passes in, because this record
+// knows nothing about configuration. When a field's re-trigger is switched off, it behaves like any other
+// profile field and is simply blocked once approved.
+//
+// UpdateLegalInfo, the bank account methods and the category methods return whether the edit re-triggered
+// review, by passing on what that gate itself answered. The caller used to work it out afterwards by
+// comparing the state before and after, which was correct only by coincidence.
+//
+//
+// THE PROFILE
+//
+// Register creates a prospective supplier. The legal identifiers are captured generically, with no
+// invented Syrian format rules. The legal identity is seeded with the trading name as an initial legal
+// name, which the supplier can correct later, and the registration number lives on the legal identity
+// rather than being a parameter here.
+//
+// UpdatedAt is stamped by the persistence layer wherever this record's version is advanced, rather than
+// by each of the thirty-two handlers that write a supplier.
+//
+// It equals CreatedAt on a supplier nobody has edited, rather than being blank. "Never modified" and
+// "modified at the moment it was created" are the same fact to a reader deciding whether their copy is
+// stale, and a blank would make every consumer write the same fallback. Both come from one reading of the
+// clock, not two: a supplier whose update time is a few ticks after its creation time reads as edited
+// since creation to anything comparing them.
+//
+// UpdateCoreProfile takes the description, website, group and currency. Callers pass already-merged
+// values: for a partial save the handler resolves each field to either the supplied value or the current
+// one, so this method never has to know which were left out. Which individual fields a supplier may touch
+// while a reviewer has asked for something is enforced by the handler, which can read the reviewer's open
+// request, and is covered by its own tests rather than asserted here. An earlier comment in this file
+// claimed an enforcement that did not exist.
+//
+//
+// THE CHILD COLLECTIONS
+//
+// A new representative is never the primary one by construction; the caller has to set the primary
+// explicitly if that is what they want.
+//
+// Exactly one representative is primary at all times, and that holds continuously rather than only at
+// registration. The last remaining representative can never be removed, because there would be nobody
+// left to be primary, and removing the primary while others remain promotes the next one automatically.
+//
+// A branch's address, when given, must be one of this supplier's own addresses, otherwise a branch could
+// point at another supplier's address or at nothing.
+//
+// A bank account arrives already encrypted and masked, because the encryption service is infrastructure
+// the domain does not depend on. The first account added is automatically the default, and exactly one
+// account is the default whenever any exist. When the account number is not being changed the caller
+// passes nothing for it, and only sends new encrypted and masked values when it actually changes.
+// SetDefaultBankAccount lets the supplier pick, on top of the automatic first-added and
+// promote-on-removal behaviour.
+//
+// The six collection caps are safety belts rather than business rules, and none of these collections had
+// any cap before. All are realistically small by nature, since a company has a handful of
+// representatives, addresses, branches and accounts rather than thousands, unlike the review queue's
+// genuinely unbounded growth, so real paging was scoped out in favour of these caps plus tests that
+// assert them. They are generous on purpose: high enough that no legitimate supplier ever meets one, low
+// enough that a bug or an abuse generating rows in a loop fails loudly instead of growing a response
+// forever.
+//
+//
+// COMPLETENESS
+//
+// RequiredProfileFieldCodes is the full checklist GetMissingProfileFields walks: the core profile fields,
+// a minimum of one address and one category link, and accepted terms.
+//
+// The whole list is exposed so that a completeness percentage has a denominator that cannot drift from
+// its numerator. Counting what is missing is easy; counting how many there were in total is where a
+// second implementation would appear, and the two would disagree the first time a field was added to the
+// checklist and not to the count.
+//
+// Every entry except accepted terms refers to a profile field code directly rather than a string that
+// merely happens to match one. This list feeds what the interface shows as missing, and the interface
+// compares those strings against the same vocabulary reviewers flag against. That agreement used to be
+// maintained by two independent sets of literals happening to match, so renaming a code would have
+// silently desynchronised them, with nothing to catch it until a supplier's "missing" indicator stopped
+// matching what a reviewer could actually flag. Referring to the constants makes that a compile error
+// instead.
+//
+// Accepted terms stays a plain string on purpose. It is a submit-gate concept rather than something a
+// reviewer can flag for correction, so there is no shared vocabulary to refer to.
+//
+// AcceptTerms records the version and the moment, which is the consent the submit gate looks for.
+// Accepting again, after a later version ships, simply overwrites it, because only the latest acceptance
+// needs to be current when the supplier submits.
+//
+// The terms version is a placeholder until the business owns the content and its versioning.
+//
+//
+// REVIEW
+//
+// Submit refuses if the profile checklist is incomplete, or if any required document type has no
+// satisfying uploaded version. The interface cannot get round it. The list of missing document types is
+// computed by the handler, which owns the document query this record has no access to.
+//
+// PickUpForReview is a reviewer taking the application.
+//
+// AssignReviewer and UnassignReviewer are a reviewer claiming a queue item and letting it go. Claiming is
+// manual self-claim rather than round-robin or manager-assigned, chosen as the simplest model that
+// satisfies the requirement without inventing a workflow nobody asked for; nothing in the product
+// documents specifies one.
+//
+// Assignment is independent of the onboarding state. A submitted, under-review or info-requested item can
+// all be claimed, and claiming does not itself change the state, so the state machine below never touches
+// it.
+//
+// Approve admits the supplier and makes it active, and raises the obligation to sync it to the finance
+// system. Its blocking-documents argument is the approval gate.
+//
+// The product owner's decision stands unchanged: approval does not require every document to be
+// individually approved, and a document still waiting on a reviewer must not block.
+//
+// What that decision never covered was later fixed. It had been implemented as "refused only if a
+// document was rejected, failed its scan or expired", which also let missing and unscanned required
+// documents through. The decision was about not requiring approval; the implementation was about not
+// requiring presence. Those are different claims, and only the first was ever decided.
+//
+// Reject needs a reason.
+//
+// RequestInfo asks the supplier for something. The record of what was asked, the reason and the flagged
+// sections and documents, is created by the handler.
+//
+// Resubmit is the supplier answering. It is an intermediate state that is audited on its own before the
+// handler immediately moves the application back to review for the next pass.
+//
+// Resubmit is gated exactly as Submit is. It used to take no argument at all, which made it a second
+// entrance to review with no gate on it. Uploads are permitted while information has been requested and
+// versioning only ever adds, so a supplier could re-upload a required document, superseding the approved
+// version and leaving the latest one unscanned, come back through this ungated path, and be approved
+// holding a required document nobody had looked at. Two entrances to the same state with different guards
+// is where the next defect hides, so the argument is required rather than optional: a caller cannot
+// forget it, because it will not compile.
+//
+// Unlike Submit, Resubmit is scoped to what the open request actually asked for rather than to every
+// required item. It only ever runs from the info-requested state, so that scoping is safe, and it closes
+// a real deadlock rather than a hypothetical one.
+//
+// The deadlock happened. A reviewer independently rejected one document through the separate
+// per-document decision, without also flagging it in the information request. The old unscoped check
+// demanded that document be fixed too, but re-uploading it was refused because it was not flagged, and a
+// second information request to flag it was refused because the application was not back under review
+// yet. The one door out of the info-requested state required walking through a door locked from the far
+// side. Scoping to what was actually flagged closes that loop: an unrelated rejected document no longer
+// blocks resolving what the ministry actually asked for. If the ministry wants that document fixed too,
+// the fix is to flag it, not for the completeness gate to demand it unconditionally.
+//
+//
+// AFTER APPROVAL
+//
+// Suspend blocks participation, is reversible, and needs a reason. It is not a data change: the supplier
+// keeps its profile, its documents and its history, and the requirement to retain historical records
+// applies from there on. What it loses is eligibility, which is answered in one place.
+//
+// Reinstate is the reverse, and it needs a reason too, so the record says why participation was restored
+// and not only why it was removed.
+//
+// Deactivate is final. There is deliberately no way out, not even back to suspended.
+//
+// It is reachable only from suspended, so deactivation is always a two-step decision. A direct path from
+// active would make an irreversible action a single click on a live supplier; requiring suspension first
+// means participation has already stopped and somebody has already written down why.
+//
+// The rule also requires the supplier's users to lose access, and that is not done here: revoking
+// sign-ins and killing refresh-token families is an identity concern this record has no reach into. It
+// belongs to the handler, and the tests assert it end to end rather than trusting a state field to imply
+// it. A deactivated supplier whose users can still refresh their way to a valid session is the same class
+// of defect as a second factor that never challenges anybody.
+//
+//
+// THE FINANCE SYSTEM
+//
+// ExternalId, SyncStatus and LastSyncedAt are written only by the sync path, once a real integration
+// exists, and are never settable through an API endpoint.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
+
+using MotsSupplierPortal.Domain.Common;
 
 public enum SupplierSyncStatus
 {
@@ -8,10 +234,6 @@ public enum SupplierSyncStatus
     Failed,
 }
 
-/// <summary>
-/// Central supplier master the portal owns until ERP approval (docs/architecture/DOMAIN-MODEL.md §5.3).
-/// The domain — not the API, not the UI — is the sole authority on legal state transitions.
-/// </summary>
 public sealed class Supplier : IVersionedAggregate, ILastModified
 {
     private readonly List<Representative> _representatives = [];
@@ -40,31 +262,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public DateTimeOffset? TermsAcceptedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
 
-    /// <summary>
-    /// T-003/§12.2's <c>updatedAt</c>. Set by <c>AppDbContext</c> wherever this root's version is
-    /// advanced - see <see cref="ILastModified"/> for why it is stamped there and not by each of the
-    /// thirty-two handlers that write a supplier.
-    ///
-    /// <para>Equal to <see cref="CreatedAt"/> on a supplier nobody has edited yet, rather than null.
-    /// "Never modified" and "modified at the moment it was created" are the same fact to a reader
-    /// deciding whether their copy is stale, and a nullable field would make every consumer write the
-    /// same coalesce.</para>
-    /// </summary>
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public uint RowVersion { get; private set; }
 
-    /// <summary>FEAT-03.6/FR-ONB-012 [ASSUMPTION]: no assignment model is specified anywhere in
-    /// the product docs (STORY-03.6.1 just says "assignable") - manual self-claim, not
-    /// round-robin or manager-assigned, chosen as the simplest model that satisfies the AC
-    /// without inventing a workflow no one asked for. Orthogonal to OnboardingState: assignment
-    /// tracks who is working an item, not what state it's in, so it is never touched by the
-    /// state-machine transitions below.</summary>
     public Guid? AssignedReviewerId { get; private set; }
     public DateTimeOffset? AssignedAt { get; private set; }
 
-    /// <summary>BRULE-009: T&C content is owned by business; version string is an
-    /// [ASSUMPTION] placeholder until that content and its versioning process exist.</summary>
     public const string CurrentTermsVersion = "1.0";
 
     public IReadOnlyList<Representative> Representatives => _representatives;
@@ -76,12 +280,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     private Supplier() { }
 
-    /// <summary>
-    /// Registers a new prospective supplier. Legal identifiers are captured generically —
-    /// no invented Syrian validation rules (docs/product/ASSUMPTIONS.md ASM-020). LegalInfo is
-    /// seeded with the trade name as an initial legal name (supplier can distinguish them later
-    /// via UpdateLegalInfo); RegistrationNumber lives on LegalInfo, not as a Register() param.
-    /// </summary>
     public static Supplier Register(
         string referenceCode,
         string displayNameAr,
@@ -100,8 +298,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             DisplayNameEn = displayNameEn,
             OnboardingState = SupplierOnboardingState.Draft,
             CreatedAt = now,
-            // Equal to CreatedAt, from ONE clock read rather than two: a supplier whose updatedAt is a
-            // few ticks after its createdAt reads as "edited since creation" to anything comparing them.
             UpdatedAt = now,
         };
 
@@ -121,7 +317,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return supplier;
     }
 
-    /// <summary>Draft -> EmailVerified. Onboarding cannot progress past this until verified.</summary>
     public void MarkEmailVerified()
     {
         if (OnboardingState != SupplierOnboardingState.Draft)
@@ -136,21 +331,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public bool IsEmailVerifiedOrLater =>
         OnboardingState is not SupplierOnboardingState.Draft;
 
-    /// <summary>
-    /// The gate on "how to reach us" data, which an ACTIVE supplier must be able to maintain.
-    ///
-    /// <para><b>Why this is separate from <see cref="EnsureEditable"/>.</b> Every child collection on
-    /// this aggregate shared one guard, and that guard stops at Approved - so an approved supplier
-    /// could not change a contact, a representative, an address or a branch. People leave and offices
-    /// move; a buyer whose only named contact has left the company cannot ask a clarification, and the
-    /// supplier has no way to fix it. That is not a rule anybody wrote, it is the onboarding gate
-    /// applied to data onboarding was never about.</para>
-    ///
-    /// <para><b>What stays behind the stricter gate, deliberately.</b> Legal identity is what the
-    /// reviewer approved, and bank details are where an award is paid - changing either after approval
-    /// is a claim that needs checking, not a correction. Both keep <see cref="EnsureEditable"/> until
-    /// somebody decides what re-review a change to them should trigger.</para>
-    /// </summary>
     private void EnsureContactDetailsEditable()
     {
         if (OnboardingState is SupplierOnboardingState.Draft or SupplierOnboardingState.Submitted
@@ -178,16 +358,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         }
     }
 
-    /// <summary>FEAT-04.9/STORY-04.9.1: unlike other profile fields, a compliance-critical one
-    /// (legal id, bank account, category links, per SupplierFieldConfig - the caller resolves
-    /// <paramref name="isComplianceCritical"/> from that config, the domain itself doesn't know
-    /// about config/infrastructure) is editable even once Approved, because otherwise a
-    /// legitimately-changed bank account could never be updated post-approval at all. Editing one
-    /// while Approved re-triggers review (back to UnderReview) rather than silently accepting the
-    /// change - LifecycleState stays Active during the re-review window, the supplier isn't
-    /// suspended just for having an edit pending. When the field's re-trigger is disabled in
-    /// config, it behaves like any other profile field: normal EnsureEditable gating, blocked once
-    /// Approved.</summary>
     private bool EnsureEditableForComplianceField(bool isComplianceCritical)
     {
         if (isComplianceCritical && OnboardingState == SupplierOnboardingState.Approved)
@@ -200,16 +370,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return false;
     }
 
-    /// <summary>FEAT-04.1 core profile fields (description/website/group/currency). Editable while
-    /// EmailVerified/ProfileInProgress, or InfoRequested. The domain gates which *states* allow
-    /// editing at all; the per-field restriction that applies while InfoRequested (STORY-03.3.1
-    /// AC1) is enforced by <c>FlaggedFieldGuard</c> in the handler, which can read the reviewer's
-    /// open annotation - verified by <c>FlaggedFieldEnforcementTests</c> rather than asserted here
-    /// (MSP-77; this comment previously claimed an enforcement that did not exist).
-    ///
-    /// Callers pass already-merged values: for a PATCH the handler resolves each field to either
-    /// the supplied value or the current one, so this method never has to know which were
-    /// omitted.</summary>
     public void UpdateCoreProfile(string? description, string? website, string? supplierGroup, string? currencyCode)
     {
         EnsureContactDetailsEditable();
@@ -226,13 +386,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LogoStorageKey = storageKey;
     }
 
-    /// <summary>FEAT-04.2/FR-PROF-002. Compliance-critical (FEAT-04.9): editing legal id
-    /// post-Approval re-triggers review.</summary>
-    /// <summary>Task #18/MSP-82: returns whether this edit re-triggered review (Approved ->
-    /// UnderReview), by propagating <see cref="EnsureEditableForComplianceField"/>'s own return
-    /// value rather than having the caller infer it later by diffing OnboardingState before/after -
-    /// see ComplianceReTrigger's doc comment for why that inference was correct only by
-    /// coincidence.</summary>
     public bool UpdateLegalInfo(string legalNameAr, string legalNameEn, string? registrationNumber, string? taxId, SupplierLegalType supplierType, DateOnly? establishedOn, bool isComplianceCritical)
     {
         var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
@@ -241,13 +394,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return reTriggered;
     }
 
-    // MSP-84: safety belts, not business rules - none of these six collections had any cap
-    // before this. All are realistically small by business nature (a company has a handful of
-    // reps/addresses/branches/bank accounts, not thousands), unlike Review Queue's genuine
-    // unbounded growth, so real pagination was scoped out in favor of these guards plus the
-    // denominator-style tests in Tests/Unit/Domain/SupplierProfileCollectionCapTests.cs. Generous
-    // on purpose: high enough that no legitimate supplier ever hits one, low enough that a bug
-    // (or abuse) generating rows in a loop fails loudly instead of growing a response forever.
     private const int MaxRepresentatives = 20;
     private const int MaxAddresses = 20;
     private const int MaxContacts = 20;
@@ -255,8 +401,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     private const int MaxBankAccounts = 10;
     private const int MaxCategoryLinks = 50;
 
-    /// <summary>FEAT-04.4/FR-PROF-004: a new representative is never primary by construction -
-    /// the caller must explicitly SetPrimaryRepresentative if they want to reassign it.</summary>
     public Representative AddRepresentative(string fullName, string email, string? phone, string? position)
     {
         EnsureContactDetailsEditable();
@@ -288,10 +432,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         representative.Position = position;
     }
 
-    /// <summary>DOMAIN-MODEL.md §5.3: exactly one primary representative at all times - the last
-    /// remaining representative can never be removed (there would be nobody left to be primary),
-    /// and removing the primary while others remain auto-promotes the next one so the invariant
-    /// holds continuously, not just "by construction" at registration.</summary>
     public void RemoveRepresentative(Guid representativeId)
     {
         EnsureContactDetailsEditable();
@@ -308,7 +448,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         }
     }
 
-    /// <summary>DOMAIN-MODEL.md §5.3 invariant example: supplier.SetPrimaryRepresentative(id).</summary>
     public void SetPrimaryRepresentative(Guid representativeId)
     {
         EnsureContactDetailsEditable();
@@ -399,8 +538,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         _contacts.Remove(contact);
     }
 
-    /// <summary>FEAT-04.5: AddressId, when given, must be one of this supplier's own addresses -
-    /// otherwise a branch could point at another supplier's address or a nonexistent one.</summary>
     private void EnsureAddressBelongsToThisSupplier(Guid? addressId)
     {
         if (addressId is not null && !_addresses.Any(a => a.Id == addressId))
@@ -440,13 +577,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         _branches.Remove(branch);
     }
 
-    /// <summary>FR-PROF-006: BankAccount.EncryptedAccountNumber/MaskedAccountNumber are computed
-    /// by the caller (handler has FieldEncryptionService, the domain does not depend on
-    /// Infrastructure) and passed in already encrypted/masked. DOMAIN-MODEL.md: the first bank
-    /// account added is automatically the default - exactly one default whenever any exist.</summary>
-    /// <summary>Task #18/MSP-82: see UpdateLegalInfo's doc comment - ReTriggered propagates
-    /// EnsureEditableForComplianceField's own answer instead of being re-derived from a state
-    /// diff.</summary>
     public (BankAccount Account, bool ReTriggered) AddBankAccount(string accountHolderName, string bankName, string? branchName, byte[] encryptedAccountNumber, string maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
     {
         var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
@@ -471,9 +601,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return (account, reTriggered);
     }
 
-    /// <summary>AccountNumber fields are null when the caller isn't changing the account number
-    /// (handler re-encrypts and passes non-null values only when the account number is actually
-    /// being changed).</summary>
     public bool UpdateBankAccount(Guid bankAccountId, string accountHolderName, string bankName, string? branchName, byte[]? encryptedAccountNumber, string? maskedAccountNumber, string? swiftBic, string currencyCode, bool isComplianceCritical)
     {
         var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
@@ -503,9 +630,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return reTriggered;
     }
 
-    /// <summary>DOMAIN-MODEL.md: lets the supplier explicitly pick which bank account is default,
-    /// on top of the automatic first-added/reassign-on-remove behavior in AddBankAccount/
-    /// RemoveBankAccount.</summary>
     public void SetDefaultBankAccount(Guid bankAccountId)
     {
         EnsureEditable();
@@ -535,40 +659,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return reTriggered;
     }
 
-    /// <summary>
-    /// Core-profile completeness (STORY-03.1.1 AC1/AC2) plus BRULE-009's T&C-acceptance gate and
-    /// EPIC-04's Address/CategoryLink minimums (STORY-04.3.1/STORY-04.7.1, per product-owner
-    /// decision 2026-08-27: >=1 CategoryLink is a hard submit requirement of EPIC-04 itself).
-    /// </summary>
-    /// <summary>
-    /// Task #18/MSP-85: every entry here except "termsAccepted" is a <see cref="ProfileFieldCodes"/>
-    /// value referenced directly, not a raw string literal that merely happens to match one. This
-    /// list feeds SupplierDto.MissingProfileFields, which the frontend reads with string equality
-    /// against the SAME flagged-field vocabulary (OnboardingPage.tsx's own comment: "Matches
-    /// SupplierDto.missingProfileFields' exact string values... keep in sync if the backend list
-    /// changes"). Before this, that sync was maintained by two independent literals happening to
-    /// agree - renaming a ProfileFieldCodes value would silently desync this list from the
-    /// vocabulary reviewers flag against, with nothing to catch it until a supplier's "missing"
-    /// indicator stopped matching what a reviewer could actually flag. Referencing the constant
-    /// makes that impossible: a rename here is a compile error, not a silent divergence.
-    ///
-    /// "termsAccepted" stays a literal on purpose - it is a submit-gate concept, not something a
-    /// reviewer can flag for correction (there is no ProfileFieldCodes.TermsAccepted), so there is
-    /// no shared vocabulary to reference.
-    /// </summary>
-    /// <summary>
-    /// The complete checklist <see cref="GetMissingProfileFields"/> evaluates - every item, present
-    /// or not.
-    ///
-    /// <para>Exposed so a completeness RATIO has a denominator that cannot drift from the numerator.
-    /// Counting the missing items is easy; counting how many there were in total is where a second
-    /// implementation would appear, and the two would disagree the first time a field was added to
-    /// the checklist and not to the count.</para>
-    ///
-    /// <para><c>termsAccepted</c> is a literal rather than a ProfileFieldCodes member because that
-    /// is how <see cref="GetMissingProfileFields"/> already emits it; giving it a constant here
-    /// while the check emits a literal would be two spellings of one code.</para>
-    /// </summary>
     public static readonly IReadOnlyList<string> RequiredProfileFieldCodes =
     [
         ProfileFieldCodes.LegalInfo,
@@ -597,10 +687,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return missing;
     }
 
-    /// <summary>BRULE-009: records T&C acceptance with the version and a timestamp - the consent
-    /// record the submit gate checks for. Accepting again (e.g. after a later version ships)
-    /// simply overwrites the record; only the latest acceptance needs to be current at submit
-    /// time, matching the rule's "before first submission" wording.</summary>
     public void AcceptTerms(string version)
     {
         if (OnboardingState is SupplierOnboardingState.Draft)
@@ -612,11 +698,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         TermsAcceptedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>ProfileInProgress -> Submitted. Refuses the transition server-side if the profile
-    /// checklist is incomplete OR any required DocumentType lacks a satisfying uploaded version
-    /// (docs/architecture/DOMAIN-MODEL.md §5.3 invariant) - the UI cannot bypass this (STORY-03.1.1
-    /// AC2). <paramref name="missingRequiredDocumentTypeCodes"/> is computed by the handler, which
-    /// owns the SupplierDocument query the aggregate itself doesn't have access to.</summary>
     public void Submit(IReadOnlyList<string> missingRequiredDocumentTypeCodes)
     {
         if (OnboardingState != SupplierOnboardingState.ProfileInProgress)
@@ -634,7 +715,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.Submitted;
     }
 
-    /// <summary>Submitted -> UnderReview. Reviewer picks up the application (STORY-03.2.1 AC1).</summary>
     public void PickUpForReview()
     {
         if (OnboardingState is not (SupplierOnboardingState.Submitted or SupplierOnboardingState.Resubmitted))
@@ -646,38 +726,18 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.UnderReview;
     }
 
-    /// <summary>FEAT-03.6: claim this queue item for a specific reviewer. Independent of
-    /// OnboardingState - a Submitted, UnderReview, or InfoRequested item can all be claimed;
-    /// claiming does not itself transition state (PickUpForReview still owns that).</summary>
     public void AssignReviewer(Guid reviewerId)
     {
         AssignedReviewerId = reviewerId;
         AssignedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>Releases a claim back to the pool.</summary>
     public void UnassignReviewer()
     {
         AssignedReviewerId = null;
         AssignedAt = null;
     }
 
-    /// <summary>
-    /// UnderReview -> Approved -> Active. Only reachable via reviewer action carrying
-    /// supplier.approve permission (enforced at the API); raises the ERP supplier-master sync
-    /// obligation (FEAT-03.5). <paramref name="blockingRequiredDocumentTypeCodes"/> is the approval
-    /// gate.
-    ///
-    /// <para>The 2026-08-26 product-owner decision holds and is unchanged: approval does NOT require
-    /// every document to already be individually Approved - an Uploaded or UnderReview document
-    /// waiting on a reviewer must not block.</para>
-    ///
-    /// <para>What changed in MSP-91 is what that decision never covered. It was implemented as
-    /// "refused only if a document is Rejected/ScanRejected/Expired", which also let MISSING and
-    /// unscanned required documents through. The decision was about not requiring approval; the
-    /// implementation was about not requiring presence. Those are different claims and only the
-    /// first was ever decided - see BRULE-017 and DocumentCompletenessEvaluator.</para>
-    /// </summary>
     public void Approve(IReadOnlyList<string> blockingRequiredDocumentTypeCodes)
     {
         if (OnboardingState != SupplierOnboardingState.UnderReview)
@@ -696,14 +756,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LifecycleState = SupplierLifecycleState.Active;
     }
 
-    /// <summary>
-    /// FR-ONB-009: Active -> Suspended. Reversible, reason mandatory (BRULE-096).
-    ///
-    /// Suspension is a participation block, not a data change: the supplier keeps its profile, its
-    /// documents and its history, and BRULE-008's "historical records retained" applies from here
-    /// on. What it loses is eligibility (BRULE-006/007), which is answered in one place by
-    /// <see cref="IsEligibleToParticipate"/>.
-    /// </summary>
     public void Suspend(string reason)
     {
         if (LifecycleState != SupplierLifecycleState.Active)
@@ -720,10 +772,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LifecycleState = SupplierLifecycleState.Suspended;
     }
 
-    /// <summary>
-    /// FR-ONB-009: Suspended -> Active. The reversible half; reason mandatory so the audit trail
-    /// records why participation was restored, not only why it was removed.
-    /// </summary>
     public void Reactivate(string reason)
     {
         if (LifecycleState != SupplierLifecycleState.Suspended)
@@ -740,21 +788,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LifecycleState = SupplierLifecycleState.Active;
     }
 
-    /// <summary>
-    /// FR-ONB-009: Suspended -> Deactivated. TERMINAL - there is deliberately no transition out,
-    /// not even back to Suspended.
-    ///
-    /// Reachable only from Suspended, so deactivation is always a two-step decision. A direct
-    /// Active -> Deactivated path would make an irreversible action a single click on a live
-    /// supplier; requiring suspension first means participation has already stopped and someone has
-    /// already written down why.
-    ///
-    /// BRULE-008 also requires the supplier's users to lose access. That is NOT done here: revoking
-    /// logins and killing refresh-token families is an identity concern the domain has no reach
-    /// into. It belongs to the handler, and the tests assert it end to end rather than trusting the
-    /// state field to imply it - a deactivated supplier whose users can still refresh their way to
-    /// a valid session is the same defect class as MFA that never challenged.
-    /// </summary>
     public void Deactivate(string reason)
     {
         if (LifecycleState != SupplierLifecycleState.Suspended)
@@ -772,26 +805,10 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LifecycleState = SupplierLifecycleState.Deactivated;
     }
 
-    /// <summary>
-    /// BRULE-006/007/008, FR-ONB-010: the single answer to "may this supplier be invited to an RFQ
-    /// or submit a proposal?".
-    ///
-    /// This is the seam EPIC-08 (RFQ) and EPIC-09 (proposals) consume; it exists here, on the
-    /// aggregate, so those epics cannot each invent their own eligibility rule and drift apart.
-    /// Neither has consumers yet, which is exactly why the unit tests enumerate EVERY combination
-    /// of onboarding and lifecycle state rather than the interesting ones: a predicate with no
-    /// callers is trivially correct, and only exhaustive assertions stand in for the real ones.
-    ///
-    /// Both halves are required. Onboarding must have reached Approved (BRULE-006 - an applicant
-    /// mid-review is not eligible however healthy its lifecycle field looks), and lifecycle must be
-    /// Active (BRULE-007/008 - Suspended and Deactivated are both excluded from NEW selection,
-    /// while existing obligations are handled by policy elsewhere).
-    /// </summary>
     public bool IsEligibleToParticipate =>
         OnboardingState == SupplierOnboardingState.Approved
         && LifecycleState == SupplierLifecycleState.Active;
 
-    /// <summary>UnderReview -> Rejected. Reason is mandatory (STORY-03.2.1 AC3).</summary>
     public void Reject(string reason)
     {
         if (OnboardingState != SupplierOnboardingState.UnderReview)
@@ -808,8 +825,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.Rejected;
     }
 
-    /// <summary>UnderReview -> InfoRequested (STORY-03.3.1 AC1). The annotation carrying the
-    /// reason and flagged sections/documents is created by the handler.</summary>
     public void RequestInfo()
     {
         if (OnboardingState != SupplierOnboardingState.UnderReview)
@@ -821,43 +836,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.InfoRequested;
     }
 
-    /// <summary>InfoRequested -> Resubmitted (STORY-03.3.1 AC2), an intermediate, individually
-    /// audited state before the handler immediately advances it back to UnderReview via
-    /// <see cref="PickUpForReview"/> for the reviewer's next pass.</summary>
-    /// <summary>
-    /// InfoRequested -> Resubmitted, gated exactly as <see cref="Submit"/> is (BRULE-017, MSP-91).
-    ///
-    /// <para>It used to take no argument at all, which made it a second entrance to review with no
-    /// gate on it. Uploads are permitted in InfoRequested and versioning is append-only, so a
-    /// supplier could re-upload a required document - superseding the approved version, leaving the
-    /// latest in PendingScan - resubmit through this ungated path, and be approved holding a
-    /// required document nobody had scanned.</para>
-    ///
-    /// <para>Two entrances to the same state with different guards is where the next defect hides,
-    /// so the parameter is required rather than optional: a caller cannot forget it, because it will
-    /// not compile.</para>
-    /// </summary>
-    /// <param name="missingRequiredDocumentTypeCodes">All required document types not currently
-    /// satisfying the submit requirement - the same unscoped set <see cref="Submit"/> uses.</param>
-    /// <param name="flaggedProfileFields">The open annotation's <c>FlaggedProfileFields</c>.</param>
-    /// <param name="flaggedDocumentTypeCodes">The open annotation's <c>FlaggedDocumentTypeIds</c>,
-    /// resolved to codes by the caller.</param>
-    /// <remarks>
-    /// Resubmit only ever runs from InfoRequested (guarded below), so unlike Submit it is scoped to
-    /// what the open annotation actually asked for, not every required item unconditionally.
-    ///
-    /// A document a reviewer independently rejected - via the separate per-document
-    /// approve/reject action (FEAT-05.4), not through this info request - without also flagging it
-    /// here is a real scenario, not a hypothetical: it happened, and it permanently deadlocked
-    /// SUP-2026-000044 (Task #32). The old unscoped check demanded that document be fixed too, but
-    /// re-upload was refused because it wasn't flagged (UploadDocumentHandler), and a second
-    /// request-info to flag it was refused because the application wasn't back in UnderReview yet
-    /// (RequestInfo only runs from UnderReview) - the one door out of InfoRequested required
-    /// walking through a door that was locked from the far side. Scoping to what was actually
-    /// flagged closes that loop: an unrelated rejected document no longer blocks resolving the
-    /// thing the ministry actually asked for. If the ministry wants that document fixed too, the
-    /// fix is to flag it - not for the completeness gate to demand it unconditionally.
-    /// </remarks>
     public void Resubmit(
         IReadOnlyList<string> missingRequiredDocumentTypeCodes,
         IReadOnlyList<string> flaggedProfileFields,
@@ -880,8 +858,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.Resubmitted;
     }
 
-    /// <summary>FEAT-04.10/FR-PROF-010: written only by the (not-yet-built) Outbox-consumer path
-    /// once a real ERP integration exists - never directly settable via an API endpoint.</summary>
     public void MarkSynced(string externalId)
     {
         ExternalId = externalId;

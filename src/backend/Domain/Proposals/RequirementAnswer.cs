@@ -1,12 +1,13 @@
+// One answer a supplier gave to one requirement on the tender. This is technical content, the other
+// half of the two-envelope split.
+//
+// It is a real child table rather than the single JSON column the written data model describes. That
+// is a deliberate deviation: the submission gate has to confirm every mandatory requirement has an
+// answer, which needs each answer to be a row with a real link to its requirement rather than opaque
+// JSON the domain would have to unpack and interpret.
+
 namespace MotsSupplierPortal.Domain.Proposals;
 
-/// <summary>FEAT-09.2/FR-PRP-003: one answer in the TechnicalResponse against an RFQ Requirement -
-/// two-envelope TECHNICAL content. A real child table rather than the DATABASE-MODEL.md §2.4
-/// documented `technical_response jsonb` column - deliberate deviation, not an oversight: FEAT-09.5's
-/// submission gate must verify every MANDATORY Requirement has an answer, which needs each answer to
-/// be a real, queryable row (RequirementId FK) rather than opaque JSON the domain would otherwise
-/// have to deserialize and interpret. See Proposal.cs's own doc comment for the rest of the
-/// two-envelope shape.</summary>
 public sealed class RequirementAnswer
 {
     public Guid Id { get; init; }

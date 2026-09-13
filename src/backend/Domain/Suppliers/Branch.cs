@@ -1,7 +1,7 @@
+// A place the supplier operates from, optionally pointing at one of the supplier's addresses.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>FR-PROF-005/STORY-04.5: a supplier operating location, optionally linked to one of the
-/// supplier's Address[] entries.</summary>
 public sealed class Branch
 {
     public Guid Id { get; init; }

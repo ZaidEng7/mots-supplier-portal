@@ -1,29 +1,91 @@
-using System.Globalization;
+// One uploaded version of a compliance document.
+//
+// Versioning only ever adds: re-uploading creates a new row and marks the old one as no longer the
+// latest, rather than changing history.
+//
+// ReferenceCode is the public identifier, DOC-2026-000001. Internal identifiers are never exposed in
+// web addresses, payloads or errors, and public references are short human-readable codes. That covers
+// payloads, not only addresses: an earlier comment elsewhere justified emitting the internal identifier
+// in a response body on the grounds that the rule governed paths only, and that reading was wrong.
+// Neither the prefix nor the shape is invented; both are transcribed from the written contract, and the
+// code comes from the same counter every other reference code uses, keyed by prefix, so a new prefix
+// needs no database change.
+//
+//
+// UPLOAD
+//
+// A document type that tracks expiry must be given an expiry date in the future. That used to be
+// accepted as blank or in the past, so a document could be filed as current while already expired, or
+// with no expiry at all, and the expiry job, which looks only at documents that have a date, would never
+// look at it again.
+//
+// The other half of the rule, that types without expiry never become expiring or expired, is enforced by
+// structure rather than by asking callers nicely: a type that does not track expiry has its date
+// discarded here, so no such row can carry a date for the job to act on.
+//
+// The expiry message formats the date with the invariant calendar, and that is not defensive tidiness
+// but a crash that was reproduced. Interpolating a date uses the host's own culture, and on an
+// Arabic-locale host that is the Umm al-Qura calendar, which covers only 1900 to 2077. Formatting
+// anything outside that range throws from inside this exception's own construction, so the guard that
+// should have returned a clean refusal produced a server error instead. The parsing side of the same
+// problem was fixed earlier at the endpoint; this is the formatting side, and this very validation
+// introduced it.
+//
+//
+// THE PIPELINE
+//
+// MarkScanClean is the scanner coming back clean: the file moves to the clean area and the document
+// becomes visible, downloadable and counted towards completeness.
+//
+// MarkScanRejected is the scanner finding malware. The file itself is deleted by the caller, and this
+// row is kept purely as a record so the supplier can see why they have to upload again.
+//
+// EnterReview is the step the pipeline was missing. The under-review state was read by three guards and
+// assigned by nothing, so the rule that a replaced document returns to review stopped halfway, and the
+// reviewer's own query for documents under review or rejected matched nothing that had ever existed.
+//
+// It is kept as its own transition rather than folded into the clean-scan step, even though the scan job
+// calls them one after the other. Uploaded is what the row holds if the job dies between the two, and
+// both approve and reject accept that state, so a crash there leaves a reviewable document rather than a
+// dead end. Collapsing the two states would have traded this gap for its mirror image: an uploaded state
+// nothing could reach.
+//
+// Approve and Reject both accept uploaded or under review, and a rejection needs a reason.
+//
+// MarkExpiringSoon and MarkExpired are driven by the passage of time rather than by a person.
+//
+//
+// THE TWO COMPLETENESS QUESTIONS
+//
+// SatisfiesSubmitRequirement answers whether this version currently satisfies its document type for the
+// purpose of letting a supplier submit their application, and the application-approval gate uses the
+// same answer.
+//
+// There used to be a second property for the approval gate, and it was deleted rather than left unused.
+// It encoded that approval is blocked only by a rejection, a failed scan or an expiry, which read like
+// the whole of the product owner's decision and was in fact narrower than it. That decision said
+// approval must not require every document to be individually approved. It said nothing about missing or
+// unscanned documents, and that property let both through. Deleting it rather than leaving it
+// unreferenced is deliberate: a property whose name states a superseded rule is exactly what the next
+// person reaches for.
+//
+// FlagsProfileIncomplete answers a different question: whether this document currently makes an
+// already-approved supplier's profile incomplete until it is replaced.
+//
+// It is deliberately narrower than the other one. A document still awaiting a scan, or one the scanner
+// refused, blocks approval, because the file never became a document. But it must not flag an
+// already-approved supplier's profile as incomplete, because there is nothing for them to replace yet.
+// The two look similar and answer different questions, and collapsing them would let a scan failure
+// silently change an approved supplier's standing.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>
-/// A single uploaded version of a compliance document (FR-DOC-002/006/007). Versioning is
-/// append-only: a re-upload creates a new row and flips <see cref="IsLatestVersion"/> on the old
-/// one rather than mutating history (FEAT-05.6).
-/// </summary>
+using System.Globalization;
+
 public sealed class SupplierDocument
 {
     public Guid Id { get; private init; }
 
-    /// <summary>
-    /// T-010: the opaque public identifier, <c>DOC-2026-000001</c>.
-    ///
-    /// <para>API-ARCHITECTURE.md §3 principle 3: <i>"internal GUIDv7 / integer PKs are never exposed
-    /// in URLs, payloads, or errors. Public references are human-readable short codes"</i> - note
-    /// PAYLOADS, not only URLs. A comment in DocumentContracts previously justified emitting the Guid
-    /// in the body on the grounds that §3.1 only governs paths; that reading was wrong, and this
-    /// closes both halves.</para>
-    ///
-    /// <para>§3.1's grammar is <c>^[A-Z]{2,4}-\d{4}-\d{6}$</c> and §12.3's own example is
-    /// <c>DOC-2026-013377</c>, so neither the prefix nor the shape is invented - both are
-    /// transcribed. Allocated by the same atomic counter every other code uses (MSP-81), keyed by
-    /// prefix, so a new prefix needs no schema change.</para>
-    /// </summary>
     public string ReferenceCode { get; private set; } = null!;
     public Guid SupplierId { get; private init; }
     public Guid DocumentTypeId { get; private init; }
@@ -44,19 +106,6 @@ public sealed class SupplierDocument
 
     private SupplierDocument() { }
 
-    /// <summary>
-    /// BRULE-020, both halves.
-    ///
-    /// A type that tracks expiry must be given a valid FUTURE expiry date at upload. Previously
-    /// `ExpiryTracked = true` silently accepted null and past dates, so a document could be filed
-    /// as current while already expired, or with no expiry at all - and the expiry job, which
-    /// filters on `ExpiryDate != null`, would never look at it again.
-    ///
-    /// The second half - "types without expiry never enter ExpiringSoon/Expired" - is enforced
-    /// structurally rather than by convention: a non-tracked type has its expiry date DISCARDED
-    /// here, so no such row can carry a date for the job to act on. Relying on callers not to send
-    /// one would be correctness by coincidence.
-    /// </summary>
     public static SupplierDocument CreatePendingScan(
         string referenceCode,
         Guid supplierId, Guid documentTypeId, int version, string quarantineKey,
@@ -72,22 +121,12 @@ public sealed class SupplierDocument
 
             if (expiryDate <= today)
             {
-                // InvariantCulture, and this is not defensive tidiness - it is a crash that was
-                // reproduced. Interpolating a DateOnly uses CurrentCulture, and on an Arabic-locale
-                // host that is the Umm al-Qura calendar, which only supports 1900-2077 Gregorian.
-                // Formatting anything outside that range throws ArgumentOutOfRangeException from
-                // INSIDE this exception's construction, so the guard that should have returned a
-                // clean 400 produced an unhandled 500 instead.
-                //
-                // Same family as MSP-60, which fixed the PARSING side at DocumentEndpoints.cs.
-                // This is the formatting side, and it was introduced by this very validation.
                 throw new DomainException(
                     $"The expiry date {expiryDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} is not in the future; a document cannot be filed as current while already expired.");
             }
         }
         else
         {
-            // Discarded, not merely ignored - see the summary above.
             expiryDate = null;
         }
 
@@ -113,8 +152,6 @@ public sealed class SupplierDocument
 
     public void SupersedeWithNewVersion() => IsLatestVersion = false;
 
-    /// <summary>Scan came back clean: object was moved to the clean prefix, the document becomes
-    /// visible/downloadable and counts toward completeness (docs/security §4.1).</summary>
     public void MarkScanClean(string cleanKey)
     {
         if (State != DocumentState.PendingScan)
@@ -126,8 +163,6 @@ public sealed class SupplierDocument
         State = DocumentState.Uploaded;
     }
 
-    /// <summary>Scan found malware: the object itself is deleted by the caller; this row is kept
-    /// (ScanRejected) purely as an audit trail so the supplier sees why re-upload is required.</summary>
     public void MarkScanRejected()
     {
         if (State != DocumentState.PendingScan)
@@ -138,18 +173,6 @@ public sealed class SupplierDocument
         State = DocumentState.ScanRejected;
     }
 
-    /// <summary>
-    /// T-052: the step the pipeline was missing. `UnderReview` was read by three guards and
-    /// assigned by nothing, so BRULE-024's "returns to `Uploaded -> UnderReview`" stopped halfway
-    /// and API-ARCHITECTURE.md §12.3's own reviewer query - `?state=UnderReview,Rejected` - matched
-    /// nothing that had ever existed.
-    ///
-    /// <para>Kept as a separate transition rather than folded into <see cref="MarkScanClean"/>,
-    /// even though DocumentScanJob calls them back to back. Uploaded is what the row holds if the
-    /// job dies between the two, and Approve/Reject accept it, so that crash leaves a reviewable
-    /// document rather than a dead end. Collapsing the two states would have traded this gap for
-    /// the mirror-image one: an Uploaded nothing can reach.</para>
-    /// </summary>
     public void EnterReview()
     {
         if (State != DocumentState.Uploaded)
@@ -210,35 +233,9 @@ public sealed class SupplierDocument
         State = DocumentState.Expired;
     }
 
-    /// <summary>Whether this version currently satisfies its DocumentType requirement for the
-    /// onboarding-submit completeness gate (docs/architecture/DOMAIN-MODEL.md §5.3 invariant).</summary>
     public bool SatisfiesSubmitRequirement =>
         State is DocumentState.Uploaded or DocumentState.UnderReview or DocumentState.Approved or DocumentState.ExpiringSoon;
 
-    // BlocksApplicationApproval was removed by MSP-91 rather than left unused.
-    //
-    // It encoded "approval is blocked only by Rejected/ScanRejected/Expired", which read as the
-    // whole of the 2026-08-26 product-owner decision and was in fact narrower than it. That decision
-    // said approval must not require every document to be individually APPROVED. It said nothing
-    // about missing or unscanned documents, and this property let both through.
-    //
-    // The approval gate now uses SatisfiesSubmitRequirement - the same predicate as the submit gate,
-    // one vocabulary instead of two. Deleting the old property rather than leaving it unreferenced
-    // is deliberate: a property whose name states the superseded rule is exactly what the next
-    // person reaches for, and this codebase has a register full of correct-looking things that were
-    // describing a rule nobody held any more.
-
-    /// <summary>
-    /// BRULE-018: a Rejected or Expired document flags the profile incomplete until replaced with
-    /// an approved version.
-    ///
-    /// Deliberately narrower than <see cref="SatisfiesSubmitRequirement"/>, which the approval gate
-    /// uses. A PendingScan or ScanRejected document blocks approval - the file never became a
-    /// document - but must NOT flag an already-approved supplier's profile incomplete, because there
-    /// is nothing for them to replace yet. The two predicates look similar and answer different
-    /// questions; collapsing them would let a scan failure silently change an approved supplier's
-    /// status.
-    /// </summary>
     public bool FlagsProfileIncomplete =>
         State is DocumentState.Rejected or DocumentState.Expired;
 }

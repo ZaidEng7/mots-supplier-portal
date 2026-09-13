@@ -1,9 +1,12 @@
+// A department or committee inside a buying body, which may itself sit under another one.
+//
+// There is no public way to build one. A unit is only ever created through
+// Organization.AddOrgUnit, and that is what guarantees two things: every unit belongs to
+// exactly one organization, and the tree can never contain a cycle, because a new unit can
+// only name a parent that already exists.
+
 namespace MotsSupplierPortal.Domain.Organizations;
 
-/// <summary>DOMAIN-MODEL.md §5.2: department/committee grouping within an Organization,
-/// self-nesting via ParentOrgUnitId. Only ever constructed through Organization.AddOrgUnit,
-/// which is what guarantees every unit belongs to exactly one Organization and the tree has no
-/// cycles - this type has no public factory of its own.</summary>
 public sealed class OrgUnit
 {
     public Guid Id { get; init; }
