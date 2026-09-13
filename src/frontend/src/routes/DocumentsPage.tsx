@@ -65,6 +65,10 @@ export function DocumentsPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['own-documents'] })
       void queryClient.invalidateQueries({ queryKey: ['document-history'] })
+      // Same reason as the onboarding page: the upload moved the supplier's row version and
+      // answered with a document, so the profile has to be re-read for the next guarded write to
+      // have a version to assert.
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profile'] })
       notify({ kind: 'success', title: t('documents.uploaded') })
     },
     onError: (raised) => notify({

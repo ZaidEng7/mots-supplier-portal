@@ -34,7 +34,12 @@ const legalSchema = z.object({
   registrationNumber: z.string().optional(),
   taxId: z.string().optional(),
   supplierType: z.enum(SUPPLIER_TYPES),
-  establishedOn: z.string().optional(),
+  // A founding date in the future is not a date anyone can have. The field accepted one - the
+  // picker's own calendar offered next month - and the server stored it.
+  establishedOn: z.string().optional().refine(
+    (value) => !value || value <= new Date().toISOString().slice(0, 10),
+    { message: 'establishedInFuture' },
+  ),
 })
 type LegalFormValues = z.infer<typeof legalSchema>
 
@@ -206,6 +211,12 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
     mutationFn: (file: File) => uploadDocument(supplierCode, doc.documentTypeId, file, undefined, doc.expiryTracked ? expiryDate : undefined),
     onSuccess: () => {
       invalidateQuietly(queryClient, { queryKey: ['own-documents'] })
+      // And the profile, which the upload moved: a document write changes the supplier's row
+      // version, and it answers with a DOCUMENT, so nothing hands the client the aggregate's new
+      // version. Without this re-read the next guarded save on this page - accepting the terms,
+      // most often - had no version to assert and was refused. Reported twice from this screen,
+      // with a page reload as the only way through, because a reload is exactly this re-read.
+      invalidateQuietly(queryClient, { queryKey: ['own-supplier'] })
       notify({ kind: 'success', title: t('onboarding.documentUploaded') })
     },
     onError: (err) => {
@@ -795,8 +806,22 @@ export function OnboardingPage() {
                 />
               )}
             </Field>
-            <Field label={t('onboarding.fields.establishedOn')}>
-              {(p) => <Input type="date" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('establishedOn')} />}
+            <Field
+              label={t('onboarding.fields.establishedOn')}
+              error={legalForm.formState.errors.establishedOn ? t('onboarding.errors.establishedInFuture') : undefined}
+            >
+              {/* `max` is today's date: a company cannot have been founded tomorrow, and the picker
+                  was offering next month. The schema refuses it as well - `max` only stops the
+                  calendar, and a date typed straight into the field ignores it. */}
+              {(p) => (
+                <Input
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  disabled={!fieldEditable('legalInfo')}
+                  {...p}
+                  {...legalForm.register('establishedOn')}
+                />
+              )}
             </Field>
           </div>
           {!isReadOnly ? (
