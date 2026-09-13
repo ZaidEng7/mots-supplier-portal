@@ -1,3 +1,116 @@
+// FEAT-09.1 through 09.6 and FR-PRP-001 through 008: real HTTP proof of the Proposal aggregate - uniqueness,
+// draft privacy, the two-envelope split, submit-with-validation, the revert-to-red late-submission proof,
+// cross-supplier confidentiality, and withdraw. Then §12.5's merge-patch endpoint, the rules the retired edit
+// sub-routes carried, and finally withdrawal re-entry and lapsing.
+//
+// The shared setup creates, authors one required item plus one optional item plus one mandatory requirement,
+// invites both suppliers, submits, approves and publishes, and drives the RFQ to SubmissionOpen via the real
+// timeline job. It returns the reference code plus the required item and requirement ids the submission gate
+// checks. Every step is asserted and named: those five used to discard their responses, so when one failed the
+// suite reported it as an unexplained 409 on the publish - which is how three tests in one full run said
+// "Expected OK, found Conflict" about a transition that was never the problem. A step that fails now says
+// which step and quotes the body.
+//
+// A second line can be priced without colliding with the first. Found by a person pricing a three-line tender
+// by hand: the first line saved, the second answered 500 with "23505: duplicate key value violates unique
+// constraint PK_proposal_item", and so did every line after it. Nothing here caught it because the patch
+// handler called db.ProposalItems.Add on every line in the array, including ones already persisted, which
+// marks a stored row as Added and issues an INSERT carrying its existing key. It cannot fire on the first
+// line: RFC 7396 replaces the array wholesale, so the client resends what it wants kept and the first PATCH on
+// an empty proposal has nothing to re-add. Every test in this file - and every walkthrough of this product -
+// priced exactly one line, so the second write never happened. The assertion is on the second call's status
+// and on both lines surviving, because the bug's signature is one line stored and the rest refused.
+//
+// A zero unit price is rejected with the documented code and message. §7.2 documents the rule twice over - in
+// the error code it names, PRICE_NON_POSITIVE, and in the message it prints - but the validator was
+// GreaterThanOrEqualTo(0), so a zero-price bid line was accepted while the contract said it could not be.
+// Ruled in favour of the contract. §12.5 moved this edit onto the merge patch, so the reported path is where
+// the value sits in the patch body, which is what §7.2's paths are for, and the neighbouring value still
+// works, so this proves the boundary rather than a broken endpoint.
+//
+// Starting a proposal twice returns the same draft, which is uniqueness enforced. A non-invited supplier
+// cannot start one at all.
+//
+// A draft proposal is never visible to the RFQ-owning organization's buyer. No buyer-side endpoint exposes
+// Proposal data at all in this build, so the real proof is that the buyer's own RFQ detail response - the only
+// buyer-facing view that exists - never even mentions proposals, priced or otherwise.
+//
+// Supplier B can never read supplier A's proposal, and its financial envelope is never retrievable by anyone
+// else. B is invited to the SAME RFQ but has no proposal of their own yet, and B's own GET route - the only
+// route that could ever address "a proposal for this RFQ" - returns B's own non-existent proposal, never A's.
+// There is no id in that URL that could name A's proposal instead: B cannot even construct a request that
+// names it. The financial envelope is then confirmed specifically rather than the proposal generally - even
+// after B starts their OWN proposal, B's view carries only B's own empty items, and A's pricing never appears
+// anywhere in a response B receives.
+//
+// Submit requires the required item to be priced and the mandatory requirement to be answered. T-066: §12.5
+// answers an incomplete submission with 422 and a code naming what is missing, rather than the 409 a wrong
+// source state gets, because this supplier has something to go and fix. The requirement code is an INVENTION -
+// §12.5 names a slug only for missing items - but the supplier still needs to know which completeness rule
+// they hit. Submit then succeeds when everything required is present, with documents uploading via
+// IFileStorage.
+//
+// Late submission is impossible even with a fully valid proposal already prepared. That is the revert-to-red
+// proof, the same discipline as EPIC-07's RfqTimelineJob tests: it drives the RFQ's own submission window to
+// actually close via the real scheduled job, then proves submission is refused for exactly that reason - not
+// a stale client clock, the server's own state. A-9 changed WHICH refusal fires, and this is the better one:
+// the draft used to survive the window in Draft, so submission was refused by the window check with a 400,
+// and BRULE-052 now lapses it as the window closes so the STATE guard refuses first - §3's 409 with the
+// terminal state and an empty allowedNext. Late submission is still impossible; it is now impossible for the
+// structural reason rather than the temporal one.
+//
+// Withdraw is allowed while the window is open and refused once it closes. T-065 made that refusal §3's 409
+// where it used to be a 400: the RFQ endpoints have answered 409 since T3-36, and the proposal endpoints now
+// agree with them and with §3. A-9 also improved what it reports - the draft used to sit in Draft forever
+// after the window closed, so the refusal named the closed WINDOW while the state said the bid was still live,
+// and BRULE-052 now lapses it so the reported state is Lapsed, terminal with an empty allowedNext, which is a
+// truer answer to "why can I not withdraw this": there is nothing left to withdraw.
+//
+// Every proposal action writes an audit row.
+//
+// §12.5, THE MERGE-PATCH ENDPOINT that replaced the five edit sub-routes. RFC 7396's central distinction is
+// the one a deserialised DTO cannot express: a member the patch does not mention keeps its value, and a member
+// sent as null is deleted. Both arrive as null in a C# property, which is why the endpoint reads a JsonObject.
+// The first test mentions paymentTerms only and the warranty must survive, where a DTO would have wiped it,
+// then deletes it explicitly. The same distinction holds for the technical response: technicalResponse
+// present and narrativeEn absent means the Arabic must survive. Sending items without a line removes that
+// line's pricing, because RFC 7396 replaces an array rather than merging into it, which is how a line's
+// pricing is removed now that DELETE /items/{id} is gone. And the patch only accepts the merge-patch media
+// type.
+//
+// THE RULES THE RETIRED SUB-ROUTES CARRIED, each proven on the new endpoint: editing after submit is refused
+// the way the sub-routes refused it, commercial terms still require a currency, an answer still has to carry
+// both languages, and a quantity of zero is still refused.
+//
+// WITHDRAWAL RE-ENTRY. BUSINESS-PROCESSES.md §4.1's withdrawal row is the whole basis for this being a defect
+// rather than correct behaviour: "Draft / Submitted | Withdrawn | Withdraw | supplier_admin /
+// proposal.withdraw | RFQ still SubmissionOpen (window open) | Release from consideration; re-submission
+// allowed while window open (new draft)". The documents permit re-entry explicitly and name its mechanism - a
+// NEW DRAFT, not an un-withdrawal of the old proposal - so the withdrawn row stays withdrawn, being the record
+// that a withdrawal happened, and the supplier gets a fresh one. Before this fix, starting again returned the
+// WITHDRAWN proposal, which every edit path then refuses because it is not a Draft, so a supplier who withdrew
+// to correct a price could never bid again on that RFQ. The new draft is asserted to be a working draft rather
+// than just a row - the supplier can price and submit it - because asserting only that a Draft came back would
+// pass on a proposal that no edit path accepts, which is the exact shape of the defect. The withdrawn proposal
+// is still withdrawn, since re-entry must not rewrite the record that a withdrawal took place: procurement was
+// notified of it. The control on the other side is that starting twice without withdrawing still returns the
+// same draft - FEAT-09.1's start is idempotent, and the fix must not turn a double-click into two proposals,
+// which is the failure mode of relaxing a uniqueness rule without narrowing it.
+//
+// LAPSING. A draft that survives the submission window lapses and the supplier is told: A-9 and BRULE-052,
+// enforced for the first time. The draft used to stay Draft forever, so the supplier's dashboard kept counting
+// a bid that could never be submitted and nothing said why. The window is closed by moving the deadline into
+// the past in storage and then running the job that notices it - shifting stored time rather than waiting is
+// the same technique the deadline tests use, and for the same reason: the alternative is a test that sleeps for
+// the window. It is asserted against storage AND against the notification the supplier actually receives, and
+// the outbox rows are materialised before filtering because PayloadJson is jsonb and a LIKE over it does not
+// translate - 42883, operator does not exist: jsonb ~~ jsonb - the same trap every other outbox assertion in
+// this suite walks around the same way. The control is that a submitted proposal is untouched when the window
+// closes: a bid that made the deadline missed nothing, and a job that runs every five minutes must not
+// rewrite it.
+
+namespace MotsSupplierPortal.Tests.Integration.Proposals;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -10,14 +123,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Proposals;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-09.1..09.6/FR-PRP-001..008: real HTTP proof of the Proposal aggregate - uniqueness,
-/// draft privacy, the two-envelope split, submit-with-validation, the revert-to-red
-/// late-submission proof, cross-supplier confidentiality, and withdraw.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 {
@@ -42,10 +149,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         await job.RunAsync(CancellationToken.None);
     }
 
-    /// <summary>Creates, authors (one required item + one optional item + one mandatory
-    /// requirement), invites both suppliers, submits/approves/publishes, and drives the RFQ to
-    /// SubmissionOpen via the real timeline job - the shared setup every test needs. Returns the
-    /// reference code plus the required item/requirement ids the submission gate checks.</summary>
     private async Task<(string ReferenceCode, Guid RequiredItemId, Guid OptionalItemId, Guid MandatoryRequirementId)> OpenRfqWithTwoInviteesAsync(
         Guid supplierA, Guid supplierB, string titleEn, DateTimeOffset? closesAt = null)
     {
@@ -96,10 +199,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var requirementBody = await requirement.Content.ReadFromJsonAsync<JsonElement>();
         var mandatoryRequirementId = requirementBody.GetProperty("requirements").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        // Every step asserted and named. These five used to discard their responses, so when one of them
-        // failed the suite reported it as an unexplained 409 on the publish below - which is how three
-        // tests in one full run said "Expected OK, found Conflict" about a transition that was never the
-        // problem. A step that fails now says which step and quotes the body.
         var step = (string name, Task<HttpResponseMessage> call) =>
             SetupStep.Of(nameof(ProposalEndpointsTests), name, call);
 
@@ -132,23 +231,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         termsResponse.StatusCode.Should().Be(System.Net.HttpStatusCode.OK, await termsResponse.Content.ReadAsStringAsync());
     }
 
-    /// <summary>
-    /// A tender with more than one line could have exactly one of them priced.
-    ///
-    /// <para>Found by a person pricing a three-line tender by hand. The first line saved; the second
-    /// answered 500 - <c>23505: duplicate key value violates unique constraint "PK_proposal_item"</c>
-    /// - and so did every line after it.</para>
-    ///
-    /// <para><b>Why nothing here caught it.</b> The patch handler called <c>db.ProposalItems.Add</c>
-    /// on every line in the array, including ones already persisted, which marks a stored row as
-    /// Added and issues an INSERT carrying its existing key. It cannot fire on the first line: RFC
-    /// 7396 replaces the array wholesale, so the client resends what it wants kept, and the first
-    /// PATCH on an empty proposal has nothing to re-add. Every test in this file - and every
-    /// walkthrough of this product - priced exactly one line, so the second write never happened.</para>
-    ///
-    /// <para>The assertion is on the second call's status and on both lines surviving, because the
-    /// bug's signature is one line stored and the rest refused.</para>
-    /// </summary>
     [Fact]
     public async Task A_second_line_can_be_priced_without_colliding_with_the_first()
     {
@@ -172,12 +254,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
             .Should().BeEquivalentTo(new[] { requiredItemId, optionalItemId });
     }
 
-    /// <summary>
-    /// §7.2 documents this rule twice over - in the error code it names (PRICE_NON_POSITIVE) and in
-    /// the message it prints («يجب أن يكون سعر الوحدة أكبر من صفر») - but the validator was
-    /// GreaterThanOrEqualTo(0), so a zero-price bid line was accepted while the contract said it
-    /// could not be. Ruled in favour of the contract.
-    /// </summary>
     [Fact]
     public async Task A_zero_unit_price_is_rejected_with_the_documented_code_and_message()
     {
@@ -190,8 +266,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         zero.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var problem = await zero.Content.ReadFromJsonAsync<JsonElement>();
-        // §12.5 moved this edit onto the merge patch, so the path is where the value sits in the
-        // patch body - which is what §7.2's paths are for.
         var error = problem.GetProperty("errors").EnumerateArray()
             .Single(e => e.GetProperty("field").GetString() == "items[0].unitPrice");
 
@@ -199,7 +273,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         error.GetProperty("messages").GetProperty("ar").GetString()
             .Should().Be("يجب أن يكون سعر الوحدة أكبر من صفر.", "transcribed verbatim from §7.2");
 
-        // The neighbouring value still works, so this proves the boundary rather than a broken endpoint.
         var positive = await ProposalPatch.PriceItemAsync(supplierA, proposalCode, requiredItemId, 10m, 0.01m, (decimal?)null, 3, (string?)null, (string?)null );
         positive.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -249,9 +322,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var proposalCode = await supplierA.StartProposalAsync(referenceCode);
         await PriceAndAnswerAsync(supplierA, proposalCode, requiredItemId, mandatoryRequirementId);
 
-        // No buyer-side endpoint exposes Proposal data at all in this build - the real proof is
-        // that the buyer's own RFQ detail response (the only buyer-facing view that exists) never
-        // even mentions proposals, priced or otherwise.
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var otherOfficer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
         var rfqAsSeenByAnyBuyer = await otherOfficer.GetAsync($"/api/v1/rfqs/{referenceCode}");
@@ -272,16 +342,9 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         submittedBody.GetProperty("items").EnumerateArray().Should().ContainSingle(i => i.GetProperty("unitPrice").GetDecimal() == 5m,
             "sanity check: the owner really does see their own pricing");
 
-        // B is invited to the SAME RFQ, but has no proposal of their own yet - B's own GET route
-        // (the only route that could ever address "a proposal for this RFQ") returns B's own
-        // (non-existent) proposal, never A's. There is no id in this URL that could name A's
-        // proposal instead - B cannot even construct a request that names it.
         var bGet = await supplierB.GetAsync($"/api/v1/rfqs/{referenceCode}/proposals");
         bGet.StatusCode.Should().Be(HttpStatusCode.NotFound, "B has not started a proposal - this must be B's own state, never A's submitted one");
 
-        // Confirms the financial envelope specifically, not just the proposal generally: even
-        // after B starts their OWN proposal, B's view carries only B's own (empty) Items - A's
-        // pricing never appears anywhere in a response B receives.
         var bStart = await supplierB.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         var bStartBody = await bStart.Content.ReadFromJsonAsync<JsonElement>();
         bStartBody.GetProperty("items").EnumerateArray().Should().BeEmpty("B's proposal is B's own - it can never contain A's priced items");
@@ -303,8 +366,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        // T-066: §12.5 answers an incomplete submission with 422 and a code naming what is missing -
-        // not the 409 a wrong source state gets, because this supplier has something to go and fix.
         submit.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("code").GetString().Should().Be("PROPOSAL_ITEMS_REQUIRED");
@@ -327,8 +388,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        // T-066. The code here is an INVENTION - §12.5 names a slug only for missing items - but the
-        // supplier still needs to know which completeness rule they hit.
         submit.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("code").GetString().Should().Be("PROPOSAL_REQUIREMENTS_REQUIRED");
@@ -360,10 +419,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         body.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Submitted));
     }
 
-    /// <summary>Revert-to-red proof, same discipline as EPIC-07's RfqTimelineJob tests: drives the
-    /// RFQ's own submission window to actually close via the real scheduled job, then proves
-    /// submission is refused for exactly that reason - not a stale client clock, the server's own
-    /// state.</summary>
     [Fact]
     public async Task Late_submission_is_impossible_even_with_a_fully_valid_proposal_already_prepared()
     {
@@ -379,11 +434,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var submit = await supplierA.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
 
-        // A-9 changed WHICH refusal fires, and this is the better one. The draft used to survive the
-        // window in Draft, so submission was refused by the window check (400). BRULE-052 now lapses it
-        // as the window closes, so the STATE guard refuses first - §3's 409 with the terminal state and
-        // an empty allowedNext. Late submission is still impossible; it is now impossible for the
-        // structural reason rather than the temporal one.
         var raw = await submit.Content.ReadAsStringAsync();
         submit.StatusCode.Should().Be(HttpStatusCode.Conflict, raw);
         var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
@@ -414,16 +464,9 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         var lateWithdraw = await supplierC.PostAsJsonAsync($"/api/v1/proposals/{closedProposalCode}/withdraw", new { reason = "Too late" });
 
-        // T-065: §3's 409 for a transition refusal, where this used to be a 400. The RFQ endpoints
-        // have answered 409 since T3-36; the proposal endpoints now agree with them and with §3.
         lateWithdraw.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var lateProblem = await lateWithdraw.Content.ReadFromJsonAsync<JsonElement>();
         lateProblem.GetProperty("code").GetString().Should().Be("ILLEGAL_TRANSITION");
-        // A-9 changed what this reports, and improved it. The draft used to sit in Draft forever after
-        // the window closed, so the refusal named the closed WINDOW while the state said the bid was
-        // still live. BRULE-052 now lapses it as the window closes, so the reported state is Lapsed -
-        // terminal, with an empty allowedNext - which is a truer answer to "why can I not withdraw
-        // this": there is nothing left to withdraw.
         lateProblem.GetProperty("currentState").GetString().Should().Be(nameof(ProposalState.Lapsed));
         lateProblem.GetProperty("allowedNext").EnumerateArray().Should().BeEmpty("Lapsed is terminal");
     }
@@ -447,8 +490,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         actions.Should().Contain(["proposal_started", "proposal_item_priced", "proposal_requirement_answered", "proposal_terms_updated", "proposal_submitted"]);
     }
 
-    // ---- §12.5: the merge-patch endpoint that replaced the five edit sub-routes ------------------
-
     private async Task<(HttpClient Client, string ProposalCode, Guid RequiredItemId, Guid RequirementId)> DraftProposalAsync(string name)
     {
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"{name} {Guid.NewGuid():N}"[..30]);
@@ -458,11 +499,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         return (supplierA, proposalCode, requiredItemId, requirementId);
     }
 
-    /// <summary>
-    /// RFC 7396's central distinction, and the one a deserialised DTO cannot express: a member the
-    /// patch does not mention keeps its value, and a member sent as null is deleted. Both arrive as
-    /// null in a C# property, which is why the endpoint reads a JsonObject.
-    /// </summary>
     [Fact]
     public async Task An_omitted_member_is_left_alone_and_an_explicit_null_clears_it()
     {
@@ -473,7 +509,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
             currencyCode = "SYP", paymentTerms = "Net 30", warranty = "12 months",
         });
 
-        // Mentions paymentTerms only. The warranty must survive - a DTO would have wiped it.
         await ProposalPatch.SetTermsAsync(client, proposalCode, new { paymentTerms = "Net 60" });
 
         var afterOmission = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
@@ -481,7 +516,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
             "a member the patch does not mention is unchanged");
         afterOmission.GetProperty("paymentTerms").GetString().Should().Be("Net 60");
 
-        // Now delete it explicitly.
         await ProposalPatch.SetTermsAsync(client, proposalCode, new { warranty = (string?)null });
 
         var afterNull = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
@@ -498,7 +532,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         await ProposalPatch.SetNarrativeAsync(client, proposalCode, "نص عربي", "English text");
 
-        // technicalResponse present, narrativeEn absent - the Arabic must survive.
         await ProposalPatch.SendAsync(client, proposalCode, new { technicalResponse = new { narrativeEn = "Changed" } });
 
         var after = await client.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
@@ -511,10 +544,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         cleared.GetProperty("narrativeAr").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
-    /// <summary>
-    /// RFC 7396 replaces an array rather than merging into it, which is how a line's pricing is
-    /// removed now that DELETE /items/{id} is gone.
-    /// </summary>
     [Fact]
     public async Task Sending_items_without_a_line_removes_that_lines_pricing()
     {
@@ -544,8 +573,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
             .Should().Be("MIME_NOT_ALLOWED");
     }
-
-    // ---- the rules the retired sub-routes carried, each proven on the new endpoint ---------------
 
     [Fact]
     public async Task Editing_after_submit_is_refused_the_way_the_sub_routes_refused_it()
@@ -613,18 +640,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
-    /// <summary>
-    /// BUSINESS-PROCESSES.md §4.1's withdrawal row, quoted in full because it is the whole basis for
-    /// this being a defect rather than correct behaviour:
-    ///
-    /// <para><i>"Draft / Submitted | Withdrawn | Withdraw | supplier_admin / proposal.withdraw |
-    /// RFQ still SubmissionOpen (window open) | Release from consideration; <b>re-submission allowed
-    /// while window open (new draft)</b> | ..."</i></para>
-    ///
-    /// <para>The documents permit re-entry explicitly, and name its mechanism: a NEW DRAFT, not an
-    /// un-withdrawal of the old proposal. So the withdrawn row stays withdrawn - it is the record
-    /// that a withdrawal happened - and the supplier gets a fresh one.</para>
-    /// </summary>
     [Fact]
     public async Task A_supplier_who_withdraws_can_start_a_new_draft_while_the_window_is_open()
     {
@@ -641,9 +656,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var withdraw = await supplierA.PostAsJsonAsync($"/api/v1/proposals/{firstCode}/withdraw", new { reason = "Correcting a price" });
         withdraw.StatusCode.Should().Be(HttpStatusCode.OK, await withdraw.Content.ReadAsStringAsync());
 
-        // The re-entry the table permits. Before this fix, starting again returned the WITHDRAWN
-        // proposal - which every edit path then refuses, because it is not a Draft - so a supplier
-        // who withdrew to correct a price could never bid again on that RFQ.
         var start = await supplierA.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
         start.StatusCode.Should().Be(HttpStatusCode.OK, await start.Content.ReadAsStringAsync());
 
@@ -653,15 +665,10 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         secondCode.Should().NotBe(firstCode, "the table says a NEW draft, not an un-withdrawal");
         body.GetProperty("state").GetString().Should().Be(nameof(ProposalState.Draft));
 
-        // And it is a working draft, not just a row: the supplier can price and submit it. Asserting
-        // only that a Draft came back would pass on a proposal that no edit path accepts, which is
-        // the exact shape of the defect.
         await PriceAndAnswerAsync(supplierA, secondCode, requiredItemId, mandatoryRequirementId);
         (await supplierA.PostAsync($"/api/v1/proposals/{secondCode}/submit", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // The withdrawn proposal is still withdrawn. Re-entry must not rewrite the record that a
-        // withdrawal took place - procurement was notified of it.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var first = await db.Proposals.AsNoTracking().FirstAsync(pr => pr.ReferenceCode == firstCode);
@@ -672,9 +679,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Starting_twice_without_withdrawing_still_returns_the_same_draft()
     {
-        // The control on the other side. FEAT-09.1's start is idempotent, and the fix above must not
-        // turn a double-click into two proposals - which is the failure mode of relaxing a
-        // uniqueness rule without narrowing it.
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"Idem {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"IdemOther {Guid.NewGuid():N}"[..30]);
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Idempotent RFQ");
@@ -688,16 +692,11 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_draft_that_survives_the_submission_window_lapses_and_the_supplier_is_told()
     {
-        // A-9/BRULE-052, enforced for the first time. The draft used to stay Draft forever: the
-        // supplier's dashboard kept counting a bid that could never be submitted, and nothing said why.
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"Lapse {Guid.NewGuid():N}"[..24]);
         var (_, supplierBId) = await ActiveSupplierAsync($"LapseOther {Guid.NewGuid():N}"[..24]);
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Lapse RFQ");
         var proposalCode = await supplierA.StartProposalAsync(referenceCode);
 
-        // Close the window by moving the deadline into the past in storage, then run the job that
-        // notices. Shifting stored time rather than waiting is the same technique the deadline tests
-        // use, and for the same reason: the alternative is a test that sleeps for the window.
         await using (var setup = fixture.Services.CreateAsyncScope())
         {
             var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -707,7 +706,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
 
         await RunTimelineJobAsync();
 
-        // Asserted against storage, and against the notification the supplier actually receives.
         await using (var check = fixture.Services.CreateAsyncScope())
         {
             var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -719,9 +717,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
                 && a.ToState == nameof(ProposalState.Lapsed)))
                 .Should().BeTrue();
 
-            // Materialised before filtering: PayloadJson is jsonb, and a LIKE over it does not
-            // translate (42883, operator does not exist: jsonb ~~ jsonb) - the same trap every other
-            // outbox assertion in this suite walks around the same way.
             var payloads = await db.OutboxMessages.AsNoTracking().Select(m => m.PayloadJson).ToListAsync();
             payloads.Should().Contain(p => p.Contains(proposalCode) && p.Contains("proposal.lapsed"),
                 "the supplier is the only party who lost something, so the supplier is told");
@@ -731,8 +726,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_submitted_proposal_is_untouched_when_the_window_closes()
     {
-        // The control for the test above. A bid that made the deadline missed nothing, and a job that
-        // runs every five minutes must not rewrite it.
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"NoLapse {Guid.NewGuid():N}"[..24]);
         var (_, supplierBId) = await ActiveSupplierAsync($"NoLapseOther {Guid.NewGuid():N}"[..24]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) =
@@ -762,10 +755,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_lapsed_draft_does_not_block_a_new_proposal_if_the_window_reopens()
     {
-        // The unique index excludes Lapsed for the same reason it excludes Withdrawn: it is a
-        // historical record, not a current bid. Leaving it in would have made a perfectly legitimate
-        // second submission fail with a 500 - which is exactly how the UNFILTERED version of this index
-        // failed the first time.
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"Relapse {Guid.NewGuid():N}"[..24]);
         var (_, supplierBId) = await ActiveSupplierAsync($"RelapseOther {Guid.NewGuid():N}"[..24]);
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Relapse RFQ");
@@ -779,7 +768,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         }
         await RunTimelineJobAsync();
 
-        // Reopen the window and start again - the index must permit the second row.
         await using (var reopen = fixture.Services.CreateAsyncScope())
         {
             var db = reopen.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -796,16 +784,11 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Cancelling_an_rfq_closes_its_live_proposals_and_leaves_resolved_ones_alone()
     {
-        // A-9/BRULE-056, enforced for the first time. Cancellation used to notify every invitee and
-        // evaluator and move NOTHING, so a Submitted proposal stayed Submitted forever on a cancelled
-        // tender - and BRULE-056 carries no assumption tag, which made that a confirmed rule going
-        // unenforced (found in batch 9 phase 12b).
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"CancA {Guid.NewGuid():N}"[..24]);
         var (supplierB, supplierBId) = await ActiveSupplierAsync($"CancB {Guid.NewGuid():N}"[..24]);
         var (referenceCode, requiredItemId, _, mandatoryRequirementId) =
             await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Cancel cascade RFQ");
 
-        // A submits; B starts a draft and then withdraws it. Three different fates in one RFQ.
         var submitted = await supplierA.StartProposalAsync(referenceCode);
         await PriceAndAnswerAsync(supplierA, submitted, requiredItemId, mandatoryRequirementId);
         (await supplierA.PostAsync($"/api/v1/proposals/{submitted}/submit", null))
@@ -826,8 +809,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         (await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == submitted)).State
             .Should().Be(ProposalState.Cancelled, "a live bid is closed by the cancellation");
 
-        // The control, and the half that matters most: a proposal already resolved is NOT rewritten.
-        // The supplier was told it was withdrawn, and that remains true.
         (await db.Proposals.AsNoTracking().FirstAsync(p => p.ReferenceCode == withdrawn)).State
             .Should().Be(ProposalState.Withdrawn);
 
@@ -850,11 +831,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         return await db.Rfqs.Where(r => r.ReferenceCode == referenceCode).Select(r => r.OrganizationId).FirstAsync();
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // T-072: the delivery term on a bid. It was a free varchar(10) validated by nothing, so the
-    // comparison matrix printed whatever a supplier typed beside the real Incoterms.
-    // ---------------------------------------------------------------------------------------------
-
     [Fact]
     public async Task A_delivery_term_that_is_not_an_incoterm_is_refused_and_the_offer_is_named()
     {
@@ -873,16 +849,10 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         });
 
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        // §7's problem+json, which the middleware conforms every non-2xx into: the handler's
-        // `error` becomes `code` and its message becomes `detail`.
         var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("code").GetString().Should().Be("UNKNOWN_INCOTERM");
-        // The refusal carries the list. A bidder told only "invalid" has to guess at a standard they
-        // may not have to hand, which is how "ASAP" got typed into this field in the first place.
         problem.GetProperty("detail").GetString().Should().Contain("FOB").And.Contain("DDP");
 
-        // And nothing was written: a refusal that half-applied the terms would leave a currency set
-        // and a delivery term missing.
         var proposal = await supplierA.GetFromJsonAsync<JsonElement>($"/api/v1/proposals/{proposalCode}");
         proposal.GetProperty("incotermCode").ValueKind.Should().Be(JsonValueKind.Null);
     }
@@ -895,8 +865,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Incoterm case RFQ");
         var proposalCode = await supplierA.StartProposalAsync(referenceCode);
 
-        // A supplier typing "fob" means FOB. Refusing that would be pedantry; storing it would put
-        // the free-text problem straight back, because a comparison groups by the stored string.
         var accepted = await ProposalPatch.SetTermsAsync(supplierA, proposalCode, new
         {
             currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = " fob ",
@@ -914,8 +882,6 @@ public sealed class ProposalEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Terms_with_no_delivery_term_at_all_are_still_accepted()
     {
-        // The control that keeps the rule narrow. §12.5 has the field optional and a domestic service
-        // contract quotes no Incoterm; a rule that required one would refuse a legitimate bid.
         var (supplierA, supplierAId) = await ActiveSupplierAsync($"IncotermNone {Guid.NewGuid():N}"[..30]);
         var (_, supplierBId) = await ActiveSupplierAsync($"IncotermNoneB {Guid.NewGuid():N}"[..30]);
         var (referenceCode, _, _, _) = await OpenRfqWithTwoInviteesAsync(supplierAId, supplierBId, "Incoterm none RFQ");

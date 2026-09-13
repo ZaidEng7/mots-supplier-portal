@@ -1,19 +1,25 @@
+// The primary-representative swap, and the race it used to lose.
+//
+// The table carries a unique index over primary representatives only, so at most one primary per supplier is
+// enforced by the database.
+//
+// Demoting the old primary and promoting the new one in a single save risked the mapper issuing the two updates in an
+// order the index rejected as a momentary duplicate. Reproduced by swapping the primary back to a
+// previously-demoted representative, which failed with a duplicate-key error.
+//
+// The fix commits the demotion in its own save before promoting the new primary, and this is the guard for it.
+//
+// Registration seeds one representative as primary, so promoting the second demotes the original, and swapping back
+// is the case that used to fail.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>Regression guard for the primary-representative swap race fixed in
-/// ManageRepresentativeHandler.SetPrimaryAsync: the "representative" table's partial unique index
-/// on (SupplierId) WHERE IsPrimary allows at most one primary per supplier at the database level.
-/// Demoting the old primary and promoting the new one in a single SaveChangesAsync risked EF
-/// issuing the two UPDATEs in an order the index rejected as a transient duplicate - reproduced by
-/// swapping primary back to a previously-demoted representative. The fix commits the demotion in
-/// its own SaveChangesAsync before promoting the new primary.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ManageRepresentativeTests(PostgresApiFixture fixture)
 {
@@ -22,7 +28,6 @@ public sealed class ManageRepresentativeTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Representative Swap Co");
 
-        // Registration seeds one representative ("Integration Tester") as primary.
         var before = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         var originalPrimaryId = before.GetProperty("representatives").EnumerateArray()
             .Single(r => r.GetProperty("isPrimary").GetBoolean())
@@ -41,12 +46,9 @@ public sealed class ManageRepresentativeTests(PostgresApiFixture fixture)
             .Single(r => r.GetProperty("email").GetString() == "second-rep@example.com")
             .GetProperty("id").GetGuid();
 
-        // Promote the second representative - demotes the original.
         var promoted = await client.PostAsync($"/api/v1/suppliers/me/representatives/{secondRepId}/set-primary", null);
         promoted.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // Swap back to the now-demoted original primary. Before the fix, this 500'd with
-        // "duplicate key value violates unique constraint IX_representative_SupplierId".
         var swappedBack = await client.PostAsync($"/api/v1/suppliers/me/representatives/{originalPrimaryId}/set-primary", null);
         swappedBack.StatusCode.Should().Be(HttpStatusCode.OK,
             "swapping primary back to a previously-demoted representative must not violate the partial unique index");

@@ -1,48 +1,53 @@
+// The message catalogue must cover the validators exactly, in BOTH directions.
+//
+// A rule with no entry falls back to the library's English and ships an untranslated sentence to a supplier bidding
+// on a public tender.
+//
+// An entry for a rule that no longer exists is the opposite failure and the quieter one: a string a product owner
+// keeps reviewing and re-approving for a validator deleted months ago.
+//
+// The rules are read by reflection from the validators themselves, never from a hand-kept list, so adding one rule
+// and nothing else fails this test.
+//
+//
+// THE UNENUMERABLE COMPONENTS ARE LISTED INDIVIDUALLY, SO THE SET IS ASSERTED RATHER THAN IGNORED
+//
+// A child-validator adaptor raises no message of its own: the child's rules do, and those are reachable only by
+// running a validation rather than by reading the metadata. Their entries exist and are exercised by the round-trip
+// tests.
+//
+// What the list protects is the case where somebody adds a SECOND block of child rules, which would otherwise be
+// silently unenumerable and silently English.
+//
+// A whole-request custom rule is a container in the same way. It has no property and never renders its own text, so
+// it is treated as unenumerable rather than given an entry that could never be shown; the failures it adds carry
+// an explicit error code, so they resolve through the catalogue like any other rule.
+//
+// The entries for those rules are not orphans. They are asserted against the running validators by the round-trip
+// tests instead.
+//
+// Several validators take a database context so a rule can check a lookup table. The dependency is only touched
+// inside a rule's body and never during construction, so an empty one is enough to read the metadata, and cheaper
+// than standing up a database to enumerate it.
+
+namespace MotsSupplierPortal.Tests.Integration.Contract;
+
 using FluentValidation;
 using FluentValidation.Validators;
 using FluentAssertions;
 using MotsSupplierPortal.Api.Errors;
-
-namespace MotsSupplierPortal.Tests.Integration.Contract;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// §7.2's catalogue must cover the validators exactly - in BOTH directions.
-///
-/// <para>A rule with no catalogue entry falls back to FluentValidation's English and ships an
-/// untranslated sentence to a supplier bidding on a public tender. An entry for a rule that no longer
-/// exists is the opposite failure and the quieter one: a string that a product owner keeps reviewing
-/// and re-approving for a validator deleted months ago.</para>
-///
-/// <para>The rules are read by reflection from the validators themselves, never from a hand-kept
-/// list, so adding <c>RuleFor(x =&gt; x.Foo).NotEmpty()</c> and nothing else fails this test.</para>
-/// </summary>
 public sealed class ValidationCatalogueCoverageTests
 {
-    /// <summary>
-    /// Components the descriptor cannot resolve to a message rule, listed individually so that the
-    /// set is asserted rather than ignored. A <c>ChildValidatorAdaptor</c> raises no message of its
-    /// own - the child's rules do, and those are reachable only by running a validation, not by
-    /// reading the descriptor. Their catalogue entries exist (<c>Attributes[].Key.NotEmpty</c> and
-    /// the other three) and are exercised by the round-trip test below; what this list protects is
-    /// the case where someone adds a SECOND ChildRules block, which would otherwise be silently
-    /// unenumerable and silently English.
-    /// </summary>
     private static readonly string[] KnownUnenumerable =
     [
         "CreateOfferingRequestValidator.Attributes:ChildValidatorAdaptor",
-        // RuleFor(x => x).CustomAsync(...) - a container like the adaptor above. It raises no message
-        // of its own; it calls context.AddFailure per field, and those failures carry an explicit
-        // NotEmptyValidator error code so they resolve through the catalogue like any other rule.
         "UpdateLegalInfoRequestValidator.:AsyncPredicateValidator",
     ];
 
     private static IValidator Instantiate(Type type)
     {
-        // Several validators take an AppDbContext so a rule can check a lookup table. The dependency
-        // is only touched inside a rule's lambda, never during construction, so a null is enough to
-        // read the rule descriptors - and cheaper than standing up a database to enumerate metadata.
         var ctor = type.GetConstructors().Single();
         return (IValidator)ctor.Invoke([.. ctor.GetParameters().Select(_ => (object?)null)]);
     }
@@ -65,9 +70,6 @@ public sealed class ValidationCatalogueCoverageTests
                     var errorCode = component.Validator is IPropertyValidator v ? v.Name : component.ErrorCode;
                     var ruleName = ValidationProblems.RuleNameFor(errorCode ?? string.Empty);
 
-                    // A whole-request CustomAsync is a container, not a message rule: it has no
-                    // property and never renders its own text. Treated as unenumerable rather than
-                    // given a catalogue entry that could never be shown.
                     if (ruleName == "MustAsync" && string.IsNullOrEmpty(rule.PropertyName))
                     {
                         unenumerable?.Add($"{type.Name}.{rule.PropertyName}:{errorCode}");
@@ -101,9 +103,6 @@ public sealed class ValidationCatalogueCoverageTests
     [Fact]
     public void Every_catalogue_entry_matches_a_declared_validation_rule()
     {
-        // The ten entries for rules the descriptor cannot enumerate - collection child rules, the
-        // whole-request Must, and the config-driven required fields raised by CustomAsync - are not
-        // orphans; they are asserted against the running validators by the round-trip tests instead.
         string[] notDescriptorVisible =
         [
             "Attributes[].Key.NotEmpty", "Attributes[].Key.MaximumLength",

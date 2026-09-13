@@ -1,3 +1,75 @@
+// The idempotency contract, clause by clause. The one that matters: a supplier double-clicking submit cannot create
+// two bids.
+//
+// The fixture is deliberately NOT the shared evaluation seed, which drives the tender past the point where a
+// submission is legal, so submission would be refused on the state machine before idempotency is reached. The first
+// version used it and every test failed on that refusal, which is a setup error rather than a finding.
+//
+// The window is opened in STORAGE and the real job makes the transition: no sleeping and no race, which is the
+// lesson from another suite turning the main branch red.
+//
+//
+// A REPLAY IS ASSERTED AGAINST STORAGE, NOT ONLY AGAINST THE TWO RESPONSES
+//
+// The first call is processed and a retry with the same key and the same request replays it verbatim, with the
+// header that says so.
+//
+// But two matching responses would also be produced by a handler that ran twice idempotently, so the claim that
+// matters is that the work happened ONCE, which is read from storage.
+//
+// Its control is the same double-click under a DIFFERENT key: without idempotency it meets the state guard and is
+// refused, so the work is not duplicated but the client is told its own retry failed. That is the behaviour the
+// contract exists to improve on, and proving it still happens under a different key is what shows the replay came
+// from the key rather than from the state machine.
+//
+// A missing key on a route that requires one is refused, and nothing is submitted, because a refused precondition
+// must not have done the work.
+//
+//
+// THE SAME KEY WITH A DIFFERENT REQUEST IS A CONFLICT, NOT A REPLAY
+//
+// Replaying there would hand a client the outcome of a call it never made, which is worse than any duplicate.
+//
+// It uses two DIFFERENT bids belonging to the same supplier, because the fingerprint covers the path. The first
+// version reused the key on a different action and was processed, correctly, because that action does not declare
+// the filter: the contract says every non-idempotent write ACCEPTS the header, and today only the three it names
+// as requiring it honour one. Recorded in the backlog rather than papered over by widening the expectation.
+//
+// The different-path case is refused before the handler is reached, so the not-found that would otherwise follow on
+// scope is beside the point.
+//
+//
+// THE RECORD IS KEYED PER USER, NOT GLOBALLY
+//
+// The key is client-generated, so two suppliers picking the same value is trivial on purpose, and a global key space
+// would let one caller read another's response, which is a disclosure rather than a duplicate.
+//
+// So the second supplier's use of the same key on their own submission must be processed rather than replayed.
+//
+// Expiry is exercised by ageing one record past its window while leaving the rest live, which covers both
+// directions in one run.
+//
+//
+// A REPLAYED ERROR MUST KEEP ITS CONTENT TYPE
+//
+// The filter captures the handler's response and re-emits it, and it used to re-emit everything as ordinary
+// JSON.
+//
+// An error body sent as ordinary JSON is no longer recognised as already-conformed by the error middleware, so the
+// middleware rebuilt it and re-derived the machine-readable code from the status, flattening a specific transition
+// refusal into a bare conflict while leaving its detail fields in place. A client switching on that code, which the
+// contract tells them to do, would see nothing but the status it already had.
+//
+// Found when lapsing a draft made "submit a bid that has moved on" reachable on an idempotent route for the first
+// time.
+//
+// Any refusal carrying a code will do. A submission on a bid that does not exist is a not-found with no code, so
+// this uses a state refusal instead, and the end-to-end shape through a real lapse is asserted in the bid suite.
+// For the not-found case the point is the CONTENT TYPE rather than the particular code: whatever the handler
+// answered must arrive in the error shape so the middleware leaves it alone.
+
+namespace MotsSupplierPortal.Tests.Integration.Contract;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,27 +81,11 @@ using MotsSupplierPortal.Infrastructure.Idempotency;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Contract;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-053/§8.2, clause by clause. The one that matters is 3: <i>"a supplier double-clicking Submit
-/// Proposal cannot create two proposals"</i>.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class IdempotencyTests(PostgresApiFixture fixture)
 {
-    /// <summary>
-    /// A DRAFT proposal on an RFQ whose submission window is open, plus the raw client that controls
-    /// its own headers.
-    ///
-    /// <para>Deliberately not EvaluationSeed: that helper drives the RFQ to UnderEvaluation and moves
-    /// its proposal to UnderReview, so submit answers 409 on the state machine before idempotency is
-    /// reached. The first version of this suite used it and every test failed on that 409 - which is a
-    /// setup error, not a finding.</para>
-    /// </summary>
     private async Task<(HttpClient Raw, string ProposalCode)> ReadyToSubmitAsync(string label)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -73,8 +129,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
         (await officer.PostAsync($"/api/v1/rfqs/{rfqCode}/publish", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // Open the window in STORAGE and let the real job make the transition - no sleeping, no race
-        // (the lesson from CrossOrganizationScopeTests turning main red).
         await using (var setup = fixture.Services.CreateAsyncScope())
         {
             var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -131,12 +185,10 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
         var etag = await ETagAsync(raw, code);
         var key = Guid.NewGuid().ToString();
 
-        // §8.2.2: first call processed normally.
         var first = await raw.SendAsync(Submit(code, key, etag));
         first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
         var firstBody = await first.Content.ReadAsStringAsync();
 
-        // §8.2.3: retry with the same key and the same fingerprint replays verbatim, with the header.
         var second = await raw.SendAsync(Submit(code, key, etag));
 
         second.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -145,8 +197,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
         flag!.Should().ContainSingle().Which.Should().Be("true");
         (await second.Content.ReadAsStringAsync()).Should().Be(firstBody, "replayed verbatim, per §8.2.3");
 
-        // And it happened once. Asserted against storage, which is the claim that matters - the two
-        // matching responses above would also be produced by a handler that ran twice idempotently.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var audits = await db.AuditLogs.CountAsync(a => a.ReferenceCode == code && a.Action == "proposal_submitted");
@@ -156,10 +206,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Without_the_replay_the_second_click_would_have_been_refused()
     {
-        // The control for the test above. Without idempotency a double-click meets the state guard and
-        // gets a 409 - the work is not duplicated, but the client is told its own retry failed. That is
-        // the behaviour §8.2 exists to improve on, and proving it still happens under a DIFFERENT key
-        // is what shows the replay above came from the key rather than from the state machine.
         var (raw, code) = await ReadyToSubmitAsync("Idem Control");
         var etag = await ETagAsync(raw, code);
 
@@ -186,12 +232,10 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
         };
         var response = await raw.SendAsync(request);
 
-        // §8.2: "a missing key on these returns 428 (IDEMPOTENCY_KEY_REQUIRED)".
         response.StatusCode.Should().Be(HttpStatusCode.PreconditionRequired);
         (await response.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("code").GetString().Should().Be("IDEMPOTENCY_KEY_REQUIRED");
 
-        // And nothing happened - a refused precondition must not have submitted anything.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Proposals.AsNoTracking().Where(p => p.ReferenceCode == code)
@@ -201,14 +245,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_same_key_on_a_different_request_is_refused_rather_than_answered()
     {
-        // §8.2.4: same key, different fingerprint -> 409. Replaying here would hand a client the
-        // outcome of a call it never made, which is worse than any duplicate.
-        //
-        // Two DIFFERENT proposals belonging to the same supplier, because the fingerprint covers the
-        // path. The first version of this test reused the key on /withdraw and got a 200 - correctly:
-        // withdraw does not declare the filter. §8.2 says every non-idempotent POST "accepts" the
-        // header, and today only the three it names as REQUIRED honour it. Recorded in the backlog
-        // rather than papered over by widening the test's expectation.
         var (raw, code) = await ReadyToSubmitAsync("Idem Reuse A");
         var (rawOther, otherCode) = await ReadyToSubmitAsync("Idem Reuse B");
         rawOther.Dispose();
@@ -217,8 +253,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
         (await raw.SendAsync(Submit(code, key, await ETagAsync(raw, code)))).StatusCode
             .Should().Be(HttpStatusCode.OK);
 
-        // Same caller, same key, a different path - so a different fingerprint. The 404 that would
-        // follow on scope is beside the point: the filter refuses before the handler is reached.
         var elsewhere = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/proposals/{otherCode}/submit")
         {
             Headers = { { "Idempotency-Key", key }, { "If-Match", "\"AAAAAQ\"" } },
@@ -233,9 +267,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task One_callers_key_cannot_replay_another_callers_response()
     {
-        // The record is keyed (UserId, Key), not Key alone. The key is client-generated, so two
-        // suppliers picking the same UUID is trivial on purpose - and a global key space would let one
-        // caller read another's response, which is a disclosure rather than a duplicate.
         var (rawA, codeA) = await ReadyToSubmitAsync("Idem Tenant A");
         var (rawB, codeB) = await ReadyToSubmitAsync("Idem Tenant B");
 
@@ -244,7 +275,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
         (await rawA.SendAsync(Submit(codeA, sharedKey, await ETagAsync(rawA, codeA))))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // Supplier B uses the SAME key on their own submit. It must be processed, not replayed.
         var bResponse = await rawB.SendAsync(Submit(codeB, sharedKey, await ETagAsync(rawB, codeB)));
 
         bResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -266,7 +296,6 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
             var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
             (await db.IdempotencyRecords.CountAsync()).Should().BeGreaterThan(0, "control: there is something to keep");
 
-            // Age one record past its window, leaving the rest live. Both directions in one run.
             var oldest = await db.IdempotencyRecords.OrderBy(r => r.CreatedAt).FirstAsync();
             await db.IdempotencyRecords.Where(r => r.Id == oldest.Id)
                 .ExecuteUpdateAsync(p => p.SetProperty(r => r.ExpiresAt, DateTimeOffset.UtcNow.AddHours(-1)));
@@ -290,25 +319,10 @@ public sealed class IdempotencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_error_code_survives_the_idempotency_filter()
     {
-        // The filter captures the handler's response and re-emits it, and it used to re-emit every
-        // response as application/json. A problem+json body sent as application/json is no longer
-        // recognised as already-conformed by ProblemDetailsMiddleware, so the middleware rebuilt it and
-        // re-derived `code` from the status - flattening ILLEGAL_TRANSITION to a bare CONFLICT while
-        // leaving currentState and allowedNext in place. A client switching on `code`, which §7 tells
-        // them to do, would see nothing but the status it already had.
-        //
-        // Found by A-9: lapsing a draft made "submit a proposal that has moved on" reachable on an
-        // idempotent route for the first time.
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Idem Code Co");
 
-        // Any idempotent route whose refusal carries a code will do; a submit on a proposal that does
-        // not exist is a 404 with no code, so this uses a state refusal instead - see
-        // ProposalEndpointsTests.Late_submission_is_impossible..., which asserts the same shape end to
-        // end through the real lapse.
         var response = await supplier.PostAsync("/api/v1/proposals/PRP-0000-000000/submit", null);
 
-        // 404 here, and the point is the CONTENT TYPE rather than this particular code: whatever the
-        // handler answered must arrive as problem+json so the middleware leaves it alone.
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json",
             "an error from an idempotent route must keep the content type that makes it conformed");
     }

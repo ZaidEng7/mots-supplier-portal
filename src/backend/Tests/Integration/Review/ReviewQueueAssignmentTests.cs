@@ -1,3 +1,23 @@
+// FEAT-03.6 and FR-ONB-012: reviewer claim and unassign, and queue filtering by state and assignee. The
+// assumption behind it, recorded on Supplier.AssignedReviewerId itself, is manual self-claim rather than
+// round-robin or manager-assigned, because there is no assignment model specified anywhere in the product docs.
+//
+// Claiming records the caller as assignee and is audited; unassigning releases the claim and is audited too.
+// Filtering by assignedTo=me returns only the caller's own claims, filtering by state returns only that state,
+// and filtering by unassigned excludes claimed items.
+//
+// F-6: a reviewer can find an application they have already decided. The queue serves the three reviewable
+// states by default, which is right, because it answers "what needs me" - but a decided application dropped out
+// of every list the moment it was decided and no other list carried it, so a reviewer wanting to look back at
+// their own decision had to type the supplier's reference code into the address bar. The detail screen was
+// reachable the whole time; nothing pointed at it. The default is asserted alongside, because widening a filter
+// must not widen the queue: an approved supplier appearing in the unfiltered list would put decided work back
+// in front of a reviewer who has none to do on it. That test pages to the end of the default queue rather than
+// reading the first page, because the queue is shared and a row's absence from page one is not its absence
+// from the queue.
+
+namespace MotsSupplierPortal.Tests.Integration.Review;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,15 +27,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Review;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-03.6/FR-ONB-012: reviewer claim/unassign and queue filtering by state and
-/// assignee. [ASSUMPTION] (see Supplier.AssignedReviewerId's own doc comment): manual self-claim,
-/// not round-robin or manager-assigned - there is no assignment model specified anywhere in the
-/// product docs.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ReviewQueueAssignmentTests(PostgresApiFixture fixture)
 {
@@ -145,19 +158,6 @@ public sealed class ReviewQueueAssignmentTests(PostgresApiFixture fixture)
         codes.Should().NotContain(submitted.ReferenceCode, "state=UnderReview must exclude Submitted items");
     }
 
-    /// <summary>
-    /// F-6: a reviewer can find an application they have already decided.
-    ///
-    /// <para>The queue serves the three reviewable states by default, which is right - it answers
-    /// "what needs me". But a decided application dropped out of every list the moment it was decided
-    /// and no other list carried it, so a reviewer wanting to look back at their own decision had to
-    /// type the supplier's reference code into the address bar. The detail screen was reachable the
-    /// whole time; nothing pointed at it.</para>
-    ///
-    /// <para>The default is asserted too, because widening a filter must not widen the queue: an
-    /// approved supplier appearing in the unfiltered list would put decided work back in front of a
-    /// reviewer who has none to do on it.</para>
-    /// </summary>
     [Fact]
     public async Task A_decided_application_is_findable_by_state_and_absent_from_the_default_queue()
     {

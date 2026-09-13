@@ -1,3 +1,63 @@
+// EPIC-15 Phase 3: the notifications BUSINESS-PROCESSES.md's transition tables document and which fired nothing
+// before this epic. The tests follow the tables in order - RFQ (§3.1), then evaluation and award (§3.3, §3.4),
+// then proposal withdrawal (§3.2), then the ERP sync.
+//
+// Each assertion checks three things, because each can be wrong independently: that a notification was produced
+// at all, that it reached the recipient the TABLE names rather than the one that was convenient to resolve, and
+// that it was produced ONCE - a transition that notifies twice is as wrong as one that notifies nobody, and
+// only a count catches it.
+//
+// RFQ, §3.1. Submitting for review notifies the procurement manager - "Draft -> InternalReview | In-app to
+// procurement_manager" - and not the supplier, which is the negative that belongs beside it: an internal review
+// step is not the supplier's business, and a notification centre is exactly where that would leak. Returning
+// for edits and approving both notify the officer, per the same table.
+//
+// Opening and closing the submission window are clock-driven transitions but still state changes, so the
+// notification travels the same Outbox in the same transaction (D-5). The window has to be in the future to be
+// SET - deadlines are validated as future on creation - and in the past for the job to act on it, so it is
+// moved in the database rather than waited out, which is what every other timeline test in this suite does. The
+// job runs twice: one run opens the window, and the close query was evaluated against the state as it was
+// before that, so production reaches the same place on its next scheduled tick. §3.1 names invitees for the
+// open and invitees plus committee for the close, and the difference is deliberate: the committee is told about
+// the CLOSE, not the open.
+//
+// Evaluation and award, §3.3 and §3.4. The evaluation setup uses a window that closes in three seconds when the
+// test needs an evaluation, and one that stays open when the test is about something a supplier does while it is
+// open - withdrawal is refused once the window closes, which is the rule and not an obstacle to route around.
+// The scoring helper scores EVERY criterion of EVERY proposal, because submitting scores is refused until they
+// are all in, which is the same rule the "all evaluators submitted" notification depends on, and every step in
+// the helper asserts rather than firing and forgetting: a helper that silently fails produces tests that fail
+// much later with "no notification", which says nothing about why.
+//
+// The evaluation transitions notify the groups the table names, in order: opened goes to the committee, all
+// evaluators in goes to the officer, consolidated to the committee, finalized to the committee. The supplier is
+// not on the committee, and an evaluation centre is exactly where that would leak - the control for that
+// negative is the four assertions that DID land. Reopening notifies the assigned evaluators, per §3.3's
+// "Consolidated -> InProgress | In-app to affected evaluators". Recusal notifies the officer, and §3.3 has no
+// row for it: an invention, flagged in the catalogue and in the report.
+//
+// §3.4: recommended and routed go to the approver pool, and approved comes back to the officer. A supplier is
+// never told about an award decision before it is executed - the regret and award notifications are §3.4's LAST
+// transition, not this one. Rejecting notifies the officer and re-recommending notifies the approver again as a
+// distinct type from the first recommendation, because the approver needs to know this one follows their own
+// rejection.
+//
+// Withdrawing a proposal notifies both groups §3.2 names: "Draft / Submitted -> Withdrawn | In-app to supplier
+// + procurement".
+//
+// The ERP sync. A success notifies procurement, per §3.4's "ErpPoRequested -> ErpPoSynced | In-app to
+// procurement". A failure alerts a system_admin - §3.4's "ErpPoRequested -> ErpPoFailed | Alert to
+// system_admin" - which is not organization-scoped, so the administrator is read from the database rather than
+// created through the staff test client, whose login path expects an organization-scoped account. That
+// assertion is scoped to THIS tender rather than counting every alert of this type the administrator holds: the
+// sync job processes every award awaiting the integration and not only the one this test made, and the
+// administrator is the seeded platform account every test shares, so a bare count would be a count of whatever
+// else in the suite happened to fail first. The award still stands, which is BRULE-099: the notification exists
+// BECAUSE the award stands, a delivery concern must never undo a committed award, and that is the assertion
+// which says so.
+
+namespace MotsSupplierPortal.Tests.Integration.Notifications;
+
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -11,20 +71,8 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Notifications;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// EPIC-15 Phase 3: the notifications BUSINESS-PROCESSES.md's transition tables document and which
-/// fired nothing before this epic.
-///
-/// <para>Each assertion checks three things, because each can be wrong independently: that a
-/// notification was produced at all, that it reached the recipient the TABLE names (not the one that
-/// was convenient to resolve), and that it was produced ONCE - a transition that notifies twice is
-/// as wrong as one that notifies nobody, and only a count catches it.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 {
@@ -83,7 +131,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         HttpClient Officer, Guid OfficerId, HttpClient Manager, Guid ManagerId,
         HttpClient Supplier, Guid SupplierUserId, Guid OrgId, string RfqCode);
 
-    /// <summary>An RFQ in InternalReview, with one item, one invitee and a bound template.</summary>
     private async Task<Lifecycle> RfqInReviewAsync(string label, DateTimeOffset? opensAt = null, DateTimeOffset? closesAt = null)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -113,18 +160,13 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         return new Lifecycle(officer, officerId, manager, managerId, supplier, supplierUserId, org.Id, rfqCode);
     }
 
-    // ---- RFQ (§3.1) ----------------------------------------------------------------------------
-
     [Fact]
     public async Task Submitting_an_RFQ_for_review_notifies_the_procurement_manager_and_not_the_supplier()
     {
         var life = await RfqInReviewAsync("SubmitReview");
 
-        // §3.1 "Draft -> InternalReview | In-app to `procurement_manager`".
         await AssertNotifiedOnceAsync(fixture, life.ManagerId, NotificationTypes.RfqSubmittedForReview);
 
-        // The negative, with the control above: an internal review step is not the supplier's
-        // business, and a notification centre is exactly where that would leak.
         await AssertNotNotifiedAsync(fixture, life.SupplierUserId, NotificationTypes.RfqSubmittedForReview);
     }
 
@@ -135,7 +177,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Manager.PostAsJsonAsync($"/api/v1/rfqs/{life.RfqCode}/return", new { comments = "Please add pricing detail" });
 
-        // §3.1 "InternalReview -> Draft | In-app to officer".
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.RfqReturnedForEdits);
     }
 
@@ -146,23 +187,17 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Manager.PostAsync($"/api/v1/rfqs/{life.RfqCode}/approve", null);
 
-        // §3.1 "InternalReview -> Approved | In-app to officer".
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.RfqApproved);
     }
 
     [Fact]
     public async Task Opening_and_closing_the_submission_window_notifies_the_invitees()
     {
-        // Clock-driven transitions, but still state changes - so the notification travels the same
-        // Outbox in the same transaction (D-5).
         var life = await RfqInReviewAsync("Window");
 
         await life.Manager.PostAsync($"/api/v1/rfqs/{life.RfqCode}/approve", null);
         await life.Officer.PostAsync($"/api/v1/rfqs/{life.RfqCode}/publish", null);
 
-        // The window has to be in the future to be SET - deadlines are validated as future on
-        // creation - and in the past for the job to act on it. Moved in the database rather than by
-        // waiting, which is the same thing every other timeline test in this suite does.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -171,33 +206,24 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
                 .SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddMinutes(-5)));
         }
 
-        // Twice: one run opens the window, and the close query was evaluated against the state as it
-        // was before that. Production reaches the same place on the next scheduled tick.
         for (var run = 0; run < 2; run++)
         {
             await using var scope = fixture.Services.CreateAsyncScope();
             await scope.ServiceProvider.GetRequiredService<RfqTimelineJob>().RunAsync(CancellationToken.None);
         }
 
-        // §3.1 "Published -> SubmissionOpen | In-app to invitees" and
-        //      "SubmissionOpen -> SubmissionClosed | In-app to invitees + committee".
         await AssertNotifiedOnceAsync(fixture, life.SupplierUserId, NotificationTypes.RfqSubmissionOpened);
         await AssertNotifiedOnceAsync(fixture, life.SupplierUserId, NotificationTypes.RfqSubmissionClosed);
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.RfqSubmissionClosed);
 
-        // The committee is told about the CLOSE, not the open - the table says invitees for one and
-        // invitees plus committee for the other, and the difference is deliberate.
         await AssertNotNotifiedAsync(fixture, life.OfficerId, NotificationTypes.RfqSubmissionOpened);
     }
-
-    // ---- Evaluation and award (§3.3, §3.4) ------------------------------------------------------
 
     private sealed record AwardLifecycle(
         HttpClient Officer, Guid OfficerId, HttpClient Manager, Guid ManagerId,
         HttpClient Evaluator, Guid EvaluatorId, HttpClient SupplierA, string RfqCode,
         Guid WinningProposalId, string WinningProposalCode, Guid SupplierUserId);
 
-    /// <summary>An RFQ whose evaluation is open, scored and (optionally) consolidated.</summary>
     private async Task<AwardLifecycle> EvaluatedRfqAsync(
         string label, bool consolidate = true, bool finalize = true,
         bool submitScores = true, bool closeWindow = true)
@@ -216,9 +242,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         });
         await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/activate", null);
 
-        // A window that closes in three seconds when the test needs an evaluation, and one that
-        // stays open when the test is about something a supplier does while it is open - withdrawal
-        // is refused once the window closes, which is the rule and not an obstacle to route around.
         var created = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics($"{label} RFQ",
             DateTimeOffset.UtcNow.AddSeconds(1),
             closeWindow ? DateTimeOffset.UtcNow.AddSeconds(3) : DateTimeOffset.UtcNow.AddHours(4)));
@@ -260,8 +283,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         if (!closeWindow)
         {
-            // Nothing further to set up: the caller wants the proposal submitted with the window
-            // still open.
             await using var openScope = fixture.Services.CreateAsyncScope();
             var openDb = openScope.ServiceProvider.GetRequiredService<AppDbContext>();
             var openProposalId = await openDb.Proposals.Where(p => p.ReferenceCode == proposalCode).Select(p => p.Id).FirstAsync();
@@ -299,8 +320,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
                 .Select(c => c.Id).ToListAsync();
         }
 
-        // EVERY criterion of EVERY proposal - submitting scores is refused until they are all in,
-        // which is the same rule the "all evaluators submitted" notification depends on.
         foreach (var criterionId in criterionIds)
         {
             var scored = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/my-evaluation/scores",
@@ -308,8 +327,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
             scored.StatusCode.Should().Be(System.Net.HttpStatusCode.OK, await scored.Content.ReadAsStringAsync());
         }
 
-        // Asserted, not fired and forgotten: a helper that silently fails here produces tests that
-        // fail much later with "no notification", which says nothing about why.
         if (submitScores)
         {
             var submitted = await evaluator.PostAsync($"/api/v1/rfqs/{rfqCode}/my-evaluation/submit", null);
@@ -337,15 +354,11 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
     {
         var life = await EvaluatedRfqAsync("EvalFlow");
 
-        // §3.3, in order: opened (committee), all evaluators in (officer), consolidated (committee),
-        // finalized (committee).
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.EvaluationOpened);
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.EvaluatorSubmitted);
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.EvaluationConsolidated);
         await AssertNotifiedOnceAsync(fixture, life.ManagerId, NotificationTypes.EvaluationFinalized);
 
-        // The supplier is not on the committee, and an evaluation centre is exactly where that would
-        // leak - the control above is the four assertions that DID land.
         await AssertNotNotifiedAsync(fixture, life.SupplierUserId, NotificationTypes.EvaluationConsolidated);
     }
 
@@ -356,7 +369,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
 
         await life.Manager.PostAsJsonAsync($"/api/v1/rfqs/{life.RfqCode}/evaluation/reopen", new { reason = "Recount needed" });
 
-        // §3.3 "Consolidated -> InProgress | In-app to affected evaluators".
         await AssertNotifiedOnceAsync(fixture, life.EvaluatorId, NotificationTypes.EvaluationReopened);
     }
 
@@ -369,7 +381,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
             new { evaluatorUserId = life.EvaluatorId, reason = "Conflict of interest" });
         recused.StatusCode.Should().Be(System.Net.HttpStatusCode.OK, await recused.Content.ReadAsStringAsync());
 
-        // §3.3 has no row for recusal - an invention, flagged in the catalogue and in the report.
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.EvaluatorRecused);
     }
 
@@ -386,13 +397,10 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         await life.Officer.PostAsync($"/api/v1/rfqs/{life.RfqCode}/award/route-for-approval", null);
         await life.Manager.PostAsync($"/api/v1/rfqs/{life.RfqCode}/award/approve", null);
 
-        // §3.4: recommended and routed go to the approver(s); approved comes back to the officer.
         await AssertNotifiedOnceAsync(fixture, life.ManagerId, NotificationTypes.AwardRecommended);
         await AssertNotifiedOnceAsync(fixture, life.ManagerId, NotificationTypes.AwardRoutedForApproval);
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.AwardApproved);
 
-        // A supplier is never told about an award decision before it is executed - the regret and
-        // award notifications are §3.4's LAST transition, not this one.
         await AssertNotNotifiedAsync(fixture, life.SupplierUserId, NotificationTypes.AwardApproved);
     }
 
@@ -417,8 +425,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
             justificationAr = "مبرر أوفى", justificationEn = "Fuller justification",
         });
 
-        // §3.4 "Rejected -> Recommended | In-app to approver" - a distinct type from the first
-        // recommendation, because the approver needs to know this one follows their own rejection.
         await AssertNotifiedOnceAsync(fixture, life.ManagerId, NotificationTypes.AwardReRecommended);
     }
 
@@ -430,7 +436,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
         await life.SupplierA.PostAsJsonAsync($"/api/v1/proposals/{life.WinningProposalCode}/withdraw",
             new { reason = "Cannot supply in time" });
 
-        // §3.2 "Draft / Submitted -> Withdrawn | In-app to supplier + procurement" - both groups.
         await AssertNotifiedOnceAsync(fixture, life.SupplierUserId, NotificationTypes.ProposalWithdrawn);
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.ProposalWithdrawn);
     }
@@ -480,7 +485,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
                 .RunAsync(CancellationToken.None);
         }
 
-        // §3.4 "ErpPoRequested -> ErpPoSynced | In-app to procurement".
         await AssertNotifiedOnceAsync(fixture, life.OfficerId, NotificationTypes.AwardErpSynced);
     }
 
@@ -489,9 +493,6 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
     {
         var life = await ExecutedAwardAsync("ErpDown");
 
-        // The seeded platform administrator, read from the database rather than created through the
-        // staff test client - a system_admin is not organization-scoped and the client helper's
-        // login path expects one.
         Guid adminId;
         await using (var adminScope = fixture.Services.CreateAsyncScope())
         {
@@ -511,20 +512,12 @@ public sealed class NotificationEventsTests(PostgresApiFixture fixture)
                 .RunAsync(CancellationToken.None);
         }
 
-        // §3.4 "ErpPoRequested -> ErpPoFailed | Alert to `system_admin`", not organization-scoped.
-        //
-        // Scoped to THIS tender rather than counting every alert of this type the administrator holds.
-        // The sync job processes every award awaiting the integration, not only the one this test made,
-        // and the administrator is the seeded platform account every test shares - so a bare count is a
-        // count of whatever else in the suite happened to fail first.
         var alerts = await NotificationTestHelper.ForRecipientAsync(fixture, adminId, NotificationTypes.AwardErpFailed);
         var mine = alerts.Where(n => n.DataJson is not null && n.DataJson.Contains(life.RfqCode, StringComparison.Ordinal)).ToList();
 
         mine.Should().ContainSingle($"'{NotificationTypes.AwardErpFailed}' must reach the administrator exactly once for this tender");
         mine[0].TitleAr.Should().NotBeNullOrWhiteSpace();
 
-        // BRULE-099: the notification exists BECAUSE the award stands. A delivery concern must never
-        // undo a committed award, and this is the assertion that says so.
         await using var verify = fixture.Services.CreateAsyncScope();
         var db = verify.ServiceProvider.GetRequiredService<AppDbContext>();
         var award = await db.Awards.FirstAsync(a => db.Rfqs.Any(r => r.Id == a.RfqId && r.ReferenceCode == life.RfqCode));

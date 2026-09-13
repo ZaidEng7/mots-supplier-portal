@@ -1,3 +1,24 @@
+// The supplier's side of an invitation, and the security boundary it exists for: a supplier who was not invited gets
+// not-found, enforced on the server rather than hidden by the interface.
+//
+// The shared setup publishes one tender with exactly one invited supplier, which is what every test here needs.
+//
+// The list returns the standard envelope and projects a list row rather than the whole aggregate, with the reader's
+// own invitation status resolved per caller on the server.
+//
+//
+// TWO DOCUMENTED FIELDS THAT WERE ABSENT
+//
+// The submission deadline was documented on this list and missing, so the one screen where a supplier decides
+// whether to bid could not show the deadline they would be bidding against. It is asserted against STORAGE, so it
+// is the tender's own deadline rather than any date.
+//
+// And the buying body's code was projected from the external system's own identifier for that body, which has no
+// writer anywhere in the codebase, so the documented field was empty in every response the interface could
+// produce. The organization now carries its own code from the same allocator every other reference code uses.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,14 +29,8 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-08.4/08.6/FR-INV-004/006: the supplier-facing self-service side of Invitations -
-/// proves the actual security boundary FEAT-08.6 exists for: a non-invited supplier gets 404 on
-/// RFQ detail, enforced server-side, not merely hidden by the frontend.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
 {
@@ -47,9 +62,6 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         return (client, supplier.Id);
     }
 
-    /// <summary>Creates, authors, invites <paramref name="invitedSupplierId"/>, submits, approves,
-    /// and publishes an RFQ via real HTTP calls - the shared setup every test in this file needs a
-    /// Published (supplier-visible) RFQ with exactly one invited supplier.</summary>
     private async Task<string> CreatePublishedRfqWithInviteAsync(Guid invitedSupplierId, string titleEn)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -120,8 +132,6 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         var (client, supplierId) = await ActiveSupplierAsync($"Lister {Guid.NewGuid():N}"[..30]);
         var referenceCode = await CreatePublishedRfqWithInviteAsync(supplierId, "List And View RFQ");
 
-        // The list returns the §5.2 envelope now, and projects a list item rather than the whole
-        // aggregate - invitationStatus is still on it, resolved server-side per caller.
         var list = (await client.GetFromJsonAsync<JsonElement>("/api/v1/rfqs")).GetProperty("data");
         list.EnumerateArray().Should().Contain(r => r.GetProperty("rfqCode").GetString() == referenceCode);
         var listedState = list.EnumerateArray().Single(r => r.GetProperty("rfqCode").GetString() == referenceCode);
@@ -153,9 +163,6 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_supplier_rfq_list_carries_the_submission_deadline()
     {
-        // T-054: §12.4 documents submissionDeadline on this list and it was absent - so the one
-        // screen where a supplier decides whether to bid could not show the deadline they would be
-        // bidding against.
         var (client, supplierId) = await ActiveSupplierAsync($"Deadline {Guid.NewGuid():N}"[..30]);
         var referenceCode = await CreatePublishedRfqWithInviteAsync(supplierId, "Deadline RFQ");
 
@@ -166,7 +173,6 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
         row.GetProperty("submissionDeadline").ValueKind.Should().NotBe(JsonValueKind.Null,
             "a published RFQ has a close date and the list must show it");
 
-        // Asserted against STORAGE, so this is the RFQ's own deadline rather than any date.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var stored = await db.Rfqs.AsNoTracking()
@@ -176,15 +182,6 @@ public sealed class SupplierRfqEndpointsTests(PostgresApiFixture fixture)
             .Should().BeCloseTo(stored!.Value, TimeSpan.FromSeconds(1));
     }
 
-    /// <summary>
-    /// T-055/§12.4: the buying body's code on the tender a supplier reads.
-    ///
-    /// <para>§12.4 documents <c>buyingOrg { code, name }</c>. The code was projected from
-    /// <c>ExternalId</c> - the ERP's identifier for the body - which has a private setter and no
-    /// writer anywhere in the codebase, so the documented field was null in every response the API
-    /// could produce. The organization now carries its own ORG- code from the same allocator every
-    /// other reference code uses.</para>
-    /// </summary>
     [Fact]
     public async Task The_buying_body_is_named_by_its_own_code_rather_than_by_an_erp_identifier_nothing_sets()
     {

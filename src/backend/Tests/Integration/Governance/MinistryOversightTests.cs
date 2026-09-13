@@ -1,3 +1,50 @@
+// SCR-601, 602, 603 and 606 - the four Ministry screens, under D-66.
+//
+// These tests are the record of a disclosure, not only of a feature. BRULE-087's default is aggregate-only, and
+// these four screens are the exception: named tenders, named suppliers, named bidders and their numbers. D-57
+// relayed that the Ministry may see commercial figures and required written sign-off first; D-66 records that
+// they shipped without it, at the product owner's direction, at the widest of the four scopes offered - live
+// tenders included, per-bidder values shown.
+//
+// So the load-bearing test here is not "the screen returns rows". It is the one that reads a rival's bid on a
+// tender that is still open, because that is the property somebody will need to check when they ask what exactly
+// was disclosed. Under the narrower scope D-57 offered, that list would be empty until the tender was decided.
+// The flag is turned on inside the test rather than assumed, because it ships OFF everywhere except the
+// demonstration seed and a test relying on the shipped state would be asserting the demo environment's
+// configuration rather than this screen's behaviour. The tender's own row carries the buying body by name, which
+// no aggregate read ever did.
+//
+// The first test is the gate D-57 asks for, asserted where it can be: this fixture runs with DevSeed disabled,
+// which is every environment that is not the demonstration one, and the flag must be OFF there. It was a
+// migration first and that was wrong - a migration runs everywhere, so the step that creates the schema in
+// production would have switched the disclosure on there too. The approval it rests on is bounded to
+// demonstration data, and a mechanism that ignores the boundary makes the approval mean something it does not
+// say. The switch now lives in DevDataSeeder, behind the same gate as the demo accounts, and that seeder refuses
+// to run outside Development.
+//
+// A draft bid is not disclosed, which is the one line this widening does NOT cross: a draft has been offered to
+// nobody, and no reading of D-57 covers a supplier's unfinished thinking. The draft is written in storage rather
+// than through the API, because by the time the seed has opened evaluation the submission window is closed and
+// no route can produce a draft on this tender any more - what is being tested is the read's predicate, not how
+// the row got there. It uses a supplier with no bid on THIS tender, because unique(rfq_id, supplier_id) is what
+// stops one supplier holding two and reusing the seed's bidder would collide with the bid the test needs to
+// survive.
+//
+// The tender monitor lists across organizations and refuses an unknown state, which is §6.2's silent-widening
+// case: Enum.TryParse simply fails on a typo, no predicate is applied, and the screen shows every tender inside
+// a list it has labelled with one state.
+//
+// The supplier registry and the award analytics answer, with the count being an aggregate BRULE-086 always
+// granted while the value is what the flag governs - so with the flag on it must be a number rather than null.
+//
+// Nobody but the governance persona may read any of the four.
+//
+// With the flag off the values are null and the counts remain: the flag is still the control D-6 built it to be,
+// so the oversight remains and the money does not. That is the state the product ships in outside the
+// demonstration seed, so nothing in that test has to switch anything - it asserts the default.
+
+namespace MotsSupplierPortal.Tests.Integration.Governance;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,24 +53,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Governance;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-601, 602, 603 and 606 - the four Ministry screens, under D-66.
-///
-/// <para><b>These tests are the record of a disclosure, not only of a feature.</b> BRULE-087's default is
-/// aggregate-only, and these four screens are the exception: named tenders, named suppliers, named bidders
-/// and their numbers. D-57 relayed that the Ministry may see commercial figures and required written sign-off
-/// first; D-66 records that they shipped without it, at the product owner's direction, at the widest of the
-/// four scopes offered - <b>live tenders included, per-bidder values shown</b>.</para>
-///
-/// <para>So the load-bearing test here is not "the screen returns rows". It is the one that reads a rival's
-/// bid on a tender that is still open, because that is the property somebody will need to check when they
-/// ask what exactly was disclosed.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class MinistryOversightTests(PostgresApiFixture fixture)
 {
@@ -44,14 +75,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_commercial_visibility_flag_is_off_unless_the_demonstration_data_is_seeded()
     {
-        // The gate D-57 asks for, asserted where it can be: this fixture runs with DevSeed disabled, which is
-        // every environment that is not the demonstration one, and the flag must be OFF there.
-        //
-        // It was a migration first and that was wrong - a migration runs everywhere, so the step that creates
-        // the schema in production would have switched the disclosure on there too. The approval it rests on
-        // is bounded to demonstration data, and a mechanism that ignores the boundary makes the approval mean
-        // something it does not say. The switch now lives in DevDataSeeder, behind the same gate as the demo
-        // accounts, and that seeder refuses to run outside Development.
         (await CommercialValuesOnAsync()).Should().BeFalse(
             "D-6/BRULE-087's default is withhold, and enabling it anywhere real needs the written sign-off "
             + "D-57 names - a person, a date and the scope");
@@ -60,12 +83,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_ministry_viewer_reads_a_rivals_bid_on_a_tender_that_is_still_open()
     {
-        // The disclosure, stated as a test. Under the narrower scope D-57 offered, this list would be empty
-        // until the tender was decided.
-        //
-        // The flag is turned on here rather than assumed: it ships OFF everywhere except the demonstration
-        // seed, so a test that relied on the shipped state would be asserting the demo environment's
-        // configuration rather than this screen's behaviour.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "MinistryLive");
         await SetCommercialValuesAsync(true);
 
@@ -86,7 +103,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
         bid.GetProperty("totalValue").GetDecimal().Should().BeGreaterThan(0m,
             "and their number is shown, which is the whole of what D-66 decided");
 
-        // The tender's own row carries the buying body by name, which no aggregate read ever did.
         detail.GetProperty("summary").GetProperty("organizationNameEn").GetString()
             .Should().NotBeNullOrWhiteSpace();
         }
@@ -99,20 +115,13 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_draft_bid_is_not_disclosed()
     {
-        // The one line this widening does NOT cross. A draft has been offered to nobody, and no reading of
-        // D-57 covers a supplier's unfinished thinking.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "MinistryDraft");
 
-        // Written in storage rather than through the API: by the time the seed has opened evaluation the
-        // submission window is closed, so no route can produce a draft on this tender any more. What is being
-        // tested is the read's predicate, not how the row got there.
         string draftCode;
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var rfqId = await db.Rfqs.Where(r => r.ReferenceCode == seeded.RfqCode).Select(r => r.Id).FirstAsync();
-            // A supplier with no bid on THIS tender: unique(rfq_id, supplier_id) is what stops one supplier
-            // holding two, and reusing the seed's bidder collides with the bid this test needs to survive.
             var supplierId = await db.Suppliers
                 .Where(s => !db.Proposals.Any(p => p.RfqId == rfqId && p.SupplierId == s.Id))
                 .OrderByDescending(s => s.CreatedAt)
@@ -153,8 +162,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
         row.GetProperty("submittedProposals").GetInt32().Should().BeGreaterThan(0);
         row.GetProperty("invitedSuppliers").GetInt32().Should().BeGreaterThan(0);
 
-        // §6.2's silent-widening case: Enum.TryParse simply fails on a typo, no predicate is applied, and the
-        // screen shows every tender inside a list it has labelled with one state.
         var refused = await ministry.GetAsync($"{Rfqs}?state=Publishd");
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
@@ -181,8 +188,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
             var analytics = await ministry.GetFromJsonAsync<JsonElement>(Awards);
             analytics.GetProperty("commercialValuesVisible").GetBoolean().Should().BeTrue();
             analytics.GetProperty("totalAwards").GetInt32().Should().BeGreaterThanOrEqualTo(0);
-            // The count is an aggregate BRULE-086 always granted; the value is what the flag governs, and
-            // with the flag on it must be a number rather than null.
             analytics.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Number);
         }
         finally
@@ -217,9 +222,6 @@ public sealed class MinistryOversightTests(PostgresApiFixture fixture)
     [Fact]
     public async Task With_the_flag_off_the_values_are_null_and_the_counts_remain()
     {
-        // The flag is still the control D-6 built it to be: with it off the oversight remains and the money
-        // does not. This is the state the product ships in outside the demonstration seed, so nothing here
-        // has to switch anything - it asserts the default.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "MinistryFlagOff");
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
 

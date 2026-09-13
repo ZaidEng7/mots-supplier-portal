@@ -1,3 +1,35 @@
+// RISK-004 - cross-tenant leakage, the risk register's only Critical - for the routes §12-A/C2 made
+// code-addressed.
+//
+// Why these tests did not exist before and must exist now. Every proposal route used to live under
+// /api/v1/suppliers/me/rfqs/{rfqCode}/proposal/..., a path with NO SLOT for another supplier's identifier: the
+// attack could not be expressed, so the negative could not be written. §3's /proposals/{proposalCode}/items
+// and §12.5's PATCH /proposals/{proposalCode} address a proposal by its own public code, which hands every
+// caller a way to name a proposal that is not theirs. That is a real property given up, and this file is what
+// replaces it.
+//
+// 404, not 403. §9.2: out-of-scope access to an existing resource returns 404 rather than 403 to avoid
+// leaking existence. Each case asserts the status AND that the response says the same thing as the response
+// for a proposal code that never existed - the property "indistinguishable by design" actually names, and the
+// same pattern CrossOrganizationScopeTests already uses. Byte equality no longer applies, and that is §7
+// working rather than a weakened assertion: every problem+json now carries traceId and correlationId, which
+// differ per request by design, and instance, which echoes the path the CALLER sent, so two requests can
+// never produce identical bytes again. None of those three can leak existence - the ids are random per
+// request and the path is the caller's own input, since they already know which code they asked for. So the
+// comparison is over the fields that DO discriminate - status, type, code, detail - and it is stricter in the
+// way that matters: previously a difference in any of them would have been caught only incidentally by byte
+// equality, and now each is named.
+//
+// The setup publishes one RFQ inviting both suppliers and returns A's own proposal code. B is then refused on
+// every route in turn: reading the proposal, pricing an item, setting terms, answering a requirement,
+// submitting and withdrawing. Submitting is the highest-stakes one, because it would move THEIR aggregate
+// through its state machine rather than merely read it.
+//
+// The last test is the control. Every negative above would also pass if the routes were simply broken for
+// everyone, so A must succeed on A's own proposal by the same code B was refused.
+
+namespace MotsSupplierPortal.Tests.Integration.Proposals;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,29 +39,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Proposals;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// RISK-004 (cross-tenant leakage - the risk register's only Critical), for the routes §12-A/C2
-/// made code-addressed.
-///
-/// <para><b>Why these tests did not exist before and must exist now.</b> Every proposal route used
-/// to live under <c>/api/v1/suppliers/me/rfqs/{rfqCode}/proposal/…</c>, a path with NO SLOT for
-/// another supplier's identifier - the attack could not be expressed, so the negative could not be
-/// written. §3 (<c>/proposals/{proposalCode}/items</c>) and §12.5
-/// (<c>PATCH /proposals/{proposalCode}</c>) address a proposal by its own public code, which hands
-/// every caller a way to name a proposal that is not theirs. That is a real property given up, and
-/// this file is what replaces it.</para>
-///
-/// <para><b>404, not 403.</b> §9.2: *"Out-of-scope access to an existing resource returns 404 (not
-/// 403) to avoid leaking existence."* Each case asserts the status AND that the response body is
-/// byte-identical to the body for a proposal code that never existed - which is the property
-/// "indistinguishable by design" actually names, and the same pattern
-/// <see cref="CrossOrganizationScopeTests"/> already uses.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixture)
 {
@@ -49,7 +60,6 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
         return (client, supplier.Id);
     }
 
-    /// <summary>Publishes one RFQ inviting both suppliers, and returns A's own proposal code.</summary>
     private async Task<(HttpClient SupplierA, HttpClient SupplierB, string ProposalCodeOfA, Guid ItemId, Guid RequirementId)>
         RivalSuppliersOnOneRfqAsync()
     {
@@ -113,21 +123,6 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
         return (supplierA, supplierB, proposalCodeOfA, itemId, requirementId);
     }
 
-    /// <summary>
-    /// The two responses must be indistinguishable in everything that could tell a caller whether
-    /// the resource exists.
-    ///
-    /// <para><b>Byte equality no longer applies, and that is §7 working rather than a weakened
-    /// assertion.</b> Every problem+json now carries <c>traceId</c> and <c>correlationId</c>, which
-    /// differ per request by design, and <c>instance</c>, which echoes the path the CALLER sent.
-    /// Two requests can never produce identical bytes again. None of those three can leak
-    /// existence: the ids are random per request, and the path is the caller's own input - they
-    /// already know which code they asked for.</para>
-    ///
-    /// <para>So the comparison is over the fields that DO discriminate - status, type, code, detail
-    /// - and it is stricter in the way that matters: previously a difference in any of them would
-    /// have been caught only incidentally by byte equality, and now each is named.</para>
-    /// </summary>
     private static async Task AssertIndistinguishableAsync(HttpResponseMessage outOfScope, HttpResponseMessage neverExisted)
     {
         outOfScope.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -199,10 +194,6 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
             proposalCodeOfA);
     }
 
-    /// <summary>
-    /// The highest-stakes one: submitting someone else's proposal would move THEIR aggregate through
-    /// its state machine, not merely read it.
-    /// </summary>
     [Fact]
     public async Task A_supplier_cannot_submit_another_suppliers_proposal()
     {
@@ -222,10 +213,6 @@ public sealed class ProposalCrossOrganizationScopeTests(PostgresApiFixture fixtu
             proposalCodeOfA);
     }
 
-    /// <summary>
-    /// The control. Every negative above would also pass if the routes were simply broken for
-    /// everyone, so A must succeed on A's own proposal by the same code B was refused.
-    /// </summary>
     [Fact]
     public async Task The_owning_supplier_can_still_reach_their_own_proposal_by_code()
     {

@@ -1,3 +1,26 @@
+// SCR-401's two queues: "RFQ publish approvals + award approvals".
+//
+// The defect this screen can reproduce is PR #90's. A Procurement Manager holds rfq.read, rfq.review,
+// rfq.approve and rfq.cancel - but NOT rfq.create. A queue that lists work the manager cannot then open is that
+// bug in a new place, so the tests FOLLOW the link the row offers rather than asserting the row rendered.
+//
+// The RFQ queue test seeds a second RFQ left in InternalReview so it sits in the publish-approval queue, and
+// the assertion that matters is following the link rather than trusting the row.
+//
+// An award the manager recommended themselves is not offered to them, which is EPIC-14's segregation of duties
+// applied to the QUEUE rather than only to the write: an award listed here that the manager will be refused on
+// click is the same shape of defect as a row they cannot open. The manager recommends and then routes for
+// approval, so the pending award is their own, and the control - also the proof the award really is pending -
+// is that a DIFFERENT manager in the same organization does see it and can open it.
+//
+// The queues are this organization's and never another organization's.
+//
+// An officer cannot read the approval queues. SCREEN-INVENTORY gives SCR-401 to procurement_manager and its
+// "denied" state is one of the six it lists; an officer holds rfq.create but not rfq.approve, the exact inverse
+// of the manager, which is why the permission and not the role is what gates this.
+
+namespace MotsSupplierPortal.Tests.Integration.Dashboards;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,19 +30,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Dashboards;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-401's two queues: "RFQ publish approvals + award approvals".
-///
-/// <para><b>The defect this screen can reproduce is PR #90's.</b> A Procurement Manager holds
-/// rfq.read, rfq.review, rfq.approve and rfq.cancel - but NOT rfq.create. A queue that lists work
-/// the manager cannot then open is that bug in a new place, so the tests follow the link the row
-/// offers rather than asserting the row rendered.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
 {
@@ -35,7 +47,6 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
     {
         var seeded = await EvaluationSeed.CreateAsync(fixture, "QueueReach");
 
-        // A second RFQ, left in InternalReview so it sits in the publish-approval queue.
         var created = await seeded.Officer.PostAsJsonAsync("/api/v1/rfqs", new
         {
             titleAr = "طلب", titleEn = $"Queue Reach {Guid.NewGuid():N}"[..24],
@@ -63,7 +74,6 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
 
         rows.Should().NotBeEmpty("control: the RFQ really is waiting for approval");
 
-        // The assertion that matters: FOLLOW the link, do not trust the row.
         foreach (var row in rows)
         {
             var href = row.GetProperty("href").GetString()!;
@@ -77,13 +87,9 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_award_the_manager_recommended_themselves_is_not_offered_to_them()
     {
-        // EPIC-14's segregation of duties, applied to the QUEUE rather than only to the write. An
-        // award listed here that the manager will be refused on click is the same shape of defect as
-        // a row they cannot open.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "QueueSod");
         await ScoreAndConsolidateAsync(seeded);
 
-        // The manager recommends, then routes for approval - so the pending award is their own.
         await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/award/recommend", new
         {
             winningProposalCode = await WinningProposalCodeAsync(seeded),
@@ -97,8 +103,6 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
             .Should().NotContain(seeded.RfqCode,
                 "an approver may not approve their own recommendation, so it must not be offered");
 
-        // The control, and the proof the award really is pending: a DIFFERENT manager in the same
-        // organization does see it, and can open it.
         var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, seeded.OrgId);
         var otherQueue = await QueuesAsync(otherManager);
         var row = otherQueue.GetProperty("awardApprovals").EnumerateArray()
@@ -126,17 +130,12 @@ public sealed class ApprovalQueuesTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_officer_cannot_read_the_approval_queues()
     {
-        // SCREEN-INVENTORY gives SCR-401 to procurement_manager, and its "denied" state is one of the
-        // six it lists. An officer holds rfq.create but not rfq.approve - the exact inverse of the
-        // manager, which is why the permission and not the role is what gates this.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "QueueDenied");
 
         var response = await seeded.Officer.GetAsync("/api/v1/procurement/approvals");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
-
-    // ---- setup helpers --------------------------------------------------------------------------
 
     private async Task<Guid> SupplierIdOfAsync(Seeded seeded)
     {

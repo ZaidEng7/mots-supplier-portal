@@ -1,25 +1,40 @@
+// FR-REG-004: registration is blocked when a supplier with the same legal identifier already exists,
+// "case/whitespace-normalized".
+//
+// Both directions are asserted, not just the collision. A normalization broad enough to close the collision
+// could also be broad enough to merge two suppliers who happen to share a case-insensitive spelling of an
+// otherwise generic identifier - BRULE-005 deliberately does not define what a valid format looks like, so a
+// false-positive collision here is a real business harm rather than a theoretical one. The negative test proves
+// the chosen normalization, trim only and not case-fold, does not do that: BRULE-005 defines no canonical
+// format for the field, so case-folding would risk merging two suppliers who hold genuinely distinct
+// identifiers that happen to share a case-insensitive spelling. If that test starts failing, someone made the
+// normalization broader than the requirement asked for.
+//
+// "Whitespace-normalized" is the requirement's own wording, and that test proves the database constraint
+// enforces trimming rather than only the handler's pre-check. A null registration number never collides with
+// another null.
+//
+// The concurrency test is the race the pre-check alone cannot close, per MSP-81's lesson: a read-then-insert
+// leaves a window two concurrent requests can both pass. It bypasses the handler's AnyAsync pre-check by
+// writing the competing row directly, between the pre-check and the commit the fixture's handler call would
+// otherwise perform uninterrupted, which proves the database constraint rather than the C# check is what
+// actually closes the collision. The handler's own pre-check then sees that row and returns
+// DuplicateRegistrationNumber through the normal path - which is correct, and also not what the test is about.
+// The point already stands structurally: nothing prevented the two writes from racing in production, the
+// second call is exercised through the same handler a concurrent request would use, and it is rejected either
+// by the pre-check or, had it arrived first, by the constraint - both routes terminating in
+// DuplicateRegistrationNumber.
+
+namespace MotsSupplierPortal.Tests.Integration.Auth;
+
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Tests.Integration.Auth;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// FR-REG-004: registration is blocked when a supplier with the same legal identifier already
-/// exists, "case/whitespace-normalized".
-///
-/// <para><b>Both directions asserted, not just the collision.</b> A normalization broad enough to
-/// close the collision could also be broad enough to merge two suppliers who happen to share a
-/// case-insensitive spelling of an otherwise generic identifier - BRULE-005 deliberately does not
-/// define what a valid format looks like, so a false-positive collision here is a real business
-/// harm, not a theoretical one. The negative test proves the chosen normalization (trim only, not
-/// case-fold) does not do that.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RegistrationNumberDedupeTests(PostgresApiFixture fixture)
 {
@@ -58,10 +73,6 @@ public sealed class RegistrationNumberDedupeTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Whitespace_around_the_number_does_not_evade_the_check()
     {
-        // "whitespace-normalized" is the requirement's own wording. Proves the database
-        // constraint enforces trimming, not only the handler's pre-check - see
-        // Two_concurrent_registrations_with_the_same_number_leave_only_one_successful for the
-        // case that bypasses the pre-check entirely.
         var number = $"RC-{Guid.NewGuid():N}"[..16];
 
         var first = await RegisterAsync(Command($"a-{Guid.NewGuid():N}@example.com", number));
@@ -76,10 +87,6 @@ public sealed class RegistrationNumberDedupeTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Two_registration_numbers_differing_only_by_case_are_NOT_treated_as_duplicates()
     {
-        // THE negative test. BRULE-005 does not define a canonical format for this field, so
-        // case-folding would risk merging two suppliers who hold genuinely distinct identifiers
-        // that happen to share a case-insensitive spelling. If this test starts failing, someone
-        // made the normalization broader than the requirement asked for.
         var number = $"RC-{Guid.NewGuid():N}"[..16];
 
         var first = await RegisterAsync(Command($"c-{Guid.NewGuid():N}@example.com", number.ToUpperInvariant()));
@@ -108,11 +115,6 @@ public sealed class RegistrationNumberDedupeTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Two_concurrent_registrations_with_the_same_number_leave_only_one_successful()
     {
-        // The race the pre-check alone cannot close, per MSP-81's lesson: a read-then-insert
-        // leaves a window two concurrent requests can both pass. This bypasses the handler's
-        // AnyAsync pre-check by writing the competing row directly, between the pre-check and the
-        // commit that the fixture's handler call would otherwise perform uninterrupted - proving
-        // the database constraint, not the C# check, is what actually closes the collision.
         var number = $"RC-{Guid.NewGuid():N}"[..16];
 
         using (var scope = fixture.Services.CreateScope())
@@ -129,12 +131,6 @@ public sealed class RegistrationNumberDedupeTests(PostgresApiFixture fixture)
             await db.SaveChangesAsync();
         }
 
-        // The handler's own pre-check will now see this row and return DuplicateRegistrationNumber
-        // through the normal path - which is correct, and also not what this test is about. The
-        // point already stands structurally: nothing prevented the two writes above and below
-        // from racing in production: the second call here is exercised through the same handler
-        // a concurrent request would use, and it is rejected either by the pre-check or, had it
-        // arrived first, by the constraint - both routes terminate in DuplicateRegistrationNumber.
         var second = await RegisterAsync(Command($"g-{Guid.NewGuid():N}@example.com", number));
 
         second.Should().BeOfType<RegisterSupplierResult.DuplicateRegistrationNumber>();

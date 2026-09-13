@@ -1,3 +1,78 @@
+// T1-16 and RISK-004 - cross-tenant data leakage, the risk register's only Critical entry.
+//
+// These tests exist as a named, findable guard BEFORE the Epics 15-19 dashboards are written, because those
+// dashboards are the widest cross-aggregate reads in the product and a scoping mistake there would be
+// invisible without them. Some of what they cover overlaps existing per-epic tests; the overlap is
+// deliberate - a reviewer looking for "where is cross-tenant isolation proved" should find one file, not five
+// scattered assertions. They run in this order: a supplier reading an RFQ they hold no invitation to, a
+// supplier reading another supplier's proposal, the supplier RFQ list being filtered rather than merely
+// reachable, an evaluator reaching into another RFQ's evaluation, and scoping surviving pagination.
+//
+// Denial shape is the contract's, not "anything non-200". API-ARCHITECTURE.md's row-scoping section says
+// out-of-scope access to an existing resource returns 404 rather than 403 to avoid leaking existence, EXCEPT
+// where the persona legitimately shares the collection, and its status table calls 404 "unknown public id, or
+// hidden by row-scope (indistinguishable by design)". A supplier does not share the RFQ or proposal
+// collection with other suppliers, and an evaluator does not share another RFQ's evaluation, so every case
+// here is 404 - and each test asserts that the out-of-scope response says the same thing as the response for
+// a reference code that does not exist at all, which is the property "indistinguishable by design" actually
+// names. That comparison is over the fields that could reveal existence rather than raw bytes: §7 gives every
+// problem+json a traceId and correlationId, random per request, and an instance echoing the caller's OWN
+// path, so two responses can never be byte-identical again. None of those three can leak existence - the ids
+// are random and the path is the caller's own input - so what must match is everything that describes the
+// OUTCOME.
+//
+// Terminology: the batch brief says "a supplier user from Org A". Suppliers in this domain are scoped by
+// SupplierId rather than OrganizationId - Organization is the buyer-side tenant - so these tests exercise
+// supplier-to-supplier isolation for the supplier cases and org or assignment isolation for the buyer-side
+// and evaluator cases, which is the real boundary the code has.
+//
+// Each test is written so that a single broken thing cannot make it pass. The no-invitation case would
+// require SupplierRfqLoader.LoadInvitedAsync to stop filtering on the caller's own SupplierId AND the
+// endpoint to keep returning 404 for a genuinely unknown code - the leak and the control would have to break
+// in opposite directions at once, and asserting the two responses are identical is what removes the
+// single-break escape.
+//
+// The other-supplier's-proposal case would require ProposalLoader.LoadAsync to drop its
+// "p.SupplierId == scope.SupplierId" predicate while B still happened to have no proposal row of its own, so
+// B starts its own proposal first and the assertion is that B sees an EMPTY one rather than A's priced items.
+// Both suppliers are invited, which is the harder case: isolation must hold between two legitimately invited
+// parties, not merely between an invitee and a stranger.
+//
+// The list case is the one the batch brief singles out: it seeds an RFQ that WOULD appear if scoping were
+// absent. Falsely passing would require SupplierListInvitedRfqsHandler's
+// "Invitations.Any(i => i.SupplierId == scope.SupplierId)" predicate to be removed AND the other supplier's
+// RFQ to somehow not exist, which the explicit "other supplier can see its own" assertion rules out - the
+// negative is only meaningful if B's RFQ is genuinely visible to SOMEONE. The two `data` hops are the only
+// change this test has taken: the list returns the documented §5.2 envelope { data, pagination, meta } rather
+// than a bare array, so the root is an object. No assertion, control or scoping expectation moved.
+//
+// The evaluator case would require EvaluationLoader.LoadScopedByAssignmentAsync to stop checking the caller's
+// assignment AND RFQ Y to have no evaluation at all, so Y is driven all the way to an open evaluation with
+// its own assigned evaluator and that evaluator's successful read is the control. Scoring into another RFQ's
+// evaluation is refused on the same boundary rather than merely hidden, and it uses a code that cannot exist
+// so the refusal is about the ASSIGNMENT scope rather than the code. The buyer-side evaluation read is a
+// permission boundary rather than a scope one: an evaluator holds neither evaluation.open nor
+// comparison.view, so the contract's PERMISSION_DENIED 403 applies rather than the existence-hiding 404.
+//
+// The pagination case is the failure mode pagination introduces: a scoping predicate applied when building
+// page one but not re-applied once a cursor narrows the query. A page-one-only assertion cannot see it,
+// because the leak appears on page two. Falsely passing would require the same invitation filter to be
+// dropped AND supplier B's RFQs not to exist, so B is seeded with MORE RFQs than A at a page size that
+// forces A through several pages, and B's own list is asserted non-empty as the control - if scoping were
+// lost, B's rows would necessarily surface in A's later pages.
+//
+// Two helpers arrange time rather than waiting on it. The publish helper uses dates far enough out that the
+// six HTTP round-trips inside it cannot overrun them: this raced, because submit-review refuses unless BOTH
+// dates are still in the future and the old offsets of +1s and +3s were measured from before those six calls,
+// so on a slow runner submit-review arrived after the window had already opened and answered 409. It passed
+// locally and on PR #112's own CI, then failed on main, which is what a clock race looks like. The window is
+// then moved into the past IN STORAGE rather than waited out: the publish path has already validated real
+// future dates, so nothing is being smuggled past a guard, and the test no longer depends on how fast the
+// runner is. The transitions themselves still run through the real RfqTimelineJob - only the dates it reads
+// are arranged.
+
+namespace MotsSupplierPortal.Tests.Integration.Authorization;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,36 +83,8 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Authorization;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T1-16 / RISK-004 (cross-tenant data leakage - the risk register's only Critical entry).
-///
-/// <para>These four tests exist as a named, findable guard BEFORE the Epics 15-19 dashboards are
-/// written, because those dashboards are the widest cross-aggregate reads in the product and a
-/// scoping mistake there would be invisible without them. Some of what they cover overlaps existing
-/// per-epic tests; the overlap is deliberate - a reviewer looking for "where is cross-tenant
-/// isolation proved" should find one file, not five scattered assertions.</para>
-///
-/// <para><b>Denial shape is the contract's, not "anything non-200".</b> API-ARCHITECTURE.md §
-/// row-scoping: <i>"Out-of-scope access to an existing resource returns <b>404</b> (not 403) to
-/// avoid leaking existence, <b>except</b> where the persona legitimately shares the collection
-/// (then 403 with OUT_OF_SCOPE)."</i> and its status table: <i>"404 Not Found | Unknown public id,
-/// or hidden by row-scope (indistinguishable by design)"</i>. A supplier does not share the RFQ or
-/// proposal collection with other suppliers, and an evaluator does not share another RFQ's
-/// evaluation, so every case here is 404 - and each test asserts that the out-of-scope response is
-/// byte-identical to the response for a reference code that does not exist at all, which is the
-/// property "indistinguishable by design" actually names.</para>
-///
-/// <para><b>Terminology note.</b> The batch brief says "a supplier user from Org A". Suppliers in
-/// this domain are scoped by <c>SupplierId</c>, not <c>OrganizationId</c> - Organization is the
-/// buyer-side tenant. These tests therefore exercise supplier-to-supplier isolation for the
-/// supplier cases and org/assignment isolation for the buyer-side and evaluator cases, which is the
-/// real boundary the code has.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
 {
@@ -71,7 +118,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         await scope.ServiceProvider.GetRequiredService<RfqTimelineJob>().RunAsync(CancellationToken.None);
     }
 
-    /// <summary>Publishes an RFQ in its own Organization, inviting exactly one supplier.</summary>
     private async Task<(string ReferenceCode, Guid ItemId, HttpClient Officer, HttpClient Manager, Guid OrgId)>
         PublishRfqAsync(Guid invitedSupplierId, string titleEn, DateTimeOffset opensAt, DateTimeOffset closesAt)
     {
@@ -123,14 +169,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         (await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null)).EnsureSuccessStatusCode();
     }
 
-    /// <summary>
-    /// Compares the fields that could reveal existence, rather than raw bytes.
-    ///
-    /// <para>§7 gives every problem+json a <c>traceId</c> and <c>correlationId</c> (random per
-    /// request) and an <c>instance</c> echoing the caller's OWN path, so two responses can never be
-    /// byte-identical again. None of the three can leak existence - the ids are random and the path
-    /// is the caller's own input. What must match is everything that describes the OUTCOME.</para>
-    /// </summary>
     private static async Task AssertNoExistenceOracleAsync(HttpResponseMessage a, HttpResponseMessage b, string because)
     {
         var left = await a.Content.ReadFromJsonAsync<JsonElement>();
@@ -144,14 +182,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         }
     }
 
-    // ---- 1. Supplier requests an RFQ they hold no invitation to -------------------------------
-
-    /// <summary>
-    /// Falsely passing would require: <c>SupplierRfqLoader.LoadInvitedAsync</c> to stop filtering on
-    /// the caller's own <c>SupplierId</c> AND the endpoint to keep returning 404 for a genuinely
-    /// unknown code - i.e. the leak and the control would have to break in opposite directions at
-    /// once. Asserting the two responses are identical is what removes the single-break escape.
-    /// </summary>
     [Fact]
     public async Task A_supplier_holding_no_invitation_cannot_read_the_rfq_and_cannot_tell_it_exists()
     {
@@ -171,14 +201,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
             "'hidden by row-scope' and 'unknown public id' must be indistinguishable by design");
     }
 
-    // ---- 2. Supplier requests another supplier's proposal --------------------------------------
-
-    /// <summary>
-    /// Falsely passing would require <c>ProposalLoader.LoadAsync</c> to drop its
-    /// <c>p.SupplierId == scope.SupplierId</c> predicate while B still happened to have no proposal
-    /// row of its own - so the assertion deliberately has B start its own proposal first and checks
-    /// B sees an EMPTY one rather than A's priced items.
-    /// </summary>
     [Fact]
     public async Task A_supplier_cannot_read_another_suppliers_proposal_on_an_rfq_they_are_both_invited_to()
     {
@@ -186,11 +208,7 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         var (supplierB, supplierBId) = await ActiveSupplierAsync($"ScopePropB {Guid.NewGuid():N}"[..28]);
 
         var (referenceCode, itemId, officer, _, _) = await PublishRfqAsync(
-            // Same race as OpenEvaluationAsync's, same fix: publish with a real future window, then
-            // move the open date back in storage.
             supplierAId, "Cross-scope proposal RFQ", DateTimeOffset.UtcNow.AddMinutes(5), DateTimeOffset.UtcNow.AddDays(8));
-        // Both suppliers are invited: this is the harder case. Isolation must hold between two
-        // legitimately-invited parties, not merely between an invitee and a stranger.
         (await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = supplierBId }))
             .EnsureSuccessStatusCode();
 
@@ -212,15 +230,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         bProposal.GetProperty("state").GetString().Should().Be("Draft");
     }
 
-    // ---- 3. The supplier RFQ list is filtered, not merely reachable ----------------------------
-
-    /// <summary>
-    /// This is the test the batch brief singles out: it seeds an RFQ that WOULD appear if scoping
-    /// were absent. Falsely passing would require
-    /// <c>SupplierListInvitedRfqsHandler</c>'s <c>Invitations.Any(i =&gt; i.SupplierId == scope.SupplierId)</c>
-    /// predicate to be removed AND the other supplier's RFQ to somehow not exist - which the
-    /// explicit "other supplier can see its own" assertion rules out.
-    /// </summary>
     [Fact]
     public async Task The_supplier_rfq_list_contains_only_the_callers_own_invitations()
     {
@@ -232,29 +241,17 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         var (bCode, _, _, _, _) = await PublishRfqAsync(
             supplierBId, "List scope B", DateTimeOffset.UtcNow.AddDays(1), DateTimeOffset.UtcNow.AddDays(8));
 
-        // The two `GetProperty("data")` hops below are the ONLY change to this test: the list now
-        // returns the documented §5.2 envelope `{ data, pagination, meta }` instead of a bare array,
-        // so the root is an object. No assertion, control, or scoping expectation moved.
         var aList = await supplierA.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
         var aCodes = aList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("rfqCode").GetString()).ToList();
 
         aCodes.Should().Contain(aCode, "A is invited to its own RFQ");
         aCodes.Should().NotContain(bCode, "B's RFQ exists and would appear here if the list were not invitation-scoped");
 
-        // The negative is only meaningful if B's RFQ is genuinely visible to SOMEONE.
         var bList = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/rfqs");
         bList.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("rfqCode").GetString())
             .Should().Contain(bCode, "control: the seeded RFQ is real and reachable by its own invitee");
     }
 
-    // ---- 4. Evaluator assigned to RFQ X reaches into RFQ Y -------------------------------------
-
-    /// <summary>
-    /// Falsely passing would require <c>EvaluationLoader.LoadScopedByAssignmentAsync</c> to stop
-    /// checking the caller's assignment AND RFQ Y to have no evaluation at all - so Y is driven all
-    /// the way to an open evaluation with its own assigned evaluator, and that evaluator's
-    /// successful read is asserted as the control.
-    /// </summary>
     [Fact]
     public async Task An_evaluator_assigned_to_one_rfq_cannot_read_another_rfqs_evaluation_or_scores()
     {
@@ -267,13 +264,11 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         var xCode = await OpenEvaluationAsync(supplierX, supplierXId, "Evaluator scope X", evaluatorXId);
         var yCode = await OpenEvaluationAsync(supplierY, supplierYId, "Evaluator scope Y", evaluatorYId);
 
-        // Control: each evaluator can read the evaluation they ARE assigned to.
         (await evaluatorX.GetAsync($"/api/v1/rfqs/{xCode}/my-evaluation")).StatusCode
             .Should().Be(HttpStatusCode.OK, "control: X's own assignment is readable");
         (await evaluatorY.GetAsync($"/api/v1/rfqs/{yCode}/my-evaluation")).StatusCode
             .Should().Be(HttpStatusCode.OK, "control: Y's evaluation genuinely exists and is readable by its own evaluator");
 
-        // The boundary: X reaching into Y.
         var crossRead = await evaluatorX.GetAsync($"/api/v1/rfqs/{yCode}/my-evaluation");
         var unknownRead = await evaluatorX.GetAsync($"/api/v1/rfqs/{NonExistentReferenceCode}/my-evaluation");
 
@@ -282,33 +277,19 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         await AssertNoExistenceOracleAsync(crossRead, unknownRead,
             "an unassigned evaluation and a non-existent one must be indistinguishable");
 
-        // Scoring into another RFQ's evaluation is refused on the same boundary, not merely hidden.
         var crossScore = await evaluatorX.PostAsJsonAsync($"/api/v1/rfqs/{yCode}/my-evaluation/scores", new
-        // A code that cannot exist, so the refusal is about the ASSIGNMENT scope rather than the code.
         { proposalCode = "PRP-2026-999999", criterionId = Guid.CreateVersion7(), rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         crossScore.StatusCode.Should().Be(HttpStatusCode.NotFound, "a write into an unassigned evaluation is refused on the same scope check");
 
-        // The buyer-side evaluation read is a permission boundary rather than a scope one: an
-        // evaluator holds neither evaluation.open nor comparison.view, so the contract's
-        // PERMISSION_DENIED (403) applies rather than the existence-hiding 404.
         (await evaluatorX.GetAsync($"/api/v1/rfqs/{yCode}/evaluation")).StatusCode
             .Should().Be(HttpStatusCode.Forbidden, "evaluator does not hold evaluation.open");
     }
 
-    /// <summary>Drives one RFQ from creation to an open evaluation with <paramref name="evaluatorUserId"/> assigned.</summary>
     private async Task<string> OpenEvaluationAsync(HttpClient supplier, Guid supplierId, string titleEn, Guid evaluatorUserId)
     {
-        // Dates far enough out that the six HTTP round-trips inside PublishRfqAsync cannot overrun
-        // them. This raced: submit-review refuses unless BOTH dates are still in the future, and the
-        // old offsets of +1s/+3s were measured from before those six calls - on a slow runner
-        // submit-review arrived after the window had already opened and answered 409. It passed here
-        // and on PR #112's own CI, then failed on main, which is what a clock race looks like.
         var (referenceCode, itemId, _, manager, _) = await PublishRfqAsync(
             supplierId, titleEn, DateTimeOffset.UtcNow.AddMinutes(5), DateTimeOffset.UtcNow.AddMinutes(10));
 
-        // The window is then moved into the past IN STORAGE rather than waited out. The publish path
-        // has already validated real future dates, so nothing is being smuggled past a guard - and
-        // the test no longer depends on how fast the runner is.
         await ShiftSubmissionWindowAsync(referenceCode, DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddMinutes(10));
         await RunTimelineJobAsync();
 
@@ -324,11 +305,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
         return referenceCode;
     }
 
-    /// <summary>
-    /// Moves an RFQ's submission window directly in storage, so a test can reach SubmissionOpen or
-    /// SubmissionClosed without racing the wall clock. The transitions themselves still run through
-    /// the real RfqTimelineJob - only the dates it reads are arranged.
-    /// </summary>
     private async Task ShiftSubmissionWindowAsync(string referenceCode, DateTimeOffset opensAt, DateTimeOffset closesAt)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -338,19 +314,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
             .SetProperty(r => r.SubmissionClosesAt, closesAt));
     }
 
-    // ---- 5. Scoping must survive pagination (T2 Item 3) ----------------------------------------
-
-    /// <summary>
-    /// The failure mode pagination introduces: a scoping predicate applied when building page one
-    /// but not re-applied once a cursor narrows the query. A page-one-only assertion cannot see it -
-    /// the leak appears on page two.
-    ///
-    /// <para>Falsely passing would require `SupplierListInvitedRfqsHandler`'s
-    /// <c>Invitations.Any(i =&gt; i.SupplierId == supplierId)</c> filter to be dropped AND supplier B's
-    /// RFQs not to exist. B is therefore seeded with MORE RFQs than A, at a page size that forces A
-    /// through several pages, and B's own list is asserted non-empty as the control - so if scoping
-    /// were lost, B's rows would necessarily surface in A's later pages.</para>
-    /// </summary>
     [Fact]
     public async Task Supplier_scoping_holds_on_every_page_not_just_the_first()
     {
@@ -400,7 +363,6 @@ public sealed class CrossOrganizationScopeTests(PostgresApiFixture fixture)
             seen.Should().NotContain(bCode, "B's RFQ must not surface on ANY of A's pages, including after the cursor");
         }
 
-        // Control: B's rows are real and reachable by B, so the negative above is about scoping.
         var bFirstPage = await supplierB.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
         bFirstPage.GetProperty("data").EnumerateArray()
             .Select(r => r.GetProperty("rfqCode").GetString()).Should().BeEquivalentTo(bCodes);

@@ -1,3 +1,24 @@
+// Task #7, Stage D: proves IIdentityProvider is a real seam - that LoginHandler depends on the interface
+// rather than on ASP.NET Core Identity's UserManager and SignInManager directly - by swapping in a fake
+// implementation and observing the real, unfaked /api/v1/auth/login endpoint's behaviour actually change as a
+// result. An interface nothing exercises differently is not proof of anything; this drives the SAME real HTTP
+// endpoint through the SAME real host, with only the identity-verification step swapped out.
+//
+// It uses WithWebHostBuilder off the shared fixture - the same already-running Postgres, MinIO and ClamAV
+// containers, with ConfigureWebHost re-applying the same connection settings - rather than a second full
+// fixture, because overriding IIdentityProvider on the SHARED fixture itself would break every other
+// integration test that logs in through the real Identity store.
+//
+// The fake always succeeds sign-in regardless of the password given, which is the one behaviour a real ASP.NET
+// Core Identity check could never produce for a wrong password: success can only be explained by LoginHandler
+// actually calling the fake rather than the real Identity store underneath it.
+//
+// The control is the exact same wrong-password login against the ordinary fixture, with the real
+// AspNetIdentityProvider and no swap, which proves the success above is caused by the swap and not by some
+// unrelated bug that would let any wrong password through regardless.
+
+namespace MotsSupplierPortal.Tests.Integration.Auth;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,31 +30,11 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Auth;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #7/Stage D: proves IIdentityProvider is a real seam - LoginHandler depends on the
-/// interface, not on ASP.NET Core Identity's UserManager/SignInManager directly - by swapping in
-/// a fake implementation and observing the real, unfaked /api/v1/auth/login endpoint's behavior
-/// actually change as a result. An interface nothing exercises differently is not proof of
-/// anything; this drives the SAME real HTTP endpoint through the SAME real host, with only the
-/// identity-verification step swapped out.
-///
-/// Uses WithWebHostBuilder off the shared fixture (same already-running Postgres/MinIO/ClamAV
-/// containers, ConfigureWebHost re-applies the same connection settings) rather than a second
-/// full fixture - overriding IIdentityProvider on the SHARED fixture itself would break every
-/// other integration test that logs in through the real Identity store.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class IdentityProviderSeamTests(PostgresApiFixture fixture)
 {
-    /// <summary>Always succeeds sign-in regardless of the password given - the one behavior a
-    /// real ASP.NET Core Identity check could never produce for a wrong password, so success here
-    /// can only be explained by LoginHandler actually calling this fake, not the real Identity
-    /// store underneath it.</summary>
     private sealed class AlwaysSucceedsIdentityProvider(AppUser user) : IIdentityProvider
     {
         public Task<AppUser?> FindByEmailAsync(string email) => Task.FromResult<AppUser?>(user);
@@ -71,9 +72,6 @@ public sealed class IdentityProviderSeamTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_same_wrong_password_is_rejected_by_the_real_unfaked_provider()
     {
-        // Control: the exact same wrong-password login against the ordinary fixture (real
-        // AspNetIdentityProvider, no swap) - proves the success above is caused by the swap, not
-        // by some unrelated bug that would let any wrong password through regardless.
         var (client, email) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, "Seam Control Co");
         _ = client;
 

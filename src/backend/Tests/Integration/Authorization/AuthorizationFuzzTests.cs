@@ -1,3 +1,62 @@
+// P12 and NFR-SEC-004: every permissioned route, against every persona that does not hold its permission.
+//
+// What the existing instruments do and do not cover. EndpointAuthorizationCoverageTests asserts that each
+// endpoint DECLARES an intent - a permission or an explicit AllowAnonymous - which is a static property of
+// the endpoint table. EndpointAuthorizationGapTests pins two specific holes found by hand. Neither one sends
+// a request as the wrong persona, so neither can catch a filter that is declared and does not fire: the
+// AllowAnonymous-beats-RequireAuthorization defect it records was exactly that shape, and it was found by a
+// person trying it rather than by the suite.
+//
+// This sweep sends the requests. For each route and each of the eight seeded roles that lacks its
+// permission, it calls the route and requires a refusal. Only the roles that should be REFUSED are called,
+// which is what makes fuzzing the real application safe: no request in this file is one the server ought to
+// carry out, so nothing here can mutate a row. Calling a persona that IS permitted would make this test
+// perform real work against real data - a DELETE among them - which is not a thing an authorisation sweep
+// may do as a side effect.
+//
+// A 5xx is a failure too, and that is half the value. A route that throws for a caller it was going to refuse
+// has done work before its gate - bound a body, hit the database, resolved a handler - and a crash there is
+// both a leak of behaviour and a denial-of-service surface. The assertion is therefore "not 2xx and not 5xx"
+// rather than merely "not 2xx".
+//
+// The eight personas are each a real client with a real token, because a hand-built claims principal would
+// test this test's idea of a role rather than the seed's. system_admin is excluded for two reasons that point
+// the same way: it holds every permission by construction (Permissions.All), so there is no route it should
+// be refused, and signing one in needs the MFA step, which CreateAsync does not perform - it answers 403 and
+// the sweep would be probing a half-authenticated client rather than a persona.
+//
+// Only GET and DELETE are sent, because they carry no body and so the request reaches the permission filter
+// without a binding failure standing in for the refusal. POST and PUT are deliberately NOT sent: a Minimal
+// API binds arguments before endpoint filters run, so a bodyless POST is answered 400 by model binding and
+// the assertion would pass without the permission check ever executing - a green that means nothing, which
+// is the failure mode this repository keeps finding in its own instruments. Their gate is the same filter
+// instance, and EndpointAuthorizationCoverageTests proves every one of them declares it.
+//
+// The probe URL replaces every route parameter with a value that cannot exist. The point is the refusal: a
+// caller without the permission must never learn whether the id is real, so a sentinel id is the correct
+// probe and a 404 would itself be a finding. A route constraint tells the builder what shape the sentinel has
+// to take, and getting it wrong would produce a 404 from ROUTING rather than a refusal from the gate. A
+// catch-all segment is not probed, because the shape of what belongs there is the route's own business.
+//
+// The denominator is asserted before the rule: an empty set passes every assertion in silence, which is the
+// shape six of this repository's own instruments were found in. What each role holds is read from the
+// DATABASE rather than from Roles.DefaultPermissions, because the seed is where a role STARTS and
+// permissions are admin-editable under FR-ADM-002, and other suites edit them. ReportEndpointsTests grants
+// report.read to procurement_officer and does not take it back, so a sweep expecting the seeded set reported
+// GET /reports/compliance as a hole - the route was serving a caller who genuinely held the permission by
+// then. That false positive is the whole argument for reading the live claims: "a persona that lacks this
+// permission" has to mean lacks it at the moment of the request, or the sweep is asserting against a
+// constant the product does not use.
+//
+// The anonymous sweep is the other half, and the one with a precedent: AllowAnonymous on a group silently
+// overrode RequireAuthorization on its routes, so GET /auth/sessions answered 200 with no token at all. That
+// was found by a person trying it; this tries all of them.
+//
+// The last test is the control on the machinery. A ConcreteUrl that returned nonsense would make both sweeps
+// pass by 404ing at the router before any gate ran - green, and measuring routing.
+
+namespace MotsSupplierPortal.Tests.Integration.Authorization;
+
 using System.Net;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
@@ -5,58 +64,19 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Authorization;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// P12/NFR-SEC-004: every permissioned route, against every persona that does not hold its permission.
-///
-/// <para><b>What the existing instruments do and do not cover.</b>
-/// <c>EndpointAuthorizationCoverageTests</c> asserts that each endpoint DECLARES an intent - a permission or
-/// an explicit AllowAnonymous - which is a static property of the endpoint table.
-/// <c>EndpointAuthorizationGapTests</c> pins two specific holes found by hand. Neither one sends a request as
-/// the wrong persona, so neither can catch a filter that is declared and does not fire: the
-/// <c>AllowAnonymous</c>-beats-<c>RequireAuthorization</c> defect it records was exactly that shape, and it
-/// was found by a person trying it, not by the suite.</para>
-///
-/// <para><b>This sweep sends the requests.</b> For each route and each of the eight seeded roles that lacks
-/// its permission, it calls the route and requires a refusal. Only the roles that should be REFUSED are
-/// called, which is what makes fuzzing the real application safe: no request in this file is one the server
-/// ought to carry out, so nothing here can mutate a row.</para>
-///
-/// <para><b>A 5xx is a failure too, and that is half the value.</b> A route that throws for a caller it was
-/// going to refuse has done work before its gate - bound a body, hit the database, resolved a handler - and a
-/// crash there is both a leak of behaviour and a denial-of-service surface. The assertion is therefore "not
-/// 2xx and not 5xx", not merely "not 2xx".</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
 {
-    /// <summary>The eight seeded personas. Every one is a real client with a real token, because a
-    /// hand-built claims principal would test this test's idea of a role rather than the seed's.</summary>
     private static readonly string[] Personas =
     [
         Roles.SupplierAdmin, Roles.SupplierUser, Roles.OnboardingReviewer, Roles.ProcurementOfficer,
         Roles.ProcurementManager, Roles.Evaluator, Roles.MinistryViewer, Roles.SystemAdmin,
     ];
 
-    /// <summary>
-    /// Methods this sweep sends. GET and DELETE carry no body, so the request reaches the permission filter
-    /// without a binding failure standing in for the refusal.
-    ///
-    /// <para>POST and PUT are deliberately NOT sent: a Minimal API binds arguments before endpoint filters
-    /// run, so a bodyless POST is answered 400 by model binding and the assertion would pass without the
-    /// permission check ever executing - a green that means nothing, which is the failure mode this
-    /// repository keeps finding in its own instruments. Their gate is the same filter instance, and
-    /// EndpointAuthorizationCoverageTests proves every one of them declares it.</para>
-    /// </summary>
     private static readonly string[] SafeMethods = ["GET", "DELETE"];
 
-    /// <summary>A concrete URL for a route template, with every parameter replaced by a value that cannot
-    /// exist. The point is the refusal: a caller without the permission must never learn whether the id is
-    /// real, so a sentinel id is the correct probe and a 404 would itself be a finding.</summary>
     private static string? ConcreteUrl(string template)
     {
         var segments = template.Trim('/').Split('/');
@@ -70,8 +90,6 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
                 continue;
             }
 
-            // A route constraint tells us what shape the sentinel has to take, and getting it wrong would
-            // produce a 404 from ROUTING rather than a refusal from the gate.
             if (segment.Contains(":guid", StringComparison.Ordinal))
             {
                 url.Add("00000000-0000-0000-0000-0000000000ff");
@@ -82,7 +100,6 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
             }
             else if (segment.Contains("**", StringComparison.Ordinal))
             {
-                // A catch-all. Not probed: the shape of what belongs there is the route's own business.
                 return null;
             }
             else
@@ -102,15 +119,9 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
             .Where(e => e.Metadata.GetMetadata<RequiredPermissionsMetadata>() is not null)
             .ToList();
 
-        // The denominator, before the rule. An empty set passes every assertion below in silence, which is
-        // the shape six of this repository's own instruments were found in.
         endpoints.Should().HaveCountGreaterThan(100,
             "the metadata must be on the permissioned routes for this sweep to be sweeping anything");
 
-        // system_admin is excluded, for two reasons that point the same way: it holds every permission by
-        // construction (Permissions.All), so there is no route it should be refused; and signing one in needs
-        // the MFA step, which CreateAsync does not perform - it answers 403 and the sweep would be probing a
-        // half-authenticated client rather than a persona.
         var probed = Personas.Where(role => role != Roles.SystemAdmin).ToList();
 
         var clients = new Dictionary<string, HttpClient>(StringComparer.Ordinal);
@@ -119,14 +130,6 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
             clients[role] = await StaffTestClient.CreateAsync(fixture, role);
         }
 
-        // What each role holds NOW, read from the database rather than from Roles.DefaultPermissions.
-        //
-        // The seed is where a role STARTS; permissions are admin-editable (FR-ADM-002) and other suites edit
-        // them. ReportEndpointsTests grants report.read to procurement_officer and does not take it back, so
-        // a sweep expecting the seeded set reported GET /reports/compliance as a hole - the route was
-        // serving a caller who genuinely held the permission by then. That false positive is the whole
-        // argument for reading the live claims: "a persona that lacks this permission" has to mean lacks it
-        // at the moment of the request, or the sweep is asserting against a constant the product does not use.
         var heldByRole = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
@@ -158,9 +161,6 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
             {
                 foreach (var role in probed)
                 {
-                    // Only the personas that should be refused. Calling one that IS permitted would be this
-                    // test performing real work against real data - a DELETE among them - which is not a
-                    // thing an authorisation sweep may do as a side effect.
                     if (required.Any(heldByRole[role].Contains)) continue;
 
                     probes++;
@@ -188,9 +188,6 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
     [Fact]
     public async Task No_permissioned_route_answers_an_anonymous_caller()
     {
-        // The other half, and the one with a precedent: AllowAnonymous on a group silently overrode
-        // RequireAuthorization on its routes, so GET /auth/sessions answered 200 with no token at all. That
-        // was found by a person trying it. This tries all of them.
         var endpoints = fixture.Services.GetRequiredService<EndpointDataSource>()
             .Endpoints.OfType<RouteEndpoint>()
             .Where(e => e.Metadata.GetMetadata<RequiredPermissionsMetadata>() is not null)
@@ -230,8 +227,6 @@ public sealed class AuthorizationFuzzTests(PostgresApiFixture fixture)
     [Fact]
     public void The_probe_builder_produces_urls_a_route_can_match()
     {
-        // The control on the machinery. A ConcreteUrl that returned nonsense would make both sweeps above
-        // pass by 404ing at the router, before any gate ran - green, and measuring routing.
         ConcreteUrl("/api/v1/rfqs/{referenceCode}").Should().Be("/api/v1/rfqs/zz-does-not-exist");
         ConcreteUrl("/api/v1/rfqs/{referenceCode}/items/{itemId:guid}")
             .Should().Be("/api/v1/rfqs/zz-does-not-exist/items/00000000-0000-0000-0000-0000000000ff");

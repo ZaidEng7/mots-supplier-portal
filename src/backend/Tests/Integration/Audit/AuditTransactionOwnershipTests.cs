@@ -1,36 +1,46 @@
+// MSP-64: the audit logger must not commit the caller's uncommitted work.
+//
+// The original defect was not the wrong status code on a concurrency clash - that was a symptom. It was that
+// AuditLogger called SaveChangesAsync on the caller's context, so writing an audit row flushed whatever domain
+// changes happened to be pending. That destroys the caller's atomicity boundary: an operation that fails after
+// auditing but before its own save leaves its domain change persisted anyway, and no rollback can recover it
+// because it was already committed.
+//
+// This is deliberately NOT tested through the MSP-65 concurrency case. That case cannot distinguish the two
+// states any more, because SupplierConcurrency.TryPersistAsync wraps the audit call and the save together and
+// catches DbUpdateConcurrencyException from either, so it passes whether or not the logger saves. Testing the
+// property directly avoids routing through it.
+//
+// The supplier is created rather than taken from the shared database: run in isolation this class would
+// otherwise fail on an empty table for reasons unrelated to what it tests. It is also re-read by id rather
+// than with an unfiltered FirstAsync - the EPIC-13 fix - because FirstAsync picks whichever row Postgres
+// happens to return first with no ordering guarantee, and the shared test database now regularly holds other
+// suppliers already moved to Approved by WorkspaceEndpointsTests' and AwardEndpointsTests' own setup helpers.
+//
+// One scope stands in for one unit of work: mutate, audit, then fail before saving. There is no
+// SaveChangesAsync - this is the handler failing after the audit call, whether from a validation error, a
+// downstream timeout or an exception - and the domain change must not survive it.
+//
+// The second test is the other half of the same boundary, and the reason the three added SaveChangesAsync
+// calls exist. Audit rows are now the caller's to commit like any other change: a caller that never saves
+// writes nothing at all, rather than writing the audit row and nothing else, which would be an audit trail
+// claiming an action that did not take effect.
+
+namespace MotsSupplierPortal.Tests.Integration.Audit;
+
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Audit;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-64: the audit logger must not commit the caller's uncommitted work.
-///
-/// The original defect was not the wrong status code on a concurrency clash - that was a symptom.
-/// It was that <c>AuditLogger</c> called <c>SaveChangesAsync</c> on the caller's context, so writing
-/// an audit row flushed whatever domain changes happened to be pending. That destroys the caller's
-/// atomicity boundary: an operation that fails after auditing but before its own save leaves its
-/// domain change persisted anyway, and no rollback can recover it because it was already committed.
-///
-/// This is deliberately NOT tested through the MSP-65 concurrency case. That case cannot
-/// distinguish the two states any more, because SupplierConcurrency.TryPersistAsync wraps the audit
-/// call and the save together and catches DbUpdateConcurrencyException from either - so it passes
-/// whether or not the logger saves. Testing the property directly avoids routing through it.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AuditTransactionOwnershipTests(PostgresApiFixture fixture)
 {
     [Fact]
     public async Task Audit_write_does_not_commit_the_callers_pending_domain_changes()
     {
-        // Create one rather than assuming the shared database already holds a supplier: run in
-        // isolation this class would otherwise fail on an empty table for reasons unrelated to what
-        // it tests.
         var probeName = $"Ownership Probe Co {Guid.NewGuid():N}"[..30];
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, probeName);
 
@@ -40,17 +50,11 @@ public sealed class AuditTransactionOwnershipTests(PostgresApiFixture fixture)
         await using (var arrange = fixture.Services.CreateAsyncScope())
         {
             var db = arrange.ServiceProvider.GetRequiredService<AppDbContext>();
-            // EPIC-13 fix: an unfiltered FirstAsync() picks whichever row Postgres happens to
-            // return first, with no ordering guarantee - the shared test database now regularly
-            // holds other suppliers already moved to Approved (e.g. WorkspaceEndpointsTests',
-            // AwardEndpointsTests' own setup helpers), so this must target the row THIS test just
-            // created, not "the first supplier in the whole table."
             var supplier = await db.Suppliers.FirstAsync(s => s.DisplayNameEn == probeName);
             supplierId = supplier.Id;
             originalDescription = supplier.Description;
         }
 
-        // One scope standing in for one unit of work: mutate, audit, then fail before saving.
         await using (var work = fixture.Services.CreateAsyncScope())
         {
             var db = work.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -61,8 +65,6 @@ public sealed class AuditTransactionOwnershipTests(PostgresApiFixture fixture)
 
             await auditLogger.LogAsync("Supplier", supplierId, "ownership_probe");
 
-            // No SaveChangesAsync. This is the handler failing after the audit call - a validation
-            // error, a downstream timeout, an exception. The domain change must not survive it.
         }
 
         await using var verify = fixture.Services.CreateAsyncScope();
@@ -78,10 +80,6 @@ public sealed class AuditTransactionOwnershipTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Audit_row_itself_is_not_written_when_the_caller_never_saves()
     {
-        // The other half of the same boundary, and the reason the three added SaveChangesAsync
-        // calls exist. Audit rows are now the caller's to commit like any other change: a caller
-        // that never saves writes nothing at all, rather than writing the audit row and nothing
-        // else - which would be an audit trail claiming an action that did not take effect.
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Ownership Probe Two Co");
         var probeAction = $"ownership_probe_{Guid.NewGuid():N}";
 

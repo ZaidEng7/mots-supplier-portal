@@ -1,18 +1,20 @@
-using FluentAssertions;
-using MotsSupplierPortal.Application.Notifications;
-using MotsSupplierPortal.Domain.Notifications;
+// The copy catalogue must cover the notification types exactly, in BOTH directions.
+//
+// A type with no copy would reach a supplier as an empty row; copy for a type nothing emits is approved wording
+// for an event that no longer happens, which a product owner keeps re-reading. The same shape as §7.2's
+// validation catalogue, for the same reasons.
+//
+// Every entry carries both languages in both fields, and the Arabic must be Arabic script rather than the
+// English copied into both slots - which is what a half-finished entry looks like, and what a reviewer would
+// miss in a file of nineteen.
 
 namespace MotsSupplierPortal.Tests.Integration.Notifications;
 
+using FluentAssertions;
+using MotsSupplierPortal.Application.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// The copy catalogue must cover the notification types exactly - in BOTH directions.
-///
-/// <para>A type with no copy would reach a supplier as an empty row; copy for a type nothing emits
-/// is approved wording for an event that no longer happens, which a product owner keeps re-reading.
-/// The same shape as §7.2's validation catalogue, for the same reasons.</para>
-/// </summary>
 public sealed class NotificationCatalogueCoverageTests
 {
     [Fact]
@@ -44,8 +46,6 @@ public sealed class NotificationCatalogueCoverageTests
         entry.BodyAr.Should().NotBeNullOrWhiteSpace();
         entry.BodyEn.Should().NotBeNullOrWhiteSpace();
 
-        // The Arabic must be Arabic script, not the English copied into both slots - which is what a
-        // half-finished entry looks like, and what a reviewer would miss in a file of nineteen.
         entry.TitleAr.Should().MatchRegex("[؀-ۿ]");
         entry.BodyAr.Should().MatchRegex("[؀-ۿ]");
         entry.TitleAr.Should().NotBe(entry.TitleEn);

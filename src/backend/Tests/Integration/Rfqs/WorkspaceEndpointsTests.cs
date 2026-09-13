@@ -1,3 +1,32 @@
+// The guided workspace read model, at the two states the report calls for: a mid-authoring draft with a blocked next
+// action, and a completed tender with none left.
+//
+//
+// THE TRACKER SHOWS EVERY STAGE, INCLUDING THE THREE THAT USED TO BE UNREACHABLE
+//
+// They were excluded precisely because no code path produced them. Leaving them out once they became reachable
+// would give a tender sitting in one of them no current stage at all, and mark everything before it complete.
+//
+//
+// THE RAIL NAMES EVERY UNMET PRECONDITION, NOT THE FIRST ONE
+//
+// It used to name one, so a person fixed it, pressed the button, and was told about the next: five round trips to
+// learn what submitting needs.
+//
+// Worse, the list was missing the submission-window rule entirely, so the rail and the domain disagreed about why a
+// draft was blocked. A person fixed what they were told and was refused for something else. Walked into by hand.
+//
+// The tender under test is created with nothing at all, so all four that apply are named, in the order the domain
+// checks them, and the window blocker has its own test because it is the one the rail did not check.
+//
+//
+// THE WINDOW IS AN HOUR AND IS CLOSED IN STORAGE
+//
+// A seconds-wide window made everything between publishing and submitting race a wall clock. The real job still
+// performs the transition; only the waiting is gone.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -8,15 +37,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Awards;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-13.1/FR-PWF-001: real HTTP proof of the guided workspace read model, at the two
-/// states report item #1 explicitly calls for - a mid-authoring Draft RFQ (blocked next action,
-/// plain-language reason) and a fully-awarded/completed RFQ (system-driven next action, then no
-/// next action once the lifecycle is closed).</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
 {
@@ -59,10 +81,6 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         workspace.GetProperty("awardState").ValueKind.Should().Be(JsonValueKind.Null);
 
         var stages = workspace.GetProperty("stages").EnumerateArray().ToList();
-        // T3-36 made Clarification, Shortlisting and Recommendation reachable, so the tracker shows
-        // 13 stages rather than 10. The three were excluded precisely because no code path produced
-        // them; leaving them out now would give an RFQ sitting in Clarification no current stage at
-        // all and mark everything before it complete.
         stages.Should().HaveCount(13, "every reachable RfqState is shown, and T3-36 added three");
         var draftStage = stages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.Draft));
         draftStage.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
@@ -77,23 +95,12 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         submitReview.GetProperty("action").GetString().Should().Be("submit_review");
         submitReview.GetProperty("permitted").GetBoolean().Should().BeFalse("a Draft RFQ with no items yet cannot be submitted for review");
 
-        // EVERY unmet precondition, not the first one. The rail used to name one, so a person fixed it,
-        // pressed the button and was told about the next - five round trips to learn what submitting
-        // needs. Worse, the list was missing the submission-window rule entirely, so the rail and the
-        // domain disagreed about why a draft was blocked. This RFQ was created with nothing at all, so
-        // all four that apply are named, in the order SubmitForReview checks them.
         submitReview.GetProperty("blockedReasonEn").GetString().Should().Be(
             "No items yet. Submission dates not set. No evaluation template bound. No supplier invited yet.");
         submitReview.GetProperty("blockedReasonAr").GetString().Should().Be(
             "لا توجد بنود بعد. لم يتم تحديد تواريخ التقديم. لم يتم ربط قالب تقييم. لم تتم دعوة أي مورد بعد.");
     }
 
-    /// <summary>
-    /// The blocker the rail did not check at all, which is how it came to disagree with the domain.
-    /// A window that has already opened refuses submit; before this the rail listed the other four and
-    /// never mentioned this one, so a person fixed what they were told and was refused for something
-    /// else. Walked into by hand.
-    /// </summary>
     [Fact]
     public async Task Workspace_names_a_submission_window_that_has_already_started()
     {
@@ -156,11 +163,6 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
         {
             titleAr = "طلب ترسية", titleEn = "Workspace Awarded RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
             publishAt = (DateTimeOffset?)null, submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            // T-087: an HOUR, not three seconds. The three-second window made everything between
-            // publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the
-            // timeline job, starting a proposal, pricing it, setting terms - and on a loaded machine the
-            // submit lost. The window is closed below by moving the deadline in storage, so the real job
-            // still performs the transition and only the waiting is gone.
             submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
@@ -199,7 +201,6 @@ public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
             proposalId = (await db.Proposals.FirstAsync(p => p.ReferenceCode == proposalReferenceCode)).Id;
         }
 
-        // T-087: close the window by moving the deadline, then let the real job notice it.
         await SubmissionWindowTestHelper.CloseAsync(fixture, referenceCode);
         await RunTimelineJobAsync();
 

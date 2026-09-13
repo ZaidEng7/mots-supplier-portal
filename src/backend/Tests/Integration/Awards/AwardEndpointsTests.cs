@@ -1,3 +1,60 @@
+// FEAT-14.1 through 14.6 and FR-AWD-001 through 007: real HTTP proof of the recommend, approve, issue and
+// ERP-PO flow, with segregation of duties (BRULE-073) and "the portal never blocks on ERP" (BRULE-077) as this
+// file's centrepieces - the same discipline as EvaluationEndpointsTests' and ComparisonEndpointsTests' own
+// negative-test proofs. The order is segregation of duties, then issuing the award, then BRULE-077, then
+// FEAT-13.4's job re-run, then the audit.
+//
+// The counting ERP adapter is FEAT-13.4's audit instrument: it counts real calls FOR ONE SPECIFIC AWARD, so a
+// test can prove a job re-run after a "crash" - here, after the prior run's SaveChangesAsync already committed
+// ErpSyncStatus.Synced - does NOT call the adapter a second time for that award. AwardErpSyncJob's own query
+// only ever selects ErpSyncStatus.Requested rows, so once a row is committed Synced it structurally cannot be
+// re-picked-up: the same "idempotent by query construction rather than by marker" pattern this epic's audit
+// already confirmed for RfqTimelineJob. It is scoped to one awardId rather than a global counter because
+// RunAsync processes its WHOLE pending batch each call, the shared integration-test database can hold other
+// still-Requested awards left behind by other tests in this collection, and a global counter would flake on
+// those rather than on anything this test is proving.
+//
+// The setup carries the RFQ all the way through a Finalized evaluation with two Submitted, technically
+// qualified proposals - A scoring higher, B lower - which is everything these tests need before they can even
+// attempt a recommendation. It mirrors EvaluationEndpointsTests' own setup helper. The submission window is an
+// HOUR rather than three seconds (T-087): the three-second window made everything between publishing and
+// submitting race a wall clock - approve, publish, a 1.2-second sleep, the timeline job, starting a proposal,
+// pricing it, setting terms - and on a loaded machine the submit lost. The window is closed by moving the
+// deadline in storage and letting the real job notice it, so the transition still happens the way production
+// does it and only the waiting is gone.
+//
+// SEGREGATION OF DUTIES, BRULE-073. The recommender cannot approve their own recommendation; a different
+// approver can, and reject requires a reason - a field-level validation failure, so 422 per §7.2 - and
+// re-recommending returns to Recommended. Recommending before the evaluation is Finalized is refused: the
+// setup for that one stops at Consolidated deliberately, which is BRULE-071's own gate.
+//
+// T-068: a proposal code that names a bid on ANOTHER tender is refused. The winner arrives as a public code
+// now, and a code is resolved against this tender's own bids before anything else looks at it - without that
+// predicate a manager could recommend a proposal belonging to a different buying body's tender, the sort of
+// defect a rename introduces quietly, because both identifiers are strings and both exist. The test uses a
+// real, live bid on somebody else's tender, and asserts nothing was recorded against either tender: a refusal
+// that half-wrote an award would be worse than one that accepted the wrong bid, because it would be invisible.
+//
+// ISSUING THE AWARD moves the winner to Awarded, every other proposal to NotSelected, and the RFQ to Awarded,
+// atomically.
+//
+// BRULE-077, the other centrepiece: the award stays final and the RFQ stays Awarded even when the ERP adapter
+// is down. A failing ERP adapter is swapped in - IdentityProviderSeamTests' own established pattern - and the
+// sync job runs against THAT host, simulating the ERP being down when reconciliation is attempted. Then
+// recovery is proven: the real always-succeeds stub adapter picks the SAME still-Failed award back up on its
+// next run and completes the RFQ.
+//
+// FEAT-13.4 and FR-PWF-004: a job re-run after the prior run already committed must be a no-op. The first run
+// finds the award still Requested, so it is the ONE real sync - the batch may also process OTHER awards left
+// Requested by other tests in this shared database, which is why the counter tracks calls for THIS test's own
+// award only. The second run simulates the recurring schedule firing again, say after a restart, against the
+// SAME already-Synced award: the query in AwardErpSyncJob.RunAsync only selects Requested rows, so it must find
+// nothing to do.
+//
+// Every award action writes an audit row.
+
+namespace MotsSupplierPortal.Tests.Integration.Awards;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -11,15 +68,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Awards;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Awards;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-14.1..14.6/FR-AWD-001..007: real HTTP proof of the recommend -&gt; approve ->
-/// issue -&gt; ERP-PO flow, with segregation of duties (BRULE-073) and "portal never blocks on ERP"
-/// (BRULE-077) as this file's centerpieces, same discipline as EvaluationEndpointsTests'/
-/// ComparisonEndpointsTests' own negative-test proofs.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
 {
@@ -29,17 +79,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
             throw new InvalidOperationException("ERP is unavailable (simulated for this test).");
     }
 
-    /// <summary>FEAT-13.4 audit: counts real calls FOR ONE SPECIFIC AWARD so a test can prove a job
-    /// re-run after a "crash" (here: after the prior run's SaveChangesAsync already committed
-    /// ErpSyncStatus.Synced) does NOT call the adapter a second time for that award -
-    /// AwardErpSyncJob's own query only ever selects ErpSyncStatus.Requested rows
-    /// (AwardErpSyncJob.cs line 33-37), so once a row is committed Synced it structurally cannot be
-    /// re-picked-up, the same "idempotent by query construction, not by marker" pattern this epic's
-    /// own audit already confirmed for RfqTimelineJob. Scoped to one awardId rather than a global
-    /// counter because RunAsync processes its WHOLE pending batch (up to BatchSize) each call - the
-    /// shared integration-test database can hold other still-Requested awards left behind by other
-    /// tests in this same collection, and a global counter would flake on those, not on anything this
-    /// test itself is proving.</summary>
     private sealed class CountingErpPurchaseOrderAdapter(Guid trackedAwardId) : IErpPurchaseOrderAdapter
     {
         public int CallCountForTrackedAward;
@@ -71,10 +110,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         await job.RunAsync(CancellationToken.None);
     }
 
-    /// <summary>Carries the RFQ all the way through a Finalized evaluation with two Submitted,
-    /// technically-qualified proposals (A scores higher, B lower) - everything AwardEndpointsTests
-    /// needs before it can even attempt a recommendation. Mirrors EvaluationEndpointsTests' own
-    /// setup helper.</summary>
     private Task<(string RfqReferenceCode, HttpClient Manager, HttpClient Officer, Guid ProposalAId, Guid ProposalBId, Guid SupplierAId, Guid SupplierBId, Guid OrgId)>
         SetupFinalizedEvaluationRfqAsync(string titleEn) => SetupEvaluationRfqAsync(titleEn, finalize: true);
 
@@ -102,11 +137,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         {
             titleAr = "طلب ترسية", titleEn, descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
             publishAt = (DateTimeOffset?)null, submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            // T-087: an HOUR, not three seconds. The three-second window made everything between
-            // publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the
-            // timeline job, starting a proposal, pricing it, setting terms - and on a loaded machine the
-            // submit lost. The window is closed below by moving the deadline in storage, so the real job
-            // still performs the transition and only the waiting is gone.
             submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
@@ -155,7 +185,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var proposalAId = await SubmitProposalAsync(supplierA);
         var proposalBId = await SubmitProposalAsync(supplierB);
 
-        // T-087: close the window by moving the deadline, then let the real job notice it.
         await SubmissionWindowTestHelper.CloseAsync(fixture, referenceCode);
         await RunTimelineJobAsync();
         var afterClose = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
@@ -185,8 +214,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
 
         return (referenceCode, manager, officer, proposalAId, proposalBId, supplierAId, supplierBId, org.Id);
     }
-
-    // ---- Segregation of duties (BRULE-073) - the centerpiece ----
 
     [Fact]
     public async Task The_recommender_cannot_approve_their_own_recommendation()
@@ -237,7 +264,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
 
         var emptyReason = await otherManager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/reject", new { reason = "" });
-        // §7.2: field-level validation failures are 422.
         emptyReason.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
 
         var reject = await otherManager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/reject", new { reason = "price too high, re-evaluate" });
@@ -255,7 +281,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Recommending_before_the_evaluation_is_finalized_is_refused()
     {
-        // Consolidated, deliberately not Finalized - BRULE-071's own gate.
         var (referenceCode, manager, officer, proposalAId, _, _, _, _) = await SetupEvaluationRfqAsync("Award Not Finalized RFQ", finalize: false);
 
         var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
@@ -266,21 +291,12 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         body.GetProperty("detail").GetString().Should().Contain("finalized");
     }
 
-    /// <summary>
-    /// T-068: a proposal code that names a bid on ANOTHER tender is refused.
-    ///
-    /// <para>The winner arrives as a public code now, and a code is resolved against this tender's own
-    /// bids before anything else looks at it. Without that predicate a manager could recommend a
-    /// proposal belonging to a different buying body's tender - the sort of defect a rename introduces
-    /// quietly, because both identifiers are strings and both exist.</para>
-    /// </summary>
     [Fact]
     public async Task A_proposal_code_from_another_tender_cannot_be_recommended()
     {
         var setup = await SetupEvaluationRfqAsync("Award Foreign Code RFQ", finalize: true);
         var (referenceCode, manager) = (setup.Item1, setup.Item2);
 
-        // A real, live bid - on somebody else's tender.
         var elsewhere = await EvaluationSeed.CreateAsync(fixture, "AwardElsewhere");
 
         var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
@@ -290,15 +306,11 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var body = await recommend.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("detail").GetString().Should().Contain("not eligible");
 
-        // And nothing was recorded against either tender: a refusal that half-wrote an award would be
-        // worse than one that accepted the wrong bid, because it would be invisible.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Awards.CountAsync(a => db.Rfqs.Any(r => r.Id == a.RfqId && r.ReferenceCode == referenceCode)))
             .Should().Be(0);
     }
-
-    // ---- Issue award: atomic winner/loser update + RFQ transition ----
 
     [Fact]
     public async Task Executing_the_award_moves_the_winner_to_Awarded_every_other_proposal_to_NotSelected_and_the_RFQ_to_Awarded()
@@ -331,8 +343,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         rfq.GetProperty("state").GetString().Should().Be(nameof(RfqState.Awarded));
     }
 
-    // ---- BRULE-077: the portal never blocks on ERP - the other centerpiece ----
-
     [Fact]
     public async Task The_award_stays_final_and_the_RFQ_stays_Awarded_even_when_the_ERP_adapter_is_down()
     {
@@ -348,9 +358,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         execute.StatusCode.Should().Be(HttpStatusCode.OK, executeBodyText2);
         var awardId = (await execute.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        // Swap in a failing ERP adapter (IdentityProviderSeamTests' own established pattern) and
-        // run the sync job against THAT host - simulating the ERP being down when reconciliation
-        // is attempted.
         await using var fakeFactory = fixture.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services => services.AddScoped<IErpPurchaseOrderAdapter, FailingErpPurchaseOrderAdapter>()));
         await using (var scope = fakeFactory.Services.CreateAsyncScope())
@@ -370,8 +377,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var rfq = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         rfq.GetProperty("state").GetString().Should().Be(nameof(RfqState.Awarded), "the RFQ must not advance to Completed while the ERP PO is unacknowledged, but must also not regress");
 
-        // Now prove recovery: the real (stub, always-succeeds) adapter picks the SAME still-Failed
-        // award back up on its next run and completes the RFQ.
         await using var recoveryScope = fixture.Services.CreateAsyncScope();
         var recoveryJob = recoveryScope.ServiceProvider.GetRequiredService<AwardErpSyncJob>();
         var recoveryDb = recoveryScope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -386,8 +391,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var completedRfq = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         completedRfq.GetProperty("state").GetString().Should().Be(nameof(RfqState.Completed));
     }
-
-    // ---- FEAT-13.4/FR-PWF-004: a job re-run after the prior run already committed must be a no-op ----
 
     [Fact]
     public async Task Rerunning_the_ERP_sync_job_after_a_successful_run_does_not_call_the_adapter_again_or_double_complete_the_RFQ()
@@ -406,9 +409,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         await using var fakeFactory = fixture.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services => services.AddScoped<IErpPurchaseOrderAdapter>(_ => countingAdapter)));
 
-        // First run: the award is still Requested, so this is the ONE real sync. (The batch may
-        // also process OTHER awards left Requested by other tests in this shared database - the
-        // counter only tracks calls for THIS test's own award, see the adapter's own doc comment.)
         await using (var scope = fakeFactory.Services.CreateAsyncScope())
         {
             var job = scope.ServiceProvider.GetRequiredService<AwardErpSyncJob>();
@@ -423,9 +423,6 @@ public sealed class AwardEndpointsTests(PostgresApiFixture fixture)
         var firstPoRef = midAward.ExternalPurchaseOrderRef;
         firstPoRef.Should().NotBeNullOrEmpty();
 
-        // Simulating the job's recurring schedule firing again (e.g. after a restart) against the
-        // SAME already-Synced award: the query in AwardErpSyncJob.RunAsync only selects
-        // ErpSyncStatus.Requested rows, so this second run must find nothing to do.
         await using (var scope = fakeFactory.Services.CreateAsyncScope())
         {
             var job = scope.ServiceProvider.GetRequiredService<AwardErpSyncJob>();

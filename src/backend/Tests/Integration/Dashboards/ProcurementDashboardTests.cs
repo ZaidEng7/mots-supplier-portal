@@ -1,3 +1,64 @@
+// SCR-400, FR-DSH-008 and RISK-004.
+//
+// A count is a leak. "Active RFQs: 14" that includes another organization's rows discloses volume without
+// disclosing a single row, and no list-level test would catch it. Every assertion here is on a NUMBER, each with
+// an owner control beside it so a zero cannot pass because the query is broken.
+//
+// The counts are this organization's and never another organization's: the control is that my own rows really
+// are counted, so a scoped number is not just a zero, and the leak asserted against is a count that quietly
+// includes the other org. The board is checked column by column, where Draft is the only populated state in
+// either org.
+//
+// A caller with no organization gets 404 rather than an empty dashboard - §9.2, out-of-scope reads as
+// not-found, because an empty dashboard would still assert that an organization exists and is idle.
+//
+// "Awaiting my action" differs between an officer and a manager on the same data, which is the property that
+// makes the tile mean anything: it is not silently org-wide, because a Draft RFQ awaits the officer who can
+// submit it for review rather than the manager who cannot. §10 names the tile and defines nothing, so the
+// permission half of this remains an invention; A-7 supplied the other half - the RFQ also has to be the
+// caller's - and these drafts are created BY the officer, so they are theirs. The unowned and approver cases are
+// asserted in RfqOwnershipTests, which is where the ownership rules live. The control against the tile silently
+// becoming Active RFQs is that both personas see the same total and only the per-user number differs.
+//
+// Only the manager is offered the approvals card, per §10's "Manager also gets an Approvals card", decided from
+// the permission so the affordance and the API agree about who may approve.
+//
+// The period filter keeps rows that were never published, which is a decision stated as a test: an RFQ that has
+// never been published has no publishedAt to compare, and excluding it would empty the board's left-hand columns
+// the moment a period is chosen - Draft, InternalReview and Approved would vanish from an officer's own
+// dashboard. The other direction is the control that the filter is not a no-op: a published RFQ outside the
+// window IS excluded.
+//
+// A supplier gets nothing from the procurement dashboard, which is worth encoding because the obvious
+// expectation is wrong: a supplier HOLDS rfq.read - it is how they read the RFQs they were invited to - so the
+// permission gate does not stop them. What stops them is having no OrganizationId, and §9.2 makes that a 404
+// rather than a 403, because the answer must not distinguish "you may not" from "there is nothing here".
+//
+// A malformed period bound is unprocessable rather than malformed JSON. It was always REFUSED - model binding
+// threw and the middleware answered 400 - so this is about the error being the right one and naming the field,
+// not about a period that widened. An earlier note here claimed widening; that claim was wrong. See
+// FilterValues.TryParseDateBound. The control and non-vacuity guard is that the unfiltered dashboard really
+// does return rows.
+//
+// T-038 and FEAT-17.5: the deadline panel carries the clarification window, not only the submission one.
+// FEAT-17.5 asks for "submission/clarification/expiry" consolidated. The panel had the first and neither of the
+// others, so the two dates a buyer can actually MISS were the two it did not show - a clarification window
+// closes whether or not anyone answered the question inside it. That test goes straight to the state, because
+// the route into Clarification is a buyer asking a supplier a question mid-evaluation and the test is about the
+// PANEL rather than that path, which RfqClarificationTests already covers end to end.
+//
+// T-038's other pair: a bid's validity date appears only once the evaluation is consolidated. Validity is a
+// commercial term, and BRULE-058 keeps commercial values out of buyer-side reads until consolidation - the same
+// gate the comparison matrix applies - so a row saying "a bid on this tender expires soon" is itself the
+// disclosure and before that point it is absent rather than dateless. The closed half is asserted on its own;
+// the open half drives a real evaluation to Consolidated, because that is the only way to reach the branch, and
+// it is the half that carries the value: a tender whose leading bid expires before the award is executed has to
+// go back to the supplier for an extension or be re-run, and nothing showed it. The seeded bid is valid for
+// thirty days and the panel carries the END of that day, because validity is recorded as a calendar date and the
+// deadline is the end of it rather than its first instant.
+
+namespace MotsSupplierPortal.Tests.Integration.Dashboards;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,19 +68,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Dashboards;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-400 / FR-DSH-008 / RISK-004.
-///
-/// <para><b>A count is a leak.</b> "Active RFQs: 14" that includes another organization's rows
-/// discloses volume without disclosing a single row, and no list-level test would catch it. Every
-/// assertion here is on a NUMBER, each with an owner control beside it so a zero cannot pass because
-/// the query is broken.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
 {
@@ -64,15 +114,12 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
         var myDashboard = await DashboardAsync(mine.Officer);
         var theirDashboard = await DashboardAsync(theirs.Officer);
 
-        // The control: my own rows really are counted, so a scoped number is not just a zero.
         myDashboard.GetProperty("kpis").GetProperty("activeRfqs").GetInt32().Should().Be(3,
             "control: the officer's own organization's RFQs are counted");
 
-        // The leak that no list-level test would catch: a count that quietly includes the other org.
         theirDashboard.GetProperty("kpis").GetProperty("activeRfqs").GetInt32().Should().Be(5,
             "each organization's count is its own - 8 here would disclose the other's volume");
 
-        // And the board, column by column: Draft is the only populated state in either org.
         var myDraft = myDashboard.GetProperty("pipeline").EnumerateArray()
             .Single(c => c.GetProperty("state").GetString() == nameof(RfqState.Draft));
         myDraft.GetProperty("count").GetInt32().Should().Be(3);
@@ -81,8 +128,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_caller_with_no_organization_gets_404_rather_than_an_empty_dashboard()
     {
-        // §9.2: out-of-scope reads as not-found. An empty dashboard would still assert that an
-        // organization exists and is idle.
         var orphan = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, organizationId: null);
 
         var response = await orphan.GetAsync("/api/v1/procurement/dashboard");
@@ -93,13 +138,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Awaiting_my_action_differs_between_an_officer_and_a_manager_on_the_same_data()
     {
-        // The property that makes the tile mean anything: it is not silently org-wide. A Draft RFQ awaits
-        // the officer who can submit it for review, not the manager who cannot.
-        //
-        // §10 names the tile and defines nothing, so the permission half of this remains an invention.
-        // A-7 supplied the other half - the RFQ also has to be the caller's - and these drafts are
-        // created BY the officer, so they are theirs. The unowned and approver cases are asserted in
-        // RfqOwnershipTests, which is where the ownership rules live.
         var org = await OrgWithRfqsAsync("Awaiting", draftCount: 2);
 
         var officerView = await DashboardAsync(org.Officer);
@@ -110,16 +148,12 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
         managerView.GetProperty("kpis").GetProperty("awaitingMyAction").GetInt32().Should().Be(0,
             "the manager cannot submit an RFQ for review, so none of these are waiting on them");
 
-        // The control against the tile silently becoming Active RFQs: both personas see the same
-        // total, and only the per-user number differs.
         managerView.GetProperty("kpis").GetProperty("activeRfqs").GetInt32().Should().Be(2);
     }
 
     [Fact]
     public async Task Only_the_manager_is_offered_the_approvals_card()
     {
-        // §10: "Manager also gets an Approvals card". Decided from the permission, so the affordance
-        // and the API agree about who may approve.
         var org = await OrgWithRfqsAsync("ApprovalsCard", draftCount: 1);
 
         (await DashboardAsync(org.Manager)).GetProperty("showsApprovals").GetBoolean().Should().BeTrue();
@@ -129,10 +163,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_period_filter_keeps_rows_that_were_never_published()
     {
-        // The decision this filter forces, stated as a test: an RFQ that has never been published has
-        // no publishedAt to compare, and excluding it would empty the board's left-hand columns the
-        // moment a period is chosen - Draft, InternalReview and Approved would vanish from an
-        // officer's own dashboard.
         var org = await OrgWithRfqsAsync("Period", draftCount: 2);
 
         var lastYear = DateTimeOffset.UtcNow.AddYears(-1).ToString("O");
@@ -147,7 +177,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_period_filter_does_exclude_a_published_RFQ_outside_the_window()
     {
-        // The other direction, and the control for the test above: the filter is not a no-op.
         var org = await OrgWithRfqsAsync("PeriodPublished", draftCount: 1);
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -169,10 +198,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_supplier_gets_nothing_from_the_procurement_dashboard()
     {
-        // Worth encoding because the obvious expectation is wrong: a supplier HOLDS rfq.read - it is
-        // how they read the RFQs they were invited to - so the permission gate does not stop them.
-        // What stops them is having no OrganizationId, and §9.2 makes that a 404 rather than a 403:
-        // the answer must not distinguish "you may not" from "there is nothing here".
         var (supplier, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, $"DashSup {Guid.NewGuid():N}"[..30]);
 
         var response = await supplier.GetAsync("/api/v1/procurement/dashboard");
@@ -183,13 +208,8 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_malformed_period_bound_is_refused_rather_than_silently_dropped()
     {
-        // A malformed period bound is unprocessable, not malformed JSON. It was always REFUSED -
-        // model binding threw and the middleware answered 400 - so this is about the error being the
-        // right one and naming the field, not about a period that widened. The earlier comment here
-        // claimed widening; that claim was wrong. See FilterValues.TryParseDateBound.
         var org = await OrgWithRfqsAsync("BadPeriod", draftCount: 2);
 
-        // The control and the non-vacuity guard: the unfiltered dashboard really does return rows.
         (await DashboardAsync(org.Officer)).GetProperty("kpis").GetProperty("activeRfqs").GetInt32()
             .Should().Be(2, "control: the dashboard works and has data, so the 422 below is about the bound");
 
@@ -201,23 +221,11 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
             "not MALFORMED_JSON - this is a GET carrying no JSON, and one filter value is the problem");
     }
 
-    /// <summary>
-    /// T-038/FEAT-17.5: the deadline panel carries the clarification window, not only the submission
-    /// one.
-    ///
-    /// <para>FEAT-17.5 asks for "submission/clarification/expiry" consolidated. The panel had the
-    /// first and neither of the others, so the two dates a buyer can actually MISS were the two it did
-    /// not show - a clarification window closes whether or not anyone answered the question inside
-    /// it.</para>
-    /// </summary>
     [Fact]
     public async Task A_clarification_window_appears_on_the_deadline_panel()
     {
         var org = await OrgWithRfqsAsync($"Clar {Guid.NewGuid():N}"[..12], draftCount: 1);
 
-        // Straight to the state, because the route into Clarification is a buyer asking a supplier a
-        // question mid-evaluation and this test is about the PANEL, not that path - which
-        // RfqClarificationTests already covers end to end.
         string rfqCode;
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
@@ -238,17 +246,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
             "the panel is about what has not happened yet");
     }
 
-    /// <summary>
-    /// T-038: a bid's validity date appears only once the evaluation is consolidated.
-    ///
-    /// <para>Validity is a commercial term, and BRULE-058 keeps commercial values out of buyer-side
-    /// reads until consolidation - the same gate the comparison matrix applies. A row saying "a bid on
-    /// this tender expires soon" is itself the disclosure, so before that point it is absent rather
-    /// than dateless.</para>
-    ///
-    /// <para>This asserts the CLOSED half. The open half - that it appears afterwards - needs a full
-    /// evaluation and lives with the suites that already drive one.</para>
-    /// </summary>
     [Fact]
     public async Task A_bid_validity_date_is_not_on_the_panel_before_consolidation()
     {
@@ -262,14 +259,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
                 "the evaluation is not consolidated, so no commercial fact about a bid may reach this screen");
     }
 
-    /// <summary>
-    /// T-038: and once the evaluation IS consolidated, the bid's validity date appears.
-    ///
-    /// <para>The other half of the gate, and the half that carries the value: a tender whose leading
-    /// bid expires before the award is executed has to go back to the supplier for an extension or be
-    /// re-run, and nothing showed it. The closed half is asserted above; this one drives a real
-    /// evaluation to Consolidated, because that is the only way to reach the branch.</para>
-    /// </summary>
     [Fact]
     public async Task Once_consolidated_a_bids_validity_date_appears_on_the_panel()
     {
@@ -298,8 +287,6 @@ public sealed class ProcurementDashboardTests(PostgresApiFixture fixture)
         var row = tasks.Single(t => t.GetProperty("rfqReferenceCode").GetString() == seeded.RfqCode
                                     && t.GetProperty("kind").GetString() == "BidValidityExpiring");
 
-        // The seeded bid is valid for thirty days, and the panel carries the END of that day - validity
-        // is recorded as a calendar date and the deadline is the end of it, not its first instant.
         DateOnly storedValidity;
         await using (var scope = fixture.Services.CreateAsyncScope())
         {

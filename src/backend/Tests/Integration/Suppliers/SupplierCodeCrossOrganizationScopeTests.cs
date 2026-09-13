@@ -1,3 +1,50 @@
+// Cross-supplier scoping on the five routes that became code-addressed.
+//
+//
+// THIS IS THE CHANGE THAT GIVES UP THE STRUCTURAL PROPERTY
+//
+// Until then the supplier's own routes were protected by the shape of their URLs: a path that says "me" has no slot
+// for another supplier's identifier, so the attack could not be expressed and no check was needed.
+//
+// Addressing suppliers by code hands every caller a way to name somebody else. What replaced the guarantee is one
+// shared check and these tests.
+//
+//
+// NOT-FOUND RATHER THAN FORBIDDEN, AND THE BODIES COMPARED FIELD BY FIELD
+//
+// The contract requires out-of-scope access to an existing resource to answer not-found, so existence is not
+// leaked. Each case asserts the status AND compares the body against the same call made against a code that never
+// existed.
+//
+// Byte equality no longer applies, and that is the error model working rather than a weaker assertion: every error
+// now carries per-request identifiers and the caller's own path, so two requests can never produce identical bytes.
+// None of those three can leak existence, so the comparison is over the fields that DO discriminate, each named,
+// which is stricter than incidental byte equality.
+//
+//
+// EVERY CASE HAS AN OWNER CONTROL
+//
+// A negative that passes because the route does not exist looks exactly like one that passes because scoping works,
+// which this project has already been bitten by once.
+//
+// One control asserts NOT-not-found rather than success, because a fresh supplier's profile is incomplete so the
+// honest answer names the missing fields. What matters is that the request REACHED the handler instead of being
+// turned away by the scope check.
+//
+//
+// TWO CASES THAT ARE DIFFERENT IN KIND
+//
+// The scope check runs BEFORE the multipart body is read, so an out-of-scope caller cannot even stream a file. That
+// is asserted by sending a request with no body at all: it must still be the scope's refusal rather than the one a
+// malformed upload would earn.
+//
+// And the reviewer-facing decisions are different again, because a reviewer legitimately acts across suppliers.
+// What must be refused is a document reached under the WRONG supplier's code: without that check a reviewer could
+// approve one supplier's document through another's address, and the audit row would name the wrong supplier. Its
+// control is the same reviewer, the same document, under its real owner's code.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,29 +54,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// RISK-004, for the five routes §12-A/C3 made code-addressed.
-///
-/// <para><b>This is the batch that gives up the structural property.</b> Until now the supplier
-/// aggregate was protected by the shape of its own URLs: <c>/suppliers/me/documents</c> has no slot
-/// for another supplier's identifier, so the attack could not be expressed and no check was needed.
-/// §12.2 and §12.3 address suppliers by <c>{supplierCode}</c>, which hands every caller a way to
-/// name someone else. What replaced the guarantee is one check
-/// (<c>ISupplierCodeScope</c>) and these tests.</para>
-///
-/// <para><b>404 with an identical body, not 403.</b> §9.2: *"Out-of-scope access to an existing
-/// resource returns 404 (not 403) to avoid leaking existence."* Each case asserts the status AND
-/// that the body is byte-identical to the same call against a supplier code that never existed.</para>
-///
-/// <para><b>Every case has an owner control.</b> A negative that passes because the route does not
-/// exist looks exactly like one that passes because scoping works - which this project has already
-/// been bitten by once, in §12-A/C2.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture fixture)
 {
@@ -55,15 +81,9 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
         outOfScope.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "§9.2: out-of-scope access to an existing resource returns 404, not 403");
         neverExisted.StatusCode.Should().Be(outOfScope.StatusCode);
-        // Byte equality no longer applies and that is §7 working, not a weaker assertion: every
-        // problem+json now carries traceId and correlationId (random per request) and instance (the
-        // caller's OWN path), so two requests can never produce identical bytes. None of the three
-        // can leak existence. The comparison is therefore over the fields that DO discriminate, each
-        // named, which is stricter than incidental byte equality.
         await AssertDiscriminatingFieldsMatchAsync(outOfScope, neverExisted);
     }
 
-    /// <summary>Compares only what could reveal existence - see the note at the call site.</summary>
     private static async Task AssertDiscriminatingFieldsMatchAsync(HttpResponseMessage a, HttpResponseMessage b)
     {
         var left = await a.Content.ReadFromJsonAsync<JsonElement>();
@@ -78,8 +98,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
                 "exactly the existence oracle §9.2 forbids");
         }
     }
-
-    // ---- §12.2 PATCH /suppliers/{supplierCode} -------------------------------------------------
 
     [Fact]
     public async Task A_supplier_cannot_patch_another_suppliers_profile()
@@ -105,8 +123,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
             "control: the negative above must fail because of scoping, not because the route is broken");
     }
 
-    // ---- §12.2 POST /suppliers/{supplierCode}/onboarding/submit -------------------------------
-
     [Fact]
     public async Task A_supplier_cannot_submit_another_suppliers_application()
     {
@@ -117,11 +133,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
             code => a.PostAsync($"/api/v1/suppliers/{code}/onboarding/submit", null), bCode);
     }
 
-    /// <summary>
-    /// The owner control here asserts NOT-404 rather than 200: a fresh supplier's profile is
-    /// incomplete, so the honest answer is 422 with the missing fields (§12.2). What matters is that
-    /// the request REACHED the handler instead of being turned away by the scope check.
-    /// </summary>
     [Fact]
     public async Task The_owner_reaches_their_own_submit_endpoint()
     {
@@ -132,8 +143,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
         response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
             "control: the owner's own code must pass the scope check and reach the handler");
     }
-
-    // ---- §12.3 GET/POST /suppliers/{supplierCode}/documents -----------------------------------
 
     [Fact]
     public async Task A_supplier_cannot_list_another_suppliers_documents()
@@ -173,11 +182,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
             bCode);
     }
 
-    /// <summary>
-    /// The scope check runs BEFORE the multipart body is read, so an out-of-scope caller cannot even
-    /// stream a file. Asserted by sending a request with no body at all: it must still be the
-    /// scope's 404, never the 400 a malformed upload would earn.
-    /// </summary>
     [Fact]
     public async Task An_out_of_scope_upload_is_refused_before_the_body_is_examined()
     {
@@ -191,14 +195,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
             "their code was accepted as in-scope");
     }
 
-    // ---- §3 POST /suppliers/{supplierCode}/documents/{documentId}/approve|reject ---------------
-
-    /// <summary>
-    /// Reviewer-facing, so the negative is different in kind: the reviewer legitimately acts across
-    /// suppliers, and what must be refused is a document reached under the WRONG supplier's code.
-    /// Without that check a reviewer could approve B's document through A's URL, and the audit row
-    /// would name the wrong supplier.
-    /// </summary>
     [Theory]
     [InlineData("approve")]
     [InlineData("reject")]
@@ -218,8 +214,6 @@ public sealed class SupplierCodeCrossOrganizationScopeTests(PostgresApiFixture f
             "the document exists, but not under B - and answering anything else confirms it exists");
         await AssertDiscriminatingFieldsMatchAsync(wrongOwner, unknownOwner);
 
-        // Control: the same reviewer, the same document, under its REAL owner's code, is not
-        // refused by the scope check.
         var rightOwner = await reviewer.PostAsJsonAsync($"/api/v1/suppliers/{aCode}/documents/{documentCode}/{transition}", body);
         rightOwner.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
             "control: under the correct supplier code the request must reach the handler");

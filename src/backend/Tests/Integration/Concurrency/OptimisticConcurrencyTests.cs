@@ -1,27 +1,35 @@
+// MSP-65's regression guard: it proves the second of two concurrent writers is REJECTED rather than
+// silently overwriting the first, per BRULE-098, FR-PROF-010 and NFR-AVL-007.
+//
+// This is the test that was missing. Optimistic concurrency was mapped, exposed in the DTO and asserted by
+// three separate requirements - while doing nothing, because no request ever sent the version back. A test
+// at this level, two real HTTP writes against a real Postgres row, is the only thing that can tell
+// "implemented" from "present in the schema".
+//
+// Rewritten for §8.1 under T3-34. The contract MSP-65 invented - a bare decimal If-Match and a 409 carrying
+// currentRowVersion - is superseded: the version travels as a base64url ETag, and a stale write is 412
+// ETAG_MISMATCH, because a lost update is a failed precondition rather than one of §7.1's three conflicts.
+// The behaviour being proven is unchanged; only its wire form is. The encoding helper is §8.1's format
+// produced by the same code the server reads it with, because a test that hand-rolled the encoding could
+// pass against a server that encodes differently, and the version is taken from the ETag header the server
+// actually sent rather than re-encoded from the body, which would leave the header itself unproven.
+//
+// Both editors read the same version, which is the real-world setup for a lost update. Writer A commits
+// first and moves the row forward; writer B commits second still holding the version it read earlier. The
+// decisive assertion is that A's write survived: without the guard B overwrites it here and the row reads
+// "written by B", which is exactly the silent data loss being prevented.
+//
+// The profile PATCH is addressed by supplier code now, per §12-A/C3 and §12.2.
+
+namespace MotsSupplierPortal.Tests.Integration.Concurrency;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Api.Concurrency;
-
-namespace MotsSupplierPortal.Tests.Integration.Concurrency;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-65 regression guard: proves the second of two concurrent writers is REJECTED rather than
-/// silently overwriting the first (BRULE-098, FR-PROF-010, NFR-AVL-007).
-///
-/// This is the test that was missing. Optimistic concurrency was mapped, exposed in the DTO, and
-/// asserted by three separate requirements — while doing nothing, because no request ever sent the
-/// version back. A test at this level (two real HTTP writes against a real Postgres row) is the
-/// only thing that can tell "implemented" from "present in the schema".
-///
-/// <para>Rewritten for §8.1 (T3-34). The contract MSP-65 invented — a bare decimal If-Match and a
-/// 409 carrying currentRowVersion — is superseded: the version travels as a base64url ETag, and a
-/// stale write is 412 ETAG_MISMATCH, because a lost update is a failed precondition rather than one
-/// of §7.1's three conflicts. The behaviour being proven is unchanged; only its wire form is.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
 {
@@ -32,8 +40,6 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
             Content = JsonContent.Create(new { description, currencyCode = "SYP" }),
         };
 
-        // §8.1's format, produced by the same code the server reads it with - a test that hand-rolled
-        // the encoding could pass against a server that encodes differently.
         if (ifMatch is { } version)
         {
             request.Headers.TryAddWithoutValidation("If-Match", ETag.ForPrecondition(version));
@@ -42,7 +48,6 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
         return request;
     }
 
-    /// <summary>The ETag the server actually sent, rather than a version re-encoded from the body.</summary>
     private static uint VersionFrom(HttpResponseMessage response)
     {
         response.Headers.ETag.Should().NotBeNull("§8.1: every read of a mutable aggregate returns its version as an ETag");
@@ -55,20 +60,14 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Concurrency Test Co");
 
-        // Both "editors" read the same version — the real-world setup for a lost update.
         var readResponse = await client.GetAsync("/api/v1/suppliers/me");
         var read = await readResponse.Content.ReadFromJsonAsync<JsonElement>();
-        // §12-A/C3: the profile PATCH is addressed by supplier code now (§12.2).
         var supplierCode = read.GetProperty("supplierCode").GetString()!;
-        // Taken from the ETag header, which is the channel §8.1 defines - reading it from the body
-        // would leave the header itself unproven.
         var sharedVersion = VersionFrom(readResponse);
 
-        // Writer A commits first and moves the row forward.
         var first = await client.SendAsync(PatchProfile(supplierCode, "written by A", sharedVersion));
         first.StatusCode.Should().Be(HttpStatusCode.OK, "the first writer holds a current version");
 
-        // Writer B commits second, still holding the now-stale version it read earlier.
         var second = await client.SendAsync(PatchProfile(supplierCode, "written by B", sharedVersion));
 
         second.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed,
@@ -79,8 +78,6 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
         VersionFrom(second).Should().NotBe(sharedVersion,
             "the client needs the winner's version so it can re-read and retry deliberately");
 
-        // The decisive assertion: A's write survived. Without the guard B overwrites it here and
-        // this reads "written by B" — which is exactly the silent data loss being prevented.
         var after = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         after.GetProperty("description").GetString().Should().Be("written by A",
             "the losing writer must not have overwritten the winner's data");
@@ -93,7 +90,6 @@ public sealed class OptimisticConcurrencyTests(PostgresApiFixture fixture)
 
         var readResponse = await client.GetAsync("/api/v1/suppliers/me");
         var read = await readResponse.Content.ReadFromJsonAsync<JsonElement>();
-        // §12-A/C3: the profile PATCH is addressed by supplier code now (§12.2).
         var supplierCode = read.GetProperty("supplierCode").GetString()!;
         var version = VersionFrom(readResponse);
 

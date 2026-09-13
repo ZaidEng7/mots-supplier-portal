@@ -1,18 +1,41 @@
+// Cursor paging on the tender lists, and what a malformed cursor does.
+//
+// The contract names tenders a cursor-default collection and specifies the envelope.
+//
+//
+// THE WHOLE SET IS ASSERTED, NOT PAGE ONE
+//
+// The failure keyset paging actually produces is a row repeated or skipped at a page boundary, which a page-one
+// assertion cannot see.
+//
+// Seven rows at a page size of three gives an uneven last page, so an off-by-one at the boundary shows up. The
+// final page must close the sequence honestly rather than looping forever.
+//
+// The page-size rules are asserted as the contract states them: a default, a ceiling, and a warning header when a
+// request is clamped. The header's exact wording is not specified anywhere, so this asserts the documented FACT,
+// that a header is present and the effective size is the ceiling, rather than pinning wording the contract never
+// gave.
+//
+//
+// A MALFORMED CURSOR HAS NO SPECIFIED ANSWER, AND THE SILENCE IS REPORTED RATHER THAN FILLED IN
+//
+// The error catalogue has no slug for an invalid cursor, and the contract says only that cursors are validated.
+//
+// Every cursor in this codebase is total: an unparseable token yields page one rather than an error. That is now
+// one shared type for every time-ordered list, plus two that key on text instead of a timestamp.
+//
+// So this pins the property the contract DOES imply, that a hostile token must not reach the database or produce a
+// server error, and the choice is recorded as a documented silence rather than resolved by inventing a refusal.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T2 Item 3: cursor pagination on the RFQ lists, per API-ARCHITECTURE.md §6.1 (*"Cursor is the
-/// default for large, frequently-mutated, or infinite-scroll collections (RFQs, ...)"*) and the
-/// §5.2 envelope.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
 {
@@ -24,7 +47,6 @@ public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
         clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
     };
 
-    /// <summary>Seeds <paramref name="count"/> RFQs in a fresh org and returns that org's officer.</summary>
     private async Task<(HttpClient Officer, List<string> ReferenceCodes)> SeedAsync(int count, string prefix)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -45,13 +67,6 @@ public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
         ([.. body.GetProperty("data").EnumerateArray().Select(r => r.GetProperty("referenceCode").GetString()!)],
          body.GetProperty("pagination"));
 
-    // ---- 1. Every row exactly once, no duplicates, no gaps ------------------------------------
-
-    /// <summary>
-    /// Asserts on the FULL set, not on page one: the failure keyset paging actually produces is a
-    /// row repeated or skipped at a page boundary, which a page-one assertion cannot see. Seven rows
-    /// at pageSize 3 gives an uneven last page (3/3/1), so an off-by-one at the boundary shows up.
-    /// </summary>
     [Fact]
     public async Task Paging_through_the_whole_list_returns_every_rfq_exactly_once()
     {
@@ -85,7 +100,6 @@ public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
         collected.Should().BeEquivalentTo(seeded, "the paged union must be exactly the seeded set");
     }
 
-    /// <summary>The last page must close the sequence honestly rather than looping forever.</summary>
     [Fact]
     public async Task The_final_page_reports_hasMore_false_and_a_null_next_cursor()
     {
@@ -101,14 +115,6 @@ public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
         body.GetProperty("meta").GetProperty("sort").GetString().Should().Be("-createdAt");
     }
 
-    // ---- 2. pageSize clamping + Warning header -------------------------------------------------
-
-    /// <summary>
-    /// §6.1: *"`pageSize` default 20, min 1, max 100 (`&gt; 100` → clamped + `Warning` header)"*.
-    /// The header's exact code/text is not specified by the contract - see ListResponse's own doc
-    /// comment - so this asserts the documented FACT (a Warning header is present, and the effective
-    /// page size was clamped to the ceiling) rather than pinning wording the contract never gave.
-    /// </summary>
     [Fact]
     public async Task A_page_size_above_the_documented_maximum_is_clamped_and_warned_about()
     {
@@ -147,18 +153,6 @@ public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
         body.GetProperty("pagination").GetProperty("pageSize").GetInt32().Should().Be(20);
     }
 
-    // ---- 3. Malformed cursor -------------------------------------------------------------------
-
-    /// <summary>
-    /// The contract defines NO error type for a bad cursor - §7.1's catalog has no invalid-cursor
-    /// slug, and §6.1 says only that cursors "are validated". Every cursor in this codebase is total:
-    /// an unparseable token yields page one rather than an error. That is now one place rather than
-    /// five - the shared <c>KeysetCursor</c> every time-ordered list pages with, plus
-    /// <c>SupplierUserCursor</c> and <c>SupplierDirectoryCursor</c>, which key on text instead of a
-    /// timestamp. This test pins the property the contract DOES imply - a hostile token must not
-    /// reach the database or produce a 500 - and the choice is reported as a documented silence
-    /// rather than resolved by inventing a 422.
-    /// </summary>
     [Theory]
     [InlineData("not-base64-at-all!!")]
     [InlineData("YWJjZGVm")]                       // valid base64, wrong contents

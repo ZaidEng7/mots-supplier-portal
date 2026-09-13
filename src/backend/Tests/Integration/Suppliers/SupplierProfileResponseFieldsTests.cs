@@ -1,3 +1,44 @@
+// The two documented profile fields that nothing emitted.
+//
+// The document summary was absent entirely. A supplier could read a completeness fraction and a list of incomplete
+// type codes, and had no count of what was approved, waiting or refused, which are the three questions a person
+// actually asks while assembling an application.
+//
+// The modification timestamp was absent because nothing stored it. The record carried a creation time and a row
+// version, and a version answers "has this changed since I read it" without answering "when".
+//
+//
+// THE COUNTS ARE ASSERTED AGAINST THE RULE, NOT AGAINST THE SEED
+//
+// The seeded required set is small, so a test that wanted one document per state would be asserting against the seed
+// rather than against the rule. Each test files what fits and says so.
+//
+// The denominator is the whole set this supplier must hold, so the counted states fit inside it and the remainder is
+// what is still missing.
+//
+// The distinction the field exists for is asserted: refused and waiting-on-a-reviewer are the same to a supplier who
+// only sees a completeness fraction, and they call for opposite actions.
+//
+// And the control keeps the field honest: zeroes against a non-zero requirement say "you have sent nothing and you
+// need this many", where a response that omitted the field, or reported the requirement as zero, would say the
+// opposite.
+//
+//
+// THE TIMESTAMP IS ASSERTED ON OR AFTER, AND THROUGH A REAL EDIT
+//
+// On or after rather than equal, because the factory sets both from one clock read and registration then writes to
+// the supplier again, verifying the address and recording the representative, so a freshly registered supplier is
+// legitimately a few milliseconds modified. Equality would be asserting that registration is a single write, which
+// it is not.
+//
+// The edit goes through the interface rather than the database, because the stamp has to come from the same
+// mechanism that advances the row version and a direct write would bypass both.
+//
+// And the half that would make the field useless if it failed: a timestamp that moved on a READ would tell a client
+// their copy is stale every time they check.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,21 +48,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-002 and T-003: the two fields §12.2 documents on the supplier profile and nothing emitted.
-///
-/// <para><b>documentsSummary</b> was absent entirely. A supplier could read a completeness fraction
-/// and a list of incomplete type codes, and had no count of what was approved, waiting or refused -
-/// the three questions a person actually asks while assembling an application.</para>
-///
-/// <para><b>updatedAt</b> was absent because nothing stored it. The aggregate carried CreatedAt and a
-/// row version, and a version answers "has this changed since I read it" without answering "when".</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixture)
 {
@@ -42,7 +70,6 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>Files one document of each state against the supplier's required types.</summary>
     private async Task FileDocumentsAsync(Guid supplierId, params DocumentState[] states)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -54,9 +81,6 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
             .Select(t => t.Id)
             .ToListAsync();
 
-        // The seeded required set is small - two types - so a test that wanted one document per state
-        // would be asserting against the seed rather than against the rule. Each test files what fits
-        // and says so.
         requiredTypeIds.Count.Should().BeGreaterThanOrEqualTo(states.Length,
             "the seeded required set must be big enough to carry one document per state under test");
 
@@ -88,8 +112,6 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
     {
         var (client, supplierId) = await SupplierAsync($"DocSum {Guid.NewGuid():N}"[..30]);
 
-        // One approved, one waiting on a reviewer. Anything else in the required set is counted in
-        // `required` and in none of the three, which is the shortfall the supplier has not sent.
         await FileDocumentsAsync(supplierId, DocumentState.Approved, DocumentState.Uploaded);
 
         var summary = (await ProfileAsync(client)).GetProperty("documentsSummary");
@@ -98,16 +120,12 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
         summary.GetProperty("pending").GetInt32().Should().Be(1);
         summary.GetProperty("rejected").GetInt32().Should().Be(0, "nothing was refused");
 
-        // The denominator, and it is not two: `required` is the whole set this supplier must hold, so
-        // the counted states fit inside it and the remainder is what is still missing.
         summary.GetProperty("required").GetInt32().Should().BeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
     public async Task A_refused_document_is_counted_as_refused_and_not_as_waiting()
     {
-        // The distinction the field exists for. "Rejected" and "waiting on a reviewer" are the same
-        // to a supplier who only sees a completeness fraction, and they call for opposite actions.
         var (client, supplierId) = await SupplierAsync($"DocRej {Guid.NewGuid():N}"[..30]);
 
         await FileDocumentsAsync(supplierId, DocumentState.Rejected);
@@ -122,9 +140,6 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
     [Fact]
     public async Task A_supplier_who_has_filed_nothing_reads_a_summary_of_zeros_under_a_real_requirement()
     {
-        // The control that keeps the field honest. Zeros against a non-zero `required` say "you have
-        // sent nothing and you need this many" - a response that omitted the field, or reported
-        // required as 0, would say the opposite.
         var (client, _) = await SupplierAsync($"DocNone {Guid.NewGuid():N}"[..30]);
 
         var summary = (await ProfileAsync(client)).GetProperty("documentsSummary");
@@ -148,17 +163,10 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
             var created = await db.Suppliers.AsNoTracking()
                 .Where(s => s.Id == supplierId).Select(s => s.CreatedAt).FirstAsync();
 
-            // On or after, not equal. The factory sets the two from one clock read, and registration
-            // then writes to the supplier again - verifying the email, recording the representative -
-            // so a freshly registered supplier is legitimately a few milliseconds "modified". Equality
-            // would be asserting that registration is a single write, which it is not.
             before.Should().BeOnOrAfter(created,
                 "a supplier cannot have been modified before it existed");
         }
 
-        // A real edit through the API, not a database write: the stamp has to come from the same
-        // mechanism that advances the row version, and a direct UPDATE would bypass both. §12-A/C3
-        // addresses the profile by the supplier's own code rather than by "me".
         var supplierCode = (await ProfileAsync(client)).GetProperty("supplierCode").GetString();
         var edit = await client.PatchAsJsonAsync($"/api/v1/suppliers/{supplierCode}", new { description = "Edited" });
         edit.StatusCode.Should().Be(HttpStatusCode.OK, await edit.Content.ReadAsStringAsync());
@@ -170,8 +178,6 @@ public sealed class SupplierProfileResponseFieldsTests(PostgresApiFixture fixtur
     [Fact]
     public async Task Reading_the_profile_does_not_move_updated_at()
     {
-        // The other half, and the one that would make the field useless if it failed: a timestamp that
-        // moves on a GET tells a client their copy is stale every time they check.
         var (client, _) = await SupplierAsync($"UpdRead {Guid.NewGuid():N}"[..30]);
 
         var first = (await ProfileAsync(client)).GetProperty("updatedAt").GetDateTimeOffset();

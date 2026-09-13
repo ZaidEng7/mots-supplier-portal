@@ -1,3 +1,28 @@
+// SCR-902 and SCR-010: a user's own name, interface language, and the one-time record that they chose it. Two
+// screens over the same three columns, so one suite.
+//
+// The account read carries what the screen edits and nothing that decides access. D-26: authorization data has
+// ONE source, the access token's claims. A second copy on this read would disagree with the token the moment a
+// role changed mid-session, so its absence is the contract.
+//
+// The rename and language switch are asserted on the STORED row rather than on the echo, because an endpoint
+// that returns what it was sent while writing nothing would pass an assertion against its own response. A
+// language the product does not ship is refused and one it ships is not - the guard both ways, so the refusal
+// is the value being checked rather than the route refusing everything. An unauthenticated caller reaches
+// neither route.
+//
+// SCR-010: the first-run choice is recorded once and keeps its first timestamp. The state a first-run chooser
+// exists for is a stored default that nobody chose, and since the default is "ar" this flag is the ONLY thing
+// that can distinguish a new user from one who picked Arabic deliberately - which is why the column exists at
+// all. Choosing again is still choosing, and the stamp keeps its original value: "when did this user first
+// decide" has to stay answerable, or the column records the last click instead of the decision.
+//
+// Saving the account screen also counts as having chosen, because otherwise a user who set their language in
+// settings would still be asked the first-run question - a screen asking something the user has just answered
+// on another screen.
+
+namespace MotsSupplierPortal.Tests.Integration.Auth;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,15 +31,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Auth;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-902 and SCR-010: a user's own name, interface language, and the one-time record that they chose
-/// it. Two screens over the same three columns, so one suite.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
 {
@@ -29,8 +47,6 @@ public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
         account.GetProperty("email").GetString().Should().Contain("@");
         account.GetProperty("language").GetString().Should().Be("ar", "the registration default");
 
-        // D-26: authorization data has ONE source, the access token's claims. A second copy here would
-        // disagree with the token the moment a role changed mid-session, so its absence is the contract.
         account.TryGetProperty("permissions", out _).Should().BeFalse();
         account.TryGetProperty("roles", out _).Should().BeFalse();
     }
@@ -43,8 +59,6 @@ public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
         var updated = await client.PutAsJsonAsync("/api/v1/auth/me", new { fullName = "Layla H. Haddad", language = "en" });
         updated.StatusCode.Should().Be(HttpStatusCode.OK, await updated.Content.ReadAsStringAsync());
 
-        // Asserted on the STORED row, not the echo: an endpoint that returns what it was sent while
-        // writing nothing would pass an assertion against its own response.
         var read = await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/me");
         read.GetProperty("fullName").GetString().Should().Be("Layla H. Haddad");
         read.GetProperty("language").GetString().Should().Be("en");
@@ -59,8 +73,6 @@ public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
             "an interface language with no strings to render is not a preference, it is a blank screen");
 
-        // The guard both ways, so the refusal above is the value being checked rather than the route
-        // refusing everything.
         var accepted = await client.PutAsJsonAsync("/api/v1/auth/me", new { fullName = "Nadia", language = "en" });
         accepted.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -85,9 +97,6 @@ public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"First{Guid.NewGuid():N}"[..12]);
 
-        // The state a first-run chooser exists for: a stored default that nobody chose. The default is
-        // "ar", so this flag is the ONLY thing that can distinguish a new user from one who picked
-        // Arabic deliberately - which is why the column exists at all.
         var before = await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/me");
         before.GetProperty("languageChosen").GetBoolean().Should().BeFalse();
 
@@ -105,9 +114,6 @@ public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
             .Select(u => u.LanguageChosenAt).FirstAsync();
         firstStamp.Should().NotBeNull();
 
-        // Choosing again is still choosing, and the stamp keeps its original value: "when did this user
-        // first decide" has to stay answerable, or the column records the last click instead of the
-        // decision.
         (await client.PostAsJsonAsync("/api/v1/auth/me/language", new { language = "ar" }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -119,8 +125,6 @@ public sealed class AccountEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Saving_the_account_screen_also_counts_as_having_chosen()
     {
-        // Otherwise a user who set their language in settings would still be asked the first-run question
-        // - a screen asking something the user has just answered on another screen.
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Counts{Guid.NewGuid():N}"[..12]);
 
         (await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/me"))

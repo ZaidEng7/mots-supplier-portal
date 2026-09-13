@@ -1,3 +1,36 @@
+// Cursor paging on the team list and the sessions list, proven by walking the pages.
+//
+// Both are business-bounded, a company's team and one person's active sessions, rather than genuinely unbounded like
+// the review queue. The work scoped real paging for all four client-facing lists, so both get the same treatment and
+// the same standard of proof.
+//
+// Driven through the real endpoints rather than by resolving the handlers directly, because both are scoped by
+// claims from the token and this suite has no stand-in for that: the fixture is a real host with the real scope
+// wired in.
+//
+// The team list is scoped to a supplier this test alone created, so unlike the review queue an exact total is safe:
+// nothing else in the shared database can add a row to it.
+//
+//
+// THE MID-WALK CASES ARE CHOSEN FOR WHAT IS REALISTIC
+//
+// Nothing in this application removes a user from the team list, because disabling one does not exclude them, so a
+// member vanishing mid-walk is not a real scenario.
+//
+// An invitation mid-walk is. A keyset cursor only ever asks what comes after the last key it saw, so a new row
+// landing AFTER that key must appear on the very next fetch, and one landing before it, already passed, correctly
+// does not reappear. The sort is by address, and the fixture's names are chosen to sort either side of the primary
+// user's generated one.
+//
+// For sessions the realistic case is a revocation between fetches, and the one chosen is the already-fetched, most
+// recent session, which is the shape that shifts an offset-based second page and drops the row right after the
+// boundary.
+//
+// The extra sessions are created explicitly older, so the newest-first ordering is deterministic rather than racing
+// the clock's precision.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -6,20 +39,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-84: both lists here are business-bounded (a company's team, one person's active sessions)
-/// rather than genuinely unbounded like the review queue, but the ticket scoped real pagination
-/// for all four client-facing lists, so both get the same keyset treatment and the same
-/// walk-the-pages standard of proof. Driven through the real HTTP endpoints (SupplierTestClient),
-/// not direct handler DI resolution, because both handlers are scope-filtered (SupplierId/UserId
-/// from JWT claims) and there is no fake IScopeContext in this test suite - PostgresApiFixture is
-/// a real WebApplicationFactory with the real HttpScopeContext wired in.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
 {
@@ -74,8 +95,6 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
             supplierId = primaryUser!.SupplierId!.Value;
         }
 
-        // Scoped to a supplier this test alone created, so - unlike the review queue - an exact
-        // total-count assertion is safe: nothing else in the shared database can add a row here.
         var extraEmails = new[] { "b1", "b2", "b3", "b4" }.Select(p => $"{p}-{Guid.NewGuid():N}@example.com").ToList();
         foreach (var email in extraEmails) await AddTeamMemberAsync(supplierId, email);
 
@@ -89,12 +108,6 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_team_member_invited_between_page_fetches_is_picked_up_without_disturbing_the_walk()
     {
-        // No operation in this app removes a user from this list (disabling a user does not
-        // exclude them - ListSupplierUsersHandler returns active and inactive rows alike), so a
-        // "member removed mid-walk" boundary is not a realistic scenario here. Invitation mid-walk
-        // is realistic, and is the case worth proving: a keyset cursor only ever asks "what comes
-        // after the last key I saw", so a new row landing AFTER that key must appear on the very
-        // next fetch, and one landing before it (already "passed") correctly does not reappear.
         var (client, primaryEmail) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, "Team Insert Co");
 
         Guid supplierId;
@@ -104,14 +117,11 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
             supplierId = (await userManager.FindByEmailAsync(primaryEmail))!.SupplierId!.Value;
         }
 
-        // Sort order is by email ascending. "aa-"/"bb-" sort before "itest-" (the primary's
-        // auto-generated prefix); "zz-" sorts after it.
         var aa = $"aa-{Guid.NewGuid():N}@example.com";
         var bb = $"bb-{Guid.NewGuid():N}@example.com";
         var zz1 = $"zz1-{Guid.NewGuid():N}@example.com";
         await AddTeamMemberAsync(supplierId, aa);
         await AddTeamMemberAsync(supplierId, bb);
-        // primaryEmail ("itest-...") sorts between bb and zz1.
 
         var page1Res = await client.GetAsync("/api/v1/suppliers/me/users/?pageSize=2");
         var page1 = await page1Res.Content.ReadFromJsonAsync<JsonElement>();
@@ -119,8 +129,6 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
             .Should().BeEquivalentTo([aa, bb], options => options.WithStrictOrdering());
         var cursor1 = page1.GetProperty("pagination").GetProperty("nextCursor").GetString();
 
-        // Insert zz1 between page 1 and page 2 - it sorts after "bb-" (the cursor position), so a
-        // forward keyset walk started before this insert must still see it.
         await AddTeamMemberAsync(supplierId, zz1);
 
         var page2Res = await client.GetAsync($"/api/v1/suppliers/me/users/?pageSize=2&cursor={Uri.EscapeDataString(cursor1!)}");
@@ -162,8 +170,6 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
             userId = (await userManager.FindByEmailAsync(email))!.Id;
         }
 
-        // The login above already created one real session. Four more, explicitly older, so
-        // ordering (newest-first) is deterministic rather than racing wall-clock precision.
         var now = DateTimeOffset.UtcNow;
         var extraFamilyIds = new List<Guid>();
         for (var i = 1; i <= 4; i++)
@@ -195,7 +201,6 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
         }
 
         var now = DateTimeOffset.UtcNow;
-        // Newest to oldest: real login session (~now), s2 (-1min), s3 (-2min), s4 (-3min).
         var s2 = await AddSessionAsync(userId, now.AddMinutes(-1));
         var s3 = await AddSessionAsync(userId, now.AddMinutes(-2));
         var s4 = await AddSessionAsync(userId, now.AddMinutes(-3));
@@ -207,8 +212,6 @@ public sealed class TeamAndSessionsPaginationTests(PostgresApiFixture fixture)
         page1Ids.Should().Contain(s2, "s2 is the second-newest session and must be on page 1");
         var cursor1 = page1.GetProperty("pagination").GetProperty("nextCursor").GetString();
 
-        // Revoke the already-fetched, most-recent session (the real login one) between fetches -
-        // the shape that shifts an offset-based page 2 and drops the row right after the boundary.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

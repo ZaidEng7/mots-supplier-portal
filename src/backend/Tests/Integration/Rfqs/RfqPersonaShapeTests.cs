@@ -1,3 +1,64 @@
+// One tender route serves a buyer and a bidder, and the bidder's response shape is pinned exactly.
+//
+//
+// WHAT THIS EXISTS TO STOP
+//
+// Before the routes converged, a supplier and a buyer reached two different endpoints backed by two different
+// handlers and two different read models, so emitting a buyer-only field to a supplier was structurally
+// impossible: the supplier's shape has no member to populate.
+//
+// The written contract requires one route serving both, and the implementation keeps the two handlers precisely to
+// preserve that property. But the ROUTE is now shared, and the thing standing between the two shapes is a single
+// dispatch on whether the caller has a company.
+//
+// The failure mode is not that dispatch breaking. It is a field added to the buyer's shape months from now by
+// somebody who does not know the route is persona-shaped, defaulting to "include it" because that is what the
+// buyer needed. Nothing in the type system objects.
+//
+// So the supplier's key set is asserted EXACTLY, in both directions: an unexpected key fails, and a key that
+// disappears fails too, so the list cannot rot into a description of a response that no longer exists.
+//
+// The buyer-side concepts are also asserted BY NAME as well as by the exact-set check, because a reader of a
+// failure should see which concept leaked rather than only that the key count moved.
+//
+//
+// THE ALLOW-LIST IS A DECISION, WHICH IS WHY IT IS EXPLICIT
+//
+// Changing it is a decision about what suppliers can see.
+//
+// It has moved twice, deliberately. Once when the supplier-facing shapes adopted the contract's own vocabulary,
+// because the list moves with them. And once when a deadline field appeared, which is exactly the gate doing its
+// job: it failed when the field arrived, and adding it was somebody deciding it should be there.
+//
+// The deadline's reason and its timestamp are on the list for a stated reason: the notification cannot carry the
+// reason, because the payload allow-list already refused a date as content, so the supplier reads it here beside
+// the deadline it explains. Both are the buyer's own words about the buyer's own action, and neither says anything
+// about another bidder, which is what this list exists to prevent leaking.
+//
+//
+// THE CONTROL, AND ONE DELIBERATE SEAM
+//
+// Without the buyer-side control, every assertion would also pass if the buyer branch silently stopped returning
+// its own fields, because the supplier shape would look clean when there was nothing to leak.
+//
+// The list is where the two personas differ most: the contract documents only the supplier's shape, and what a
+// buyer receives is an invention, reported as such. So the buyer's row is pinned as NOT carrying the supplier's
+// caller-relative field, which would be meaningless and false for a buyer.
+//
+// The buyer's row also keeps its older field name, because the conformance work covered the supplier-facing shapes
+// the contract specifies and the buyer's row is field-specified nowhere. Renaming it would have been inventing
+// conformance rather than applying it. This test is where that seam is visible, and it is deliberate.
+//
+//
+// AND A THIRD PERSONA MUST RECEIVE NOTHING
+//
+// The ministry viewer's grant is deliberately empty: its access is read-only cross-organization aggregate access,
+// and whether line-level access is permitted is an unanswered question.
+//
+// Convergence puts both personas on one route, so the risk is that a third quietly acquires access to it.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,74 +68,26 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// §12-A/Part B: the allow-list gate on the converged <c>/api/v1/rfqs</c> routes.
-///
-/// <para><b>What this exists to stop.</b> Before convergence, a supplier and a buyer reached two
-/// different endpoints backed by two different handlers and two different DTOs, so emitting a
-/// buyer-only field to a supplier was structurally impossible - <c>SupplierRfqDto</c> has no
-/// <c>invitations</c> member to populate. §12.4 requires one route serving both
-/// (*"Fields visible per persona are row-scoped"*, *"- for buyers - invitations[]"*), and the
-/// implementation keeps the two handlers precisely to preserve that property. But the ROUTE is now
-/// shared, and the thing standing between the two shapes is a single dispatch on
-/// <c>scope.SupplierId</c>.</para>
-///
-/// <para><b>The failure mode is not that dispatch breaking.</b> It is a field added to the buyer
-/// DTO months from now by someone who does not know the route is persona-shaped, defaulting to
-/// "include it" because that is what the buyer needed. Nothing in the type system objects. So this
-/// asserts the supplier response's key set EXACTLY, in both directions - an unexpected key fails,
-/// and a key that disappears fails too, so the list cannot rot into a description of a response
-/// that no longer exists. Same shape as the T2-33 enum-coverage test.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
 {
-    /// <summary>
-    /// Every top-level key a supplier may receive from <c>GET /rfqs/{rfqCode}</c>. Derived from
-    /// <c>SupplierRfqDto</c>, which is deliberately narrower than the buyer's <c>RfqDto</c>.
-    /// Changing this list is a decision about what suppliers can see, which is the point of making
-    /// it explicit rather than inferred.
-    /// </summary>
     private static readonly string[] SupplierDetailKeys =
     [
-        // R-9: the supplier-facing shapes now speak §12.4's vocabulary - rfqCode, invitationStatus,
-        // submissionDeadline. The allow-list moves with them, which is the point of having one.
         "rfqCode", "titleAr", "titleEn", "descriptionAr", "descriptionEn", "currencyCode",
         "state", "submissionOpensAt", "submissionDeadline", "clarificationDeadlineAt",
         "items", "requirements", "attachments", "invitationStatus", "clarifications", "addenda",
-        // A-6: WHY the deadline moved, and when. Added deliberately rather than to make this gate quiet -
-        // the notification cannot carry the reason (BRULE-091's allow-list already refused a DATE as
-        // content in T-018), so the supplier reads it here, beside the deadline it explains. Both fields
-        // are the buyer's own words about the buyer's own action; neither says anything about another
-        // bidder, which is what this list exists to prevent leaking.
         "submissionDeadlineChangeReason", "submissionDeadlineChangedAt",
     ];
 
-    /// <summary>Every top-level key a supplier may receive from a row of <c>GET /rfqs</c>.</summary>
     private static readonly string[] SupplierListItemKeys =
     [
         "rfqCode", "titleAr", "titleEn", "state", "invitationStatus", "createdAt",
-        // §12-A/D: §12.4's documented list fields. Each is here because a supplier is documented to
-        // receive it - and each is asserted absent from the buyer row below, because §12.4
-        // documents only the supplier shape and hasDraftProposal/invitationStatus are
-        // caller-relative.
         "publishedAt", "buyingOrg", "itemsCount", "hasDraftProposal",
-        // T-054: §12.4 documents this on the supplier list. Added to the allow-list deliberately -
-        // this gate exists so a field cannot reach a supplier's response without someone deciding
-        // it should, and it did its job by failing when the field appeared.
         "submissionDeadline",
     ];
 
-    /// <summary>
-    /// §12.4 names these as buyer-side. Asserted by NAME as well as by the exact-set check above,
-    /// because a reader of a failure should see which concept leaked, not only that the key count
-    /// moved.
-    /// </summary>
     private static readonly string[] BuyerOnlyKeys = ["invitations", "approvals", "evaluationTemplateId", "evaluationTemplateVersion", "organizationId"];
 
     private async Task<(HttpClient Supplier, HttpClient Officer, string ReferenceCode)> PublishedRfqAsync()
@@ -132,8 +145,6 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
 
     private static IEnumerable<string> KeysOf(JsonElement obj) => obj.EnumerateObject().Select(p => p.Name);
 
-    // ---- detail ------------------------------------------------------------------------------
-
     [Fact]
     public async Task The_supplier_detail_carries_exactly_the_allow_listed_keys_and_no_others()
     {
@@ -163,11 +174,6 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         }
     }
 
-    /// <summary>
-    /// The control. Without it, every assertion above would also pass if the buyer branch silently
-    /// stopped returning its own fields - the supplier shape would be "clean" because nothing was
-    /// there to leak.
-    /// </summary>
     [Fact]
     public async Task The_buyer_detail_does_carry_the_buyer_only_keys()
     {
@@ -179,8 +185,6 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         body.TryGetProperty("approvals", out _).Should().BeTrue();
         body.TryGetProperty("organizationId", out _).Should().BeTrue();
     }
-
-    // ---- list --------------------------------------------------------------------------------
 
     [Fact]
     public async Task The_supplier_list_row_carries_exactly_the_allow_listed_keys_and_no_others()
@@ -194,22 +198,12 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         KeysOf(row).Should().BeEquivalentTo(SupplierListItemKeys);
     }
 
-    /// <summary>
-    /// The list is where the two personas differ MOST: §12.4 documents only the supplier's shape,
-    /// and what a buyer receives is an invention (reported as such). This pins that the buyer's row
-    /// does not carry the supplier's caller-relative field, which would be meaningless - and false -
-    /// for a buyer.
-    /// </summary>
     [Fact]
     public async Task The_buyer_list_row_carries_no_caller_relative_supplier_field()
     {
         var (_, officer, code) = await PublishedRfqAsync();
 
         var body = await officer.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
-        // referenceCode, not rfqCode: R-9 conformed the SUPPLIER-facing shapes, which is what §12.4
-        // specifies. The buyer list row is not field-specified anywhere, so renaming it would have
-        // been inventing conformance rather than applying it. This test is where that seam is
-        // visible, and it is deliberate.
         var row = body.GetProperty("data").EnumerateArray()
             .Single(r => r.GetProperty("referenceCode").GetString() == code);
 
@@ -222,14 +216,6 @@ public sealed class RfqPersonaShapeTests(PostgresApiFixture fixture)
         }
     }
 
-    // ---- ministry_viewer ----------------------------------------------------------------------
-
-    /// <summary>
-    /// MSP-62 / BRULE-086: ministry_viewer's grant is deliberately EMPTY - the Ministry's access is
-    /// *"read-only, cross-organization aggregate access"*, and OQ-001 (whether line-level access is
-    /// permitted) is unanswered. Convergence puts both personas on one route, so the risk is that a
-    /// third persona quietly acquires access to it. It must receive nothing from either route.
-    /// </summary>
     [Theory]
     [InlineData("/api/v1/rfqs")]
     [InlineData("/api/v1/rfqs/RFQ-2026-000001")]

@@ -1,3 +1,42 @@
+// The column recording that publication actually happened, and the migration that recovered it for existing rows.
+//
+//
+// THE DISTINCTION THAT MAKES THIS A NEW COLUMN RATHER THAN A RENAME
+//
+// The scheduled time is a nullable, freely editable intent supplied at creation, and a tender published
+// immediately has none. This column records that publication happened.
+//
+// The setup leaves the scheduled time deliberately absent, so a test that confused the two columns would see
+// nothing there and pass for the wrong reason.
+//
+// Publishing requires at least one invitee, because publication is what generates access, so a real supplier is
+// seeded rather than the call being fudged.
+//
+//
+// THE BACKFILL STATEMENT IS TESTED, NOT MERELY THE MIGRATION RUNNING
+//
+// On a fresh database every tender is published after the column exists, so the migration's update matches nothing
+// and passing proves only that it did not crash.
+//
+// So one test reconstructs the pre-migration world deliberately: a published tender with the column empty and a
+// real publication audit row. Then it runs the migration's own statement verbatim and asserts the value recovered
+// is the audit row's instant rather than the creation time.
+//
+//
+// THE CORRECTNESS CONDITION IS SCOPED TO THIS TEST'S OWN ROWS
+//
+// The first version swept EVERY row in the database and failed in the full suite while passing alone, because the
+// suite shares one database and a sibling test in this very class reconstructs the pre-migration state on purpose.
+//
+// A global assertion over concurrently mutated shared state is not a stable check; it is a race that reports
+// whichever moment it happened to observe. That is the same instrument-over-a-moving-denominator class this
+// project has been bitten by before, so it was fixed rather than retried.
+//
+// The global sweep still has a place, at deploy time immediately after the migration, where nothing is
+// concurrently publishing. It is recorded as a query to run there rather than as a test here.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -6,19 +45,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// §12-A/C: <c>rfq.rfq.PublishedAt</c>, the column §12.4's <c>publishedAt</c> and §6.3's
-/// <c>-publishedAt</c> both needed and that did not exist.
-///
-/// <para><b>The distinction that makes this a new column rather than a rename.</b> PublishAt is a
-/// nullable, freely-editable SCHEDULED time supplied at creation - an intent. An RFQ published
-/// immediately has PublishAt null. PublishedAt records that publication actually happened.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
 {
@@ -39,8 +67,6 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
         });
         await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/activate", null);
 
-        // publishAt deliberately null: the scheduled time is absent, so a test that confused the two
-        // columns would see null here and pass for the wrong reason.
         var created = await officer.PostAsJsonAsync("/api/v1/rfqs", new
         {
             titleAr = "طلب", titleEn = "PublishedAt RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
@@ -57,8 +83,6 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
         });
         await officer.PutAsJsonAsync($"/api/v1/rfqs/{code}/evaluation-template", new { evaluationTemplateId = templateId });
 
-        // Publishing requires at least one invitee (BUSINESS-PROCESSES.md §3.1: publish "generates
-        // access"), so a real supplier is seeded rather than the publish call being fudged.
         var supplierName = $"PubAt {Guid.NewGuid():N}"[..24];
         await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, supplierName);
         Guid supplierId;
@@ -111,23 +135,6 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
         rfq.PublishedAt.Should().BeNull("but it has not happened - which is exactly why the two columns are different");
     }
 
-    /// <summary>
-    /// The backfill's correctness condition: no RFQ may be published-or-later while carrying no
-    /// PublishedAt.
-    ///
-    /// <para><b>Scoped to this test's own rows, deliberately.</b> The first version swept EVERY row
-    /// in the database and failed in the full suite while passing alone - because the integration
-    /// suite shares one database, and a sibling test in this very class reconstructs the
-    /// pre-migration state (Published, PublishedAt NULL) on purpose before running the backfill.
-    /// A global assertion over concurrently-mutated shared state is not a stable check; it is a
-    /// race that reports whichever moment it happened to observe. That is the same class of
-    /// instrument-over-a-moving-denominator this project has been bitten by before, so it is fixed
-    /// rather than retried.</para>
-    ///
-    /// <para>The global sweep still has a place - at deploy time, immediately after the migration,
-    /// where nothing is concurrently publishing. It is recorded in the batch report as a query to
-    /// run there, not as a test here.</para>
-    /// </summary>
     [Fact]
     public async Task A_published_rfq_created_by_this_test_always_carries_a_published_at()
     {
@@ -145,22 +152,11 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
         rfq.PublishedAt.Should().NotBeNull(
             "a published RFQ without a PublishedAt would be one whose publication left no record");
 
-        // And the audit row the backfill reads from exists for it, which is what makes the
-        // migration's recovery possible for rows that predate the column.
         var auditRows = await db.AuditLogs.CountAsync(a =>
             a.AggregateType == "Rfq" && a.AggregateId == rfq.Id && a.Action == "rfq_published");
         auditRows.Should().Be(1);
     }
 
-    /// <summary>
-    /// The BACKFILL STATEMENT itself, not merely "the migration ran".
-    ///
-    /// <para>On a fresh database every RFQ is published after the column exists, so the migration's
-    /// UPDATE matches nothing and passing proves only that it did not crash. This reconstructs the
-    /// pre-migration state deliberately - an RFQ in Published with PublishedAt NULL, and a real
-    /// <c>rfq_published</c> audit row - then runs the migration's own SQL, verbatim, and asserts the
-    /// value recovered is the audit row's instant rather than CreatedAt.</para>
-    /// </summary>
     [Fact]
     public async Task The_backfill_recovers_the_publication_instant_from_the_audit_trail()
     {
@@ -182,7 +178,6 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var rfq = await db.Rfqs.FirstAsync(r => r.ReferenceCode == code);
 
-        // Reconstruct the pre-migration world: Published, no PublishedAt, one audit row.
         await db.Database.ExecuteSqlRawAsync(
             """UPDATE rfq.rfq SET "State" = 'Published', "PublishedAt" = NULL WHERE "Id" = {0}""".Replace("{0}", $"'{rfq.Id}'"));
         db.AuditLogs.Add(new MotsSupplierPortal.Domain.Audit.AuditLog
@@ -197,7 +192,6 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
         });
         await db.SaveChangesAsync();
 
-        // The migration's statement, verbatim.
         await db.Database.ExecuteSqlRawAsync("""
             UPDATE rfq.rfq AS r
             SET "PublishedAt" = a.first_published
@@ -216,7 +210,6 @@ public sealed class PublishedAtBackfillTests(PostgresApiFixture fixture)
             "by however long the RFQ sat in Draft and InternalReview");
     }
 
-    /// <summary>Drives one RFQ all the way to Published and returns its reference code.</summary>
     private async Task<string> PublishOneAsync(HttpClient officer, HttpClient manager)
     {
         var templateResponse = await manager.PostAsJsonAsync("/api/v1/evaluation-templates",

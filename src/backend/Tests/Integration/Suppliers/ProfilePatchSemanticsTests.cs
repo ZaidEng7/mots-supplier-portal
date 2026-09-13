@@ -1,25 +1,32 @@
+// Two stacked defects on the profile edit, found in review.
+//
+// Unknown fields were silently swallowed: a body of nothing but bogus field names answered successfully and
+// committed a write.
+//
+// And the verb had replacement semantics, so any field omitted from the payload was overwritten with nothing, which
+// meant a partial update destroyed every field it did not mention while reporting success.
+//
+// Together those meant a client could send a mistyped field name, be told it succeeded, and have its description
+// erased.
+//
+// The unknown-field case uses the exact payload from the review, and asserts that nothing was written as well as
+// that the request was refused.
+//
+// The partial-update case patches ONE field with everything else absent, and asserts the others individually:
+// each of those is what would be empty under replacement semantics.
+//
+// And the distinction that makes the partial-value type worth having is pinned: an explicit empty value is an
+// instruction, and absence is not.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Regression guard for the two stacked defects found in review 2026-08-28 on
-/// <c>PATCH /api/v1/suppliers/me/profile</c>:
-///
-/// 1. Unknown fields were silently swallowed - a body of nothing but bogus field names returned
-///    200 and committed a write.
-/// 2. The verb had PUT semantics - any field omitted from the payload was overwritten with null,
-///    so a partial update destroyed every field it did not mention while reporting success.
-///
-/// Together those meant a client could send a typo'd field name, be told it succeeded, and have
-/// its profile description erased.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
 {
@@ -46,7 +53,6 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
         await SeedProfileAsync(client);
         var supplierCode = await client.OwnSupplierCodeAsync();
 
-        // The exact payload from the review: entirely unknown field names.
         var response = await client.SendAsync(Patch(supplierCode, """
             {"totallyBogusField":"xyz","descriptionEn":"SHOULD-NOT-APPLY"}
             """));
@@ -54,7 +60,6 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
             "NFR-SEC-005: an unmodelled field is a client error, not something to swallow");
 
-        // And critically, nothing was written.
         var after = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         after.GetProperty("description").GetString().Should().Be("ORIGINAL-DESCRIPTION",
             "a rejected request must not have committed a write");
@@ -67,7 +72,6 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
         await SeedProfileAsync(client);
         var supplierCode = await client.OwnSupplierCodeAsync();
 
-        // Patch ONE field. Everything else is absent from the body.
         var response = await client.SendAsync(Patch(supplierCode, """{"description":"UPDATED-DESCRIPTION"}"""));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -76,7 +80,6 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
         after.GetProperty("description").GetString().Should().Be("UPDATED-DESCRIPTION",
             "the field that was sent must be applied");
 
-        // These are the assertions that fail under PUT-semantics: each would be null.
         after.GetProperty("website").GetString().Should().Be("https://original.example",
             "a field absent from a PATCH body must be left untouched");
         after.GetProperty("supplierGroup").GetString().Should().Be("ORIGINAL-GROUP",
@@ -92,7 +95,6 @@ public sealed class ProfilePatchSemanticsTests(PostgresApiFixture fixture)
         await SeedProfileAsync(client);
         var supplierCode = await client.OwnSupplierCodeAsync();
 
-        // The distinction that makes Patch<T> worth having: null is an instruction, absence is not.
         var response = await client.SendAsync(Patch(supplierCode, """{"description":null}"""));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 

@@ -1,3 +1,87 @@
+// FEAT-12.1 through 12.4 and FR-CMP-001 through 004: real HTTP proof that the comparison matrix never shows
+// a disqualified proposal's pricing and never shows anything evaluation-derived before Consolidated - the
+// same discipline as EvaluationEndpointsTests' own two-envelope and blindness proofs, applied to the
+// cross-proposal read side. Then FR-CMP-005's export, and finally T-070's view after the award.
+//
+// The setup is the same shared shape as EvaluationEndpointsTests.SetupEvaluationReadyRfqAsync: two invited
+// suppliers, both submit, the RFQ reaches SubmissionClosed, and evaluation is opened with a two-envelope
+// template - Technical threshold 60, Commercial weight 40. It does NOT assign, score or consolidate;
+// callers do that themselves to land on the exact evaluation state they need to test against. The submission
+// window is an HOUR rather than three seconds (T-087): the three-second window made everything between
+// publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the timeline job,
+// starting a proposal, pricing it, setting terms - and on a loaded machine the submit lost. The window is
+// closed by moving the deadline in storage and letting the real job notice it, so the transition still
+// happens the way production does it and only the waiting is gone.
+//
+// THE SCREEN. Before evaluation is opened the matrix shows requirements but no pricing or scores. While it
+// is in progress it still shows none even after scoring - that is the blindness half of FEAT-12.4: an
+// evaluator having scored something mid-flight must not leak into the comparison view for ANYONE, the buyer
+// included, which is BRULE-058's "not readable until Consolidated" applied at the cross-evaluator comparison
+// level rather than the single-evaluator read path EvaluationEndpointsTests already proves. Once
+// consolidated, a qualified proposal's pricing and scores show - proposal A qualifies at 90 against the 60
+// threshold, proposal B does not at 20 - while the disqualified one's pricing stays absent. Its technical
+// score is still shown: transparency, not a blanket hide.
+//
+// THE EXPORT, which EPIC-12 deferred as priority C and flagged rather than dropping. The row helper drops
+// the provenance comment lines the way a CSV consumer drops them, so assertions stay about the DATA. Before
+// consolidation the export contains no price at all, and the two-envelope property is verified against what
+// the ARTEFACT CONTAINS rather than against the code path that built it: the export shares the screen's
+// handler and issues no query of its own, but that is an argument about the implementation and this is the
+// observation. It is checked against the same state the screen was checked in rather than against an
+// assumption about it. Absence is rendered as an explicit marker - not a zero, not an empty cell, not a
+// dash, any of which a reader could take for a submitted price of nothing - and the artefact says WHY the
+// column is empty, because without that line a comparison exported before consolidation is
+// indistinguishable from one where nobody submitted a price.
+//
+// After consolidation the export shows exactly what the gate opened and nothing more. That is the control
+// for the test above and the sharper half of the same property: the export must track the gate in BOTH
+// directions, so a qualified proposal's total appears - in Arabic-Indic digits per R-1, with its currency -
+// and a disqualified one's stays the absence marker, in the same file, at the same moment, for the same
+// reader.
+//
+// The best-value column is marked with an icon and a word rather than by colour, which is ACCESSIBILITY.md
+// 1.4.1. On a screen this is usually met with a badge; in a PDF the obvious way to mark a winner is to shade
+// its row, which is invisible to anyone printing in greyscale, reading with low vision, or having the file
+// read aloud. The marker carries a star AND the words, and nothing in the artefact is distinguished by
+// colour at all. Its control is the other half: a row that is NOT the winner carries neither, so the
+// assertion is about rank 1 and not about a marker printed on every row.
+//
+// An unrecognised export format is refused rather than answered in another one, with both real formats as
+// controls so the refusal is about the value. A staff user outside the organization cannot export either:
+// §9.2 says 404 rather than 403, and the export is the surface where a scope check is easiest to forget,
+// because the list-level test does not touch it. The owner control is the same URL for someone entitled to
+// it answering 200, without which the 404 could be a route that does not exist; and §9.2's actual property
+// is that an RFQ that exists but is out of scope answers IDENTICALLY to one that does not, so the status
+// code is the only thing a prober learns and it is the same either way. The first version of this asserted
+// the reference code was absent from the body. It is present - in `instance`, which §7 requires and which
+// echoes the URL the caller typed. That is not a disclosure, because the prober supplied the code; comparing
+// the two responses is the claim that was meant.
+//
+// T-070, THE VIEW AFTER THE AWARD. The screen a buyer opens to answer "what did we buy, and what did we turn
+// down" is the same screen the evaluation used, and it was empty from the moment the award executed.
+// GetComparisonHandler filters on ProposalStates.UnderComparison, and executing an award moves the winner to
+// Awarded and every other live bid to NotSelected - neither of which was in that set. The response stayed
+// 200 with the RFQ title and the item columns, and no proposals under them. Nothing anywhere claimed that
+// emptiness was intended. Nothing caught it because the award's own frozen snapshot is taken BEFORE the
+// transition and AwardOfferChainTests asserts it still contains the winning bid, which passes either way;
+// this test reads the LIVE endpoint after the award, which is what a person does.
+//
+// Both bids qualify in that test, so both are live when the award executes - one becomes Awarded and the
+// other NotSelected, where a disqualified second bid would have proved only half of it. BRULE-073 refuses
+// the recommender as approver, so the award needs a second manager. The two post-award states are asserted
+// rather than assumed, because without those lines the test could pass against a build where execute never
+// moved anything. And it is still the FULL view rather than an emptied husk that happens to list two rows:
+// the evaluation is Finalized, so pricing and scores are past the BRULE-058 gate.
+//
+// The export is the same query, so it empties and fills with the view. It is asserted separately because a
+// buyer who cannot open the screen reaches for the CSV, and that is exactly the moment this would have been
+// discovered by a person rather than by a test. BOTH bids are scored in it: the first version scored only
+// the winner, and the chain answered 404 at execute rather than at the step that was actually wrong, since a
+// submitted evaluation with an unscored bid does not consolidate into an awardable result. Every step
+// asserts now, so the next person to break this reads which one broke.
+
+namespace MotsSupplierPortal.Tests.Integration.Evaluation;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,15 +92,8 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Evaluation;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-12.1..12.4/FR-CMP-001..004: real HTTP proof that the comparison matrix never shows
-/// a disqualified proposal's pricing and never shows anything evaluation-derived before Consolidated
-/// - the same discipline as EvaluationEndpointsTests' own two-envelope/blindness proofs, applied to
-/// the cross-proposal read side.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
 {
@@ -41,11 +118,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await job.RunAsync(CancellationToken.None);
     }
 
-    /// <summary>Same shared shape as EvaluationEndpointsTests.SetupEvaluationReadyRfqAsync: two
-    /// invited suppliers, both submit, RFQ reaches SubmissionClosed, evaluation opened with a
-    /// two-envelope template (Technical threshold 60, Commercial weight 40). Does NOT assign/score/
-    /// consolidate - callers do that themselves to land on the exact evaluation state they need to
-    /// test against.</summary>
     private async Task<(string RfqReferenceCode, HttpClient Manager, HttpClient Officer, HttpClient SupplierA, HttpClient SupplierB, Guid SupplierAId, Guid SupplierBId, Guid ProposalAId, Guid ProposalBId, Guid TechnicalCriterionId, Guid FinancialCriterionId, Guid OrgId)>
         SetupEvaluationReadyRfqAsync(string titleEn)
     {
@@ -75,11 +147,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         {
             titleAr = "طلب مقارنة", titleEn, descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
             publishAt = (DateTimeOffset?)null, submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            // T-087: an HOUR, not three seconds. The three-second window made everything between
-            // publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the
-            // timeline job, starting a proposal, pricing it, setting terms - and on a loaded machine the
-            // submit lost. The window is closed below by moving the deadline in storage, so the real job
-            // still performs the transition and only the waiting is gone.
             submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
@@ -136,7 +203,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         var proposalAId = await SubmitProposalAsync(supplierA);
         var proposalBId = await SubmitProposalAsync(supplierB);
 
-        // T-087: close the window by moving the deadline, then let the real job notice it.
         await SubmissionWindowTestHelper.CloseAsync(fixture, referenceCode);
         await RunTimelineJobAsync();
         var afterClose = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
@@ -174,10 +240,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         }
     }
 
-    /// <summary>The blindness half of FEAT-12.4: an evaluator having scored something mid-flight
-    /// (InProgress) must not leak into the comparison view for anyone, including the buyer -
-    /// BRULE-058's "not readable until Consolidated" applied at the cross-evaluator comparison
-    /// level, not just the single-evaluator read path EvaluationEndpointsTests already proves.</summary>
     [Fact]
     public async Task While_evaluation_is_in_progress_the_matrix_still_shows_no_pricing_or_scores_even_after_scoring()
     {
@@ -211,7 +273,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
 
-        // Proposal A qualifies (90 >= 60 threshold); Proposal B does not (20 < 60).
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
         { proposalCode = await fixture.ProposalCodeAsync(proposalAId), criterionId = technicalCriterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
         await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
@@ -242,7 +303,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         proposalB.GetProperty("items").ValueKind.Should().Be(JsonValueKind.Null, "a disqualified proposal's pricing must stay absent even after consolidation");
         proposalB.GetProperty("grandTotal").ValueKind.Should().Be(JsonValueKind.Null);
         proposalB.GetProperty("financialWeightedScore").ValueKind.Should().Be(JsonValueKind.Null);
-        // The technical score is still shown for the disqualified proposal - transparency, not a blanket hide.
         proposalB.GetProperty("technicalWeightedScore").ValueKind.Should().NotBe(JsonValueKind.Null);
         proposalB.GetProperty("criterionScores").ValueKind.Should().Be(JsonValueKind.Array);
     }
@@ -270,15 +330,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // FR-CMP-005: the export. EPIC-12 deferred this as priority C and flagged it rather than
-    // dropping it.
-    // ---------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// The export's rows, with the provenance comment lines dropped the way a CSV consumer drops
-    /// them, so assertions stay about the DATA.
-    /// </summary>
     private static async Task<(List<string> Comments, List<string> Rows, string Raw)> ExportCsvAsync(
         HttpClient client, string referenceCode)
     {
@@ -299,14 +350,9 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Before_consolidation_the_export_contains_no_price_at_all()
     {
-        // The two-envelope property, verified against what the ARTEFACT CONTAINS rather than against
-        // the code path that built it. The export shares the screen's handler and issues no query of
-        // its own, but that is an argument about the implementation; this is the observation.
         var (referenceCode, manager, _, _, _, _, _, _, _, _, _, _) =
             await SetupEvaluationReadyRfqAsync("Compare Export Blind");
 
-        // What the screen shows: every proposal's pricing absent. The export is checked against this
-        // same state rather than against an assumption about it.
         var screen = await manager.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/comparison");
         screen.GetProperty("evaluationState").GetString().Should().Be("NotStarted");
         foreach (var proposal in screen.GetProperty("proposals").EnumerateArray())
@@ -316,16 +362,11 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
 
         var (comments, rows, raw) = await ExportCsvAsync(manager, referenceCode);
 
-        // Two proposals, plus the header row.
         rows.Should().HaveCount(3);
 
-        // Absence is rendered as an explicit marker. NOT a zero, not an empty cell, not a dash - any
-        // of which a reader could take for a submitted price of nothing.
         rows.Skip(1).Should().OnlyContain(r => r.Contains("(غير متاح بعد)"),
             "a gated value is stated as unavailable, not left blank");
 
-        // And the artefact says WHY the column is empty. Without this line, a comparison exported
-        // before consolidation is indistinguishable from one where nobody submitted a price.
         comments.Should().Contain(c => c.Contains("evaluationState") && c.Contains("NotStarted"));
 
         raw.Should().NotContain("SYP", "no currency, because no priced total is visible yet");
@@ -334,9 +375,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task After_consolidation_the_export_shows_exactly_what_the_gate_opened_and_nothing_more()
     {
-        // The control for the test above, and the sharper half of the same property: the export must
-        // track the gate in BOTH directions. A qualified proposal's total appears; a disqualified
-        // one's stays absent in the same file, at the same moment, for the same reader.
         var (referenceCode, manager, _, _, _, supplierAId, supplierBId, proposalAId, proposalBId,
              technicalCriterionId, financialCriterionId, _) =
             await SetupEvaluationReadyRfqAsync("Compare Export Open");
@@ -369,12 +407,10 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         var qualifiedRow = rows.Single(r => r.Contains(qualified.GetProperty("proposalReferenceCode").GetString()!));
         var disqualifiedRow = rows.Single(r => r.Contains(disqualified.GetProperty("proposalReferenceCode").GetString()!));
 
-        // The total that IS visible appears, in Arabic-Indic digits per R-1, with its currency.
         qualifiedRow.Should().Contain("SYP");
         qualifiedRow.Should().MatchRegex("[٠-٩]", "R-1: currency renders in Arabic-Indic digits under Arabic");
         qualifiedRow.Should().NotContain("(غير متاح بعد)");
 
-        // The one that is not stays the marker - in the same file the other one's price is in.
         disqualifiedRow.Should().Contain("(غير متاح بعد)",
             "the export must not become the path that reintroduces what the screen refuses to show");
         disqualifiedRow.Should().NotContain("SYP");
@@ -383,10 +419,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_best_value_column_is_marked_with_an_icon_and_a_word_not_by_colour()
     {
-        // ACCESSIBILITY.md 1.4.1. On a screen this is usually met with a badge; in a PDF the obvious
-        // way to mark a winner is to shade its row, which is invisible to anyone printing in
-        // greyscale, reading with low vision, or having the file read aloud. The marker carries a
-        // star AND the words, and nothing in the artefact is distinguished by colour at all.
         var (referenceCode, manager, _, _, _, _, _, proposalAId, proposalBId,
              technicalCriterionId, financialCriterionId, _) =
             await SetupEvaluationReadyRfqAsync("Compare Export Best Value");
@@ -415,8 +447,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         winnerRow.Should().Contain("★", "the icon");
         winnerRow.Should().Contain("أفضل قيمة", "and the words - either one alone fails 1.4.1");
 
-        // Control on the other half: a row that is NOT the winner carries neither, so the assertion
-        // above is about rank 1 and not about a marker printed on every row.
         var otherRows = rows.Skip(1).Where(r => r != winnerRow).ToList();
         otherRows.Should().NotBeEmpty();
         otherRows.Should().OnlyContain(r => !r.Contains("★"));
@@ -428,7 +458,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         var (referenceCode, manager, _, _, _, _, _, _, _, _, _, _) =
             await SetupEvaluationReadyRfqAsync("Compare Export Format");
 
-        // Controls: both real formats work, so the refusal below is about the value.
         (await manager.GetAsync($"/api/v1/rfqs/{referenceCode}/comparison/export?format=csv"))
             .StatusCode.Should().Be(HttpStatusCode.OK);
         var pdf = await manager.GetAsync($"/api/v1/rfqs/{referenceCode}/comparison/export?format=pdf");
@@ -444,29 +473,17 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_staff_user_outside_the_organization_cannot_export_either()
     {
-        // §9.2: 404, not 403 - and the export is the surface where a scope check is easiest to
-        // forget, because the list-level test above does not touch it.
         var (referenceCode, manager, _, _, _, _, _, _, _, _, _, _) =
             await SetupEvaluationReadyRfqAsync("Compare Export Scope");
         var otherOrg = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var outsider = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, otherOrg.Id);
 
-        // The owner control: the same URL, for someone entitled to it, is a 200. Without this the
-        // 404 below could be a route that does not exist.
         (await manager.GetAsync($"/api/v1/rfqs/{referenceCode}/comparison/export?format=csv"))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
         var response = await outsider.GetAsync($"/api/v1/rfqs/{referenceCode}/comparison/export?format=csv");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        // §9.2's actual property: an RFQ that exists but is out of scope answers IDENTICALLY to one
-        // that does not exist, so the status code is the only thing a prober learns and it is the
-        // same either way.
-        //
-        // The first version of this asserted the reference code was absent from the body. It is
-        // present - in `instance`, which §7 requires and which echoes the URL the caller typed. That
-        // is not a disclosure: the prober supplied the code. Comparing the two responses is the
-        // claim that was meant.
         var fabricated = await outsider.GetAsync("/api/v1/rfqs/RFQ-2026-999999/comparison/export?format=csv");
         fabricated.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
@@ -478,26 +495,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
                 "a real RFQ out of scope and an RFQ that never existed must be indistinguishable");
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // T-070: the view after the award. The screen a buyer opens to answer "what did we buy, and what
-    // did we turn down" is the same screen the evaluation used, and it was empty from the moment the
-    // award executed.
-    // ---------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// The comparison still shows every bid once the award has been executed.
-    ///
-    /// <para><b>The defect.</b> <c>GetComparisonHandler</c> filters on
-    /// <c>ProposalStates.UnderComparison</c>, and executing an award moves the winner to
-    /// <c>Awarded</c> and every other live bid to <c>NotSelected</c> - neither of which was in that
-    /// set. The response stayed 200 with the RFQ title and the item columns, and no proposals under
-    /// them. Nothing anywhere claimed that emptiness was intended.</para>
-    ///
-    /// <para><b>Why nothing caught it.</b> The award's own frozen snapshot is taken BEFORE the
-    /// transition, and <c>AwardOfferChainTests</c> asserts it still contains the winning bid. That
-    /// test passes either way. This one reads the LIVE endpoint after the award, which is what a
-    /// person does.</para>
-    /// </summary>
     [Fact]
     public async Task After_the_award_is_executed_the_comparison_still_shows_the_winner_and_the_bid_that_lost()
     {
@@ -507,8 +504,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
 
-        // Both bids qualify, so both are live when the award executes - one becomes Awarded and the
-        // other NotSelected. A disqualified second bid would have proved only half of this.
         foreach (var (proposalId, technical, financial) in new[] { (proposalAId, 90m, 80m), (proposalBId, 75m, 60m) })
         {
             var proposalCode = await fixture.ProposalCodeAsync(proposalId);
@@ -530,14 +525,11 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         recommend.StatusCode.Should().Be(HttpStatusCode.OK, await recommend.Content.ReadAsStringAsync());
         (await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // BRULE-073 refuses the recommender as approver, so the award needs a second manager.
         var approver = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, orgId);
         (await approver.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null)).StatusCode.Should().Be(HttpStatusCode.OK);
         var execute = await approver.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);
         execute.StatusCode.Should().Be(HttpStatusCode.OK, await execute.Content.ReadAsStringAsync());
 
-        // The states the fix is about, asserted rather than assumed: without these two lines this
-        // test could pass against a build where execute never moved anything.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -556,8 +548,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         proposals.Should().HaveCount(2, "both bids were in the comparison a moment before the award and neither was withdrawn");
         proposals.Select(p => p.GetProperty("supplierId").GetGuid()).Should().BeEquivalentTo(new[] { supplierAId, supplierBId });
 
-        // And it is still the FULL view, not an emptied husk that happens to list two rows: the
-        // evaluation is Finalized, so pricing and scores are past the BRULE-058 gate.
         body.GetProperty("evaluationState").GetString().Should().Be("Finalized");
         var winner = proposals.Single(p => p.GetProperty("supplierId").GetGuid() == supplierAId);
         winner.GetProperty("items").EnumerateArray().Should().NotBeEmpty();
@@ -565,11 +555,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         winner.GetProperty("criterionScores").ValueKind.Should().Be(JsonValueKind.Array);
     }
 
-    /// <summary>
-    /// The export is the same query, so it empties and fills with the view. Asserted separately
-    /// because a buyer who cannot open the screen reaches for the CSV, and that is exactly the
-    /// moment this would have been discovered by a person rather than by a test.
-    /// </summary>
     [Fact]
     public async Task The_export_after_an_award_still_carries_the_bids()
     {
@@ -579,10 +564,6 @@ public sealed class ComparisonEndpointsTests(PostgresApiFixture fixture)
         await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
         await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
 
-        // BOTH bids are scored. The first version of this test scored only the winner, and the chain
-        // answered 404 at execute rather than at the step that was actually wrong - a submitted
-        // evaluation with an unscored bid does not consolidate into an awardable result. Every step
-        // below now asserts, so the next person to break this reads which one broke.
         foreach (var (proposalId, technical, financial) in new[] { (proposalAId, 95m, 85m), (proposalBId, 70m, 65m) })
         {
             var code = await fixture.ProposalCodeAsync(proposalId);

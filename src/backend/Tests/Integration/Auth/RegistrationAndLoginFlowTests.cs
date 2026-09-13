@@ -1,3 +1,19 @@
+// End-to-end registration, verification and login against a real Postgres container: it proves the full stack
+// - API to Identity to EF Core to Postgres - works together rather than that each layer compiles against
+// mocks.
+//
+// Registration answers 200 OK rather than 201 since MSP-73, because the enumeration fix made success and
+// duplicate responses identical in shape, and the code field is supplierCode per §12.1/R-9, matching §12.2
+// everywhere else. Login before verification is rejected.
+//
+// The verification test issues the same opaque verification token RegisterSupplierHandler issues, using the
+// real ISecurityTokenService against the real database with no mocking, because SECURITY-ARCHITECTURE.md §1.6
+// says the link carries only this token and never the user id. After verification, login succeeds with
+// row-scoped claims present, and the refresh cookie must be present and httpOnly, which is ASVS L2's
+// token-handling requirement.
+
+namespace MotsSupplierPortal.Tests.Integration.Auth;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,16 +22,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Auth;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// End-to-end registration/verification/login against a real Postgres container - proves the
-/// full stack (API -> Identity -> EF Core -> Postgres) works together, not just that each
-/// layer compiles against mocks.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
 {
@@ -36,11 +44,8 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
             password = "IntegrationTest#2026!",
         });
 
-        // MSP-73: 200 OK now, not 201 - the enumeration fix made success and duplicate responses
-        // identical in shape.
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await registerResponse.Content.ReadFromJsonAsync<JsonElement>();
-        // §12.1/R-9: the field is supplierCode, matching §12.2 everywhere else.
         body.GetProperty("supplierCode").GetString().Should().StartWith("SUP-");
 
         var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "IntegrationTest#2026!" });
@@ -68,9 +73,6 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
             password,
         });
 
-        // Issue the same opaque verification token RegisterSupplierHandler issues, using the real
-        // ISecurityTokenService against the real database (no mocking). SECURITY-ARCHITECTURE.md
-        // §1.6: the link/request carries only this token, never the user id.
         using var scope = fixture.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         var securityTokenService = scope.ServiceProvider.GetRequiredService<ISecurityTokenService>();
@@ -89,7 +91,6 @@ public sealed class RegistrationAndLoginFlowTests(PostgresApiFixture fixture)
         var accessToken = tokens.GetProperty("accessToken").GetString();
         accessToken.Should().NotBeNullOrEmpty();
 
-        // Refresh cookie must be present and httpOnly (ASVS L2 token-handling requirement).
         loginResponse.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
         cookies!.Should().Contain(c => c.Contains("mots_refresh_token") && c.Contains("httponly", StringComparison.OrdinalIgnoreCase));
     }

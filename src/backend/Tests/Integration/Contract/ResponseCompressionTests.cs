@@ -1,20 +1,19 @@
+// Response compression is enabled, proven rather than read off a settings page.
+//
+// A large enough response, requested with a real encoding header, must come back compressed.
+//
+// The middleware has a documented threshold below which it does not bother, so the response here is seeded
+// comfortably past it.
+
+namespace MotsSupplierPortal.Tests.Integration.Contract;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Contract;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #16/MSP-74: gzip/Brotli response compression is enabled at the middleware level
-/// (Program.cs). Proven here rather than just read off the settings page: a large enough JSON
-/// response, requested with a real Accept-Encoding header, must come back with Content-Encoding
-/// set - the middleware's own documented threshold is roughly 150-1000 bytes below which it does
-/// not bother, so the response here is seeded well past that.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ResponseCompressionTests(PostgresApiFixture fixture)
 {
@@ -28,7 +27,6 @@ public sealed class ResponseCompressionTests(PostgresApiFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var supplierId = await db.Suppliers.OrderByDescending(s => s.CreatedAt).Select(s => s.Id).FirstAsync();
 
-            // Comfortably past the middleware's ~1000-byte "not worth it" floor.
             for (var i = 0; i < 40; i++)
             {
                 db.AuditLogs.Add(new AuditLog

@@ -1,20 +1,27 @@
+// The validation response shape end to end: the bilingual, field-scoped body, on real endpoints.
+//
+// The written definition of done lists the bilingual field errors as an item in its own right.
+//
+// The catalogue coverage test proves every rule HAS a sentence. This proves the sentence reaches the wire, in both
+// languages, on the path the interface reads, with the field names the registration form actually registers.
+//
+// The exemplar is transcribed verbatim from the contract's own worked example.
+//
+// The Arabic must be Arabic script rather than the English sentence copied into both slots, which is exactly what a
+// missing catalogue entry would produce.
+//
+// And the attempted value is never echoed for a sensitive field. The other two leak paths are covered in the error
+// model suite; this is the third, and the one made newly possible by echoing values at all.
+
+namespace MotsSupplierPortal.Tests.Integration.Contract;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Api.Errors;
-
-namespace MotsSupplierPortal.Tests.Integration.Contract;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// §7.2's validation shape end to end - the bilingual field-scoped body, on real endpoints.
-///
-/// <para>§13's definition-of-done lists *"Validation returns the bilingual field errors array"* as an
-/// item in its own right. The catalogue coverage test proves every rule HAS a sentence; this proves
-/// the sentence reaches the wire, in both languages, on the path the SPA reads.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ValidationProblemShapeTests(PostgresApiFixture fixture)
 {
@@ -65,14 +72,11 @@ public sealed class ValidationProblemShapeTests(PostgresApiFixture fixture)
         var byCode = problem.GetProperty("errors").EnumerateArray()
             .ToDictionary(e => e.GetProperty("code").GetString()!, e => e);
 
-        // Transcribed verbatim from §7.2's own worked exemplar.
         byCode["EMAIL_INVALID"].GetProperty("messages").GetProperty("ar").GetString()
             .Should().Be("صيغة البريد الإلكتروني غير صحيحة.");
         byCode["EMAIL_INVALID"].GetProperty("messages").GetProperty("en").GetString()
             .Should().Be("The email address format is invalid.");
 
-        // The Arabic must be Arabic script, not the English sentence copied into both slots - which
-        // is exactly what a missing catalogue entry would produce.
         foreach (var error in problem.GetProperty("errors").EnumerateArray())
         {
             var messages = error.GetProperty("messages");
@@ -95,17 +99,11 @@ public sealed class ValidationProblemShapeTests(PostgresApiFixture fixture)
             .Select(e => e.GetProperty("field").GetString()!)
             .ToList();
 
-        // RegisterPage registers these exact names with React Hook Form.
         fields.Should().Contain("displayNameAr").And.Contain("representativeName");
         fields.Should().NotContain(f => f.Length > 0 && char.IsUpper(f[0]),
             "§7.2's paths match the request JSON, which is camelCase - PascalCase would map onto nothing");
     }
 
-    /// <summary>
-    /// §7.2: "attemptedValue is included only for non-sensitive fields (never for passwords/tokens)".
-    /// The 500-leak and credential tests in ErrorModelTests cover the other two leak paths; this is
-    /// the third, and the one this batch newly makes possible by echoing values at all.
-    /// </summary>
     [Fact]
     public async Task Attempted_value_is_echoed_for_ordinary_fields_but_never_for_a_password()
     {

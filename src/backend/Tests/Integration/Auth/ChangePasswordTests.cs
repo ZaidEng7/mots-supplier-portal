@@ -1,3 +1,30 @@
+// SCR-903: a signed-in user changing their own password.
+//
+// Before this, the only path was signing out and using the forgotten-password email - a recovery flow doing
+// routine work. Every assertion below is against storage or a real response, never against the code path.
+//
+// The real proof of the change is that the new password authenticates and the old one no longer does;
+// asserting the 200 alone would pass on a handler that returned success and wrote nothing.
+//
+// A wrong current password is refused with 422 rather than 401, because the caller IS authenticated and a 401
+// would bounce them to the login screen mid-form as though their session had expired. Its control is that the
+// ORIGINAL password still works, so the guard refused the change rather than half-applying it.
+//
+// Reusing the current password is refused rather than succeeding silently: a no-op "success" would still
+// revoke every other session, signing the user out of their other devices for a change that changed nothing.
+//
+// A weak new password is refused with the reasons, checked at the validator's own length floor before Identity
+// is asked. An anonymous caller cannot change anyone's password.
+//
+// The change revokes other sessions and keeps the one that presented its cookie. The sign-in uses a raw client
+// so the refresh cookie is visible on the response and can be presented back on the change, which is what the
+// SPA does with fetch and credentials: 'include'. A third sign-in makes sure there is definitely a session
+// that is NOT the one presenting the cookie. Both halves are asserted: something was revoked, so the guard
+// fires, and not everything was, so a password change is not a sign-out of the tab that performed it -
+// asserting only "fewer than before" would pass on a handler that revoked every session including this one.
+
+namespace MotsSupplierPortal.Tests.Integration.Auth;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,18 +33,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Auth;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-903: a signed-in user changing their own password.
-///
-/// <para>Before this, the only path was signing out and using the forgotten-password email — a
-/// recovery flow doing routine work. Every assertion below is against storage or a real response,
-/// never against the code path.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ChangePasswordTests(PostgresApiFixture fixture)
 {
@@ -32,8 +49,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
             new { currentPassword = StaffTestClient.Password, newPassword = NewPassword });
         changed.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // The real proof: the new password authenticates and the old one no longer does. Asserting
-        // the 200 alone would pass on a handler that returned success and wrote nothing.
         var withNew = await fixture.CreateRawClient().PostAsJsonAsync("/api/v1/auth/login",
             new { email, password = NewPassword });
         withNew.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -51,14 +66,10 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
         var refused = await client.PostAsJsonAsync("/api/v1/auth/change-password",
             new { currentPassword = "NotTheCurrentOne#1", newPassword = NewPassword });
 
-        // 422, not 401 — the caller IS authenticated, and a 401 would bounce them to the login screen
-        // mid-form as though their session had expired.
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await refused.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("code").GetString().Should().Be("INCORRECT_CURRENT_PASSWORD");
 
-        // The control for the refusal: the ORIGINAL password still works, so the guard refused the
-        // change rather than half-applying it.
         (await fixture.CreateRawClient().PostAsJsonAsync("/api/v1/auth/login",
             new { email, password = StaffTestClient.Password })).StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -71,8 +82,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
         var refused = await client.PostAsJsonAsync("/api/v1/auth/change-password",
             new { currentPassword = StaffTestClient.Password, newPassword = StaffTestClient.Password });
 
-        // A no-op "success" would still revoke every other session, signing the user out of their
-        // other devices for a change that changed nothing.
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await refused.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("code").GetString().Should().Be("PASSWORD_UNCHANGED");
@@ -86,7 +95,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
         var refused = await client.PostAsJsonAsync("/api/v1/auth/change-password",
             new { currentPassword = StaffTestClient.Password, newPassword = "short" });
 
-        // The validator's own length floor, before Identity is asked.
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
@@ -104,8 +112,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
     {
         var (client, email) = await StaffTestClient.CreateWithEmailAsync(fixture, Roles.OnboardingReviewer, null);
 
-        // Sign in on a raw client so the refresh cookie is visible on the response, and present it
-        // back on the change - which is what the SPA does (fetch with credentials: 'include').
         var raw = fixture.CreateRawClient();
         var login = await raw.PostAsJsonAsync("/api/v1/auth/login", new { email, password = StaffTestClient.Password });
         login.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -114,7 +120,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
             : null;
         refreshCookie.Should().NotBeNull("the control: without a cookie there is no current session to exclude");
 
-        // A third sign-in, so there is definitely a session that is NOT the one presenting the cookie.
         (await fixture.CreateRawClient().PostAsJsonAsync("/api/v1/auth/login",
             new { email, password = StaffTestClient.Password })).StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -143,9 +148,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
             var db = after.ServiceProvider.GetRequiredService<AppDbContext>();
             var live = await db.RefreshTokens.CountAsync(t => t.UserId == userId && t.RevokedAt == null);
 
-            // Both halves. Something was revoked, so the guard fires; and not everything was, so a
-            // password change is not a sign-out of the tab that performed it. Asserting only "fewer
-            // than before" would pass on a handler that revoked every session including this one.
             live.Should().BeLessThan(before, "other sessions are revoked");
             live.Should().BeGreaterThan(0, "the session that presented its own cookie survives");
         }
@@ -153,8 +155,6 @@ public sealed class ChangePasswordTests(PostgresApiFixture fixture)
         _ = client;
     }
 
-    /// <summary>Signs in and returns both halves of the session: the bearer token and the refresh
-    /// cookie, so a caller can present the pair the SPA presents.</summary>
     private static async Task<(string AccessToken, string RefreshCookie)> SignInTokenAsync(
         HttpClient client, string email, string password)
     {

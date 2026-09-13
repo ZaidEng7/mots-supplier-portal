@@ -1,3 +1,18 @@
+// MSP-69: proves locale actually reaches a rendered email end to end against the real database - not just that
+// EmailTemplates branches correctly in isolation, which EmailTemplatesTests covers, but that EmailJobs reads
+// the real AppUser.Language column and the registration endpoint sets it from a real Accept-Language header on a
+// real HTTP request.
+//
+// The template source is resolved from the container rather than stubbed (T-076): with no override row it
+// returns the shipped copy, which is what every assertion in these suites is about, and it means the suites also
+// cover the path a send actually takes rather than a shape that bypasses it.
+//
+// An Arabic-locale user receives Arabic content and an English-locale user receives English. Registering with an
+// English Accept-Language header sets the user's locale to English, and registering with no header at all
+// defaults it to Arabic.
+
+namespace MotsSupplierPortal.Tests.Integration.Email;
+
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -7,17 +22,8 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Email;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-69: proves locale actually reaches a rendered email end-to-end against the real database -
-/// not just that EmailTemplates branches correctly in isolation (EmailTemplatesTests), but that
-/// EmailJobs reads the real AppUser.Language column and the registration endpoint sets it from a
-/// real Accept-Language header on a real HTTP request.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class EmailLocalizationTests(PostgresApiFixture fixture)
 {
@@ -55,9 +61,6 @@ public sealed class EmailLocalizationTests(PostgresApiFixture fixture)
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             scope.ServiceProvider.GetRequiredService<ISecurityTokenService>(),
             scope.ServiceProvider.GetRequiredService<IConfiguration>(),
-            // T-076: resolved from the container, not stubbed. With no override row it returns the shipped
-            // copy, which is what every assertion in these suites is about - and it means the suites now also
-            // cover the path a send actually takes rather than a shape that bypasses it.
             scope.ServiceProvider.GetRequiredService<MotsSupplierPortal.Application.Admin.IEmailCopySource>());
 
         await jobs.SendApplicationApprovedEmailAsync(userId, CancellationToken.None);

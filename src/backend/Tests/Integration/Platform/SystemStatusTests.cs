@@ -1,20 +1,29 @@
+// SCR-045's chrome banner reads this endpoint, and what it may say depends on who is asking.
+//
+// Both directions of every claim: that the flag can be true, and that it can be false for a caller not entitled
+// to it. A status endpoint that always answered "fine" would pass a one-sided test and render a banner that
+// never appears.
+//
+// An administrator is told that no real ERP transport is configured. system_admin holds integration.retry, so
+// this is a fact they can act on, and LoggingOutboxTransport is the only registered transport (T-089), so the
+// flag being TRUE is the honest answer and proves the banner can fire at all.
+//
+// A supplier is not told about the ministry's deployment, which is the control for the test above and the reason
+// the flag is permission-gated rather than global: a supplier told the ministry has no ERP integration has
+// learned something about the ministry, not about their own bid.
+//
+// An officer with no failed sync in their organization sees no degradation, and the endpoint refuses an
+// anonymous caller.
+
+namespace MotsSupplierPortal.Tests.Integration.Platform;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Platform;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-045's chrome banner reads this, and what it may say depends on who is asking.
-///
-/// <para>Both directions of every claim: that the flag can be true, and that it can be false for a
-/// caller not entitled to it. A status endpoint that always answered "fine" would pass a one-sided
-/// test and render a banner that never appears.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SystemStatusTests(PostgresApiFixture fixture)
 {
@@ -28,9 +37,6 @@ public sealed class SystemStatusTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_administrator_is_told_that_no_real_ERP_transport_is_configured()
     {
-        // system_admin holds integration.retry, so this is a fact they can act on. LoggingOutboxTransport
-        // is the only registered transport (T-089), so the flag being TRUE is the honest answer here
-        // and proves the banner can fire at all.
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
         (await StatusAsync(admin)).GetProperty("erpNotConfigured").GetBoolean().Should().BeTrue();
@@ -39,9 +45,6 @@ public sealed class SystemStatusTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_supplier_is_not_told_about_the_ministry_s_deployment()
     {
-        // The control for the test above, and the reason the flag is permission-gated rather than
-        // global: a supplier told the ministry has no ERP integration has learned something about the
-        // ministry, not about their own bid.
         var (supplier, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(
             fixture, $"Status {Guid.NewGuid():N}"[..30]);
 

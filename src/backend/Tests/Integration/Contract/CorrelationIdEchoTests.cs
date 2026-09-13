@@ -1,3 +1,32 @@
+// The caller's own correlation identifier is adopted and echoed back.
+//
+// Audit rows and error responses already carried one derived from the trace. The caller's header was never read, so
+// a client that sent one got a different identifier back and could not join its log line to the server's.
+//
+//
+// THE POINT OF THE FEATURE IS THE ROW, NOT THE HEADER
+//
+// The echo alone would be cosmetic. What a caller needs is for the row the server WROTE to carry the identifier the
+// caller was using.
+//
+// And the error document already carried one, so the two must now agree, or a caller reading the body and an
+// operator reading the header would be chasing different requests.
+//
+//
+// WHAT IS NOT ADOPTED
+//
+// An identifier the caller cannot parse back is worse than a generated one, because it looks like correlation and
+// joins nothing. The response echoes the identifier actually in use, so a caller who sent rubbish can see from the
+// reply that theirs was not adopted.
+//
+// All zeroes is what a client sends when its own identifier was never set, and adopting it would join every such
+// request to every other one.
+//
+// The control is the behaviour that must not regress: the trace-derived identifier was already there, and the echo
+// must not have made it conditional on a request header.
+
+namespace MotsSupplierPortal.Tests.Integration.Contract;
+
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
@@ -5,16 +34,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Api.Observability;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Contract;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// EPIC-25's Correlation-Id echo. Audit rows and problem responses already carried a correlation id
-/// derived from the trace; the caller's own header was never read, so a client that sent one got a
-/// different id back and could not join its log line to the server's.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class CorrelationIdEchoTests(PostgresApiFixture fixture)
 {
@@ -43,8 +64,6 @@ public sealed class CorrelationIdEchoTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Every_response_carries_one_even_when_the_caller_sent_none()
     {
-        // The control for the test above, and the behaviour that must not regress: the trace-derived id
-        // was already there, and the echo must not have made it conditional on a request header.
         var client = fixture.CreateRawClient();
 
         var response = await GetWithAsync(client, null);
@@ -59,15 +78,10 @@ public sealed class CorrelationIdEchoTests(PostgresApiFixture fixture)
     {
         var client = fixture.CreateRawClient();
 
-        // An id a caller cannot parse back is worse than a generated one: it looks like correlation and
-        // joins nothing. The response echoes the id actually in use, so a caller who sent rubbish can see
-        // from the reply that theirs was not adopted.
         var malformed = await GetWithAsync(client, "not-a-guid");
         malformed.Headers.GetValues(Header).Single().Should().NotBe("not-a-guid");
         Guid.TryParse(malformed.Headers.GetValues(Header).Single(), out _).Should().BeTrue();
 
-        // All zeroes is what a client sends when its own id was never set. Adopting it would join every
-        // such request to every other one.
         var zeroes = Guid.Empty.ToString();
         var empty = await GetWithAsync(client, zeroes);
         empty.Headers.GetValues(Header).Single().Should().NotBe(zeroes);
@@ -76,8 +90,6 @@ public sealed class CorrelationIdEchoTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_audit_row_carries_the_callers_id_not_a_different_one()
     {
-        // The point of the whole feature. The header echo alone would be cosmetic: what a caller needs is
-        // for the row the server WROTE to carry the id the caller was using.
         var seed = await EvaluationSeed.CreateAsync(fixture, $"Corr{Guid.NewGuid():N}"[..12]);
         var supplied = Guid.CreateVersion7();
 
@@ -105,8 +117,6 @@ public sealed class CorrelationIdEchoTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_problem_response_carries_the_same_id_in_the_body_and_the_header()
     {
-        // §7's problem document already carried a correlationId; the two must now agree, or a caller
-        // reading the body and an operator reading the header would be chasing different requests.
         var client = fixture.CreateRawClient();
         var supplied = Guid.CreateVersion7().ToString();
 

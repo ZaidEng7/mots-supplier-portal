@@ -1,3 +1,29 @@
+// B-1 and BRULE-011, recorded rather than pretended.
+//
+// BRULE-011 says a supplier's ExternalId is assigned "only after onboarding approval and successful ERP upsert
+// ACK". It passes today because NOTHING EXERCISES IT: Supplier.MarkSynced is never called, because the only
+// IOutboxTransport is a stand-in that writes a log line, so no ACK ever arrives. A rule that cannot be violated
+// is not the same as one that is satisfied, and the batch-9 sweep called this out as the sharpest kind of false
+// green.
+//
+// These tests assert the ABSENCE deliberately. They are not a claim that ERP sync works - they are the
+// opposite, written so that the day someone registers a real transport they go red and say what has to be built
+// alongside it: the ACK path that calls MarkSynced, and BRULE-011's own guard that no ExternalId is assigned
+// before approval.
+//
+// The registered transport is the logging stand-in. The ExternalId test creates an APPROVED supplier of its own
+// making, so the claim holds when the class runs alone - the non-vacuity guard fired exactly that way on the
+// first run, which is what it is for. The consequence is measured in storage rather than argued from the
+// registration: every supplier in the database, approved ones included, has a null ExternalId and a SyncStatus
+// that never reached Synced. And there ARE approved suppliers to be wrong about, or those two counts would pass
+// on an empty set and prove nothing.
+//
+// The admin dashboard says the ERP transport is not configured. Without that, the outbox tile is an artifact
+// asserting something untrue: messages drain, which reads as "the integration is working", while nothing has
+// left the building.
+
+namespace MotsSupplierPortal.Tests.Integration.Awards;
+
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -7,25 +33,8 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Awards;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// B-1/BRULE-011, recorded rather than pretended.
-///
-/// <para>BRULE-011 says a supplier's <c>ExternalId</c> is assigned "only after onboarding approval and
-/// successful ERP upsert ACK". It passes today because <b>nothing exercises it</b>:
-/// <c>Supplier.MarkSynced</c> is never called, because the only <c>IOutboxTransport</c> is a stand-in that
-/// writes a log line, so no ACK ever arrives. A rule that cannot be violated is not the same as one that
-/// is satisfied, and the batch-9 sweep called this out as the sharpest kind of false green.</para>
-///
-/// <para><b>These tests assert the ABSENCE deliberately.</b> They are not a claim that ERP sync works -
-/// they are the opposite, written so that the day someone registers a real transport they go red and say
-/// what has to be built alongside it: the ACK path that calls MarkSynced, and BRULE-011's own guard that
-/// no ExternalId is assigned before approval.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ErpSyncVacuityTests(PostgresApiFixture fixture)
 {
@@ -44,8 +53,6 @@ public sealed class ErpSyncVacuityTests(PostgresApiFixture fixture)
     [Fact]
     public async Task No_supplier_has_ever_been_assigned_an_ExternalId()
     {
-        // An APPROVED supplier of this test's own making, so the claim holds when the class runs alone -
-        // the non-vacuity guard below fired exactly that way on the first run, which is what it is for.
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Erp Vacuity {Guid.NewGuid():N}"[..24]);
         await using (var approve = fixture.Services.CreateAsyncScope())
         {
@@ -57,9 +64,6 @@ public sealed class ErpSyncVacuityTests(PostgresApiFixture fixture)
                     .SetProperty(s => s.LifecycleState, SupplierLifecycleState.Active));
         }
 
-        // The consequence, measured in storage rather than argued from the registration: every supplier in
-        // the database - including approved ones - has a null ExternalId and a SyncStatus that never
-        // reached Synced.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -68,8 +72,6 @@ public sealed class ErpSyncVacuityTests(PostgresApiFixture fixture)
         (await db.Suppliers.AsNoTracking().CountAsync(s => s.SyncStatus == SupplierSyncStatus.Synced))
             .Should().Be(0);
 
-        // And there ARE approved suppliers to be wrong about - otherwise the two counts above would pass
-        // on an empty set and prove nothing.
         (await db.Suppliers.AsNoTracking().CountAsync(s => s.OnboardingState == SupplierOnboardingState.Approved))
             .Should().BeGreaterThan(0, "the assertions above are about approved suppliers, so some must exist");
     }
@@ -77,8 +79,6 @@ public sealed class ErpSyncVacuityTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_admin_dashboard_says_the_ERP_transport_is_not_configured()
     {
-        // Without this the outbox tile is an artifact asserting something untrue: messages drain, which
-        // reads as "the integration is working", while nothing has left the building.
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, MotsSupplierPortal.Domain.Identity.Roles.SystemAdmin);
 
         var overview = await admin.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/admin/overview");

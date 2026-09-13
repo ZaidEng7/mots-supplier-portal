@@ -1,3 +1,36 @@
+// MSP-73: Results.Conflict(new { error = "duplicate_email" }) against Results.Created let any caller learn
+// whether an email is registered, unconditionally - confirmed live during PR #38, when RegistrationNumber
+// uniqueness was added and mapped identically, deliberately matching the existing shape rather than inventing
+// a second, differently-shaped leak. This fixes both at once: Success, DuplicateEmail and
+// DuplicateRegistrationNumber all return the identical response now, in RegistrationEndpoints.cs, and the
+// ALREADY-registered account is notified directly instead through
+// EmailJobs.SendAlreadyRegisteredNoticeEmailAsync - so a legitimate user who forgot they had registered is
+// helped, and nothing in the HTTP response tells a prober anything.
+//
+// The first two tests compare a genuine registration against each duplicate vector - the taken email, and a
+// different email with the same registration number - and the body is a 202 SUCCESS body, which §7's error
+// model does not touch, so the field is still `message`.
+//
+// The response body being identical does not close the enumeration vector on its own, which was measured
+// directly against this endpoint before the timing test existed: a genuine registration averaged about 62ms,
+// covering the transaction, Identity user creation and the audit log, while a duplicate short-circuit averaged
+// about 5ms - a twelvefold gap a prober could use regardless of what the body says. RegisterSupplierHandler
+// pads duplicate responses up toward a floor close to the genuine path's typical cost, MinResponseTime at
+// 60ms, to close that. The test averages over several trials with FRESH targets each time: reusing one target
+// repeatedly would trip NFR-SEC-009's per-target rate limit of 5 a minute partway through and read as near-0ms
+// responses, which are a different and already-distinguishable signal - 429 rather than 200 - and not evidence
+// the padding failed. The assertion sits at the 60ms floor minus a generous buffer for scheduler and CI
+// jitter: loose enough not to be flaky, tight enough that the old ~5ms duplicate path would fail it by an
+// order of magnitude rather than a hair.
+//
+// The notification tests assert the positive case against real Hangfire and the real Postgres job store - the
+// same technique as EmailJobBehaviourTests' store-level check, used here to prove a job for the CORRECT
+// existing user's id was actually enqueued rather than merely that no PII leaked into it. For a duplicate
+// registration number, the primary user of the ORIGINAL supplier must be notified rather than anyone tied to
+// the new attempt, of whom there is nobody, because no account was created for it.
+
+namespace MotsSupplierPortal.Tests.Integration.Auth;
+
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -5,21 +38,8 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Auth;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-73: GET Results.Conflict(new { error = "duplicate_email" }) against Results.Created let any
-/// caller learn whether an email is registered, unconditionally - confirmed live during PR #38 when
-/// RegistrationNumber uniqueness was added and mapped identically, deliberately matching the
-/// existing shape rather than inventing a second, differently-shaped leak. This fixes both at once:
-/// Success, DuplicateEmail, and DuplicateRegistrationNumber all return the identical response now
-/// (RegistrationEndpoints.cs), and the ALREADY-registered account is notified directly instead
-/// (EmailJobs.SendAlreadyRegisteredNoticeEmailAsync) - a legitimate user who forgot they'd
-/// registered is helped, and nothing in the HTTP response tells a prober anything.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
 {
@@ -54,7 +74,6 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         PropertyNames(firstBody).Should().BeEquivalentTo(PropertyNames(secondBody),
             "the same set of JSON fields must be present either way - an extra field on one side (e.g. an error code) would itself be the leak");
 
-        // A 202 SUCCESS body, which §7's error model does not touch - the field is still `message`.
         firstBody.GetProperty("message").GetString().Should().Be(secondBody.GetProperty("message").GetString());
         firstBody.GetProperty("supplierCode").GetString().Should().NotBeNull("the genuine registration must have produced a real code");
         secondBody.GetProperty("supplierCode").ValueKind.Should().Be(JsonValueKind.Null,
@@ -69,7 +88,6 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
 
         var first = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com", registrationNumber));
-        // Different email, same registration number - the OTHER duplicate vector, not email.
         var second = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com", registrationNumber));
 
@@ -83,17 +101,6 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         secondBody.GetProperty("supplierCode").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
-    /// <summary>
-    /// The response body being identical doesn't close the enumeration vector on its own - measured
-    /// directly against this endpoint before this test existed: a genuine registration averaged
-    /// ~62ms (transaction, Identity user creation, audit log), a duplicate short-circuit averaged
-    /// ~5ms, a 12x gap a prober could use regardless of what the body says. RegisterSupplierHandler
-    /// pads duplicate responses up toward a floor close to the genuine path's typical cost
-    /// (MinResponseTime, 60ms) to close that. Averaged over several trials with FRESH targets each
-    /// time - reusing one target repeatedly would trip NFR-SEC-009's per-target rate limit (5/min)
-    /// partway through and read as near-0ms responses that are a different, already-distinguishable
-    /// signal (429, not 200), not evidence the padding failed.
-    /// </summary>
     [Fact]
     public async Task Duplicate_and_genuine_registration_responses_take_comparable_time()
     {
@@ -112,9 +119,6 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
             duplicateTimes.Add(stopwatch.ElapsedMilliseconds);
         }
 
-        // 60ms floor minus generous buffer for scheduler/CI jitter - loose enough to not be flaky,
-        // tight enough that the old ~5ms duplicate-path behavior would fail it by an order of
-        // magnitude, not a hair.
         duplicateTimes.Average().Should().BeGreaterThan(35,
             $"the padding floor should keep duplicate responses close to genuine ones, not answer in ~5ms; observed: {string.Join(",", duplicateTimes)}");
     }
@@ -133,9 +137,6 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
             var response = await client.PostAsJsonAsync("/api/v1/auth/register", RegistrationPayload(existingEmail));
             response.EnsureSuccessStatusCode();
 
-            // Real Hangfire, real Postgres job store - same technique as EmailJobBehaviourTests'
-            // store-level check, here asserting the POSITIVE case: a job for the CORRECT existing
-            // user's id was actually enqueued, not merely that no PII leaked into it.
             var jobArgsContainingUserId = await db.Database
                 .SqlQuery<string>($@"SELECT arguments::text AS ""Value"" FROM hangfire.job
                                      WHERE invocationdata::text LIKE '%SendAlreadyRegisteredNoticeEmailAsync%'
@@ -161,9 +162,6 @@ public sealed class RegistrationEnumerationTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var originalUserId = await db.Users.Where(u => u.Email == originalEmail).Select(u => u.Id).SingleAsync();
 
-        // A different email attempting to register the SAME registration number - the primary
-        // user of the ORIGINAL supplier must be notified, not anyone tied to this new attempt
-        // (there is no one - no account was created for it).
         var duplicate = await client.PostAsJsonAsync("/api/v1/auth/register",
             RegistrationPayload($"itest-{Guid.NewGuid():N}@example.com", registrationNumber));
         duplicate.EnsureSuccessStatusCode();

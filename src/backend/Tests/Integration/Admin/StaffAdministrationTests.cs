@@ -1,3 +1,42 @@
+// T-077 with SCR-701 and SCR-702, both P0 and both with no endpoint at all before this: `system_admin`
+// could invite a staff account and then never list, deactivate, re-role or MFA-reset one. An account
+// created in error could not be removed, which is the half of this that is a security gap.
+//
+// The invite helper names a buying body where the role requires one. A procurement officer or manager is
+// refused without an organisation, because BRULE-029 scopes every one of their queries to it and an
+// invitation without one produces an account that signs in and meets an empty product. These tests are
+// about role administration rather than about that rule, so the helper satisfies it instead of working
+// around it - passing a role that needs no organisation would have changed what the tests are about.
+//
+// The list carries the facts an administrator needs, and a supplier's user must NOT be in it: a supplier
+// administers their own team under SCR-160, and mixing the two would put a supplier's staff in the
+// platform list. It is paged through rather than read off the first page - the list is keyset-ordered by
+// email and the suite creates many staff accounts, so "it is on page one" is an order dependence, and it
+// failed exactly that way in a full run. Following the cursor also exercises the paging. The supplier's
+// absence is asserted by predicate over the whole page rather than by counting, because the suite's other
+// tests contribute rows too.
+//
+// Deactivation is set up with a live session, so "kills its sessions" is measurable rather than vacuous,
+// and its control is that this is deactivation and not deletion: the row is still there and can come back.
+// The account is the actor on audit rows, and an audit trail pointing at a row that no longer exists is
+// not an audit trail - D-28's reasoning, more strongly here.
+//
+// A role change replaces the role rather than accumulating one: two roles would give an account
+// permissions the list cannot show. A role a staff account may not hold is refused, because a supplier
+// role on an account with no SupplierId is a broken account - InviteStaffHandler's own reasoning, from the
+// other side.
+//
+// Acting on your own account is refused for deactivation, for a demotion out of system_admin and for an
+// MFA reset, because each one would leave the actor outside the surface that could undo it. The control
+// proves those three are about SELF rather than about system_admin: another administrator can be
+// deactivated, because one remains.
+//
+// Permission is checked with its own control. A supplier's user answers 404 rather than 403 per §9.2's
+// row-scoping answer: there is nothing in the difference between "not a staff account" and "no such user"
+// that an administrator needs and an attacker does not.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,31 +47,13 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-077/SCR-701/SCR-702, both P0 and both with no endpoint at all before this: `system_admin` could
-/// invite a staff account and then never list, deactivate, re-role or MFA-reset one. An account created
-/// in error could not be removed, which is the half of this that is a security gap.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
 {
     private Task<HttpClient> AdminAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-    /// <summary>Invites a staff account through the real endpoint and returns its id.</summary>
-    /// <summary>
-    /// Invites a staffer, naming a buying body where the role requires one.
-    ///
-    /// <para>A procurement officer or manager is refused without an organisation: BRULE-029 scopes
-    /// every one of their queries to it, so an invitation without one produces an account that signs in
-    /// and meets an empty product. These tests are about role administration rather than about that
-    /// rule, so the helper satisfies it instead of working around it - passing a role that needs no
-    /// organisation would have changed what the tests are about.</para>
-    /// </summary>
     private static async Task<Guid> InviteAsync(HttpClient admin, string role, Guid? organizationId = null)
     {
         var response = await admin.PostAsJsonAsync("/api/v1/staff/invite", new
@@ -53,13 +74,8 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
 
-        // A supplier's user exists too, and must NOT be in this list: a supplier administers their own
-        // team (SCR-160), and mixing the two would put a supplier's staff in the platform list.
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff List Outsider Co");
 
-        // Paged through rather than read off the first page. The list is keyset-ordered by email and the
-        // suite creates many staff accounts, so "it is on page one" is an order dependence - and it
-        // failed exactly that way in a full run. Following the cursor also exercises the paging.
         var rows = new List<JsonElement>();
         string? cursor = null;
         for (var page = 0; page < 20; page++)
@@ -80,8 +96,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         invited.GetProperty("mfaEnabled").GetBoolean().Should().BeFalse("a freshly invited account has not enrolled");
         invited.GetProperty("activeSessionCount").GetInt32().Should().Be(0, "it has never signed in");
 
-        // The supplier's user is absent. Asserted by predicate over the whole page rather than by
-        // counting, because the suite's other tests contribute rows too.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var supplierUserIds = await db.Users.Where(u => u.SupplierId != null).Select(u => u.Id).ToListAsync();
@@ -95,7 +109,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         var admin = await AdminAsync();
         var invitedId = await InviteAsync(admin, Roles.Evaluator);
 
-        // A live session, so "kills its sessions" is measurable rather than vacuous.
         await using (var setup = fixture.Services.CreateAsyncScope())
         {
             var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -125,9 +138,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
                 a.AggregateId == invitedId && a.Action == "staff_deactivated")).Should().BeTrue();
         }
 
-        // The control: it is deactivation, not deletion - the row is still there and can come back. The
-        // account is the actor on audit rows, and an audit trail pointing at a row that no longer exists
-        // is not an audit trail (D-28's reasoning, more strongly here).
         (await admin.PostAsync($"/api/v1/staff/{invitedId}/reactivate", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -155,7 +165,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         var user = await userManager.FindByIdAsync(invitedId.ToString());
         var roles = await userManager.GetRolesAsync(user!);
 
-        // ONE role, not two. Accumulating roles would give an account permissions the list cannot show.
         roles.Should().BeEquivalentTo([Roles.ProcurementManager]);
 
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -164,8 +173,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
             && a.FromState == Roles.ProcurementOfficer && a.ToState == Roles.ProcurementManager))
             .Should().BeTrue("who changed whose role, and to what");
 
-        // A role a staff account may not hold is refused - a supplier role on an account with no
-        // SupplierId is a broken account (InviteStaffHandler's own reasoning, from the other side).
         (await admin.PutAsJsonAsync($"/api/v1/staff/{invitedId}/role", new { role = Roles.SupplierAdmin }))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -212,8 +219,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_platform_cannot_be_locked_out_of_its_own_administration()
     {
-        // Acting on your own account: refused for deactivation, for a demotion out of system_admin, and
-        // for an MFA reset. Each one would leave the actor outside the surface that could undo it.
         var (admin, ownId) = await StaffTestClient.CreateWithMfaAndIdAsync(fixture, Roles.SystemAdmin);
 
         (await admin.PostAsync($"/api/v1/staff/{ownId}/deactivate", null))
@@ -223,8 +228,6 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         (await admin.PostAsync($"/api/v1/staff/{ownId}/reset-mfa", null))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
 
-        // The control, and the half that proves those three are about SELF rather than about
-        // system_admin: another administrator can be deactivated, because one remains.
         var otherAdminId = await InviteAsync(admin, Roles.SystemAdmin);
         (await admin.PostAsync($"/api/v1/staff/{otherAdminId}/deactivate", null))
             .StatusCode.Should().Be(HttpStatusCode.OK, "another administrator is removable while one remains");
@@ -250,15 +253,12 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff Admin Outsider");
         (await supplier.GetAsync("/api/v1/staff")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // The control.
         (await admin.GetAsync("/api/v1/staff")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
     public async Task A_suppliers_user_is_not_a_staff_account_and_answers_404_rather_than_403()
     {
-        // §9.2: the row-scoping answer is a 404. There is nothing in the difference between "not a staff
-        // account" and "no such user" that an administrator needs and an attacker does not.
         var admin = await AdminAsync();
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Not Staff Co");
 

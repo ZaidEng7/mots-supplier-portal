@@ -1,3 +1,38 @@
+// T-051 over HTTP: the clarification loop §4.1 defines and nothing could reach.
+//
+// The intake test drives an RFQ to UnderEvaluation, which is what moves submitted proposals into UnderReview.
+// That is the gateway, and it is asserted in STORAGE because this is a state change nothing renders yet.
+//
+// The loop itself runs over HTTP and is audited, with no test-time grant. D-43: proposal.revise was in the
+// catalogue under system_admin alone, so this suite used to grant it to supplier_admin itself to reach the
+// endpoint its own description names. The catalogue was corrected in batch 11, and dropping the grant turns
+// this test into the control for that - it passes only if the SHIPPED catalogue gives supplier_admin the
+// permission. The audit is asserted against the stored rows rather than the responses, because §4.1 names both
+// events.
+//
+// SCR-155: the supplier has to be able to READ the question. §4.1's "Reason; specific questions" was stored
+// from the start and no projection carried it, so the screen could show the state ClarificationRequested and
+// not a word of what was asked - a state nobody can respond to. The control comes FIRST, before anything is
+// asked: the fields are absent rather than empty strings, so a screen can tell "no clarification" from "a
+// clarification with a blank question". The round counter advances on the response, which is the only thing
+// that distinguishes a third round of questions from a first.
+//
+// A clarification without a reason is refused and with one is not - the guard checked both ways, so it can
+// refuse and it can be satisfied.
+//
+// Another organization's officer cannot request clarification: §9.2, and the scope predicate is IN the query
+// rather than checked afterwards. The owner control is the RFQ's own officer succeeding on the same URL, so
+// the 404 is the scope working rather than a route that refuses everyone.
+//
+// A supplier cannot revise a proposal that was never asked to. T-065 closed this as §3's 409, carrying the
+// current state and the states a caller may actually attempt next - which is the whole point of the clause,
+// since a caller that cannot read the allowed set has no way to learn it. The allowed set is asserted in both
+// directions for the state Phase 1 made reachable: what UnderReview CAN reach and what it cannot, because
+// listing everything would be as useless as listing nothing. Its control is that once a clarification IS
+// requested, the same call succeeds.
+
+namespace MotsSupplierPortal.Tests.Integration.Proposals;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,18 +42,11 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Proposals;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-051 over HTTP: the clarification loop §4.1 defines and nothing could reach.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
 {
-    /// <summary>Drives an RFQ to UnderEvaluation, which is what moves proposals into UnderReview.</summary>
     private async Task<(HttpClient Officer, HttpClient Supplier, string ProposalCode)> UnderReviewProposalAsync(string tag)
     {
         var seed = await EvaluationSeed.CreateAsync(fixture, tag);
@@ -28,7 +56,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Evaluation_intake_moves_submitted_proposals_to_UnderReview()
     {
-        // The gateway. Asserted in STORAGE, because this is a state change nothing renders yet.
         var (_, _, proposalCode) = await UnderReviewProposalAsync($"Intake{Guid.NewGuid():N}"[..12]);
 
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -43,11 +70,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_clarification_loop_runs_over_HTTP_and_is_audited()
     {
-        // No test-time grant. D-43: `proposal.revise` was in the catalogue under `system_admin`
-        // alone, so this suite had to grant it to supplier_admin itself to reach the endpoint its own
-        // comment names. The catalogue was corrected in batch 11, and dropping the grant here turns
-        // this test into the control for that: it passes only if the SHIPPED catalogue gives
-        // supplier_admin the permission.
         var (officer, supplier, proposalCode) = await UnderReviewProposalAsync($"Loop{Guid.NewGuid():N}"[..12]);
 
         var request = await officer.PostAsJsonAsync(
@@ -64,7 +86,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Asserted against the stored rows, not the responses: §4.1 names both audit events.
         var actions = await db.AuditLogs.AsNoTracking()
             .Where(a => a.AggregateType == "Proposal" && a.ReferenceCode == proposalCode)
             .Select(a => a.Action).ToListAsync();
@@ -76,18 +97,11 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         proposal.ClarificationReason.Should().Be("Confirm the delivery window.");
     }
 
-    /// <summary>
-    /// SCR-155: the supplier has to be able to READ the question. §4.1's "Reason; specific questions"
-    /// was stored from the start and no projection carried it, so the screen could show the state
-    /// ClarificationRequested and not a word of what was asked - a state nobody can respond to.
-    /// </summary>
     [Fact]
     public async Task The_clarification_question_reaches_the_supplier_who_has_to_answer_it()
     {
         var seed = await EvaluationSeed.CreateAsync(fixture, $"Read{Guid.NewGuid():N}"[..12]);
 
-        // Control FIRST, before anything is asked: the fields are absent rather than empty strings,
-        // so a screen can tell "no clarification" from "a clarification with a blank question".
         var before = await seed.Supplier.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seed.RfqCode}/proposals");
         before.GetProperty("clarificationReason").ValueKind.Should().Be(JsonValueKind.Null);
         before.GetProperty("clarificationRequestedAt").ValueKind.Should().Be(JsonValueKind.Null);
@@ -100,8 +114,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         after.GetProperty("clarificationReason").GetString().Should().Be("State the warranty period in months.");
         after.GetProperty("clarificationRequestedAt").ValueKind.Should().NotBe(JsonValueKind.Null);
 
-        // And the counter advances on the response, which is the only thing that distinguishes a
-        // third round of questions from a first.
         (await seed.Supplier.PostAsync($"/api/v1/proposals/{seed.ProposalCode}/revise", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
         var revised = await seed.Supplier.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{seed.RfqCode}/proposals");
@@ -112,7 +124,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_clarification_without_a_reason_is_refused_and_with_one_is_not()
     {
-        // The guard checked both ways: it can refuse, and it can be satisfied.
         var (officer, _, proposalCode) = await UnderReviewProposalAsync($"Reason{Guid.NewGuid():N}"[..12]);
 
         var without = await officer.PostAsJsonAsync(
@@ -127,7 +138,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Another_organizations_officer_cannot_request_clarification()
     {
-        // §9.2, and the scope predicate is IN the query rather than checked afterwards.
         var (officer, _, proposalCode) = await UnderReviewProposalAsync($"Scope{Guid.NewGuid():N}"[..12]);
 
         var otherOrg = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -137,8 +147,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
             $"/api/v1/proposals/{proposalCode}/request-clarification", new { reason = "Not mine." });
         refused.StatusCode.Should().Be(HttpStatusCode.NotFound, "§9.2: 404, never 403");
 
-        // Owner control: the RFQ's own officer succeeds on the same URL, so the 404 is the scope
-        // working rather than a route that refuses everyone.
         (await officer.PostAsJsonAsync(
             $"/api/v1/proposals/{proposalCode}/request-clarification", new { reason = "Mine." }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
@@ -150,9 +158,6 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         var (officer, supplier, proposalCode) = await UnderReviewProposalAsync($"NoAsk{Guid.NewGuid():N}"[..12]);
 
         var early = await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/revise", null);
-        // T-065 closed: §3's 409, with the current state and the states a caller may actually
-        // attempt next - which is the whole point of the clause, since a caller that cannot read the
-        // allowed set has no way to learn it.
         early.StatusCode.Should().Be(HttpStatusCode.Conflict,
             "§4.1 only allows Revised from ClarificationRequested");
 
@@ -164,14 +169,11 @@ public sealed class ProposalClarificationLoopTests(PostgresApiFixture fixture)
         var allowed = problem.GetProperty("allowedNext").EnumerateArray()
             .Select(x => x.GetString()).ToList();
 
-        // Correct for the state Phase 1 made reachable, in both directions: what UnderReview CAN
-        // reach, and what it cannot. Listing everything would be as useless as listing nothing.
         allowed.Should().Contain(nameof(ProposalState.ClarificationRequested))
             .And.Contain(nameof(ProposalState.Shortlisted));
         allowed.Should().NotContain(nameof(ProposalState.Draft), "a proposal never goes back to Draft");
         allowed.Should().NotContain(nameof(ProposalState.Revised), "Revised follows ClarificationRequested, not UnderReview");
 
-        // Control: once a clarification IS requested, the same call succeeds.
         await officer.PostAsJsonAsync(
             $"/api/v1/proposals/{proposalCode}/request-clarification", new { reason = "Please clarify." });
         (await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/revise", null))

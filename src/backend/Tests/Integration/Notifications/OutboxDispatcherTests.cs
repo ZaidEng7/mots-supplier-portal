@@ -1,3 +1,36 @@
+// Task #16: proves the dispatcher-shaped hole is actually closed against the real database - not a mocked
+// IOutboxTransport, but the real LoggingOutboxTransport registered in Program.cs, run against rows written the
+// same way ReviewApplicationHandlers and ComplianceReTrigger actually write them.
+//
+// The dispatch helper runs until THIS test's own row has been processed, bounded. A single run used to be
+// enough because the outbox was empty except for what the test seeded; EPIC-15 put notifications on the same
+// road, so the shared database now holds pending rows written by every other test in the suite - and the
+// dispatcher deliberately takes only BatchSize per run, ordered oldest first. Waiting for this row rather than
+// assuming one pass reaches it is the fix; raising the batch size to make the assumption true again would be
+// testing a number instead of the behaviour.
+//
+// Already-Sent rows are left alone on a later run, which is the exact scenario a dispatcher without a
+// WHERE-Pending clause would get wrong: a second run must not touch what a previous run already finished.
+//
+// The denominator test uses a tag unique to this test run, isolated from whatever else the shared fixture
+// wrote - the same isolation technique used throughout this arc - and runs enough passes to clear this test's
+// own rows plus whatever the rest of the suite left in the shared outbox ahead of them. The assertion is still
+// about THIS test's rows.
+//
+// The backlog gauge is read directly. OutboxBacklogGauge is constructed eagerly at host startup against the
+// shared fixture's own AppMetrics Meter, so the test reads its ObservableGauge through a real BCL MeterListener
+// - the same technique proven in AppMetricsTests - rather than trusting that a singleton with no consumers
+// actually got built. It deliberately dispatches the seeded rows and re-measures rather than only asserting
+// "seed N, expect +N": a gauge counting ALL rows, Pending and Sent alike, would ALSO pass a seed-only
+// assertion, since adding rows increases either count identically, so that version would not prove the gauge
+// is scoped to the backlog. That gap was found by testing the assertion against a deliberately broken gauge -
+// Count() with no Pending filter - which passed, and is why the second measurement exists. It drains first,
+// because EPIC-15 put notifications on the outbox and the shared database now carries a backlog from every
+// other test, while the second measurement asserts the gauge returns to its baseline - which is only
+// meaningful if a dispatch run can actually reach everything that was pending when the baseline was taken.
+
+namespace MotsSupplierPortal.Tests.Integration.Notifications;
+
 using System.Diagnostics.Metrics;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -6,16 +39,8 @@ using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Infrastructure.Observability;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
-
-namespace MotsSupplierPortal.Tests.Integration.Notifications;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #16: proves the dispatcher-shaped hole is actually closed against the real database - not
-/// a mocked IOutboxTransport, the real LoggingOutboxTransport registered in Program.cs, run against
-/// rows written the same way ReviewApplicationHandlers/ComplianceReTrigger actually write them.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
 {
@@ -27,16 +52,6 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         CreatedAt = DateTimeOffset.UtcNow,
     };
 
-    /// <summary>
-    /// Dispatches until this test's own row has been processed, bounded.
-    ///
-    /// <para>A single run used to be enough because the outbox was empty except for what the test
-    /// seeded. EPIC-15 put notifications on the same road, so the shared database now holds pending
-    /// rows written by every other test in the suite - and the dispatcher deliberately takes only
-    /// BatchSize per run, ordered oldest-first. Waiting for THIS row rather than assuming one pass
-    /// reaches it is the fix; raising the batch size to make the assumption true again would be
-    /// testing a number instead of the behaviour.</para>
-    /// </summary>
     private static async Task DispatchUntilProcessedAsync(OutboxDispatcher dispatcher, AppDbContext db, Guid messageId)
     {
         for (var attempt = 0; attempt < 50; attempt++)
@@ -73,8 +88,6 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Already_Sent_rows_are_left_alone_on_a_later_run()
     {
-        // The exact scenario a dispatcher without a WHERE-Pending clause would get wrong: a second
-        // run must not touch what a previous run already finished.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -102,8 +115,6 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // A tag unique to this test run, isolated from whatever else the shared fixture wrote -
-        // the same isolation technique used throughout this arc (synthetic, per-test-run values).
         var tag = $"denominator-probe-{Guid.NewGuid():N}";
         const int seeded = 12;
         for (var i = 0; i < seeded; i++)
@@ -114,8 +125,6 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
 
-        // Enough runs to clear this test's own rows plus whatever the rest of the suite left in the
-        // shared outbox ahead of them. The assertion below is still about THIS test's rows.
         for (var attempt = 0; attempt < 50; attempt++)
         {
             await dispatcher.DispatchPendingAsync();
@@ -134,18 +143,6 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Backlog_gauge_reflects_real_pending_rows_and_drops_once_they_are_dispatched()
     {
-        // OutboxBacklogGauge is constructed eagerly at host startup (Program.cs) against the
-        // shared fixture's own AppMetrics/Meter - this reads its ObservableGauge directly via a
-        // real MeterListener (BCL), the same technique proven in AppMetricsTests, rather than
-        // trusting that a singleton with no consumers actually got built.
-        //
-        // Deliberately dispatches the seeded rows and re-measures, not just "seed N, assert +N" -
-        // a gauge counting ALL rows (Pending and Sent alike) instead of just Pending would ALSO
-        // pass a seed-only assertion (adding rows increases either count identically), so that
-        // version would not actually prove the gauge is scoped to the backlog. Found exactly this
-        // gap by testing the assertion against a deliberately broken (Count() with no Pending
-        // filter) gauge before finalizing this test - it passed, which is why this second
-        // measurement exists.
         var metrics = fixture.Services.GetRequiredService<AppMetrics>();
         var values = new List<int>();
         using var listener = new MeterListener();
@@ -162,10 +159,6 @@ public sealed class OutboxDispatcherTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Drain first. EPIC-15 put notifications on the outbox, so the shared database now carries a
-        // backlog from every other test - and this test's second measurement asserts the gauge
-        // returns to its baseline, which is only meaningful if a dispatch run can actually reach
-        // everything that was pending when the baseline was taken.
         var drainDispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
         for (var attempt = 0; attempt < 50; attempt++)
         {

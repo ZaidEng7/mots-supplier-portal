@@ -1,3 +1,47 @@
+// EPIC-18, FR-DSH-005 and SCR-600 under D-6. Before this, ministry_viewer held an EMPTY permission set - the
+// persona could log in and reach nothing.
+//
+// The flag helper sets D-6's commercial-visibility flag and puts back whatever it was when the scope ends, and
+// it ASSERTS that the write landed. The row is global, so it is shared state between tests: the first version
+// returned the ExecuteUpdate count to nobody, so a write that matched no row was a silent no-op and the test
+// then asserted against whatever the flag already was - which passed alone and failed in the full run.
+// Asserting the row count turns that into a failure that names itself. T-073 covers the other half: the flag is
+// a seeded row in a database shared by every integration class and the restore used to be a bare statement at
+// the end of the test, so a failing assertion above it left the Ministry's commercial figures disclosed for
+// everything that ran afterwards. Reading the value first means the restore does not need to know what the seed
+// says. The value is read back through the same path the handler uses, so a test never proceeds on a write it
+// cannot see.
+//
+// The overview test uses two organizations, so "cross-organization" is a claim with something to cross. With
+// the flag seeded off the commercial figure is null rather than zero, per D-6 and BRULE-087: "policy withholds
+// this" and "nothing has been awarded" are different facts and a reader must be able to tell them apart. And no
+// row identifies anyone, because BRULE-086 grants aggregates only, so a supplier name or an RFQ code appearing
+// here would be the disclosure the rule exists to prevent. The figure appears when the flag is on - the guard
+// both ways on one flag, which is exactly what D-6 promises: MOT Legal's answer flips a value rather than
+// commissioning an epic.
+//
+// Nobody else can read the governance overview. A cross-organization read that skips row scoping must be
+// reachable only by the persona whose purpose is to skip it, and each of the refused personas holds a permission
+// that reads RFQs or reports within their own organization while none holds governance.read. The control is that
+// the persona the rule names does get it.
+//
+// The headline tile counts AWARDS, not award rows. Found on the demonstration database during a walkthrough: the
+// governance dashboard said 18 while the Awards and spend screen said 17, and the total value beside the 18 was
+// computed from the 17 - one of the rows was a recommendation nobody had approved. The arrangement is the
+// control: a Recommended row is inserted, so a handler that counts rows fails rather than passing because the
+// database happened to hold none, and the count is asserted to be the Awarded count in storage rather than
+// merely unchanged by this one row.
+//
+// The last test asserts the permission set itself rather than assuming it - it was empty, and an empty set is how
+// a persona ends up able to log in and reach nothing. report.read was ADDED in batch 11, deliberately, and this
+// test is the record of that decision rather than a casualty of it: SCR-604's reports screen was reachable by no
+// persona who could legitimately read it, and the grant was checked before it was made, since both report DTOs
+// carry counts and states only, with no bid values and no supplier identities, so A-10 and D-6's aggregate-only
+// rule for the Ministry survives it. The words "nothing else" are the part still worth asserting - this persona
+// must not accumulate rfq.read or anything that reaches an individual tender.
+
+namespace MotsSupplierPortal.Tests.Integration.Governance;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,34 +53,11 @@ using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Governance;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// EPIC-18/FR-DSH-005/SCR-600 under D-6. Before this, <c>ministry_viewer</c> held an EMPTY permission
-/// set - the persona could log in and reach nothing.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
 {
-    /// <summary>
-    /// Flips D-6's policy flag, and ASSERTS it flipped.
-    ///
-    /// <para>The row is global, so this is shared state between tests. The first version returned the
-    /// ExecuteUpdate count to nobody: a write that matched no row was a silent no-op, and the test
-    /// then asserted against whatever the flag already was - which passed alone and failed in the full
-    /// run. Asserting the row count turns that into a failure that names itself.</para>
-    /// </summary>
-    /// <summary>
-    /// Sets the D-6 commercial-visibility flag and puts back whatever it was when the scope ends.
-    ///
-    /// <para>T-073: the flag is a seeded row in a database shared by every integration class, and the
-    /// restore used to be a bare statement at the end of the test - so a failing assertion above it
-    /// left the Ministry's commercial figures disclosed for everything that ran afterwards. Reading
-    /// the value first means the restore does not need to know what the seed says.</para>
-    /// </summary>
     private async Task<IAsyncDisposable> CommercialVisibilityAsync(bool enabled)
     {
         bool original;
@@ -70,8 +91,6 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
             "the GovernanceVisibility flag row is seeded, so a write that matches nothing means the " +
             "seed is missing rather than the assertion being wrong");
 
-        // Read back through the same path the handler uses, so the test never proceeds on a write it
-        // cannot see.
         (await db.Set<SupplierFieldConfig>().AsNoTracking()
             .Where(c => c.Category == FieldConfigCategory.GovernanceVisibility && c.FieldCode == "commercialValues")
             .Select(c => c.IsEnabled).FirstAsync())
@@ -83,7 +102,6 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     {
         await using var visibility = await CommercialVisibilityAsync(false);
 
-        // Two organizations, so "cross-organization" is a claim with something to cross.
         await EvaluationSeed.CreateAsync(fixture, "Gov One");
         await EvaluationSeed.CreateAsync(fixture, "Gov Two");
 
@@ -98,13 +116,9 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
             "the counts span organizations - BRULE-086's whole grant");
         body.GetProperty("rfqsByState").GetArrayLength().Should().BeGreaterThan(0);
 
-        // D-6/BRULE-087, seeded off: null, not zero. "Policy withholds this" and "nothing has been
-        // awarded" are different facts and a reader must be able to tell them apart.
         body.GetProperty("commercialValuesVisible").GetBoolean().Should().BeFalse();
         body.GetProperty("totalAwardedValue").ValueKind.Should().Be(JsonValueKind.Null);
 
-        // And no row identifies anyone. BRULE-086 grants aggregates only, so a supplier name or an RFQ
-        // code appearing here would be the disclosure the rule exists to prevent.
         var raw = body.ToString();
         foreach (var identifying in new[] { "RFQ-", "SUP-", "PRP-", "displayName", "referenceCode" })
         {
@@ -116,8 +130,6 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_commercial_figure_appears_only_when_the_policy_flag_is_on()
     {
-        // The guard both ways, on one flag - which is exactly what D-6 promises: MOT Legal's answer
-        // flips a value rather than commissioning an epic.
         await EvaluationSeed.CreateAsync(fixture, "Gov Flag");
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
 
@@ -140,9 +152,6 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Nobody_else_can_read_the_governance_overview()
     {
-        // A cross-organization read that skips row scoping must be reachable only by the persona whose
-        // purpose is to skip it. Each of these holds a permission that reads RFQs or reports within
-        // their own organization, and none of them holds governance.read.
         foreach (var role in new[] { Roles.ProcurementOfficer, Roles.ProcurementManager, Roles.OnboardingReviewer })
         {
             var staff = await StaffTestClient.CreateAsync(fixture, role);
@@ -154,21 +163,10 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
         (await supplier.GetAsync("/api/v1/ministry/overview")).StatusCode
             .Should().Be(HttpStatusCode.Forbidden);
 
-        // The control: the persona the rule names does get it.
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
         (await ministry.GetAsync("/api/v1/ministry/overview")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    /// <summary>
-    /// The headline tile counts AWARDS, not award rows.
-    ///
-    /// <para>Found on the demonstration database during a walkthrough: the governance dashboard said
-    /// 18 while the Awards &amp; spend screen said 17, and the total value beside the 18 was computed
-    /// from the 17. One of the rows was a recommendation nobody had approved.</para>
-    ///
-    /// <para>The arrangement is the control: a Recommended row is inserted, so a handler that counts
-    /// rows fails this test rather than passing because the database happened to hold none.</para>
-    /// </summary>
     [Fact]
     public async Task A_recommendation_nobody_approved_is_not_counted_as_an_award()
     {
@@ -193,7 +191,6 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
         after.Should().Be(before,
             "a Recommended row is not an award, and the tile sits beside a value computed from Awarded only");
 
-        // And the count is the Awarded count in storage, not merely unchanged by this one row.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -208,15 +205,6 @@ public sealed class GovernanceOverviewTests(PostgresApiFixture fixture)
     [Fact]
     public void The_ministry_viewer_holds_governance_read_and_report_read_and_nothing_else()
     {
-        // The permission set itself, asserted rather than assumed - it was empty, and an empty set is
-        // how a persona ends up able to log in and reach nothing.
-        //
-        // report.read was ADDED in batch 11, deliberately, and this test is the record of that decision
-        // rather than a casualty of it. SCR-604's reports screen was reachable by no persona who could
-        // legitimately read it, and the grant was checked before it was made: both report DTOs carry counts
-        // and states only, no bid values and no supplier identities, so A-10/D-6's aggregate-only rule for
-        // the Ministry survives it. The word "nothing else" is the part still worth asserting - this persona
-        // must not accumulate rfq.read or anything that reaches an individual tender.
         Roles.DefaultPermissions[Roles.MinistryViewer].Should()
             .BeEquivalentTo(new[] { Permissions.GovernanceRead, Permissions.ReportRead });
         Roles.DefaultPermissions[Roles.MinistryViewer].Should().NotContain(Permissions.RfqRead,

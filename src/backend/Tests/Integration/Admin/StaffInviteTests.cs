@@ -1,3 +1,63 @@
+// The in-product staff invitation flow, through the real contract.
+//
+//
+// TWO THINGS THIS DELIBERATELY DOES NOT DO
+//
+// It never waits on the background worker to process an enqueued job, because the test host does not run one and a
+// live development worker happening to be up would make the suite flaky and non-hermetic.
+//
+// And it never asserts a token was in an email body, because the job deliberately mints the token AT SEND TIME. So
+// testing the hashed-not-plaintext property means invoking the job directly, which is the convention the email
+// behaviour suite already follows.
+//
+// That test also seeds its user directly rather than through the real invitation endpoint, and that is empirical: the
+// host registers a real background server unconditionally, so it actually runs one in-process against the same
+// database, and a real invitation call gets its job picked up and processed independently of the test's own direct
+// call, minting a SECOND token row for the same user and purpose. The test failed on finding two until it was
+// switched to seeding directly. The email behaviour suite does not hit this because it asserts against its own
+// captured list rather than a row count, so the same race exists there too, just invisible to what it checks.
+//
+//
+// THE ACCOUNT IS UNUSABLE UNTIL THE INVITATION IS ACCEPTED
+//
+// It exists but no password the caller could guess or was ever told will work. Only acceptance, gated by the token,
+// can set a real one.
+//
+// The full loop is asserted with no database writes: invite, mint a real token exactly as the job would, accept
+// through the real endpoint, sign in through the real endpoint, and confirm the token carries the invited role's
+// real permissions. Expiry is tested with a negative lifetime, which is already expired the instant it is issued, so
+// no clock manipulation is needed.
+//
+//
+// WHO MAY INVITE, AND WHICH ROLES MAY BE INVITED
+//
+// A reviewer has real permissions but not this one, which proves it is a genuine authorisation check rather than
+// "any authenticated staff member".
+//
+// The supplier roles are refused, because those accounts come from registration or the supplier's own team
+// invitation and an account made here never gets a company, so granting one would be a mismatch by construction.
+//
+//
+// A PROCUREMENT INVITATION MUST NAME A BUYING BODY
+//
+// The organization was optional for every role and the validator checked only the address, the name and the role.
+//
+// Every procurement query is scoped by the caller's organization, so an officer invited without one signed in
+// successfully, held every permission the role grants, and met an empty product: no tenders, no dashboard figures,
+// no approval queue, and no error anywhere, because returning nothing is the CORRECT answer to "show me the tenders
+// of no organization". The account looked fine and could do nothing.
+//
+// The control is the half that makes the rule narrow rather than blunt. Five roles deliberately belong to no buying
+// body: an evaluator is scoped by ASSIGNMENT and may have none, a reviewer works the national registry, the ministry
+// viewer's grant is cross-organization and pinning it to one would narrow it, and an administrator has no tenancy.
+// Requiring one of any of them would be refusing a legitimate invitation.
+//
+// The duplicate-address test uses a role that needs no organization, deliberately: it is about the duplicate, and a
+// procurement role with none is now refused at validation, which would fail before the duplicate check ever ran and
+// pass for the wrong reason.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -11,24 +71,8 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #28/FR-ADM-001: the in-product staff invite flow, driven through the real HTTP contract
-/// exactly like OrganizationEndpointTests does for admin.organizations.manage.
-///
-/// Two things this file deliberately does NOT do, both matching this codebase's own established
-/// convention (EmailJobBehaviourTests): it never waits on the real Hangfire background worker to
-/// actually process an enqueued job (the test host doesn't run one, and a live dev-server worker
-/// happening to be up would make this suite flaky/non-hermetic), and it never asserts a
-/// plaintext token was in the email body - EmailJobs deliberately mints the token AT SEND TIME,
-/// so testing the hashed-not-plaintext property means invoking EmailJobs.SendStaffInviteEmailAsync
-/// directly (as EmailJobBehaviourTests does for the other token-bearing emails), not waiting for
-/// the enqueue to be dequeued by a worker this test process doesn't control.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class StaffInviteTests(PostgresApiFixture fixture)
 {
@@ -67,17 +111,12 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         user.IsActive.Should().BeTrue();
         (await userManager.IsInRoleAsync(user, Roles.OnboardingReviewer)).Should().BeTrue();
 
-        // The account exists but is not usable with any password the caller could guess or was
-        // ever told - only AcceptStaffInviteHandler, gated by the token, can set a real one.
         (await userManager.CheckPasswordAsync(user, "whatever-a-caller-might-try")).Should().BeFalse();
     }
 
     [Fact]
     public async Task Invite_rejects_a_caller_without_admin_users_manage()
     {
-        // onboarding_reviewer has real permissions but not admin.users.manage - proves this is a
-        // genuine authorization check, not "any authenticated staff user can do this" (same shape
-        // as OrganizationEndpointTests.Create_organization_rejects_a_caller_without_the_permission).
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
 
         var response = await reviewer.PostAsJsonAsync("/api/v1/staff/invite", new
@@ -108,9 +147,6 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Invite_refuses_a_supplier_side_role()
     {
-        // supplier_admin/supplier_user come from supplier registration or the supplier-side team
-        // invite, not this staff-only flow - an account made here never gets a SupplierId, so
-        // granting a supplier role through it would be a role/scope mismatch by construction.
         var admin = await AdminClientAsync();
 
         var response = await admin.PostAsJsonAsync("/api/v1/staff/invite", new
@@ -132,29 +168,11 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         var email = $"dup-{Guid.NewGuid():N}@ministry.example";
         await admin.PostAsJsonAsync("/api/v1/staff/invite", new { email, fullName = "First", role = Roles.OnboardingReviewer });
 
-        // A role that needs no organisation, deliberately. This test is about the duplicate address,
-        // and a procurement role with no OrganizationId is now refused at validation - which would make
-        // it 422 before the duplicate check ever ran, and pass for the wrong reason if the assertion
-        // were loosened to "not Created".
         var second = await admin.PostAsJsonAsync("/api/v1/staff/invite", new { email, fullName = "Second", role = Roles.OnboardingReviewer });
 
         second.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
-    /// <summary>MSP-61-shaped property: the token in the invite email must not be recoverable from
-    /// what's persisted. Invokes EmailJobs directly (see class doc comment for why) - the same
-    /// pattern EmailJobBehaviourTests uses for the other token-bearing emails.
-    ///
-    /// The user is seeded directly via UserManager rather than through the real POST /invite
-    /// endpoint: Program.cs registers a real, unconditional Hangfire server
-    /// (AddHangfireServer()), so the WebApplicationFactory test host actually runs one in-process
-    /// against the same Testcontainers Postgres - a real HTTP invite call gets its enqueued job
-    /// picked up and processed by that worker independently of this test's own direct call,
-    /// minting a SECOND SecurityToken row for the same user+purpose (found empirically: this test
-    /// failed "Sequence contains more than one element" against db.SecurityTokens.SingleAsync
-    /// until switched to seeding directly). EmailJobBehaviourTests's own equivalent tests don't
-    /// hit this because they assert against their local CapturingSender's own list, never against
-    /// a DB row count - so the same race exists there too, just invisible to what they check.</summary>
     [Fact]
     public async Task The_invite_email_s_token_is_hashed_at_rest_and_resolves_back_to_the_invited_user()
     {
@@ -170,8 +188,6 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         var tokens = scope.ServiceProvider.GetRequiredService<ISecurityTokenService>();
         var sender = new CapturingSender();
         var jobs = new EmailJobs(sender, db, tokens, scope.ServiceProvider.GetRequiredService<IConfiguration>(),
-            // T-076: resolved from the container. With no override row it returns the shipped copy, which is
-            // what this test asserts, and the send now goes through the path production uses.
             scope.ServiceProvider.GetRequiredService<MotsSupplierPortal.Application.Admin.IEmailCopySource>());
 
         await jobs.SendStaffInviteEmailAsync(userId, CancellationToken.None);
@@ -200,9 +216,6 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         }
     }
 
-    /// <summary>The full real loop: invite -> mint a real token exactly as the email job would ->
-    /// accept via the real HTTP endpoint -> log in with the new password through the real login
-    /// endpoint -> confirm the JWT carries the invited role's real permissions. No DB flips.</summary>
     [Fact]
     public async Task Accepting_an_invite_lets_the_invited_user_log_in_with_the_assigned_role_s_permissions()
     {
@@ -271,7 +284,6 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var tokens = scope.ServiceProvider.GetRequiredService<ISecurityTokenService>();
-            // Negative TTL: already expired the instant it's issued - no clock manipulation needed.
             rawToken = await tokens.IssueAsync(userId, SecurityTokenPurpose.StaffInvite, TimeSpan.FromSeconds(-1), CancellationToken.None);
         }
 
@@ -305,16 +317,6 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
             : [perms.GetString()!];
     }
 
-    /// <summary>
-    /// A procurement invitation names the buying body the invitee will work in.
-    ///
-    /// <para><b>The defect.</b> <c>OrganizationId</c> was optional for every role, and the validator
-    /// checked only email, name and role. BRULE-029 scopes every procurement query by the caller's
-    /// organisation, so an officer invited without one signed in successfully, held every permission
-    /// the role grants, and met an empty product - no tenders, no dashboard figures, no approval queue,
-    /// and no error anywhere, because returning nothing is the CORRECT answer to "show me the tenders
-    /// of no organisation". The account looked fine and could do nothing.</para>
-    /// </summary>
     [Theory]
     [InlineData(Roles.ProcurementOfficer)]
     [InlineData(Roles.ProcurementManager)]
@@ -334,15 +336,6 @@ public sealed class StaffInviteTests(PostgresApiFixture fixture)
         body.Should().Contain("organizationId", "the refusal must name the field that is missing");
     }
 
-    /// <summary>
-    /// The control, and it is the half that makes the rule narrow rather than blunt.
-    ///
-    /// <para>Five roles deliberately belong to no buying body: an evaluator is scoped by ASSIGNMENT and
-    /// may have no organisation at all, a reviewer works the national supplier registry, a
-    /// ministry_viewer's grant is cross-organisation by BRULE-086 and pinning it to one would narrow
-    /// it, and a system administrator has no tenancy. Requiring an organisation of any of them would be
-    /// refusing a legitimate invitation.</para>
-    /// </summary>
     [Theory]
     [InlineData(Roles.OnboardingReviewer)]
     [InlineData(Roles.Evaluator)]

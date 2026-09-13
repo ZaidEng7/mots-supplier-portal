@@ -1,28 +1,47 @@
+// Reading a tender is gated on a read permission, not on the permission to author one.
+//
+//
+// THE DEFECT THESE COVER
+//
+// The buyer list, detail and workspace reads were gated on the authoring permission, which the manager role
+// deliberately does not hold: the written process makes that role the actor for approval, and it is granted review,
+// approval and cancellation with no authoring rights.
+//
+// So the person required to approve a tender could not list one, open one, or see the workspace they approve from.
+//
+// It survived because no test ever had a manager perform a read: every manager in the suite only posts a
+// transition.
+//
+//
+// WHY THE FIX IS A NEW PERMISSION AND NOT A WIDER GRANT
+//
+// Giving the manager authoring rights would collapse the segregation of duties the award-approval chain depends on.
+//
+// One test asserts that directly: if a later change "fixes" a manager's refusal by widening the authoring grant,
+// it fails. That is the whole point of separating read from create rather than widening what already existed.
+//
+// The workspace shares the detail's gate by design and moved with it, or it would still lock out the manager for
+// whom the guided workspace's approval stage exists.
+//
+//
+// THE TWO OTHER ROLES ARE ASSERTED, NOT ASSUMED
+//
+// The officer already worked, and splitting a permission is exactly where a role that reached a route through the
+// OLD one gets silently dropped.
+//
+// And an evaluator holds neither permission, reaching a tender only through the assignment-scoped route, so the
+// buyer detail must stay closed to them. Without that, "grant it to every role that reads tenders" could quietly
+// become "grant it to every back-office role".
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// FEAT-07.1 / BUSINESS-PROCESSES.md §3.1: reading an RFQ is gated on <c>rfq.read</c>, not on
-/// <c>rfq.create</c>.
-///
-/// <para><b>The defect these cover.</b> The buyer list, detail and workspace GETs were gated on
-/// <c>rfq.create</c>, which <c>procurement_manager</c> deliberately does not hold - §3.1 makes that
-/// role the actor for InternalReview → Approved, and Permissions.cs grants it
-/// rfq.review/rfq.approve/rfq.cancel with no authoring rights. So the person required to approve an
-/// RFQ could not list one, open one, or see the workspace they approve from. It survived because no
-/// test ever had a manager perform a GET: every manager in the suite only POSTs a transition.</para>
-///
-/// <para><b>Why the fix is a new permission and not a wider grant.</b> Adding rfq.create to the
-/// manager would give approvers authoring rights, collapsing the segregation of duties EPIC-14's
-/// award-approval chain depends on. The last test here is the one that keeps that honest.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RfqReadPermissionTests(PostgresApiFixture fixture)
 {
@@ -34,7 +53,6 @@ public sealed class RfqReadPermissionTests(PostgresApiFixture fixture)
         clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
     };
 
-    /// <summary>An officer authors one RFQ so the manager has something real to read.</summary>
     private async Task<(HttpClient Manager, string ReferenceCode)> SeededOrgAsync()
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -75,11 +93,6 @@ public sealed class RfqReadPermissionTests(PostgresApiFixture fixture)
             .GetProperty("referenceCode").GetString().Should().Be(code);
     }
 
-    /// <summary>
-    /// The workspace shares the RFQ detail's gate by design (WorkspaceEndpoints' own doc comment),
-    /// so it moved with it - and would otherwise still lock out the manager for whom the guided
-    /// workspace's approval stage exists.
-    /// </summary>
     [Fact]
     public async Task A_procurement_manager_can_read_the_guided_workspace()
     {
@@ -90,11 +103,6 @@ public sealed class RfqReadPermissionTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    /// <summary>
-    /// Segregation of duties, asserted directly. If a later change "fixes" a manager 403 by adding
-    /// rfq.create to the grant, this fails - which is the whole point of separating read from
-    /// create rather than widening the existing permission.
-    /// </summary>
     [Fact]
     public async Task A_procurement_manager_still_cannot_create_an_rfq()
     {
@@ -107,11 +115,6 @@ public sealed class RfqReadPermissionTests(PostgresApiFixture fixture)
             "approvers must not gain authoring rights - EPIC-14's approval chain depends on the split");
     }
 
-    /// <summary>
-    /// The officer is the other role granted rfq.read. Splitting a permission is exactly where a
-    /// role that previously reached a route through the OLD permission gets silently dropped, so
-    /// the role that already worked is asserted too rather than assumed.
-    /// </summary>
     [Fact]
     public async Task A_procurement_officer_can_still_list_and_read()
     {
@@ -126,12 +129,6 @@ public sealed class RfqReadPermissionTests(PostgresApiFixture fixture)
         (await officer.GetAsync($"/api/v1/rfqs/{code}/workspace")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    /// <summary>
-    /// rfq.read is a buyer permission and was granted to exactly two roles. An evaluator holds
-    /// neither it nor rfq.create, and reaches an RFQ only through the assignment-scoped
-    /// my-evaluation route - so the buyer detail must stay closed to them. Without this, "grant it
-    /// to every role that reads RFQs" could quietly become "grant it to every back-office role".
-    /// </summary>
     [Fact]
     public async Task An_evaluator_cannot_read_the_buyer_rfq_detail()
     {

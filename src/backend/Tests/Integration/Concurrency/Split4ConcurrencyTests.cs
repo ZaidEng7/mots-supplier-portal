@@ -1,20 +1,42 @@
+// T-030 split (4): the logo, terms acceptance, and the two document decisions.
+//
+// Raw clients throughout, for the reason SupplierChildWriteConcurrencyTests states: the fixture's usual
+// client attaches a fresh If-Match before every mutation, which would make every assertion here vacuous.
+//
+// Accepting terms without the header is 428, not 409. §8.1 - a missing precondition is a different failure
+// from a stale one, and answering 409 would tell the caller to reconcile something. The write carries
+// WithFreshETag, so it returns the version it produced and a caller can make a second guarded write without
+// a re-read; without it a supplier's second edit 428s, which is the split (3) defect. And the version it
+// produced is NOT the one that was sent, which is what makes the guard mean something: replaying the old
+// precondition is now a stale write.
+//
+// The logo test uploads a one-pixel PNG, magic bytes and all: FileTypeSniffer checks the bytes against the
+// declared type, so a text file called .png would be refused for the wrong reason and prove nothing about
+// If-Match.
+//
+// Uploading a DOCUMENT deliberately does not require a version, asserted so it is a decision rather than a
+// gap someone closes by accident. An upload ADDS a row and cannot overwrite another upload, and this route
+// returns the document rather than the supplier, so it has no fresh version to hand back - guarding it would
+// 428 a supplier's second upload with nothing on screen to explain it. It reuses DocumentUploadTests' own
+// fixture constants rather than reading the reference list, because the form takes documentTypeId and
+// expiryDate - checked against that suite rather than guessed, since the first version of this test sent
+// documentTypeCode and expiresOn to a reference route that does not exist.
+//
+// The document decision is the pair that matters: two reviewers deciding the same document is one decision
+// silently replacing the other, and this is the only route in split (4) where that can happen. The read half
+// was added in the same change as the guard, because without an ETag there the reviewer could not obtain the
+// precondition their own decision requires - batch 3's Offering mistake - and the decision itself refuses a
+// caller who did not read.
+
+namespace MotsSupplierPortal.Tests.Integration.Concurrency;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Concurrency;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-030 split (4): the logo, terms acceptance, and the two document decisions.
-///
-/// <para>Raw clients throughout, for the reason SupplierChildWriteConcurrencyTests states: the fixture's
-/// usual client attaches a fresh If-Match before every mutation, which would make every assertion here
-/// vacuous.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
 {
@@ -47,8 +69,6 @@ public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
     {
         var raw = await RawSupplierAsync($"Terms{Guid.NewGuid():N}"[..12]);
 
-        // Without the header: 428, not 409. §8.1 - a missing precondition is a different failure from a
-        // stale one, and answering 409 would tell the caller to reconcile something.
         (await raw.SendAsync(Post("/api/v1/suppliers/me/accept-terms", ifMatch: null)))
             .StatusCode.Should().Be(HttpStatusCode.PreconditionRequired);
 
@@ -56,12 +76,8 @@ public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
         var accepted = await raw.SendAsync(Post("/api/v1/suppliers/me/accept-terms", etag));
         accepted.StatusCode.Should().Be(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
 
-        // WithFreshETag: the write returns the version it produced, so a caller can make a second guarded
-        // write without a re-read. Without it a supplier's second edit 428s - the split (3) defect.
         accepted.Headers.ETag.Should().NotBeNull("the write must hand back the version it produced");
 
-        // And the version it produced is NOT the one that was sent, which is what makes the guard mean
-        // something: replaying the old precondition is now a stale write.
         var replay = await raw.SendAsync(Post("/api/v1/suppliers/me/accept-terms", etag));
         replay.StatusCode.Should().BeOneOf(HttpStatusCode.PreconditionFailed, HttpStatusCode.Conflict);
     }
@@ -72,8 +88,6 @@ public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
     {
         var raw = await RawSupplierAsync($"Logo{Guid.NewGuid():N}"[..12]);
 
-        // A one-pixel PNG, magic bytes and all: FileTypeSniffer checks the bytes against the declared type,
-        // so a text file called .png would be refused for the wrong reason and prove nothing about If-Match.
         byte[] png =
         [
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
@@ -104,17 +118,10 @@ public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Uploading_a_DOCUMENT_deliberately_does_not_require_a_version()
     {
-        // The exclusion, asserted so it is a decision rather than a gap someone closes by accident. An upload
-        // ADDS a row and cannot overwrite another upload, and this route returns the document rather than the
-        // supplier - so it has no fresh version to hand back, and guarding it would 428 a supplier's second
-        // upload with nothing on screen to explain it.
         var raw = await RawSupplierAsync($"Doc{Guid.NewGuid():N}"[..12]);
         var me = await raw.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         var supplierCode = me.GetProperty("supplierCode").GetString();
 
-        // Reusing DocumentUploadTests' own fixture constants rather than reading the reference list: the
-        // form takes documentTypeId and expiryDate (checked against that suite, not guessed - my first
-        // version sent documentTypeCode and expiresOn to a reference route that does not exist).
         var content = new MultipartFormDataContent
         {
             { new StringContent(UploadFixtures.TaxCertificateDocumentTypeId.ToString()), "documentTypeId" },
@@ -132,8 +139,6 @@ public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_document_decision_requires_the_version_and_the_reviewers_read_issues_it()
     {
-        // The pair that matters: two reviewers deciding the same document is one decision silently replacing
-        // the other, and this is the only route in split (4) where that can happen.
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Rev{Guid.NewGuid():N}"[..12]);
         var me = await supplier.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me");
         var supplierCode = me.GetProperty("supplierCode").GetString();
@@ -142,14 +147,11 @@ public sealed class Split4ConcurrencyTests(PostgresApiFixture fixture)
         var reviewer = fixture.CreateRawClient();
         reviewer.DefaultRequestHeaders.Authorization = reviewerWithHandler.DefaultRequestHeaders.Authorization;
 
-        // The read half, added in the same change as the guard: without an ETag here the reviewer could not
-        // obtain the precondition their own decision requires, which is batch 3's Offering mistake.
         var view = await reviewer.GetAsync($"/api/v1/review/{supplierCode}");
         view.StatusCode.Should().Be(HttpStatusCode.OK, await view.Content.ReadAsStringAsync());
         view.Headers.ETag.Should().NotBeNull(
             "a guarded decision needs a read that issues its precondition - GET /review/{code} is that read");
 
-        // And the decision itself refuses a caller who did not read.
         var refused = await reviewer.SendAsync(
             Post($"/api/v1/suppliers/{supplierCode}/documents/does-not-matter/approve", ifMatch: null));
         refused.StatusCode.Should().Be(HttpStatusCode.PreconditionRequired,

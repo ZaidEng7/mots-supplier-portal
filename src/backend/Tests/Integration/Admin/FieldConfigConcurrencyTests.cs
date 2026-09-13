@@ -1,3 +1,26 @@
+// T-029's last genuine candidate. Batch 4's survey ruled out the other six: four have no update endpoint
+// at all, SupplierDocument's state machine already refuses a second decision, and Clarification is a child
+// of the already-versioned Rfq. This one had a live PUT and no version, so the second administrator's write
+// silently won.
+//
+// The client is CreateRawClient rather than CreateClient: the fixture's default client attaches a CURRENT
+// ETag to every request, and a handler that always sends the right version cannot observe a wrong one.
+// system_admin requires MFA to obtain a session - see StaffTestClient - so CreateAsync 403s in both tests.
+//
+// The read is what makes the guard obtainable; without it the PUT refuses every caller, which is the
+// batch-3 Offering failure. Then the three halves of §8.1: the version the read issued is accepted, the
+// SAME version again is now stale and is refused rather than silently overwriting the write that just
+// landed, and the refused write changed nothing. The restore takes a FRESH read for its version, because
+// the writes above moved it and the restore is a write like any other.
+//
+// T-073: that restore is a finally rather than a last line. This row is a seeded config flag the whole
+// suite shares - it decides whether a changed bank account re-opens compliance review - and a failing
+// assertion used to skip the put-back entirely, leaving it flipped for every test that ran afterwards.
+//
+// The second test is the no-precondition half: a write with no If-Match is refused with 428.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -5,17 +28,8 @@ using FluentAssertions;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Domain.Identity;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-029's last genuine candidate. Batch 4's survey ruled out the other six: four have no update
-/// endpoint at all, SupplierDocument's state machine already refuses a second decision, and
-/// Clarification is a child of the already-versioned Rfq. This one had a live PUT and no version, so
-/// the second administrator's write silently won.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
 {
@@ -25,15 +39,10 @@ public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_read_issues_an_etag_the_write_accepts_and_a_stale_one_is_refused()
     {
-        // CreateRawClient, not CreateClient: the fixture's default client attaches a CURRENT ETag to
-        // every request, and a handler that always sends the right version cannot observe a wrong one.
-        // system_admin requires MFA to obtain a session (see StaffTestClient) - CreateAsync 403s.
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
         var raw = fixture.CreateRawClient();
         raw.DefaultRequestHeaders.Authorization = admin.DefaultRequestHeaders.Authorization;
 
-        // The read that makes the guard obtainable. Without it the PUT below refuses every caller,
-        // which is the batch-3 Offering failure.
         var read = await raw.GetAsync(Path);
         read.StatusCode.Should().Be(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
         var etag = read.Headers.ETag;
@@ -42,13 +51,8 @@ public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
         var body = await read.Content.ReadFromJsonAsync<JsonElement>();
         var original = body.GetProperty("isEnabled").GetBoolean();
 
-        // T-073: the restore is a finally, not a last line. This row is a seeded config flag the
-        // whole suite shares - it decides whether a changed bank account re-opens compliance review -
-        // and a failing assertion below used to skip the put-back entirely, leaving it flipped for
-        // every test that ran afterwards.
         try
         {
-            // Satisfiable: the version the read issued is accepted.
             var accepted = new HttpRequestMessage(HttpMethod.Put, Path)
             {
                 Content = JsonContent.Create(new { isEnabled = !original }),
@@ -57,8 +61,6 @@ public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
             var first = await raw.SendAsync(accepted);
             first.StatusCode.Should().Be(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
 
-            // Refusable: the SAME version again, now stale, is refused rather than silently overwriting
-            // the write that just landed.
             var stale = new HttpRequestMessage(HttpMethod.Put, Path)
             {
                 Content = JsonContent.Create(new { isEnabled = original }),
@@ -68,14 +70,11 @@ public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
             second.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed,
                 "the second administrator's write must be refused, not resolved in their favour");
 
-            // And the refused write changed nothing.
             var after = await raw.GetFromJsonAsync<JsonElement>(Path);
             after.GetProperty("isEnabled").GetBoolean().Should().Be(!original);
         }
         finally
         {
-            // A FRESH read for the version: the writes above moved it, and the restore is a write
-            // like any other under §8.1.
             var fresh = await raw.GetAsync(Path);
             var restore = new HttpRequestMessage(HttpMethod.Put, Path)
             {
@@ -89,7 +88,6 @@ public sealed class FieldConfigConcurrencyTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_write_with_no_precondition_is_refused_with_428()
     {
-        // system_admin requires MFA to obtain a session (see StaffTestClient) - CreateAsync 403s.
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
         var raw = fixture.CreateRawClient();
         raw.DefaultRequestHeaders.Authorization = admin.DefaultRequestHeaders.Authorization;

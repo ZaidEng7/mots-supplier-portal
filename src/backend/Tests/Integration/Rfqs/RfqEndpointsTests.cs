@@ -1,3 +1,61 @@
+// The tender state machine through the real HTTP surface: permission-guarded, organization-scoped and audited.
+//
+// The aggregate's own tests prove the machine in isolation. These prove the same transitions end to end.
+//
+// A refused transition answers with a conflict naming the current state and the allowed next ones, which the
+// contract requires. It answered a plain bad request until that response was built.
+//
+//
+// THE SHARED SETUP, AND TWO SHORTCUTS IT TAKES DELIBERATELY
+//
+// One helper drives a tender through create, line, template, invitation, review and approval using the real
+// endpoints, because almost every test needs an approved tender or later. It invites a fresh active supplier per
+// call, since sending for review requires at least one candidate.
+//
+// Suppliers are forced straight to active, which is the same pattern other tender suites use and for the same
+// reason: these tests are about tenders, not the onboarding journey.
+//
+// And the editing-guard test cancels rather than approves, because reaching review needs an invited candidate and
+// an active supplier to invite, which is a fixture three times the size of what it asserts. Any state that is not
+// a draft exercises the same guard, and cancellation is one call.
+//
+//
+// CORRECTING A LINE, RATHER THAN DELETING IT AND TYPING IT AGAIN
+//
+// The aggregate had add and remove and nothing between them. An officer who meant to add one line and added three,
+// each with the wrong quantity, had no control on any screen that changed any of them, and deleting renumbers every
+// line after the one removed.
+//
+// The line NUMBER is asserted deliberately: a correction is the same line with better values, and one that
+// reordered the tender would move every reference to "item two" underneath whoever was reading it.
+//
+// Editing stays draft-only, because widening it to corrections must not widen it past the state bidders start
+// reading from.
+//
+// And the correction path carries the same reference-data guards the add path has always had. A correction into a
+// code that does not exist is the same defect as a create into one, so it earns the same refusal rather than a
+// failure from a foreign key. The status and the machine-readable code are asserted to MATCH the add path's,
+// because a correction refused differently from a create is a second vocabulary for one rule.
+//
+// A requirement correction is covered the same way, with the aggregate's refusal surfaced rather than swallowed.
+//
+//
+// THE SCHEDULED TRANSITIONS ARE DRIVEN BY THE REAL JOB
+//
+// Rather than by waiting on its real cadence, which is the same pattern the other job-driven suites use.
+//
+//
+// A CANDIDATE WITH NO CATALOGUE ENTRY IS STILL A CANDIDATE
+//
+// Declaring categories is a REQUIRED onboarding step, since an application cannot be submitted without one, while
+// a catalogue entry is optional on top.
+//
+// Suggestions matched catalogue entries only, so an approved, active supplier with the right category and no entry
+// appeared nowhere, and this screen offers no other way to invite anybody: they could not be invited at all.
+// Reported by a buyer who had approved one minutes earlier and could not find them.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,15 +67,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-07.1..07.10/FR-RFQ-001..013. Real end-to-end proof of the state machine verified
-/// directly against docs/product/BUSINESS-PROCESSES.md §3.1 (RfqTests.cs already proves the
-/// aggregate in isolation; this proves the same transitions through the real HTTP surface,
-/// permission-guarded, org-scoped, audited).</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 {
@@ -57,9 +108,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         return id;
     }
 
-    /// <summary>Registers, verifies, and forces a supplier straight to Active - same
-    /// forced-transition pattern as OfferingBuyerSearchTests.ActiveSupplierAsync, for the same
-    /// reason: these tests are about RFQ invitations, not the onboarding journey.</summary>
     private async Task<(HttpClient Client, Guid SupplierId)> ActiveSupplierAsync(string name)
     {
         var (client, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, name);
@@ -74,10 +122,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         return (client, supplier.Id);
     }
 
-    /// <summary>Drives an RFQ through create -> item -> template -> invite -> submit -> approve
-    /// using the real HTTP endpoints, returning its reference code. The shared setup for every
-    /// test that needs an Approved (or later) RFQ. Invites a fresh Active supplier per call -
-    /// SubmitForReview now requires >=1 candidate (EPIC-08 gap closed).</summary>
     private async Task<string> CreateApprovedRfqAsync(HttpClient officer, HttpClient manager, string titleEn = "Approved RFQ",
         DateTimeOffset? opensAt = null, DateTimeOffset? closesAt = null)
     {
@@ -177,8 +221,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
 
         var publishAttempt = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/publish", null);
 
-        // §3: "Illegal transitions return 409 Conflict … listing the current state and the allowed
-        // next states." This answered 400 until T3-36 built that response.
         publishAttempt.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
@@ -260,17 +302,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         items[0].GetProperty("titleEn").GetString().Should().Be("2");
     }
 
-    /// <summary>
-    /// F-7: correcting a line, rather than deleting it and typing it again.
-    ///
-    /// <para>The aggregate had Add and Remove and nothing between them. An officer who meant to add
-    /// one line item and added three - each with the wrong quantity - had no control on any screen
-    /// that changed any of them, and deleting renumbers every line after the one removed.</para>
-    ///
-    /// <para>The line number is asserted deliberately: a correction is the same line with better
-    /// values, and one that reordered the tender would move every reference to "item 2" underneath
-    /// whoever was reading it.</para>
-    /// </summary>
     [Fact]
     public async Task An_item_can_be_corrected_in_place_without_changing_its_line_number()
     {
@@ -311,17 +342,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         body.GetProperty("items").EnumerateArray().Should().HaveCount(2, "correcting one line must not drop the other");
     }
 
-    /// <summary>
-    /// The control on the control: editing is Draft-only, and widening it to corrections must not
-    /// widen it past the state bidders start reading from. UpdateItem calls EnsureDraftEditable for
-    /// the same reason AddItem does.
-    /// </summary>
-    /// <summary>
-    /// The reference-data guards on the correction path, which the add path has had since it was
-    /// written. A correction can change the category or the unit, and one into a code that does not
-    /// exist is the same defect as a create into one - so it earns the same refusal rather than a
-    /// 500 from a foreign key.
-    /// </summary>
     [Fact]
     public async Task Correcting_an_item_into_an_unknown_category_or_unit_is_refused()
     {
@@ -349,9 +369,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
             categoryCode = "catering", quantity = 5, unitOfMeasureCode = "no-such-unit", isUnitPrice = false, isOptional = false,
         });
 
-        // The same status and the same machine code the ADD path answers with - asserted rather than
-        // assumed, because a correction refused differently from a create is a second vocabulary for
-        // one rule.
         badCategory.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await badCategory.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("code").GetString().Should().Be("INVALID_CATEGORY");
@@ -360,8 +377,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
             .GetProperty("code").GetString().Should().Be("INVALID_UNIT_OF_MEASURE");
     }
 
-    /// <summary>A requirement correction refused by the aggregate, surfaced rather than swallowed:
-    /// an empty text is the same refusal adding one earns.</summary>
     [Fact]
     public async Task Correcting_a_requirement_to_empty_text_is_refused()
     {
@@ -381,8 +396,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         refused.StatusCode.Should().NotBe(HttpStatusCode.OK);
     }
 
-    /// <summary>The correction that works, on a requirement, through the endpoint rather than the
-    /// aggregate - the buyer-visible half of the same fix.</summary>
     [Fact]
     public async Task A_requirement_can_be_corrected_in_place()
     {
@@ -425,9 +438,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         var itemId = (await added.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        // Cancelled rather than approved, because reaching InternalReview needs an invited candidate
-        // and an Active supplier to invite - a fixture three times the size of what this asserts.
-        // Any state that is not Draft exercises the same guard, and cancellation is one call.
         var cancelled = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/cancel", new { reason = "Superseded" });
         cancelled.StatusCode.Should().Be(HttpStatusCode.OK, await cancelled.Content.ReadAsStringAsync());
 
@@ -469,10 +479,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         badUomBody.GetProperty("code").GetString().Should().Be("INVALID_UNIT_OF_MEASURE");
     }
 
-    /// <summary>FEAT-07.6/FR-PWF-004: the real proof the scheduled job (not a user action) opens
-    /// and closes the submission window on time. Runs RfqTimelineJob directly (same pattern the
-    /// codebase already uses for DocumentExpiryJob's own integration tests) rather than waiting on
-    /// the real 5-minute Hangfire cadence.</summary>
     [Fact]
     public async Task Scheduled_timeline_job_opens_and_then_closes_the_submission_window_on_time()
     {
@@ -619,15 +625,6 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         ids.Should().NotContain(noMatchSupplierId, "a supplier with no matching-category offering is not suggested");
     }
 
-    /// <summary>
-    /// A supplier who declared the category and listed no catalogue entry is still a candidate.
-    ///
-    /// <para>Declaring categories is a REQUIRED onboarding step - an application cannot be submitted
-    /// without one - while an offering is the optional catalogue on top. Suggestions matched offerings
-    /// only, so an approved, active supplier with the right category and no catalogue entry appeared
-    /// nowhere, and this screen offers no other way to invite anyone: they could not be invited at
-    /// all. Reported by a buyer who had approved one minutes earlier and could not find them.</para>
-    /// </summary>
     [Fact]
     public async Task A_supplier_who_declared_the_category_is_suggested_even_with_no_offering()
     {

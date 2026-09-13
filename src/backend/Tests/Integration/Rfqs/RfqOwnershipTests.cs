@@ -1,3 +1,61 @@
+// A tender has an owning officer, and "notify the officer" reaches that person rather than a pool.
+//
+// Every assertion here is against STORAGE or against a rendered response, never against the code path. The
+// notification tests read the outbox rows and the ownership tests read the aggregate or the read model. A test that
+// asserted a particular method was called would pass with the fallback wired backwards.
+//
+// The notification check runs the dispatcher first, because a notification lives in the outbox inside the
+// transaction and becomes a row afterwards, so reading the notification table directly finds nothing and every
+// assertion would have been vacuously "not notified". It filters by the tender's own identifier from the payload,
+// because the suite shares a database and several tests return a tender for edits.
+//
+//
+// EVERY POSITIVE HAS A CONTROL, AND SOME ARE CONTROLS FOR EACH OTHER
+//
+// A SECOND officer in the same organization is seeded, who used to be notified too. Without them the ownership
+// assertion would pass in an organization with only one officer, where "the owner" and "the pool" are the same set
+// and the change is unobservable.
+//
+// The unowned case is forced in storage rather than mocked, because every tender created before ownership existed
+// looks exactly like that and the fallback has to hold for rows that actually exist in a deployed database. It
+// notifies BOTH officers, which is the point: a tender that notified nobody would be worse than one that notifies
+// the pool. That test and the owned one are each other's control.
+//
+// The owner leaving is covered too, which is reachable through the interface and therefore not hypothetical.
+//
+// Identifiers are parsed out of the payload rather than substring-matched, because a normalised document can
+// contain an identifier for reasons that have nothing to do with the field being asserted.
+//
+//
+// THE PERMISSION BOUNDARIES
+//
+// Reassignment is refused for the officer and allowed for the manager, so the refusal is about the permission
+// rather than about the payload, the state or the route.
+//
+// Right organization with the wrong permission is refused, and so is the right permission in the wrong
+// organization, because ownership must not cross that boundary.
+//
+// Nominating an officer as approver is refused rather than silently ignored, and the tender is asserted still a
+// draft, because a refused nomination must not have moved the state. The no-body case is covered too, which is the
+// shape every caller written before ownership sends.
+//
+//
+// THE FILTER, THE PICKER AND THE TILE
+//
+// The owner filter has its control: unfiltered, the same caller sees both tenders, so the assertion is the filter
+// working rather than row-scoping the caller out of a colleague's tender. An unrecognised value is refused naming
+// the field rather than silently returning an unfiltered list.
+//
+// The picker must not offer what the write would refuse, and the two permission tests prove the write refuses
+// exactly those two. A supplier holds the read permission, so the picker route is reachable by one and must answer
+// not-found rather than hand over the buying organization's staff roster.
+//
+// And the dashboard tile counts what this caller can act on. Both officers see the same two active tenders, so the
+// narrower number is ownership narrowing the count rather than the organization having one tender in it. Before
+// ownership, that tile read the same for both.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,19 +67,8 @@ using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// A-7: an RFQ has an owning officer, and "notify the officer" reaches that person rather than a pool.
-///
-/// <para>Every assertion here is against STORAGE or against a rendered response, never against the
-/// code path: the notification tests read the outbox rows, and the ownership tests read the aggregate
-/// or the DTO. A test that asserted "RfqOwnerAsync was called" would pass with the fallback wired
-/// backwards.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
 {
@@ -67,7 +114,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         return supplier.Id;
     }
 
-    /// <summary>Create through to Draft-ready-for-review: item, template, one invited supplier.</summary>
     private async Task<string> DraftReadyForReviewAsync(HttpClient officer, HttpClient manager, string titleEn)
     {
         var templateId = await CreateActiveTemplateAsync(manager);
@@ -88,17 +134,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         return referenceCode;
     }
 
-    /// <summary>
-    /// Did this user get told about THIS RFQ?
-    ///
-    /// <para>Through <see cref="NotificationTestHelper"/>, which runs the dispatcher first - a
-    /// notification lives in the Outbox inside the transaction (D-5) and becomes a row afterwards, so
-    /// reading <c>db.Notifications</c> directly finds nothing and every assertion here would have been
-    /// vacuously "not notified".</para>
-    ///
-    /// <para>Filtered by the RFQ's own id from the payload, because the suite shares a database and
-    /// several tests in it return an RFQ for edits.</para>
-    /// </summary>
     private async Task<bool> WasNotifiedAsync(Guid userId, string type, string referenceCode)
     {
         Guid rfqId;
@@ -124,7 +159,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         dto.GetProperty("ownerUserId").GetGuid().Should().Be(officerId);
         dto.GetProperty("ownerName").GetString().Should().Be("Integration Staff");
 
-        // Against storage, not only the response: the DTO could report an owner the row does not carry.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var code = dto.GetProperty("referenceCode").GetString();
@@ -136,9 +170,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var (officer, ownerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
-        // The CONTROL: a second officer in the same organization, who used to be notified too. Without
-        // them the assertion below would pass on an organization with only one officer, where "the
-        // owner" and "the pool" are the same set and the change is unobservable.
         var (_, otherOfficerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
         var manager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, org.Id);
 
@@ -161,8 +192,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
 
         var referenceCode = await DraftReadyForReviewAsync(officer, manager, "Legacy RFQ");
 
-        // Every RFQ created before A-7 looks exactly like this. Forced in storage rather than mocked,
-        // because the fallback has to hold for the rows that actually exist in a deployed database.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -174,8 +203,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         (await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/return", new { comments = "Needs a delivery schedule." }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // BOTH officers, which is the point: an unowned RFQ that notified nobody would be worse than
-        // one that notifies the pool. This is the control for the test above, and vice versa.
         (await WasNotifiedAsync(ownerId, NotificationTypes.RfqReturnedForEdits, referenceCode)).Should().BeTrue();
         (await WasNotifiedAsync(otherOfficerId, NotificationTypes.RfqReturnedForEdits, referenceCode)).Should().BeTrue();
     }
@@ -191,7 +218,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         var referenceCode = await DraftReadyForReviewAsync(officer, manager, "Orphaned RFQ");
         (await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // The owner leaves. T-077 made this reachable through the UI, so it is not hypothetical.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -227,8 +253,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
 
         var audit = await db.AuditLogs.Where(a => a.AggregateId == rfq.Id && a.Action == "rfq_reassigned").SingleAsync();
         audit.Reason.Should().Be("The first officer is on extended leave.");
-        // Parsed, not substring-matched: a normalised JSON string can contain a guid for reasons that
-        // have nothing to do with the field being asserted.
         using var changes = JsonDocument.Parse(audit.Changes!);
         changes.RootElement.GetProperty("fromOwnerUserId").GetGuid().Should().Be(firstOwnerId);
         changes.RootElement.GetProperty("toOwnerUserId").GetGuid().Should().Be(secondOwnerId);
@@ -251,8 +275,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
             new { newOwnerUserId = otherOfficerId, reason = "I would rather not." });
         refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // The control: the same request from the manager is allowed, so the refusal above is about the
-        // permission and not about the payload, the state or the route.
         (await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/reassign",
             new { newOwnerUserId = otherOfficerId, reason = "Rebalancing the workload." }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
@@ -271,13 +293,11 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         var created = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Eligibility RFQ"));
         var referenceCode = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
 
-        // Right organization, wrong permission.
         var wrongRole = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/reassign",
             new { newOwnerUserId = reviewerId, reason = "Trying a reviewer." });
         wrongRole.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await wrongRole.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString().Should().Be("INELIGIBLE_USER");
 
-        // Right permission, wrong organization - BRULE-029: ownership must not cross the boundary.
         var wrongOrg = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/reassign",
             new { newOwnerUserId = outsiderId, reason = "Trying another org's officer." });
         wrongOrg.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -289,18 +309,15 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
         var (manager, namedManagerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementManager, org.Id);
-        // The control: a second manager who WOULD have been notified before A-7.
         var (_, otherManagerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementManager, org.Id);
         var (_, officerId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
 
         var referenceCode = await DraftReadyForReviewAsync(officer, manager, "Nominated RFQ");
 
-        // An officer cannot approve, so naming one is refused rather than silently ignored.
         var refused = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/submit-review",
             new { assignedApproverUserId = officerId });
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
 
-        // The RFQ is still a Draft: a refused nomination must not have moved the state.
         (await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}"))
             .GetProperty("state").GetString().Should().Be(nameof(RfqState.Draft));
 
@@ -324,7 +341,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
 
         var referenceCode = await DraftReadyForReviewAsync(officer, manager, "Unnominated RFQ");
 
-        // No body at all - the shape every caller written before A-7 sends.
         (await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -350,14 +366,11 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         codes.Should().Contain(myCode);
         codes.Should().NotContain(theirCode);
 
-        // The control: unfiltered, the same caller sees both - so the assertion above is the filter
-        // working and not row-scoping the caller out of their colleague's RFQ.
         var all = await mine.GetFromJsonAsync<JsonElement>("/api/v1/rfqs?pageSize=100");
         var allCodes = all.GetProperty("data").EnumerateArray()
             .Select(r => r.GetProperty("referenceCode").GetString()).ToList();
         allCodes.Should().Contain(myCode).And.Contain(theirCode);
 
-        // An unrecognised value is a 422 naming the field, never a silently unfiltered list.
         var refused = await mine.GetAsync("/api/v1/rfqs?owner=grbage");
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
@@ -383,13 +396,9 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
 
         owners.Should().Contain(officerId);
         approvers.Should().Contain(managerId);
-        // The picker must not offer what the write would refuse - the two tests above prove the write
-        // refuses exactly these two.
         owners.Should().NotContain(reviewerId).And.NotContain(outsiderId);
         approvers.Should().NotContain(reviewerId).And.NotContain(outsiderId);
 
-        // A supplier holds rfq.read, so this route is reachable by one - and must answer 404 (§9.2)
-        // rather than hand over the buying organization's staff roster.
         var (supplier, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, $"Peek {Guid.NewGuid():N}"[..30]);
         (await supplier.GetAsync($"/api/v1/rfqs/{referenceCode}/assignees")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -401,8 +410,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         var (mine, _) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
         var (theirs, _) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer, org.Id);
 
-        // Both Drafts, whose next action needs rfq.submit_review - which both officers hold. Before
-        // A-7 this tile read 2 for each of them.
         await mine.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("My Draft"));
         await theirs.PostAsJsonAsync("/api/v1/rfqs", RfqBasics("Their Draft"));
 
@@ -412,9 +419,6 @@ public sealed class RfqOwnershipTests(PostgresApiFixture fixture)
         myDashboard.GetProperty("kpis").GetProperty("awaitingMyAction").GetInt32().Should().Be(1);
         theirDashboard.GetProperty("kpis").GetProperty("awaitingMyAction").GetInt32().Should().Be(1);
 
-        // The control, and the reason this tile is not simply "RFQs I own": both see the same TWO
-        // active RFQs, so the number above is ownership narrowing the count and not the organization
-        // having one RFQ in it.
         myDashboard.GetProperty("kpis").GetProperty("activeRfqs").GetInt32().Should().Be(2);
     }
 }

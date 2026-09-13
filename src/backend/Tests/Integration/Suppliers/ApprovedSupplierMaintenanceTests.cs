@@ -1,3 +1,41 @@
+// What an APPROVED supplier may still maintain about itself.
+//
+// Every one of these was refused before this suite existed, because one guard covered every child collection on the
+// record and that guard stopped at approval.
+//
+// Found by an approved supplier trying to add a contact, and then trying to replace a tax certificate the same
+// screen was warning them was about to expire.
+//
+//
+// THE SPLIT THIS PINS
+//
+// Contact-shaped data is maintainable while live: people leave and offices move, and a buyer whose only named
+// contact has gone cannot ask a clarification.
+//
+// Legal identity and bank details are not in that set. They are what the reviewer approved and where an award is
+// paid, so they keep the behaviour they already had, which sends the application back for review rather than
+// accepting the change quietly.
+//
+//
+// THE RENEWAL IS THE CASE THAT MATTERED
+//
+// Expiry is tracked, a daily job expires the document, and an award-critical one suspends the supplier.
+//
+// The replacement lands as a NEW VERSION for a reviewer to decide on, and the supplier's own onboarding state is not
+// touched, because a company whose certificate is a year newer does not need onboarding again.
+//
+//
+// THE CONTROL
+//
+// Widening the gate for contact details must not widen it for the two things the reviewer's approval actually rests
+// on, and a test that only asserted the new permissions would pass just as happily if the guard had been deleted
+// outright.
+//
+// For those two, either the change is refused outright or it is accepted and the supplier goes back for review. What
+// must never happen is a silent acceptance that leaves them approved.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -8,25 +46,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// What an APPROVED supplier may still maintain about itself.
-///
-/// <para>Every one of these answered "Cannot edit profile from state 'Approved'" before this suite
-/// existed, because one guard covered every child collection on the aggregate and that guard stopped
-/// at approval. Found by an approved supplier trying to add a contact, and then trying to replace a
-/// tax certificate the same screen was warning them was about to expire.</para>
-///
-/// <para><b>The split this pins.</b> Contact-shaped data is maintainable while live: people leave and
-/// offices move, and a buyer whose only named contact has gone cannot ask a clarification. Legal
-/// identity and bank details are not in that set - they are what the reviewer approved and where an
-/// award is paid - and they keep the behaviour they already had, which re-triggers review rather than
-/// accepting the change quietly.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ApprovedSupplierMaintenanceTests(PostgresApiFixture fixture)
 {
@@ -80,12 +101,6 @@ public sealed class ApprovedSupplierMaintenanceTests(PostgresApiFixture fixture)
         address.StatusCode.Should().Be(HttpStatusCode.OK, await address.Content.ReadAsStringAsync());
     }
 
-    /// <summary>
-    /// The renewal, which is the case that mattered: expiry is tracked, a daily job expires the
-    /// document, and BRULE-023 suspends the supplier for an award-critical one. The replacement lands
-    /// as a NEW VERSION for a reviewer to decide on - the supplier's own onboarding state is not
-    /// touched, because a company whose certificate is a year newer does not need onboarding again.
-    /// </summary>
     [Fact]
     public async Task An_approved_supplier_can_upload_a_renewed_document()
     {
@@ -114,11 +129,6 @@ public sealed class ApprovedSupplierMaintenanceTests(PostgresApiFixture fixture)
             "a renewal is a document decision, not a re-onboarding");
     }
 
-    /// <summary>
-    /// The control. Widening the gate for contact details must not widen it for the two things the
-    /// reviewer's approval actually rests on - and a test that only asserted the new permissions
-    /// would pass just as happily if the guard had been deleted outright.
-    /// </summary>
     [Fact]
     public async Task Changing_the_legal_identity_while_approved_still_returns_the_supplier_to_review()
     {
@@ -136,8 +146,6 @@ public sealed class ApprovedSupplierMaintenanceTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var supplier = await db.Suppliers.AsNoTracking().FirstAsync(s => s.DisplayNameEn == name);
 
-        // Either the change is refused outright, or it is accepted and the supplier goes back for
-        // review. What must never happen is a silent acceptance that leaves them Approved.
         if (response.IsSuccessStatusCode)
         {
             supplier.OnboardingState.Should().Be(SupplierOnboardingState.UnderReview,

@@ -1,3 +1,77 @@
+// Moving a submission deadline: who may move it in which direction, and what the record says afterwards.
+//
+// The written rule gives extension to the officer and shortening to the manager, while the tender is published or
+// open, with an audit action and a notification to every invitee.
+//
+//
+// THE REFUSAL RUNS BOTH WAYS, OR IT IS ONLY HALF A RULE
+//
+// The officer reaches the handler holding the edit permission and is refused on DIRECTION. The manager, on the
+// same route with a shortening payload, is accepted.
+//
+// And the mirror: a manager may not EXTEND.
+//
+//
+// A PAST DATE IS REFUSED, AND THAT IS COHERENCE RATHER THAN POLICY
+//
+// A past deadline would close the tender on the timeline job's next run, making a "shortening" an immediate close
+// by side effect and skipping the close operation's own rules.
+//
+// It is attempted as the manager, because a past date is a shortening and that is the manager's direction, and the
+// control is a future shortening from the same caller landing, so the refusal is about the date rather than about
+// the caller or the direction.
+//
+//
+// THE STATE GUARD, AND WHY THERE IS NO THIRD CASE
+//
+// The rule permits a change only while the tender is published or open. That is reproduced through the real
+// timeline job rather than by writing a state into the row, and the job is run twice, because it makes one
+// transition per run: the first opens the window and the second closes it. One run left it open, which is how this
+// was found.
+//
+// On a closed tender the officer gets the STATE refusal, which is the guard under test, while the manager is
+// refused earlier and for a different reason, because permission is checked before the aggregate is touched.
+// That difference is asserted rather than smoothed over, because a reader comparing the two responses should know
+// why they differ.
+//
+// There is no third case: the deadline is already in the past, so every date the domain would accept is later and
+// therefore an extension, and a manager can only ever meet the permission refusal there.
+//
+//
+// TWO AUDIT ACTIONS, NOT ONE
+//
+// Shortening gets its own, rather than "extended" with a smaller number in it: an audit search for who cut a
+// tender short must not have to read two timestamps out of a row named extended.
+//
+// The extension row carries BOTH dates, because a recorded decision leaves an extension uncapped and calls this
+// row the only control on an abusive one.
+//
+// And the reason is required, which is what makes every change defensible or obviously indefensible. Without it
+// that row records only that somebody moved a date. It is asserted refused with no reason, which is the half that
+// makes the rest meaningful, and asserted present in the audit row rather than merely the dates.
+//
+//
+// WHAT THE NOTIFICATION CARRIES, AND WHERE THE REASON IS READ
+//
+// Every invitee is told, and the payload carries no date, because the allow-list treats a date as content.
+//
+// That is asserted on the DATA map specifically, which is what the allow-list governs. The date does appear in the
+// de-duplication key, deliberately: two successive changes are two pieces of news, and a key on the tender alone
+// would swallow the second. A de-duplication key is routing plumbing that is never rendered to anyone; the
+// allow-list's concern is what reaches a reader.
+//
+// The supplier reads the reason on the tender, where the deadline itself is. Not in the payload: the allow-list is
+// identifiers and public codes, and it already refused a date on the grounds that a date is content, so a
+// free-text reason cannot go there either. The notification points here.
+//
+// A shortening notification is an ADDITION beyond the written rule, which names one only for an extension. A
+// window closing earlier is what a bidder must hear about most urgently.
+//
+// The assertions read storage rather than the response body, and the setup binds a scoring template because
+// publication refuses a tender without one.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,16 +83,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-018/BRULE-035: <i>"Deadline extension while Published/SubmissionOpen: procurement_officer may
-/// extend submissionCloseAt (audit rfq.deadline_extended, notify all invitees). Shortening the window
-/// requires procurement_manager."</i>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
 {
@@ -37,9 +103,6 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
             .Select(r => r.SubmissionClosesAt).FirstAsync();
     }
 
-    /// <summary>A Published RFQ with an open window - the state BRULE-035 permits a change in.</summary>
-    /// <summary>A-6 needs the invited supplier's own client - the reason is read on the supplier's RFQ -
-    /// so the invitee is returned rather than discarded.</summary>
     private async Task<(string RfqCode, HttpClient Officer, HttpClient Manager, Guid OrgId, HttpClient Supplier)> OpenRfqAsync(string label)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -62,8 +125,6 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
             categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
         });
 
-        // Publish refuses without a bound evaluation template - same prerequisite every other RFQ
-        // seed in this suite satisfies.
         var template = await manager.PostAsJsonAsync("/api/v1/evaluation-templates",
             new { nameAr = "قالب", nameEn = $"Tpl {Guid.NewGuid():N}" });
         var templateId = (await template.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
@@ -109,29 +170,20 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
 
-        // Asserted against storage, not the response body.
         (await DeadlineAsync(rfqCode)).Should().BeCloseTo(extended, TimeSpan.FromSeconds(1));
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // BRULE-035 names this event. D-12 leaves an extension UNBOUNDED, so this row is the only
-        // control on an abusive one - which is why it carries both dates, not just the new one.
         var audit = await db.AuditLogs.AsNoTracking()
             .FirstAsync(a => a.ReferenceCode == rfqCode && a.Action == "rfq.deadline_extended");
         audit.FromState.Should().NotBeNullOrEmpty("an extension without the previous date says nothing about by how much");
         audit.ToState.Should().NotBeNullOrEmpty();
 
-        // "notify all invitees" - and the payload carries no date, because the allow-list treats a
-        // date as content (see NotificationPayload.AllowedKeys).
         var payloads = await db.OutboxMessages.AsNoTracking().Select(m => m.PayloadJson).ToListAsync();
         var deadlineMessages = payloads.Where(p => p.Contains("rfq.deadline_extended")).ToList();
         deadlineMessages.Should().NotBeEmpty();
 
-        // Asserted on the DATA map specifically, which is what the allow-list governs. The date does
-        // appear in the dedupeKey, deliberately: two successive changes are two pieces of news, and a
-        // key on the RFQ alone would swallow the second. A dedupe key is routing plumbing that is
-        // never rendered to anyone - the allow-list's concern is what reaches a reader.
         foreach (var message in deadlineMessages)
         {
             var data = JsonDocument.Parse(message).RootElement.GetProperty("data");
@@ -147,7 +199,6 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
         var before = await DeadlineAsync(rfqCode);
         var shortened = before!.Value.AddDays(-3);
 
-        // Refusable: the officer holds rfq.edit and reaches the handler, and is refused on DIRECTION.
         var refused = await officer.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = shortened, reason = "Supplier request for more preparation time." });
 
@@ -156,13 +207,10 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
         (await DeadlineAsync(rfqCode)).Should().BeCloseTo(before.Value, TimeSpan.FromSeconds(1),
             "a refused shortening leaves the aggregate untouched");
 
-        // And the mirror: a manager may not EXTEND. BRULE-035 splits the two directions between two
-        // roles, so the refusal has to run both ways or it is only half a rule.
         (await manager.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = before.Value.AddDays(3), reason = "Supplier request for more preparation time." }))
             .StatusCode.Should().Be(HttpStatusCode.Forbidden, "extension is the officer's direction");
 
-        // Satisfiable: the manager, same route, a SHORTENING payload.
         var allowed = await manager.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = shortened, reason = "Supplier request for more preparation time." });
 
@@ -172,15 +220,11 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Its own audit action, not "extended" with a smaller number in it - an audit search for who
-        // cut a tender short must not have to read two timestamps out of a row named "extended".
         (await db.AuditLogs.AnyAsync(a => a.ReferenceCode == rfqCode && a.Action == "rfq.deadline_shortened"))
             .Should().BeTrue();
         (await db.AuditLogs.AnyAsync(a => a.ReferenceCode == rfqCode && a.Action == "rfq.deadline_extended"))
             .Should().BeFalse("no extension happened here");
 
-        // The shortening notification is an ADDITION beyond BRULE-035, which names one only for
-        // extension - a window closing earlier is what a bidder must hear about most urgently.
         var payloads = await db.OutboxMessages.AsNoTracking().Select(m => m.PayloadJson).ToListAsync();
         payloads.Should().Contain(p => p.Contains("rfq.deadline_shortened"));
     }
@@ -191,17 +235,12 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
         var (rfqCode, _, manager, _, _) = await OpenRfqAsync("PastDate");
         var before = await DeadlineAsync(rfqCode);
 
-        // The manager, because a past date is a SHORTENING and that is the manager's direction.
-        // Not policy - coherence. A past deadline would close the RFQ on the timeline job's next run,
-        // making a "shortening" an immediate close by side effect, skipping Close()'s own rules.
         var response = await manager.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = DateTimeOffset.UtcNow.AddDays(-1), reason = "Supplier request for more preparation time." });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await DeadlineAsync(rfqCode)).Should().BeCloseTo(before!.Value, TimeSpan.FromSeconds(1));
 
-        // The control: a future SHORTENING from the same caller lands, so the refusal above is about
-        // the date being in the past and not about the caller or the direction.
         (await manager.PostAsJsonAsync(
             $"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = before.Value.AddDays(-1), reason = "Supplier request for more preparation time." }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
@@ -210,8 +249,6 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_deadline_cannot_be_changed_once_submissions_have_closed()
     {
-        // BRULE-035 permits the change "while Published/SubmissionOpen" only. Reproduced through the
-        // real timeline job rather than by writing a state into the row.
         var (rfqCode, officer, manager, _, _) = await OpenRfqAsync("Closed");
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -221,8 +258,6 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
                 .SetProperty(r => r.SubmissionOpensAt, DateTimeOffset.UtcNow.AddSeconds(-3))
                 .SetProperty(r => r.SubmissionClosesAt, DateTimeOffset.UtcNow.AddSeconds(-1)));
         }
-        // Twice: the job makes one transition per run, so the first opens the window and the second
-        // closes it. One run left it SubmissionOpen, which is how this was found.
         for (var i = 0; i < 2; i++)
         {
             await using var jobScope = fixture.Services.CreateAsyncScope();
@@ -237,23 +272,14 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
             state.Should().Be(RfqState.SubmissionClosed, "the job closed it, so the guard below is about state");
         }
 
-        // The officer holds the direction this request is in (a later date is an extension), so the
-        // refusal they get is the STATE one - which is the guard under test.
         var later = DateTimeOffset.UtcNow.AddDays(3);
         (await officer.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = later, reason = "Supplier request for more preparation time." }))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest,
                 "reopening a closed window is not an extension - it would resurrect a tender after bidding ended");
 
-        // The manager is refused earlier and for a different reason: permission is checked before the
-        // aggregate is touched, and extension is not their direction. Asserted rather than smoothed
-        // over, because a reader comparing the two responses should know why they differ.
         (await manager.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/deadline", new { submissionDeadline = later, reason = "Supplier request for more preparation time." }))
             .StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // There is no third case to assert: this RFQ's deadline is already in the past, so EVERY date
-        // the domain would accept is later than it and therefore an extension. A manager can only
-        // ever meet the permission refusal on a closed RFQ, which is why the state guard is proven
-        // through the officer above.
     }
 
     [Fact]
@@ -276,24 +302,17 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_deadline_change_needs_a_reason_and_the_reason_reaches_the_supplier()
     {
-        // A-6. BRULE-035 puts no cap on an extension and A-6 keeps it uncapped - a cap would invent a
-        // fairness rule - so the required reason is what makes every change defensible or obviously
-        // indefensible. D-12 called the audit row the control; without a reason that row records only
-        // that someone moved a date.
         var (rfqCode, officer, _, _, supplier) = await OpenRfqAsync("Reasoned");
         var before = await DeadlineAsync(rfqCode);
 
-        // Refused with no reason, which is the half that makes the rest meaningful.
         (await officer.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/deadline",
             new { submissionDeadline = before!.Value.AddDays(3), reason = "" }))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
 
-        // The control.
         var accepted = await officer.PostAsJsonAsync($"/api/v1/rfqs/{rfqCode}/deadline",
             new { submissionDeadline = before.Value.AddDays(3), reason = "The Ministry extended the tender period." });
         accepted.StatusCode.Should().Be(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
 
-        // Audited with the reason, not merely with the dates.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -302,10 +321,6 @@ public sealed class DeadlineChangeTests(PostgresApiFixture fixture)
             row.Reason.Should().Be("The Ministry extended the tender period.");
         }
 
-        // And the SUPPLIER can read it - on the RFQ, where the deadline itself is. Not in the
-        // notification payload: BRULE-091's allow-list is identifiers and public codes, and it already
-        // refused a DATE on the grounds that a date is content (T-018), so a free-text reason cannot go
-        // there either. The notification points here.
         var supplierView = await supplier.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{rfqCode}");
         supplierView.GetProperty("submissionDeadlineChangeReason").GetString()
             .Should().Be("The Ministry extended the tender period.");

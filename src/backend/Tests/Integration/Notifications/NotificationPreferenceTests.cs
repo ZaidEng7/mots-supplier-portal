@@ -1,3 +1,48 @@
+// SCR-901 and FR-NOT-004, under D-60.
+//
+// The screen was REFUSED for two batches, and correctly (D-48 and D-52): FR-NOT-004 says "opt-out of
+// non-critical only" and nothing classified the 32 notification types, so building it would have meant
+// deciding - inside a preferences screen - whether a supplier may switch off the message telling them they
+// have won. D-60 made that decision and phase 1 recorded the classification. This is the screen the
+// classification was for.
+//
+// The load-bearing test is the suppression one. A preferences screen that stores a choice and changes no
+// delivery is the exact vacuity this project keeps finding in its own instruments, so that test mutes a type,
+// sends it, and requires the notification NOT to arrive, with an unmuted user in the same run receiving it.
+// The two types it uses are D-60's two halves: an informational one, another evaluator's progress, which the
+// recipient can read off the evaluation whenever they like; and an actionable one, an award outcome, never
+// muteable and the type somebody would try first.
+//
+// The list carries all 32 rather than only the muteable ones, because saying what a user will be told
+// REGARDLESS is half of what this screen is for and a list that omitted those rows could not render it.
+//
+// An actionable type is refused by the endpoint and not only by the screen, and nothing is stored by either
+// refusal - counted for THIS user, because the suite shares one database and another test's preferences are
+// not this one's business.
+//
+// The suppression test sends through the real materialiser, which is the single place a notification row is
+// written and therefore where the preference is honoured: enqueuing through the outbox and running the
+// dispatcher would exercise the same method with more moving parts and one more source of flake. The
+// actionable type goes to the same user who muted the informational one, because D-60's constraint is that it
+// still arrives - and a suppression bug keyed on the USER rather than the type would pass every assertion
+// above and fail there.
+//
+// The set replaces what was stored, so a type can be switched back on, and it is idempotent: the same set
+// twice changes nothing, which is what the unique index on (user, type) guarantees underneath. One user's
+// preferences are not another user's.
+//
+// A supplier has the same screen as the staff do - "all authenticated", per SCREEN-INVENTORY's own persona
+// column. A supplier receives invitations and award offers, so the one screen telling them what they cannot
+// switch off is theirs too.
+//
+// T-037: the classification reaches the SPA, which is what lets SCR-900 group a reader's notifications into
+// "waiting on you" and "for information". It is asserted on the wire rather than on the domain set, because
+// the defect this closes was a screen that could not see the classification - the set has existed since D-60 -
+// and both values appear in one response, so a field hard-coded either way fails. The row is written through
+// the real materialiser, the one place a notification row is created.
+
+namespace MotsSupplierPortal.Tests.Integration.Notifications;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,36 +53,15 @@ using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Notifications;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-901/FR-NOT-004, under D-60.
-///
-/// <para><b>The screen was REFUSED for two batches, and correctly</b> (D-48/D-52): FR-NOT-004 says
-/// "opt-out of non-critical only" and nothing classified the 32 notification types, so building it would
-/// have meant deciding - inside a preferences screen - whether a supplier may switch off the message telling
-/// them they have won. D-60 made that decision and phase 1 recorded the classification. This is the screen
-/// the classification was for.</para>
-///
-/// <para><b>The load-bearing test is the suppression one.</b> A preferences screen that stores a choice and
-/// changes no delivery is the exact vacuity this project keeps finding in its own instruments - so the third
-/// test below mutes a type, sends it, and requires the notification NOT to arrive, with an unmuted user in
-/// the same run receiving it.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
 {
     private const string Route = "/api/v1/notifications/preferences";
 
-    /// <summary>Informational per D-60: another evaluator's progress, which the recipient can read off the
-    /// evaluation whenever they like.</summary>
     private const string Muteable = NotificationTypes.EvaluatorSubmitted;
 
-    /// <summary>Actionable per D-60 - an award outcome. Never muteable, and the type somebody would try
-    /// first.</summary>
     private const string Actionable = NotificationTypes.AwardApproved;
 
     [Fact]
@@ -48,8 +72,6 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
         var body = await client.GetFromJsonAsync<JsonElement>(Route);
         var types = body.GetProperty("types").EnumerateArray().ToList();
 
-        // All 32, not only the muteable ones: saying what a user will be told REGARDLESS is half of what
-        // this screen is for, and a list that omitted those rows could not render it.
         types.Should().HaveCount(NotificationTypes.All.Count);
         types.Should().OnlyContain(t => t.GetProperty("muted").GetBoolean() == false,
             "nothing is muted until somebody mutes it - absence of a row means deliver");
@@ -83,8 +105,6 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
                 "a stored row for a type nobody sends is a preference that can never be honoured and never "
                 + "be seen to fail");
 
-        // And nothing was stored by either refusal - counted for THIS user, because the suite shares one
-        // database and another test's preferences are not this one's business.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.NotificationPreferences.CountAsync(p => p.UserId == userId)).Should().Be(0);
@@ -99,9 +119,6 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
         var saved = await muter.PutAsJsonAsync(Route, new { mutedTypes = new[] { Muteable } });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
 
-        // Sent through the real materialiser - the single place a notification row is written, which is where
-        // the preference is honoured. Enqueuing through the outbox and running the dispatcher would exercise
-        // the same method with more moving parts and one more source of flake.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var materialiser = scope.ServiceProvider.GetRequiredService<INotificationMaterialiser>();
@@ -112,9 +129,6 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
             await materialiser.MaterialiseAsync(
                 new NotificationRequest(Muteable, listenerId, $"pref-test-listener:{Guid.NewGuid():N}", data));
 
-            // The actionable one, to the same user who muted the informational type: D-60's constraint is
-            // that this still arrives, and a suppression bug keyed on the USER rather than the type would
-            // pass every assertion above and fail here.
             await materialiser.MaterialiseAsync(
                 new NotificationRequest(Actionable, muterId, $"pref-test-actionable:{Guid.NewGuid():N}", data));
         }
@@ -147,8 +161,6 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
             "the command carries the whole set, so leaving a type out is how it is switched back on - a "
             + "merge would make unmuting impossible");
 
-        // Idempotent: the same set twice changes nothing, which is what the unique index on (user, type)
-        // guarantees underneath.
         var again = await client.PutAsJsonAsync(Route, new { mutedTypes = new[] { Muteable } });
         again.StatusCode.Should().Be(HttpStatusCode.OK);
         (await db.NotificationPreferences.CountAsync(p => p.UserId == userId)).Should().Be(1);
@@ -181,8 +193,6 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_supplier_has_the_same_screen_as_the_staff_do()
     {
-        // "All authenticated", per SCREEN-INVENTORY's own persona column. A supplier receives invitations and
-        // award offers, so the one screen telling them what they cannot switch off is theirs too.
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Prefs {Guid.NewGuid():N}"[..20]);
 
         var body = await supplier.GetFromJsonAsync<JsonElement>(Route);
@@ -192,20 +202,11 @@ public sealed class NotificationPreferenceTests(PostgresApiFixture fixture)
         saved.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    /// <summary>
-    /// T-037: the classification reaches the SPA, which is what lets SCR-900 group a reader's
-    /// notifications into "waiting on you" and "for information".
-    ///
-    /// <para>Asserted on the wire rather than on the domain set, because the defect this closes was a
-    /// screen that could not see the classification - the set has existed since D-60. Both values
-    /// appear in one response, so a field hard-coded either way fails.</para>
-    /// </summary>
     [Fact]
     public async Task A_listed_notification_says_whether_it_is_waiting_on_the_reader()
     {
         var (client, userId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer);
 
-        // Written through the real materialiser, the one place a notification row is created.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var materialiser = scope.ServiceProvider.GetRequiredService<INotificationMaterialiser>();

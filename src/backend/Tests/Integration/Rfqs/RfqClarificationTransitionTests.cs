@@ -1,3 +1,38 @@
+// The three tender states nothing could reach, through the real HTTP surface, plus the refusal that reports where a
+// tender can actually go.
+//
+//
+// THE PERSONAS THE WRITTEN PROCESS NAMES
+//
+// Requesting a clarification is the officer's and the evaluator's. The evaluator half is easy to drop when wiring a
+// permission, and this is what catches it.
+//
+// The negative has those two as its control: the route works, and it works for exactly the personas named.
+//
+// Each transition's notification is asserted against the group the process names: the targeted supplier for a
+// request, the committee for a resolution.
+//
+//
+// THE TWO REFUSALS MUST STAY DISTINGUISHABLE
+//
+// Resolving a clarification that was never requested is illegal from this state and legal from the other, which is
+// exactly the shape the conflict response exists to explain.
+//
+// Requesting one IS legal from this state, so a refusal there is about the REQUEST, the missing reason, and must
+// not be dressed up as a state-machine conflict, or a client would refetch and retry forever.
+//
+//
+// THE SUBMISSION WINDOW IS AN HOUR, NOT SECONDS
+//
+// A seconds-wide window made everything between publishing and submitting race a wall clock, and on a loaded
+// machine the submission lost.
+//
+// The window is closed by moving the deadline in storage, so the real job still performs the transition and only
+// the waiting is gone. And the submission is CHECKED, because an unchecked one makes every downstream failure
+// anonymous.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -10,15 +45,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T3-36 through the real HTTP surface: the three states BUSINESS-PROCESSES.md §3.1 defines and no
-/// code path could reach, plus §3's 409 that reports where an RFQ can actually go.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
 {
@@ -40,7 +68,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         return (client, supplier.Id);
     }
 
-    /// <summary>An RFQ in UnderEvaluation - the state all three new transitions hang off.</summary>
     private async Task<Setup> UnderEvaluationAsync(string label)
     {
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
@@ -63,11 +90,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
             titleAr = "طلب", titleEn = $"{label} RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
             currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
             submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
-            // T-087: an HOUR, not three seconds. The three-second window made everything between
-            // publishing and submitting race a wall clock - approve, publish, a 1.2-second sleep, the
-            // timeline job, starting a proposal, pricing it, setting terms - and on a loaded machine the
-            // submit lost. The window is closed below by moving the deadline in storage, so the real job
-            // still performs the transition and only the waiting is gone.
             submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
         });
@@ -104,8 +126,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
             validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date),
             validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
         });
-        // Checked, for the same reason T-087 gave EvaluationSeed's submit a check: an unchecked submit
-        // makes every downstream failure anonymous.
         (await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -135,8 +155,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         return await db.Rfqs.Where(r => r.ReferenceCode == rfqCode).Select(r => r.State).FirstAsync();
     }
 
-    // ---- the transitions ------------------------------------------------------------------------
-
     [Fact]
     public async Task Requesting_and_resolving_a_clarification_moves_the_RFQ_and_notifies_both_sides()
     {
@@ -147,7 +165,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         request.StatusCode.Should().Be(HttpStatusCode.OK, await request.Content.ReadAsStringAsync());
         (await StateOfAsync(setup.RfqCode)).Should().Be(RfqState.Clarification);
 
-        // §3.1's notification column: "Email + in-app to targeted supplier".
         var supplierRows = await NotificationTestHelper.ForRecipientAsync(
             fixture, setup.SupplierUserId, NotificationTypes.RfqClarificationRequested);
         supplierRows.Should().ContainSingle();
@@ -156,7 +173,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         resolve.StatusCode.Should().Be(HttpStatusCode.OK, await resolve.Content.ReadAsStringAsync());
         (await StateOfAsync(setup.RfqCode)).Should().Be(RfqState.UnderEvaluation);
 
-        // §3.1: "In-app to committee".
         var committeeRows = await NotificationTestHelper.ForRecipientAsync(
             fixture, setup.OfficerId, NotificationTypes.RfqClarificationResolved);
         committeeRows.Should().ContainSingle();
@@ -165,8 +181,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_evaluator_can_request_a_clarification_because_the_table_names_them_an_actor()
     {
-        // §3.1: "Request clarification | `procurement_officer`,`evaluator` / `rfq.clarify`". The
-        // evaluator half is easy to drop when wiring a permission, and this is what catches it.
         var setup = await UnderEvaluationAsync("ClarEval");
 
         var response = await setup.Evaluator.PostAsJsonAsync(
@@ -178,8 +192,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_persona_without_rfq_clarify_is_refused()
     {
-        // The negative, with the two tests above as its control: the route works, and it works for
-        // exactly the personas §3.1 names.
         var setup = await UnderEvaluationAsync("ClarDenied");
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer, setup.OrgId);
 
@@ -223,7 +235,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         var consolidate = await setup.Manager.PostAsync($"/api/v1/rfqs/{setup.RfqCode}/evaluation/consolidate", null);
         consolidate.StatusCode.Should().Be(HttpStatusCode.OK, await consolidate.Content.ReadAsStringAsync());
 
-        // §3.1: "UnderEvaluation | Shortlisting | Begin shortlisting | … / `evaluation.consolidate`".
         (await StateOfAsync(setup.RfqCode)).Should().Be(RfqState.Shortlisting);
 
         var rows = await NotificationTestHelper.ForRecipientAsync(
@@ -231,15 +242,11 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
         rows.Should().ContainSingle();
     }
 
-    // ---- §3's 409 -------------------------------------------------------------------------------
-
     [Fact]
     public async Task An_illegal_transition_answers_409_with_the_current_state_and_where_it_can_go()
     {
         var setup = await UnderEvaluationAsync("Illegal");
 
-        // Resolving a clarification that was never requested. Legal from Clarification, not from
-        // UnderEvaluation - which is exactly the shape §3's response exists to explain.
         var response = await setup.Officer.PostAsync($"/api/v1/rfqs/{setup.RfqCode}/resolve-clarification", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -260,9 +267,6 @@ public sealed class RfqClarificationTransitionTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_refusal_that_is_not_a_transition_problem_stays_a_400()
     {
-        // The other direction of the same gate. Requesting a clarification IS legal from
-        // UnderEvaluation, so a refusal here is about the request - the missing reason - and must not
-        // be dressed up as a state-machine conflict, or a client would refetch and retry forever.
         var setup = await UnderEvaluationAsync("NotIllegal");
 
         var response = await setup.Officer.PostAsJsonAsync(

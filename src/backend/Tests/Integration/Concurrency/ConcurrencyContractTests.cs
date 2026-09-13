@@ -1,23 +1,80 @@
+// §8.1's concurrency contract, end to end (T3-34). Three groups of tests in this order: the read half, the
+// write half, and whether the guard actually bites per aggregate.
+//
+// These deliberately use PostgresApiFixture.CreateRawClient rather than the suite's usual client. That
+// client attaches a current If-Match to every mutation, which is what lets three hundred pre-existing tests
+// keep passing - and would make every assertion here vacuous, because a caller that always sends a fresh
+// version can never be missing one and can never be stale.
+//
+// THE READ HALF. §8.1's tag identifies the REPRESENTATION, not only the row, so it has to change when the
+// response's shape does. The tag encoded the row version and nothing else, so adding a field to a DTO
+// changed no tag: after a deploy, a client holding a cached body for an unchanged row kept that body and
+// the new field was invisible to it. Found while verifying a one-line addition - the API returned the new
+// field to curl and the browser rendered the old shape, because its cached body still matched. The build
+// discriminator is what makes that stop. The version half must still be readable, because If-Match depends
+// on it: a client that read before a deploy and writes after it is making a legitimate claim about the row,
+// so a tag from an older build on the same row still parses to the same version and If-Match keeps working
+// across a deployment rather than answering 412 over a suffix.
+//
+// Then §8.1's BROWSER half: the version a read returns has to be readable by the script that will send it
+// back. Every other test in this file reads response.Headers.ETag from an HttpClient, which sees every
+// header on the wire. A browser does not - on a cross-origin response, script gets the CORS-safelisted
+// headers and nothing else, and ETag is not safelisted. So the whole concurrency layer could pass this
+// suite while being invisible to the SPA, which is exactly what it was doing until this test existed.
+// Reproduced in the browser first: clicking Save on a seeded draft proposal logged "[concurrency] PATCH ...
+// was refused for a missing If-Match" and the API answered 428. The test is about the CORS response header
+// rather than about any endpoint, so it uses the cheapest authenticated read that returns an ETag. Its
+// control is that a same-origin request - no Origin at all - carries no exposure header, because nothing is
+// being hidden from script in the first place; and the origin has to be an ALLOWED one, since an unknown
+// origin gets no CORS headers at all, which is the policy refusing rather than the exposure being
+// unconditional.
+//
+// The 304 test echoes back the tag the server actually issued, which is what a client does and what the
+// header means. It is no longer reconstructible from the version alone: a tag now identifies the resource
+// and the caller as well, so that one supplier's validator cannot speak for another's. Its control changes
+// ONLY the version half of the server's own tag, leaving the build and resource halves matching exactly - a
+// tag invented from scratch would differ in three ways at once and could pass the control while the version
+// comparison was broken.
+//
+// THE WRITE HALF. A guarded write with no precondition is refused, with a control: without it the 428 would
+// also pass against a route that was simply broken, or one nobody is allowed to call. "*" is refused too -
+// it is a legal If-Match under RFC 9110 meaning "any current version", which asserts nothing about what the
+// caller read and is exactly the lost update the guard exists to stop; accepting it would leave a
+// one-character bypass of the whole contract.
+//
+// The contact-creation test reverses what it used to assert, and the reversal is the point. It read: "a
+// creation POST is not one of §8.1's guarded mutations". That is true of a POST that creates a top-level
+// resource - there is no prior version to have read - but adding a CONTACT creates a child of an existing
+// Supplier, and the Supplier's version moves either way. Without the precondition a caller could add a
+// contact on top of a profile they had never seen: one a reviewer had just put back into InfoRequested, say,
+// whose flagged-field rules they are unaware of. So the create is a mutation OF the aggregate, and T-030
+// split (3) guards it. The other direction of the gate is a route where "creation" really means creation:
+// an RFQ has no prior version anyone could have read, and if the filter were ever applied there by accident
+// authoring would be impossible and only that test would say so.
+//
+// Only a route that declares the requirement participates. A header sent for some other resource must not
+// become a precondition nobody promised - it would fail a write nothing was contending, which is worse than
+// no guard. That test's route moved with split (3): /me/contacts now DECLARES the requirement, so a stale
+// version there is correctly a 412 and would prove the opposite of what the test is about. Resending
+// verification is a mutation on purpose - a POST with a real effect, and no version to have read.
+//
+// THE GUARD ACTUALLY BITES. The last test is the one that separates a real guard from a decorative one. A
+// 428 only proves the filter runs; it says nothing about whether a WELL-FORMED but stale version is caught,
+// which depends on the write reaching the versioned root at all. An endpoint that modifies only child rows
+// would leave the root's xmin untouched, accept the stale version, and lose the update anyway - silently,
+// and with a green 428 test alongside it. The decisive assertion is that A's write survived: without a real
+// guard it reads "Written by B".
+
+namespace MotsSupplierPortal.Tests.Integration.Concurrency;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Api.Concurrency;
-
-namespace MotsSupplierPortal.Tests.Integration.Concurrency;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// §8.1's concurrency contract, end to end (T3-34).
-///
-/// <para>These tests deliberately use <see cref="PostgresApiFixture.CreateRawClient"/> rather than
-/// the suite's usual client: that client attaches a current <c>If-Match</c> to every mutation, which
-/// is what lets three hundred pre-existing tests keep passing - and would make every assertion here
-/// vacuous, because a caller that always sends a fresh version can never be missing one and can
-/// never be stale.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
 {
@@ -35,21 +92,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         return (client, read.GetProperty("supplierCode").GetString()!);
     }
 
-    // ---- the read half -------------------------------------------------------------------------
-
-    /// <summary>
-    /// §8.1's tag identifies the REPRESENTATION, not only the row - so it has to change when the response's
-    /// shape does.
-    ///
-    /// <para>The tag encoded the row version and nothing else, so adding a field to a DTO changed no tag: after
-    /// a deploy, a client holding a cached body for an unchanged row kept that body and the new field was
-    /// invisible to it. Found while verifying a one-line addition - the API returned the new field to curl and
-    /// the browser rendered the old shape, because its cached body still matched. The build discriminator is
-    /// what makes that stop.</para>
-    ///
-    /// <para>The version half must still be readable, because <c>If-Match</c> depends on it - a client that
-    /// read before a deploy and writes after it is making a legitimate claim about the row.</para>
-    /// </summary>
     [Fact]
     public async Task An_entity_tag_carries_the_build_as_well_as_the_row_version()
     {
@@ -61,32 +103,14 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         tag.Trim('"').Should().Contain(".", "the tag is <version>.<build>; without the build half a cached body " +
             "survives a deploy that changed the response's shape");
 
-        // And the version half is still recoverable, or every guarded write breaks.
         ETag.TryParse(tag, out var version).Should().BeTrue();
         version.Should().BeGreaterThan(0u);
 
-        // A tag from an older build, same row: still parses to the same version, so If-Match keeps working
-        // across a deployment rather than answering 412 over a suffix.
         var withoutBuild = $"\"{tag.Trim('"').Split('.')[0]}\"";
         ETag.TryParse(withoutBuild, out var legacyVersion).Should().BeTrue();
         legacyVersion.Should().Be(version);
     }
 
-    /// <summary>
-    /// §8.1's BROWSER half: the version a read returns has to be readable by the script that will
-    /// send it back.
-    ///
-    /// <para>Every other test in this file reads <c>response.Headers.ETag</c> from an
-    /// <see cref="HttpClient"/>, which sees every header on the wire. A browser does not: on a
-    /// cross-origin response, script gets the CORS-safelisted headers and nothing else, and ETag is
-    /// not safelisted. So the whole concurrency layer could pass this suite while being invisible to
-    /// the SPA - which is exactly what it was doing until this test existed. Reproduced in the browser
-    /// first: clicking Save on a seeded draft proposal logged
-    /// <c>[concurrency] PATCH ... was refused for a missing If-Match</c> and the API answered 428.</para>
-    ///
-    /// <para>The test is about the CORS response header, not about any endpoint, so it uses the
-    /// cheapest authenticated read that returns an ETag.</para>
-    /// </summary>
     [Fact]
     public async Task A_cross_origin_read_exposes_its_ETag_to_script()
     {
@@ -101,14 +125,9 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
             "without this header a browser hides ETag from script and every guarded write goes out with no If-Match");
         string.Join(",", exposed!).Should().Contain("ETag");
 
-        // Control, so the assertion is about the CORS policy rather than a header the app adds to
-        // everything: a same-origin request - no Origin at all - carries no exposure header, because
-        // nothing is being hidden from script in the first place.
         var sameOrigin = await client.GetAsync("/api/v1/suppliers/me");
         sameOrigin.Headers.TryGetValues("Access-Control-Expose-Headers", out _).Should().BeFalse();
 
-        // And the origin has to be an ALLOWED one. An unknown origin gets no CORS headers at all,
-        // which is the policy refusing rather than the exposure being unconditional.
         var foreign = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/suppliers/{supplierCode}");
         foreign.Headers.Add("Origin", "https://not-the-spa.example");
         (await client.SendAsync(foreign)).Headers
@@ -137,9 +156,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
 
         var first = await client.GetAsync("/api/v1/suppliers/me");
 
-        // The tag the server actually issued, echoed back - which is what a client does, and what the
-        // header means. It is no longer reconstructible from the version alone: a tag now identifies the
-        // resource and the caller as well, so that one supplier's validator cannot speak for another's.
         using var conditional = new HttpRequestMessage(HttpMethod.Get, "/api/v1/suppliers/me");
         conditional.Headers.TryAddWithoutValidation("If-None-Match", first.Headers.ETag!.Tag);
         var second = await client.SendAsync(conditional);
@@ -151,13 +167,8 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_conditional_read_holding_a_different_version_gets_the_body()
     {
-        // The control for the test above: 304 must depend on the version matching, not merely on the
-        // header being present.
         var (client, _) = await VerifiedSupplierAsync($"NotModifiedCtl {Guid.NewGuid():N}"[..30]);
 
-        // The server's own tag with ONLY its version half changed, so the build and resource halves still
-        // match exactly. A tag invented from scratch would now differ in three ways at once and could pass
-        // this control while the version comparison was broken.
         var real = (await client.GetAsync("/api/v1/suppliers/me")).Headers.ETag!.Tag.Trim('"');
         var halves = real.Split('.', 2);
         var wrongVersion = $"\"{(halves[0] == "AAAAAQ" ? "AAAAAg" : "AAAAAQ")}.{halves[1]}\"";
@@ -169,8 +180,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadAsStringAsync()).Should().NotBeEmpty();
     }
-
-    // ---- the write half ------------------------------------------------------------------------
 
     [Fact]
     public async Task A_guarded_mutation_without_If_Match_is_refused_with_428()
@@ -191,8 +200,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_same_mutation_WITH_If_Match_succeeds()
     {
-        // The control. Without it, the 428 above would also pass against a route that was simply
-        // broken, or one nobody is allowed to call.
         var (etagClient, supplierCode) = await VerifiedSupplierAsync($"WithIfMatch {Guid.NewGuid():N}"[..30]);
         var raw = await SupplierTestClient.CloneWithoutETagsAsync(fixture, etagClient);
 
@@ -211,9 +218,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_star_If_Match_is_refused_rather_than_honoured()
     {
-        // "*" is a legal If-Match under RFC 9110 and means "any current version" - which asserts
-        // nothing about what the caller read, and is exactly the lost update the guard exists to
-        // stop. Accepting it would leave a one-character bypass of the whole contract.
         var (etagClient, supplierCode) = await VerifiedSupplierAsync($"StarIfMatch {Guid.NewGuid():N}"[..30]);
         var raw = await SupplierTestClient.CloneWithoutETagsAsync(fixture, etagClient);
 
@@ -233,14 +237,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Creating_a_child_of_a_versioned_aggregate_IS_guarded_now()
     {
-        // T-030 split (3) reversed what this test used to assert, and the reversal is the point.
-        //
-        // It read: "a creation POST is not one of §8.1's guarded mutations". That is true of a POST that
-        // creates a top-level resource - there is no prior version to have read - but adding a CONTACT
-        // creates a child of an existing Supplier, and the Supplier's version moves either way. Without
-        // the precondition, a caller could add a contact on top of a profile they had never seen: one a
-        // reviewer had just put back into InfoRequested, say, whose flagged-field rules they are unaware
-        // of. So the create is a mutation OF the aggregate, and it is guarded.
         var (etagClient, _) = await VerifiedSupplierAsync($"GuardedCreate {Guid.NewGuid():N}"[..30]);
         var raw = await SupplierTestClient.CloneWithoutETagsAsync(fixture, etagClient);
 
@@ -254,9 +250,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Creating_a_top_level_resource_still_needs_no_If_Match()
     {
-        // The other direction of the gate, on a route where "creation" really means creation: an RFQ has
-        // no prior version anyone could have read. If the filter were ever applied here by accident,
-        // authoring would be impossible and only this test would say so.
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
         var raw = fixture.CreateRawClient();
@@ -278,13 +271,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_stray_If_Match_on_an_unguarded_mutation_does_not_gate_it()
     {
-        // Only a route that declares the requirement participates. A header sent for some other resource
-        // must not become a precondition nobody promised - it would fail a write nothing was contending,
-        // which is worse than no guard.
-        //
-        // The route moved with split (3): /me/contacts now DECLARES the requirement, so a stale version
-        // there is correctly a 412 and would prove the opposite of what this test is about. Resending
-        // verification is a mutation on purpose - a POST with a real effect, and no version to have read.
         var (etagClient, _) = await VerifiedSupplierAsync($"StrayIfMatch {Guid.NewGuid():N}"[..30]);
         var raw = await SupplierTestClient.CloneWithoutETagsAsync(fixture, etagClient);
 
@@ -300,15 +286,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         response.StatusCode.Should().NotBe(HttpStatusCode.PreconditionRequired);
     }
 
-    // ---- the guard actually bites, per aggregate ------------------------------------------------
-
-    /// <summary>
-    /// The test that separates a real guard from a decorative one. A 428 only proves the filter
-    /// runs; it says nothing about whether a WELL-FORMED but stale version is caught, which depends
-    /// on the write reaching the versioned root at all. An endpoint that modifies only child rows
-    /// would leave the root's xmin untouched, accept the stale version, and lose the update anyway -
-    /// silently, and with a green 428 test alongside it.
-    /// </summary>
     [Fact]
     public async Task A_stale_version_on_an_RFQ_edit_is_rejected_and_the_first_writer_survives()
     {
@@ -332,7 +309,6 @@ public sealed class ConcurrencyContractTests(PostgresApiFixture fixture)
         (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
             .Should().Be("ETAG_MISMATCH");
 
-        // The decisive assertion: A's write survived. Without a real guard this reads "Written by B".
         var after = await raw.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{code}");
         after.GetProperty("titleEn").GetString().Should().Be("Written by A",
             "the losing writer must not have overwritten the winner");

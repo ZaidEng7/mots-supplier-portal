@@ -1,3 +1,39 @@
+// While a reviewer has asked for information, only the flagged fields are editable.
+//
+// That restriction previously existed ONLY as disabled inputs in the interface, so these tests deliberately drive
+// the endpoints directly: an interface test would have passed against the broken code. Every assertion here is a
+// request the browser would never send.
+//
+//
+// THE GUARD MUST NOT LOCK THE SUPPLIER OUT OF FIXING WHAT WAS FLAGGED
+//
+// Which is exactly what a naive vocabulary mismatch would have caused, so that half is asserted too.
+//
+// And it keys off an actual value CHANGE rather than mere presence. The profile form posts all five fields every
+// time, so a presence-based guard would refuse a legitimate save and lock the supplier out of correcting the
+// flagged item, turning a security fix into an outage. One test flags one field and submits the whole form with only
+// that field changed, every other field re-sent at its stored value.
+//
+// And the guard must be inert in normal states, or it would break ordinary onboarding.
+//
+//
+// THE FIXTURE WALKS THE REAL STATE MACHINE
+//
+// Rather than poking the column, so it cannot drift from a state the application could actually produce. The first
+// profile edit advances the onboarding state and the rest satisfies the submit gate.
+//
+// It loads the full profile, because without it the child collections load empty and the submit gate reports every
+// requirement as missing.
+//
+// New children are added explicitly, because their identifiers are assigned in the domain factories, so the change
+// tracker would otherwise infer an existing row and emit a pointless update, which is the same trap the production
+// handler documents.
+//
+// It drives the domain rather than the reviewer endpoints, which need a separate staff identity that is not what is
+// under test here.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -9,25 +45,11 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-77 / STORY-03.3.1 AC1 / BRULE-094 / NFR-SEC-012.
-///
-/// While a supplier is in InfoRequested, only the reviewer's flagged fields are editable. That
-/// restriction previously existed ONLY as `disabled` attributes in the SPA - so these tests
-/// deliberately drive the API directly, because a UI test would have passed against the broken
-/// code. Every assertion here is a request the browser would never send.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
 {
-    /// <summary>Puts the supplier into InfoRequested with exactly one flagged section, by driving
-    /// the domain directly - the reviewer endpoints need a separate staff identity, which is not
-    /// what is under test here.</summary>
     private async Task<HttpClient> CreateSupplierInInfoRequestedAsync(string flaggedCode)
     {
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Flagged Field Co");
@@ -37,17 +59,9 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
 
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        // IncludeProfile matters: without it the child collections load empty and the submit
-        // gate reports every requirement as missing.
         var supplier = db.Suppliers.IncludeProfile().Single(s => s.ReferenceCode == referenceCode);
 
-        // Walk the real state machine rather than poking the column, so the fixture cannot drift
-        // from a state the application could actually produce. The first profile edit advances
-        // EmailVerified -> ProfileInProgress; the rest satisfies the BRULE-004 submit gate.
         supplier.UpdateCoreProfile("seed", null, null, "SYP");
-        // Explicit Add for both: Ids are client-assigned in the domain factories, so EF's
-        // graph-tracking heuristic would otherwise infer Modified and emit a no-op UPDATE - the
-        // same trap ManageAddressHandler documents.
         var seedAddress = supplier.AddAddress(AddressKind.HeadOffice, "1 Seed Street", null, "Damascus", "DIM", "Syria", null, null, null);
         db.Addresses.Add(seedAddress);
         var (seedLink, _) = supplier.LinkCategory("catering", isComplianceCritical: false);
@@ -74,7 +88,6 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Non_flagged_compliance_critical_field_is_refused_on_a_direct_API_call()
     {
-        // Reviewer flagged Address only. Legal info was NOT flagged.
         var client = await CreateSupplierInInfoRequestedAsync(ProfileFieldCodes.Address);
 
         var response = await client.PutAsJsonAsync("/api/v1/suppliers/me/legal-info", new
@@ -128,8 +141,6 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_flagged_section_itself_remains_editable()
     {
-        // The other half: the guard must not lock the supplier out of fixing what was flagged,
-        // which is exactly what a naive vocabulary mismatch would have caused.
         var client = await CreateSupplierInInfoRequestedAsync(ProfileFieldCodes.Address);
 
         var response = await client.PostAsJsonAsync("/api/v1/suppliers/me/addresses", new
@@ -148,15 +159,10 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Resending_unchanged_non_flagged_fields_alongside_a_flagged_change_is_allowed()
     {
-        // The SPA's profile form posts all five fields every time. If the guard keyed off mere
-        // presence rather than an actual value change, a legitimate save would be refused and the
-        // supplier locked out of correcting the flagged item - turning a security fix into an
-        // outage. Flag `description`, then submit the whole form with only description changed.
         var client = await CreateSupplierInInfoRequestedAsync(ProfileFieldCodes.Description);
 
         var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}")
         {
-            // description differs; every other field is re-sent at its stored value.
             Content = new StringContent(
                 """{"description":"CORRECTED","website":null,"supplierGroup":null,"currencyCode":"SYP","primaryContactPhone":"+963900000000"}""",
                 Encoding.UTF8, "application/json"),
@@ -169,7 +175,6 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Editing_is_unrestricted_when_not_in_InfoRequested()
     {
-        // The guard must be inert in normal states, or it would break ordinary onboarding.
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Unrestricted Co");
 
         var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/suppliers/{await client.OwnSupplierCodeAsync()}")

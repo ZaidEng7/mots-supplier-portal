@@ -1,3 +1,40 @@
+// T-076: the 23 transactional emails, admin-editable, and the token contract that makes editing them safe.
+//
+// The first two tests check the contract against reality. A required token the shipped wording does not
+// contain is a rule no administrator could satisfy - they would be refused for removing something that was
+// never there. This is possible to check at all only because the catalogue recovers the shipped templates
+// from EmailTemplates itself rather than transcribing them. The second is the non-vacuity half, and the
+// thing a new template would otherwise miss silently: a key in EmailTemplateKeys with no catalogue entry
+// would throw on the admin screen rather than fail here.
+//
+// The list is driven by the catalogue rather than by the override table: an administrator has to be able
+// to discover which emails exist, and a table-driven list would start empty.
+//
+// Refusing an override that drops a required token is the whole point of T-076 being separate from T-061.
+// The body in that test is valid HTML, reads perfectly, and would lock every new applicant out of the
+// account they are creating - with nothing in the system able to tell, because the send succeeds. The
+// refusal is read off the PROBLEM document, because §7 says every non-2xx is one; an earlier version of
+// this endpoint returned an anonymous { error, tokens } body that the middleware reshaped away, and this
+// test is what caught that. The inverse guard is the same rule from the other side: a token nobody
+// declared reaches the recipient as the literal characters {supplierName} mid-sentence and cannot be
+// diagnosed from the sent mail, which is D-34 applied to email. Its control sends the same wording without
+// the invented token and is accepted, so the refusal is about the token and not about the template being
+// uneditable.
+//
+// The accepted override is asserted through the COPY SOURCE the send path uses, not through the admin
+// read. An override the admin screen can see and the send path ignores is the "live but inert" failure
+// this whole batch is about, and it would pass an admin-side assertion. The Arabic half is a separate
+// row's worth of wording and must not fall back to English, and removing the override restores the shipped
+// copy - asserted through the same seam, since that is the one that decides what a recipient reads.
+//
+// An override is a global config row read by the live send path, and these tests used to delete theirs on
+// their last line. T-073: a failing assertion above that line left ministry test wording on a real
+// template - the password-reset mail among them - for every test that ran afterwards. The product ships no
+// overrides, so deleting is the restore, and the scope guard below does it whether the test passed or
+// threw.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,14 +44,8 @@ using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-076. The 23 transactional emails, admin-editable, and the token contract that makes it safe.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
 {
@@ -23,10 +54,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
     [Fact]
     public void Every_declared_required_token_actually_appears_in_the_shipped_copy()
     {
-        // The contract checked against reality. A required token the shipped wording does not contain is a
-        // rule no administrator could satisfy - they would be refused for removing something that was never
-        // there. Possible to check at all only because the catalogue recovers the shipped templates from
-        // EmailTemplates itself rather than transcribing them.
         foreach (var definition in EmailTemplateKeys.All)
         {
             var shipped = EmailTemplateCatalogue.ShippedFor(definition.Key);
@@ -42,8 +69,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
     [Fact]
     public void Every_catalogue_key_has_shipped_copy_in_both_languages()
     {
-        // Non-vacuity, and the thing a new template would silently miss: a key in EmailTemplateKeys with no
-        // entry in the catalogue would throw on the admin screen rather than fail here.
         EmailTemplateKeys.All.Should().HaveCountGreaterThan(20);
 
         foreach (var definition in EmailTemplateKeys.All)
@@ -56,15 +81,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
         }
     }
 
-    /// <summary>
-    /// Removes the override on <paramref name="key"/> when the scope ends, whether the test passed or
-    /// threw.
-    ///
-    /// <para>T-073: an override is a global config row read by the live send path, and these tests
-    /// deleted theirs on the last line. A failing assertion above it left ministry test wording on a
-    /// real template - the password-reset mail among them - for every test that ran afterwards. The
-    /// product ships no overrides, so deleting is the restore.</para>
-    /// </summary>
     private static IAsyncDisposable OverrideScope(HttpClient admin, string key) => new TemplateOverride(admin, key);
 
     private sealed class TemplateOverride(HttpClient admin, string key) : IAsyncDisposable
@@ -80,8 +96,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
 
         var rows = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/email-templates/");
 
-        // Driven by the catalogue, not the override table: an administrator has to be able to discover which
-        // emails exist, and a table-driven list would start empty.
         rows.EnumerateArray().Should().HaveCount(EmailTemplateKeys.All.Length);
         var verification = rows.EnumerateArray().First(r => r.GetProperty("key").GetString() == EmailTemplateKeys.Verification);
         verification.GetProperty("override").ValueKind.Should().Be(JsonValueKind.Null);
@@ -103,13 +117,7 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
             bodyEn = "<p>Welcome aboard.</p>",
         });
 
-        // This is the whole point of T-076 being separate from T-061. That body is valid HTML, reads
-        // perfectly, and would lock every new applicant out of the account they are creating - with nothing
-        // in the system able to tell, because the send succeeds.
         refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        // Read off the PROBLEM document, because §7 says every non-2xx is one. An earlier version of this
-        // endpoint returned an anonymous { error, tokens } body and the middleware reshaped it away - this
-        // test is what caught that.
         var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("code").GetString().Should().Be("MISSING_REQUIRED_TOKENS");
         problem.GetProperty("type").GetString().Should().EndWith("/errors/validation");
@@ -133,9 +141,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
         });
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
 
-        // Asserted through the COPY SOURCE the send path uses, not through the admin read. An override the
-        // admin screen can see and the send path ignores is the "live but inert" failure this whole batch is
-        // about, and it would pass an admin-side assertion.
         await using var scope = fixture.Services.CreateAsyncScope();
         var copySource = scope.ServiceProvider.GetRequiredService<IEmailCopySource>();
 
@@ -149,7 +154,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
         bodyEn.Should().Contain("https://example.test/reset?token=abc", "the token has to be interpolated, not echoed");
         bodyEn.Should().NotContain("{resetUrl}");
 
-        // The Arabic half is a separate row's worth of wording and must not fall back to English.
         var (subjectAr, _) = await copySource.ComposeAsync(
             EmailTemplateKeys.PasswordReset, "ar",
             new Dictionary<string, string> { ["resetUrl"] = "https://example.test/reset?token=abc" },
@@ -157,8 +161,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
             CancellationToken.None);
         subjectAr.Should().Contain("صياغة الوزارة");
 
-        // And removing it restores the shipped copy - asserted through the same seam, since that is the one
-        // that decides what a recipient reads.
         (await admin.DeleteAsync($"/api/v1/admin/email-templates/{EmailTemplateKeys.PasswordReset}"))
             .StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -177,8 +179,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
 
         await using var scoped = OverrideScope(admin, EmailTemplateKeys.ApplicationApproved);
 
-        // D-34 applied to email: a token nobody declared reaches the recipient as the literal characters
-        // {supplierName} mid-sentence, and cannot be diagnosed from the sent mail.
         var refused = await admin.PutAsJsonAsync($"/api/v1/admin/email-templates/{EmailTemplateKeys.ApplicationApproved}", new
         {
             subjectAr = "تمت الموافقة",
@@ -192,8 +192,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
         problem.GetProperty("code").GetString().Should().Be("UNKNOWN_TOKENS");
         problem.GetProperty("tokens").EnumerateArray().Select(x => x.GetString()).Should().Contain("supplierName");
 
-        // Control: the same wording without the invented token is accepted, so the refusal is about the token
-        // and not about the template being uneditable.
         (await admin.PutAsJsonAsync($"/api/v1/admin/email-templates/{EmailTemplateKeys.ApplicationApproved}", new
         {
             subjectAr = "تمت الموافقة",
@@ -202,7 +200,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
             bodyEn = "<p>Hello</p>",
         })).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // The delete is the scope above, not a last line here.
     }
 
     [Fact]
@@ -223,7 +220,6 @@ public sealed class EmailTemplateOverrideTests(PostgresApiFixture fixture)
                     $"{role} must not be able to reword the invitation emails the ministry sends");
         }
 
-        // Control.
         (await admin.GetAsync("/api/v1/admin/email-templates/")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

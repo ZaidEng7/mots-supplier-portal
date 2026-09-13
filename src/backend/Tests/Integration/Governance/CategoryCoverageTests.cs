@@ -1,3 +1,32 @@
+// SCR-604: category and sector coverage, for the Ministry.
+//
+// One of the two Ministry screens that were never refused and were absent anyway (T-100). SCR-601, 602, 603 and
+// 606 are held back by a disclosure decision, D-57, still awaiting a signature. This one never needed it: every
+// figure is a count, so it sits squarely inside BRULE-086's aggregate grant, and nothing on it is commercial.
+//
+// The empty categories are the point, which is why the first test seeds a category nobody serves and requires it
+// to be listed. A coverage screen built from the LINK table would answer "which categories have suppliers" while
+// appearing to answer "which categories exist" - and the difference is invisible unless something asserts it.
+// The hierarchy is said on the response rather than drawn as a tree, because MSP-54's list is flat while
+// SCR-604's own row in the inventory says "category tree", and a screen inventing the hierarchy would be
+// inventing policy.
+//
+// A suspended supplier counts as approved and not as active, which is the distinction the two columns exist for:
+// a category whose only supplier is suspended reads as covered on any screen that carries one number, and the
+// market is in fact unserved. That test saves the second scope's work separately, because doing it in one place
+// would write the tracked supplier's old states back over the update - the trap SupplierDirectoryTests
+// documents. Separate save, separate context.
+//
+// It names no supplier, no tender and no value. BRULE-086's own words are "aggregate/governance metrics only",
+// and this asserts the shape rather than trusting the handler's intent: a field added later that carried a name
+// would fail here.
+//
+// Only the governance persona may read it - governance.read, not report.read or rfq.read, because this route
+// skips organization scoping and a route that skips row-scoping must be reachable only by the persona whose
+// purpose is to skip it.
+
+namespace MotsSupplierPortal.Tests.Integration.Governance;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,24 +36,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Governance;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-604: category and sector coverage, for the Ministry.
-///
-/// <para><b>One of the two Ministry screens that were never refused and were absent anyway</b> (T-100).
-/// SCR-601/602/603/606 are held back by a disclosure decision - D-57, still awaiting a signature. This one
-/// never needed it: every figure is a count, so it sits squarely inside BRULE-086's aggregate grant, and
-/// nothing on it is commercial.</para>
-///
-/// <para><b>The empty categories are the point,</b> which is why the first test seeds a category nobody
-/// serves and requires it to be listed. A coverage screen built from the LINK table would answer "which
-/// categories have suppliers" while appearing to answer "which categories exist" - and the difference is
-/// invisible unless something asserts it.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class CategoryCoverageTests(PostgresApiFixture fixture)
 {
@@ -58,16 +71,12 @@ public sealed class CategoryCoverageTests(PostgresApiFixture fixture)
             "the count is computed on the server because counting empty rows by eye is how a dashboard "
             + "becomes decoration");
 
-        // Said on the response rather than drawn as a tree: MSP-54's list is flat, and SCR-604's own row in
-        // the inventory says "category tree". A screen inventing the hierarchy would be inventing policy.
         body.GetProperty("categoriesAreFlat").GetBoolean().Should().BeTrue();
     }
 
     [Fact]
     public async Task A_suspended_supplier_counts_as_approved_and_not_as_active()
     {
-        // The distinction the two columns exist for. A category whose only supplier is suspended reads as
-        // covered on any screen that carries one number, and the market is in fact unserved.
         var name = $"Cov {Guid.NewGuid():N}"[..20];
         await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, name);
 
@@ -85,8 +94,6 @@ public sealed class CategoryCoverageTests(PostgresApiFixture fixture)
             db.CategoryLinks.Add(new CategoryLink { Id = Guid.CreateVersion7(), SupplierId = supplierId, CategoryCode = code });
             await db.SaveChangesAsync();
 
-            // Second scope's worth of work in one place would write the tracked supplier's old states back
-            // over the update - the trap SupplierDirectoryTests documents. Separate save, separate context.
         }
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -108,8 +115,6 @@ public sealed class CategoryCoverageTests(PostgresApiFixture fixture)
     [Fact]
     public async Task It_names_no_supplier_no_tender_and_no_value()
     {
-        // BRULE-086's own words are "aggregate/governance metrics only". This asserts the shape rather than
-        // trusting the handler's intent: a field added later that carried a name would fail here.
         var ministry = await StaffTestClient.CreateAsync(fixture, Roles.MinistryViewer);
         var raw = await ministry.GetStringAsync(Route);
 
@@ -126,8 +131,6 @@ public sealed class CategoryCoverageTests(PostgresApiFixture fixture)
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"CovOut {Guid.NewGuid():N}"[..20]);
 
-        // governance.read, not report.read or rfq.read: this route skips organization scoping, and a route
-        // that skips row-scoping must be reachable only by the persona whose purpose is to skip it.
         (await officer.GetAsync(Route)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await reviewer.GetAsync(Route)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await supplier.GetAsync(Route)).StatusCode.Should().Be(HttpStatusCode.Forbidden);

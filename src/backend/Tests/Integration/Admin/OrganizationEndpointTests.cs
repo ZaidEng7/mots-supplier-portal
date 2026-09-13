@@ -1,23 +1,37 @@
+// Task #7, Stage C: the admin-only Organization, OrgUnit and SupplierOrgLink surface. It proves the
+// endpoints work end to end through the real HTTP contract rather than only at unit level, that the
+// admin.organizations.manage permission gate actually rejects a caller without it, and that no link is ever
+// created except by the explicit CreateSupplierOrgLink call - the "no auto-linking" guarantee this stage's
+// ticket required.
+//
+// system_admin requires MFA under NFR-SEC-003, so these use CreateWithMfaAsync rather than the plain
+// password CreateAsync, or login itself fails 403 before ever reaching the endpoint under test.
+//
+// The authorization test uses onboarding_reviewer, which has real permissions of its own - SupplierApprove
+// among them - but not admin.organizations.manage. That is what makes it a genuine authorization check
+// rather than "any authenticated staff user can do this".
+//
+// The remaining tests are the surface's own rules: an OrgUnit can be added and removed, removing one that
+// has children is refused, a SupplierOrgLink appears in the supplier's link list, creating the same link
+// twice is a conflict, and removing it takes it back out of the list.
+//
+// The last test is the "no auto-linking" guarantee itself: a freshly registered, verified, fully onboarded
+// supplier - taken through every real state transition rather than a shortcut - has zero SupplierOrgLink
+// rows until an admin explicitly creates one. Nothing in the registration, onboarding or approval path may
+// ever create a link as a side effect.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>Task #7/Stage C: the admin-only Organization/OrgUnit/SupplierOrgLink surface. Proves
-/// the endpoints work end-to-end through the real HTTP contract (not just unit-level), that the
-/// admin.organizations.manage permission gate actually rejects a caller without it, and that no
-/// link is ever created except by the explicit CreateSupplierOrgLink call - the "no auto-linking"
-/// guarantee this stage's ticket required.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OrganizationEndpointTests(PostgresApiFixture fixture)
 {
-    // system_admin requires MFA (NFR-SEC-003) - CreateWithMfaAsync, not the plain-password
-    // CreateAsync, or login itself fails 403 before ever reaching the endpoint under test.
     private Task<HttpClient> AdminClientAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
     [Fact]
@@ -49,9 +63,6 @@ public sealed class OrganizationEndpointTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Create_organization_rejects_a_caller_without_the_permission()
     {
-        // onboarding_reviewer has real permissions (SupplierApprove etc.) but not
-        // admin.organizations.manage - proves this is a genuine authorization check, not "any
-        // authenticated staff user can do this".
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
 
         var response = await reviewer.PostAsJsonAsync("/api/v1/organizations", new
@@ -144,10 +155,6 @@ public sealed class OrganizationEndpointTests(PostgresApiFixture fixture)
         listAfter.Should().BeEmpty();
     }
 
-    /// <summary>Task #7/Stage C's "no auto-linking" guarantee: a freshly registered, verified,
-    /// fully onboarded supplier - going through every real state transition, not a shortcut - has
-    /// zero SupplierOrgLink rows until an admin explicitly creates one. Nothing in the onboarding/
-    /// registration/approval path may ever create a link as a side effect.</summary>
     [Fact]
     public async Task A_newly_registered_supplier_has_no_organization_links_until_one_is_explicitly_created()
     {

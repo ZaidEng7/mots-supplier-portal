@@ -1,28 +1,33 @@
-using System.Net;
-using System.Net.Http.Json;
-using FluentAssertions;
+// Task #16 and NFR-OBS-006: /metrics is a real Prometheus scrape target rather than just a mapped route that
+// returns 200. It is proven by triggering a real rate-limit rejection over HTTP and confirming the custom
+// counter shows up in the scraped output with its tags - not merely that ASP.NET Core's own built-in request
+// metrics appear, which would be true even if AppMetrics were never wired into the rate limiter at all.
+//
+// Each test derives its own WebApplicationFactory, through fixture.WithWebHostBuilder with no overrides, rather
+// than using the shared fixture's client directly. Found by hitting it: other test files in this suite -
+// RegistrationRateLimitTests and StreamingUploadTests - also derive their own hosts for their own reasons, and
+// each derived host builds its own OpenTelemetry MeterProvider and Prometheus exporter. Several of those
+// coexisting in one test process is enough to make the SHARED fixture's /metrics scrape intermittently come
+// back with only the boilerplate target_info line and none of the app's own instruments, reproduced directly:
+// it passed reliably alone and failed intermittently as part of the full suite. An isolated host sidesteps
+// whatever that cross-provider interaction is, rather than depending on test execution order to avoid it.
+//
+// The first test sends any request first, so http.server.request.duration has at least one recorded sample -
+// Prometheus exporters typically omit an instrument entirely until it has a measurement.
+//
+// The rejection test uses register-strict, which is 5 a minute per target (task #4, NFR-SEC-009), so the sixth
+// over-budget attempt is a genuine 429 rather than a simulated one. It polls rather than reading once, because
+// the OTel SDK's metric collection cycle can lag a just-recorded measurement by a beat - the same latency any
+// real Prometheus scrape has - so this simulates "will a scrape eventually see it" rather than papering over a
+// broken feature.
 
 namespace MotsSupplierPortal.Tests.Integration.Platform;
 
+using System.Net;
+using System.Net.Http.Json;
+using FluentAssertions;
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #16/NFR-OBS-006: /metrics is a real Prometheus scrape target, not just a mapped route that
-/// returns 200. Proven by triggering a real rate-limit rejection over HTTP and confirming the
-/// custom counter shows up in the scraped output with its tags - not merely that ASP.NET Core's
-/// own built-in request metrics appear (which would be true even if AppMetrics were never wired
-/// into the rate limiter at all).
-///
-/// <para><b>Each test derives its own WebApplicationFactory</b> (fixture.WithWebHostBuilder with no
-/// overrides) rather than using the shared fixture's client directly. Found by hitting it: other
-/// test files in this suite (RegistrationRateLimitTests, StreamingUploadTests) also derive their
-/// own hosts for their own reasons, and each derived host builds its own OpenTelemetry
-/// MeterProvider + Prometheus exporter. Multiple of those coexisting in one test process is enough
-/// to make the SHARED fixture's /metrics scrape intermittently come back with only the boilerplate
-/// target_info line and none of the app's own instruments - reproduced directly (passed reliably
-/// alone, failed intermittently as part of the full suite). An isolated host sidesteps whatever
-/// that cross-provider interaction is rather than depending on test execution order to avoid it.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class MetricsEndpointTests(PostgresApiFixture fixture)
 {
@@ -32,8 +37,6 @@ public sealed class MetricsEndpointTests(PostgresApiFixture fixture)
         await using var factory = fixture.WithWebHostBuilder(_ => { });
         var client = factory.CreateClient();
 
-        // Any request first, so http.server.request.duration has at least one recorded sample -
-        // Prometheus exporters typically omit an instrument entirely until it has a measurement.
         await client.GetAsync("/health/live");
 
         var response = await client.GetAsync("/metrics");
@@ -52,8 +55,6 @@ public sealed class MetricsEndpointTests(PostgresApiFixture fixture)
         var client = factory.CreateClient();
         var email = $"metrics-probe-{Guid.NewGuid():N}@example.com";
 
-        // register-strict is 5/min per-target (task #4/NFR-SEC-009) - the 6th over-budget attempt
-        // is a genuine 429, not a simulated one.
         for (var i = 0; i < 6; i++)
         {
             await client.PostAsJsonAsync("/api/v1/auth/register", new
@@ -68,9 +69,6 @@ public sealed class MetricsEndpointTests(PostgresApiFixture fixture)
             });
         }
 
-        // Poll rather than a single read: the OTel SDK's metric collection cycle can lag a
-        // just-recorded measurement by a beat, the same latency any real Prometheus scrape has -
-        // this simulates "will a scrape eventually see it", not papering over a broken feature.
         var body = "";
         for (var attempt = 0; attempt < 20; attempt++)
         {

@@ -1,3 +1,31 @@
+// FR-AUD-003: a supplier exports their own activity trail.
+//
+// The property under test is not "the export works" but "the export is scoped exactly as the list is". An
+// export that applies a different scope from the list it exports is the leak no list-level test can see: every
+// assertion about the list keeps passing while the file hands over somebody else's rows. The seed helper marks
+// a row on the most recently created supplier and returns its action.
+//
+// The first test creates two suppliers, each with a row nobody else should ever see, in that order so the
+// most-recent-supplier seed helper attaches each row to the right one. The owner control comes with it:
+// without it the cross-scope assertion passes on an export that returns nothing at all, which is the failure
+// mode a negative-only test cannot tell apart from a working scope. The same is then asserted in the other
+// direction, so this is a scope rather than an ordering accident.
+//
+// Every row the list shows is in the file. The export is "everything in scope" rather than "the current page",
+// so the list being a subset is the expected direction.
+//
+// A staff caller gets an empty trail rather than the whole audit table, which is the trap this endpoint's
+// separate scope check exists for: the staff search's scoping is deliberately unrestricted for a caller with
+// no SupplierId, which is correct there and catastrophic here, because this route is gated on nothing but
+// being signed in and reusing that scoping would export the entire audit table to any authenticated staff
+// user. The control is that the row exists and IS exportable, by the supplier who owns it. The file is empty
+// of DATA rather than empty of file: the provenance block still states whose scope produced it, so a reader
+// can tell "nothing to show" from "the export broke".
+//
+// The export is refused to an anonymous caller.
+
+namespace MotsSupplierPortal.Tests.Integration.Audit;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -8,26 +36,14 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Audit;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// FR-AUD-003: a supplier exports their own activity trail.
-///
-/// <para>The property under test is not "the export works" but "the export is scoped exactly as the
-/// list is". An export that applies a different scope from the list it exports is the leak no
-/// list-level test can see: every assertion about the list keeps passing while the file hands over
-/// somebody else's rows.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OwnAuditTrailExportTests(PostgresApiFixture fixture)
 {
     private sealed record AuditEntry(Guid Id, string Action);
     private sealed record AuditPage(List<AuditEntry> Data);
 
-    /// <summary>Seeds a marked row on the most recently created supplier and returns its action.</summary>
     private async Task<string> SeedRowAsync(string tag)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -62,8 +78,6 @@ public sealed class OwnAuditTrailExportTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_supplier_exports_their_own_rows_and_not_another_suppliers()
     {
-        // Two suppliers, each with a row nobody else should ever see. Created in this order so the
-        // "most recent supplier" seed helper attaches each row to the right one.
         var supplierA = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Trail Export A");
         var actionA = await SeedRowAsync("a");
 
@@ -72,15 +86,11 @@ public sealed class OwnAuditTrailExportTests(PostgresApiFixture fixture)
 
         var exportA = await ExportAsync(supplierA);
 
-        // The owner control. Without it the cross-scope assertion below passes on an export that
-        // returns nothing at all, which is the failure mode a negative-only test cannot tell apart
-        // from a working scope.
         exportA.Should().Contain(actionA, "control: the owner's own row is in their own export");
 
         exportA.Should().NotContain(actionB,
             "another supplier's row must not be in this file - and no list-level test would notice");
 
-        // And the same in the other direction, so this is a scope and not an ordering accident.
         var exportB = await ExportAsync(supplierB);
         exportB.Should().Contain(actionB);
         exportB.Should().NotContain(actionA);
@@ -98,8 +108,6 @@ public sealed class OwnAuditTrailExportTests(PostgresApiFixture fixture)
 
         var export = await ExportAsync(supplier);
 
-        // Every row the list shows is in the file. The export is "everything in scope", not "the
-        // current page", so the list being a subset is the expected direction.
         foreach (var entry in list.Data)
         {
             export.Should().Contain(entry.Id.ToString(), "a row the list shows must be in the export of that list");
@@ -109,14 +117,9 @@ public sealed class OwnAuditTrailExportTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_staff_caller_gets_an_empty_trail_rather_than_the_whole_audit_table()
     {
-        // The trap this endpoint's separate scope check exists for. The staff search's scoping is
-        // deliberately unrestricted for a caller with no SupplierId, which is correct there and
-        // catastrophic here: this route is gated on nothing but being signed in, so reusing that
-        // scoping would export the entire audit table to any authenticated staff user.
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Trail Export Staff");
         var supplierAction = await SeedRowAsync("staffprobe");
 
-        // Control: the row exists and IS exportable - by the supplier who owns it.
         (await ExportAsync(supplier)).Should().Contain(supplierAction);
 
         var staff = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
@@ -126,8 +129,6 @@ public sealed class OwnAuditTrailExportTests(PostgresApiFixture fixture)
             "'own trail' is meaningless without a supplier scope, and answering with the global log " +
             "would hand a staff caller an unfiltered dump from a route that checks no permission");
 
-        // Empty of DATA, not empty of file: the provenance block still states whose scope produced
-        // it, so a reader can tell "nothing to show" from "the export broke".
         staffExport.Should().Contain("# scope: one supplier's own activity trail (FR-AUD-003)");
     }
 

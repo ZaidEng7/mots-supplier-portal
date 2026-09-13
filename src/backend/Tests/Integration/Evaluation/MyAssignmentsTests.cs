@@ -1,3 +1,39 @@
+// SCR-500, FR-DSH-004 and T3-02 - the screen that makes EPIC-11 reachable by the persona it was built for.
+//
+// FR-DSH-008 and RISK-004. A dashboard is the widest cross-aggregate read in the product, and cross-tenant
+// leakage is the risk register's only Critical. Every assertion here has an owner control beside it, so a
+// negative cannot pass because the query is broken - and the counts are asserted as well as the rows,
+// because "3 assignments" that includes someone else's is a leak even when no row is shown.
+//
+// The assign helper goes through the real endpoint rather than the change tracker. Appending an assignment
+// to a loaded aggregate and saving reproduces the misdetection this codebase has hit before - EF classifies
+// the new child as Modified and issues an UPDATE against a row that does not exist - and driving the API
+// instead tests the path production uses.
+//
+// The read helper FAILS WITH THE BODY when the response is not a 200. GetFromJsonAsync throws on a
+// non-success status and deserialises a problem+json object into a JsonElement that then throws again on
+// GetArrayLength, so either way the failure names neither the status nor the reason. This suite produced
+// exactly that once in a full run - 638 tests, one failure, green in isolation - and the anonymity is why it
+// could not be diagnosed: T-087's lesson, applied where it recurred.
+//
+// An evaluator sees their own assignments and never another's, with the control that the assignment really
+// is visible to the person who holds it, and the negative asserted at count level in the same breath: B sees
+// no rows AND no volume. An evaluator with no organization still sees their assignments, which is the reason
+// this handler is scoped by assignment rather than by organization, asserted rather than trusted -
+// LoadScopedByAssignmentAsync's own note says an evaluator need not belong to the procuring organization,
+// and an evaluator with OrganizationId null is exactly who a normally-scoped widget would show nothing.
+//
+// A recused evaluator stops being asked, with the control first: it is on the dashboard before the recusal.
+//
+// The tabs are IA §4.3's three names - Assigned, In Progress, Submitted - and a fresh assignment is
+// Assigned. Both directions of the filter gate are asserted, because an unknown tab dropped rather than
+// refused returns everything to a caller who asked to narrow.
+//
+// Progress counts what this evaluator owes rather than what the committee does, and a persona without
+// evaluation.score cannot read the screen.
+
+namespace MotsSupplierPortal.Tests.Integration.Evaluation;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,30 +42,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Evaluation;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// SCR-500 / FR-DSH-004 / T3-02 - the screen that makes EPIC-11 reachable by the persona it was
-/// built for.
-///
-/// <para><b>FR-DSH-008 and RISK-004.</b> A dashboard is the widest cross-aggregate read in the
-/// product, and cross-tenant leakage is the risk register's only Critical. Every assertion here has
-/// an owner control beside it, so a negative cannot pass because the query is broken - and the
-/// counts are asserted as well as the rows, because "3 assignments" that includes someone else's is
-/// a leak even when no row is shown.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
 {
-    /// <summary>
-    /// Assigns through the real endpoint rather than the change tracker. Appending an assignment to a
-    /// loaded aggregate and saving reproduces the misdetection this codebase has hit before - EF
-    /// classifies the new child as Modified and issues an UPDATE against a row that does not exist -
-    /// and driving the API instead tests the path production uses.
-    /// </summary>
     private static async Task AssignAsync(Seeded seeded, Guid evaluatorUserId)
     {
         var response = await seeded.Manager.PostAsJsonAsync(
@@ -39,15 +56,6 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
     }
 
-    /// <summary>
-    /// Reads the dashboard and FAILS WITH THE BODY when it is not a 200.
-    ///
-    /// <para><c>GetFromJsonAsync</c> throws on a non-success status and deserialises a problem+json
-    /// object into a <c>JsonElement</c> that then throws again on <c>GetArrayLength</c> - either way the
-    /// failure names neither the status nor the reason. This suite produced exactly that once in a full
-    /// run (638 tests, one failure, green in isolation), and the anonymity is why it could not be
-    /// diagnosed: T-087's lesson, applied where it recurred.</para>
-    /// </summary>
     private static async Task<JsonElement> AssignmentsAsync(HttpClient client, string? tab = null)
     {
         var response = await client.GetAsync($"/api/v1/my-evaluations{(tab is null ? "" : $"?tab={tab}")}");
@@ -71,11 +79,9 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         var mine = await AssignmentsAsync(clientA);
         var theirs = await AssignmentsAsync(clientB);
 
-        // The control: the assignment really is visible to the person who holds it.
         mine.EnumerateArray().Select(a => a.GetProperty("rfqReferenceCode").GetString())
             .Should().Contain(seeded.RfqCode, "control: the assigned evaluator sees their own work");
 
-        // The negative, and the count-level one in the same breath: B sees no rows AND no volume.
         theirs.GetArrayLength().Should().Be(0,
             "an evaluator must see neither the rows nor the number of someone else's assignments");
         _ = evaluatorB;
@@ -84,10 +90,6 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task An_evaluator_with_no_organization_still_sees_their_assignments()
     {
-        // The reason this handler is scoped by assignment rather than by organization, asserted
-        // rather than trusted: LoadScopedByAssignmentAsync's own comment says "an evaluator need not
-        // belong to the procuring organization", and an evaluator with OrganizationId null is
-        // exactly who a normally-scoped widget would show nothing.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "MyAssignNoOrg");
         var (client, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator, organizationId: null);
 
@@ -106,7 +108,6 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         var (client, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator, seeded.OrgId);
         await AssignAsync(seeded, evaluatorId);
 
-        // Control first: it is on the dashboard before the recusal.
         var before = await AssignmentsAsync(client);
         before.GetArrayLength().Should().Be(1);
 
@@ -130,15 +131,12 @@ public sealed class MyAssignmentsTests(PostgresApiFixture fixture)
         var (client, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator, seeded.OrgId);
         await AssignAsync(seeded, evaluatorId);
 
-        // IA §4.3: "tabs Assigned · In Progress · Submitted". A fresh assignment is Assigned.
         var assigned = await AssignmentsAsync(client, "Assigned");
         assigned.GetArrayLength().Should().Be(1);
 
         var submitted = await AssignmentsAsync(client, "Submitted");
         submitted.GetArrayLength().Should().Be(0, "nothing has been submitted yet");
 
-        // Both directions of the filter gate: an unknown tab is refused rather than dropped, because
-        // a dropped filter returns everything to a caller who asked to narrow.
         var unknown = await client.GetAsync("/api/v1/my-evaluations?tab=Everything");
         unknown.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }

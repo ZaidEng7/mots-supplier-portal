@@ -1,3 +1,48 @@
+// What this service WRITES does not depend on the locale of the machine it runs on.
+//
+//
+// WHAT THE EARLIER SWEEP GOT WRONG
+//
+// The entry was closed as swept and the production code clean, and the sweep read explicit formatting CALL SITES.
+//
+// String interpolation formats too, and it was not swept: a handler interpolated a decimal score into an audit
+// row's state field. On a host whose locale uses a comma decimal separator, a score of seven and a half was
+// recorded with a comma, in a table with a trigger that forbids updates and deletes, so the wrong value could never
+// be corrected, and one that is exported verbatim to spreadsheets.
+//
+//
+// NOT REACHABLE THROUGH A REQUEST
+//
+// No request-localisation middleware is registered, so a client cannot influence this: the exposure was purely the
+// deployment host's locale.
+//
+// That makes it latent rather than live, which is why nothing caught it, and it is also why no test could catch it
+// without doing what this one does, which is changing the process's culture on purpose.
+//
+//
+// THE MUTATION IS GLOBAL, AND RESTORED IN A FINALLY
+//
+// The previous culture is captured, a comma-decimal one installed, and the original put back whether the assertions
+// pass or throw. Without that, every later test in the run would format under the wrong culture.
+//
+// The seeding happens FIRST, under the ordinary culture. The first version installed the other culture around the
+// whole thing and the seed itself failed, which told us nothing about the rule under test: a test that changes
+// global state should change it for exactly the operation it is about.
+//
+// The chosen culture separates decimals with a comma so a mistake is VISIBLE rather than coincidentally identical.
+// The realistic host's own culture would be the wrong choice, because the platform renders its decimals with a full
+// stop and the test would pass against the defect.
+//
+// There is a control for the control: if the sample ever renders with a full stop, the chosen culture stopped being
+// comma-decimal and the real assertion proves nothing. The score has a fractional part, which is what makes the
+// separator observable, and the column's precision makes it an ordinary value rather than an edge case.
+//
+// The other half, the one that survives a new formatting site nobody qualifies, is read off the composition root
+// rather than off a running thread, because the fixture builds the host so the process-wide pin has already run by
+// the time any test observes it.
+
+namespace MotsSupplierPortal.Tests.Integration.Contract;
+
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
@@ -6,49 +51,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Contract;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-048: what this service WRITES does not depend on the locale of the machine it runs on.
-///
-/// <para><b>What the entry got wrong, and what it got right.</b> The row was closed as "swept;
-/// production C# is clean" - and the sweep read <c>ToString</c> CALL SITES. String interpolation
-/// formats too, and it was not swept: <c>EvaluationHandlers</c> interpolated a <c>decimal</c> score
-/// into the audit row's <c>toState</c>. On a host whose locale uses a comma decimal separator, a
-/// score of 7.5 was recorded as "7,5" in <c>ops.audit_log</c> - a table with a
-/// <c>BEFORE UPDATE OR DELETE</c> trigger, so the wrong value could never be corrected, and one that
-/// is exported verbatim to CSV.</para>
-///
-/// <para><b>Not through a request header.</b> No request-localization middleware is registered, so
-/// a client cannot influence this - the exposure was purely the deployment host's locale. That makes
-/// it latent rather than live, which is why nothing caught it, and it is also why no test could
-/// catch it without doing what this one does: changing the process's culture on purpose.</para>
-///
-/// <para><b>The mutation is global, and restored in a finally.</b> T-073 is the backlog entry about
-/// exactly this class of test, so: the previous culture is captured, a comma-decimal one is
-/// installed, and the original is put back whether the assertions pass or throw. Without the
-/// finally, every later test in the run would format under de-DE.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class CultureFormattingTests(PostgresApiFixture fixture)
 {
-    /// <summary>
-    /// A culture that separates decimals with a comma, so a mistake is VISIBLE rather than
-    /// coincidentally identical. ar-SY would be the realistic host and is the wrong choice here:
-    /// .NET renders its decimals with a full stop, so the test would pass against the defect.
-    /// </summary>
     private static readonly CultureInfo CommaDecimal = new("de-DE");
 
     [Fact]
     public async Task A_decimal_score_is_audited_the_same_way_on_any_hosts_locale()
     {
-        // Seeded FIRST, under the ordinary culture. The first version of this test installed de-DE
-        // around the whole thing and the seed itself failed, which told us nothing about the rule
-        // under test: a test that changes global state should change it for exactly the operation it
-        // is about.
         var seeded = await EvaluationSeed.CreateAsync(fixture, "Culture");
         await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
             new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
@@ -66,13 +78,9 @@ public sealed class CultureFormattingTests(PostgresApiFixture fixture)
         {
             CultureInfo.DefaultThreadCurrentCulture = CommaDecimal;
 
-            // The control for the control: if this ever renders "7.5", the chosen culture stopped
-            // being comma-decimal and the assertion below proves nothing.
             7.5m.ToString(CultureInfo.CurrentCulture).Should().Be("7,5",
                 "the test culture must actually differ, or this file asserts nothing");
 
-            // A score with a fractional part, which is what makes the separator observable. The
-            // column is decimal(6,2), so this is an ordinary value rather than an edge case.
             var scored = await seeded.Evaluator.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/my-evaluation/scores",
                 new { proposalCode = seeded.ProposalCode, criterionId, rawScore = 7.5m, commentAr = (string?)null, commentEn = (string?)null });
             scored.StatusCode.Should().Be(HttpStatusCode.OK, await scored.Content.ReadAsStringAsync());
@@ -98,9 +106,6 @@ public sealed class CultureFormattingTests(PostgresApiFixture fixture)
     [Fact]
     public void The_process_pins_the_invariant_culture_at_startup()
     {
-        // The other half, and the one that survives a new formatting site nobody qualifies. Read off
-        // the composition root rather than off a running thread: the fixture builds the host, so the
-        // pin has already run by the time any test observes it.
         var source = File.ReadAllText(ProgramFile());
 
         source.Should().Contain("CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture",

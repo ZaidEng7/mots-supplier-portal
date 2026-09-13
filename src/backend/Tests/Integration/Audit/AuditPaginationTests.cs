@@ -1,3 +1,29 @@
+// MSP-66: the own-trail audit read is keyset-paged.
+//
+// The audit log is append-only and retained indefinitely (ASM-085), so it is the one table guaranteed to grow
+// without bound - which is why it gets keyset rather than offset paging, and why "works on page one" is not
+// sufficient evidence. Offset paging also returns correct rows on page one; it degrades at depth. These tests
+// therefore check behaviour at a boundary and across several pages, and specifically the tie-break case where
+// many rows share a timestamp. The envelope type deserialises the documented §5.2 list shape,
+// { data, pagination, meta }, which replaced the flat { items, hasMore, nextCursor, total }.
+//
+// The seed gives half the rows deliberately identical timestamps. One request already writes several audit
+// rows at the same instant under one correlation id, so ties are the normal case rather than an edge case -
+// and a keyset that pages on OccurredAt alone drops or repeats rows there.
+//
+// The depth test is the one that matters. Page one works under offset paging too; what distinguishes keyset is
+// that it stays correct deep into the set and stays correct across ties, so a cursor without the Id tie-break
+// loses rows in it.
+//
+// The clamp is now the ceiling API-ARCHITECTURE.md §6.1 states for every list endpoint - pageSize default 20,
+// min 1, max 100, above which the value is clamped and a Warning header is sent - rather than this endpoint's
+// own former bound of 200. It is seeded above the ceiling so the assertion can actually be violated: with only
+// 30 rows it would hold whatever the clamp did.
+//
+// A malformed cursor starts from the beginning rather than failing.
+
+namespace MotsSupplierPortal.Tests.Integration.Audit;
+
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
@@ -5,29 +31,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Audit;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-66: the own-trail audit read is keyset-paged.
-///
-/// The audit log is append-only and retained indefinitely (ASM-085), so it is the one table
-/// guaranteed to grow without bound - which is why it gets keyset rather than offset paging, and
-/// why "works on page one" is not sufficient evidence. Offset paging also returns correct rows on
-/// page one; it degrades at depth. These tests therefore check behaviour at a boundary and across
-/// several pages, and specifically the tie-break case where many rows share a timestamp.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AuditPaginationTests(PostgresApiFixture fixture)
 {
     private sealed record AuditEntry(Guid Id, DateTimeOffset OccurredAt, string Action);
-    /// <summary>
-    /// Deserialization target for the documented §5.2 list envelope
-    /// (<c>{ data, pagination, meta }</c>), which replaced the flat
-    /// <c>{ items, hasMore, nextCursor, total }</c> shape.
-    /// </summary>
     private sealed record AuditPage(List<AuditEntry> Data, AuditPagination Pagination);
 
     private sealed record AuditPagination(string Mode, string? NextCursor, string? PrevCursor, int PageSize, int? TotalCount, bool HasMore);
@@ -38,9 +47,6 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var supplierId = await db.Suppliers.OrderByDescending(s => s.CreatedAt).Select(s => s.Id).FirstAsync();
 
-        // Deliberately identical timestamps for half the rows. One request already writes several
-        // audit rows at the same instant under one correlation id, so ties are the normal case, not
-        // an edge case - and a keyset that pages on OccurredAt alone drops or repeats rows here.
         var sharedInstant = DateTimeOffset.UtcNow.AddMinutes(-5);
 
         for (var i = 0; i < rows; i++)
@@ -104,9 +110,6 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Keyset_walks_the_whole_trail_without_dropping_or_repeating_a_row_at_depth()
     {
-        // The test that matters. Page one works under offset paging too; what distinguishes keyset
-        // is that it stays correct deep into the set, and stays correct across ties. Half the seeded
-        // rows share one timestamp, so a cursor without the Id tie-break loses rows here.
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Audit Paging Depth");
         var supplierId = await SeedTrailAsync(client, 47);
 
@@ -141,10 +144,6 @@ public sealed class AuditPaginationTests(PostgresApiFixture fixture)
 
         var page = await GetPageAsync(client, null, 100_000);
 
-        // The ceiling is now the one API-ARCHITECTURE.md §6.1 states for every list endpoint -
-        // "pageSize default 20, min 1, max 100 (> 100 -> clamped + Warning header)" - rather than
-        // this endpoint's own former bound of 200. Seeded above the ceiling so the assertion can
-        // actually be violated: with only 30 rows it would hold whatever the clamp did.
         page.Data.Count.Should().Be(100,
             "the bound is enforced server-side; offering a page size a caller can override is not a bound");
         page.Pagination.PageSize.Should().Be(100);

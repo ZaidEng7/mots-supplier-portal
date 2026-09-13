@@ -1,3 +1,37 @@
+// The clarification channel end to end: the window, who sees a question, anonymity, addenda, and the audit trail.
+//
+//
+// WHAT A QUESTION'S VISIBILITY IS NOW
+//
+// A question is private until it is answered, and that is proved BEFORE answering, because it is the half that
+// survives a recorded reversal: the asker's thinking is still not on display to competitors while the buyer is
+// still deciding what to say.
+//
+// Answering PUBLISHES. No flag is sent, because none exists any more. The other invitee then has the answer and
+// cannot tell who asked, and the anonymity is proved properly: no field anywhere on that read carries the asker's
+// identity.
+//
+//
+// THE PUBLISH ROUTE STAYS FOR ROWS THAT ALREADY EXIST
+//
+// Nothing NEW can be private now, but a deployment that answered privately last week still has such rows, and
+// dropping the route would leave those threads permanently unshareable.
+//
+// So the private row is written directly to storage, deliberately: there is no longer any path that produces one,
+// and that IS the point of the test.
+//
+// Publishing something already published is refused rather than silently re-notifying every invitee. It answers as
+// a bad request rather than a conflict, because this is not an illegal state transition: the visibility is already
+// what the caller is asking for.
+//
+//
+// THE WINDOW GUARD IS REACHED ONLY WHEN THE TENDER IS VISIBLE
+//
+// Before publication the supplier-facing route answers not-found before the window guard ever runs, which is the
+// invitation-only visibility boundary rather than the window.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,15 +42,8 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Rfqs;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-10.1..10.6/FR-CLR-001..006: real HTTP proof of the clarification Q&A channel -
-/// window bounding, private-by-default (OQ-008) with explicit publish, asker anonymization on the
-/// published thread, addenda through the "locked after Published except addenda" carve-out, and
-/// that every action is audited.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
 {
@@ -48,8 +75,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         return (client, supplier.Id);
     }
 
-    /// <summary>Creates, authors, invites both suppliers, submits, approves, and publishes an RFQ
-    /// via real HTTP calls, returning its reference code.</summary>
     private async Task<(HttpClient Officer, HttpClient Manager, string ReferenceCode)> PublishedRfqWithTwoInviteesAsync(
         Guid supplierA, Guid supplierB, string titleEn, DateTimeOffset? clarificationDeadlineAt = null)
     {
@@ -98,8 +123,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var referenceCode = rfq.GetProperty("referenceCode").GetString();
         await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId = askerSupplierId });
 
-        // Not yet Published, so the supplier-facing route itself 404s before the window guard ever runs -
-        // the same invite-only-visibility boundary (EPIC-08) is what a supplier hits here.
         var attempt = await askerClient.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications", new { question = "Too early?" });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -147,14 +170,10 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        // A-4: a QUESTION is private until it is answered. Proved before answering, because this is
-        // the half that survives the reversal - the asker's thinking is still not on display to
-        // competitors while the buyer is still deciding what to say.
         var beforeAnswer = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         beforeAnswer.GetProperty("clarifications").EnumerateArray().Should().BeEmpty(
             "an unanswered question belonging to someone else is absent entirely");
 
-        // A-4: answering publishes. No flag is sent because none exists any more.
         var answer = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "FOB." });
         answer.StatusCode.Should().Be(HttpStatusCode.OK);
         var buyerView = await answer.Content.ReadFromJsonAsync<JsonElement>();
@@ -167,7 +186,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         askerClarification.GetProperty("answer").GetString().Should().Be("FOB.");
         askerClarification.GetProperty("isMine").GetBoolean().Should().BeTrue("the asker alone sees their own question attributed");
 
-        // The other invitee now has it, and cannot tell who asked.
         var otherView = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         var otherClarification = otherView.GetProperty("clarifications").EnumerateArray().Single();
         otherClarification.GetProperty("answer").GetString().Should().Be("FOB.");
@@ -194,7 +212,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         otherClarification.GetProperty("question").GetString().Should().Be("What is the delivery incoterm?");
         otherClarification.GetProperty("answer").GetString().Should().Be("FOB.");
         otherClarification.GetProperty("isMine").GetBoolean().Should().BeFalse();
-        // The actual anonymization proof: no field anywhere on this DTO carries the asker's identity.
         otherClarification.TryGetProperty("askedBySupplierId", out _).Should().BeFalse("the supplier-facing shape has no asker-identity field at all");
         otherClarification.TryGetProperty("supplierId", out _).Should().BeFalse();
     }
@@ -202,12 +219,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_publish_route_still_promotes_a_clarification_answered_before_A_4()
     {
-        // A-4 made answering publish, so nothing NEW can be PrivateToAsker. The publish route stays
-        // for the rows that already are - a deployment that answered privately last week still has
-        // them, and dropping the route would leave those threads permanently unshareable.
-        //
-        // The private row is written directly to storage, deliberately: there is no longer an API
-        // path that produces one, and that IS the point of the test.
         var (askerClient, askerSupplierId) = await ActiveSupplierAsync($"LatePubAsker {Guid.NewGuid():N}"[..30]);
         var (otherClient, otherSupplierId) = await ActiveSupplierAsync($"LatePubOther {Guid.NewGuid():N}"[..30]);
         var (officer, _, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Late Publish RFQ");
@@ -235,12 +246,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var afterPublish = await otherClient.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         afterPublish.GetProperty("clarifications").EnumerateArray().Should().ContainSingle();
 
-        // And the guard the other way: publishing something already published is refused rather than
-        // silently re-notifying every invitee.
-        // And the guard the other way: publishing something already published is refused rather than
-        // silently re-notifying every invitee. 400 rather than 409 because this is not an illegal
-        // STATE transition - the clarification's visibility is already what the caller is asking for,
-        // which the domain reports as a plain refusal.
         var again = await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/publish", null);
         again.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -255,7 +260,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var afterPost = await post.Content.ReadFromJsonAsync<JsonElement>();
         var clarificationId = afterPost.GetProperty("clarifications").EnumerateArray().Single().GetProperty("id").GetGuid();
 
-        // procurement_manager does not hold clarification.answer per this session's grant (procurement_officer-only).
         var attempt = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/clarifications/{clarificationId}/answer", new { answer = "A." });
 
         attempt.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -278,7 +282,6 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
 
         var (publishedOfficer, manager, referenceCode) = await PublishedRfqWithTwoInviteesAsync(askerSupplierId, otherSupplierId, "Addendum RFQ");
 
-        // Normal item edits stay locked even after Published - the addendum is additive, not a reopening.
         var editAttempt = await publishedOfficer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
         {
             titleAr = "بند2", titleEn = "Item2", specificationAr = (string?)null, specificationEn = (string?)null,
@@ -314,14 +317,8 @@ public sealed class ClarificationEndpointsTests(PostgresApiFixture fixture)
         var rows = await db.AuditLogs.Where(a => a.ReferenceCode == referenceCode)
             .Select(a => new { a.Action, a.Changes }).ToListAsync();
 
-        // A-4 removed the separate publish step from the normal flow, so there is no
-        // `rfq_clarification_published` row to expect any more - the answer IS the publication.
         rows.Select(r => r.Action).Should().Contain(["rfq_clarification_posted", "rfq_clarification_answered", "rfq_addendum_issued"]);
 
-        // Which means the answered row has to carry the fact, or the audit trail no longer records
-        // that every invitee was given the answer.
-        // Parsed, not substring-matched: the column stores normalised JSON, so a spacing change would
-        // break a text assertion while the recorded fact was still correct.
         System.Text.Json.JsonDocument
             .Parse(rows.Single(r => r.Action == "rfq_clarification_answered").Changes!)
             .RootElement.GetProperty("published").GetBoolean()

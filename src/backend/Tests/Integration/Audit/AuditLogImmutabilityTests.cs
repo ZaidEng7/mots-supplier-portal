@@ -1,3 +1,27 @@
+// FR-AUD-002 and NFR-CMP-002: "no user, including admin, can edit or delete" AuditLog entries.
+//
+// Why raw ADO.NET rather than EF. EF Core never issues an UPDATE or DELETE against this table - AuditLogger
+// only ever calls Add - so testing through EF would prove the application's convention, which was never in
+// question, and would say nothing about whether the database itself would stop a bug, a future migration, or
+// an engineer who does not know the convention from mutating an existing row directly. So these tests open a
+// raw NpgsqlConnection on the same connection string and issue SQL by hand, bypassing EF's change tracker
+// entirely - the same access a rogue script or a careless migration would have.
+//
+// Why this counts as "from a fresh migration": PostgresApiFixture spins up a new Postgres Testcontainer and
+// runs Database.MigrateAsync() against it from empty for every test class that uses it, this suite included.
+// There is no hand-applied state; the trigger under test only exists here because the migration created it.
+//
+// The row under test is a real one, written the real way through the application's own audit path rather than
+// inserted by the test, because what is under test is whether an EXISTING row can be mutated and not whether a
+// hand-crafted one can.
+//
+// The last test is the negative-space proof. A trigger firing on every write - not only UPDATE and DELETE -
+// would silently break every audited action in the system, and that failure mode would not look like this
+// ticket; it would look like every OTHER integration test failing for an unrelated-looking reason. It is
+// asserted directly rather than inferred from "the rest of the suite still passes".
+
+namespace MotsSupplierPortal.Tests.Integration.Audit;
+
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,28 +29,8 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Npgsql;
-
-namespace MotsSupplierPortal.Tests.Integration.Audit;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// FR-AUD-002 / NFR-CMP-002: "no user, including admin, can edit or delete" AuditLog entries.
-///
-/// <para><b>Why raw ADO.NET rather than EF.</b> EF Core never issues an UPDATE or DELETE against
-/// this table - <c>AuditLogger</c> only ever calls <c>Add</c>. Testing through EF would therefore
-/// prove the application's convention, which was never in question; it says nothing about whether
-/// the database itself would stop a bug, a future migration, or an engineer who does not know the
-/// convention from mutating an existing row directly. So these tests open a raw
-/// <see cref="NpgsqlConnection"/> on the same connection string and issue SQL by hand, bypassing
-/// EF's change tracker entirely - the same access a rogue script or a careless migration would
-/// have.</para>
-///
-/// <para><b>Why this counts as "from a fresh migration."</b> <see cref="PostgresApiFixture"/> spins
-/// up a new Postgres Testcontainer and runs <c>Database.MigrateAsync()</c> against it from empty
-/// for every test class that uses it - this suite included. There is no hand-applied state; the
-/// trigger under test only exists here because the migration created it.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AuditLogImmutabilityTests(PostgresApiFixture fixture)
 {
@@ -36,9 +40,6 @@ public sealed class AuditLogImmutabilityTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
 
-        // A real row, written the real way - through the application's own audit path - rather
-        // than inserted by the test. What is under test is whether an EXISTING row can be
-        // mutated, not whether a hand-crafted one can.
         var rowId = Guid.CreateVersion7();
         await db.AuditLogs.AddAsync(new AuditLog
         {
@@ -93,11 +94,6 @@ public sealed class AuditLogImmutabilityTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_trigger_blocks_UPDATE_and_DELETE_but_not_INSERT()
     {
-        // The negative-space proof. A trigger firing on every write - not only UPDATE/DELETE -
-        // would silently break every audited action in the system, and that failure mode would
-        // not look like this ticket; it would look like every OTHER integration test failing for
-        // an unrelated-looking reason. Asserted directly rather than inferred from "the rest of
-        // the suite still passes."
         using var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 

@@ -1,3 +1,34 @@
+// UX-WRITING.md §10: "Never leaks data across scope (RBAC §6): suppliers see only their own". Then EPIC-19 part
+// 2, Phase 0's filter-value error on ?unreadOnly.
+//
+// A notification centre is a NEW read surface over cross-aggregate data - it can show a supplier something
+// about an RFQ they were never invited to, or an award they are not party to, purely because a row exists. The
+// scope key is recipient_user_id, and these tests exist to prove it is enforced in the query rather than
+// assumed by the caller. Per §9.2, out-of-scope is 404 and not 403: someone else's notification must be
+// indistinguishable from an id that never existed, since the id is the only thing being probed.
+//
+// The list test carries its control - the list really does return this user's own row, so the negative cannot
+// pass because the endpoint is broken or the seed never landed. Marking someone else's read has its control
+// first too: marking my own works, so a 404 means scoping rather than a broken route. The two responses are
+// compared field by field rather than byte for byte, because §7's base shape carries a per-request traceId,
+// correlationId and instance, so two responses are never byte-identical and cannot be - which is also why
+// those members carry no information about the resource. What must match is everything that could
+// discriminate. And the row really was not marked: a 404 that quietly performed the write would be worse than
+// a 403, because nothing would show it happened.
+//
+// Mark-all-read only touches the caller's own, the unread count is the caller's own, and an anonymous caller
+// gets nothing.
+//
+// The ?unreadOnly guard has controls in both directions: without the filter the read row is present, and with
+// a well-formed filter it is gone while the unread row survives - so the filter is real and the 422 is about
+// the value rather than an endpoint that refuses everything. "maybe" was already refused, by model binding,
+// with a 400 MALFORMED_JSON that names no field; the test asserts the 422 that names unreadOnly and says so in
+// both languages. The last test is the other side: the guard must refuse what it cannot read without narrowing
+// what it accepts, since "TRUE" and "False" are bool.TryParse's own vocabulary and were valid before this
+// change. The seed helper marks one notification read so the unread filter has something to exclude.
+
+namespace MotsSupplierPortal.Tests.Integration.Notifications;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,22 +37,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Notifications;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// UX-WRITING.md §10: "Never leaks data across scope (RBAC §6): suppliers see only their own".
-///
-/// <para>A notification centre is a NEW read surface over cross-aggregate data - it can show a
-/// supplier something about an RFQ they were never invited to, or an award they are not party to,
-/// purely because a row exists. The scope key is <c>recipient_user_id</c>, and these tests exist to
-/// prove that it is enforced in the query rather than assumed by the caller.</para>
-///
-/// <para>Per §9.2, out-of-scope is <b>404</b> and not 403: someone else's notification must be
-/// indistinguishable from an id that never existed, since the id is the only thing being probed.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class NotificationScopeTests(PostgresApiFixture fixture)
 {
@@ -57,8 +74,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
         var body = await clientA.GetFromJsonAsync<JsonElement>("/api/v1/notifications");
         var ids = body.GetProperty("data").EnumerateArray().Select(n => n.GetProperty("id").GetGuid()).ToList();
 
-        // The control: the list really does return this user's own row, so the negative below cannot
-        // pass because the endpoint is broken or the seed never landed.
         ids.Should().Contain(mine, "control: the owner sees their own notification");
         ids.Should().NotContain(theirs, "§10: a notification addressed to someone else must never appear");
     }
@@ -72,8 +87,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
         var mine = await SeedNotificationAsync(userA, "own-mark");
         var theirs = await SeedNotificationAsync(userB, "other-mark");
 
-        // The control first: marking my own read works, so a 404 below means scoping and not a
-        // broken route.
         var own = await clientA.PostAsync($"/api/v1/notifications/{mine}/read", null);
         own.StatusCode.Should().Be(HttpStatusCode.OK, "control: the owner can mark their own read");
 
@@ -82,10 +95,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
 
         other.StatusCode.Should().Be(HttpStatusCode.NotFound, "§9.2: out of scope reads as not-found");
         unknown.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        // Field by field, not byte for byte. §7's base shape carries a per-request traceId,
-        // correlationId and instance, so two responses are never byte-identical - and cannot be,
-        // which is why those members carry no information about the resource either. What must
-        // match is everything that could discriminate.
         static async Task<(string?, string?, int, string?)> ShapeOf(HttpResponseMessage response)
         {
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -96,8 +105,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
         (await ShapeOf(other)).Should().Be(await ShapeOf(unknown),
             "§9.2: the two answers must be indistinguishable - the id is what is being probed");
 
-        // And it really was not marked: a 404 that quietly performed the write would be worse than
-        // a 403, because nothing would show it happened.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var untouched = await db.Notifications.FindAsync(theirs);
@@ -149,13 +156,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // EPIC-19 part 2, Phase 0: ?unreadOnly gets the filter-value error, not binding's 400.
-    // ---------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// Marks a seeded notification read, so the unread filter has something to exclude.
-    /// </summary>
     private async Task MarkReadAsync(Guid notificationId)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -174,9 +174,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
         var read = await SeedNotificationAsync(userId, "read");
         await MarkReadAsync(read);
 
-        // Controls in both directions. Without the filter the read row is present; with a
-        // well-formed filter it is gone and the unread row survives. So the filter is real, and the
-        // 422 below is about the value rather than an endpoint that refuses everything.
         var all = await IdsAsync(client, "/api/v1/notifications");
         all.Should().Contain(read, "control: unfiltered, the read notification is in the list");
         all.Should().Contain(unread);
@@ -185,8 +182,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
         narrowed.Should().Contain(unread, "control: a well-formed filter keeps the unread row");
         narrowed.Should().NotContain(read, "control: a well-formed filter genuinely narrows");
 
-        // "maybe" was already refused - by model binding, with a 400 MALFORMED_JSON that names no
-        // field. This asserts the 422 that names unreadOnly and says so in both languages.
         var response = await client.GetAsync("/api/v1/notifications?unreadOnly=maybe");
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -200,8 +195,6 @@ public sealed class NotificationScopeTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Both_boolean_spellings_of_unreadOnly_are_still_accepted()
     {
-        // The guard must refuse what it cannot read without narrowing what it accepts: "TRUE" and
-        // "False" are bool.TryParse's own vocabulary and were valid before this change.
         var (client, userId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.ProcurementOfficer);
         await SeedNotificationAsync(userId, "vocabulary");
 

@@ -1,3 +1,43 @@
+// MSP-84: the review queue is a table applications are inserted into, and removed from via approve and reject,
+// continuously - so offset paging is the wrong tool. The audit-cursor regression (MSP-66) lost 22 of 47 rows
+// this exact way while page-one-only tests kept passing. These tests walk every page and assert the UNION of
+// rows rather than only that page one looks right, and one of them removes a not-yet-fetched supplier from the
+// queue BETWEEN two page fetches - the scenario that breaks offset paging, where an item shifts into the gap
+// and gets skipped, and must not break keyset paging, where removing any row does not move the keyset position
+// of the rows that remain.
+//
+// The walk helper follows NextCursor until HasMore is false, exactly as a real client would, and returns every
+// item seen in the order returned.
+//
+// The first test uses page size 2 against 5 in-queue rows to force a three-page walk of 2, 2 and 1: the point
+// is to actually exercise cursor continuation rather than return everything in one call. Its denominator is a
+// set of known reference codes rather than the table's total count, since other tests in this collection may
+// leave their own suppliers behind - the property under test is "every row I created appears exactly once and
+// nothing I excluded appears", not "the table contains only my rows".
+//
+// FEAT-03.6 and FR-ONB-012: EnteredQueueAt must reflect the most recent time this application re-entered the
+// active queue, rather than the original submission or Supplier.CreatedAt, the registration date. A stale
+// "resubmitted 3 days ago" reading would be exactly the kind of misleading age indicator FEAT-03.6 exists to
+// prevent.
+//
+// The removal test creates five suppliers in order, so CreatedAt and Id ascending - the queue's sort - matches
+// creation order. It is scoped to a reviewer of this test's own invention, and that is not decoration: the test
+// used to assert that page one of the WHOLE queue was exactly s1 and s2, which is true only while no other
+// suite leaves a Submitted or UnderReview supplier behind, a property of the run rather than of the code under
+// test. SCR-307's tests seeded one and broke this, in the suite, at the end of an eight-minute run, with a
+// failure message about the queue's ordering. The property being tested - a row leaving the queue must not shift
+// a later row out of view - is unchanged by filtering to this test's own rows.
+//
+// Page one at size 2 returns s1 and s2 oldest-first with a cursor for continuation. Between page fetches s1,
+// already returned, leaves the queue by being approved. That is the shape which breaks OFFSET paging
+// specifically: removing a row before the fetch boundary shifts every later row's position back by one, so a
+// naive Skip(2).Take(2) on the next call would land on s4 and s5 and silently drop s3, never returning it on
+// either page. The keyset cursor is immune because it was never counting positions, only comparing against s2's
+// own (CreatedAt, Id) value - so s3 must be present, and it is the row a position-based page two would have
+// dropped.
+
+namespace MotsSupplierPortal.Tests.Integration.Review;
+
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,20 +45,8 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Review;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-84: the review queue is a table applications are inserted into (and removed from, via
-/// approve/reject) continuously, so offset paging is the wrong tool - the audit-cursor regression
-/// (MSP-66) lost 22 of 47 rows this exact way while page-one-only tests kept passing. These tests
-/// walk every page and assert the UNION of rows, not just that page one looks right, and one of
-/// them removes a not-yet-fetched supplier from the queue BETWEEN two page fetches - the scenario
-/// that breaks offset paging (item shifts into the gap and gets skipped) but must not break
-/// keyset paging (removing any row does not move the keyset position of the rows that remain).
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
 {
@@ -68,8 +96,6 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         return s;
     }
 
-    /// <summary>Walks the handler exactly as a real client would: follow NextCursor until HasMore
-    /// is false. Returns every item seen, in the order returned.</summary>
     private async Task<List<ReviewQueueItemDto>> WalkAllAsync(IListReviewQueueHandler handler, int pageSize)
     {
         var all = new List<ReviewQueueItemDto>();
@@ -106,14 +132,8 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         db.Suppliers.AddRange([.. inQueue, .. notInQueue]);
         await db.SaveChangesAsync();
 
-        // Page size 2 against 5 in-queue rows forces a 3-page walk (2, 2, 1) - the point is to
-        // actually exercise cursor continuation, not return everything in one call.
         var walked = await WalkAllAsync(handler, pageSize: 2);
 
-        // Denominator: assert against known reference codes rather than the table's total count,
-        // since other tests in this collection may leave their own suppliers behind - the
-        // property under test is "every row I created appears exactly once and nothing I
-        // excluded appears", not "the table contains only my rows".
         var walkedCodes = walked.Select(w => w.ReferenceCode).ToList();
         walkedCodes.Should().OnlyHaveUniqueItems("keyset paging must never return the same row twice across a walk");
 
@@ -127,10 +147,6 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         }
     }
 
-    /// <summary>FEAT-03.6/FR-ONB-012: EnteredQueueAt must reflect the most recent time this
-    /// application (re)entered the active queue - not the original submission, and not
-    /// Supplier.CreatedAt (registration date). A stale "resubmitted 3 days ago" reading would be
-    /// exactly the kind of misleading age indicator FEAT-03.6 exists to prevent.</summary>
     [Fact]
     public async Task EnteredQueueAt_reflects_the_most_recent_resubmission_not_the_original_submission_or_registration()
     {
@@ -183,8 +199,6 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = scope.ServiceProvider.GetRequiredService<IListReviewQueueHandler>();
 
-        // Five suppliers, created in order so CreatedAt/Id ascending (the queue's sort) matches
-        // creation order: s1..s5.
         var s1 = MakeSubmitted("H1");
         var s2 = MakeUnderReview("H2");
         var s3 = MakeSubmitted("H3");
@@ -193,32 +207,17 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
         db.Suppliers.AddRange(s1, s2, s3, s4, s5);
         await db.SaveChangesAsync();
 
-        // Scoped to a reviewer of this test's own invention, and that is not decoration.
-        //
-        // This test asserted that page one of the WHOLE queue was exactly s1 and s2 - true only while no
-        // other suite leaves a Submitted or UnderReview supplier behind, which is a property of the run
-        // rather than of the code under test. SCR-307's tests seeded one and broke this, in the suite, at
-        // the end of an eight-minute run, with a failure message about the queue's ordering. The property
-        // being tested - a row leaving the queue must not shift a later row out of view - is unchanged by
-        // filtering to this test's own rows.
         var reviewerId = Guid.CreateVersion7();
         var ownIds = new[] { s1.Id, s2.Id, s3.Id, s4.Id, s5.Id };
         await db.Suppliers.Where(s => ownIds.Contains(s.Id))
             .ExecuteUpdateAsync(p => p.SetProperty(s => s.AssignedReviewerId, reviewerId));
         var assignedTo = reviewerId.ToString();
 
-        // Page 1, size 2: expect s1, s2 (oldest-first order), with a cursor for continuation.
         var page1 = await handler.HandleAsync(null, 2, withCount: false, null, assignedTo, CancellationToken.None);
         page1.Data.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s1.ReferenceCode, s2.ReferenceCode]);
         page1.Pagination.HasMore.Should().BeTrue();
         page1.Pagination.NextCursor.Should().NotBeNull();
 
-        // Between page fetches: s1 - already returned in page 1 - leaves the queue (approved).
-        // This is the shape that breaks OFFSET paging specifically: removing a row before the
-        // fetch boundary shifts every later row's position back by one, so a naive
-        // Skip(2).Take(2) on the next call would now land on [s4, s5] and silently drop s3 -
-        // never returned on either page. The keyset cursor is immune because it was never
-        // counting positions, only comparing against s2's own (CreatedAt, Id) value.
         using (var mutScope = fixture.Services.CreateScope())
         {
             var mutDb = mutScope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -230,7 +229,6 @@ public sealed class ReviewQueuePaginationTests(PostgresApiFixture fixture)
 
         var page2 = await handler.HandleAsync(page1.Pagination.NextCursor, 2, withCount: false, null, assignedTo, CancellationToken.None);
 
-        // s3 must be present - this is the row a position-based page 2 would have dropped.
         page2.Data.Select(i => i.ReferenceCode).Should().BeEquivalentTo([s3.ReferenceCode, s4.ReferenceCode],
             "s1 leaving the queue must not shift s3 out of view - it was never counted by position");
     }

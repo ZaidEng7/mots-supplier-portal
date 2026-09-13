@@ -1,3 +1,39 @@
+// T-082, SCR-430 and SCR-431. The three visibility tiers, each checked in BOTH directions: that it discloses
+// what it should, and that the tier below it does not. This is where a tender leaks, so no assertion here is
+// about a status code alone.
+//
+// While the window is open the count is disclosed and no identity is. The count is already visible on the
+// workspace to the same caller, so withholding it here would answer a narrower question than one already
+// answered; the identities are the thing being protected, because knowing mid-tender who has bid is leverage.
+// The setup puts the RFQ back into SubmissionOpen so the sealed tier is observed on an RFQ that really has a
+// submitted bid - the interesting case rather than an empty one. A sealed detail is a 404 rather than an empty
+// shell, because an empty shell would confirm the bid exists, which is the fact the tier protects.
+//
+// From SubmissionClosed the bidders and their technical content are readable. EvaluationSeed leaves the RFQ at
+// UnderEvaluation with an evaluation open but NOT consolidated, which is the technical tier exactly, and the
+// half that is not readable is asserted too: the commercial figures stay absent rather than zeroed. Quantity
+// is technical and stays; unit price is not and goes.
+//
+// Commercial values appear only once the evaluation is consolidated, with the control first - before
+// consolidating, the figure is absent, because asserting only the "after" would pass on a handler that never
+// hid anything. The evaluation is driven to Consolidated through the real endpoints: open the workspace, which
+// is what moves Assigned to InProgress, score every criterion, submit, consolidate. EvaluationSeed stops at
+// UnderEvaluation with the evaluation created and nobody assigned, because assignment is SCR-500's own step
+// and belongs here rather than in the shared seed.
+//
+// A supplier cannot read the buyer surface even holding the permission, and another organization's officer
+// gets a 404 - never 403, per §9.2, because a 403 would confirm the RFQ's received proposals exist. The
+// control is that the owning officer gets 200 on the same URL, so the 404 is row-scoping rather than a broken
+// route.
+//
+// A draft proposal is never listed, because a draft is not a bid and listing one tells the buyer who is
+// PREPARING to bid. It uses a DIFFERENT supplier, since unique(RfqId, SupplierId) forbids a second live
+// proposal from the one that already bid - the database enforcing "one bid per supplier per RFQ" - and its
+// control is that the submitted one is there, so the exclusion is about the state rather than about the list
+// being empty.
+
+namespace MotsSupplierPortal.Tests.Integration.Proposals;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,17 +43,8 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Proposals;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-082 / SCR-430, SCR-431. The three visibility tiers, each checked in BOTH directions: that it
-/// discloses what it should, and that the tier below it does not.
-///
-/// <para>This is where a tender leaks, so no assertion here is about a status code alone.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
 {
@@ -28,8 +55,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>Puts the RFQ back into SubmissionOpen so the sealed tier can be observed on an RFQ
-    /// that really has a submitted bid — the interesting case, not an empty one.</summary>
     private async Task ReopenWindowAsync(string rfqCode)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -47,10 +72,7 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
         var list = await ListAsync(seed.Officer, seed.RfqCode);
 
         list.GetProperty("visibility").GetString().Should().Be("Sealed");
-        // The count is already visible on the workspace to this same caller, so withholding it here
-        // would answer a narrower question than one already answered.
         list.GetProperty("submittedCount").GetInt32().Should().BeGreaterThan(0);
-        // The identities are the thing being protected. Knowing mid-tender who has bid is leverage.
         list.GetProperty("proposals").GetArrayLength().Should().Be(0);
     }
 
@@ -60,7 +82,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
         var seed = await EvaluationSeed.CreateAsync(fixture, "SealedDetail");
         await ReopenWindowAsync(seed.RfqCode);
 
-        // An empty shell would confirm the bid exists, which is the fact the tier protects.
         (await seed.Officer.GetAsync($"/api/v1/rfqs/{seed.RfqCode}/received-proposals/{seed.ProposalId}"))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -68,8 +89,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
     [Fact]
     public async Task From_SubmissionClosed_the_bidders_and_their_technical_content_are_readable()
     {
-        // EvaluationSeed leaves the RFQ at UnderEvaluation with an evaluation open but NOT
-        // consolidated - the technical tier exactly.
         var seed = await EvaluationSeed.CreateAsync(fixture, "TechnicalTier");
 
         var list = await ListAsync(seed.Officer, seed.RfqCode);
@@ -78,7 +97,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
 
         var first = list.GetProperty("proposals")[0];
         first.GetProperty("supplierNameEn").GetString().Should().NotBeNullOrEmpty("who bid is disclosed at this tier");
-        // And the half that is not: the commercial figures stay absent, not zeroed.
         first.GetProperty("totalValue").ValueKind.Should().Be(JsonValueKind.Null);
         first.GetProperty("currencyCode").ValueKind.Should().Be(JsonValueKind.Null);
 
@@ -88,7 +106,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
         detail.GetProperty("totalValue").ValueKind.Should().Be(JsonValueKind.Null);
         detail.GetProperty("paymentTerms").ValueKind.Should().Be(JsonValueKind.Null);
 
-        // Quantity is technical and stays; unit price is not and goes.
         foreach (var item in detail.GetProperty("items").EnumerateArray())
         {
             item.GetProperty("quantity").GetDecimal().Should().BeGreaterThan(0);
@@ -101,15 +118,9 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
     {
         var seed = await EvaluationSeed.CreateAsync(fixture, "CommercialTier");
 
-        // The control: before consolidating, the figure is absent. Asserting only the "after" would
-        // pass on a handler that never hid anything.
         var before = await ListAsync(seed.Officer, seed.RfqCode);
         before.GetProperty("proposals")[0].GetProperty("totalValue").ValueKind.Should().Be(JsonValueKind.Null);
 
-        // Drive the evaluation to Consolidated through the real endpoints: open the workspace (which
-        // is what moves Assigned -> InProgress), score every criterion, submit, consolidate.
-        // EvaluationSeed stops at UnderEvaluation with the evaluation created and nobody assigned -
-        // assignment is SCR-500's own step, so it belongs here rather than in the shared seed.
         (await seed.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seed.RfqCode}/evaluation/assignments",
             new { evaluatorUserIds = new[] { seed.EvaluatorId } })).StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -147,7 +158,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
     {
         var seed = await EvaluationSeed.CreateAsync(fixture, "SupplierRefused");
 
-        // 404, never 403 (§9.2) - a 403 would confirm the RFQ's received-proposals exist.
         (await seed.Supplier.GetAsync($"/api/v1/rfqs/{seed.RfqCode}/received-proposals"))
             .StatusCode.Should().BeOneOf(HttpStatusCode.NotFound, HttpStatusCode.Forbidden);
     }
@@ -162,8 +172,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
         (await outsider.GetAsync($"/api/v1/rfqs/{seed.RfqCode}/received-proposals"))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        // The control: the owning officer gets 200 on the same URL, so the 404 above is row-scoping
-        // and not a broken route.
         (await seed.Officer.GetAsync($"/api/v1/rfqs/{seed.RfqCode}/received-proposals"))
             .StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -173,8 +181,6 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
     {
         var seed = await EvaluationSeed.CreateAsync(fixture, "DraftHidden");
 
-        // A DIFFERENT supplier: unique(RfqId, SupplierId) forbids a second live proposal from the one
-        // that already bid, which is the database enforcing "one bid per supplier per RFQ".
         var (_, otherSupplierId) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(
             fixture, $"Draft {Guid.NewGuid():N}"[..28]);
 
@@ -196,10 +202,7 @@ public sealed class BuyerProposalReadTests(PostgresApiFixture fixture)
         var codes = list.GetProperty("proposals").EnumerateArray()
             .Select(p => p.GetProperty("proposalId").GetGuid()).ToList();
 
-        // A draft is not a bid, and listing one tells the buyer who is PREPARING to bid.
         codes.Should().NotContain(draftId);
-        // The control: the submitted one is there, so the exclusion is about the state and not about
-        // the list being empty.
         codes.Should().Contain(seed.ProposalId);
 
         (await seed.Officer.GetAsync($"/api/v1/rfqs/{seed.RfqCode}/received-proposals/{draftId}"))

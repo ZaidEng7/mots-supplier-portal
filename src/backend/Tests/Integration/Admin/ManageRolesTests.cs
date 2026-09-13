@@ -1,3 +1,61 @@
+// Listing roles and editing a role's permission set, with the two guards that make it safe.
+//
+// An unrecognised permission string is refused, and so is an edit that would leave no role able to ever edit roles
+// again.
+//
+// Every change is audited. And the permission resolver reads a role's permissions from the stored claims rather than
+// the shipped map, specifically so an edit reaches the next sign-in: the last test here is the proof of that rather
+// than an assumption, granting a role a permission it did not have, signing a fresh user in, and reading the token.
+//
+//
+// THE RESTORE IS A SCOPE, AND THAT FIXES TWO FAULTS AT ONCE
+//
+// The restores in this file were bare statements at the end of each test, so a failing assertion above them skipped
+// the restore entirely, and they put back a set written from memory rather than the one that was there.
+//
+// One of them restored a single permission while the seeder grants that role two, so the test that exists to prove
+// role editing works was itself quietly editing a role for the rest of the run.
+//
+// Reading the set first and writing it back is the only version that cannot drift: it does not need to know what the
+// seed grants, and it stays right when the seed changes.
+//
+// The update REPLACES a role's whole set rather than merging, so a snapshot has to be taken before the write or the
+// restore only puts back the one permission the test happened to be about. That exact leak silently broke every later
+// tender test in this shared database when it was missing.
+//
+//
+// AND THE RESTORE HAS TO USE A FRESH SCOPE, WHICH IT DID NOT
+//
+// The identity framework stamps every role row with a concurrency value and advances it on each write. Instances
+// captured before the change, and the ones the same context is still tracking, carry the old stamp, so adding a claim
+// returns a FAILED result rather than throwing.
+//
+// Nothing checked that result, so the restore reported success and wrote nothing: two roles had been losing a
+// permission to this test ever since, and the shared-row check is what finally said so.
+//
+// Re-fetching inside the old scope returns the same tracked, stale entity and fails the same way.
+//
+//
+// THE TWO REGRESSION CASES, EACH FROM A REAL DEFECT
+//
+// The permission checklist used to be derived from the union of what roles already hold rather than from the
+// canonical catalogue, so a permission not yet granted to ANY role was invisible on the screen and could only be
+// granted by writing to the database.
+//
+// That is reproduced by stripping a real permission from every role that holds it, which is exactly the state right
+// after a new permission is added and before anybody has granted it, and then granting it back through the real
+// endpoint with no database workaround.
+//
+// And the seeder's pre-existing-role path is never exercised by a fresh database, where every role looks newly
+// created. A role created before claim seeding existed has no claims and no marker, and re-running the seeder must
+// backfill its defaults rather than leave every user of that role with an empty permission claim, which is exactly
+// what shipped locally before this test was added. Re-running again must not duplicate anything or reset an
+// administrator's later edit.
+//
+// That test manipulates a role other classes in this collection depend on, so its restore is unconditional.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,35 +65,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FR-ADM-002: system_admin lists roles and edits a role's permission set, with an
-/// InvalidPermission guard (unrecognized permission string) and a WouldLockOutRoleManagement
-/// guard (an edit that would leave zero roles able to ever edit roles again). Every change is
-/// audited, and PermissionResolver reads role permissions from DB claims (not the static
-/// Roles.DefaultPermissions dictionary) specifically so an edit reaches the next login - the
-/// last test in this file is the proof of that, not an assumption.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ManageRolesTests(PostgresApiFixture fixture)
 {
     private Task<HttpClient> AdminClientAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-    /// <summary>
-    /// Holds a role's CURRENT permission set and puts exactly that back when the scope ends.
-    ///
-    /// <para><b>T-073, and it fixes two faults at once.</b> The restores in this file were bare
-    /// statements at the end of a test - a failing assertion above them skipped the restore
-    /// entirely - and they restored a set written from memory rather than the one that was there.
-    /// <c>ministry_viewer</c>'s restore put back <c>governance.read</c> alone, while the seeder
-    /// grants it <c>report.read</c> as well, so the test that exists to prove role editing works was
-    /// itself quietly editing a role for the rest of the run.</para>
-    ///
-    /// <para>Reading the set first and writing it back is the only version that cannot drift: it
-    /// does not need to know what the seed grants, and it stays right when the seed changes.</para>
-    /// </summary>
     private static async Task<IAsyncDisposable> PreserveRolePermissionsAsync(HttpClient admin, string role)
     {
         var current = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/roles");
@@ -76,38 +112,17 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
             .Should().Contain(Permissions.SupplierApprove);
     }
 
-    /// <summary>Regression test for a real bug: the roles admin UI used to derive its permission
-    /// checklist from the union of what roles already hold, not the canonical Permissions.All
-    /// catalog - so a permission not yet granted to ANY role (including system_admin, which by
-    /// seed holds everything) was invisible in the UI and could only ever be granted via a direct
-    /// DB write. Reuses offering.search as the real example: strips it from every role's claims
-    /// (simulating the exact state right after a new permission is added to the catalog, before
-    /// anyone has granted it anywhere - system_admin included), then proves allPermissions still
-    /// lists it and it can be granted through the real update endpoint with no DB workaround.</summary>
     [Fact]
     public async Task Listing_roles_includes_a_permission_not_yet_granted_to_any_role()
     {
         Permissions.All.Should().Contain(Permissions.OfferingSearch,
             "this test's premise is that the permission IS in the canonical catalog");
 
-        // Strip offering.search from every role holding it (procurement_officer, procurement_manager,
-        // and system_admin via Permissions.All) to simulate the exact state right after a new
-        // permission is added to the catalog, before anyone has granted it anywhere. Restored in
-        // finally so this never leaks into another test in the shared collection database, same
-        // discipline as Reseeding_a_role_that_predates_claim_seeding_backfills_its_default_permissions
-        // above.
         await using var scope = fixture.Services.CreateAsyncScope();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         var allRoles = await roleManager.Roles.ToListAsync();
         var strippedFrom = new List<IdentityRole<Guid>>();
 
-        // UpdateRolePermissionsHandler REPLACES a role's entire permission set (remove-all then
-        // add-requested), not merges - so the PUT below wipes out every OTHER permission
-        // procurement_officer holds (rfq.create/rfq.edit/... as of EPIC-07), not just
-        // offering.search. Snapshotting the full set here, before the PUT, is what makes the
-        // finally block able to genuinely restore it, rather than only restoring the one
-        // permission this test happened to be about - the exact class of leak that silently broke
-        // every later RFQ integration test in this shared-DB collection when it was missing.
         var officerRole = allRoles.Single(r => r.Name == Roles.ProcurementOfficer);
         var originalOfficerPermissions = (await roleManager.GetClaimsAsync(officerRole))
             .Where(c => c.Type == "perms").Select(c => c.Value).ToList();
@@ -136,9 +151,6 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
             systemAdmin.GetProperty("permissions").EnumerateArray().Select(p => p.GetString())
                 .Should().NotContain(Permissions.OfferingSearch, "confirms the strip above actually took effect - not a false positive");
 
-            // The real proof: grant it back through the actual endpoint, no DB write. Includes the
-            // rest of procurement_officer's real permission set (minus offering.search, stripped
-            // above) rather than an arbitrary two-item list, since this PUT is a full replacement.
             var requestedPermissions = originalOfficerPermissions
                 .Where(p => p != Permissions.OfferingSearch)
                 .Append(Permissions.OfferingSearch)
@@ -152,8 +164,6 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         }
         finally
         {
-            // Restore procurement_officer's exact original permission set (the PUT above replaced
-            // it wholesale) before restoring offering.search on every other stripped role.
             foreach (var claim in (await roleManager.GetClaimsAsync(officerRole)).Where(c => c.Type == "perms"))
             {
                 await roleManager.RemoveClaimAsync(officerRole, claim);
@@ -163,18 +173,6 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
                 await roleManager.AddClaimAsync(officerRole, new System.Security.Claims.Claim("perms", permission));
             }
 
-            // T-073. This restore never worked, and said nothing about it.
-            //
-            // Identity stamps every role row with a ConcurrencyStamp and bumps it on each write. The
-            // instances captured before the strip - and the ones this scope's DbContext is still
-            // tracking - carry the stamp from before the PUTs above, so AddClaimAsync returns a
-            // FAILED IdentityResult ("Optimistic concurrency failure") rather than throwing. Nothing
-            // checked the result, so the restore reported success and wrote nothing:
-            // procurement_manager and system_admin have been losing offering.search to this test
-            // ever since, and the global-row check is what finally said so.
-            //
-            // A FRESH scope is the fix. Re-fetching inside the old one returns the tracked, stale
-            // entity and fails the same way.
             await using var restoreScope = fixture.Services.CreateAsyncScope();
             var restoreRoleManager = restoreScope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
 
@@ -222,8 +220,6 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
     {
         var admin = await AdminClientAsync();
 
-        // system_admin is (by seed) the only role holding admin.roles.manage. Stripping it here
-        // would mean no caller could ever edit a role's permissions again.
         var response = await admin.PutAsJsonAsync($"/api/v1/admin/roles/{Roles.SystemAdmin}/permissions",
             new { permissions = new[] { Permissions.AdminUsersManage } });
 
@@ -231,7 +227,6 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("code").GetString().Should().Be("WOULD_LOCK_OUT_ROLE_MANAGEMENT");
 
-        // And nothing was actually changed.
         var after = await admin.GetAsync("/api/v1/admin/roles");
         var afterBody = await after.Content.ReadFromJsonAsync<JsonElement>();
         var systemAdmin = afterBody.GetProperty("roles").EnumerateArray().Single(r => r.GetProperty("name").GetString() == Roles.SystemAdmin);
@@ -262,17 +257,8 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         auditRow.Should().NotBeNull("every role-permission change must be audited");
         auditRow!.Changes.Should().NotBeNull().And.Contain("permissions");
 
-        // The restore is the `await using` at the top of this test now.
-        //
-        // It used to be these three lines, and they were wrong twice over: a failing assertion above
-        // skipped them, and they put back governance.read ALONE while the seeder also grants
-        // ministry_viewer report.read - so the fix for one leak (EPIC-18's, which made the governance
-        // suite pass alone and fail in a full run) quietly introduced another.
     }
 
-    /// <summary>The real proof this feature works end-to-end, not just that the DB row changed:
-    /// grant a role a permission it did not have, log a fresh user in with that role, and confirm
-    /// the JWT's "perms" claims actually reflect the edit.</summary>
     [Fact]
     public async Task A_role_permission_change_reaches_the_next_login_s_JWT()
     {
@@ -305,31 +291,14 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
         JwtClaims(afterToken).Should().Contain(Permissions.AuditRead,
             "the role edit must reach a fresh login's JWT, proving PermissionResolver reads live DB claims, not the static seed dictionary");
 
-        // Restored by the `await using` at the top. This used to be a bare statement here, reading
-        // the set from Roles.DefaultPermissions - right today, and wrong the moment a migration or an
-        // administrator grants the evaluator something the static dictionary does not list.
     }
 
-    /// <summary>Regression test for a real bug caught in manual verification, not by the rest of
-    /// this suite: every other test here runs against a brand-new Testcontainers database, so
-    /// RoleSeeder always sees roles as newly created and never exercises the pre-existing-role
-    /// path. A role created by an OLDER version of RoleSeeder (before role-claim seeding existed
-    /// at all) has no claims and no "perms:seeded" marker - re-running SeedAsync against it must
-    /// backfill the default permissions, not leave every user of that role with an empty JWT
-    /// "perms" claim (which is exactly what shipped locally before this test was added).</summary>
     [Fact]
     public async Task Reseeding_a_role_that_predates_claim_seeding_backfills_its_default_permissions()
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
 
-        // RoleSeeder only iterates Roles.DefaultPermissions' own role names, so simulate the
-        // pre-migration state on a real seeded role (system_admin) by stripping its claims - this
-        // is exactly what a database created before role-claim seeding existed would look like.
-        // system_admin is shared, live state other test classes in this same collection depend on
-        // (e.g. AuditSearchAndExportTests logs in as system_admin and expects audit.read) - a
-        // try/finally restores its exact original claims unconditionally, so this test's own
-        // manipulation never leaks into any test that happens to run after it.
         var systemAdminRole = await roleManager.FindByNameAsync(Roles.SystemAdmin);
         systemAdminRole.Should().NotBeNull();
         var originalClaims = await roleManager.GetClaimsAsync(systemAdminRole!);
@@ -349,7 +318,6 @@ public sealed class ManageRolesTests(PostgresApiFixture fixture)
                 .Should().BeEquivalentTo(Roles.DefaultPermissions[Roles.SystemAdmin],
                     "a role that existed before claim-seeding must be backfilled on the next startup, not left with zero permissions");
 
-            // And re-running again must NOT re-add duplicates or reset an admin's subsequent edit.
             await roleManager.RemoveClaimAsync(systemAdminRole!, new System.Security.Claims.Claim("perms", Permissions.AuditRead));
             await RoleSeeder.SeedAsync(roleManager);
             var afterSecondRun = await roleManager.GetClaimsAsync(systemAdminRole!);

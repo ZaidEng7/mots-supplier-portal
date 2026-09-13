@@ -1,23 +1,23 @@
+// The account constraint that was a convention until the database enforced it.
+//
+// The account's own header had always claimed at most one of a supplier or an organization, and nothing in the
+// database enforced it: the same comment-instead-of-instrument pattern this project keeps finding.
+//
+// These prove the check constraint actually rejects the invalid case against a real database, rather than that it
+// merely exists in a migration file.
+//
+// And that it does NOT reject the legitimate cases: one set, or neither set, which is a platform administrator.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #7/Stage B: AppUser.cs's own doc comment has always claimed "SupplierId XOR
-/// OrganizationId XOR neither", but until this stage it was convention only - nothing in the
-/// database enforced it, the same "comment instead of instrument" pattern flagged elsewhere in
-/// this project (MSP-83 register). These tests prove the new CK_app_user_supplier_xor_organization
-/// check constraint actually rejects the invalid case against a real Postgres, not that the
-/// constraint merely exists in the migration file - and that it does NOT reject the legitimate
-/// cases (only one set, or neither set for a platform admin).
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AppUserOrganizationConstraintTests(PostgresApiFixture fixture)
 {

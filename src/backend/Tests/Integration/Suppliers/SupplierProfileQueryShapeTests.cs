@@ -1,3 +1,39 @@
+// Loading a supplier's profile in one statement is a cartesian product; it is split instead.
+//
+// The shared include loads six child collections. In a single statement the supplier row repeats once per
+// combination across all six, so rows multiply rather than add.
+//
+// The mapper de-duplicates the entities afterwards, which is why the read model looked correct while the database
+// did asymptotically more work.
+//
+//
+// THE COMPARISON CANNOT ROT
+//
+// It measures both shapes in one test, reproducing the old behaviour explicitly rather than relying on somebody
+// reverting the fix to see the difference.
+//
+// If the production extension stops splitting, the split figures become the single figures and the assertions fail.
+//
+// The row multiplication is measured with raw statements, because the whole point is that the mapper hides it from
+// the materialised result. The command counter overrides the asynchronous path as well as the synchronous one,
+// because queries route through the former and overriding only the latter counted nothing: the counter read zero
+// and the test failed for a reason unrelated to query shape.
+//
+//
+// THE FIXTURE NEEDS SEVERAL ROWS IN EVERY COLLECTION
+//
+// With one row each the product is one, and the defect is invisible, which is exactly why it survived review.
+//
+// The exact arithmetic is asserted rather than "greater than", because the arithmetic IS the finding and a vague
+// assertion would still pass if the product quietly grew.
+//
+// Child rows are inserted directly rather than through the aggregate's own methods, because those also advance the
+// supplier's onboarding state, which writes the supplier row, and a background job triggered by registration
+// advances its version concurrently, so the save fails for reasons that have nothing to do with what this measures.
+// Inserting children touches no supplier row.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Data.Common;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -6,27 +42,11 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// MSP-66: <c>IncludeProfile</c> loads six child collections. In one statement that is a CARTESIAN
-/// PRODUCT - the supplier row repeats once per combination across all six, so rows multiply rather
-/// than add. EF de-duplicates the entities afterwards, which is why the DTO looked correct while
-/// the database did asymptotically more work.
-///
-/// This compares the two shapes in a single test using <c>AsSingleQuery()</c> to reproduce the old
-/// behaviour, rather than relying on someone reverting the fix to see the difference. The
-/// comparison cannot rot: if the production extension stops splitting, the split figures become the
-/// single figures and the assertions fail.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SupplierProfileQueryShapeTests(PostgresApiFixture fixture)
 {
-    /// <summary>Counts executed commands. Row multiplication is measured separately with raw SQL,
-    /// because the whole point is that EF hides it from the materialised result.</summary>
     private sealed class CommandCounter : DbCommandInterceptor
     {
         public int Count;
@@ -38,9 +58,6 @@ public sealed class SupplierProfileQueryShapeTests(PostgresApiFixture fixture)
             return base.ReaderExecuting(command, eventData, result);
         }
 
-        // The async override matters: EF routes async queries here and not through the sync method,
-        // so overriding only the sync one silently counts nothing - the counter read 0 and the test
-        // failed for a reason unrelated to query shape.
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
@@ -62,14 +79,6 @@ public sealed class SupplierProfileQueryShapeTests(PostgresApiFixture fixture)
         var supplierId = await db.Suppliers.Where(s => s.DisplayNameEn == name)
             .Select(s => s.Id).SingleAsync();
 
-        // Child rows are inserted directly rather than through the aggregate's Add* methods. Those
-        // also advance the supplier's onboarding state, which UPDATEs the supplier row - and a
-        // background job triggered by registration bumps its xmin concurrently, so the save fails
-        // with DbUpdateConcurrencyException for reasons that have nothing to do with what this
-        // class measures. Inserting children touches no supplier row.
-        //
-        // Several rows in EVERY collection: with one row each the product is 1x1x1x1x1x1 and the
-        // defect is invisible, which is exactly why it survived review.
         for (var i = 0; i < PerCollection; i++)
         {
             db.Addresses.Add(new Address
@@ -139,8 +148,6 @@ public sealed class SupplierProfileQueryShapeTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // What the six-way join actually asks Postgres to build, measured rather than reasoned
-        // about. EF would collapse these back into one aggregate, hiding the cost completely.
         var connection = db.Database.GetDbConnection();
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
@@ -167,10 +174,6 @@ public sealed class SupplierProfileQueryShapeTests(PostgresApiFixture fixture)
             + await db.Branches.CountAsync(b => b.SupplierId == supplierId)
             + await db.Representatives.CountAsync(r => r.SupplierId == supplierId);
 
-        // 4 rows in each of three collections, and none in the other three, gives
-        // 1 x 4 x 4 x 4 x 1 x 1 = 64 rows to describe 13 child records. An exact assertion rather
-        // than "greater than": the arithmetic IS the finding, and a vague assertion would still
-        // pass if the product quietly grew.
         joinedRows.Should().Be(64,
             $"the join builds {joinedRows} rows to describe {actualChildRows} child records; the " +
             "gap is the cartesian product and it grows with the PRODUCT of collection sizes, not " +

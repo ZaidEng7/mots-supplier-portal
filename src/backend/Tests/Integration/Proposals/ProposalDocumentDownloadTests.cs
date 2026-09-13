@@ -1,3 +1,22 @@
+// T-028: proposal supporting files could be uploaded and deleted but never read, by anyone. These tests cover
+// the two halves separately because they answer to different rules - a supplier reading their own bid is not
+// gated at all, and a buyer reading someone else's is gated on the evaluation reaching Consolidated (D-7).
+//
+// The supplier test carries the control on the guard: a DIFFERENT supplier holding the same document id gets
+// nothing. The id is the only thing a prober controls, so that is the case that matters.
+//
+// An unstated envelope is stored as Commercial and a declared one is kept.
+//
+// The buyer test is the gate in both directions. Before, the evaluation is open but not consolidated: refused,
+// and refused as a 404 rather than an empty 200, because an attachment COUNT is itself a signal about a live
+// competitor bid. Then the evaluation is driven to Consolidated and the same two requests from the same caller
+// get the opposite answer. That difference IS the gate - without the second half the first two assertions
+// would also pass on a route that always refuses.
+//
+// A buyer from another organization is refused even after consolidation.
+
+namespace MotsSupplierPortal.Tests.Integration.Proposals;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,17 +27,8 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Proposals;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-028: proposal supporting files could be uploaded and deleted but never read, by anyone.
-/// These tests cover the two halves separately because they answer to different rules - a supplier
-/// reading their own bid is not gated at all, and a buyer reading someone else's is gated on the
-/// evaluation reaching Consolidated (D-7).
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ProposalDocumentDownloadTests(PostgresApiFixture fixture)
 {
@@ -36,8 +46,6 @@ public sealed class ProposalDocumentDownloadTests(PostgresApiFixture fixture)
         body.GetProperty("fileName").GetString().Should().Be("prices.pdf");
         body.GetProperty("url").GetString().Should().NotBeNullOrWhiteSpace();
 
-        // The control on the guard: a DIFFERENT supplier holding the same document id gets nothing.
-        // The id is the only thing a prober controls, so this is the case that matters.
         var other = await EvaluationSeed.CreateAsync(fixture, "Doc Other", withDocuments: true);
         var crossRead = await other.Supplier.GetAsync(
             $"/api/v1/proposals/{seeded.ProposalCode}/documents/{seeded.CommercialDocumentId}/download-url");
@@ -69,12 +77,9 @@ public sealed class ProposalDocumentDownloadTests(PostgresApiFixture fixture)
         var listUrl = $"/api/v1/rfqs/{seeded.RfqCode}/evaluation/proposals/{seeded.ProposalId}/documents";
         var downloadUrl = $"{listUrl}/{seeded.TechnicalDocumentId}/download-url";
 
-        // Before: the evaluation is open but not consolidated. Refused, and refused as a 404 rather
-        // than an empty 200 - an attachment COUNT is itself a signal about a live competitor bid.
         (await seeded.Manager.GetAsync(listUrl)).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await seeded.Manager.GetAsync(downloadUrl)).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        // Drive the evaluation to Consolidated.
         await seeded.Manager.PostAsJsonAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/assignments",
             new { evaluatorUserIds = new[] { seeded.EvaluatorId } });
         var criterionId = await CriterionIdAsync(seeded.EvaluationId);
@@ -88,9 +93,6 @@ public sealed class ProposalDocumentDownloadTests(PostgresApiFixture fixture)
         (await seeded.Manager.PostAsync($"/api/v1/rfqs/{seeded.RfqCode}/evaluation/consolidate", null))
             .StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // After: the same two requests, the same caller, the opposite answer. That difference is the
-        // gate - without this half the first two assertions would also pass on a route that always
-        // refuses.
         var list = await seeded.Manager.GetAsync(listUrl);
         list.StatusCode.Should().Be(HttpStatusCode.OK);
         var rows = (await list.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToList();

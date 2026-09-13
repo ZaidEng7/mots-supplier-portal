@@ -1,3 +1,35 @@
+// T-061 with FR-ADM-007 and SCR-715. The 29 notification texts were a compiled catalogue, so rewording one
+// was a redeploy.
+//
+// Every type the system can send is listed with its shipped words and its available tokens: the screen has
+// to be able to say which tokens are available without keeping a second copy of the catalogue, so the set
+// is derived from the shipped copy's own text.
+//
+// The override test uses a token the type really carries, so its assertion proves interpolation still
+// happens THROUGH the override rather than only that the words changed. It is asserted through the source
+// the notification writer uses, not through the admin read: a template a screen displays but the writer
+// ignores is the failure this replaces.
+//
+// A token the type cannot fill is refused and named, because an unfillable token reaches the supplier as
+// the literal characters {price} and cannot be diagnosed from the notification row; nothing is stored. Its
+// control is the test above it read the other way - the rule is a subset, not an exact match, so an
+// administrator may write copy that says less than the shipped copy did.
+//
+// Reverting restores the shipped copy and is idempotent: reverting a type nobody overrode asks for an
+// outcome that is already true. Both locales are required, because an Arabic title with no English one
+// renders blank for an English-language user and this product's fallback is Arabic-first rather than empty,
+// so the refusal belongs at the write.
+//
+// Only an administrator can reword a notification, with a control.
+//
+// Templates are global rows and every test here puts the table back. T-073: in the revert test the delete
+// is the behaviour under test AND the restore, so it cannot be the only one - an assertion failing between
+// the override and the revert would leave "Temporary" as the wording of a real notification for every test
+// that ran afterwards. The product ships no overrides, so removing one is what putting it back means, and
+// the scope guard below does it when the scope ends.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,21 +41,13 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-061/FR-ADM-007/SCR-715. The 29 notification texts were a compiled catalogue, so rewording one
-/// was a redeploy.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
 {
     private Task<HttpClient> AdminAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-    /// <summary>Templates are global rows. Every test here puts the table back.</summary>
     private async Task ClearAsync(string type)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -49,8 +73,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         one.GetProperty("shippedTitleAr").GetString().Should().Be(shipped.TitleAr);
         one.GetProperty("isOverridden").GetBoolean().Should().BeFalse();
 
-        // The screen has to be able to say which tokens are available without a second copy of the
-        // catalogue, and the set is derived from the shipped copy's own text.
         one.GetProperty("availableTokens").EnumerateArray().Select(t => t.GetString())
             .Should().BeEquivalentTo(NotificationCatalogue.TokensFor(NotificationTypes.RfqApproved));
     }
@@ -63,8 +85,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         try
         {
             var tokens = NotificationCatalogue.TokensFor(type);
-            // Uses a token the type really carries, so the assertion below proves interpolation still
-            // happens through the override rather than only that the words changed.
             var token = tokens.Contains("rfqCode") ? "{rfqCode}" : string.Empty;
 
             (await admin.PutAsJsonAsync($"/api/v1/admin/notification-templates/{type}", new
@@ -75,8 +95,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
                 bodyEn = $"A reworded body {token}",
             })).EnsureSuccessStatusCode();
 
-            // Asserted through the source the writer uses, not through the admin read - a template a
-            // screen displays but the notification writer ignores is the failure this replaces.
             await using var scope = fixture.Services.CreateAsyncScope();
             var source = scope.ServiceProvider.GetRequiredService<INotificationCopySource>();
             var entry = await source.ForAsync(type, default);
@@ -118,12 +136,9 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
-        // Named, because an unfillable token reaches the supplier as the literal characters {price}
-        // and cannot be diagnosed from the notification row.
         problem.GetProperty("tokens").EnumerateArray().Select(t => t.GetString())
             .Should().BeEquivalentTo(["email", "price"]);
 
-        // And nothing was stored.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Set<NotificationTemplate>().CountAsync(t => t.Type == type)).Should().Be(0);
@@ -132,8 +147,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_template_that_drops_a_token_is_accepted()
     {
-        // The control for the test above: the rule is a subset, not an exact match. An administrator
-        // may write copy that says less than the shipped copy did.
         var admin = await AdminAsync();
         const string type = NotificationTypes.RfqApproved;
         try
@@ -159,10 +172,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         const string type = NotificationTypes.RfqApproved;
         var shipped = NotificationCatalogue.For(type);
 
-        // T-073: the delete below is the behaviour under test AND the restore, so it cannot be the
-        // only one. An assertion failing between the override and the revert would leave "Temporary"
-        // as the wording of a real notification for every test that ran afterwards - the product
-        // ships no overrides, so removing it is what putting it back means.
         await using var scoped = new RevertTemplate(admin, type);
 
         (await admin.PutAsJsonAsync($"/api/v1/admin/notification-templates/{type}", new
@@ -179,7 +188,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Set<NotificationTemplate>().CountAsync(t => t.Type == type)).Should().Be(0);
 
-        // Reverting a type nobody overrode asks for an outcome that is already true.
         (await admin.DeleteAsync($"/api/v1/admin/notification-templates/{type}"))
             .StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -201,8 +209,6 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Both_locales_are_required()
     {
-        // An Arabic title with no English one renders blank for an English-language user, and this
-        // product's fallback is Arabic-first rather than empty - so the refusal belongs at the write.
         var admin = await AdminAsync();
 
         (await admin.PutAsJsonAsync($"/api/v1/admin/notification-templates/{NotificationTypes.RfqApproved}", new
@@ -227,12 +233,10 @@ public sealed class NotificationTemplateTests(PostgresApiFixture fixture)
         (await supplier.GetAsync("/api/v1/admin/notification-templates")).StatusCode
             .Should().Be(HttpStatusCode.Forbidden);
 
-        // The control.
         var admin = await AdminAsync();
         (await admin.GetAsync("/api/v1/admin/notification-templates")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    /// <summary>Removes an override when the scope ends - see the T-073 note above.</summary>
     private sealed class RevertTemplate(HttpClient admin, string type) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync() =>

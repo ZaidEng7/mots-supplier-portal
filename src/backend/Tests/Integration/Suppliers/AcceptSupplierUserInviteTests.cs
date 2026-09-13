@@ -1,3 +1,13 @@
+// The supplier-side invitation loop, end to end.
+//
+// Invite a colleague, mint a real token exactly as the email job would, accept through the real endpoint, sign in
+// with the new password, and confirm the token carries that role's real permission set, which is narrower than an
+// administrator's.
+//
+// The sibling of the staff invitation's own accept test.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -5,16 +15,8 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>The supplier-side sibling of StaffInviteTests's accept-flow test: the full real loop
-/// for InviteSupplierUserHandler/AcceptSupplierUserInviteHandler - invite a supplier_user, mint a
-/// real token exactly as the email job would, accept via the real HTTP endpoint, log in with the
-/// new password, and confirm the JWT carries supplier_user's real (narrower than supplier_admin's)
-/// permission set.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class AcceptSupplierUserInviteTests(PostgresApiFixture fixture)
 {

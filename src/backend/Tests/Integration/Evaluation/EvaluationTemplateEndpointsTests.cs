@@ -1,17 +1,36 @@
+// FEAT-11.1 and FR-ADM-005, pulled forward for EPIC-07: the real endpoint-level proof for the weight-sum and
+// immutability/versioning invariants already unit-tested on the aggregate directly in
+// EvaluationTemplateTests.cs - here through the real HTTP surface, permission-guarded, audited.
+//
+// The read is wider than the writes, and the first test changed in batch 12 to say so. It used to assert
+// that a procurement officer could not LIST templates. That was the behaviour, and it made the product
+// unusable: binding a template to a tender is gated on rfq.edit, which an officer holds, and binding is a
+// precondition of submitting for review - so the officer could bind a template the API forbade them to see,
+// the picker came back empty, and no tender could ever leave Draft. Found by walking a procurement from an
+// empty database. The write half is unchanged and is asserted as the control, because widening a read is
+// only defensible if the writes stay where they were. A supplier is the other control: widening the read to
+// rfq.edit must not widen it to everyone signed in - and it nearly did, because moving the permission off
+// the endpoint GROUP left the by-id read with nothing but RequireAuthorization until the generated
+// permission catalogue caught it.
+//
+// Activation is rejected when criterion weights do not sum to 100 and succeeds when they do, at which point
+// the template becomes usable.
+//
+// Editing a referenced template is rejected and forking produces a new editable version. The template is
+// bound to a real RFQ so IsReferenced becomes true through the real cross-aggregate path
+// (BindEvaluationTemplateHandler) rather than by poking the flag directly; a further edit is then refused,
+// forking produces a new independent version that IS editable, and the RFQ - which bound to the ORIGINAL
+// version - still references it exactly, unaffected by the later fork.
+
+namespace MotsSupplierPortal.Tests.Integration.Evaluation;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Tests.Integration.Evaluation;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07: the real endpoint-level proof for
-/// the weight-sum and immutability/versioning invariants already unit-tested on the aggregate
-/// directly (EvaluationTemplateTests.cs) - here through the real HTTP surface, permission-guarded,
-/// audited.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
 {
@@ -24,18 +43,6 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// The read is wider than the writes, and this test changed in batch 12 to say so.
-    ///
-    /// <para>It used to assert that a procurement officer could not LIST templates. That was the
-    /// behaviour, and it made the product unusable: binding a template to a tender is gated on
-    /// rfq.edit, which an officer holds, and binding is a precondition of submitting for review - so
-    /// the officer could bind a template the API forbade them to see, the picker came back empty, and
-    /// no tender could ever leave Draft. Found by walking a procurement from an empty database.</para>
-    ///
-    /// <para>The write half is unchanged and is asserted here as the control, because widening a read
-    /// is only defensible if the writes stay where they were.</para>
-    /// </summary>
     [Fact]
     public async Task An_officer_may_read_templates_but_not_change_them()
     {
@@ -51,9 +58,6 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
     [Fact]
     public async Task A_supplier_may_not_read_templates()
     {
-        // The other control. Widening the read to rfq.edit must not widen it to everyone signed in -
-        // and it nearly did: moving the permission off the endpoint GROUP left the by-id read with
-        // nothing but RequireAuthorization until the generated permission catalogue caught it.
         var (supplier, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, $"Tpl {Guid.NewGuid():N}"[..20]);
 
         var response = await supplier.GetAsync("/api/v1/evaluation-templates");
@@ -126,8 +130,6 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         });
         await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/activate", null);
 
-        // Bind it to a real RFQ so IsReferenced actually becomes true through the real cross-
-        // aggregate path (BindEvaluationTemplateHandler), not by poking the flag directly.
         var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
         var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
         var rfqResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", new
@@ -144,7 +146,6 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         var bind = await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation-template", new { evaluationTemplateId = templateId });
         bind.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // Now the template is genuinely referenced - a further edit must be refused.
         var editAttempt = await manager.PostAsJsonAsync($"/api/v1/evaluation-templates/{templateId}/criteria", new
         {
             nameAr = "لاحق", nameEn = "Too Late", dimension = "Delivery", weight = 10, maxScore = 10,
@@ -154,7 +155,6 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         var editBody = await editAttempt.Content.ReadFromJsonAsync<JsonElement>();
         editBody.GetProperty("detail").GetString().Should().Contain("immutable");
 
-        // Forking produces a new, independent version that IS editable.
         var forkResponse = await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/fork", null);
         forkResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var forked = await forkResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -170,8 +170,6 @@ public sealed class EvaluationTemplateEndpointsTests(PostgresApiFixture fixture)
         });
         editForkedAttempt.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // And the RFQ, which bound to the ORIGINAL version, still references it exactly -
-        // unaffected by the later fork.
         var rfqAfterFork = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}");
         rfqAfterFork.GetProperty("evaluationTemplateId").GetGuid().Should().Be(templateId);
         rfqAfterFork.GetProperty("evaluationTemplateVersion").GetInt32().Should().Be(1);

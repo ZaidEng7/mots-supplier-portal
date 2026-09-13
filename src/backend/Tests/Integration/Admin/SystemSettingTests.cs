@@ -1,3 +1,46 @@
+// T-060 and FR-ADM-006. Registration mode, the default currency and the two document-expiry windows were
+// a const, a seed row and two appsettings keys - which is to say, a redeploy each.
+//
+// Settings are global rows, so a test that leaves one set changes every later test; each test here puts
+// the table back through the clear helper.
+//
+// The catalogue lists every setting including the ones nobody has touched. A fresh deployment has no rows
+// at all, and the difference between "unset" and "an administrator chose 30" is the fact the audit trail
+// carries.
+//
+// A stored value is asserted against storage AND against the reader the job uses, because a settings
+// screen that stores a row nobody reads is the failure this replaces. It is audited with both values:
+// "who widened the expiry window" is a governance question, and the answer is useless without what the
+// value was before.
+//
+// Values outside the definition are refused with the rule that was broken, and nothing is stored by any of
+// the refusals. A repeated reminder rung would look accepted and behave differently, because the reminder
+// ledger keys on the threshold value and the second send is suppressed silently. A default currency
+// pointing at an inactive code is a case that will occur, since D-28 makes deactivation the normal way a
+// code leaves the catalogue. A key that is not in the catalogue is a 404 rather than a validation failure:
+// it is not a resource, and saying "your value is invalid" would send the caller looking in the wrong
+// place.
+//
+// Closing registration shuts the public front door, asserted in §7's shape - the middleware turns `error`
+// into the machine code and `message` into the detail, so the test asserts the wire contract a client
+// actually switches on. Nothing is written: the refusal is before validation and before the handler, so a
+// closed portal does not half-create an applicant. Registration is open when nobody has closed it, which
+// is both the control for that test and FR-REG-002's own default.
+//
+// The public read carries the allow-listed settings and nothing else. Only an administrator can read or
+// write the catalogue, with a control proving the write above was refused rather than merely unobserved.
+//
+// The review target is A-5. The SLA timer exists in BUSINESS-PROCESSES.md §5 and has no number, so this
+// is the number - configurable, defaulted to five working days and surfaced as a target. A case has to be
+// IN the queue for the target to mean anything, so the row is built through the real transitions the way
+// ReviewQueueAssignmentTests does it, making it a row production could have produced - and it is REMOVED
+// at the end, because the review queue is shared state and a row left in it is an order dependence
+// waiting for the row to start mattering. It did: this test's supplier displaced a row that
+// ReviewQueuePaginationTests asserts by position. The last test's control is that the setting is what the
+// queue reads, not a constant that happens to match.
+
+namespace MotsSupplierPortal.Tests.Integration.Admin;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,22 +52,13 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using Xunit;
-
-namespace MotsSupplierPortal.Tests.Integration.Admin;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// T-060/FR-ADM-006. Registration mode, the default currency and the two document-expiry windows were
-/// a const, a seed row and two appsettings keys - which is to say, a redeploy each.
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class SystemSettingTests(PostgresApiFixture fixture)
 {
     private Task<HttpClient> AdminAsync() => StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-    /// <summary>Settings are global rows, so a test that leaves one set changes every later test. Each
-    /// one here puts the table back.</summary>
     private async Task ClearAsync(string key)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -43,8 +77,6 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
         keys.Should().BeEquivalentTo(SystemSettings.All.Select(d => d.Key),
             "the screen lists what CAN be configured, not what happens to have a row");
 
-        // A fresh deployment has no rows at all, and the difference between "unset" and "an
-        // administrator chose 30" is the fact the audit trail carries.
         var window = settings.EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == SystemSettings.ExpiringSoonWindowDays);
         window.GetProperty("value").GetString().Should().Be("30");
@@ -63,8 +95,6 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
                 $"/api/v1/admin/settings/{SystemSettings.ExpiringSoonWindowDays}", new { value = "45" });
             response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
 
-            // Asserted against storage AND against the reader the job uses - a settings screen that
-            // stores a row nobody reads is the failure this replaces.
             await using var scope = fixture.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             (await db.Set<SystemSetting>().AsNoTracking()
@@ -76,8 +106,6 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
                 .GetRequiredService<MotsSupplierPortal.Infrastructure.Configuration.ISystemSettingReader>();
             (await reader.GetAsync(SystemSettings.ExpiringSoonWindowDays, default)).Should().Be("45");
 
-            // And it is audited with both values: "who widened the expiry window" is a governance
-            // question, and the answer is useless without what it was before.
             var audit = await db.AuditLogs.AsNoTracking()
                 .Where(a => a.AggregateType == "SystemSetting" && a.ReferenceCode == SystemSettings.ExpiringSoonWindowDays)
                 .OrderByDescending(a => a.OccurredAt)
@@ -103,11 +131,7 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
             (SystemSettings.ExpiringSoonWindowDays, "400", "value_out_of_range"),
             (SystemSettings.ExpiringSoonWindowDays, "thirty", "value_out_of_range"),
             (SystemSettings.RegistrationMode, "invite-only", "value_not_allowed"),
-            // A repeated rung would look accepted and behave differently: the reminder ledger keys on
-            // the threshold value, so the second send is suppressed silently.
             (SystemSettings.RenewalReminderDays, "30,14,14", "value_has_duplicates"),
-            // D-28 makes deactivation the normal way a code leaves the catalogue, so a default
-            // currency pointing at an inactive code is a case that will occur.
             (SystemSettings.DefaultCurrencyCode, "ZZZ", "reference_code_not_active"),
         };
 
@@ -119,13 +143,10 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
                 .GetProperty("reason").GetString().Should().Be(reason);
         }
 
-        // Nothing was stored by any of them.
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Set<SystemSetting>().CountAsync()).Should().Be(0);
 
-        // A key that is not in the catalogue is not a resource, and saying "your value is invalid"
-        // would send the caller looking in the wrong place.
         (await admin.PutAsJsonAsync("/api/v1/admin/settings/registration.made-up", new { value = "open" }))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -153,14 +174,10 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
 
             var payload = await response.Content.ReadAsStringAsync();
             response.StatusCode.Should().Be(HttpStatusCode.Forbidden, payload);
-            // §7's shape: the middleware turns `error` into the machine code and `message` into the
-            // detail, so this asserts the wire contract a client actually switches on.
             var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
             problem.GetProperty("code").GetString().Should().Be("REGISTRATION_CLOSED");
             problem.GetProperty("detail").GetString().Should().Contain("Contact the Ministry");
 
-            // Nothing was written. The refusal is before validation and before the handler, so a
-            // closed portal does not half-create an applicant.
             await using var scope = fixture.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             (await db.Suppliers.CountAsync(s => s.DisplayNameEn == "Closed Co")).Should().Be(0);
@@ -174,7 +191,6 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
     [Fact]
     public async Task Registration_is_open_when_nobody_has_closed_it()
     {
-        // The control for the test above, and the requirement's own default: FR-REG-002 says open.
         var anonymous = fixture.CreateClient();
 
         var response = await anonymous.PostAsJsonAsync("/api/v1/auth/register", new
@@ -221,7 +237,6 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
         var supplier = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Settings Outsider");
         (await supplier.GetAsync("/api/v1/admin/settings")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // The control, and proof the write above was refused rather than merely unobserved.
         var admin = await AdminAsync();
         (await admin.GetAsync("/api/v1/admin/settings")).StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -233,17 +248,10 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_review_target_follows_the_configured_sla()
     {
-        // A-5. The SLA timer exists in BUSINESS-PROCESSES.md §5 and has no number, so this is the
-        // number - configurable, defaulted to five working days, and surfaced as a target.
         var admin = await AdminAsync();
         var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
         Guid seededSupplierId;
 
-        // A case has to be IN the queue for the target to mean anything. Built through the real
-        // transitions, same as ReviewQueueAssignmentTests does, so the row is one production could have
-        // produced - and REMOVED at the end, because the review queue is shared state and a row left in
-        // it is an order dependence waiting for the row to start mattering. It did: this test's supplier
-        // displaced a row that ReviewQueuePaginationTests asserts by position.
         await using (var setup = fixture.Services.CreateAsyncScope())
         {
             var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -284,7 +292,6 @@ public sealed class SystemSettingTests(PostgresApiFixture fixture)
             var moved = afterChange.GetProperty("data").EnumerateArray().First()
                 .GetProperty("reviewTargetAt").GetDateTimeOffset();
 
-            // The control: the setting is what the queue reads, not a constant that happens to match.
             moved.Should().BeAfter(defaultTarget, "a longer SLA moves the target out");
         }
         finally

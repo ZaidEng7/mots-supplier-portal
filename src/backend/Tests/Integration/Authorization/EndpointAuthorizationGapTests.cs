@@ -1,3 +1,32 @@
+// Task #11: two real gaps found while sweeping every endpoint's actual authorization rather than what its
+// comments claimed.
+//
+// Gap 1 - AllowAnonymous silently overrides RequireAuthorization. AuthEndpoints.cs declared the whole
+// /api/v1/auth group AllowAnonymous, which is correct for login, refresh and the rest that have no session
+// yet, and then re-declared RequireAuthorization individually on the three session routes, with a comment
+// claiming that override worked. It does not: ASP.NET Core's AuthorizationMiddleware short-circuits on the
+// mere PRESENCE of IAllowAnonymous metadata, regardless of what IAuthorizeData is also present. Verified
+// directly before fixing - GET /api/v1/auth/sessions and POST /api/v1/auth/sessions/revoke-all both returned
+// 200 with no Authorization header, and only the handlers' own "scope.UserId is null" guards, returning an
+// empty page and a revokedCount of 0, kept this from leaking real data. Fixed by moving AllowAnonymous off
+// the group and onto only the actually-public routes individually. The first three tests are that gap, one
+// per route.
+//
+// Gap 2 - "is staff" was trusted as "holds document.review". GetDocumentDownloadUrlHandler treated
+// scope.SupplierId is null, meaning any staff user of any role, as sufficient to download any supplier's
+// document, on the strength of a comment claiming the ENDPOINT enforced document.review. The endpoint was
+// mapped with a bare RequireAuthorization - no permission at all. Fixed by checking the real document.review
+// permission claim through IScopeContext.HasPermission instead of the is-staff proxy for it.
+//
+// The three tests for that gap are the three cases the fix has to get right. ProcurementOfficer holds
+// rfq.publish only, per Permissions.cs DefaultPermissions, and no document.review - before the fix, being
+// staff at all was sufficient. OnboardingReviewer holds document.review, which is the legitimate case the
+// fix must not have broken. And supplier_user holds no document.review either, so ownership alone must still
+// be sufficient - which is the reason the fix could not simply be RequirePermission(DocumentReview) at the
+// endpoint.
+
+namespace MotsSupplierPortal.Tests.Integration.Authorization;
+
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,33 +34,8 @@ using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Tests.Integration.Authorization;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// Task #11: two real gaps found while sweeping every endpoint's actual authorization, not what its
-/// comments claimed.
-///
-/// <para><b>Gap 1 - AllowAnonymous silently overrides RequireAuthorization.</b> AuthEndpoints.cs
-/// declared the whole /api/v1/auth group AllowAnonymous (correct for login/refresh/etc, which have
-/// no session yet) and then re-declared .RequireAuthorization() individually on the three session
-/// routes, with a comment claiming that override worked. It does not: ASP.NET Core's
-/// AuthorizationMiddleware short-circuits on the mere PRESENCE of IAllowAnonymous metadata,
-/// regardless of what IAuthorizeData is also present. Verified directly before fixing: GET
-/// /api/v1/auth/sessions and POST /api/v1/auth/sessions/revoke-all both returned 200 with no
-/// Authorization header - only the handlers' own `scope.UserId is null` guards (returning an empty
-/// page / revokedCount 0) kept this from leaking real data. Fixed by moving AllowAnonymous off the
-/// group and onto only the actually-public routes individually.</para>
-///
-/// <para><b>Gap 2 - "is staff" was trusted as "holds document.review".</b>
-/// GetDocumentDownloadUrlHandler treated scope.SupplierId is null (i.e. any staff user of any role)
-/// as sufficient to download any supplier's document, on the strength of a comment claiming the
-/// ENDPOINT enforced document.review. The endpoint was mapped with bare .RequireAuthorization() -
-/// no permission at all. Fixed by checking the real document.review permission claim
-/// (IScopeContext.HasPermission) instead of the is-staff proxy for it.</para>
-/// </summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
 {
@@ -107,8 +111,6 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
     {
         var (_, documentCode) = await SeedApprovedDocumentAsync();
 
-        // ProcurementOfficer holds rfq.publish only (Permissions.cs DefaultPermissions) - no
-        // document.review. Before the fix, being staff at all (any role) was sufficient.
         var staff = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer);
 
         var response = await staff.GetAsync($"/api/v1/documents/{documentCode}/download-url");
@@ -123,8 +125,6 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
     {
         var (_, documentCode) = await SeedApprovedDocumentAsync();
 
-        // OnboardingReviewer holds document.review (Permissions.cs DefaultPermissions) - the
-        // legitimate case the fix must not have broken.
         var staff = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
 
         var response = await staff.GetAsync($"/api/v1/documents/{documentCode}/download-url");
@@ -135,9 +135,6 @@ public sealed class EndpointAuthorizationGapTests(PostgresApiFixture fixture)
     [Fact]
     public async Task The_owning_supplier_can_still_download_its_own_document_with_no_special_permission()
     {
-        // supplier_user holds no document.review permission either (Permissions.cs) - ownership
-        // alone must still be sufficient, which is the reason the fix could not just be
-        // .RequirePermission(DocumentReview) at the endpoint.
         var client = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, $"Doc Owner {Guid.NewGuid():N}"[..20]);
 
         await using var scope = fixture.Services.CreateAsyncScope();

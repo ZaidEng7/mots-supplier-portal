@@ -1,17 +1,24 @@
+// A supplier's catalogue entries end to end, from a feature that had no code at all before it.
+//
+// It covers the stated criteria: an entry persists linked to a valid category and unit and is audited, deactivation
+// hides it while retaining the row, a price carries its currency, and an invalid category or unit is rejected.
+//
+// Plus row-scoping between two suppliers: one must never see, edit or deactivate another's entry.
+//
+// Deactivation is asserted as RETAINED rather than deleted, because the row is still there and still returned by the
+// owner's own list.
+//
+// The cross-supplier cases read as not-found rather than forbidden, so the identifier's existence is not leaked, and
+// the entry is asserted untouched afterwards: still active and still owned by the original supplier.
+
+namespace MotsSupplierPortal.Tests.Integration.Suppliers;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-
-namespace MotsSupplierPortal.Tests.Integration.Suppliers;
-
 using MotsSupplierPortal.Tests.Integration;
 
-/// <summary>FEAT-06.1/FR-OFF-001: real Offering CRUD from scratch (EPIC-06 had zero code before
-/// this). Covers the story's stated AC1-AC4 (persists linked to valid category+UoM and is
-/// audited; deactivation hides but retains; price+currency; invalid category/UoM rejected) plus
-/// row-scoping between two different suppliers - one supplier must never see, edit, or deactivate
-/// another's offering.</summary>
 [Collection(IntegrationTestCollection.Name)]
 public sealed class OfferingTests(PostgresApiFixture fixture)
 {
@@ -141,7 +148,6 @@ public sealed class OfferingTests(PostgresApiFixture fixture)
         var deactivateResponse = await client.PostAsync($"/api/v1/suppliers/me/offerings/{offeringId}/deactivate", null);
         deactivateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // AC2: retained (the row is still there, still returned by list), not deleted.
         var list = await client.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/offerings");
         var found = list.EnumerateArray().Should().ContainSingle(o => o.GetProperty("id").GetGuid() == offeringId).Subject;
         found.GetProperty("isActive").GetBoolean().Should().BeFalse();
@@ -156,19 +162,15 @@ public sealed class OfferingTests(PostgresApiFixture fixture)
 
         var otherClient = await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Offering Other Co");
 
-        // Not visible in the other supplier's own list.
         var otherList = await otherClient.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/offerings");
         otherList.EnumerateArray().Should().NotContain(o => o.GetProperty("id").GetGuid() == offeringId);
 
-        // Cannot edit it - reads as not-found, not forbidden, so the id's existence isn't leaked.
         var updateAttempt = await otherClient.PutAsJsonAsync($"/api/v1/suppliers/me/offerings/{offeringId}", ValidPayload("Hijacked"));
         updateAttempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        // Cannot deactivate it either.
         var deactivateAttempt = await otherClient.PostAsync($"/api/v1/suppliers/me/offerings/{offeringId}/deactivate", null);
         deactivateAttempt.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        // And it is untouched - still active, still owned by the original supplier.
         var ownerList = await ownerClient.GetFromJsonAsync<JsonElement>("/api/v1/suppliers/me/offerings");
         var stillThere = ownerList.EnumerateArray().Should().ContainSingle(o => o.GetProperty("id").GetGuid() == offeringId).Subject;
         stillThere.GetProperty("isActive").GetBoolean().Should().BeTrue();
