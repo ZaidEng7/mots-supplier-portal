@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace MotsSupplierPortal.Infrastructure.Reporting;
+namespace MotsSupplierPortal.Infrastructure.Exports;
 
 /// <summary>Direction a run of text is laid out in.</summary>
 public enum RunDirection

@@ -1,7 +1,7 @@
 using MotsSupplierPortal.Application.Exports;
 using SkiaSharp;
 
-namespace MotsSupplierPortal.Infrastructure.Reporting;
+namespace MotsSupplierPortal.Infrastructure.Exports;
 
 /// <summary>
 /// Where a report's text sits on the page, and which way it reads.

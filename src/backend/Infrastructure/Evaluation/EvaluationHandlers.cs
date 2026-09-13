@@ -17,7 +17,7 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluations;
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 /// <summary>
 /// T-068: proposal id to §3 reference code, for one tender.

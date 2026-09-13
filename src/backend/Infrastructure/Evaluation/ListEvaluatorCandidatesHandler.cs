@@ -5,7 +5,7 @@ using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluations;
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 /// <summary>
 /// Staff who could score this RFQ's evaluation.

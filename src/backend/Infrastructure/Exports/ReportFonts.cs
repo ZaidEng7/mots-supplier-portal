@@ -2,7 +2,7 @@ using System.Reflection;
 using HarfBuzzSharp;
 using SkiaSharp;
 
-namespace MotsSupplierPortal.Infrastructure.Reporting;
+namespace MotsSupplierPortal.Infrastructure.Exports;
 
 /// <summary>
 /// The two faces every generated PDF is drawn with, and the rule for choosing between them.
@@ -33,8 +33,8 @@ public sealed class ReportFonts : IDisposable
 
     public ReportFonts()
     {
-        Arabic = FontFace.FromEmbedded("MotsSupplierPortal.Infrastructure.Reporting.Fonts.NotoNaskhArabic-Regular.ttf");
-        Latin = FontFace.FromEmbedded("MotsSupplierPortal.Infrastructure.Reporting.Fonts.NotoSans-Regular.ttf");
+        Arabic = FontFace.FromEmbedded("MotsSupplierPortal.Infrastructure.Exports.Fonts.NotoNaskhArabic-Regular.ttf");
+        Latin = FontFace.FromEmbedded("MotsSupplierPortal.Infrastructure.Exports.Fonts.NotoSans-Regular.ttf");
     }
 
     /// <summary>

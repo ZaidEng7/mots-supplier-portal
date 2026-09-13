@@ -46,8 +46,8 @@
        container this ships in has no fonts installed at all. Licensing: SIL Open Font License 1.1,
        which permits embedding; OFL.txt ships beside them. -->
   <ItemGroup>
-    <EmbeddedResource Include="Reporting/Fonts/NotoNaskhArabic-Regular.ttf" />
-    <EmbeddedResource Include="Reporting/Fonts/NotoSans-Regular.ttf" />
+    <EmbeddedResource Include="Exports/Fonts/NotoNaskhArabic-Regular.ttf" />
+    <EmbeddedResource Include="Exports/Fonts/NotoSans-Regular.ttf" />
   </ItemGroup>
 
 </Project>

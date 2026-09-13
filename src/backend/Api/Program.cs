@@ -39,11 +39,9 @@ using MotsSupplierPortal.Infrastructure.Evaluation;
 using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
-using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Proposals;
-using MotsSupplierPortal.Infrastructure.Evaluations;
 using MotsSupplierPortal.Infrastructure.Comparison;
 using MotsSupplierPortal.Infrastructure.Reports;
 using MotsSupplierPortal.Infrastructure.Awards;
@@ -382,7 +380,7 @@ builder.Services.AddScoped<IGetRfqAttachmentDownloadUrlHandler, GetRfqAttachment
 // re-creating them per request would dominate the cost of an export with thousands of rows. Both
 // faces are read-only after construction and HarfBuzz shaping does not mutate them, so sharing one
 // instance across requests is safe.
-builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Reporting.ReportFonts>();
+builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Exports.ReportFonts>();
 
 // FEAT-19.1/19.2 report reads.
 builder.Services.AddScoped<IProcurementReportHandler, ProcurementReportHandler>();
@@ -488,7 +486,7 @@ builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IDeleteEmailTemp
 builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.IGetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.GetDocumentTypeCategoriesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.ReferenceData.ISetDocumentTypeCategoriesHandler, MotsSupplierPortal.Infrastructure.ReferenceData.SetDocumentTypeCategoriesHandler>();
 // The evaluator picker's own read - see ListEvaluatorCandidatesHandler for why it exists.
-builder.Services.AddScoped<MotsSupplierPortal.Application.Evaluation.IListEvaluatorCandidatesHandler, MotsSupplierPortal.Infrastructure.Evaluations.ListEvaluatorCandidatesHandler>();
+builder.Services.AddScoped<MotsSupplierPortal.Application.Evaluation.IListEvaluatorCandidatesHandler, MotsSupplierPortal.Infrastructure.Evaluation.ListEvaluatorCandidatesHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
 builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();

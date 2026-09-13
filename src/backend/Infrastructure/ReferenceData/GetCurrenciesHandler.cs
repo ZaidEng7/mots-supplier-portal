@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Reference;
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
 
 public sealed class GetCurrenciesHandler(AppDbContext db) : IGetCurrenciesHandler
 {

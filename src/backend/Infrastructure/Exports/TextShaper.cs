@@ -2,7 +2,7 @@ using HarfBuzzSharp;
 using SkiaSharp;
 using Buffer = HarfBuzzSharp.Buffer;
 
-namespace MotsSupplierPortal.Infrastructure.Reporting;
+namespace MotsSupplierPortal.Infrastructure.Exports;
 
 /// <summary>One glyph, placed. X grows to the right regardless of the run's direction.</summary>
 /// <param name="GlyphId">Index into <paramref name="Face"/>. 0 is .notdef - the empty box.</param>

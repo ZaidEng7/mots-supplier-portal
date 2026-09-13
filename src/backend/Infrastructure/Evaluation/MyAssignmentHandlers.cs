@@ -4,7 +4,7 @@ using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluations;
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 /// <summary>
 /// SCR-500 / FR-DSH-004 / T3-02: the evaluator's assignments, due dates and progress.

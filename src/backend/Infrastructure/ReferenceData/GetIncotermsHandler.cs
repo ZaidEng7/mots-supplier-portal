@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Reference;
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
 
 /// <summary>
 /// T-072: the list a bidder chooses from, which is also the list their bid is validated against.
