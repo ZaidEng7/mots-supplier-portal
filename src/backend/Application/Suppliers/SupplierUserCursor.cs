@@ -4,8 +4,8 @@ namespace MotsSupplierPortal.Application.Suppliers;
 
 /// <summary>
 /// MSP-84: keyset cursor for the team-members list, ordered ascending by (Email, Id) - matching
-/// the list's existing display order (Email). JSON+Base64 rather than the AuditCursor/
-/// ReviewQueueCursor colon-delimited format because Email is arbitrary text and cannot safely
+/// the list's existing display order (Email). JSON+Base64 rather than the KeysetCursor/
+/// KeysetCursor colon-delimited format because Email is arbitrary text and cannot safely
 /// share a fixed delimiter the way a numeric timestamp can.
 /// </summary>
 public readonly record struct SupplierUserCursor(string Email, Guid Id)

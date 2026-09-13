@@ -149,10 +149,11 @@ public sealed class RfqListPaginationTests(PostgresApiFixture fixture)
 
     /// <summary>
     /// The contract defines NO error type for a bad cursor - §7.1's catalog has no invalid-cursor
-    /// slug, and §6.1 says only that cursors "are validated". Every existing cursor in this codebase
-    /// (AuditCursor, SessionCursor, ReviewQueueCursor, SupplierUserCursor) is total: an
-    /// unparseable token yields page one rather than an error. RfqListCursor follows that
-    /// convention. This test pins the property the contract DOES imply - a hostile token must not
+    /// slug, and §6.1 says only that cursors "are validated". Every cursor in this codebase is total:
+    /// an unparseable token yields page one rather than an error. That is now one place rather than
+    /// five - the shared <c>KeysetCursor</c> every time-ordered list pages with, plus
+    /// <c>SupplierUserCursor</c> and <c>SupplierDirectoryCursor</c>, which key on text instead of a
+    /// timestamp. This test pins the property the contract DOES imply - a hostile token must not
     /// reach the database or produce a 500 - and the choice is reported as a documented silence
     /// rather than resolved by inventing a 422.
     /// </summary>

@@ -5,7 +5,7 @@ namespace MotsSupplierPortal.Application.Suppliers;
 public interface IListReviewQueueHandler
 {
     /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.
-    /// MSP-84: keyset-paged (see ReviewQueueCursor for why). FEAT-03.6: state restricts to one of
+    /// MSP-84: keyset-paged (see KeysetCursor for why). FEAT-03.6: state restricts to one of
     /// the three queue-eligible OnboardingStates; assignedTo accepts "me" (resolved to the
     /// caller), "unassigned", or a literal reviewer user id - null means no assignment filter.</summary>
     Task<ListEnvelope<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, bool withCount, string? state, string? assignedTo, CancellationToken ct);

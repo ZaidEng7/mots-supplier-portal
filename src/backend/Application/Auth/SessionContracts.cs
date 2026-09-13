@@ -7,7 +7,7 @@ public sealed record SessionDto(Guid FamilyId, string? Ip, string? UserAgent, Da
 
 public interface IListSessionsHandler
 {
-    /// <summary>MSP-84: keyset-paged (see SessionCursor for why).</summary>
+    /// <summary>MSP-84: keyset-paged (see KeysetCursor for why).</summary>
     Task<ListEnvelope<SessionDto>> HandleAsync(string? currentRefreshToken, string? cursor, int? limit, bool withCount, CancellationToken ct);
 }
 

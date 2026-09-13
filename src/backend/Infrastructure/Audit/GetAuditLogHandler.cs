@@ -24,7 +24,7 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         await Project(ScopedQuery().Where(a => a.AggregateId == aggregateId)).ToListAsync(ct);
 
     /// <summary>
-    /// Keyset-paged (MSP-66). See AuditCursor for why keyset rather than offset on this table
+    /// Keyset-paged (MSP-66). See KeysetCursor for why keyset rather than offset on this table
     /// specifically, and why the cursor carries Id as well as OccurredAt.
     /// </summary>
     public async Task<ListEnvelope<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, bool withCount, CancellationToken ct)
@@ -41,14 +41,14 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        if (AuditCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             // Strictly "after" the cursor row in the sort order. The Id comparison is what makes a
             // shared timestamp safe: without it, rows tied on OccurredAt are dropped or repeated at
             // the page boundary, and one request routinely writes several rows at the same instant.
             query = query.Where(a =>
-                a.OccurredAt < from.OccurredAt
-                || (a.OccurredAt == from.OccurredAt && a.Id.CompareTo(from.Id) < 0));
+                a.OccurredAt < from.At
+                || (a.OccurredAt == from.At && a.Id.CompareTo(from.Id) < 0));
         }
 
         // limit + 1: the extra row is how HasMore is answered without a COUNT over a table that
@@ -61,7 +61,7 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         return ListEnvelope<AuditLogEntryDto>.Cursor(
             items,
             hasMore,
-            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null,
+            hasMore ? new KeysetCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null,
             pageSize,
             totalCount,
             sort: "-occurredAt");
@@ -85,11 +85,11 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        if (AuditCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             query = query.Where(a =>
-                a.OccurredAt < from.OccurredAt
-                || (a.OccurredAt == from.OccurredAt && a.Id.CompareTo(from.Id) < 0));
+                a.OccurredAt < from.At
+                || (a.OccurredAt == from.At && a.Id.CompareTo(from.Id) < 0));
         }
 
         var rows = await Project(query).Take(pageSize + 1).ToListAsync(ct);
@@ -100,7 +100,7 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
         return ListEnvelope<AuditLogEntryDto>.Cursor(
             items,
             hasMore,
-            hasMore ? new AuditCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null,
+            hasMore ? new KeysetCursor(items[^1].OccurredAt, items[^1].Id).Encode() : null,
             pageSize,
             totalCount,
             sort: "-occurredAt",

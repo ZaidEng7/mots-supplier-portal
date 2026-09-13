@@ -97,9 +97,10 @@ public static class SupplierDirectoryFilterValues
 /// is what keeps the page boundary stable when two suppliers share a display name, which the schema
 /// permits.</para>
 ///
-/// <para>An unparseable token yields the first page rather than an error, matching every other cursor in
-/// this codebase (AuditCursor, SessionCursor, ReviewQueueCursor, SupplierUserCursor, RfqListCursor). The
-/// property that matters is asserted in the tests: a hostile token never reaches the database.</para>
+/// <para>An unparseable token yields the first page rather than an error, matching the other two cursors
+/// in this codebase: the shared <c>KeysetCursor</c> that every time-ordered list uses, and
+/// <c>SupplierUserCursor</c>. The property that matters is asserted in the tests: a hostile token never
+/// reaches the database.</para>
 /// </summary>
 public readonly record struct SupplierDirectoryCursor(string Name, Guid Id)
 {

@@ -98,10 +98,10 @@ public sealed class ListMinistryRfqsHandler(AppDbContext db) : IListMinistryRfqs
 
         // Newest first: a monitor is read from the top, and a tender published this morning is the one an
         // overseer is looking for.
-        if (MinistryRfqCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             query = query.Where(r =>
-                r.CreatedAt < from.CreatedAt || (r.CreatedAt == from.CreatedAt && r.Id.CompareTo(from.Id) < 0));
+                r.CreatedAt < from.At || (r.CreatedAt == from.At && r.Id.CompareTo(from.Id) < 0));
         }
 
         var rows = await query
@@ -141,7 +141,7 @@ public sealed class ListMinistryRfqsHandler(AppDbContext db) : IListMinistryRfqs
         }).ToList();
 
         var nextCursor = hasMore && items.Count > 0
-            ? new MinistryRfqCursor(items[^1].CreatedAt, items[^1].Id).Encode()
+            ? new KeysetCursor(items[^1].CreatedAt, items[^1].Id).Encode()
             : null;
 
         return new ListEnvelope<MinistryRfqRowDto>(

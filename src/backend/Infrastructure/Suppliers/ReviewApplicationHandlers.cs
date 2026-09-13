@@ -71,14 +71,14 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
         // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        if (ReviewQueueCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             // Strictly "after" the cursor row in ascending order (oldest submission first, the
             // order a reviewer should work the queue). The Id tie-break is what keeps this safe
             // when two suppliers register in the same tick.
             query = query.Where(s =>
-                s.CreatedAt > from.CreatedAt
-                || (s.CreatedAt == from.CreatedAt && s.Id.CompareTo(from.Id) > 0));
+                s.CreatedAt > from.At
+                || (s.CreatedAt == from.At && s.Id.CompareTo(from.Id) > 0));
         }
 
         // limit + 1: the extra row answers HasMore without a COUNT over a queue new applications
@@ -127,7 +127,7 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
         return ListEnvelope<ReviewQueueItemDto>.Cursor(
             dtos,
             hasMore,
-            hasMore ? new ReviewQueueCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null,
+            hasMore ? new KeysetCursor(items[^1].CreatedAt, items[^1].Id).Encode() : null,
             pageSize,
             totalCount,
             sort: "createdAt",
