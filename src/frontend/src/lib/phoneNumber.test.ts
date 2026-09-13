@@ -1,3 +1,16 @@
+// Task #41's phone format: parsing, composing, and the round-trip between them.
+//
+// PARSING defaults to Syria with an empty local number for null, undefined or empty; splits a known dial code from the local
+// number; and falls back to OTHER with the value preserved VERBATIM both when the code is unrecognised and when there is no
+// leading "+". That second case is real-world legacy and free-form data: nothing in the backend enforces a leading "+", so it
+// must never be silently reformatted or lose digits.
+//
+// COMPOSING returns an empty string for a blank local number regardless of country, concatenates the dial code and digits while
+// stripping non-digit characters, and passes OTHER through verbatim and untouched.
+//
+// ROUND-TRIPPING is asserted both ways: every existing stored value is reproduced exactly when left untouched, and every listed
+// dial code round-trips a freshly composed number back through parsing.
+
 import { describe, expect, it } from 'vitest'
 import { parsePhone, composePhone, COUNTRY_DIAL_CODES, OTHER_COUNTRY_CODE, DEFAULT_COUNTRY_CODE } from './phoneNumber'
 
@@ -19,8 +32,6 @@ describe('parsePhone', () => {
   })
 
   it('falls back to OTHER with the value preserved verbatim when there is no leading +', () => {
-    // Real-world legacy/free-form data: nothing in the backend enforces a leading '+', so this
-    // must never be silently reformatted or lose digits.
     expect(parsePhone('0988112233')).toEqual({ countryCode: OTHER_COUNTRY_CODE, localNumber: '0988112233' })
   })
 })

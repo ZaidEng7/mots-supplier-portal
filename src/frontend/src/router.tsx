@@ -1,7 +1,89 @@
-// SCR-604, eager like the overview it sits beside: both are small, and ministry_viewer's whole product is
-// these two screens.
-// SCR-601/602/603/606 under D-66. Lazy, unlike the two small ministry screens above: these carry tables and
-// a detail view, and a ministry_viewer opening the overview should not pay for all four.
+// Every route this product has, the two shells they hang off, and the guards on each.
+//
+// ROUTE-LEVEL CODE SPLITTING, per 00-foundational-decisions.md's "Web perf LCP < 2.5s ... route-level code splitting". A single
+// unsplit bundle measured about 3.4s LCP under Lighthouse's mobile and 4G throttling - well over budget - because every route
+// pulled in every other route's code, Radix and react-hook-form and zod included, on first paint. Lazy-loading each route
+// component means the initial chunk only needs the router shell. Two screens are EAGER: SCR-600 and SCR-604, both small, and
+// ministry_viewer's whole product is those two. SCR-601, 602, 603 and 606 are lazy despite belonging to the same persona,
+// because they carry tables and a detail view and a ministry_viewer opening the overview should not pay for all four.
+//
+// THE TWO GUARDS. ensureAuthenticated makes sure a valid access token is in memory before a protected route renders: on a cold
+// load the store is empty, so it silently exchanges the httpOnly refresh cookie for a fresh one before deciding whether to
+// redirect to /login. And SCR-902's other half reads the stored interface language, because a stored language nobody read would
+// be a setting that does nothing - once per app load, after a session exists, and never again, so that a mid-session toggle
+// keeps winning over the value it fetched rather than switching language undoing itself on the next navigation. It is
+// fire-and-forget, because no screen should wait on a preference.
+//
+// BOTH SHELLS REFUSE THE OTHER PERSONA, and until recently only one of them did. The supplier layout had ensureAuthenticated
+// alone - authenticated, not "is a supplier" - so any signed-in account could land in the supplier shell and every screen in it
+// then asked /suppliers/me/... and got a 404. Seen for real: a system_admin signing in with a stale ?redirect=/dashboard from a
+// previous session landed on a supplier dashboard that could never load. The evaluator's pathless layout had the same hole
+// arriving by the one door nobody had closed: a supplier session that reached /evaluation got the back-office chrome, the dark
+// staff rail included, and then a screen whose every query answered 404. There a supplier is REFUSED rather than redirected,
+// which is what the other two do - a redirect would bounce somebody who followed a link into a loop, and a 403 says what
+// happened.
+//
+// FIVE PATH DISAGREEMENTS WITH THE INVENTORY are reported rather than resolved by renaming a shell. SCR-500 sits at /evaluation,
+// which is SCREEN-INVENTORY's own route column and what the epic names, while IA §4.3 puts the evaluator's dashboard at /bo;
+// the inventory's explicit route wins. It renders in the back-office chrome because §4.3 is unambiguous that an evaluator
+// "enters the Back-office shell", so it is a pathless layout route - the same shape supplierLayoutRoute uses - rather than a
+// /back-office child that would change the URL. EPIC-17's three screens are routed at /procurement, /procurement/approvals and
+// /review by the inventory and render in the back-office chrome their personas already live in, so their real paths carry the
+// /back-office prefix. The reports screen is routed at /bo/reports by the IA and does the same. And every /admin screen -
+// SCR-700, 724, 715, 710 to 712, and 720 - keeps this app's /back-office prefix.
+//
+// SCR-600's path is the one that MATCHES: the specification's own path and this app's URL space agree, so there is no prefix
+// disagreement to report there. It sits under the BACK-OFFICE layout, because ministry_viewer is staff rather than a supplier
+// and that layout is what already refuses a supplier-scoped session with a 403.
+//
+// SCR-715 is FLATTENED rather than nested: the inventory writes it as /admin/notifications/templates, and /back-office/
+// notifications is already this app's notification INBOX - nesting an admin editor under a persona's own inbox route would make
+// the two read as the same feature.
+//
+// TWO ROUTES HAVE NO SCR ID. The reports screen has no specification at all, and an invented id would corrupt an inventory that
+// the specifications, backlog and tests all cross-reference.
+//
+// THREE SCREENS ARE MOUNTED UNDER BOTH SHELLS rather than once, because the two shells are two different URL spaces and a
+// back-office user has no route under the supplier layout at all. SCR-900's notification centre is one: the inventory names one
+// path, and this is the same SCREEN reached through each persona's own shell, which is the closest the router can come to that
+// without giving staff a supplier chrome. SCR-901 is another, listed for "all authenticated", and a supplier reads it for the
+// same reason staff do - they receive invitations and award offers, and it is the screen that says which of those they cannot
+// switch off. SCR-902 is the third: it is "all authenticated" and existed only under the supplier shell, so a procurement
+// officer, evaluator, reviewer or admin had no way to change their own password, enrol MFA, see their sessions or fix their own
+// name. The SAME page is mounted rather than a second one written for staff, because every card on it is about the caller's own
+// account and the one supplier-scoped card gates itself on being a supplier. SCR-907's help page is mounted in both for a
+// different reason: so it keeps the nav the reader came from, since a help link that drops a procurement officer into the
+// supplier chrome is worse than no link.
+//
+// SCR-908 is OUTSIDE every authenticated layout on purpose: the moment a user most needs to say which build they are on is when
+// they cannot sign in.
+//
+// TWO STATIC SEGMENTS ARE DECLARED BEFORE THE PARAMETERISED ROUTE THEY SIT BESIDE, because TanStack matches the literal before
+// the parameter and the alternative is a literal read as a reference code: SCR-307's /review/suppliers against
+// /review/$referenceCode, and SCR-602's tender monitor against its own detail route.
+//
+// SCR-906's SEARCH IS NOT GATED in the router: what a caller may find is decided per entity kind on the server, and a
+// route-level permission would either lock out someone who can legitimately search one kind or admit someone who can search
+// none. Its query lives in the URL so the top bar can submit into the screen, and so a search can be linked to, reloaded and
+// gone back to - it was local state, which is why the only way to reach a result was to arrive at an empty page and type again.
+//
+// FOUR ROUTES CARRY A DECISION ABOUT WHERE THEY SIT. SCR-121's profile is the supplier's own read of their own profile, which
+// existed as an endpoint since EPIC-01 and was rendered only by the REVIEWER's screen; SCR-122 to 126's entry points live on
+// it, linking to the editors that already exist rather than growing second copies of them. SCR-130's documents centre carries
+// SCR-131, 132 and 133 with it, because SCR-133 is a FILTER on that page rather than its own route - "needs attention" is a
+// view of the same list, and a second screen would be a second place for "expiring" to be defined. SCR-150's proposals list is
+// the missing INDEX: SCR-154's read, SCR-155's revise, SCR-156's withdraw and SCR-157's award response all already live in the
+// proposal workspace on the RFQ, and each row links back into it rather than duplicating any of them. And SCR-430 and SCR-431
+// share one route, because the detail is a panel rather than a navigation - for the same reason the comparison matrix is a
+// matrix.
+//
+// THE TENDER'S SIX VIEWS are six routes under one reference code. The Suppliers tab is who was asked to bid and what they asked
+// back. The Settings tab is everything done TO a tender rather than what the tender is - reassignment, the deadline, addenda
+// and cancellation - which the workspace used to stack below the tender's own contents, so reading a line item meant scrolling
+// past a cancel button. And SCR-501's brief sits BESIDE the scoring screen rather than inside it: an evaluator reads the brief
+// before they start and returns to it when a criterion is ambiguous, and folding it into the form would put a wall of
+// instruction in front of the score fields every time.
+
 import { lazy, Suspense } from 'react'
 
 const AdminOverviewPage = lazy(() => import('./routes/admin/AdminOverviewPage').then((m) => ({ default: m.AdminOverviewPage })))
@@ -85,26 +167,7 @@ import { PublicFooter } from './components/PublicFooter'
 import { FirstRunLocale } from './components/FirstRunLocale'
 import { refresh, getAccount } from './api/auth'
 
-// Route-level code splitting (docs/architecture/00-foundational-decisions.md: "Web perf LCP <
-// 2.5s ... route-level code splitting"). A single unsplit bundle measured ~3.4s LCP under
-// Lighthouse's mobile/4G throttling - well over budget - because every route pulled in every
-// other route's code (Radix, react-hook-form, zod) on first paint. Lazy-loading each route
-// component means the initial chunk only needs the router shell.
-// SCR-901.
-// SCR-307 and SCR-402, the two directories. Lazy like every other back-office screen: neither is on the
-// path a reviewer or an officer takes on sign-in, so neither belongs in the first bundle.
-// SCR-501.
 
-/** Ensures a valid access token is in memory before a protected route renders — on a cold load
- * (page refresh) the store is empty, so this silently exchanges the httpOnly refresh cookie for a
- * fresh one before deciding whether to redirect to /login. */
-/**
- * SCR-902's other half: a stored interface language nobody read would be a setting that does nothing.
- *
- * <p>Runs once per app load, after a session exists, and never again - a mid-session toggle has to
- * keep winning over the value this fetched, or switching language would undo itself on the next
- * navigation. Fire-and-forget, because no screen should wait on a preference.</p>
- */
 let languageApplied = false
 function applyStoredLanguage() {
   if (languageApplied) return
@@ -135,23 +198,11 @@ async function ensureAuthenticated(currentPath: string) {
 const rootRoute = createRootRoute({
   component: () => (
     <Suspense fallback={null}>
-      {/* WCAG 2.4.1. Before everything, including the maintenance banner: the whole point is that it is
-          the first thing a Tab reaches. */}
       <SkipLink />
-      {/* SCR-044. Above the Outlet so it is the first thing on every page, authenticated or not. */}
       <MaintenanceBanner />
       <Outlet />
-      {/* SCR-040. Mounted at the root so an expiry is covered on every page, and OUTSIDE the Outlet so
-          re-authenticating does not remount the route underneath and discard the work it is protecting. */}
-      {/* SCR-908/SCR-907 reachable at last - see PublicFooter.
-          Anonymous pages only. Inside a shell it is rendered by AppShell instead, in the content
-          column: here at the root it sat BELOW a sidebar that is min-h-screen tall, so on any short
-          page it appeared as a lone pair of links stranded in a band of empty white the full width of
-          the window, the sidebar included. */}
       <PublicFooter />
       <SessionExpiredOverlay />
-      {/* SCR-010. Below the expiry overlay in stacking order (--z-modal against --z-tooltip): if a session lapses
-          while the language question is open, the expiry is the one that has to be answered first. */}
       <FirstRunLocale />
     </Suspense>
   ),
@@ -159,8 +210,6 @@ const rootRoute = createRootRoute({
   errorComponent: () => <ErrorBoundaryScreen code="500" />,
 })
 
-// SCR-908, `/about`, public. Outside every authenticated layout on purpose: the moment a user most
-// needs to say which build they are on is when they cannot sign in.
 const aboutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/about',
@@ -259,17 +308,10 @@ const indexRoute = createRoute({
   component: IndexPage,
 })
 
-// --- Supplier app shell (protected) ---
 const supplierLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'supplier-layout',
   beforeLoad: async () => ensureAuthenticated('/dashboard'),
-  // The mirror of the back-office guard below, which has refused suppliers since it was written.
-  //
-  // This side had only ensureAuthenticated - authenticated, not "is a supplier" - so any signed-in
-  // account could land in the supplier shell, and every screen in it then asked /suppliers/me/... and
-  // got a 404. Seen for real: a system_admin signing in with a stale `?redirect=/dashboard` from a
-  // previous session landed on a supplier dashboard that could never load.
   component: () => {
     const claims = useAuthStore.getState().claims
     if (!claims?.supplierId) {
@@ -319,28 +361,18 @@ const onboardingOfferingsRoute = createRoute({
   component: OfferingsPage,
 })
 
-// SCR-121, `/profile`, supplier_admin + supplier_user, P0. The supplier's own read of their own
-// profile - which existed as an endpoint since EPIC-01 and was rendered only by the REVIEWER's
-// screen. SCR-122..126's entry points live on it, linking to the editors that already exist rather
-// than growing second copies of them.
 const profileRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/profile',
   component: ProfilePage,
 })
 
-// SCR-130 (P0) + SCR-131 + SCR-132 + SCR-133, `/documents`, supplier_admin + supplier_user.
-// SCR-133 is a filter on this page rather than its own route: "needs attention" is a view of the
-// same list, and a second screen would be a second place for "expiring" to be defined.
 const documentsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/documents',
   component: DocumentsPage,
 })
 
-// SCR-150, `/proposals`, supplier_admin + supplier_user, P0. The missing index: SCR-154's read,
-// SCR-155's revise, SCR-156's withdraw and SCR-157's award response all already live in the proposal
-// workspace on the RFQ, and each row links back into it rather than duplicating any of them.
 const myProposalsRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/proposals',
@@ -359,25 +391,10 @@ const offeringCatalogRoute = createRoute({
   component: OfferingCatalogPage,
 })
 
-// SCR-500 sits at "/evaluation" (SCREEN-INVENTORY's own route column, and what the epic names)
-// while IA §4.3 puts the evaluator's dashboard at "/bo". The two documents disagree; the inventory's
-// explicit route wins, and the conflict is reported. It renders in the back-office chrome because
-// §4.3 is unambiguous that an evaluator "enters the Back-office shell" - so this is a pathless
-// layout route, the same shape supplierLayoutRoute already uses, rather than a "/back-office" child
-// that would change the URL.
 const evaluatorLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'evaluator-layout',
   beforeLoad: async () => ensureAuthenticated('/evaluation'),
-  // The same refusal both other layouts carry, and the asymmetry that had no reason written beside it.
-  //
-  // This layout had `ensureAuthenticated` alone - authenticated, not "is staff" - so a supplier session
-  // that reached /evaluation got the back-office chrome, the dark staff rail included, and then a
-  // screen whose every query answered 404. That is exactly the defect the supplier layout's own
-  // comment records being found for real, arriving here by the one door nobody had closed.
-  //
-  // A supplier is refused rather than redirected, which is what the other two do: a redirect would
-  // bounce somebody who followed a link into a loop, and a 403 says what happened.
   component: () => {
     const claims = useAuthStore.getState().claims
     if (claims?.supplierId) {
@@ -397,129 +414,84 @@ const evaluationDashboardRoute = createRoute({
   component: EvaluationDashboardPage,
 })
 
-// SCR-900: "/notifications", all authenticated personas. Registered under BOTH shells rather than
-// once, because the two shells are two different URL spaces - a back-office user has no route under
-// the supplier layout at all. SCREEN-INVENTORY names one path; this is the same SCREEN reached
-// through each persona's own shell, which is the closest the router can come to that without giving
-// staff a supplier chrome.
-// EPIC-17. SCREEN-INVENTORY routes these at /procurement, /procurement/approvals and /review; they
-// render in the back-office chrome their personas already live in, so they hang off that layout and
-// their real paths carry the /back-office prefix. The inventory's paths and this app's URL space
-// disagree here exactly as they did for SCR-500 - reported rather than resolved by renaming a shell.
 const procurementDashboardRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/procurement',
   component: ProcurementDashboardPage,
 })
 
-// FEAT-19.1/19.2. The IA routes reports at "/bo/reports"; like SCR-400 and SCR-500 before it, that
-// path and this app's URL space disagree, so it hangs off the back-office layout and its real path
-// carries the /back-office prefix. Reported rather than resolved by renaming a shell.
-//
-// No SCR id: the screen has no specification at all, and an invented id would corrupt an inventory
-// that the specifications, backlog and tests all cross-reference.
 const reportsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/reports',
   component: ReportsPage,
 })
 
-// SCR-600, `/ministry`, ministry_viewer, P1. The specification's own path, and it matches this app's
-// URL space - unlike SCR-400/500/reports, no prefix disagreement to report here.
-//
-// Under the BACK-OFFICE layout: ministry_viewer is staff, not a supplier, and that layout is what
-// already refuses a supplier-scoped session with a 403.
 const ministryOverviewRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ministry',
   component: MinistryOverviewPage,
 })
 
-// SCR-604, under the same layout as the overview it belongs beside.
 const categoryCoverageRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ministry/categories',
   component: CategoryCoveragePage,
 })
 
-// SCR-602. Declared before the detail route it parents, for the same reason the compliance directory is:
-// a literal segment must not be read as a reference code.
 const ministryRfqMonitorRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ministry/rfqs',
   component: MinistryRfqMonitorPage,
 })
 
-// SCR-606.
 const ministryRfqDetailRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ministry/rfqs/$referenceCode',
   component: MinistryRfqDetailRoute,
 })
 
-// SCR-601.
 const ministrySupplierRegistryRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ministry/suppliers',
   component: MinistrySupplierRegistryPage,
 })
 
-// SCR-603.
 const ministryAwardAnalyticsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ministry/awards',
   component: MinistryAwardAnalyticsPage,
 })
 
-// SCR-700, `/back-office/admin`, system_admin, P1 (FR-DSH-006). The specification writes SCR-700's
-// path as `/admin`; this app keeps every staff screen under `/back-office`, so the prefix disagreement
-// is the same one already reported for SCR-400/500 and reports - noted, not silently resolved.
 const adminOverviewRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/admin',
   component: AdminOverviewPage,
 })
 
-// SCR-724, `/back-office/settings`, system_admin, P1 (FR-ADM-006). Same `/admin` -> `/back-office`
-// prefix note as SCR-700 above.
 const systemSettingsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/settings',
   component: SystemSettingsPage,
 })
 
-// SCR-715, `/back-office/notification-templates`, system_admin, P1 (FR-ADM-007). SCREEN-INVENTORY
-// writes it as `/admin/notifications/templates`; flattened here because `/back-office/notifications`
-// is already this app's notification INBOX, and nesting an admin editor under a persona's own inbox
-// route would make the two read as the same feature. Reported, not silently resolved.
 const notificationTemplatesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/notification-templates',
   component: NotificationTemplatesPage,
 })
 
-// SCR-710/711/712, `/back-office/reference`, `system_admin`, P1 (FR-ADM-004). SCREEN-INVENTORY gives
-// the three tables three paths under `/admin`; one route serves all five because the operations are
-// identical and only DocumentType carries extra flags - five near-identical screens would be five
-// places for the next change to miss, which is the argument the single endpoint family already makes.
-// The `/admin` -> `/back-office` prefix note from SCR-700 applies here too.
 const referenceDataRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/reference',
   component: ReferenceDataPage,
 })
 
-// SCR-720, `/back-office/audit`, `system_admin`, P2 (FR-AUD-004). SCREEN-INVENTORY writes the path as
-// `/admin/audit`; same `/admin` -> `/back-office` prefix note as SCR-700.
 const auditExplorerRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/audit',
   component: AuditExplorerPage,
 })
 
-// SCR-430 + SCR-431, `/back-office/rfqs/$referenceCode/proposals`, procurement_officer and
-// procurement_manager, both P0 (T-082). Two inventory rows on one route: the detail is a panel, not
-// a navigation, for the same reason the comparison matrix is a matrix.
 const receivedProposalsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/rfqs/$referenceCode/proposals',
@@ -556,9 +528,6 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-// SCR-901, under BOTH shells. The inventory lists it for "all authenticated", and a supplier reads it for the
-// same reason staff do - they receive invitations and award offers, and this is the screen that says which of
-// those they cannot switch off.
 const notificationPreferencesRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/settings/notifications',
@@ -571,14 +540,6 @@ const backOfficeNotificationPreferencesRoute = createRoute({
   component: NotificationPreferencesPage,
 })
 
-// SCR-902 is "all authenticated", and until now the settings screen existed only under the supplier
-// shell: a procurement officer, evaluator, reviewer or admin had no way to change their own password,
-// enrol MFA, see their sessions or fix their own name. The SAME page is mounted here rather than a
-// second one written for staff - every card on it is about the caller's own account, and the one
-// supplier-scoped card gates itself on being a supplier.
-// SCR-907, `/help` and `/back-office/help`. One page, mounted in both shells so it keeps the nav the
-// reader came from - a help link that drops a procurement officer into the supplier chrome is worse
-// than no link.
 const helpRoute = createRoute({
   getParentRoute: () => supplierLayoutRoute,
   path: '/help',
@@ -591,36 +552,27 @@ const backOfficeHelpRoute = createRoute({
   component: HelpPage,
 })
 
-// SCR-721 + SCR-722, `/back-office/operations`, system_admin.
 const operationsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/operations',
   component: OperationsPage,
 })
 
-// SCR-716, `/back-office/ui-strings`, system_admin.
 const uiStringsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/ui-strings',
   component: UiStringsPage,
 })
 
-// SCR-906, `/back-office/search`, back-office personas. Not gated in the router: what a caller may find
-// is decided per entity kind on the server, and a route-level permission would either lock out someone who
-// can legitimately search one kind or admit someone who can search none.
 const searchRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/search',
-  // The query lives in the URL so the top bar can submit into this screen, and so a search can be
-  // linked to, reloaded and gone back to. It was local state, which is why the only way to reach a
-  // result was to arrive at an empty page and type again.
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
     q: typeof search.q === 'string' && search.q.trim() !== '' ? search.q : undefined,
   }),
   component: SearchPage,
 })
 
-// T-076, `/back-office/email-templates`, system_admin.
 const emailTemplatesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/email-templates',
@@ -651,7 +603,6 @@ const supplierProposalRoute = createRoute({
   component: SupplierProposalPage,
 })
 
-// --- Back-office app shell (protected, staff-only: no supplierId claim) ---
 const backOfficeLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/back-office',
@@ -681,8 +632,6 @@ const reviewQueueRoute = createRoute({
   component: ReviewQueuePage,
 })
 
-// SCR-307. A static segment under the same parent as '/review/$referenceCode': TanStack matches the
-// literal before the parameter, so 'suppliers' is not read as a supplier reference code.
 const complianceDirectoryRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/review/suppliers',
@@ -695,7 +644,6 @@ const reviewApplicationRoute = createRoute({
   component: ReviewApplicationPage,
 })
 
-// SCR-402.
 const supplierDirectoryRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/suppliers',
@@ -744,16 +692,12 @@ const rfqDetailRoute = createRoute({
   component: RfqDetailPage,
 })
 
-// The comp's Suppliers tab: who was asked to bid, and what they asked back.
 const tenderSuppliersRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/rfqs/$referenceCode/suppliers',
   component: TenderSuppliersPage,
 })
 
-// The comp's Settings tab. Everything done TO a tender rather than what the tender is - reassignment,
-// the deadline, addenda and cancellation - which the workspace used to stack below the tender's own
-// contents, so reading a line item meant scrolling past a cancel button.
 const tenderSettingsRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/rfqs/$referenceCode/settings',
@@ -766,9 +710,6 @@ const myEvaluationRoute = createRoute({
   component: MyEvaluationPage,
 })
 
-// SCR-501. Beside the scoring screen rather than inside it: an evaluator reads the brief before they
-// start and returns to it when a criterion is ambiguous, and folding it into the form would put a wall of
-// instruction in front of the score fields every time.
 const myEvaluationBriefRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/rfqs/$referenceCode/brief',

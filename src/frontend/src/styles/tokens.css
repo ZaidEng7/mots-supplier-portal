@@ -1,15 +1,151 @@
-/* Design tokens — MOTS Supplier Portal
-   Source of truth: docs/ux/DESIGN-SYSTEM.md §2-3
-   Two-layer model: primitives (--brand-500) -> semantics (--color-*).
-   Components must only ever consume semantic tokens. */
+/* Design tokens - MOTS Supplier Portal. Source of truth: docs/ux/DESIGN-SYSTEM.md §2-3.
+
+   A two-layer model: primitives like --brand-500, then semantics like --color-*. Components must only ever
+   consume semantic tokens.
+
+   THE SECTIONS, in order. The light theme first, as primitives - brand, neutrals, accent and semantic - then
+   semantics over them: surfaces, text, borders, brand and interactive, the navigation field, the accent wash
+   and line, and the chart fills. Then typography, spacing, radius, elevation, motion, the back-office chrome
+   and the z-index scale. Then the direction-dependent font and line height. Then the dark theme, which
+   redefines the same semantics. Then the body and the numeric-figure rules.
+
+   This block carries what the section comments used to say. Almost all of it is one kind of fact: a colour was
+   changed because somebody finally computed its contrast ratio, and the number is the reason.
+
+   THE NEUTRALS became a cool green-grey with the redesign, so they sit UNDER the evergreen rather than beside
+   it. Every step was checked against every surface it can land on, not only against white - which is the check
+   the first pass at --n-500 failed. NFR-A11Y-003: #8B8173, the original, measured 3.83:1 against white, below
+   the 4.5:1 AA minimum for normal text, and was invisible to every check this project had until the app-a11y
+   suite scanned a real page instead of an isolated Storybook component. n-500's only consumer is
+   --color-text-muted, checked before changing it, so the change is contained. The first fix, #7B7266, cleared
+   white but not every surface this text actually sits on: the "No logo" placeholder in OnboardingPage places it
+   against #F3F1ED, which is --color-bg-sunken in light mode, where it measured only 4.19:1 - found only because
+   the suite scans real pages in their real states rather than a single isolated swatch. #746B60 is the original
+   hue scaled toward black by the smallest factor that clears 4.5:1 against #F3F1ED specifically - 4.64:1 there,
+   5.23:1 against white - with a small extra margin for rendering differences. The boundary of what that proves:
+   it is verified against every background this text sits on across the 18 routes and 2 locales the suite scans,
+   not against every value --color-bg-* could theoretically resolve to.
+
+   THE ACCENT's 500 step is the wordmark on the dark chrome bar and is left alone, because it clears 5.93:1
+   there.
+
+   THE SELECTED-ROW WASH was --brand-100, which put a link on a selected row at 3.96:1. A selected row is
+   distinguished by its accent rule and its wash together, so the wash can be the lighter step and the row still
+   reads as chosen.
+
+   TWO BORDER TOKENS are deliberately the same value, for the same reason: --color-border-strong's consumers are
+   the secondary button's outline and the Stepper's not-started marker, which are the edges that tell a user a
+   control is there, and --n-300 measured 1.52:1 against the surface beside it. --color-border stays a light
+   separator, because a card edge or a table rule identifies nothing. --color-border-input is NOT --n-300
+   either: an input's border is a UI component boundary and SC 1.4.11 asks 3:1 against the surface beside it,
+   where --n-300 measures 1.53:1 against white. That was true before this redesign and was never caught, because
+   nothing computed it. The contrast guard added with this change does.
+
+   --color-text-on-brand is NOT --color-text-inverse. That token is shared with the danger button, whose fill is
+   theme-invariant, so one value had to serve two fills of different lightness: white on the dark theme's brand
+   steps measured 4.25:1 at rest and 2.30:1 while pressed. Splitting the two lets the dark theme brighten on
+   hover, the way a dark-theme button should, and lets the label follow its own fill.
+
+   THE NAVIGATION FIELD is dark in BOTH themes, for the same reason the back-office chrome always was: it tells
+   you at a glance which side of the product you are standing in. In dark mode it barely moves - only far enough
+   to sit against a dark app ground rather than a light one.
+
+   THE ACCENT WASH AND LINE are for the one panel per screen that asks for something.
+
+   THE CHART FILLS are a SEQUENTIAL pair: one hue, two steps, a part and the whole it sits inside. Not a
+   categorical palette, because this ramp cannot carry one - only --brand-400 at chroma 0.111 and --brand-500 at
+   0.108 clear the 0.10 chroma floor a hue needs to do identity work, and two steps of one hue one apart are not
+   two identities. Charts here carry identity in the axis label and the table beneath, and spend colour on
+   magnitude only. The guard beside this file also refuses any chart colour that is not on the short list it
+   measures. The grid line is recessive by design, because a grid line is scaffolding rather than a boundary and
+   SC 1.4.11 does not reach it; it is named separately from --color-border so the two themes can read at the
+   same weight - the dark theme's border is 3.63:1, which drawn as a grid would be a stronger line than the light
+   theme's 1.26:1 and would make one chart read as two.
+
+   --color-danger-solid-hover is the danger button while a pointer is on it. It existed only as a raw
+   --danger-600 read from Button.tsx, which is the one primitive the semantic layer had no name for:
+   --color-danger-fg is the same value in this theme but is a FOREGROUND, and in dark mode it is a pale salmon
+   that would make the button lighten under the cursor while its label stayed white.
+
+   SPACING is DESIGN-SYSTEM.md §4.1's canonical 4px grid, declared here because the spec declares it and 41
+   references across the product asked for tokens this file had never defined. Applied through LOGICAL
+   properties only - padding-inline, margin-block, gap - so RTL mirrors without a second rule. It is a
+   deliberate exception to "components consume tokens": screens keep using Tailwind's spacing utilities, gap-6
+   and p-4 and mt-2, which land on this same grid, because gap-6 IS --space-6. Converting about 60 files would
+   be hundreds of edits for zero rendered difference, and the utilities already emit logical properties under
+   RTL. These tokens are here for the cases Tailwind cannot express: an inline style, a calc(), a component that
+   has to compute its own spacing.
+
+   RADIUS is §4.2's - sm for chips and small controls, md for inputs and buttons, lg for cards, xl for large
+   cards and modals, pill for status chips and avatars. Nineteen components already said var(--radius-md) or
+   var(--radius-sm) and got nothing: an undefined custom property makes the whole declaration invalid, so those
+   corners rendered square beside literal-valued neighbours that rendered round.
+
+   ELEVATION is §4.3's: soft and layered, never a harsh 0-offset black shadow. Separation is a 1px border by
+   default and elevation is for genuinely floating layers only - dropdown sm, card and drawer md, modal and
+   popover lg. In dark mode they are DEEPER rather than the same values reused, because a shadow tuned for a
+   light surface disappears on a dark one.
+
+   MOTION is §4.4's. Reduced motion is honoured globally in index.css, which overrides every duration rather
+   than relying on each component to remember.
+
+   THE BACK-OFFICE CHROME is §5.2 and §5.3's dark top bar, which is dark in BOTH themes so staff can tell at a
+   glance which side of the product they are in. It was 32 copies of a literal #F4F1EC plus raw primitives, so
+   the chrome gets its own semantic names and they do not flip with the theme. The wordmark was reaching
+   straight through to --accent-gold-500, against the two-layer rule, which is why re-stepping that primitive
+   changed a shipped colour with nothing named to warn about it. Named here, it is a pair the contrast guard can
+   see.
+
+   Z-INDEX is §4.5's one scale, so "which of these two floats above the other" is answered by the token names
+   rather than by two components both reaching for z-50.
+
+   THE DARK THEME, AND THE THREE WAYS IN. It had two selectors and nothing that set either. The palette was
+   written, re-stepped during the redesign, and guarded pair-by-pair by themeContrast - eighty-three pairs -
+   while no user of this product could reach a single one of those colours. A Rams audit scored the whole
+   environmental-friendliness principle at zero on that one fact: a reader whose machine asks for dark was
+   served light, and downloaded the dark palette anyway. The media query is the decision - the portal follows
+   the setting the reader has already made in their operating system, with no control to find, nothing to
+   remember, and nothing new in a top bar that already carries a language switch, a bell and a sign-out. The
+   class and the attribute stay, and are still first in the cascade, because they are how a test and a story
+   reach the theme directly.
+
+   Task #21 and MSP-72's follow-up: the light theme's contrast audit, task #14, never checked dark mode - a
+   theme that looks fine can still fail the actual ratio math. A real check was run with wcag-contrast, and
+   themeContrast.test.ts keeps running the same check as a permanent regression test, against every colour pair
+   the dark theme defines: 58 pairs, 11 failed. Each fix is a lightness adjustment against the same hue, so no
+   fix changed what colour anything reads as, only how far it is from the surface it sits on.
+
+   Four of those are worth naming. --color-text-muted measured below 4.5:1 against the binding case of five
+   dark surfaces; #9C9588 clears 4.68:1 there and more everywhere darker, with the same margin-for-rendering
+   precedent as --n-500's own fix. --color-text-inverse used to be var(--n-900) here, inverted from light mode's
+   white on the wrong assumption that "inverse" should track the theme's own dominant text colour - its only
+   consumers, Button's primary and danger variants, put it on --color-brand-solid and --danger-500, both
+   medium-toned fills that did NOT get darker in dark mode, so darkening the text on top of them was the actual
+   bug at 3.56:1 and 3.16:1 against the 4.5:1 minimum: real button-text legibility failures. White clears both,
+   at 4.83:1 and 5.44:1, because the fills themselves are theme-invariant - "inverse" here means "readable on a
+   solid brand fill" rather than "opposite of this theme's body text". --color-border, -strong and -input all
+   failed the 3:1 UI-component minimum against both --color-bg-app and --color-bg-surface, at 1.29 to 1.81:1 and
+   nowhere close: every border token in dark mode was too close in luminance to the surfaces it outlines to
+   delineate an input or card boundary, so they are lightened along the same neutral hue, keeping -strong and
+   -input visibly stronger than plain border, matching their pre-fix relationship where -strong was the lighter
+   of the two - border clears 3.17 and 3.51:1, -strong and -input clear 3.65 and 4.05:1. And -danger-solid and
+   -info-solid are the only two "solid" swatches overridden here rather than inheriting the light-mode
+   primitive, because success, warning and gold-solid all cleared 3:1 while those two measured below it as
+   UI-component fills - icon and dot swatches - and are lightened along the same hue rather than reused across
+   light and dark, since the primitive itself is correct for light mode's white background and only the dark
+   surface makes it fall short.
+
+   THE BRAND STEPS BRIGHTEN on hover in dark, which is what a dark theme wants and what white text made
+   impossible: 4.25, 3.25 and 2.30:1 across rest, hover and pressed. The ink is a near-black green, which clears
+   8.18:1 on the lightest of the three. The danger button DARKENS on hover, like the light theme's, rather than
+   brightening toward the foreground colour, because the label on that fill is white in both themes.
+
+   THE CHART RAMP FLIPS ITS ANCHOR in dark, as a sequential ramp must: the emphasis step is the light one and the
+   muted step is dark, measured against this theme's own surface #1C2421 in ordinal mode. The value the muted
+   step replaces was rgba(47,160,128,0.40), which composites to #245647 and measures 1.89:1 - the same invisible
+   segment as the light theme, reached a different way. */
 
 :root {
-  /* Primitive — Brand (evergreen-teal)
-     Re-stepped for the 2026-09-10 redesign. The hue is the product's own; what changed is that the
-     step the primary button and the links use now clears 4.5:1 against the page, not against white.
-     It measured 4.42 before, which is invisible to an eye and to a reviewer and was found by computing
-     it. The first re-step cleared white at 4.83 and still failed the app background at 4.497, because
-     the page is --n-50 and not white; lightThemeContrast caught that the same way. */
   --brand-50: #E7F2EE;
   --brand-100: #C9E5DC;
   --brand-200: #9CD3C1;
@@ -21,41 +157,17 @@
   --brand-800: #0C5C48;
   --brand-900: #0A4436;
 
-  /* Primitive — Neutrals
-     Warm stone became a cool green-grey with the redesign, so the neutrals sit under the evergreen
-     rather than beside it. Every step below was checked against every surface it can land on, not
-     only against white, which is the check the first pass at --n-500 failed. */
   --n-50: #F6F7F6;
   --n-100: #EFF1EF;
   --n-200: #E1E6E3;
   --n-300: #CBD4CF;
   --n-400: #A6B2AC;
-  /* NFR-A11Y-003: #8B8173 (the original value) measured 3.83:1 against white - below the 4.5:1
-     WCAG AA minimum for normal text - and was invisible to every check this project had until
-     the app-a11y suite scanned a real page instead of an isolated Storybook component. n-500's
-     only consumer is --color-text-muted (checked before changing it), so this is contained: no
-     other token references it.
-     First fix (#7B7266) cleared white but not every surface this text actually sits on - the
-     "No logo" placeholder in OnboardingPage places it against #F3F1ED (--color-bg-sunken in
-     light mode), where #7B7266 measured only 4.19:1. Found only because the suite scans real
-     pages in their real states, not a single isolated swatch.
-     #746B60 is the original hue scaled toward black by the smallest factor that clears 4.5:1
-     against #F3F1ED specifically (4.64:1 there, 5.23:1 against white), with a small extra
-     margin for rendering differences. The boundary of what this proves: it is verified against
-     every background this text sits on across the 18 routes / 2 locales this suite scans, not
-     against every value --color-bg-* could theoretically resolve to. */
   --n-500: #5F6E67;
   --n-600: #4A5A54;
   --n-700: #33443E;
   --n-800: #1E2C27;
   --n-900: #14201C;
 
-  /* Primitive — Accent & semantic */
-  /* 500 is the wordmark on the dark chrome bar and is left alone: it clears 5.93:1 there, and the
-     redesign's first pass DARKENED it to fix a light-surface ratio, which took the one pair that
-     actually ships from 5.93 to 4.25 and failed 86 axe checks. 700 is new, for the light-surface text
-     the 600 step could not carry (3.42:1). The lesson is in themeContrast now: a primitive is measured
-     against the surface its consumer puts it on, not against the surface its name suggests. */
   --accent-gold-500: #C8A045;
   --accent-gold-600: #A98633;
   --accent-gold-700: #86681D;
@@ -74,19 +186,14 @@
 
   color-scheme: light;
 
-  /* Semantic — Surfaces */
   --color-bg-app: var(--n-50);
   --color-bg-surface: #FFFFFF;
   --color-bg-sunken: var(--n-100);
   --color-bg-inset: var(--n-100);
   --color-bg-hover: var(--n-100);
-  /* --brand-100 before, which put a link on a selected row at 3.96:1. A selected row is distinguished
-     by its accent rule and its wash together, so the wash can be the lighter step and the row still
-     reads as chosen. */
   --color-bg-selected: var(--brand-50);
   --color-bg-overlay: rgba(28, 27, 25, 0.48);
 
-  /* Semantic — Text */
   --color-text-primary: var(--n-900);
   --color-text-secondary: var(--n-600);
   --color-text-muted: var(--n-500);
@@ -95,25 +202,11 @@
   --color-text-link: var(--brand-600);
   --color-text-brand: var(--brand-700);
 
-  /* Semantic — Borders */
   --color-border: var(--n-200);
-  /* Same value as --color-border-input, and for the same reason: its consumers are the secondary
-     button's outline and the Stepper's not-started marker, which are the edges that tell a user a
-     control is there. --n-300 measured 1.52:1 against the surface beside it. --color-border stays a
-     light separator because a card edge or a table rule identifies nothing. */
   --color-border-strong: #7C8A83;
   --color-border-focus: var(--brand-500);
-  /* NOT --n-300. An input's border is a UI component boundary and SC 1.4.11 asks 3:1 against the
-     surface beside it; --n-300 measures 1.53:1 against white. That was true before this redesign and
-     was never caught, because nothing computed it. The contrast guard added with this change does. */
   --color-border-input: #7C8A83;
 
-  /* Semantic — Brand / interactive */
-  /* The label on a brand fill, which is NOT --color-text-inverse. That token is shared with the danger
-     button, whose fill is theme-invariant, so one value had to serve two fills of different lightness:
-     white on the dark theme's brand steps measured 4.25:1 at rest and 2.30:1 while pressed. Splitting
-     the two lets the dark theme brighten on hover, the way a dark-theme button should, and lets the
-     label follow its own fill. */
   --color-on-brand: #FFFFFF;
   --color-brand-solid: var(--brand-600);
   --color-brand-solid-hover: var(--brand-700);
@@ -122,43 +215,17 @@
 
   --focus-ring: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--brand-500);
 
-  /* Semantic — the navigation field
-     The sidebar is a dark field in BOTH themes, for the same reason the back-office chrome always was:
-     it tells you at a glance which side of the product you are standing in. */
   --color-field: #0E241E;
   --color-field-raised: #16332B;
   --color-field-active: #1E4438;
   --color-on-field: #E7EFEB;
   --color-on-field-muted: #9FB6AC;
 
-  /* Semantic — accent wash and line, for the one panel per screen that asks for something */
   --color-accent-wash: var(--brand-50);
   --color-accent-line: var(--brand-200);
 
-  /* Semantic — chart fills.
-     A SEQUENTIAL pair: one hue, two steps, a part and the whole it sits inside. Not a categorical
-     palette, because this ramp cannot carry one - only --brand-400 (chroma 0.111) and --brand-500
-     (0.108) clear the 0.10 chroma floor a hue needs to do identity work, and two steps of one hue
-     one apart are not two identities. Charts here carry identity in the axis label and the table
-     beneath, and spend colour on magnitude only.
-
-     The muted step is the one that was wrong. The coverage chart borrowed --color-accent-line, which
-     is --brand-200 and measures 1.68:1 against a white surface - below the 2.0:1 floor a sequential
-     ramp's faint end has to clear, so the segment standing for "approved but cannot trade today" was
-     the part of the chart a reader could not see. That token also belongs to NextActionCard's border,
-     so it could not be re-stepped for a chart's sake; these are its own names.
-
-     Measured with the dataviz validator, ordinal mode, against this theme's own surface:
-       --color-chart-fill        --brand-600  5.29:1
-       --color-chart-fill-muted  --brand-300  2.30:1   (floor 2.0)   delta-L 0.212
-     Guarded by themeContrast.test.ts, which recomputes both rather than restating them, and which
-     also refuses any chart colour that is not on the short list it measures. */
   --color-chart-fill: var(--brand-600);
   --color-chart-fill-muted: var(--brand-300);
-  /* Recessive by design: a grid line is scaffolding, not a boundary, and SC 1.4.11 does not reach it.
-     Named separately from --color-border so the two themes can read at the same weight - the dark
-     theme's border is 3.63:1, which drawn as a grid would be a stronger line than the light theme's
-     1.26:1 and would make one chart read as two. */
   --color-chart-grid: var(--n-200);
 
   --sidebar-width: 260px;
@@ -166,15 +233,10 @@
   --color-success-fg: var(--success-600); --color-success-bg: var(--success-50); --color-success-solid: var(--success-500);
   --color-warning-fg: var(--warning-600); --color-warning-bg: var(--warning-50); --color-warning-solid: var(--warning-500);
   --color-danger-fg: var(--danger-600);  --color-danger-bg: var(--danger-50);  --color-danger-solid: var(--danger-500);
-  /* The danger button while a pointer is on it. It existed only as a raw --danger-600 read from
-     Button.tsx, which is the one primitive the semantic layer had no name for: --color-danger-fg is
-     the same value in this theme but is a FOREGROUND, and in dark mode it is a pale salmon that would
-     make the button lighten under the cursor while its label stayed white. */
   --color-danger-solid-hover: var(--danger-600);
   --color-info-fg: var(--info-600);    --color-info-bg: var(--info-50);    --color-info-solid: var(--info-500);
   --color-gold-fg: var(--accent-gold-700); --color-gold-solid: var(--accent-gold-600);
 
-  /* Typography */
   --font-sans-ar: "IBM Plex Sans Arabic", "Inter", system-ui, sans-serif;
   --font-sans-latin: "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif;
   --font-numeric: "Inter", system-ui, sans-serif;
@@ -186,58 +248,31 @@
   --lh-tight: 1.25; --lh-normal: 1.5; --lh-relaxed: 1.6;
   --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
 
-  /* Spacing — DESIGN-SYSTEM.md §4.1, the canonical 4px grid.
-     Declared here because the spec declares it and 41 references across the product asked for
-     tokens this file had never defined. Applied through LOGICAL properties only
-     (padding-inline, margin-block, gap) so RTL mirrors without a second rule.
-
-     A deliberate exception to "components consume tokens": screens keep using Tailwind's spacing
-     utilities (gap-6, p-4, mt-2), which land on this same 4px grid - gap-6 IS --space-6. Converting
-     ~60 files would be hundreds of edits for zero rendered difference, and the utilities already
-     emit logical properties under RTL. These tokens are here for the cases Tailwind cannot express:
-     an inline style, a calc(), a component that has to compute its own spacing. */
   --space-0: 0; --space-0-5: 2px; --space-1: 4px; --space-2: 8px; --space-3: 12px;
   --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
   --space-12: 48px; --space-16: 64px;
 
-  /* Radius — §4.2. Nineteen components already said var(--radius-md) / var(--radius-sm) and got
-     nothing: an undefined custom property makes the whole declaration invalid, so those corners
-     rendered square beside literal-valued neighbours that rendered round. */
   --radius-sm: 6px;      /* chips, small controls */
   --radius-md: 8px;      /* inputs, buttons */
   --radius-lg: 12px;     /* cards */
   --radius-xl: 16px;     /* large cards, modals */
   --radius-pill: 9999px; /* status chips, avatars */
 
-  /* Elevation — §4.3: soft and layered, never a harsh 0-offset black shadow. Separation is a 1px
-     border by default; elevation is for genuinely floating layers only - dropdown sm, card and
-     drawer md, modal and popover lg. */
   --shadow-sm: 0 1px 2px rgba(28,27,25,0.06), 0 1px 1px rgba(28,27,25,0.04);
   --shadow-md: 0 4px 12px rgba(28,27,25,0.08), 0 1px 3px rgba(28,27,25,0.05);
   --shadow-lg: 0 12px 32px rgba(28,27,25,0.12), 0 4px 8px rgba(28,27,25,0.06);
   --shadow-focus: var(--focus-ring);
 
-  /* Motion — §4.4. Reduced motion is honoured globally in index.css, which overrides every
-     duration rather than relying on each component to remember. */
   --motion-fast: 120ms; --motion-base: 160ms; --motion-slow: 200ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.15, 1);
 
-  /* Back-office chrome — §5.2/5.3's dark top bar, which is dark in BOTH themes so staff can tell at
-     a glance which side of the product they are in. It was 32 copies of a literal #F4F1EC plus raw
-     --n-800/--n-900 primitives in one file; components consume semantics only (the rule at the top of
-     this file), so the chrome gets its own semantic names and they do not flip with the theme. */
   --color-chrome-bg: var(--n-900);
   --color-chrome-surface: var(--n-800);
   --color-chrome-border: var(--n-700);
   --color-chrome-text: #F4F1EC;
-  /* The wordmark. It was reaching straight through to --accent-gold-500, against the rule three lines
-     up, which is why re-stepping that primitive changed a shipped colour with nothing named to warn
-     about it. Named here, it is a pair the contrast guard can see. */
   --color-chrome-accent: var(--accent-gold-500);
 
-  /* Z-index — §4.5. One scale, so "which of these two floats above the other" is answered by the
-     token names rather than by two components both reaching for z-50. */
   --z-base: 0; --z-sticky: 100; --z-header: 200; --z-dropdown: 300; --z-drawer: 400;
   --z-modal: 500; --z-popover: 600; --z-toast: 700; --z-tooltip: 800;
 }
@@ -245,20 +280,6 @@
 :root[dir="rtl"] { --font-ui: var(--font-sans-ar); --lh-body: var(--lh-relaxed); }
 :root[dir="ltr"] { --font-ui: var(--font-sans-latin); --lh-body: var(--lh-normal); }
 
-/* The dark theme, and the three ways in.
-   ------------------------------------------------------------------------------------------------
-   It had two selectors and nothing that set either. The palette was written, re-stepped during the
-   redesign, and guarded pair-by-pair by themeContrast - eighty-three pairs - while no user of this
-   product could reach a single one of those colours. A Rams audit scored the whole
-   environmental-friendliness principle at zero on that one fact: a reader whose machine asks for dark
-   was served light, and downloaded the dark palette anyway.
-
-   The media query is the decision: the portal follows the setting the reader has already made in
-   their operating system. No control to find, nothing to remember, and nothing new in a top bar that
-   already carries a language switch, a bell and a sign-out.
-
-   The class and the attribute stay, and are still first in the cascade, because they are how a test
-   or a capture driver forces a theme regardless of the machine it runs on. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -308,12 +329,6 @@
     --color-accent-wash: rgba(47, 160, 128, 0.13);
     --color-accent-line: rgba(47, 160, 128, 0.40);
 
-    /* The ramp flips its anchor in dark, as a sequential ramp must: the emphasis step is the light one
-       and the muted step is dark. Measured against this theme's own surface (#1C2421), ordinal mode:
-         --color-chart-fill        --brand-300  6.90:1
-         --color-chart-fill-muted  --brand-700  2.70:1   (floor 2.0)   delta-L 0.236
-       The value this replaces was rgba(47,160,128,0.40), which composites to #245647 and measures
-       1.89:1 - the same invisible segment as the light theme, reached a different way. */
     --color-chart-fill: var(--brand-300);
     --color-chart-fill-muted: var(--brand-700);
     --color-chart-grid: var(--n-700);
@@ -335,47 +350,19 @@
   --color-bg-selected: rgba(47, 160, 128, 0.22);
   --color-bg-overlay: rgba(0, 0, 0, 0.60);
 
-  /* Task #21/MSP-72 follow-up: the light theme's contrast audit (task #14) never checked dark
-     mode - a theme that looks fine can still fail the actual ratio math. Ran a real check
-     (wcag-contrast; see src/styles/darkThemeContrast.test.ts, which keeps running the same
-     check as a permanent regression test) against every color pair the dark theme defines: 58
-     pairs, 11 failed. Fixed here, each a lightness adjustment against the same hue - no fix
-     changed what color anything reads as, only how far it is from the surface it sits on.
-
-     --color-text-muted: #948C7E measured 4.18:1 against --color-bg-hover (the lightest of the
-     five dark surfaces, so the binding case) - below the 4.5:1 AA minimum for normal text.
-     #9C9588 clears 4.68:1 there (and more everywhere darker), same margin-for-rendering
-     precedent as --n-500's own fix above. */
   --color-text-primary: #EDF2EF;
   --color-text-secondary: #C4CFCA;
   --color-text-muted: #94A29C;
   --color-text-disabled: #63726B;
-  /* --color-text-inverse used to be var(--n-900) here - inverted from light mode's white on the
-     (wrong) assumption that "inverse" should track the theme's own dominant text color. Its only
-     consumers (Button.tsx primary/danger variants) put it on --color-brand-solid and --danger-500
-     - both medium-toned fills that did NOT get darker in dark mode, so darkening the text on top
-     of them was the actual bug: 3.56:1 and 3.16:1 against the 4.5:1 minimum, real button-text
-     legibility failures. White clears both (4.83:1, 5.44:1) because the fills themselves are
-     theme-invariant - "inverse" here means "readable on a solid brand fill", not "opposite of
-     this theme's body text". */
   --color-text-inverse: #FFFFFF;
   --color-text-link: var(--brand-300);
   --color-text-brand: var(--brand-300);
 
-  /* --color-border/-strong/-input all failed the 3:1 UI-component minimum (SC 1.4.11) against
-     both --color-bg-app and --color-bg-surface - 1.29-1.81:1, nowhere close; every border token
-     in dark mode was too close in luminance to the surfaces it outlines to actually delineate an
-     input or card boundary. Lightened along the same neutral hue, keeping border-strong/-input
-     visibly stronger than plain border (matching their pre-fix relationship, where -strong was
-     the lighter of the two): border clears 3.17/3.51:1, border-strong/-input clear 3.65/4.05:1. */
   --color-border: #6E7C76;
   --color-border-strong: #7C8A83;
   --color-border-focus: var(--brand-300);
   --color-border-input: #7C8A83;
 
-  /* Brightening rather than darkening, which is what a dark theme wants and what white text made
-     impossible: 4.25 / 3.25 / 2.30:1 across rest, hover and pressed. The ink is near-black green, which
-     clears 8.18:1 on the lightest of the three. */
   --color-on-brand: #08140F;
   --color-brand-solid: var(--brand-300);
   --color-brand-solid-hover: var(--brand-200);
@@ -387,14 +374,10 @@
   --color-success-fg: #6FCF97; --color-success-bg: rgba(30,135,75,0.16);  --color-success-solid: var(--success-500);
   --color-warning-fg: #E3B15C; --color-warning-bg: rgba(183,121,31,0.16); --color-warning-solid: var(--warning-500);
   --color-danger-fg: #E8897E;  --color-danger-bg: rgba(192,57,43,0.18);   --color-danger-solid: #CD3D2E;
-  /* Darkening on hover, like the light theme's, rather than brightening toward the foreground colour:
-     the label on this fill is white in both themes. */
   --color-danger-solid-hover: #B23325;
   --color-info-fg: #7FB0E0;    --color-info-bg: rgba(37,99,166,0.18);     --color-info-solid: #2B73C1;
   --color-gold-fg: #E0BE6E;    --color-gold-solid: var(--accent-gold-500);
 
-  /* The navigation field is dark in both themes, so it barely moves - only far enough to sit against
-     a dark app ground rather than a light one. */
   --color-field: #0A1714;
   --color-field-raised: #122820;
   --color-field-active: #1A3A30;
@@ -404,27 +387,13 @@
   --color-accent-wash: rgba(47, 160, 128, 0.13);
   --color-accent-line: rgba(47, 160, 128, 0.40);
 
-  /* The ramp flips its anchor in dark, as a sequential ramp must: the emphasis step is the light one
-     and the muted step is dark. Measured against this theme's own surface (#1C2421), ordinal mode:
-       --color-chart-fill        --brand-300  6.90:1
-       --color-chart-fill-muted  --brand-700  2.70:1   (floor 2.0)   delta-L 0.236
-     The value this replaces was rgba(47,160,128,0.40), which composites to #245647 and measures
-     1.89:1 - the same invisible segment as the light theme, reached a different way. */
   --color-chart-fill: var(--brand-300);
   --color-chart-fill-muted: var(--brand-700);
   --color-chart-grid: var(--n-700);
 
-  /* Elevation in dark mode - §4.3. A shadow tuned for a light surface disappears on a dark one,
-     so these are deeper rather than the same values reused. */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.45);
   --shadow-lg: 0 16px 40px rgba(0,0,0,0.55);
-  /* -danger-solid/-info-solid are the only two "solid" swatches overridden here rather than
-     inheriting the light-mode primitive (success/warning/gold-solid all cleared 3:1 against
-     --color-bg-surface as-is, checked, not assumed) - --danger-500/--info-500 measured 2.85:1
-     and 2.52:1 there as UI-component fills (icon/dot swatches), below the 3:1 minimum. Lightened
-     along the same hue rather than reused across light/dark: the primitive itself is correct for
-     light mode's white background, and only the dark surface makes it fall short. */
 }
 
 body {

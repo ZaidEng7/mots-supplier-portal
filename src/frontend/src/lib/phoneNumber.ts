@@ -1,16 +1,24 @@
-/**
- * Task #41: country-code dropdown for phone fields.
- *
- * The backend stores phone as a free string with no format regex (RegistrationEndpoints.cs only
- * enforces NotEmpty + MaximumLength(30)) - but every phone already in the DB was written as
- * `+<dial code><digits>`, no spaces or dashes (e.g. "+963988112233"). This module composes new
- * entries into that same convention and parses existing ones back into {countryCode, localNumber}
- * for editing, without ever changing the wire format the backend expects.
- *
- * Ordered longest-prefix-first isn't needed here - none of these dial codes are prefixes of each
- * other - but the list itself IS the parse order, so a new entry must go in as its own distinct
- * code, not as a substring of an existing one.
- */
+// Task #41: the country-code dropdown's format, parsing and composition.
+//
+// The backend stores phone as a free string with no format regex - RegistrationEndpoints.cs only enforces NotEmpty and
+// MaximumLength(30) - but every phone already in the DB was written as +<dial code><digits>, with no spaces or dashes, as in
+// "+963988112233". This module composes new entries into that same convention and parses existing ones back into a country
+// code and a local number for editing, without ever changing the wire format the backend expects.
+//
+// Ordering longest-prefix-first is not needed here, because none of these dial codes are prefixes of each other - but the
+// LIST ITSELF is the parse order, so a new entry must go in as its own distinct code rather than as a substring of an
+// existing one.
+//
+// PARSING GUARANTEES ROUND-TRIPPING: for ANY existing value, composing what parsing returned reproduces it exactly when the
+// local number is left untouched. Matched values reconstruct from code plus digits, and anything that does not start with "+"
+// or does not match a known code falls back to the OTHER code with the original string preserved verbatim - so unrecognised
+// and legacy formats are never corrupted.
+//
+// COMPOSING passes the OTHER code's local number through verbatim, because it holds a full number a user typed themselves,
+// or an unrecognised existing value being round-tripped unedited, so it must not be reformatted. Every real dial code strips
+// non-digits from the local part before concatenating, so a user pasting "988-112-233" or "988 112 233" still produces
+// "+963988112233".
+
 export const COUNTRY_DIAL_CODES = [
   { code: '963', country: 'SY' }, // Syria
   { code: '962', country: 'JO' }, // Jordan
@@ -35,14 +43,6 @@ export interface ParsedPhone {
   localNumber: string
 }
 
-/**
- * Splits a stored phone value into a dial code + local number for the editing UI.
- *
- * Guarantees round-tripping: for ANY existing value, `composePhone(parsePhone(v))` reproduces `v`
- * exactly when the local number is left untouched - matched values reconstruct from code+digits,
- * and anything that doesn't start with "+" or doesn't match a known code falls back to OTHER_COUNTRY_CODE
- * with the original string preserved verbatim, so unrecognized/legacy formats are never corrupted.
- */
 export function parsePhone(raw: string | null | undefined): ParsedPhone {
   if (!raw) return { countryCode: DEFAULT_COUNTRY_CODE, localNumber: '' }
   if (raw.startsWith('+')) {
@@ -53,14 +53,6 @@ export function parsePhone(raw: string | null | undefined): ParsedPhone {
   return { countryCode: OTHER_COUNTRY_CODE, localNumber: raw }
 }
 
-/**
- * Composes a dial code + local number back into the stored wire format.
- *
- * `OTHER_COUNTRY_CODE` passes `localNumber` through verbatim - it holds a full number a user typed
- * themselves (or an unrecognized existing value being round-tripped unedited), so it must not be
- * reformatted. Every real dial code strips non-digits from the local part before concatenating, so
- * a user pasting "988-112-233" or "988 112 233" still produces "+963988112233".
- */
 export function composePhone(countryCode: string, localNumber: string): string {
   const trimmed = localNumber.trim()
   if (trimmed === '') return ''
