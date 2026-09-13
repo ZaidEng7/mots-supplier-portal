@@ -1,21 +1,12 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How one requested line of a tender maps to its table.
+//
+// One row per tender and line number, so the numbering a bidder quotes back is unambiguous.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Rfqs;
 
 internal sealed class RfqItemConfiguration : IEntityTypeConfiguration<RfqItem>
 {

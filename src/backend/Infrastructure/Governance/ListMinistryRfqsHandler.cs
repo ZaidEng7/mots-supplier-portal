@@ -1,3 +1,18 @@
+// Every tender in the country, whatever state it is in and whoever is running it.
+//
+// No organization filter, the same inversion the governance overview explains, and the reason the governance
+// permission is its own.
+//
+// What is new here is that the rows are NAMED: the tender, its buying body, and its awarded value where there is
+// one. The aggregate reads never carried any of that.
+//
+// Newest first, because a monitor is read from the top and a tender published this morning is the one an overseer
+// is looking for.
+//
+// The awarded value is resolved for the page's own tenders only, and only those with an actually awarded award.
+
+namespace MotsSupplierPortal.Infrastructure.Governance;
+
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -11,15 +26,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Governance;
-
-/// <summary>
-/// SCR-602: every tender in the country, whatever state it is in and whoever is running it.
-///
-/// <para>No organization predicate - the same inversion the governance overview documents, and the reason
-/// <c>governance.read</c> is its own permission. What is new here is that the rows are NAMED: the tender, its
-/// buying body, and its awarded value where there is one. The aggregate reads never carried any of that.</para>
-/// </summary>
 public sealed class ListMinistryRfqsHandler(AppDbContext db) : IListMinistryRfqsHandler
 {
     public async Task<ListEnvelope<MinistryRfqRowDto>> HandleAsync(
@@ -46,8 +52,6 @@ public sealed class ListMinistryRfqsHandler(AppDbContext db) : IListMinistryRfqs
 
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        // Newest first: a monitor is read from the top, and a tender published this morning is the one an
-        // overseer is looking for.
         if (KeysetCursor.TryDecode(cursor, out var from))
         {
             query = query.Where(r =>
@@ -100,7 +104,6 @@ public sealed class ListMinistryRfqsHandler(AppDbContext db) : IListMinistryRfqs
             new ListMetaEnvelope("-createdAt", null));
     }
 
-    /// <summary>Awarded value per RFQ, for the tenders on this page that have an Awarded award.</summary>
     internal static async Task<Dictionary<Guid, decimal>> AwardedValuesAsync(
         AppDbContext db, IReadOnlyCollection<Guid> rfqIds, CancellationToken ct)
     {

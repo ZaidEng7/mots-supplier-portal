@@ -1,3 +1,16 @@
+// A buyer asks one bidder to clarify their bid.
+//
+// Buyer-side, so the bid is reached through the tender's own scope rather than the supplier's, because the
+// actor here is procurement.
+//
+// The scope test is in the query: the bid must belong to a tender in the caller's organization, and a miss is
+// indistinguishable from a code that never existed.
+//
+// The revision number is part of the de-duplication key, so a second round of clarification on a revised bid is
+// a second piece of news.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,12 +25,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>
-/// T-051, §4.1: <c>UnderReview -&gt; ClarificationRequested</c>. Buyer-side - the proposal is loaded
-/// through the RFQ's own scope, not the supplier's, because the actor here is procurement.
-/// </summary>
 public sealed class RequestProposalClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IRequestProposalClarificationHandler
 {
@@ -27,8 +34,6 @@ public sealed class RequestProposalClarificationHandler(AppDbContext db, IScopeC
             .FirstOrDefaultAsync(p => p.ReferenceCode == command.ProposalReferenceCode, ct);
         if (proposal is null) return new ProposalResult.NotFoundOrNotInvited();
 
-        // Row scope IN the query: the proposal must belong to an RFQ in the caller's organization,
-        // and a miss is indistinguishable from a code that never existed (§9.2).
         var rfq = await db.Rfqs.FirstOrDefaultAsync(
             r => r.Id == proposal.RfqId && r.OrganizationId == scope.OrganizationId, ct);
         if (rfq is null) return new ProposalResult.NotFoundOrNotInvited();
@@ -43,7 +48,6 @@ public sealed class RequestProposalClarificationHandler(AppDbContext db, IScopeC
             return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
-        // §4.1: "Email + in-app to supplier".
         NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalClarificationRequested,
             await NotificationRecipients.SupplierUsersAsync(db, proposal.SupplierId, ct),
             $"{NotificationTypes.ProposalClarificationRequested}:{proposal.Id}:{proposal.RevisionNumber}",

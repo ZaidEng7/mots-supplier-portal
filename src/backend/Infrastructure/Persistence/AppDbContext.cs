@@ -1,3 +1,105 @@
+// The database context: the sets, the identity table names, and the concurrency and timestamp machinery.
+//
+// The entity configurations live in their own folder and are applied from the assembly, so this file holds the
+// behaviour rather than the mappings.
+//
+//
+// THE STALE-VERSION CHECK IS APPLIED ONCE HERE, NOT IN EVERY HANDLER
+//
+// The mapper only enforces optimistic concurrency if something sets the ORIGINAL value of the version property to
+// what the CALLER believed it was. Without that it compares the row against the copy it just read, which always
+// matches, which is the guard an earlier review called decoration.
+//
+// Two handlers did it by hand. The other forty-odd aggregate writes did not, so every one of them was silently
+// last-write-wins.
+//
+// The expected value lands in the update's condition while the current value is left alone and advanced by the
+// bump, so the statement reads "set the version to current plus one where the version is the expected one". A stale
+// caller matches no row, which surfaces as the concurrency failure the pipeline turns into a precondition-failed
+// answer.
+//
+// It applies to TOUCHED roots rather than modified ones. It used to look only for a modified root, which meant a
+// request that changed a child stamped nothing: the root was still unchanged at that point, because the bump
+// happens inside the save. A correct precondition on any child-write route was therefore ignored.
+//
+// And it applies only when exactly ONE versioned root is being written. A request touching two would otherwise have
+// one caller-supplied version stamped onto both, which is worse than no guard, because it would fail the write that
+// was never contended. That case does not arise today and is asserted by a test rather than assumed.
+//
+//
+// TOUCHED ROOTS ARE KEYED ON THE TRACKED ENTITY, BY REFERENCE, NOT ON ITS WRAPPER
+//
+// The mapper hands out a fresh wrapper each time you ask, so a set of wrappers does not de-duplicate. The same
+// supplier arrives once as a modified root and again as the owner of a changed child, and the set held both.
+//
+// That made the count two, which made the guard bail on its exactly-one precondition and apply NO guard, so a
+// stale precondition was accepted and the write went through. Latent until a later change, because before it no
+// child-write route declared a precondition, so no request reached here with both.
+//
+// The bump had the same problem in a quieter form: two wrappers meant the version advanced by two.
+//
+//
+// THE VERSION IS ADVANCED BY THE APPLICATION, INCLUDING FOR A CHILD-ONLY WRITE
+//
+// It used to be the database's own row identifier, which moves only when the root ROW is written. A child insert
+// marks the CHILD as new and leaves the root unchanged, so no update was emitted against the root, its version
+// never advanced, and the guard found nothing to stamp.
+//
+// The result: on any route that only touches children, a correct precondition was silently ignored and two callers
+// editing different children of one aggregate both won.
+//
+// Marking an otherwise-unchanged root as modified is what makes the guard fire.
+//
+// A changed entity is attributed to its root by walking its foreign keys ONE hop to a principal that is a versioned
+// root and is already tracked in this same context. Every aggregate in this codebase is one level deep, and a
+// grandchild would need the walk to recurse; rather than write a general graph walk for a shape that does not
+// exist, it stops at one hop and exposes the count of what it could not attribute so the assumption is checkable
+// from a test instead of hoped about.
+//
+// Only local principals count. One that is not already tracked is not being written in this unit of work, so there
+// is nothing to bump and nothing to guard, and loading it here would turn a save into a query.
+//
+// An ADDED root is skipped: it has no prior version to guard or advance, and forcing it modified made the mapper
+// emit an update against a row that did not exist yet, which is how registration started failing.
+//
+// A DELETED root is skipped too, and must be. Forcing it modified turns the delete into an update, so the row
+// survives and the caller is told it was removed. Found when reverting an override brought the row back after every
+// delete. A deleted row has no next version to advance while it still WANTS the guard, which is why it stays in the
+// touched set and is skipped only at the bump.
+//
+//
+// THE TWO TIMESTAMPS ARE STAMPED ALONGSIDE THE BUMP
+//
+// A root that records when it last changed is stamped in the same block that advances its version. The two facts
+// describe one event, and writing them apart is how they come to disagree. Roots that do not declare it are
+// untouched, so this costs nothing until one does.
+//
+// The state timestamp is stamped only when the state property ACTUALLY changed. A handler that re-assigns the same
+// state has not moved anything, and stamping it would make a queue report a fresh arrival for a row that has been
+// waiting a fortnight. The mapper knows the original value, so this asks rather than assumes.
+//
+// A newly added aggregate is stamped too: it has just entered its first state, and an absent value there would mean
+// unknown, which is reserved for rows that predate the column.
+//
+// The state property's name is the aggregate's own declaration, read through the model rather than hard-coded, so a
+// second aggregate whose state lives under a different name needs no change in this file.
+//
+//
+// ALL FOUR SAVE OVERLOADS ARE COVERED, AND THAT WAS A REAL HOLE
+//
+// The mapper's public surface has four ways in, synchronous and asynchronous, each with and without the
+// accept-changes flag, and the two convenience forms delegate to the other two.
+//
+// A caller using the synchronous form, or the flag overload, would have skipped the bump entirely: the write would
+// land and the version would not move, which is precisely the defect this machinery exists to close. A concurrency
+// scheme that applies on three paths out of four is worse than none, because it looks like it works.
+//
+// The bulk update and delete statements still bypass this by design, because they issue SQL without a change
+// tracker. Nothing in this codebase uses them to mutate an aggregate a precondition guards; they are used for test
+// setup and for the cleanup jobs.
+
+namespace MotsSupplierPortal.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -13,8 +115,6 @@ using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
-
-namespace MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
@@ -40,19 +140,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-    /// <summary>BRULE-016: which categories a document type is required for. Written by the admin surface and
-    /// read by RequiredDocumentTypeResolver since D-59.</summary>
     public DbSet<Domain.ReferenceData.DocumentTypeCategory> DocumentTypeCategories => Set<Domain.ReferenceData.DocumentTypeCategory>();
 
-    /// <summary>T-076: administrator rewordings of the transactional emails.</summary>
     public DbSet<Domain.Configuration.EmailTemplateOverride> EmailTemplateOverrides => Set<Domain.Configuration.EmailTemplateOverride>();
 
-    /// <summary>SCR-716: administrator rewordings of shipped interface strings.</summary>
     public DbSet<Domain.Configuration.UiStringOverride> UiStringOverrides => Set<Domain.Configuration.UiStringOverride>();
     public DbSet<Notification> Notifications => Set<Notification>();
 
-    /// <summary>SCR-901/D-60: the notification types a user has switched off. A row means "do not deliver";
-    /// no row means deliver - see NotificationPreference for why absence is the safe direction.</summary>
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
@@ -84,55 +178,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Award> Awards => Set<Award>();
     public DbSet<Approval> Approvals => Set<Approval>();
 
-    /// <summary>
-    /// §8.1's stale-version check, applied once here rather than in every handler.
-    ///
-    /// <para>EF only enforces optimistic concurrency if something sets the ORIGINAL value of the
-    /// version property to what the CALLER believed it was. Without that it compares the row against
-    /// the copy it just read, which always matches - the guard MSP-65 described as "decoration".
-    /// Two handlers did it by hand; the other forty-odd aggregate writes did not, so every one of
-    /// them was silently last-write-wins.</para>
-    ///
-    /// <para>Applied only when exactly ONE versioned root is being modified. A request that touches
-    /// two would otherwise have one caller-supplied version stamped onto both, which is worse than
-    /// no guard: it would fail the write that was never contended. That case does not arise today
-    /// and is asserted by a test rather than assumed.</para>
-    /// </summary>
     public void ApplyExpectedVersion(uint expected)
     {
-        // T-030: TOUCHED, not Modified. This used to look only for a Modified root, which meant a
-        // request that changed a child stamped nothing - the root was still Unchanged at this point,
-        // because the bump happens inside SaveChangesAsync. A correct If-Match on any child-write
-        // route was therefore ignored, which is the defect T-030 records.
         var roots = TouchedVersionedRoots();
 
         if (roots.Count != 1) return;
 
-        // OriginalValue is what lands in the UPDATE's WHERE clause. CurrentValue is left alone here
-        // and advanced by the bump, so the statement reads
-        // SET RowVersion = current + 1 WHERE RowVersion = expected - and a stale caller matches no
-        // row, which surfaces as the DbUpdateConcurrencyException §8.1 turns into a 412.
         roots[0].Property(nameof(IVersionedAggregate.RowVersion)).OriginalValue = expected;
     }
 
-    /// <summary>
-    /// Every versioned root this change set writes, whether directly or through a child. One place,
-    /// because ApplyExpectedVersion's "exactly one" precondition and the bump have to agree on what
-    /// counts as touched - if they disagree, a request either guards a root it does not advance or
-    /// advances one it does not guard.
-    /// </summary>
     private List<EntityEntry> TouchedVersionedRoots()
     {
-        // Keyed on the tracked ENTITY, with reference equality - not on EntityEntry.
-        //
-        // EF hands out a fresh EntityEntry wrapper each time you ask, so a HashSet<EntityEntry> does not
-        // deduplicate: the same Supplier arrives once as a Modified root and again as the principal of a
-        // changed child, and the set holds both. That made roots.Count == 2, which made
-        // ApplyExpectedVersion bail on its "exactly one root" precondition and apply NO guard - so a stale
-        // If-Match was accepted and the write went through. Latent until T-030 split (3), because before
-        // it no child-write route declared If-Match, so no request reached here with both.
-        //
-        // The bump had the same problem in a quieter form: two wrappers meant the version advanced by two.
         var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
         var roots = new List<EntityEntry>();
 
@@ -140,7 +196,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             if (seen.Add(entry.Entity)) roots.Add(entry);
         }
-
 
         foreach (var entry in ChangeTracker.Entries().ToList())
         {
@@ -151,60 +206,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             if (entry.Entity is IVersionedAggregate)
             {
-                // An Added root has no prior version to guard or advance - it starts at the default.
                 if (entry.State != EntityState.Added) Add(entry);
                 continue;
             }
 
-            // Attributed to its root - unless that root is itself being INSERTED. A brand-new
-            // aggregate saved together with its children has no prior version to guard and no row to
-            // update; forcing it Modified made EF emit an UPDATE against a row that did not exist
-            // yet, which is how registration started answering 500.
             if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) Add(principal);
         }
 
         return [.. roots];
     }
 
-    /// <summary>How many versioned roots the current change set would write. Exposed so a test can
-    /// assert the "exactly one" precondition above rather than trusting it.</summary>
     public int ModifiedVersionedRootCount() =>
         ChangeTracker.Entries().Count(e => e.State == EntityState.Modified && e.Entity is IVersionedAggregate);
 
-    /// <summary>
-    /// T-030/D-15: advances every versioned root this change set touches, including the ones touched
-    /// only through a CHILD.
-    ///
-    /// <para><b>The defect this closes.</b> The version used to be Postgres <c>xmin</c>, which moves
-    /// only when the root ROW is written. A child insert marks the CHILD <c>Added</c> and leaves the
-    /// root <c>Unchanged</c>, so no UPDATE was emitted against the root, its xmin never advanced, and
-    /// <c>ApplyExpectedVersion</c> - which only looked at <c>Modified</c> roots - found nothing to
-    /// stamp. The result: on any route that only touches children, a correct <c>If-Match</c> was
-    /// silently ignored and two callers editing different children of one aggregate both won.</para>
-    ///
-    /// <para><b>One level, deliberately.</b> A changed entity is attributed to a root by walking its
-    /// foreign keys to a principal that is a versioned root and is tracked in this same context. Every
-    /// aggregate in this codebase is one level deep - Rfq/RfqItem, Supplier/Address,
-    /// Proposal/ProposalItem - and a grandchild would need the walk to recurse. Rather than write a
-    /// general graph walk for a shape that does not exist, this stops at one hop and
-    /// <c>UnattributedChildCount</c> makes the assumption checkable from a test instead of hoping.</para>
-    ///
-    /// <para>Marking an otherwise-unchanged root <c>Modified</c> is what makes the guard fire: EF then
-    /// emits <c>UPDATE … WHERE RowVersion = @original</c>, and a stale caller gets zero rows affected
-    /// and a <c>DbUpdateConcurrencyException</c>, which the pipeline already turns into §8.1's 412.</para>
-    /// </summary>
-    /// <summary>
-    /// T-031: stamps <c>StateChangedAt</c> on every tracked aggregate whose state property actually
-    /// changed in this unit of work.
-    ///
-    /// <para><b>Actually changed</b> is the whole of it. A handler that re-assigns the same state -
-    /// re-submitting an already-submitted proposal, a no-op transition guarded elsewhere - has not
-    /// moved anything, and stamping it would make a queue report a fresh arrival for a row that has
-    /// been waiting a fortnight. EF knows the original value, so this asks rather than assumes.</para>
-    ///
-    /// <para>An ADDED aggregate is stamped too: it has just entered its first state, and a null there
-    /// would mean "unknown", which is reserved for rows that predate the column.</para>
-    /// </summary>
     private void StampStateChanges()
     {
         var now = DateTimeOffset.UtcNow;
@@ -214,9 +228,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             if (entry.Entity is not IStateTimestamped) continue;
             if (entry.State is not (EntityState.Added or EntityState.Modified)) continue;
 
-            // The property name is the aggregate's own declaration - see IStateTimestamped - read
-            // through the model rather than hard-coded here, so a second aggregate whose state lives
-            // under a different name needs no change in this file.
             var stateName = (string)entry.Metadata.ClrType
                 .GetProperty(nameof(IStateTimestamped.StatePropertyName))!
                 .GetValue(null)!;
@@ -234,21 +245,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         foreach (var root in TouchedVersionedRoots())
         {
-            // A DELETED root is not bumped, and must not be: forcing State = Modified on it turns the
-            // DELETE into an UPDATE, so the row survives and the caller is told it was removed. Found
-            // by T-061's revert - the override row came back after every delete. A deleted row has no
-            // next version to advance, while it still WANTS the guard ApplyExpectedVersion put on it,
-            // which is why Deleted stays in TouchedVersionedRoots and is skipped only here.
             if (root.State is EntityState.Deleted) continue;
 
             root.State = EntityState.Modified;
             var property = root.Property(nameof(IVersionedAggregate.RowVersion));
             property.CurrentValue = unchecked((uint)property.CurrentValue! + 1);
 
-            // T-003. A root that records when it last changed is stamped HERE, in the same statement
-            // block that advances its version - the two facts describe one event, and writing them
-            // apart is how they come to disagree. Roots that do not declare ILastModified are
-            // untouched, so this costs nothing until one does.
             if (root.Entity is ILastModified)
             {
                 root.Property(nameof(ILastModified.UpdatedAt)).CurrentValue = DateTimeOffset.UtcNow;
@@ -256,8 +258,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         }
     }
 
-    /// <summary>The tracked versioned root this entity hangs off, or null when it is not a child of
-    /// one. Null is the ordinary answer for a reference-data row or an aggregate with no version.</summary>
     private EntityEntry? PrincipalRootOf(EntityEntry entry)
     {
         foreach (var foreignKey in entry.Metadata.GetForeignKeys())
@@ -272,9 +272,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .ToArray();
             if (keyValues.Any(v => v is null)) continue;
 
-            // Local only. A principal that is not already tracked is not being written in this unit of
-            // work, so there is nothing to bump and nothing to guard - and loading it here to bump it
-            // would turn a save into a query.
             var principal = ChangeTracker.Entries()
                 .FirstOrDefault(candidate =>
                     candidate.Entity is IVersionedAggregate
@@ -289,11 +286,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         return null;
     }
 
-    /// <summary>
-    /// Changed entities that are neither a versioned root nor attributable to one. Exposed so a test
-    /// can assert what the one-hop walk above cannot see, rather than leaving the limitation as a
-    /// comment nobody checks.
-    /// </summary>
     public IReadOnlyList<string> UnattributedChildTypes() =>
         [.. ChangeTracker.Entries()
             .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
@@ -302,22 +294,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             .Distinct()
             .Order()];
 
-    /// <summary>
-    /// T-030: the bump runs here, on the overloads every other entry point funnels into.
-    ///
-    /// <para><b>Overriding <c>SaveChangesAsync(CancellationToken)</c> alone was not enough, and that
-    /// was a real hole rather than a style point.</b> EF's public surface has four ways in - sync and
-    /// async, each with and without <c>acceptAllChangesOnSuccess</c> - and the two convenience forms
-    /// delegate to these two. A caller using <c>SaveChanges()</c> synchronously, or the
-    /// <c>acceptAllChangesOnSuccess</c> overload, would have skipped the version bump entirely: the
-    /// write would land and the aggregate's version would not move, which is precisely the defect
-    /// T-030 exists to close. A concurrency scheme that applies on three paths out of four is worse
-    /// than none, because it looks like it works.</para>
-    ///
-    /// <para><c>ExecuteUpdateAsync</c> and <c>ExecuteDeleteAsync</c> still bypass this by design -
-    /// they issue SQL without a change tracker. Nothing in this codebase uses them to mutate an
-    /// aggregate that an <c>If-Match</c> guards; they are used for test setup and for the GC jobs.</para>
-    /// </summary>
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         StampStateChanges();

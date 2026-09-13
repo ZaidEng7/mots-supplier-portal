@@ -1,11 +1,16 @@
+// Adding, editing and removing the criteria on a scoring template.
+//
+// The template is the reusable definition rather than a live evaluation, so these edits are refused once a
+// tender has bound it; the template itself is what enforces that.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 public sealed class ManageCriterionHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageCriterionHandler
 {

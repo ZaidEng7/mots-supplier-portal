@@ -1,11 +1,19 @@
+// Forking a scoring template into a new version.
+//
+// This is how a template that a live tender has bound gets changed: the bound version stays immutable and the
+// fork is the one that is edited.
+//
+// The copied criteria are each tracked explicitly, because they are new rows whose identifiers are assigned in
+// the copy rather than by the database.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 public sealed class ForkEvaluationTemplateHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IForkEvaluationTemplateHandler

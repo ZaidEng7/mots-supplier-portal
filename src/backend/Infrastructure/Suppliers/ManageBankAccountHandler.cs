@@ -1,3 +1,24 @@
+// Adding, editing, removing, defaulting and revealing a supplier's bank accounts.
+//
+// The account number is never stored or logged in plain text. The encryption service and the account itself
+// hold the split between the encrypted value and the masked one.
+//
+// The audit difference carries only the masked number, never the plain text and never the encrypted bytes.
+// Revealing the real number is a separate, separately-permissioned, audited action, and what is recorded is
+// that it was accessed and by whom rather than the value.
+//
+// A new account is added to the tracked set explicitly. Its identifier is assigned by us rather than by the
+// database, so the graph-tracking heuristic would otherwise take it for an existing row and issue a
+// pointless update instead of an insert.
+//
+// The account number is optional on an edit, and is only re-encrypted and re-masked when the caller is
+// actually changing it, so correcting a holder's name does not force re-entering the number.
+//
+// Whether a bank change sends an approved supplier back for review is an administrator's switch rather than
+// a constant, read per call, and the domain reports whether it actually happened.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -7,12 +28,6 @@ using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Security;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.6/FR-PROF-006. The account number is never stored or logged in plaintext -
-/// see FieldEncryptionService and BankAccount for the encrypt/mask split. Reveal is a distinct,
-/// separately-permissioned, audited action (BRULE-014/090/091). The `changes` audit diff only
-/// ever carries the masked account number, never the encrypted bytes or plaintext.</summary>
 public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, FieldEncryptionService encryption) : IManageBankAccountHandler
 {
     public async Task<ProfileMutationResult> AddAsync(AddBankAccountCommand command, CancellationToken ct)
@@ -40,9 +55,6 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        // BankAccount.Id is client-assigned (Guid.CreateVersion7()), so EF's graph-tracking
-        // heuristic would otherwise mark it Modified (no-op UPDATE) instead of Added - track it
-        // explicitly.
         db.BankAccounts.Add(account);
 
         var changes = AuditChangeBuilder.Build(
@@ -52,8 +64,6 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             ("maskedAccountNumber", null, masked),
             ("currencyCode", null, command.CurrencyCode));
 
-        // Never log/audit the raw account number - only that a bank account was added, and the
-        // masked value (BRULE-091: no PII in logs).
         await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_added", scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
@@ -71,8 +81,6 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         var before = supplier.BankAccounts.FirstOrDefault(b => b.Id == command.BankAccountId);
 
-        // AccountNumber is optional on edit - only re-encrypt/re-mask when the caller is actually
-        // changing it, so correcting the holder name doesn't force re-entering the account number.
         byte[]? encrypted = null;
         string? masked = null;
         if (!string.IsNullOrEmpty(command.AccountNumber))
@@ -100,8 +108,6 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
             ("maskedAccountNumber", before?.MaskedAccountNumber, masked ?? before?.MaskedAccountNumber),
             ("currencyCode", before?.CurrencyCode, command.CurrencyCode));
 
-        // Never log/audit the raw account number - only that it changed, and the masked value if
-        // the account number itself was part of the edit (BRULE-091: no PII in logs).
         await auditLogger.LogAsync("Supplier", supplier.Id, "bank_account_updated", scope.UserId, reason: masked, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "bankAccount", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
@@ -174,8 +180,6 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
 
         var plaintext = encryption.Decrypt(account.EncryptedAccountNumber);
 
-        // The reveal itself is the sensitive event to audit (BRULE-014/090/091) - never the
-        // plaintext value itself, only that it was accessed and by whom.
         await auditLogger.LogAsync("Supplier", account.SupplierId, "bank_account_revealed", scope.UserId, reason: account.MaskedAccountNumber, ct: ct);
 
         return new RevealBankAccountResult.Success(plaintext);

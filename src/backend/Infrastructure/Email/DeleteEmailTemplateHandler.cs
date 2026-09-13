@@ -1,10 +1,12 @@
+// Removing an administrator's rewording of one email, which restores the shipped wording.
+
+namespace MotsSupplierPortal.Infrastructure.Email;
+
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Email;
 
 public sealed class DeleteEmailTemplateHandler(AppDbContext db) : IDeleteEmailTemplateHandler
 {

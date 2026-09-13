@@ -1,3 +1,12 @@
+// An approver approves a tender that was sent for internal review.
+//
+// One approver for now, which is the interim reading of an open question. The schema stores approvals as a
+// sequence anyway, and the approval record's own header says why.
+//
+// The notification goes to the owner, who is the one who can now publish it.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,10 +23,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -&gt; Approved. OQ-004 interim
-/// single-approver - see RfqApproval.cs's own doc comment for why the schema is an array anyway.</summary>
 public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IApproveRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(ApproveRfqCommand command, CancellationToken ct)
@@ -35,8 +40,6 @@ public sealed class ApproveRfqHandler(AppDbContext db, IScopeContext scope, IAud
             return RfqTransitions.Refusal(rfq, ex, RfqState.Approved);
         }
 
-        // §3.1 "InternalReview -> Approved | In-app to officer" - A-7: the owner, who is the one
-        // who can now publish it.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqApproved,
             await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.RfqApproved}:{rfq.Id}",

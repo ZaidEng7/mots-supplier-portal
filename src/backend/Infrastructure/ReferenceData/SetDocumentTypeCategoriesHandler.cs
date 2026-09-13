@@ -1,17 +1,20 @@
+// Replacing the whole set of categories one document type is required for.
+//
+// Whole-set rather than add and remove. The thing an administrator decides is "this document is required for these
+// categories", which is a set; separate endpoints would make one decision take several requests and leave a
+// half-applied state visible in between.
+//
+// The categories are validated against the category table, and that is the check that matters: a link to a category
+// that does not exist is a requirement no supplier can ever match, and it would stay invisible until the narrowing
+// is switched on, at which point it silently excludes a document from everyone.
+
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.ReferenceData;
-
-/// <summary>
-/// Replaces the whole link set for one document type.
-///
-/// <para><b>Whole-set rather than add/remove.</b> The thing an administrator decides is "this document is
-/// required for these categories", which is a set; add and remove endpoints would make the same decision take
-/// several requests and leave a half-applied state visible in between.</para>
-/// </summary>
 public sealed class SetDocumentTypeCategoriesHandler(AppDbContext db) : ISetDocumentTypeCategoriesHandler
 {
     public async Task<SetDocumentTypeCategoriesResult> HandleAsync(
@@ -23,9 +26,6 @@ public sealed class SetDocumentTypeCategoriesHandler(AppDbContext db) : ISetDocu
 
         var requested = command.CategoryCodes.Distinct(StringComparer.Ordinal).ToList();
 
-        // Validated against the category table, and this is the check that matters: a link to a category that
-        // does not exist is a requirement no supplier can ever match, and it would be invisible until the
-        // derivation is switched on - at which point it silently excludes a document from everyone.
         var known = await db.Set<Category>().AsNoTracking()
             .Where(c => requested.Contains(c.Code))
             .Select(c => c.Code)

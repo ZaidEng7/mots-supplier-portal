@@ -1,3 +1,14 @@
+// A supplier adds an entry to their catalogue.
+//
+// The category, the unit of measure and the currency are all checked against active reference data before the
+// entry is created, and each has its own refusal so the caller learns which one was wrong rather than that
+// something was.
+//
+// The same check is shared with the edit path, so the two cannot come to disagree about what a valid entry
+// references.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -5,8 +16,6 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class CreateOfferingHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICreateOfferingHandler
 {

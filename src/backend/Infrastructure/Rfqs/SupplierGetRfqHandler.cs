@@ -1,3 +1,11 @@
+// A bidder opens a tender they were invited to.
+//
+// Opening it marks the invitation as viewed, as a side effect of a successful read. That is the first time an
+// invited supplier actually opens the tender rather than merely listing it, which is why the audit row and the
+// save only happen on that first view.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -8,10 +16,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>Marks the invitation Viewed as a side effect of a successful fetch (FEAT-08.6) - the
-/// first time an invited supplier actually opens the RFQ, not merely lists it.</summary>
 public sealed class SupplierGetRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISupplierGetRfqHandler
 {
     public async Task<SupplierRfqResult> HandleAsync(string referenceCode, CancellationToken ct)

@@ -1,3 +1,27 @@
+// Changing which single role a staff account holds.
+//
+// The assignable set is the same one the invitation creates, and for the same reason: a supplier role on an
+// account with no company is a broken account.
+//
+// One role per staff account, which is what the invitation creates and what the list reports. The old roles are
+// removed first, which keeps that true rather than accumulating roles nobody can see.
+//
+//
+// TWO LOCKOUTS IT REFUSES
+//
+// Demoting yourself out of the administrator role is the same lockout as deactivating yourself, one step less
+// obvious.
+//
+// And a change that would leave the system with no administrator at all is refused outright.
+//
+//
+// THE ACCOUNT'S LIVE SESSIONS END
+//
+// A permission set is stamped into the access token at sign-in, so a role change that left sessions alive would
+// leave the OLD permissions in force until they expired.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
@@ -6,15 +30,10 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>T-077/SCR-702: change which single role a staff account holds.</summary>
 public sealed class ChangeStaffRoleHandler(
     AppDbContext db, UserManager<AppUser> userManager, IScopeContext scope, IAuditLogger auditLogger)
     : IChangeStaffRoleHandler
 {
-    /// <summary>The same set InviteStaffHandler will create, and for the same reason: a supplier role on
-    /// an account with no SupplierId is a broken account.</summary>
     private static readonly HashSet<string> AssignableRoles =
     [
         Roles.OnboardingReviewer, Roles.ProcurementOfficer, Roles.ProcurementManager,
@@ -34,8 +53,6 @@ public sealed class ChangeStaffRoleHandler(
             return new StaffAccountResult.Success(await StaffAccountLoader.ToDtoAsync(db, userManager, user, ct));
         }
 
-        // Demoting yourself out of system_admin is the same lockout as deactivating yourself, one step
-        // less obvious.
         if (user.Id == scope.UserId && current.Contains(Roles.SystemAdmin) && command.Role != Roles.SystemAdmin)
         {
             return new StaffAccountResult.CannotActOnSelf();
@@ -47,14 +64,9 @@ public sealed class ChangeStaffRoleHandler(
             return new StaffAccountResult.WouldLockOutAdministration();
         }
 
-        // One role per staff account, which is what the invite creates and what the list reports. Removing
-        // the old ones first keeps that true rather than accumulating roles nobody can see.
         if (current.Count > 0) await userManager.RemoveFromRolesAsync(user, current);
         await userManager.AddToRoleAsync(user, command.Role);
 
-        // Sessions die: a permission set is stamped into the access token at sign-in (see D-30's note on
-        // role claims), so a role change that left sessions alive would leave the OLD permissions in
-        // force until they expired.
         await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null)
             .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, DateTimeOffset.UtcNow), ct);
 

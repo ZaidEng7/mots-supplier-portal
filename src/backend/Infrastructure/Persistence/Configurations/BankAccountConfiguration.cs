@@ -1,21 +1,14 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a supplier's bank account maps to its table.
+//
+// Two columns hold the account number: the encrypted one, which has no length limit because the
+// ciphertext is longer than the value and grows with the scheme, and the masked one, which is what every
+// screen shows.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Suppliers;
 
 internal sealed class BankAccountConfiguration : IEntityTypeConfiguration<BankAccount>
 {

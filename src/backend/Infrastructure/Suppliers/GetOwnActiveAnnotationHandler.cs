@@ -1,3 +1,11 @@
+// What a supplier sees when a reviewer has asked them for more information.
+//
+// The flagged document types are turned into their public codes, and an unknown identifier falls back to the
+// identifier itself rather than vanishing from the list. A request that silently listed fewer documents than
+// the reviewer flagged would leave the supplier unable to resubmit and unable to see why.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -11,8 +19,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class GetOwnActiveAnnotationHandler(AppDbContext db, IScopeContext scope) : IGetOwnActiveAnnotationHandler
 {

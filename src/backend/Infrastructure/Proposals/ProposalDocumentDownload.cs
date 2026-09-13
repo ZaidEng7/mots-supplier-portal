@@ -1,3 +1,13 @@
+// The half both bid-document downloads share: scan, audit, mint.
+//
+// Kept together because the ORDER is the security property. The scan gate runs before a link exists, not
+// after.
+//
+// Who opened which bid document, and when, is the evidence a challenged award turns on, which is why the
+// authorisation is audited rather than the fetch.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
@@ -6,10 +16,6 @@ using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>The half both callers share: scan, audit, mint. Kept together because the ORDER is the
-/// security property - the scan gate runs before a URL exists, not after.</summary>
 internal static class ProposalDocumentDownload
 {
     private static readonly TimeSpan UrlLifetime = TimeSpan.FromMinutes(5);
@@ -32,7 +38,6 @@ internal static class ProposalDocumentDownload
         var url = await fileStorage.GetSignedDownloadUrlAsync(
             document.StorageKey, UrlLifetime, document.OriginalFileName, ct);
 
-        // Who opened which bid document, and when, is the evidence a challenged award turns on.
         await auditLogger.LogAsync("ProposalDocument", document.Id, "proposal_document_access_granted",
             scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
         await db.SaveChangesAsync(ct);

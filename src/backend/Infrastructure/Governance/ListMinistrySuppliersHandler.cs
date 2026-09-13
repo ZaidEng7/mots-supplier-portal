@@ -1,3 +1,10 @@
+// The supplier registry as the ministry reads it: population, categories, standing, and what each supplier has won.
+//
+// The count of awards won is an aggregate the ministry has always been granted. Their VALUE is the part the
+// commercial-visibility switch governs.
+
+namespace MotsSupplierPortal.Infrastructure.Governance;
+
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -11,10 +18,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Governance;
-
-/// <summary>SCR-601: the supplier registry as the Ministry reads it - population, categories, standing, and
-/// what each supplier has won.</summary>
 public sealed class ListMinistrySuppliersHandler(AppDbContext db) : IListMinistrySuppliersHandler
 {
     public async Task<ListEnvelope<MinistrySupplierRowDto>> HandleAsync(
@@ -66,8 +69,6 @@ public sealed class ListMinistrySuppliersHandler(AppDbContext db) : IListMinistr
         var items = hasMore ? rows[..pageSize] : rows;
         var pageIds = items.Select(i => i.Id).ToList();
 
-        // Awards won, and their value. The count is an aggregate the Ministry has always been granted; the
-        // value is the part the flag governs.
         var winningProposals = await db.Awards.AsNoTracking()
             .Where(a => a.State == AwardState.Awarded)
             .Join(db.Proposals.AsNoTracking().Where(p => pageIds.Contains(p.SupplierId)),

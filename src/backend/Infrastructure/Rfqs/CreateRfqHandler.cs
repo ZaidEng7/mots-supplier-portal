@@ -1,3 +1,12 @@
+// Creating a tender, inside the caller's own organization.
+//
+// The creator owns what they created.
+//
+// There is no illegal-transition answer here. Creation has no current state to report an allowed-next set
+// against, so every refusal from the factory is a bad request about the request.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,9 +23,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.1/FR-RFQ-001/BRULE-029.</summary>
 public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICreateRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(CreateRfqCommand command, CancellationToken ct)
@@ -33,11 +39,8 @@ public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAudi
                 command.DescriptionAr, command.DescriptionEn, command.CurrencyCode,
                 command.PublishAt, command.SubmissionOpensAt, command.SubmissionClosesAt,
                 command.ClarificationDeadlineAt, command.EvaluationTargetDate,
-                // A-7: the creator owns what they created.
                 scope.UserId);
         }
-        // No IllegalTransition branch here: creation has no current state to report an allowed-next
-        // set against, so every refusal from Rfq.Create is a 400 about the request.
         catch (DomainException ex)
         {
             return new RfqMutationResult.InvalidState(ex.Message);

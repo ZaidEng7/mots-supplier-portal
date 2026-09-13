@@ -1,21 +1,13 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a unit of measure maps to its table, and the interim list it is seeded with.
+//
+// The seeded list is a minimal one matching the sectors the category table already seeds: accommodation,
+// catering, transport, tours and events. It is an assumption recorded as such rather than a researched
+// list.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class UnitOfMeasureConfiguration : IEntityTypeConfiguration<Domain.ReferenceData.UnitOfMeasure>
 {
@@ -28,8 +20,6 @@ internal sealed class UnitOfMeasureConfiguration : IEntityTypeConfiguration<Doma
         entity.Property(u => u.NameAr).HasMaxLength(150).IsRequired();
         entity.Property(u => u.NameEn).HasMaxLength(150).IsRequired();
 
-        // FEAT-06.1 [ASSUMPTION]: minimal interim list matching the hospitality/tourism sector
-        // Category.cs already seeds (accommodation, catering, transport, tours, events).
         entity.HasData(
             new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000501"), Code = "night", NameAr = "ليلة", NameEn = "Night" },
             new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000502"), Code = "person", NameAr = "شخص", NameEn = "Person" },

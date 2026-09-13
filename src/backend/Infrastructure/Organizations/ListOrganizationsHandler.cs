@@ -1,3 +1,7 @@
+// Every buying body with its departments, for the administration screen.
+
+namespace MotsSupplierPortal.Infrastructure.Organizations;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Organizations;
@@ -6,8 +10,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Infrastructure.Organizations;
 
 public sealed class ListOrganizationsHandler(AppDbContext db) : IListOrganizationsHandler
 {

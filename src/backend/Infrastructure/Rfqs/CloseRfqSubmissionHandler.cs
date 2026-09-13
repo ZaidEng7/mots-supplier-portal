@@ -1,3 +1,10 @@
+// A buyer closes the submission window early, with a reason.
+//
+// The scheduled close at the deadline is the timeline job's, acting as the system. This is the manual one,
+// which is why the domain requires a reason here and not there.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -13,8 +20,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
 public sealed class CloseRfqSubmissionHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICloseRfqSubmissionHandler
 {

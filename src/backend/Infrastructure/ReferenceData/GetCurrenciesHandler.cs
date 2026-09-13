@@ -1,8 +1,10 @@
+// The active currencies, for the pickers that offer them.
+
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.ReferenceData;
 
 public sealed class GetCurrenciesHandler(AppDbContext db) : IGetCurrenciesHandler
 {

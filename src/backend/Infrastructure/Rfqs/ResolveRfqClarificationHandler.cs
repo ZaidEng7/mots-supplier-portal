@@ -1,3 +1,9 @@
+// A buyer closes a clarification round and returns the tender to evaluation.
+//
+// The committee is told, because they are the people whose evaluation resumes.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,9 +20,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>T3-36. §3.1: "Clarification | UnderEvaluation | Clarification resolved".</summary>
 public sealed class ResolveRfqClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IResolveRfqClarificationHandler
 {
@@ -34,7 +37,6 @@ public sealed class ResolveRfqClarificationHandler(AppDbContext db, IScopeContex
             return RfqTransitions.Refusal(rfq, ex, RfqState.UnderEvaluation);
         }
 
-        // §3.1: "In-app to committee".
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqClarificationResolved,
             await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
             $"{NotificationTypes.RfqClarificationResolved}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",

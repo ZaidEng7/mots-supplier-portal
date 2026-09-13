@@ -1,24 +1,34 @@
+// Creating or replacing an administrator's rewording of one email, and checking its tokens.
+//
+//
+// CHECKED WHEN IT IS WRITTEN, NOT WHEN IT IS SENT
+//
+// A send-time check has nowhere to go: the job is already running, the recipient is waiting, and the only options
+// are to send a broken email or to send nothing.
+//
+// At write time there is a person on a screen who can fix it.
+//
+// Both language bodies must keep every required token, checked and reported per language. "A token is missing" is
+// not actionable; "the Arabic body no longer contains the link" is.
+//
+// A token outside the declared set is refused too, because it reaches the recipient as literal characters
+// mid-sentence and cannot be diagnosed from the sent mail.
+//
+// The pattern that finds tokens is deliberately permissive: the point is to catch a token the payload cannot
+// fill, so it has to find the ones nobody declared, including typos of real ones. It carries a timeout because it
+// runs over operator-supplied text; this pattern cannot backtrack catastrophically, but the input is untrusted and
+// the bound costs nothing.
+
+namespace MotsSupplierPortal.Infrastructure.Email;
+
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Email;
-
-/// <summary>
-/// T-076's substance: the token contract, checked before the row is written.
-///
-/// <para>Checked at WRITE time rather than at send time deliberately. A send-time check has nowhere to go -
-/// the job is already running, the recipient is waiting, and the only options are to send a broken email or
-/// to send nothing. At write time there is a person on a screen who can fix it.</para>
-/// </summary>
 public sealed class UpsertEmailTemplateHandler(AppDbContext db) : IUpsertEmailTemplateHandler
 {
-    /// <summary>Any <c>{word}</c>. Deliberately permissive: the point is to catch a token the payload cannot
-    /// fill, so it has to find the ones nobody declared, including typos of real ones.</summary>
-    /// <remarks>Given a timeout because this pattern runs over operator-supplied template bodies. This one
-    /// cannot backtrack catastrophically, but the input is untrusted and the bound costs nothing.</remarks>
     private static readonly Regex TokenPattern =
         new(@"\{([A-Za-z][A-Za-z0-9_]*)\}", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
@@ -30,8 +40,6 @@ public sealed class UpsertEmailTemplateHandler(AppDbContext db) : IUpsertEmailTe
             return new UpsertEmailTemplateResult.UnknownKey();
         }
 
-        // Both bodies must keep every required token. Checked per locale and reported per locale: "a token is
-        // missing" is not actionable, and "the Arabic body no longer contains {verifyUrl}" is.
         var missing = new List<string>();
         foreach (var token in definition.RequiredTokens)
         {
@@ -41,8 +49,6 @@ public sealed class UpsertEmailTemplateHandler(AppDbContext db) : IUpsertEmailTe
         }
         if (missing.Count > 0) return new UpsertEmailTemplateResult.MissingRequiredTokens(missing);
 
-        // D-34, applied to email: a token outside the declared set reaches the recipient as literal
-        // characters mid-sentence and cannot be diagnosed from the sent mail.
         var allowed = definition.RequiredTokens.Concat(definition.OptionalTokens).ToHashSet(StringComparer.Ordinal);
         var unknown = new[] { command.SubjectAr, command.SubjectEn, command.BodyAr, command.BodyEn }
             .SelectMany(text => TokenPattern.Matches(text).Select(m => m.Groups[1].Value))

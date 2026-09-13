@@ -1,21 +1,13 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a question asked about a tender, and its answer, map to their table.
+//
+// The answer is optional because the row exists from the moment the question is asked. The second index
+// serves a supplier looking at their own questions across tenders.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Rfqs;
 
 internal sealed class ClarificationConfiguration : IEntityTypeConfiguration<Clarification>
 {

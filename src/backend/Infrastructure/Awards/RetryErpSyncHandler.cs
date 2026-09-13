@@ -1,3 +1,10 @@
+// An administrator retries a failed send to the external purchasing system.
+//
+// It only moves the integration status back to requested. The recurring job is what actually sends, so this is
+// the manual trigger for somebody who does not want to wait for the next scheduled run.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -13,8 +20,6 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Awards;
 
 public sealed class RetryErpSyncHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRetryErpSyncHandler
 {

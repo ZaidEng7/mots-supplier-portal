@@ -1,3 +1,16 @@
+// A manager recuses an evaluator, which is also the tool for one who never responded.
+//
+// The evaluation's own header explains why there is no separate quorum or exclusion action.
+//
+// The written process has no row for a recusal, because it is an event within a state rather than a
+// transition. Notifying the officer who owns the tender is the defensible reading, and it is flagged as such
+// in the notification catalogue rather than presented as transcribed.
+//
+// Ownership is what makes "the officer" a person: a recusal leaves the committee short an evaluator, and
+// somebody has to replace them.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,10 +30,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>BRULE-067, and FEAT-11.7/FR-EVL-011's non-responding-evaluator tool (see
-/// Evaluation.cs's own class doc comment on why no separate quorum/exclude action exists).</summary>
 public sealed class RecuseEvaluatorHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRecuseEvaluatorHandler
 {
     public async Task<EvaluationMutationResult> HandleAsync(RecuseEvaluatorCommand command, CancellationToken ct)
@@ -38,10 +47,6 @@ public sealed class RecuseEvaluatorHandler(AppDbContext db, IScopeContext scope,
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
 
-        // §3.3 has no row for recusal - it is a within-state event, not a transition. Notifying the
-        // officer who owns the RFQ is the defensible reading, and it is flagged as such in the
-        // catalogue rather than presented as transcribed. A-7 makes "the officer" a person: a
-        // recusal leaves the evaluation short an evaluator, and somebody has to replace them.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorRecused,
             await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.EvaluatorRecused}:{evaluation.Id}:{command.EvaluatorUserId}",

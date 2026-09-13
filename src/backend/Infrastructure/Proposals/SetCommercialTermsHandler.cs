@@ -1,3 +1,15 @@
+// Setting a bid's currency, payment terms, delivery term, warranty and validity.
+//
+// The delivery term is checked against the reference table, the same rule the partial-edit path applies.
+//
+// This handler's ROUTE was retired when the contract moved the edit onto the single partial update. It is
+// registered but mapped by nothing, so the check is unreachable today.
+//
+// It was added anyway. The cost is four lines, and a handler re-mapped later without it is exactly the shape
+// the rule exists to prevent.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,8 +24,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
 public sealed class SetCommercialTermsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISetCommercialTermsHandler
 {
     public async Task<ProposalResult> HandleAsync(SetCommercialTermsCommand command, CancellationToken ct)
@@ -22,10 +32,6 @@ public sealed class SetCommercialTermsHandler(AppDbContext db, IScopeContext sco
         if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, proposal) = loaded.Value;
 
-        // T-072. The same rule as the merge-patch path. This handler's ROUTE was retired when
-        // §12.5 moved the edit onto PATCH - it is registered in DI and mapped by nothing - so the
-        // check is unreachable today. Added anyway: the cost is four lines, and a handler that is
-        // re-mapped later without it is the shape this whole entry is about.
         var (knownIncoterm, resolvedIncoterm) = await IncotermRule.ResolveAsync(db, command.IncotermCode, ct);
         if (!knownIncoterm)
         {

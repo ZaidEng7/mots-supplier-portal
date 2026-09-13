@@ -1,21 +1,17 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How an administrator's switch over one supplier field maps to its table, and what the switches start as.
+//
+// The seeded rows reproduce exactly the behaviour that used to be written into the code, so switching this
+// table on changed nothing on the day it shipped. Every row is editable through the administration
+// endpoints afterwards.
+//
+// One row is different and is an assumption rather than a reproduction. The ministry's commercial-visibility
+// flag is seeded off, because the written rule names aggregate figures only as the default and tags the
+// question itself as needing business confirmation. The ministry's legal office's answer flips that row.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class SupplierFieldConfigConfiguration : IEntityTypeConfiguration<Domain.Configuration.SupplierFieldConfig>
 {
@@ -28,8 +24,6 @@ internal sealed class SupplierFieldConfigConfiguration : IEntityTypeConfiguratio
         entity.Property(c => c.FieldCode).HasMaxLength(50).IsRequired();
         entity.HasIndex(c => new { c.Category, c.FieldCode }).IsUnique();
 
-        // FEAT-04.9/FEAT-04.2 [ASSUMPTION 2026-08-27]: seeded to reproduce exactly the
-        // previously-hardcoded behavior - editable via admin endpoints thereafter.
         entity.HasData(
             new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000401"), Category = Domain.Configuration.FieldConfigCategory.ComplianceRetrigger, FieldCode = "legalInfo", IsEnabled = true },
             new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000402"), Category = Domain.Configuration.FieldConfigCategory.ComplianceRetrigger, FieldCode = "bankAccount", IsEnabled = true },
@@ -40,9 +34,6 @@ internal sealed class SupplierFieldConfigConfiguration : IEntityTypeConfiguratio
             new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000414"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "taxId", IsEnabled = false },
             new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000415"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "supplierType", IsEnabled = false },
             new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000416"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "establishedOn", IsEnabled = false },
-            // D-6/BRULE-087: the Ministry's commercial-visibility flag, seeded OFF. BRULE-087
-            // names aggregate-only as the default and tags the question itself as
-            // [REQUIRES BUSINESS CONFIRMATION], so MOT Legal's answer flips this row.
             new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000421"), Category = Domain.Configuration.FieldConfigCategory.GovernanceVisibility, FieldCode = "commercialValues", IsEnabled = false }
         );
     }

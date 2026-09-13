@@ -1,3 +1,18 @@
+// Replacing a role's permission set.
+//
+// Two guards.
+//
+// Every requested permission must be in the canonical catalogue. A typo, or a stale caller, must not silently
+// grant an unrecognised claim that the route's own permission filter would still honour.
+//
+// And the update must not leave no role at all holding the permission to manage roles. That is a self-lockout
+// which would make role management itself unrecoverable without a database console.
+//
+// The audit row carries the old set and the new one as a structured difference, so "who took this permission
+// away" is queryable rather than parseable.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -7,13 +22,6 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>FR-ADM-002: replace a role's permission set. Two guards: every requested permission
-/// must be in the canonical Permissions.All catalog (a typo or stale client must not silently
-/// grant an unrecognized claim that PermissionEndpointFilter would still honor), and the update
-/// must not leave zero roles holding Permissions.AdminRolesManage (a self-lockout that would make
-/// role management itself unrecoverable without a DB console).</summary>
 public sealed class UpdateRolePermissionsHandler(
     RoleManager<IdentityRole<Guid>> roleManager,
     IScopeContext scope,

@@ -1,3 +1,12 @@
+// A supplier revises their bid after the buyer asked for clarification.
+//
+// Supplier-side, so it loads through the supplier's own scope like every other bid action they take.
+//
+// The revision number is part of the de-duplication key, so a second revision is a second piece of news to the
+// committee.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,12 +21,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>
-/// T-051, §4.1: <c>ClarificationRequested -&gt; Revised</c>. Supplier-side, so it loads through the
-/// supplier's own scope like every other supplier proposal action.
-/// </summary>
 public sealed class ReviseProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IReviseProposalHandler
 {
@@ -37,7 +40,6 @@ public sealed class ReviseProposalHandler(AppDbContext db, IScopeContext scope, 
             return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
-        // §4.1: "In-app to committee".
         NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalRevised,
             await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
             $"{NotificationTypes.ProposalRevised}:{proposal.Id}:{proposal.RevisionNumber}",

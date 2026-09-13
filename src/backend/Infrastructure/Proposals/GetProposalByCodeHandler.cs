@@ -1,3 +1,10 @@
+// Reading one bid by its own public code, as its own supplier.
+//
+// The ownership test lives inside the shared loader's query, so a code belonging to another company is a miss
+// rather than a refusal that confirms the code exists.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,12 +19,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>FEAT-09.1/FR-PRP-001, BUSINESS-PROCESSES.md §4.1: Active + Invitation are checked here
-/// (cross-aggregate, same split as InviteSupplierHandler's own Active check); uniqueness is
-/// idempotent - a second start returns the existing Draft rather than erroring, per FEAT-09.1's own
-/// AC, with the DB unique(rfq_id, supplier_id) index as the real race-safe guarantee underneath.</summary>
 public sealed class GetProposalByCodeHandler(AppDbContext db, IScopeContext scope) : IGetProposalByCodeHandler
 {
     public async Task<ProposalResult> HandleAsync(string proposalReferenceCode, CancellationToken ct)

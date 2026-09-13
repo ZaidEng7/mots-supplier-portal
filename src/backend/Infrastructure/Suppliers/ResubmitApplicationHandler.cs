@@ -1,3 +1,21 @@
+// A supplier resubmits after a reviewer asked them for more information.
+//
+// It resubmits and immediately resumes the review, so the application does not sit in a state nobody is
+// working, and it closes the open information request.
+//
+//
+// AN EMPTY FLAGGED LIST IS NOT "NO RESTRICTION"
+//
+// A request with nothing flagged in one of its two dimensions means nothing in that dimension can block the
+// resubmission, which is exactly the flagged set when nothing there was flagged.
+//
+// A missing request falls back to empty on both. It should not happen, because this only runs from the state
+// that a request created, and empty is the conservative choice: nothing is exempted from the full check.
+//
+// The reviewer pool is emailed afterwards, once the change is committed.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -11,8 +29,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IResubmitApplicationHandler
 {
@@ -28,12 +44,6 @@ public sealed class ResubmitApplicationHandler(AppDbContext db, IScopeContext sc
             .OrderByDescending(a => a.RequestedAt)
             .FirstOrDefaultAsync(ct);
 
-        // Task #32: an annotation with nothing flagged in one of these two dimensions is not "no
-        // restriction" - Where(x => [].Contains(x)) correctly yields empty, so an empty array here
-        // means nothing in that dimension can block resubmit, which is exactly the flagged set
-        // when nothing there was actually flagged. A missing annotation (shouldn't happen - Resubmit
-        // only runs from InfoRequested, which only exists because RequestInfo created one) falls
-        // back to empty on both, the conservative choice: nothing is exempted from the full check.
         var flaggedProfileFields = activeAnnotation?.FlaggedProfileFields ?? [];
         var flaggedDocumentTypeCodes = activeAnnotation is null
             ? []

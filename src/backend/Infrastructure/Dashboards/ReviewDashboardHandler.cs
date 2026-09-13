@@ -1,37 +1,49 @@
+// The onboarding reviewer's dashboard: the aggregates over the queue that already exists.
+//
+// Presentation rather than a second query path. The list itself is still served by the queue handler, and this
+// adds only the figures the screen needs.
+//
+//
+// ONBOARDING REVIEW IS NOT ORGANIZATION-SCOPED, AND THAT IS NOT AN OVERSIGHT
+//
+// A supplier onboards onto the platform rather than into one buying body, and a supplier carries no organization at
+// all, so the reviewer's queue has never had that dimension and neither does this.
+//
+// The scope that matters here is the permission, and the negative tests assert that rather than inventing a tenant
+// boundary the domain does not have.
+//
+//
+// THE AGE IS MEASURED THE SAME WAY THE QUEUE MEASURES IT
+//
+// From the most recent audit row marking the application entering the active queue.
+//
+// A supplier has no submission timestamp, and its creation date is the registration date, which would make a
+// long-registered supplier who resubmitted yesterday read as months old.
+//
+// Computing the ageing a second way would put this dashboard and the queue's own age column out of step, which is
+// worse than either number alone. The list of actions that count as entering the queue is duplicated from the queue
+// handler deliberately rather than shared, because they are private there and the two screens agreeing is asserted
+// by a test rather than by a reference. If they drift, that test is what says so.
+//
+// The watchlist is bounded, like every other list in this codebase. One that grew with the tenant would turn one
+// slow dashboard into a slower one; the full picture lives on the documents screen.
+
+namespace MotsSupplierPortal.Infrastructure.Dashboards;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Dashboards;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Dashboards;
-
-/// <summary>
-/// SCR-300 / FR-DSH-002. Presentation over the queue PR #80 already built, not a second query path:
-/// the list itself is still served by <c>ListReviewQueueHandler</c>, and this adds only the
-/// aggregates that screen needs.
-///
-/// <para><b>Onboarding review is not organization-scoped, and that is not an oversight.</b> A
-/// supplier is onboarding onto the platform rather than into one buying entity - <c>Supplier</c> has
-/// no <c>OrganizationId</c> - so the reviewer queue has never had an org dimension and neither does
-/// this. The scope that matters here is the permission, and the negative tests assert that instead
-/// of inventing a tenant boundary the domain does not have.</para>
-/// </summary>
 public sealed class ReviewDashboardHandler(AppDbContext db, IScopeContext scope) : IReviewDashboardHandler
 {
-    /// <summary>
-    /// The audit actions PR #80's queue treats as "(re)entered the active queue". Duplicated from
-    /// ListReviewQueueHandler deliberately rather than shared: they are private there, and the two
-    /// screens agreeing is asserted by a test rather than by a reference. If they drift, that test
-    /// is what says so.
-    /// </summary>
     private static readonly string[] ReviewQueueEntryActions =
     [
         "application_submitted", "application_resubmitted", "application_review_resumed",
         "compliance_field_changed_review_retriggered",
     ];
 
-    /// <summary>The three states PR #80's queue already treats as "open" - kept identical on purpose.</summary>
     private static readonly SupplierOnboardingState[] OpenStates =
     [
         SupplierOnboardingState.Submitted,
@@ -48,11 +60,6 @@ public sealed class ReviewDashboardHandler(AppDbContext db, IScopeContext scope)
             .Select(g => new { State = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.State, g => g.Count, ct);
 
-        // The SAME clock PR #80's queue uses: the most recent audit row marking this application
-        // (re)entering the active queue. Supplier has no SubmittedAt, and CreatedAt is registration
-        // date - which would make a long-registered supplier who resubmitted yesterday read as
-        // months old. Computing aging a second way would put the dashboard and the queue's own age
-        // column out of step, which is worse than either number alone.
         var openSupplierIds = await open.Select(s => s.Id).ToListAsync(ct);
 
         var enteredQueueAt = await db.AuditLogs.AsNoTracking()
@@ -93,9 +100,5 @@ public sealed class ReviewDashboardHandler(AppDbContext db, IScopeContext scope)
             ExpiryWatchlist: watchlist);
     }
 
-    /// <summary>
-    /// Bounded, like every other list in this codebase. A watchlist that grows with the tenant turns
-    /// one slow dashboard into a slower one; the full picture lives on the documents screen.
-    /// </summary>
     private const int WatchlistSize = 25;
 }

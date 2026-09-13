@@ -1,16 +1,19 @@
+// Starting a second-factor enrolment: returning the shared secret and the URL an authenticator app scans.
+//
+// An existing key is reused rather than regenerated, so opening the screen twice does not invalidate a code the
+// user has already scanned.
+//
+// This is the first half of enrol, confirm, recovery codes. Whether a role must carry a second factor is a
+// policy decision enforced at sign-in rather than here.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Auth;
-
-/// <summary>
-/// STORY-01.5.1: TOTP enrollment scaffold, gated by Mfa:Enabled (docs/product/ASSUMPTIONS.md
-/// ASM-081 - available, not globally mandatory in v1). Per-role enforcement is a later policy
-/// extension; this delivers enroll -> confirm -> recovery codes.
-/// </summary>
 public sealed class EnrollMfaHandler(UserManager<AppUser> userManager) : IEnrollMfaHandler
 {
     private const string Issuer = "MOTS Supplier Portal";

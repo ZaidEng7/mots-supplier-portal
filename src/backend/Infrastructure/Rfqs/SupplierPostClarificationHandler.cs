@@ -1,3 +1,14 @@
+// A bidder asks a question about a tender.
+//
+// Only an actually invited supplier can post, and only inside the clarification window. Both are enforced
+// through the same shared loader every other supplier-facing action uses rather than a reimplementation.
+//
+// The organization's procurement officers are emailed. The buyer side also sees the question on its next
+// fetch, which is the same in-app convention invitations use: there is no per-tender buyer contact to email
+// against.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -8,13 +19,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-10.1/FR-CLR-001/FR-CLR-005: only an actually-invited supplier can post, and only
-/// within the clarification window - both enforced through the same SupplierRfqLoader every other
-/// supplier-facing action uses, not a reimplementation. FEAT-10.6: audited and notified (the buyer
-/// side sees the new question on next dashboard fetch, same "in-app" convention as invitations -
-/// no per-RFQ buyer-contact concept exists to email against).</summary>
 public sealed class SupplierPostClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
     : ISupplierPostClarificationHandler
 {

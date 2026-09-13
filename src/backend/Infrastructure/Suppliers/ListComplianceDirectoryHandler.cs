@@ -1,24 +1,33 @@
+// The reviewer's directory of the whole registry, with each supplier's document health.
+//
+//
+// WHAT THIS ANSWERS THAT THE REVIEW QUEUE CANNOT
+//
+// The queue answers "what is waiting for me", and a case leaves it the moment it is decided.
+//
+// Expiry happens afterwards. A document on an approved supplier expires months later, the job moves it to
+// expired, the supplier may be suspended for it, and until this screen existed nothing listed that. A
+// reviewer's only route to an approved supplier was to already know its reference code.
+//
+//
+// DOCUMENT HEALTH
+//
+// Counted in one grouped query per page rather than by asking each supplier in turn.
+//
+// The three counts are kept apart rather than summed, because expiring is a prompt and expired is a bar, and
+// one number would hide which of them a row has.
+//
+// Both the filter and the counts look only at the latest version of each document. A superseded expired row
+// is history rather than a problem: the renewal that replaced it is what counts.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// SCR-307: the compliance directory.
-///
-/// <para><b>What this answers that the review queue cannot.</b> The queue is "what is waiting for me" and
-/// a case leaves it when it is decided. Expiry happens afterwards: a document on an approved supplier
-/// expires months later, the job moves it to Expired, BRULE-023 may suspend the supplier for it, and until
-/// this screen existed nothing listed that. A reviewer's only route to an approved supplier was to already
-/// know its reference code.</para>
-///
-/// <para><b>Document health is counted in one grouped query per page</b>, not by asking each supplier in
-/// turn. The three counts are kept separate rather than summed: "expiring" is a prompt and "expired" is a
-/// bar, and a single number would hide which one a row has.</para>
-/// </summary>
 public sealed class ListComplianceDirectoryHandler(AppDbContext db) : IListComplianceDirectoryHandler
 {
     public async Task<ListEnvelope<ComplianceDirectoryItemDto>> HandleAsync(
@@ -36,8 +45,6 @@ public sealed class ListComplianceDirectoryHandler(AppDbContext db) : IListCompl
 
         if (documentHealth is not null)
         {
-            // The predicate is on the latest version of each document, because a superseded Expired row is
-            // history rather than a problem - the renewal that replaced it is what counts.
             var needsAttention = db.SupplierDocuments.Where(d => d.IsLatestVersion
                 && (d.State == DocumentState.Expired
                     || d.State == DocumentState.ExpiringSoon

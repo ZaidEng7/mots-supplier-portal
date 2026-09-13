@@ -1,3 +1,27 @@
+// Turning a tender into the two read models it has: the buyer's and the bidder's.
+//
+// The buyer's form is built asynchronously because an invitation carries the invited supplier's display
+// names, which is a small extra query per call. That is acceptable on the mutation and detail endpoints and
+// is not acceptable on a list, which is why the list path selects its names in one statement instead.
+//
+// An identifier a name lookup cannot resolve comes back absent rather than as an empty string. A deactivated
+// user's row still exists, so a missing name means the identifier points at nothing, which is a different
+// fact from "this tender has no owner" and must not render as the same thing.
+//
+//
+// THE BIDDER'S FORM IS THE ANONYMISATION BOUNDARY
+//
+// It includes the asking supplier's own questions whatever their visibility, plus every other supplier's
+// questions that were published to all.
+//
+// Another supplier's private question is not merely anonymised, it is entirely absent, which is what the
+// written rule means by private to the asker.
+//
+// Whether a question is the reader's own is computed here on the server from the real asker, and never taken
+// from a flag the caller sent.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,14 +38,8 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
 internal static class RfqDtoMapper
 {
-    /// <summary>Async because InvitationDto carries the invited supplier's display names
-    /// (FEAT-08.7) - a small extra query per call, acceptable at this call volume (buyer-side RFQ
-    /// mutation/detail endpoints, not a hot list path); ListRfqsHandler batches it once for the
-    /// whole page instead of N+1 (see its own comment).</summary>
     public static async Task<RfqDto> ToDtoAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
     {
         var supplierIds = rfq.Invitations.Select(i => i.SupplierId)
@@ -30,14 +48,6 @@ internal static class RfqDtoMapper
         return ToDto(rfq, names, await StaffNamesAsync(db, rfq, ct));
     }
 
-    /// <summary>
-    /// A-7: the display names for the owner and the current pass's assigned approver.
-    ///
-    /// <para>One query for both, and it returns the ids it could not resolve as absent rather than as
-    /// an empty string: a deactivated user's row still exists, so a missing name here means the id
-    /// points at nothing, which is a different fact from "this RFQ has no owner" and must not render
-    /// as the same thing.</para>
-    /// </summary>
     public static async Task<Dictionary<Guid, string>> StaffNamesAsync(AppDbContext db, Rfq rfq, CancellationToken ct)
     {
         var ids = new List<Guid>();
@@ -100,12 +110,6 @@ internal static class RfqDtoMapper
     private static string? NameOf(IReadOnlyDictionary<Guid, string> names, Guid? id) =>
         id is { } value && names.TryGetValue(value, out var name) ? name : null;
 
-    /// <summary>FEAT-10.3/FR-CLR-003: the anonymization boundary. Only <paramref name="supplierId"/>'s
-    /// own clarifications (any Visibility) plus every OTHER supplier's PublishedToAll clarifications
-    /// are included - a PrivateToAsker item belonging to someone else is not just anonymized, it is
-    /// entirely absent from this list, matching OQ-008's "private to the asking supplier". IsMine is
-    /// computed here, server-side, from the real AskedBySupplierId - never trust a client-supplied
-    /// flag for this.</summary>
     public static SupplierRfqDto ToSupplierDto(Rfq rfq, Invitation myInvitation, Guid supplierId) => new(
         rfq.ReferenceCode, rfq.TitleAr, rfq.TitleEn, rfq.DescriptionAr, rfq.DescriptionEn, rfq.CurrencyCode, rfq.State,
         rfq.SubmissionOpensAt, rfq.SubmissionClosesAt, rfq.ClarificationDeadlineAt,

@@ -1,3 +1,19 @@
+// Adding and removing a buying body's departments.
+//
+// The lookup is shared between the two operations. It was repeated line for line in both, which was a literal
+// duplicate rather than an eyeballed similarity, extracted when the duplication ratchet failed on new code.
+//
+// A new department is added to the tracked set explicitly. Its identifier is assigned by us rather than by the
+// database, so the graph-tracking heuristic would otherwise take it for an existing row and issue an update
+// against a row that is not there yet, which surfaces as a concurrency failure. The same trap the category links
+// hit.
+//
+// A department with children cannot be removed here. The link from a child to its parent is restricted by design,
+// because a parent's removal must never silently cascade-delete its children, and surfacing that as a clear
+// domain refusal is better than letting the caller hit a raw foreign-key violation.
+
+namespace MotsSupplierPortal.Infrastructure.Organizations;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Organizations;
@@ -7,15 +23,8 @@ using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Organizations;
-
 public sealed class ManageOrgUnitHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageOrgUnitHandler
 {
-    // AddAsync and RemoveAsync repeated this exact lookup line-for-line - a real, literal
-    // duplicate (not eyeballed-similar), extracted as a likely contributor to the new-code
-    // duplication ratchet failure. No line-level location was available from Sonar for this PR
-    // (dashboard access requires a login this session doesn't have); this is the one exact match
-    // found by direct inspection, not a confirmed match against Sonar's own report.
     private Task<Organization?> LoadOrganizationWithUnitsAsync(Guid organizationId, CancellationToken ct) =>
         db.Set<Organization>().Include(o => o.OrgUnits).FirstOrDefaultAsync(o => o.Id == organizationId, ct);
 
@@ -34,10 +43,6 @@ public sealed class ManageOrgUnitHandler(AppDbContext db, IScopeContext scope, I
             return new OrganizationMutationResult.InvalidState(ex.Message);
         }
 
-        // OrgUnit.Id is client-assigned (Guid.CreateVersion7()), so EF's graph-tracking heuristic
-        // would otherwise mark it Modified (a no-op UPDATE against a row that doesn't exist yet -
-        // 0 rows affected, DbUpdateConcurrencyException) instead of Added - the exact CategoryLink
-        // trap (ManageCategoryLinkHandler's own comment) - track it explicitly.
         db.Set<OrgUnit>().Add(unit);
 
         await auditLogger.LogAsync("Organization", org.Id, "org_unit_added", scope.UserId, reason: command.Name, ct: ct);
@@ -53,10 +58,6 @@ public sealed class ManageOrgUnitHandler(AppDbContext db, IScopeContext scope, I
         var unit = org.OrgUnits.FirstOrDefault(u => u.Id == command.OrgUnitId);
         if (unit is null) return new OrganizationMutationResult.NotFound();
 
-        // A unit with children cannot be removed here: the FK from a child's ParentOrgUnitId is
-        // Restrict (AppDbContext.cs), by design (Stage B's own reasoning: a parent's removal must
-        // never silently cascade-delete its children) - surfacing that as a clear domain-level
-        // refusal is better than letting the caller hit a raw Postgres FK-violation instead.
         if (org.OrgUnits.Any(u => u.ParentOrgUnitId == unit.Id))
         {
             return new OrganizationMutationResult.InvalidState("Cannot remove an OrgUnit that has child units - remove the children first.");

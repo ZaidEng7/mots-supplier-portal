@@ -1,3 +1,86 @@
+// The supplier's front door.
+//
+// Scoped to one company in every clause. Simpler than the buyer side but the same rule: a count leaks as surely as
+// a row, so a tile reading three open invitations that included another supplier's would disclose volume without
+// disclosing anything nameable. The tests assert the numbers.
+//
+// No supplier scope means no dashboard, reported as a not-found rather than an empty one.
+//
+//
+// IT LOADS THE PROFILE'S CHILDREN, AND MUST
+//
+// The missing-fields list reads addresses, categories and representatives, and on a record loaded bare those
+// collections are EMPTY, so it reports fields missing that the supplier has actually filled in and the completeness
+// meter reads lower than the truth.
+//
+// Caught by the test asserting this handler and the profile read return the same number: they returned different
+// ones. This is the trap the shared include already warns about, hit again the moment a second caller started
+// asking the record a question about its children.
+//
+//
+// ONE DEFINITION OF COMPLETENESS, AND IT IS THE SUBMIT GATE'S
+//
+// The meter used to be documents supplied over documents total, which omitted the profile fields entirely, so a
+// supplier with every document and no legal information read as fully complete and was then refused at submission.
+//
+// Two definitions of one number is how they drift, and that was the drift: the meter said ready and the gate said
+// no. One evaluator now, and it is the gate's own checklist. Its denominator is the set THIS supplier is required
+// to hold, resolved by the same function the gate asks.
+//
+// The separate document counts stay document counts, because they feed a caption that is about documents
+// specifically and is still true of them.
+//
+// The next required document's NAME is resolved as well as its code, because the caption on that panel is the one
+// line telling a supplier what to do next and it was showing them a database value. Looked up here rather than
+// mapped in the interface, because the names live in the reference table and a second copy would drift the first
+// time one is corrected on the administration screen.
+//
+//
+// WHAT COUNTS AS SOMETHING TO ACT ON
+//
+// An open invitation is one not yet answered. Declined and submitted are both closed from the supplier's point of
+// view, and neither is something to act on.
+//
+// A draft the window closed on is no longer a draft, so the tile stops counting a bid the supplier can never
+// submit. That was the visible half of a rule going unenforced.
+//
+// A clarification this supplier asked that now has an answer is action-required, because the answer may change what
+// they bid.
+//
+// The approved-onboarding branch is the gate for being invited at all, so it is the gate for this screen meaning
+// anything.
+//
+//
+// LOSING IS AN OUTCOME
+//
+// The bid list deliberately excludes unsuccessful bids, so a supplier who lost saw their bid vanish from this
+// screen with no outcome on it anywhere. A widget that showed only wins would be a scoreboard rather than a record.
+//
+// The value shown is the supplier's own priced total, the number they typed, so no two-envelope question arises,
+// and the decision date comes from the award record when there is one.
+//
+// A bid that was never priced has no total, which is absent rather than zero: zero is a number somebody quoted.
+//
+// Most recently decided first, with undated rows last rather than first. An undated row at the top reads as the
+// newest, which is the opposite of what is known about it.
+//
+//
+// THE TOTALS ARE SUMMED IN MEMORY OVER THE FEW ROWS ABOVE
+//
+// A line total is computed by the record rather than stored, so summing it in the database does not translate, and
+// the mapper says so by name. The dashboard answered with a server error.
+//
+// Re-deriving quantity times price less discount in the query would translate and would put a second definition of
+// a bid's total in this file, which is the worse of the two mistakes.
+//
+// The integration-degraded banner reads this supplier's own award only. A failure on somebody else's is not this
+// supplier's business and would leak that it exists.
+//
+// "Closing soon" has no documented window; seven days matches the buyer side, which is an invention but a
+// consistent one. The same tender should not be urgent on one dashboard and not the other.
+
+namespace MotsSupplierPortal.Infrastructure.Dashboards;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Dashboards;
@@ -9,41 +92,16 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Dashboards;
-
-/// <summary>
-/// SCR-120 / FR-DSH-008. The supplier's front door.
-///
-/// <para><b>Scoped to one SupplierId, in every clause.</b> Simpler than the buyer side, but the same
-/// rule: a count leaks as surely as a row, so "Open invitations: 3" that included another supplier's
-/// invitation would disclose volume without disclosing anything nameable. The supplier predicate is
-/// the first clause of every query below and the tests assert the numbers.</para>
-/// </summary>
 public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scope) : ISupplierDashboardHandler
 {
-    /// <summary>§1's "top 5" for both lists.</summary>
     private const int TopN = 5;
 
-    /// <summary>
-    /// "Invitations closing soon" has no documented window. Seven days, matching the buyer side's
-    /// "Closing this week" - an INVENTION, but a consistent one: the same RFQ should not be urgent on
-    /// one dashboard and not the other.
-    /// </summary>
     private static readonly TimeSpan ClosingSoon = TimeSpan.FromDays(7);
 
     public async Task<SupplierDashboardDto?> HandleAsync(CancellationToken ct)
     {
-        // §9.2: no supplier scope, no dashboard, and not-found rather than an empty one.
         if (scope.SupplierId is not { } supplierId) return null;
 
-        // IncludeProfile(), not a bare load. GetMissingProfileFields() reads Addresses,
-        // CategoryLinks and Representatives, and on an un-included aggregate those collections are
-        // EMPTY - so it reports fields missing that the supplier has actually filled in, and the
-        // completeness meter reads lower than the truth. Caught by the test asserting this handler
-        // and the §12.2 profile response return the same number: they returned 0.12 and 0.25.
-        //
-        // This is the trap SupplierQueryExtensions' own comment already warns about, hit again the
-        // moment a second caller started asking the aggregate a question about its children.
         var supplier = await db.Suppliers.AsNoTracking().IncludeProfile().FirstOrDefaultAsync(s => s.Id == supplierId, ct);
         if (supplier is null) return null;
 
@@ -54,13 +112,8 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
         var documents = db.SupplierDocuments.AsNoTracking().Where(d => d.SupplierId == supplierId && d.IsLatestVersion);
 
         var kpis = new SupplierKpisDto(
-            // "Open" is an invitation not yet answered - declined and submitted are both closed, from
-            // the supplier's point of view, and neither is something to act on.
             OpenInvitations: await invitations.CountAsync(
                 i => i.Status != InvitationStatus.Declined && i.Status != InvitationStatus.Submitted, ct),
-            // A-9 self-corrects this one: a draft the window closed on is no longer Draft, so the tile
-            // stops counting a bid the supplier can never submit. That was the visible half of
-            // BRULE-052 going unenforced.
             DraftProposals: await proposals.CountAsync(p => p.State == ProposalState.Draft, ct),
             SubmittedProposals: await proposals.CountAsync(p => ProposalStates.InEvaluation.Contains(p.State), ct),
             DocumentsNeedingAttention: await documents.CountAsync(
@@ -78,8 +131,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                                          && r.SubmissionClosesAt != null
                                          && r.SubmissionClosesAt >= now
                                          && r.SubmissionClosesAt <= now + ClosingSoon), ct),
-            // A clarification this supplier asked that now has an answer. §1 lists it as an
-            // action-required condition because the answer may change what they bid.
             ClarificationsAnswered: await db.Clarifications.AsNoTracking()
                 .CountAsync(c => c.AskedBySupplierId == supplierId && c.Answer != null, ct),
             AwardOffers: await proposals.CountAsync(p => p.State == ProposalState.AwardOffered, ct));
@@ -91,7 +142,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                 Rfq = db.Rfqs.Where(r => r.Id == i.RfqId)
                     .Select(r => new { r.ReferenceCode, r.TitleAr, r.TitleEn, r.SubmissionClosesAt }).First(),
             })
-            // Soonest deadline first; no-deadline rows last rather than first.
             .OrderBy(i => i.Rfq.SubmissionClosesAt == null)
             .ThenBy(i => i.Rfq.SubmissionClosesAt)
             .Take(TopN)
@@ -110,15 +160,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             .Take(TopN)
             .ToListAsync(ct);
 
-        // T-039/FEAT-16.3: the supplier's own award outcomes, won and lost.
-        //
-        // The proposal list above deliberately excludes NotSelected, so a supplier who lost saw their
-        // bid vanish from this screen with no outcome on it anywhere. Losing is an outcome, and a
-        // widget that showed only wins would be a scoreboard rather than a record.
-        //
-        // The value is the supplier's own priced total - the number they typed - so no two-envelope
-        // question arises, and DecidedAt comes from the award record when there is one. A bid that was
-        // never priced has no total, which is null rather than zero.
         var awardRows = await proposals
             .Where(p => ProposalStates.Resolved.Contains(p.State))
             .Select(p => new
@@ -129,21 +170,11 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                 DecidedAt = db.Awards.Where(a => a.WinningProposalId == p.Id)
                     .Select(a => a.AwardedAt).FirstOrDefault(),
             })
-            // Most recently decided first, and the ones with no recorded instant last rather than
-            // first - an undated row at the top reads as the newest, which is the opposite of what is
-            // known about it.
             .OrderBy(a => a.DecidedAt == null)
             .ThenByDescending(a => a.DecidedAt)
             .Take(TopN)
             .ToListAsync(ct);
 
-        // The totals, summed IN MEMORY over the few rows above.
-        //
-        // LineTotal is computed by the aggregate rather than stored, so summing it in SQL does not
-        // translate - EF says so by name ("Translation of member 'LineTotal' ... failed. This commonly
-        // occurs when the specified member is unmapped"), and the dashboard answered 500. Re-deriving
-        // quantity times price minus discount in the query would translate and would put a second
-        // definition of a bid's total in this file, which is the worse of the two mistakes.
         var awardedProposalIds = awardRows.Select(a => a.Id).ToList();
         var itemsByProposal = awardedProposalIds.Count == 0
             ? []
@@ -153,10 +184,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
 
         var missing = await DocumentCompletenessEvaluator.GetMissingRequiredDocumentTypeCodesAsync(db, supplierId, ct);
 
-        // The next required document's NAME as well as its code. The caption on this panel is the one line
-        // telling a supplier what to do next, and it was showing them "commercial_registration" - a database
-        // value. Looked up here rather than mapped in the SPA, because the names live in the reference table
-        // and a second copy in the frontend would drift the first time one is corrected on SCR-710.
         var nextRequiredCode = missing.FirstOrDefault();
         var nextRequired = nextRequiredCode is null
             ? null
@@ -164,9 +191,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                 .Where(t => t.Code == nextRequiredCode)
                 .Select(t => new { t.Code, t.NameAr, t.NameEn })
                 .FirstOrDefaultAsync(ct);
-        // BRULE-016, live since D-59. The denominator is the set THIS supplier is required to hold,
-        // resolved by RequiredDocumentTypeResolver - the same function the submit gate asks, so the
-        // fraction and the refusal cannot disagree about what "complete" means.
         var requiredTotal =
             (await Suppliers.RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct)).Count;
         var supplied = requiredTotal - missing.Count;
@@ -174,8 +198,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
         return new SupplierDashboardDto(
             supplier.ReferenceCode, supplier.DisplayNameAr, supplier.DisplayNameEn,
             supplier.OnboardingState.ToString(), supplier.LifecycleState.ToString(),
-            // §1's "Not-yet-approved" branch. Approved onboarding is the gate for being invited at
-            // all, so it is the gate for this screen meaning anything.
             IsApproved: supplier.OnboardingState == SupplierOnboardingState.Approved,
             kpis, actionRequired,
             [.. invitationRows.Select(i => new DashboardInvitationDto(
@@ -183,18 +205,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
             [.. proposalRows.Select(p => new DashboardProposalDto(
                 p.ReferenceCode, p.Rfq.ReferenceCode, p.Rfq.TitleAr, p.Rfq.TitleEn, p.State.ToString(), p.ValidityEnd))],
             new ProfileHealthDto(
-                // T-001: the SAME number §12.2's profileCompleteness reports, from the same
-                // evaluator. It used to be documents-supplied / documents-total, which omitted the
-                // six profile fields entirely - so a supplier with every document and no legal
-                // information read as 100% complete on this meter and was refused at submit.
-                //
-                // Two definitions of one number is how they drift, and this is the drift: the meter
-                // said ready, the gate said no. One evaluator now, and it is the submit gate's own
-                // checklist.
-                //
-                // requiredTotal/supplied below stay DOCUMENT counts - they feed the "Required
-                // documents: 2 of 4" caption, which is about documents specifically and is still
-                // true of them.
                 Completeness: ProfileCompleteness.Ratio(
                     missingItems: supplier.GetMissingProfileFields().Count + missing.Count,
                     totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredTotal),
@@ -202,8 +212,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                 NextRequiredDocumentTypeCode: nextRequired?.Code,
                 NextRequiredDocumentNameAr: nextRequired?.NameAr,
                 NextRequiredDocumentNameEn: nextRequired?.NameEn),
-            // §1's ERP-degraded banner, from this supplier's own award only - a failure on someone
-            // else's award is not this supplier's business and would leak that it exists.
             ErpDegraded: await db.Awards.AsNoTracking().AnyAsync(
                 a => a.ErpSyncStatus == ErpSyncStatus.Failed
                      && db.Proposals.Any(p => p.Id == a.WinningProposalId && p.SupplierId == supplierId), ct),
@@ -213,8 +221,6 @@ public sealed class SupplierDashboardHandler(AppDbContext db, IScopeContext scop
                 return new DashboardAwardDto(
                     a.Rfq.ReferenceCode, a.Rfq.TitleAr, a.Rfq.TitleEn,
                     a.ReferenceCode, a.State.ToString(), a.DecidedAt,
-                    // Null, not zero, for a bid that was never priced: zero is a number somebody
-                    // quoted.
                     lines.Count == 0 ? null : lines.Sum(i => i.LineTotal),
                     a.CurrencyCode);
             })]);

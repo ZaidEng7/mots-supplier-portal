@@ -1,21 +1,17 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a department maps to its table.
+//
+// Departments nest, and a department's parent must be another department in the same organization rather
+// than one belonging elsewhere. That is why the parent points at the same table rather than being an
+// unconstrained identifier.
+//
+// Deleting a parent department is restricted rather than cascading, so it cannot silently delete its
+// children.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Organizations;
 
 internal sealed class OrgUnitConfiguration : IEntityTypeConfiguration<OrgUnit>
 {
@@ -25,10 +21,6 @@ internal sealed class OrgUnitConfiguration : IEntityTypeConfiguration<OrgUnit>
         entity.HasKey(u => u.Id);
         entity.Property(u => u.Name).HasMaxLength(200).IsRequired();
         entity.HasIndex(u => u.OrganizationId);
-        // Self-nesting tree (§5.2): a unit's parent must be another unit in the same
-        // Organization, never a unit belonging elsewhere - restricted to that same FK target
-        // rather than a bare unconstrained Guid, and Restrict (not Cascade) so deleting a
-        // parent unit cannot silently cascade-delete its children.
         entity.HasOne<OrgUnit>().WithMany().HasForeignKey(u => u.ParentOrgUnitId).OnDelete(DeleteBehavior.Restrict);
     }
 }

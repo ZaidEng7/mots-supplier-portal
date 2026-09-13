@@ -1,3 +1,10 @@
+// Promoting a privately answered question so every bidder can see it.
+//
+// Every OTHER invited supplier is told. The asker already knows their own answer, and the notification helper
+// is shared with the answer handler so the two cannot come to disagree about who is excluded.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,10 +21,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-10.2/FR-CLR-002: promotes a privately-answered clarification to PublishedToAll -
-/// notifies every OTHER invited supplier (the asker already knows their own answer).</summary>
 public sealed class PublishClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
     : IPublishClarificationHandler
 {

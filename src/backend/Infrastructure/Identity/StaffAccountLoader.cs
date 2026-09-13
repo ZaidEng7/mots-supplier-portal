@@ -1,3 +1,15 @@
+// The load, the refusal and the read-back that the three staff mutations share.
+//
+// Only accounts with no company attached are staff, so a supplier's user cannot be administered from the staff
+// surface.
+//
+// The lockout check is the same refusal the role-permission update makes about the last role holding the
+// management permission, and for the same reason: the recovery path afterwards is a hand-written database
+// update, and a product that can lock every administrator out of itself through its own interface has a
+// defect.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
@@ -6,10 +18,6 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>Shared by the three staff mutations: load the account, refuse a supplier's user, and read
-/// it back in the shape the list uses.</summary>
 internal static class StaffAccountLoader
 {
     public static Task<AppUser?> LoadAsync(UserManager<AppUser> userManager, Guid userId, CancellationToken ct) =>
@@ -23,13 +31,6 @@ internal static class StaffAccountLoader
             user.TwoFactorEnabled, user.LockoutEnd, sessions);
     }
 
-    /// <summary>
-    /// True when deactivating or demoting this account would leave no active `system_admin`.
-    ///
-    /// <para>The same refusal `UpdateRolePermissions` makes about the last `admin.roles.manage`, for the
-    /// same reason: the recovery path afterwards is a hand-written database update, and a product that
-    /// can lock every administrator out of itself through its own UI has a defect.</para>
-    /// </summary>
     public static async Task<bool> WouldLeaveNoAdministratorAsync(
         AppDbContext db, UserManager<AppUser> userManager, AppUser user, CancellationToken ct)
     {

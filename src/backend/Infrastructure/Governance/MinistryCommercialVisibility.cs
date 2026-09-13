@@ -1,3 +1,15 @@
+// Shared by the ministry's four screens: may the ministry see money, and what is a bid worth.
+//
+// The switch is read on every request rather than cached. It is a policy switch, and the point of a policy switch
+// is that turning it off takes effect now. A cached "yes" would keep disclosing for the lifetime of a process after
+// somebody decided to stop.
+//
+// The totals are summed in memory over at most a page's worth of bids, for the reason the governance overview
+// gives: the query shape that groups across two tables did not translate and answered with a server error once the
+// dataset grew.
+
+namespace MotsSupplierPortal.Infrastructure.Governance;
+
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -11,19 +23,12 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Governance;
-
 internal static class MinistryCommercialVisibility
 {
     public static Task<bool> IsOnAsync(AppDbContext db, CancellationToken ct) =>
         SupplierFieldConfigLookup.IsEnabledAsync(
             db, FieldConfigCategory.GovernanceVisibility, "commercialValues", defaultValue: false, ct);
 
-    /// <summary>Bid totals for the named proposals, summed from their lines.
-    ///
-    /// <para>Summed in memory over at most a page's worth of proposals, for the same reason
-    /// <c>GetGovernanceOverviewHandler</c> gives: the SQL shape that groups across two DbSets did not
-    /// translate and answered 500 once the dataset grew.</para></summary>
     public static async Task<Dictionary<Guid, decimal>> TotalsByProposalAsync(
         AppDbContext db, IReadOnlyCollection<Guid> proposalIds, CancellationToken ct)
     {

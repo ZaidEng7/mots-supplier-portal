@@ -1,3 +1,10 @@
+// Turning an award into its read model.
+//
+// The winning bid's public code is passed in rather than read here, because this mapper is static and holds no
+// database context. The evaluation's mapper settled on the same shape for the same reason.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -14,15 +21,8 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Awards;
-
 internal static class AwardDtoMapper
 {
-    /// <summary>
-    /// T-068: <paramref name="winningProposalCode"/> is passed in rather than read here, because this
-    /// mapper is static and has no DbContext - the same shape the evaluation mapper settled on for the
-    /// same reason.
-    /// </summary>
     public static AwardDto ToDto(Award award, string rfqReferenceCode, string winningProposalCode) => new(
         award.Id, rfqReferenceCode, award.State,
         award.WinningProposalId, winningProposalCode, award.JustificationAr, award.JustificationEn,

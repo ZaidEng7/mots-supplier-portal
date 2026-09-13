@@ -1,3 +1,10 @@
+// A reviewer claims an application out of the queue for themselves.
+//
+// Self-claim rather than round-robin or manager assignment. That is an assumption rather than a stated
+// requirement, and the field on the supplier records why.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -12,10 +19,6 @@ using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-03.6 [ASSUMPTION]: manual self-claim, not round-robin/manager-assigned - see
-/// Supplier.AssignedReviewerId's own doc comment for why.</summary>
 public sealed class ClaimReviewItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IClaimReviewItemHandler
 {
     public async Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct)

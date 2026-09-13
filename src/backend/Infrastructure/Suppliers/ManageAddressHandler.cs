@@ -1,3 +1,11 @@
+// Adding, editing and removing a supplier's addresses.
+//
+// A new address is added to the tracked set explicitly. Its identifier is assigned in the domain factory
+// rather than by the database, and the graph-tracking heuristic infers an insert from an unset key, so
+// without this it would take the row for an existing one and emit a pointless update.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -5,9 +13,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.3/FR-PROF-003.</summary>
 public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageAddressHandler
 {
     public async Task<ProfileMutationResult> AddAsync(AddAddressCommand command, CancellationToken ct)
@@ -29,10 +34,6 @@ public sealed class ManageAddressHandler(AppDbContext db, IScopeContext scope, I
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        // Address.Id is client-assigned (Guid.CreateVersion7()) in the domain factory, so EF's
-        // graph-tracking heuristic (which infers Added vs Modified from whether the key already
-        // has a non-default value) would otherwise mark it Modified and emit a no-op UPDATE
-        // instead of an INSERT - track it explicitly.
         db.Addresses.Add(address);
 
         var changes = AuditChangeBuilder.Build(

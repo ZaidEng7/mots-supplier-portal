@@ -1,3 +1,13 @@
+// An evaluator submits their completed scoresheet.
+//
+// The officer is told only when every evaluator is in. That condition is part of the written rule rather than
+// an optimisation: telling the officer to consolidate while two evaluators are still scoring is a false
+// prompt.
+//
+// It goes to the tender's owner, who is the one who consolidates.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -16,8 +26,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
-
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISubmitEvaluatorHandler
 {
@@ -40,13 +48,9 @@ public sealed class SubmitEvaluatorHandler(AppDbContext db, IScopeContext scope,
             return new MyEvaluationResult.InvalidState(ex.Message);
         }
 
-        // §3.3 "InProgress -> EvaluatorSubmitted | In-app to `procurement_officer` WHEN ALL IN". The
-        // condition is part of the rule, not an optimisation: telling the officer to consolidate
-        // while two evaluators are still scoring is a false prompt.
         if (evaluation.State == EvaluationState.EvaluatorSubmitted)
         {
             NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluatorSubmitted,
-                // A-7: the owner, who is the one who consolidates.
                 await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
                 $"{NotificationTypes.EvaluatorSubmitted}:{evaluation.Id}",
                 new Dictionary<string, string?> { ["rfqCode"] = rfq.ReferenceCode, ["evaluationId"] = evaluation.Id.ToString() });

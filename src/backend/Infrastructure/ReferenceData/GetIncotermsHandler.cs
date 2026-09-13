@@ -1,16 +1,16 @@
+// The delivery terms a bidder chooses from, which is also the list their bid is validated against.
+//
+// Active rows only, and the same test the write path enforces.
+//
+// A screen offering a term the write path refuses would be a form that fails on submission for a reason the bidder
+// cannot see, which is the failure the free-text field had, wearing a dropdown.
+
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.ReferenceData;
-
-/// <summary>
-/// T-072: the list a bidder chooses from, which is also the list their bid is validated against.
-///
-/// <para>Active rows only, and the same predicate <c>IncotermRule</c> enforces on write. A screen
-/// that offered a term the write path refuses would be a form that fails on submit for a reason the
-/// bidder cannot see - the failure mode the free-text field had, wearing a select.</para>
-/// </summary>
 public sealed class GetIncotermsHandler(AppDbContext db) : IGetIncotermsHandler
 {
     public async Task<IReadOnlyList<IncotermDto>> HandleAsync(CancellationToken ct)

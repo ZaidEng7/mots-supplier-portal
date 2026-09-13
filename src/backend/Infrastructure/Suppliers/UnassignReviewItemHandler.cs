@@ -1,3 +1,10 @@
+// Releasing a claimed application back into the queue.
+//
+// The previous reviewer is written onto the audit row, so a release is traceable to whoever held it rather
+// than only to whoever let it go.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -11,8 +18,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class UnassignReviewItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUnassignReviewItemHandler
 {

@@ -1,11 +1,15 @@
+// A short-lived link to the caller's own company logo.
+//
+// A supplier with no logo recorded is a not-found rather than a link to nothing.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class GetLogoDownloadUrlHandler(AppDbContext db, IScopeContext scope, IFileStorage fileStorage) : IGetLogoDownloadUrlHandler
 {

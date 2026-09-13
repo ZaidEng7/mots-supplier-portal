@@ -1,3 +1,37 @@
+// The administrator's overview: users by role, reference-data health, the outbox, the jobs, and audit volume.
+//
+// Read-only, and every figure is state that already exists and was reachable only by querying the database by
+// hand.
+//
+// Users are counted rather than listed, because the staff listing is its own screen and this is a dashboard.
+//
+//
+// THE REFERENCE-DATA LIST IS HAND-WRITTEN, AND THE TEST READS THE REGISTRY
+//
+// Which is the right way round. A table added to the registry and not to this screen fails loudly, rather than
+// going missing from the one place an administrator checks whether a catalogue is empty.
+//
+//
+// THE INTEGRATION FLAG COMES FROM WHAT IS REGISTERED
+//
+// Read from the resolved transport rather than from configuration, so it cannot disagree with what is actually
+// running.
+//
+//
+// THE JOBS TILE IS THE ONE WORTH HAVING
+//
+// Switching recurring jobs off silently disables every scheduled transition: submission windows never open or
+// close, document expiry is never flagged, the outbox is never drained, awards never reconcile.
+//
+// Today that is visible only as a single warning line in the startup log, which nobody reads on a running
+// system. A missing job is an operational fault, and this is where it becomes visible.
+//
+// It compares what the scheduler actually has registered against what this application intends, and reads from
+// THIS host's own storage rather than the process-wide static facade. The static one is process-wide, and in a
+// test process running more than one host the first host wins.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -10,12 +44,6 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Admin;
-
-/// <summary>
-/// T-062/FR-DSH-006/SCR-700. Read-only, and every figure is state that already exists and is
-/// currently reachable only by querying Postgres by hand.
-/// </summary>
 public sealed class GetAdminOverviewHandler(
     IOutboxTransport transport,
     AppDbContext db, JobStorage jobStorage, IConfiguration configuration)
@@ -23,8 +51,6 @@ public sealed class GetAdminOverviewHandler(
 {
     public async Task<AdminOverviewDto> HandleAsync(CancellationToken ct)
     {
-        // Users by role, from Identity's own join table. Counted rather than listed: SCR-701 is the
-        // user LISTING screen and this is the dashboard.
         var usersByRole = await db.Set<Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>()
             .GroupBy(ur => ur.RoleId)
             .Select(g => new { g.Key, Count = g.Count() })
@@ -46,10 +72,6 @@ public sealed class GetAdminOverviewHandler(
             await HealthAsync(ReferenceTables.Currencies, db.Set<Currency>().Select(c => c.IsActive), ct),
             await HealthAsync(ReferenceTables.UnitsOfMeasure, db.Set<UnitOfMeasure>().Select(u => u.IsActive), ct),
             await HealthAsync(ReferenceTables.Regions, db.Set<Region>().Select(r => r.IsActive), ct),
-            // T-072's sixth table. This list is hand-written while the test reads
-            // ReferenceTables.All, which is the right way round: a table added to the registry and
-            // not to this screen fails loudly, rather than going missing from the one place an
-            // administrator checks whether a catalogue is empty.
             await HealthAsync(ReferenceTables.Incoterms, db.Set<Incoterm>().Select(i => i.IsActive), ct),
         };
 
@@ -74,8 +96,6 @@ public sealed class GetAdminOverviewHandler(
                 oldestPending is { } oldest
                     ? (int)Math.Max(0, (DateTimeOffset.UtcNow - oldest).TotalMinutes)
                     : null,
-                // B-1/BRULE-011: read from the registration rather than from configuration, so it cannot
-                // disagree with what is actually running.
                 ErpTransportConfigured: transport is not LoggingOutboxTransport),
             JobHealth(),
             auditRows);
@@ -88,22 +108,10 @@ public sealed class GetAdminOverviewHandler(
         return new ReferenceTableHealthDto(table, flags.Count(f => f), flags.Count(f => !f));
     }
 
-    /// <summary>
-    /// What Hangfire actually has registered, against what this application intends.
-    ///
-    /// <para><b>This is the tile worth having.</b> <c>Jobs:EnableRecurring=false</c> silently disables
-    /// every scheduled transition - submission windows never open or close, document expiry is never
-    /// flagged, the outbox is never drained, awards never reconcile - and today that is visible only as
-    /// a single warning line in the startup log, which nobody reads on a running system. A missing job
-    /// is an operational fault and this is where it becomes visible.</para>
-    /// </summary>
     private JobHealthDto JobHealth()
     {
         var enabled = configuration.GetValue("Jobs:EnableRecurring", defaultValue: true);
 
-        // Read from THIS host's storage rather than the static JobStorage.Current facade, for the same
-        // reason Program.cs resolves IRecurringJobManager from DI: the static one is process-wide and
-        // in a test process running more than one host the first host wins.
         var registered = jobStorage.GetConnection().GetRecurringJobs()
             .Select(j => j.Id)
             .OrderBy(id => id, StringComparer.Ordinal)

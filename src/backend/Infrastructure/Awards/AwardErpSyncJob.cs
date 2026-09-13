@@ -1,3 +1,28 @@
+// The reconciliation half of sending an award to the external purchasing system.
+//
+// The transactional part already happened: the outbox row was written in the same commit as the award, which the
+// written rule requires. This job is what actually calls the adapter and writes the result back onto the award.
+//
+// The generic dispatcher cannot do that, because it only updates the outbox row's own status and never the
+// aggregate the message describes.
+//
+//
+// IT NEVER BLOCKS THE AWARD
+//
+// It runs on its own schedule, entirely decoupled from the request that issued the award. By the time it runs,
+// the award is already issued and stays issued no matter what happens here, which is why the integration status
+// is a separate field on the award.
+//
+// Retry with backoff IS this job's own recurring cadence, on the same reasoning as the other recurring jobs: a
+// failed award is picked up again on the next run rather than needing a bespoke scheduler. A manual retry exists
+// for an administrator who does not want to wait for the schedule.
+//
+// A failure alerts the platform administrators rather than the buying body, because an integration failure is
+// platform-level. That notification exists precisely BECAUSE the award stands: the failure must not undo it, and
+// the alert is how somebody finds out.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
@@ -7,25 +32,6 @@ using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Awards;
-
-/// <summary>FEAT-14.5/14.6/FR-AWD-005/006, BRULE-077/078/079: the reconciliation half of the
-/// "Outbox -&gt; ERP PO" flow. The transactional emit itself (the OutboxMessage row, written in the
-/// SAME SaveChanges as ExecuteAward - BRULE-078's own "same transaction" requirement) already
-/// happened synchronously in ExecuteAwardHandler; this job is what actually calls the (stubbed) ERP
-/// adapter and writes the result back onto the Award aggregate - something the generic, transport-
-/// agnostic OutboxDispatcher cannot do, since it only updates the OutboxMessage row's own
-/// SyncStatus, never the domain aggregate the message describes.
-///
-/// <para><b>Never blocks the award (BRULE-077).</b> This job runs asynchronously, on its own
-/// recurring schedule, entirely decoupled from the HTTP request that issued the award - by the time
-/// this job ever runs, Award.State is already Awarded and stays Awarded no matter what happens
-/// below (see Award.cs's own doc comment on why ErpSyncStatus is a separate field).</para>
-///
-/// <para><b>Retry-with-backoff (BRULE-078) is this job's own recurring cadence, same reasoning as
-/// OutboxDispatcher/RfqTimelineJob</b>: a Failed award is picked up again on the next run rather
-/// than requiring a bespoke backoff scheduler - a manual RetryErpSync (integration.retry) exists for
-/// an admin who does not want to wait for the schedule.</para></summary>
 public sealed class AwardErpSyncJob(AppDbContext db, IErpPurchaseOrderAdapter adapter, IAuditLogger auditLogger, ILogger<AwardErpSyncJob> logger)
 {
     public const int BatchSize = 50;
@@ -49,7 +55,6 @@ public sealed class AwardErpSyncJob(AppDbContext db, IErpPurchaseOrderAdapter ad
                 award.MarkErpSynced(externalRef);
                 if (rfq.State == RfqState.Awarded) rfq.Complete();
 
-                // §3.4 "ErpPoRequested -> ErpPoSynced | In-app to procurement".
                 NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardErpSynced,
                     await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
                     $"{NotificationTypes.AwardErpSynced}:{award.Id}",
@@ -63,9 +68,6 @@ public sealed class AwardErpSyncJob(AppDbContext db, IErpPurchaseOrderAdapter ad
             catch (Exception ex)
             {
                 award.MarkErpFailed();
-                // §3.4 "ErpPoRequested -> ErpPoFailed | Alert to `system_admin`". Platform-level, so
-                // not organization-scoped. BRULE-099: this notification exists BECAUSE the award
-                // stands - the failure must not undo it, and the alert is how someone finds out.
                 NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardErpFailed,
                     await NotificationRecipients.SystemAdminsAsync(db, ct),
                     $"{NotificationTypes.AwardErpFailed}:{award.Id}:{award.ErpRetryCount}",

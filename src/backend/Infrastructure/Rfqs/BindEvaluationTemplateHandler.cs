@@ -1,3 +1,29 @@
+// Binding a tender to one exact version of a scoring template, and freezing its criteria.
+//
+// The live template must be active. Its current criteria are serialised as the frozen snapshot, the template
+// is marked as referenced, which makes it immutable from then on unless somebody forks it, and the tender is
+// bound to that identifier and version.
+//
+//
+// TWO AGGREGATES IN ONE COMMIT
+//
+// A pragmatic exception to one aggregate per transaction, justified the same way the audit logger's is:
+// marking a template referenced is not an event that needs to settle eventually, it is the direct,
+// synchronous consequence of the command the caller just issued.
+//
+//
+// WHAT THE SNAPSHOT HAS TO CARRY
+//
+// Whether a criterion requires a justification is in the snapshot, so the rule is the one the tender bound
+// rather than the one the template happens to hold now.
+//
+// So is the guidance text, for the same argument one field further: the instruction an evaluator scores
+// against must be the one in force when this tender bound the template. It was absent from both this
+// snapshot and the evaluation's own, so the text existed on the template and reached nobody, which is why
+// the evaluator's screen rendered a name, a weight and a maximum and nothing else.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,16 +40,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.3/FR-RFQ-004: binds a version-snapshotted EvaluationTemplateRef. Loads the
-/// live EvaluationTemplate (must be Active), serializes its current criteria as the frozen
-/// snapshot, marks it IsReferenced (immutable from here on unless forked - EvaluationTemplate.cs's
-/// own doc comment), and binds the RFQ to that exact Id+Version. Both aggregates are saved in the
-/// same SaveChangesAsync call - a pragmatic single-unit-of-work exception to "one aggregate per
-/// transaction" (DOMAIN-MODEL.md §8), justified the same way AuditLogger already is: marking a
-/// template referenced is not a domain event that needs eventual consistency, it is the direct,
-/// synchronous consequence of the bind command the caller just issued.</summary>
 public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IBindEvaluationTemplateHandler
 {
@@ -53,13 +69,7 @@ public sealed class BindEvaluationTemplateHandler(AppDbContext db, IScopeContext
             c.MaxScore,
             c.Threshold,
             ScoringType = c.ScoringType.ToString(),
-            // T-021: carried into the snapshot so the rule is the one the RFQ bound, not the one the
-            // template happens to hold now.
             c.RequiresJustification,
-            // SCR-501, and the same argument one field further: the guidance an evaluator scores against
-            // must be the instruction in force when this tender bound the template. It was absent from
-            // both this snapshot and the evaluation's own, so the text existed on the template and reached
-            // nobody - which is why the evaluator's screen rendered name, weight and max and nothing else.
             c.GuidanceAr,
             c.GuidanceEn,
         }));

@@ -1,3 +1,17 @@
+// Putting a failed outbox message back in the queue.
+//
+// Only a FAILED message is replayable. A pending one is already going to be attempted, and re-queuing a sent one
+// would send an integration event twice. The outbox exists to make delivery exactly once, and an administrator's
+// button that breaks that is worse than no button.
+//
+// That guard is the reason this is a handler rather than a bare update statement.
+//
+// Replaying resets the row and lets the dispatcher pick it up on its next pass. It does NOT dispatch inline,
+// because that would put an external call on a request thread and give the operator a timeout instead of an
+// answer.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -9,20 +23,6 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Admin;
-
-/// <summary>
-/// SCR-722's action: put a message back in the queue.
-///
-/// <para><b>Only a Failed message is replayable.</b> A Pending one is already going to be attempted, and
-/// re-queuing a Sent one would send an integration event twice - the outbox exists to make delivery
-/// exactly-once, and an admin button that breaks that is worse than no button. The guard is the reason
-/// this handler exists rather than a bare ExecuteUpdate.</para>
-///
-/// <para>Replay resets the row to Pending and clears ProcessedAt; the dispatcher picks it up on its next
-/// pass. It does NOT dispatch inline: doing so would put an external call on an HTTP request thread and
-/// give the operator a timeout instead of an answer.</para>
-/// </summary>
 public sealed class ReplayOutboxMessageHandler(AppDbContext db) : IReplayOutboxMessageHandler
 {
     public async Task<bool> HandleAsync(Guid id, CancellationToken ct)

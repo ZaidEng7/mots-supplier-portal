@@ -1,53 +1,64 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a supplier company maps to its table, including the column the search box reads.
+//
+//
+// THE SEARCH COLUMN IS COMPUTED BY THE DATABASE, NOT BY A TRIGGER
+//
+// The database computes it on write from the columns it names, so there is no trigger to keep in step
+// with a rename and no way for the index to drift from the row. Drift is the failure mode of every
+// hand-maintained search column.
+//
+//
+// NEITHER LANGUAGE IS STEMMED, AND THAT IS A DECISION RATHER THAN A SHORTCUT
+//
+// The sizing flagged it. The database ships no Arabic dictionary, so no configuration stems Arabic
+// correctly. The configuration used here lower-cases and splits on non-word characters and does not stem,
+// so "contracts" will not match "contract".
+//
+// Stemming the English column while leaving the Arabic one unstemmed would make the two halves of one
+// search behave differently for no stated reason. Picking one honest behaviour and saying so beats
+// half-stemming. Adding an Arabic dictionary is a decision for whoever owns the database, and it is a
+// change to this expression rather than to the schema.
+//
+//
+// WHY THE REFERENCE CODE IS REWRITTEN BEFORE IT IS INDEXED
+//
+// The code is in the search column because "find RFQ-2026-000123" is the most common thing anyone types
+// into a search box on a system like this, and the character replacement is what makes that actually
+// work.
+//
+// The database's own parser reads RFQ-2026-000006 as three pieces and treats the hyphenated numeric parts
+// as signed numbers, keeping the sign inside the indexed word. A query built by splitting the same string
+// on non-alphanumeric characters produces the unsigned pieces, which match nothing.
+//
+// Caught by an integration test against a real code shape after the feature worked perfectly against the
+// letter-suffixed demonstration codes, which tokenise differently and hid it entirely.
+//
+// Collapsing every run of non-alphanumeric characters to a space before tokenising means the stored side
+// and the search handler follow one rule. That is the property worth having; the alternative is two
+// tokenisers that agree on most inputs.
+//
+//
+// WHY THE OWNED ADDRESS AND CONTACT TYPES NAME NO TABLE
+//
+// Owned types already default to the owner's table. Naming the same table explicitly turns this into a
+// table-splitting fragment, which makes the mapper emit a second update against this row, checked against
+// the same concurrency token, whenever the supplier is saved together with an unrelated change to one of
+// its child collections.
+//
+// That second update then finds the row's token already bumped by the first and throws a concurrency
+// failure reporting zero rows affected.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Suppliers;
 
 internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
 {
     public void Configure(EntityTypeBuilder<Supplier> entity)
     {
         entity.ToTable("supplier", "supplier");
-        // ── EPIC-20 full-text search ──────────────────────────────────────────────────────
-        // A STORED GENERATED column, not a trigger. Postgres computes it on write from the columns
-        // it names, so there is no trigger to keep in step with a rename and no way for the index to
-        // drift from the row - which is the failure mode of every hand-maintained search column.
-        //
-        // 'simple' for both languages, and this is the decision the sizing flagged rather than a
-        // shortcut: Postgres ships no Arabic dictionary, so no configuration stems Arabic correctly.
-        // 'simple' lower-cases and splits on non-word characters and does not stem, so "contracts"
-        // will not match "contract". Using 'english' on the English column and 'simple' on the Arabic
-        // one would make the two halves of one search behave differently for no stated reason;
-        // picking one honest behaviour and saying so beats half-stemming. Adding an Arabic dictionary
-        // (hunspell, or a thesaurus) is a decision for whoever owns the database, and it is a change
-        // to this expression rather than to the schema.
-        //
-        // The reference code is IN the vector because "find RFQ-2026-000123" is the most common thing
-        // anyone types into a search box on a system like this - and the regexp_replace is what makes
-        // that actually work. Postgres's parser treats "RFQ-2026-000006" as 'rfq', '-2026', '-000006':
-        // it reads the hyphenated numeric parts as SIGNED INTEGERS and keeps the sign in the lexeme. A
-        // query built by splitting the same string on non-alphanumerics produces 'rfq', '2026',
-        // '000006', which match nothing. Caught by an integration test against a real code shape after
-        // the feature worked perfectly against the letter-suffixed demo codes - RFQ-DEMO-0006 tokenises
-        // differently and hid it entirely.
-        //
-        // Collapsing every non-alphanumeric run to a space before tokenising means the stored side and
-        // SearchHandler.Tokenise follow ONE rule. That is the property worth having: the alternative is
-        // two tokenisers that agree on most inputs.
         entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
             .HasComputedColumnSql(
                 "to_tsvector('simple', regexp_replace(coalesce(\"DisplayNameAr\",'') || ' ' || coalesce(\"DisplayNameEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
@@ -79,13 +90,6 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
 
         entity.OwnsOne(s => s.LegalInfo, legal =>
         {
-            // No explicit ToTable() here: owned types default to the owner's table already.
-            // Calling ToTable() with the SAME name turns this into an explicit table-splitting
-            // fragment, which makes EF emit a second UPDATE against this row (checked against
-            // the same xmin concurrency token) whenever the Supplier aggregate is saved together
-            // with an unrelated child-collection change (e.g. AddAddress/AddContact) - the second
-            // UPDATE then finds the row's xmin already bumped by the first and throws
-            // DbUpdateConcurrencyException with 0 rows affected.
             legal.Property(l => l.LegalNameAr).HasColumnName("LegalNameAr").HasMaxLength(200);
             legal.Property(l => l.LegalNameEn).HasColumnName("LegalNameEn").HasMaxLength(200);
             legal.Property(l => l.RegistrationNumber).HasColumnName("RegistrationNumber").HasMaxLength(100);

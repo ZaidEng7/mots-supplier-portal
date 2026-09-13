@@ -1,21 +1,14 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a stored notification maps to its table.
+//
+// Its version column maps to the database's own row version, the same way every other versioned record
+// in this schema does.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Notifications;
+using MotsSupplierPortal.Domain.Identity;
 
 internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 {
@@ -40,7 +33,6 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
             .HasForeignKey(n => n.RecipientUserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // xmin, as every other versioned aggregate maps it (§8.1).
         entity.Property(n => n.RowVersion).IsAppManagedVersion();
     }
 }

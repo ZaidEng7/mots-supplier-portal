@@ -1,9 +1,11 @@
+// The administrator's list of every rewording, ordered by key and then language.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Admin;
 
 public sealed class ListUiStringOverridesHandler(AppDbContext db) : IListUiStringOverridesHandler
 {

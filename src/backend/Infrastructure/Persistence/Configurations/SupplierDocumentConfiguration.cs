@@ -1,30 +1,20 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How an uploaded document maps to its table.
+//
+// Its public identifier is unique in the database rather than merely in the generator. The generator is
+// atomic, but a unique index is what makes a collision impossible rather than unlikely, and it is what
+// every other reference code in this schema already has.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Suppliers;
 
 internal sealed class SupplierDocumentConfiguration : IEntityTypeConfiguration<SupplierDocument>
 {
     public void Configure(EntityTypeBuilder<SupplierDocument> entity)
     {
         entity.ToTable("supplier_document", "supplier");
-        // T-010: the public identifier. Unique in the DATABASE, not merely in the generator - the
-        // generator is atomic (MSP-81) but a unique index is what makes a collision impossible rather
-        // than unlikely, and it is what every other reference code in this schema already has.
         entity.Property(d => d.ReferenceCode).HasMaxLength(30).IsRequired();
         entity.HasIndex(d => d.ReferenceCode).IsUnique();
         entity.HasKey(d => d.Id);

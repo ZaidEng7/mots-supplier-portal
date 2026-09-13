@@ -1,12 +1,15 @@
+// Listing the administrator's switches over supplier fields.
+//
+// These replaced call sites and validator rules that had the answer written into them; the switch table's own
+// header explains what the two families of switch decide.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.9/FEAT-04.2: admin-editable config replacing what used to be hardcoded call
-/// sites/validator rules - see SupplierFieldConfig's own doc comment.</summary>
 public sealed class GetFieldConfigHandler(AppDbContext db) : IGetFieldConfigHandler
 {
     public async Task<IReadOnlyList<FieldConfigDto>> HandleAsync(string? category, CancellationToken ct)

@@ -1,18 +1,20 @@
+// Marking one notification read, and marking them all read.
+//
+// The scope test is part of the LOOKUP rather than a check after it. A handler that loads by identifier and then
+// compares owners has already read the row, and every difference between "loaded then refused" and "never found"
+// is a signal. Here the two are the same query.
+//
+// Marking everything read is a single conditional update rather than a load and a loop, because the count can be
+// large and none of the rows are needed afterwards.
+
+namespace MotsSupplierPortal.Infrastructure.Notifications;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Notifications;
-
-/// <summary>
-/// Marking read, scoped exactly as reading is.
-///
-/// <para>The scope predicate is part of the LOOKUP, not a check after it: a handler that loads by id
-/// and then compares owners has already read the row, and every difference between "loaded then
-/// refused" and "never found" is a signal. Here the two are the same query.</para>
-/// </summary>
 public sealed class MarkNotificationReadHandler(AppDbContext db, IScopeContext scope) : IMarkNotificationReadHandler
 {
     public async Task<MarkNotificationReadResult> HandleAsync(Guid notificationId, CancellationToken ct)

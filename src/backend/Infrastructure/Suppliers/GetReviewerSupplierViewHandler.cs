@@ -1,3 +1,12 @@
+// Everything a reviewer needs to see about one application, on one read.
+//
+// The supplier's own version is lifted to the top of the wrapper so the read can issue a version header,
+// which the decision endpoints' preconditions require.
+//
+// It is read from the record rather than from the nested read model, so the two cannot drift.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -11,8 +20,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class GetReviewerSupplierViewHandler(AppDbContext db) : IGetReviewerSupplierViewHandler
 {
@@ -35,9 +42,6 @@ public sealed class GetReviewerSupplierViewHandler(AppDbContext db) : IGetReview
             .ToListAsync(ct);
 
         var erpSync = new ErpSyncDto(supplier.ExternalId, supplier.SyncStatus.ToString(), supplier.LastSyncedAt);
-        // The root's own version, lifted to the top of the wrapper so the read issues an ETag - the
-        // precondition T-030 split (4)'s decision guards require. Read from the aggregate rather than from
-        // the nested DTO so the two cannot drift.
         return new ReviewerSupplierViewDto(
             SupplierDtoMapper.ToDto(supplier), erpSync, documents, annotations, supplier.RowVersion);
     }

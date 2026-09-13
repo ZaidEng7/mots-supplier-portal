@@ -1,3 +1,12 @@
+// Issuing an addendum: the one change a published tender still permits.
+//
+// This is the first real use of the rule that a tender is locked after publication except for addenda, and
+// the aggregate's own method is where that lock lives.
+//
+// Every invited supplier is told, because an addendum changes what they are bidding on.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,10 +23,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: the first real use of "locked after Published except
-/// addenda" (Rfq.IssueAddendum's own doc comment). Notifies every invited supplier.</summary>
 public sealed class IssueAddendumHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
     : IIssueAddendumHandler
 {

@@ -1,3 +1,11 @@
+// A supplier's own catalogue entries.
+//
+// An entry is only ever listed for the caller's own company, taken from the signed token and never from
+// anything the caller sends. That is the row-scoping half of this feature's acceptance criteria, and the same
+// pattern every other supplier-scoped list uses.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,11 +14,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-06.1/FR-OFF-001: an offering is only ever listed for the caller's own supplier
-/// (IScopeContext.SupplierId, derived from the JWT - never client input) - this is the row-scoping
-/// half of FEAT-06.1's acceptance criteria, same pattern as every other supplier-scoped list.</summary>
 public sealed class ListOfferingsHandler(AppDbContext db, IScopeContext scope) : IListOfferingsHandler
 {
     public async Task<IReadOnlyList<OfferingDto>> HandleAsync(CancellationToken ct)

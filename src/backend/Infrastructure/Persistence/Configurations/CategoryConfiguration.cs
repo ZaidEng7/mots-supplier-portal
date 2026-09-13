@@ -1,21 +1,12 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a supplier category maps to its table, and the interim list it is seeded with.
+//
+// The seeded list is a flat set drawn from the categories the ministry is known to use. It is explicitly
+// interim: a real category tree for buyers replaces it later.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Domain.ReferenceData.Category>
 {
@@ -28,8 +19,6 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Domain.Re
         entity.Property(c => c.NameAr).HasMaxLength(150).IsRequired();
         entity.Property(c => c.NameEn).HasMaxLength(150).IsRequired();
 
-        // MSP-54 [ASSUMPTION]: minimal flat interim list, seeded from Discovery's known
-        // MOTS supplier categories - superseded by EPIC-21's real buyer Category tree later.
         entity.HasData(
             new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000301"), Code = "accommodation", NameAr = "الإقامة والفنادق", NameEn = "Accommodation & Hotels" },
             new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000302"), Code = "catering", NameAr = "التموين والضيافة", NameEn = "Catering & Hospitality" },

@@ -1,3 +1,10 @@
+// A bidder declines an invitation, with a reason.
+//
+// Resolved through the same invitation-scoped loader every supplier-facing action uses, so a supplier who was
+// not invited gets the same answer a wrong reference code would.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -7,8 +14,6 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
 public sealed class SupplierDeclineInvitationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : ISupplierDeclineInvitationHandler

@@ -1,3 +1,40 @@
+// Signing in with an email address and a password, and issuing the session.
+//
+// It issues an access token plus a rotating refresh token, stored only as a hash and bound to a token family.
+//
+// No failure path reveals whether an account exists: an unknown address and a wrong password give the same
+// answer in the same shape.
+//
+//
+// THE SECOND FACTOR IS ENFORCED HERE, WHERE THE SESSION IS ISSUED
+//
+// Before this, enrolment existed and sign-in never consulted it, so an enrolled user still authenticated with a
+// password alone. That is worse than no second factor, because it presented assurance it did not provide.
+//
+// A role that requires a second factor and an account that has not enrolled one is refused rather than let
+// through, and the refusal says what to do.
+//
+// The list of roles that require it is shared with the security-posture screen that reports it, so there are two
+// readers of one expression rather than two copies of one default.
+//
+// A missing code on an enrolled account is deliberately not audited as a failure. The password leg succeeded;
+// this is a normal challenge rather than a rejected attempt.
+//
+// Either a live code or a single-use recovery code is accepted, so a user who has lost their authenticator is
+// not locked out. Brute force is bounded by the endpoint's existing per-address and per-account rate limits,
+// which this path shares.
+//
+//
+// WHAT THE TOKEN RECORDS ABOUT HOW YOU SIGNED IN
+//
+// The token carries the factors actually used, so a policy that wants to step up can tell a password-only
+// session from one verified with a second factor.
+//
+// The refresh path re-issues against an already-established session rather than re-authenticating, so it
+// defaults to password-only rather than claiming a factor it did not see.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Auth;
@@ -6,12 +43,6 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Auth;
-
-/// <summary>
-/// STORY-01.1.1: email+password login. Issues JWT access + rotating refresh token (hashed,
-/// bound to a token family). No user-enumeration on any failure path.
-/// </summary>
 public sealed class LoginHandler(
     AppDbContext db,
     IIdentityProvider identityProvider,
@@ -23,8 +54,6 @@ public sealed class LoginHandler(
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
 
-    /// <summary>See MfaPolicy: shared with SCR-726's security posture screen, which reports this list.
-    /// Two readers of one expression rather than two copies of one default.</summary>
     private readonly string[] _mfaRequiredRoles = MfaPolicy.RequiredRoles(configuration);
 
     public async Task<LoginResult> HandleAsync(LoginCommand command, CancellationToken ct)
@@ -32,7 +61,6 @@ public sealed class LoginHandler(
         var user = await identityProvider.FindByEmailAsync(command.Email.Trim().ToLowerInvariant());
         if (user is null)
         {
-            // Constant-shape failure: no user-enumeration (STORY-01.1.1 AC2).
             return new LoginResult.InvalidCredentials();
         }
 
@@ -60,10 +88,6 @@ public sealed class LoginHandler(
             return new LoginResult.AccountNotUsable("email_not_verified");
         }
 
-        // MSP-67 / FR-IAM-004 / NFR-SEC-003: the second factor is enforced HERE, at the point a
-        // session is issued. Before this, enrolment existed but login never consulted it, so an
-        // enrolled user still authenticated with a password alone - worse than no MFA, because it
-        // presented assurance it did not provide.
         var roles = await identityProvider.GetRolesAsync(user);
         var mfaMandatoryForRole = roles.Any(RequiresMfa);
 
@@ -79,8 +103,6 @@ public sealed class LoginHandler(
         {
             if (string.IsNullOrWhiteSpace(command.TotpCode))
             {
-                // Deliberately NOT an audit "failure" - the password leg succeeded; this is a
-                // normal challenge, not a rejected attempt.
                 return new LoginResult.MfaRequired();
             }
 
@@ -100,9 +122,6 @@ public sealed class LoginHandler(
         return new LoginResult.Success(tokens);
     }
 
-    /// <summary>Accepts either a live TOTP code or a single-use recovery code, so a user who has
-    /// lost their authenticator is not locked out (STORY-01.5.1 AC3). Brute force is bounded by the
-    /// login endpoint's existing per-IP and per-account rate limiters, which this path shares.</summary>
     private async Task<bool> VerifySecondFactorAsync(AppUser user, string code)
     {
         var normalized = code.Replace(" ", string.Empty).Replace("-", string.Empty);
@@ -118,15 +137,10 @@ public sealed class LoginHandler(
     private bool RequiresMfa(string role) =>
         _mfaRequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
 
-    /// <summary><paramref name="authMethods"/> defaults to password-only for the refresh path,
-    /// which re-issues against an already-established session rather than re-authenticating.</summary>
     internal async Task<TokenPair> IssueTokenPairAsync(AppUser user, Guid familyId, string? ip, string? userAgent, CancellationToken ct, IReadOnlyList<string>? authMethods = null)
     {
         var permissions = await permissionResolver.ResolveAsync(user);
         var roles = await identityProvider.GetRolesAsync(user);
-        // amr = "authentication methods reference" (SECURITY-ARCHITECTURE §1.1/§1.5): reflects the
-        // factors actually used on this login, so a step-up policy can distinguish a
-        // password-only session from an MFA-verified one.
         var access = jwtTokenService.IssueAccessToken(user.Id, user.Email!, user.SupplierId, user.OrganizationId, roles, permissions, authMethods ?? ["pwd"]);
 
         var refreshPlainText = TokenHasher.GenerateOpaqueToken();

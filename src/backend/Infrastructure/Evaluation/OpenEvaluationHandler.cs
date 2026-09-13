@@ -1,3 +1,42 @@
+// Opening evaluation on a closed tender: creating the evaluation and instantiating its criteria.
+//
+// The tender's own move into evaluation and the evaluation's creation happen in one commit. That is the same
+// pragmatic single-unit-of-work exception the template binding already justifies, rather than a new pattern.
+//
+// A template must be bound, and at least one bid must have been submitted. The bid count is a cross-aggregate
+// guard, resolved here before the domain transition, which is the same split every other cross-aggregate
+// guard in this codebase uses.
+//
+//
+// THIS IS THE GATEWAY THE MIDDLE OF THE BID LIFECYCLE HUNG ON
+//
+// Nothing moved bids into review, so the states after it, clarification requested, revised and shortlisted,
+// were unreachable too. A bid went from draft to submitted to an outcome and skipped evaluation intake
+// entirely.
+//
+// The bids move in the SAME commit as the tender, because a window in which the tender is under evaluation
+// and its bids are still merely submitted is a state no document describes.
+//
+//
+// READING A SNAPSHOT THAT PREDATES A FIELD
+//
+// Whether a criterion requires a justification defaults to false for a tender whose snapshot was written
+// before that field existed, the same reason the criterion's own flag defaults false rather than being
+// backfilled from a rule nobody had stated yet.
+//
+// The guidance text is absent for such a tender, which is the honest answer. It was not recorded when that
+// tender bound its template, and inventing it now from the template's current text would show an evaluator an
+// instruction this tender never carried.
+//
+//
+// WHO IS NOTIFIED
+//
+// No assignments exist yet at this moment, so this notifies the committee that runs the tender rather than a
+// list of assignees. The assignment notification is the one that reaches individual evaluators, and it
+// already exists as an email.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,25 +56,12 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1: "SubmissionClosed -&gt;
-/// UnderEvaluation ... system (on RFQ UnderEvaluation) ... Instantiate criteria from
-/// EvaluationTemplate; snapshot weights". The RFQ's own SubmissionClosed -&gt; UnderEvaluation
-/// transition and the Evaluation's creation happen in the same handler/SaveChangesAsync call -
-/// same pragmatic single-unit-of-work exception BindEvaluationTemplateHandler's own doc comment
-/// already justifies, not a new pattern.</summary>
 public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IOpenEvaluationHandler
 {
     private sealed record CriterionSnapshotJson(
         Guid Id, string NameAr, string NameEn, string Dimension, decimal Weight, decimal MaxScore, decimal? Threshold,
         string ScoringType,
-        // Defaults to false for an RFQ whose snapshot predates the field - the same reason Criterion's
-        // own flag defaults false rather than being backfilled from a rule nobody had stated yet.
         bool RequiresJustification = false,
-        // SCR-501. Null for a tender whose snapshot predates the field, which is the honest answer: the
-        // guidance was not recorded when that RFQ bound its template, and inventing it now from the
-        // template's current text would show an evaluator an instruction this tender never carried.
         string? GuidanceAr = null,
         string? GuidanceEn = null);
 
@@ -49,9 +75,6 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         {
             return new EvaluationMutationResult.InvalidState("Cannot open evaluation: no evaluation template is bound to this RFQ.");
         }
-        // BUSINESS-PROCESSES.md §5.1 guard "&gt;=1 Submitted proposal [ASSUMPTION]" - cross-aggregate
-        // (Proposal lives in a different aggregate), resolved here before the domain transition,
-        // same split as every other cross-aggregate guard in this codebase.
         var submittedCount = await db.Proposals.CountAsync(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted, ct);
         if (submittedCount == 0)
         {
@@ -68,15 +91,6 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
 
-        // T-051, FR-PRP-009, §4.1: "Submitted -> UnderReview | Evaluation opened | system (on RFQ
-        // UnderEvaluation) | Make visible to assigned evaluators (scoped)".
-        //
-        // This is the gateway the whole middle of the proposal lifecycle hung on. Nothing assigned
-        // UnderReview, so ClarificationRequested, Revised and Shortlisted were unreachable too - a
-        // proposal went Draft -> Submitted -> outcome and skipped evaluation intake entirely.
-        //
-        // In the SAME SaveChanges as the RFQ's own transition, because a window where the RFQ is
-        // UnderEvaluation and its proposals are still Submitted is a state no document describes.
         var intake = await db.Proposals
             .Where(p => p.RfqId == rfq.Id && p.State == ProposalState.Submitted)
             .ToListAsync(ct);
@@ -97,10 +111,6 @@ public sealed class OpenEvaluationHandler(AppDbContext db, IScopeContext scope, 
         var evaluation = EvaluationAggregate.Create(rfq.Id, criteriaInputs);
         db.Evaluations.Add(evaluation);
 
-        // §3.1 "SubmissionClosed -> UnderEvaluation | In-app to `evaluator`s". No assignments exist
-        // yet at this moment, so this is the committee that runs the RFQ rather than a list of
-        // assignees - the assignment notification (§3.3 "NotStarted -> Assigned") is the one that
-        // reaches individual evaluators, and it already exists as an email.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationOpened,
             await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
             $"{NotificationTypes.EvaluationOpened}:{rfq.Id}",

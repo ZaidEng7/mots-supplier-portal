@@ -1,3 +1,25 @@
+// Cancelling a tender, from any state before it has been awarded, with a mandatory reason.
+//
+//
+// THE RULE SAYS CANCELLATION VOIDS THE OPEN BIDS, AND IT NOW DOES
+//
+// Before this it notified everyone and moved nothing, so a submitted bid stayed submitted forever on a
+// cancelled tender. That rule carries no assumption tag, which made it a confirmed rule going unenforced.
+//
+// Terminal bids are left alone. A withdrawn bid was withdrawn, and an awarded one belongs to a tender that
+// could not have been cancelled.
+//
+//
+// WHO IS TOLD
+//
+// Every invited supplier, and, if an evaluation had already been opened, every assigned evaluator. Both had
+// work in flight on this tender that just became moot, and neither was told before this.
+//
+// Each supplier is also told about their own bid separately, rather than only about the tender, because a bid
+// moving to cancelled is a fact about their work.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,12 +36,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.8/BUSINESS-PROCESSES.md §3.1: cancel from any pre-Awarded state, reason
-/// mandatory. FEAT-13.3 audit gap fix: notifies every invited supplier AND, if an Evaluation had
-/// already been opened, every assigned evaluator - both had work in flight on this RFQ that just
-/// became moot, and neither was told before this fix.</summary>
 public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : ICancelRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(CancelRfqCommand command, CancellationToken ct)
@@ -37,13 +53,6 @@ public sealed class CancelRfqHandler(AppDbContext db, IScopeContext scope, IAudi
             return RfqTransitions.Refusal(rfq, ex, RfqState.Cancelled);
         }
 
-        // A-9/BRULE-056, enforced for the first time. The rule says cancellation "voids open
-        // invitations/proposals"; before this it notified everyone and moved nothing, so a Submitted
-        // proposal stayed Submitted forever on a cancelled tender - and BRULE-056 carries no assumption
-        // tag, which made that a confirmed rule going unenforced.
-        //
-        // Terminal proposals are left alone: a withdrawn bid was withdrawn, and an awarded one belongs
-        // to an RFQ that could not have been cancelled.
         var liveProposals = await db.Proposals.Where(p => p.RfqId == rfq.Id).ToListAsync(ct);
         foreach (var proposal in liveProposals.Where(p => Proposal.AllowedNextFrom(p.State).Count > 0))
         {

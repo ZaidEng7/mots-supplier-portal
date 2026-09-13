@@ -1,3 +1,22 @@
+// An officer sends a draft tender for internal approval.
+//
+// A nominated approver has to be able to approve. That is checked here rather than in the domain because it
+// is a question about users, which are a different aggregate, and it is the same split the supplier
+// eligibility rule already uses.
+//
+// It is refused rather than silently ignored. An officer who named a colleague and got the whole pool
+// notified instead would have no way to tell.
+//
+// The new approval step is added to the tracked set explicitly, the same identifier gotcha every other child
+// insert in this codebase has: without it the graph-tracking heuristic sees a set identifier, marks the row
+// as existing, issues an update against a row that is not there yet, and the concurrency failure surfaces on
+// the NEXT save that touches this tender.
+//
+// The notification is enqueued inside the transaction, so it cannot fire for a submission that rolled back.
+// It goes to the approver this pass named, falling back to the pool when it named nobody.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,9 +33,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: Draft -&gt; InternalReview.</summary>
 public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISubmitRfqForReviewHandler
 {
     public async Task<RfqMutationResult> HandleAsync(SubmitRfqForReviewCommand command, CancellationToken ct)
@@ -24,10 +40,6 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
         var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
         if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
 
-        // A-7: a nominated approver has to be able to approve. Checked here rather than in the domain
-        // because it is a question about Users, a different aggregate - the same split BRULE-032
-        // already uses for supplier eligibility. Refused rather than silently ignored: an officer who
-        // named a colleague and got the whole pool notified would have no way to tell.
         if (command.AssignedApproverUserId is { } nominee
             && !await StaffEligibility.HoldsPermissionAsync(db, nominee, rfq.OrganizationId, Permissions.RfqApprove, ct))
         {
@@ -44,16 +56,8 @@ public sealed class SubmitRfqForReviewHandler(AppDbContext db, IScopeContext sco
             return RfqTransitions.Refusal(rfq, ex, RfqState.InternalReview);
         }
 
-        // Same client-assigned-GUIDv7 gotcha as every other child Add in this codebase
-        // (ManageContactHandler.cs's own comment): without this, EF's graph-tracking heuristic
-        // sees a non-default Id on the new RfqApproval and marks it Modified instead of Added,
-        // issuing an UPDATE against a row that does not exist yet - 0 rows affected -
-        // DbUpdateConcurrencyException on the NEXT SaveChanges that touches this aggregate.
         db.RfqApprovals.Add(rfq.Approvals.Single(a => a.Decision is null));
 
-        // §3.1 "Draft -> InternalReview | In-app to `procurement_manager`". Enqueued INSIDE the
-        // transaction (D-5): a notification must not fire for a submission that rolled back.
-        // A-7: the approver this pass was assigned to, falling back to the pool when it named nobody.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqSubmittedForReview,
             await NotificationRecipients.RfqApproverAsync(db, rfq, ct),
             $"{NotificationTypes.RfqSubmittedForReview}:{rfq.Id}",

@@ -1,21 +1,15 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How the link between a document type and a category maps to its table.
+//
+// One link per pair. A duplicate would double-count nothing today, and would double-count a requirement
+// the day the narrowing it feeds is switched on.
+//
+// Deleting a document type deletes its links, because a link to a type that no longer exists is not a
+// historical record of anything. That is unlike the reference codes themselves, which are never deleted.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class DocumentTypeCategoryConfiguration : IEntityTypeConfiguration<Domain.ReferenceData.DocumentTypeCategory>
 {
@@ -24,11 +18,7 @@ internal sealed class DocumentTypeCategoryConfiguration : IEntityTypeConfigurati
         entity.ToTable("document_type_category", "reference");
         entity.HasKey(l => l.Id);
         entity.Property(l => l.CategoryCode).HasMaxLength(50).IsRequired();
-        // One link per (type, category). A duplicate would double-count nothing today and would
-        // double-count a requirement the day the derivation is switched on.
         entity.HasIndex(l => new { l.DocumentTypeId, l.CategoryCode }).IsUnique();
-        // Cascade from the document type, because a link to a type that no longer exists is not a
-        // historical record of anything - unlike the reference CODES themselves, which D-28 keeps.
         entity.HasOne<Domain.ReferenceData.DocumentType>()
             .WithMany()
             .HasForeignKey(l => l.DocumentTypeId)

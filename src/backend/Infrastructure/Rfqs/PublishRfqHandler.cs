@@ -1,3 +1,14 @@
+// Publishing an approved tender, which is what makes it visible to its invitees.
+//
+// Every currently invited supplier's state is re-checked first. Inviting them only guaranteed they were
+// active AT INVITE TIME, and time may have passed and a supplier may have been suspended or deactivated
+// between the invitation and this moment.
+//
+// Every invited supplier is then told that submissions are open. Before this, only the invitation email told
+// them a tender existed at all, and nothing marked the moment it actually opened.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,15 +25,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.5/BUSINESS-PROCESSES.md §3.1: Approved -&gt; Published. BRULE-032/EPIC-08 gap
-/// closed: re-checks every currently-invited supplier's LifecycleState before publishing, since
-/// InviteSupplierHandler only guarantees Active AT INVITE time - time may have passed (and a
-/// supplier may have been suspended/deactivated) between invite and this transition.
-/// FEAT-13.3 audit gap fix: notifies every invited supplier that submissions are now open -
-/// previously only the invite-time email told them an RFQ existed at all, with nothing marking the
-/// actual open-for-submission moment.</summary>
 public sealed class PublishRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IPublishRfqHandler
 {
     public async Task<RfqMutationResult> HandleAsync(PublishRfqCommand command, CancellationToken ct)

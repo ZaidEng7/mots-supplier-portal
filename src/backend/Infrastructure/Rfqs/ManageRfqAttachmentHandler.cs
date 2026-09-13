@@ -1,3 +1,10 @@
+// Attaching files to a tender, and removing them.
+//
+// The endpoint has already stored the file before this runs, which is the same split the document upload
+// uses: this owns the record, not the bytes.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,10 +21,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.2/FR-RFQ-003. The caller (endpoint) has already stored the file via
-/// IFileStorage before this runs - same split as UploadDocumentHandler.</summary>
 public sealed class ManageRfqAttachmentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRfqAttachmentHandler
 {
     public async Task<RfqMutationResult> AddAsync(AddRfqAttachmentCommand command, CancellationToken ct)

@@ -1,3 +1,17 @@
+// Clearing somebody's authenticator enrolment.
+//
+// A system administrator cannot hold a session without a second factor, so one who loses their authenticator is
+// locked out with no self-service route. This is that route.
+//
+// It is deliberately an action on somebody ELSE's account. A reset available to the holder would be a way past
+// the second factor, and resetting your own is refused for exactly that reason: the point of a second factor is
+// that holding the first one is not enough, and a session is the first one.
+//
+// Every session is revoked. A reset that left them alive would hand an attacker who already holds one a way to
+// stay past the very control being reset.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
@@ -6,16 +20,6 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>
-/// T-077/SCR-702: clear an authenticator enrolment.
-///
-/// <para>`system_admin` cannot hold a session without MFA, so an administrator who loses their
-/// authenticator is locked out with no self-service path. This is that path, and it is deliberately an
-/// administrator action on someone ELSE's account: a reset available to the holder would be a way past
-/// the second factor.</para>
-/// </summary>
 public sealed class ResetStaffMfaHandler(
     AppDbContext db, UserManager<AppUser> userManager, IScopeContext scope, IAuditLogger auditLogger)
     : IResetStaffMfaHandler
@@ -25,15 +29,11 @@ public sealed class ResetStaffMfaHandler(
         var user = await StaffAccountLoader.LoadAsync(userManager, userId, ct);
         if (user is null) return new StaffAccountResult.NotFound();
 
-        // Resetting your own MFA is refused: the point of the second factor is that possessing the first
-        // one is not enough, and a session is the first one.
         if (user.Id == scope.UserId) return new StaffAccountResult.CannotActOnSelf();
 
         await userManager.SetTwoFactorEnabledAsync(user, false);
         await userManager.ResetAuthenticatorKeyAsync(user);
 
-        // Every session revoked. A reset that left them alive would hand an attacker who already holds
-        // one a way to stay past the very control being reset.
         await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null)
             .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, DateTimeOffset.UtcNow), ct);
 

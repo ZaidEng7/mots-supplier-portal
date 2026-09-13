@@ -1,3 +1,25 @@
+// A supplier starts a bid on a tender they were invited to.
+//
+//
+// STARTING IS IDEMPOTENT FOR A LIVE BID, AND NOT FOR A WITHDRAWN ONE
+//
+// A second click returns the same draft rather than making another.
+//
+// A withdrawn bid is different. The written process permits re-submission while the window is open and names a
+// new draft as the mechanism, so a withdrawal is not a bar to starting again; it is the absence of a current
+// bid.
+//
+// Before this, a withdrawn bid was returned here as though it were the supplier's current one, and every edit
+// path then refused it because it is not a draft. A supplier who withdrew to correct a price could never bid on
+// that tender again, silently and permanently.
+//
+// The window guard is unchanged: this only applies while the tender's window is open, because the
+// invitation-scoped loader is what got us here.
+//
+// The supplier also has to be active, because a suspended company may not bid.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,8 +34,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
 public sealed class StartProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IStartProposalHandler
 {
     public async Task<ProposalResult> HandleAsync(string rfqReferenceCode, CancellationToken ct)
@@ -22,16 +42,6 @@ public sealed class StartProposalHandler(AppDbContext db, IScopeContext scope, I
         if (loaded is null) return new ProposalResult.NotFoundOrNotInvited();
         var (rfq, existing) = loaded.Value;
 
-        // Start stays idempotent for a LIVE proposal - a second click returns the same draft rather
-        // than making another. A WITHDRAWN one is different: BUSINESS-PROCESSES.md §4.1 permits
-        // "re-submission allowed while window open (new draft)", so a withdrawal is not a bar to
-        // starting again, it is the absence of a current proposal.
-        //
-        // Before this, a withdrawn proposal was returned here as though it were the supplier's
-        // current one - and every edit path then refused it, because it is not a Draft. A supplier
-        // who withdrew to correct a price could never bid on that RFQ again, silently and
-        // permanently. The withdrawal window guard is unchanged: this only applies while the RFQ is
-        // SubmissionOpen, because SupplierRfqLoader.LoadInvitedAsync is what got us here.
         if (existing is not null && existing.State != ProposalState.Withdrawn)
         {
             return new ProposalResult.Success(ProposalDtoMapper.ToDto(existing, rfq.ReferenceCode));

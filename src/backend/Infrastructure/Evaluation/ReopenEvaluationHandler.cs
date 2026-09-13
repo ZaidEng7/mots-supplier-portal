@@ -1,3 +1,10 @@
+// Reopening a consolidated evaluation so the committee can revisit it after a clarification.
+//
+// The assigned, non-recused evaluators are told, which is what the written process means by the affected
+// evaluators.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,8 +24,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
 public sealed class ReopenEvaluationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IReopenEvaluationHandler
 {
     public async Task<EvaluationMutationResult> HandleAsync(ReopenEvaluationCommand command, CancellationToken ct)
@@ -36,8 +41,6 @@ public sealed class ReopenEvaluationHandler(AppDbContext db, IScopeContext scope
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
 
-        // §3.3 "Consolidated -> InProgress | In-app to affected evaluators" - the assigned, non-recused
-        // evaluators, which is what "affected" means here.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.EvaluationReopened,
             await NotificationRecipients.AssignedEvaluatorsAsync(db, evaluation.Id, ct),
             $"{NotificationTypes.EvaluationReopened}:{evaluation.Id}:{DateTimeOffset.UtcNow.Ticks}",

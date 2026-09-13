@@ -1,13 +1,16 @@
-using Microsoft.AspNetCore.Identity;
-using MotsSupplierPortal.Domain.Identity;
+// Creating the account behind an invitation: the part the staff and supplier invitations share.
+//
+// Both mint an account with an unusable random password and the email treated as already confirmed, the
+// invitation itself standing in for a separate verification step because it was sent to a real address.
+//
+// Assigning the role, writing the audit row and queueing the email stay with each caller. Only what is
+// genuinely identical between the two lives here.
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
-/// <summary>Shared account-creation core for InviteStaffHandler and InviteSupplierUserHandler:
-/// both mint an AppUser with an unusable random password and EmailConfirmed=true, the invite
-/// itself (sent to a real address) standing in for a separate verification step. Role assignment,
-/// audit logging, and background email enqueue stay in each caller - only what is genuinely
-/// identical between the two moves here.</summary>
+using Microsoft.AspNetCore.Identity;
+using MotsSupplierPortal.Domain.Identity;
+
 public static class InviteUserCreation
 {
     public sealed record Outcome(bool Succeeded, AppUser? User);

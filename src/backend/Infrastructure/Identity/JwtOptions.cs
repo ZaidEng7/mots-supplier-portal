@@ -1,15 +1,22 @@
+// The access token's configuration: the signing key, who issues it, who it is for, and how long the two tokens
+// last.
+//
+// The signing key is asymmetric, because the written security architecture requires it so that workers and
+// services can verify a token without holding the key that signs it.
+//
+// It is optional here. With no key configured, an ephemeral one is generated per process, which is a
+// development convenience.
+//
+// That is recorded as an assumption rather than a decision: production must supply a persisted key through
+// secrets management, on the rotation schedule the architecture names, because a regenerated key on every
+// restart invalidates every token already issued.
+
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
 public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";
 
-    /// <summary>PEM-encoded RSA private key (PKCS#1 or PKCS#8). SECURITY-ARCHITECTURE.md §1.1
-    /// requires RS256 (asymmetric) so workers/services can verify tokens without holding the
-    /// signing key. Optional here: when unset, an ephemeral RSA-2048 key is generated per process
-    /// (dev-only convenience) - [ASSUMPTION] production must supply a persisted key via secrets/
-    /// KMS with the §3.3 JWKS-rotation schedule; a regenerated key on every restart would
-    /// invalidate every previously issued token.</summary>
     public string? RsaPrivateKeyPem { get; init; }
 
     public required string Issuer { get; init; }

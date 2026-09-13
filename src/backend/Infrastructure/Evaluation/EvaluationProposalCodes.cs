@@ -1,3 +1,14 @@
+// One tender's bid identifiers mapped to their public codes.
+//
+// Every handler that returns an evaluation needs this, because a consolidated result carries a code and
+// nothing else now.
+//
+// One query and one answer, here rather than repeated in each handler. Six of the eight call sites used to
+// pass nothing at all, which is how a database identifier reached the screen where a manager decides who wins
+// a tender.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,16 +28,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>
-/// T-068: proposal id to §3 reference code, for one tender.
-///
-/// <para>Every handler that returns an evaluation needs this, because a consolidated result carries a
-/// code and nothing else now. One query and one answer, here rather than in each handler - six of the
-/// eight call sites used to pass nothing, which is how a GUID reached the screen where a manager
-/// decides who wins a tender.</para>
-/// </summary>
 internal static class EvaluationProposalCodes
 {
     internal static async Task<IReadOnlyDictionary<Guid, string>> ForRfqAsync(

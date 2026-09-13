@@ -1,19 +1,27 @@
-using MotsSupplierPortal.Application.Exports;
-using SkiaSharp;
+// Rendering a report to a document with both faces embedded.
+//
+// Deliberately plain. This is not a layout engine: it draws a title, a provenance block and sectioned tables, and
+// paginates when it runs out of page. Everything this feature's consumers need is that shape, and a richer one
+// would be speculative.
+//
+// The direction is right-to-left for the Arabic artefacts and left-to-right for the English ones, and it drives
+// both the bidirectional resolution and which edge a line is aligned to. A right-to-left report aligned left is not
+// merely ugly; it puts every line's start where a reader is not looking.
+//
+// A table's columns are laid out from the reading edge inward, so a right-to-left table's first column is its
+// rightmost, which is the same order the interface's own right-to-left tables use.
+//
+// The provenance block names when the artefact was generated, under whose scope, and every filter that shaped it.
+// It is the SAME model the spreadsheet exports carry, rendered for a page rather than for a spreadsheet's comment
+// rows.
+//
+// The page is measured in the units the document library works in.
 
 namespace MotsSupplierPortal.Infrastructure.Exports;
 
-/// <summary>
-/// Where a report's text sits on the page, and which way it reads.
-/// </summary>
-/// <param name="Direction">RTL for the Arabic artefacts, LTR for the English ones. Drives both the
-/// bidi resolution and which edge a line is aligned to - an RTL report aligned left is not merely
-/// ugly, it puts every line's start where a reader is not looking.</param>
-/// <param name="Title">The document title, drawn at the top of the first page.</param>
-/// <param name="Provenance">The block naming when this artefact was generated, under whose scope,
-/// and every filter that shaped it - the SAME model the CSV exports carry, rendered for a page
-/// rather than for a spreadsheet's comment rows.</param>
-/// <param name="ArtefactName">What this file is, in one phrase, for the provenance block's first line.</param>
+using MotsSupplierPortal.Application.Exports;
+using SkiaSharp;
+
 public sealed record PdfReportSpec(
     RunDirection Direction,
     string Title,
@@ -21,16 +29,8 @@ public sealed record PdfReportSpec(
     ExportProvenance Provenance,
     IReadOnlyList<ReportSection> Sections);
 
-/// <summary>
-/// FEAT-19.4: renders a report to PDF/A-shaped output with both faces embedded.
-///
-/// <para>Deliberately plain. This is not a layout engine: it draws a title, a provenance block, and
-/// sectioned tables, paginating when it runs out of page. Everything this epic's consumers need is
-/// that shape, and a richer one would be speculative.</para>
-/// </summary>
 public sealed class PdfReportWriter(ReportFonts fonts)
 {
-    // A4 at 72dpi, which is the unit SKDocument.CreatePdf works in.
     private const float PageWidth = 595f;
     private const float PageHeight = 842f;
     private const float Margin = 48f;
@@ -86,10 +86,6 @@ public sealed class PdfReportWriter(ReportFonts fonts)
         page.Finish();
     }
 
-    /// <summary>
-    /// Tracks the current page and vertical position, starting a new page when a line will not fit.
-    /// Alignment follows the report's direction: an RTL report's lines start at the right margin.
-    /// </summary>
     private sealed class PageCursor(SKDocument document, RunDirection direction)
     {
         private SKCanvas? _canvas;
@@ -123,10 +119,6 @@ public sealed class PdfReportWriter(ReportFonts fonts)
             _y += size * 1.6f;
         }
 
-        /// <summary>
-        /// One table row. Columns are laid out from the reading edge inward, so an RTL table's first
-        /// column is its rightmost - the same order the SPA's RTL tables use.
-        /// </summary>
         public void Row(TextShaper shaper, IReadOnlyList<string> cells, float size, SKColor colour)
         {
             if (cells.Count == 0) return;

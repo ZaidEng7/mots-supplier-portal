@@ -1,22 +1,42 @@
+// Minting the signed access token, and what it carries.
+//
+// The written security architecture fixes the contents: the subject, the roles, the compact permission set, the
+// company or the organization where there is one, how the user authenticated, a token identifier, the issue and
+// expiry times, the issuer and the audience, signed asymmetrically.
+//
+//
+// WARNING FOR ANYONE ADDING A ROLE CHECK
+//
+// The roles go into a CUSTOM claim, and the framework's role-claim setting is deliberately not pointed at it,
+// because authorisation here is permission-based.
+//
+// The consequence is that the framework's own is-in-role test matches NOTHING and returns false for every
+// user, including the system administrator. It compiles, it reads correctly, and it silently denies everyone,
+// which looks like a working guard if you only check that an unauthorised caller is refused.
+//
+// That nearly shipped in the background-jobs dashboard filter. Read the roles claim directly instead, as that
+// filter now does.
+//
+//
+// ONE REPRESENTATION OF THE PERMISSIONS, NOT TWO
+//
+// The token used to also carry a space-joined list of the same permissions under a second name.
+//
+// Nothing ever read it: the route filter reads the compact set exclusively, which was confirmed by searching
+// the backend, the frontend and the architecture document's own table of token contents rather than assumed.
+//
+// Two representations of one fact is the exact pattern already responsible for four defects here, so it was
+// removed rather than kept as a second source that could drift from the first the way other duplicated
+// vocabularies did.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MotsSupplierPortal.Application.Common;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>SECURITY-ARCHITECTURE.md §1.1 token-contents table: sub, roles, perms (compact
-/// permission set), supplierId?, orgId?, amr, jti, iat/exp, iss, aud - signed RS256.
-///
-/// <para>Task #18/MSP-92: used to also emit a space-joined "scope" claim carrying the same
-/// permissions as "perms", one per Claim. Confirmed by grep across backend, frontend, and this
-/// doc's own token-contents table that nothing ever read "scope" - PermissionEndpointFilter reads
-/// "perms" exclusively (see the roles-claim warning below for what happens when a claim looks
-/// read but isn't). Two representations of one fact, the exact pattern already responsible for
-/// four defects in this codebase; removed rather than kept as a second source that could drift
-/// from "perms" the same way the reviewer-flag/DTO-key vocabularies did (MSP-85).</para>
-/// </summary>
 public sealed class JwtTokenService(JwtSigningKeyProvider signingKeyProvider, IOptions<JwtOptions> options) : IJwtTokenService
 {
     private readonly JwtOptions _options = options.Value;
@@ -43,15 +63,6 @@ public sealed class JwtTokenService(JwtSigningKeyProvider signingKeyProvider, IO
 
         if (supplierId is not null) claims.Add(new Claim("supplierId", supplierId.Value.ToString()));
         if (organizationId is not null) claims.Add(new Claim("organizationId", organizationId.Value.ToString()));
-        // WARNING FOR ANYONE ADDING A ROLE CHECK: these go into a CUSTOM "roles" claim, and
-        // TokenValidationParameters.RoleClaimType is deliberately not set (authorization here is
-        // permission-based - see PermissionEndpointFilter, which reads "perms").
-        //
-        // The consequence is that ClaimsPrincipal.IsInRole() matches NOTHING and returns false for
-        // every user, including system_admin. It compiles, it reads correctly, and it silently
-        // denies everyone - which looks like a working guard if you only check that an
-        // unauthorised caller is refused. That nearly shipped in the Hangfire dashboard filter
-        // (MSP-87); read the roles claim directly instead, as that filter now does.
         claims.AddRange(roles.Select(r => new Claim("roles", r)));
         claims.AddRange(permissions.Select(p => new Claim("perms", p)));
         claims.AddRange(amr.Select(a => new Claim("amr", a)));

@@ -1,3 +1,36 @@
+// Routing a recommendation for approval, and moving the tender into its approval state.
+//
+//
+// IT REFUSES EVERY STATE OUTSIDE THE LEGITIMATE THREE
+//
+// This used to move the tender only from one state and otherwise do nothing, which was correct for the
+// legitimate re-route cycle after a rejection, where moving it again would wrongly throw.
+//
+// But it also silently did nothing for every OTHER state: cancelled, awarded, completed. The award could advance
+// to awaiting approval on a dead or already-concluded tender, which is a real cross-aggregate gap.
+//
+// So the states are named and everything else is refused, rather than only the happy path being handled. The
+// written process's own source state for this step is the recommendation state; the older one stays because
+// every tender written before that state existed reaches here from it, and the approval state stays for the
+// reject-and-re-route cycle.
+//
+// The new approval step is forced to the inserted state explicitly, for the reason the evaluation assignment
+// handler's header explains.
+//
+//
+// THE APPROVER POOL IS NOTIFIED, AND THAT IS A DOCUMENTED JUDGEMENT CALL
+//
+// Nothing in the identity domain resolves who "the approver" is. The approval permission is a claim held by a
+// role, not a single identifiable person and not a queryable list of candidates.
+//
+// A segregation rule saying the approver must differ from the recommender does not by itself say WHICH holder of
+// that claim should be paged.
+//
+// This is the same open design question the award work flagged when it was first built rather than a new gap, and
+// it is reported rather than answered by inventing a routing rule.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -14,24 +47,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Awards;
-
-/// <summary>FEAT-14.2/FR-AWD-002: routes the recommendation for approval and, in the same
-/// handler/SaveChanges, moves the RFQ itself into AwardApproval (Rfq.EnterAwardApproval's own doc
-/// comment covers why that guards on UnderEvaluation rather than a Recommendation state nothing can
-/// produce yet).
-///
-/// <para><b>EPIC-13/FEAT-13.3 audit finding, left as a documented judgment call rather than a code
-/// fix:</b> unlike RfqPublishHandler/CancelRfqHandler/AssignEvaluatorsHandler (all fixed this epic
-/// to notify their real recipients), no email is enqueued here to "the approver" - because no
-/// mechanism anywhere in the Identity domain resolves who that is. Permissions.AwardApprove is a
-/// CLAIM held by a role (ProcurementManager), not a single identifiable user or a queryable list of
-/// candidate approvers; a single-approver segregation-of-duties model (BRULE-077: approver must
-/// differ from recommender) does not by itself say WHICH holder of that claim should be paged. This
-/// is the same open design question EPIC-14 already flagged when Award was first built, not a new
-/// gap introduced here - notifying "everyone with AwardApprove" would be a guess this codebase's own
-/// audit trail conventions do not support without a real approver-assignment concept
-/// (EPIC-15/notifications scope, unbuilt).</para></summary>
 public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRouteAwardForApprovalHandler
 {
     public async Task<AwardMutationResult> HandleAsync(RouteAwardForApprovalCommand command, CancellationToken ct)
@@ -40,18 +55,6 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
         if (loaded is null || loaded.Value.Award is null) return new AwardMutationResult.NotFoundOrOutOfScope();
         var (rfq, award) = loaded.Value;
 
-        // EPIC-13/FEAT-13.2 stage-gate audit: this used to be `if (rfq.State == UnderEvaluation)
-        // rfq.EnterAwardApproval();` - correct for the legitimate re-route cycle (RFQ already
-        // AwardApproval from a prior Reject -> ReRecommend -> RouteForApproval pass, where a
-        // second EnterAwardApproval() call would wrongly throw), but it silently no-op'd for EVERY
-        // other RFQ state too - Cancelled, Awarded, Completed - letting Award.RouteForApproval()
-        // succeed unconditionally regardless of RFQ state, a real cross-aggregate gap: the Award
-        // could advance to PendingApproval on a dead or already-concluded RFQ. Explicitly refuse
-        // every state outside the two legitimate ones instead of only handling the happy path.
-        // T3-36 added Recommendation, which is §3.1's OWN source state for this row:
-        // "Recommendation | AwardApproval | Route for approval | `procurement_officer` /
-        // `award.recommend`". UnderEvaluation stays because every RFQ written before T3-36 reaches
-        // here from it, and AwardApproval stays for the legitimate reject-and-re-route cycle.
         if (rfq.State is not (RfqState.Recommendation or RfqState.UnderEvaluation or RfqState.AwardApproval))
         {
             return new AwardMutationResult.InvalidState($"Cannot route award for approval: the RFQ is in state '{rfq.State}'.");
@@ -67,17 +70,11 @@ public sealed class RouteAwardForApprovalHandler(AppDbContext db, IScopeContext 
         {
             return new AwardMutationResult.InvalidState(ex.Message);
         }
-        // EF's change-tracker misclassifies a brand-new child appended to an already-Included
-        // collection as Modified (not Added) when the SAME SaveChanges also updates the owning
-        // Award row's own State column - see EPIC-11's AssignEvaluatorsHandler for the first time
-        // this was found; forcing the state explicitly for the row this call actually created
-        // sidesteps that misdetection rather than relying on DetectChanges' fixup heuristic.
         foreach (var approval in award.Approvals.Where(a => !existingApprovalIds.Contains(a.Id)))
         {
             db.Entry(approval).State = EntityState.Added;
         }
 
-        // §3.4 "Recommended -> PendingApproval | Email + in-app to approver(s)".
         NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardRoutedForApproval,
             await NotificationRecipients.AwardApproversAsync(db, rfq.OrganizationId, ct),
             $"{NotificationTypes.AwardRoutedForApproval}:{award.Id}:{award.RecommendationRevision}",

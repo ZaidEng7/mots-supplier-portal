@@ -1,3 +1,7 @@
+// Reading one tender's award.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -13,8 +17,6 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Awards;
 
 public sealed class GetAwardHandler(AppDbContext db, IScopeContext scope) : IGetAwardHandler
 {

@@ -1,3 +1,13 @@
+// Attaching documents to a bid, and removing them.
+//
+// The endpoint has already stored the file, which is the same convention tender attachments use.
+//
+// There is no quarantine-first flow here either. Scanning is tagged as needing business confirmation, and bid
+// documents are scanned on first access instead, which is the same deliberate scope decision the tender
+// attachments took.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,12 +22,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>FEAT-09.3/FR-PRP-004: stored via IFileStorage directly, same convention as
-/// RfqAttachment (no AV-scan quarantine flow here either - OQ-014 already tags AV scanning
-/// generally as [REQUIRES BUSINESS CONFIRMATION], same deliberate scope decision as RFQ
-/// attachments).</summary>
 public sealed class ManageProposalDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageProposalDocumentHandler
 {
     public async Task<ProposalResult> AddAsync(AddProposalDocumentCommand command, CancellationToken ct)

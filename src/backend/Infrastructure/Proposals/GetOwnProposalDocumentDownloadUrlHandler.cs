@@ -1,3 +1,14 @@
+// A supplier opens a file on their own bid.
+//
+// No envelope question arises here. The two-envelope rule keeps a buyer from seeing pricing before the gate
+// opens; it has nothing to say about a bidder reading their own bid, and a rule applied where it does not
+// belong is how a supplier ends up locked out of their own upload.
+//
+// The document is resolved THROUGH the bid, which is itself resolved with the ownership test inside the
+// query, so a document identifier belonging to somebody else's bid is a miss rather than a leak.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
@@ -6,20 +17,6 @@ using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>
-/// T-028's supplier half: a supplier reading a file on their own proposal.
-///
-/// <para>No envelope question arises here. The two-envelope rule keeps a buyer from seeing pricing
-/// before the technical gate opens; it has nothing to say about a bidder reading their own bid, and
-/// a rule applied where it does not belong is how a supplier ends up locked out of their own
-/// upload.</para>
-///
-/// <para>The document is resolved THROUGH the proposal, which is itself resolved through
-/// <see cref="ProposalLoader.LoadByProposalCodeAsync"/> - so the SupplierId predicate is in the
-/// query and a document id belonging to someone else's proposal is a miss, not a leak.</para>
-/// </summary>
 public sealed class GetOwnProposalDocumentDownloadUrlHandler(
     AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger,
     AttachmentScanner attachmentScanner)

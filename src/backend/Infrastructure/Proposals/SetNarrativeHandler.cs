@@ -1,3 +1,7 @@
+// Setting a bid's narrative, the free text in its technical envelope.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -11,8 +15,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Infrastructure.Proposals;
 
 public sealed class SetNarrativeHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISetNarrativeHandler
 {

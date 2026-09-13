@@ -1,21 +1,19 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a delivery term maps to its table, and the eleven the standard defines.
+//
+// The code column is three characters, like the currency table and unlike the other reference tables. The
+// standard's codes are three letters, and a column that accepts fifty invites free text back in through
+// the administration screen.
+//
+// All eleven terms are seeded, in the standard's own order: the seven for any mode of transport, then the
+// four for sea and inland waterway.
+//
+// The English name is the standards body's own. The Arabic is the term as Syrian tender documents write
+// it, with the code kept inside the name, because that is how a bidder reads it on paper.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class IncotermConfiguration : IEntityTypeConfiguration<Domain.ReferenceData.Incoterm>
 {
@@ -23,18 +21,11 @@ internal sealed class IncotermConfiguration : IEntityTypeConfiguration<Domain.Re
     {
         entity.ToTable("incoterm", "reference");
         entity.HasKey(i => i.Id);
-        // Three, like Currency and unlike the other three tables: the standard's codes are three
-        // letters, and a column that accepts fifty invites a free-text value back in through the
-        // admin surface.
         entity.Property(i => i.Code).HasMaxLength(3).IsRequired();
         entity.HasIndex(i => i.Code).IsUnique();
         entity.Property(i => i.NameAr).HasMaxLength(150).IsRequired();
         entity.Property(i => i.NameEn).HasMaxLength(150).IsRequired();
 
-        // T-072/FR-ADM-004. Incoterms 2020, all eleven, in the standard's own order: the seven
-        // for any mode of transport, then the four for sea and inland waterway. The English name
-        // is the ICC's; the Arabic is the term as Syrian tender documents write it, with the code
-        // kept in the name because that is how a bidder reads it on paper.
         entity.HasData(
             new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000601"), Code = "EXW", NameAr = "تسليم المصنع", NameEn = "Ex Works" },
             new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000602"), Code = "FCA", NameAr = "تسليم الناقل", NameEn = "Free Carrier" },

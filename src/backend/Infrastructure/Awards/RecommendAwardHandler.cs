@@ -1,3 +1,55 @@
+// An officer recommends a winner.
+//
+// Two facts must hold first, and both live outside the award: the evaluation must be finalised, and the
+// recommended bid must have passed technical qualification in that finalised evaluation.
+//
+// They are resolved here before the domain method is called, which is the same split every other
+// cross-aggregate guard in this codebase uses.
+//
+// The same endpoint handles the first recommendation and a re-recommendation after a rejection, because the
+// written table names the same permission and the same actor for both.
+//
+//
+// THE WINNER ARRIVES AS A PUBLIC CODE, RESOLVED WITHIN THIS TENDER
+//
+// So a code from another tender resolves to nothing here rather than to somebody else's bid.
+//
+// The internal identifier is still accepted, because removing a request field is a breaking change and this
+// endpoint shipped taking one. The code wins when both arrive: it is the identifier the contract sanctions, and
+// a caller sending two that disagree has a bug either way.
+//
+//
+// AN UNRESOLVED TIE AT THE TOP BLOCKS A RECOMMENDATION
+//
+// Because the ordering between the tied bids came from nothing a rule decided.
+//
+// It is checked on the top rank rather than on the recommended bid. Recommending the loser of an unresolved tie
+// is the same problem wearing different clothes, and both are refused until a person has put their name to the
+// ordering.
+//
+//
+// ELIGIBILITY CAN NO LONGER MEAN "STILL SUBMITTED"
+//
+// That test was written when the middle of the bid lifecycle was unreachable and every bid sat in submitted
+// until it was awarded.
+//
+// The written award path now runs through shortlisted, so the eligible states are the three a live bid can be in
+// before the offer. Submitted stays valid for a tender that never went through evaluation intake.
+//
+//
+// RECOMMENDING IS ALSO WHAT MOVES THE TENDER
+//
+// The written table names THIS operation's permission for the tender's own move, so recording the recommendation
+// is the trigger rather than a second endpoint.
+//
+// It is guarded on the shortlisting state, so a tender that reached the award path before that state existed is
+// untouched and still routes directly.
+//
+// The approver POOL is notified, because nothing in the identity domain resolves a single named approver from
+// the approval permission. Reported as the open business question it is.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -14,14 +66,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Awards;
-
-/// <summary>FEAT-14.1/FR-AWD-001, BRULE-071: "recorded only after evaluation is Finalized and the
-/// recommended proposal passes all thresholds" - both cross-aggregate facts (Evaluation lives in
-/// its own aggregate), resolved here before calling the domain method, same split as every other
-/// cross-aggregate guard in this codebase. Handles both the first recommendation (no Award row yet)
-/// and a re-recommendation after Rejected (Award.ReRecommend) through the same endpoint - the table
-/// names both `award.recommend`, same actor.</summary>
 public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRecommendAwardHandler
 {
     public async Task<AwardMutationResult> HandleAsync(RecommendAwardCommand command, CancellationToken ct)
@@ -36,13 +80,6 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
         {
             return new AwardMutationResult.InvalidState("Cannot recommend an award: the evaluation has not been finalized.");
         }
-        // T-068: the winner arrives as a public code, resolved to a bid ON THIS TENDER before anything
-        // else looks at it - a code from another tender resolves to nothing here rather than to
-        // somebody else's proposal.
-        //
-        // The GUID is still accepted, because removing a request field is a breaking change and this
-        // endpoint shipped taking one (D-69). The code wins when both arrive: it is the identifier
-        // §3 sanctions, and a caller sending two that disagree has a bug either way.
         var winner = command.WinningProposalCode is { Length: > 0 } code
             ? await db.Proposals.FirstOrDefaultAsync(p => p.ReferenceCode == code && p.RfqId == rfq.Id, ct)
             : command.WinningProposalId is { } id
@@ -60,22 +97,12 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
             return new AwardMutationResult.InvalidState("Cannot recommend this proposal: it did not pass technical qualification in the finalized evaluation.");
         }
 
-        // A-1/BRULE-069: an unresolved tie at the TOP of the ranking blocks a recommendation, because
-        // the ordering between the tied bids came from nothing a rule decided. Checked on rank 1
-        // rather than on the recommended proposal: recommending the loser of an unresolved tie is the
-        // same problem wearing different clothes, and both are refused until a person has put their
-        // name to the ordering.
         if (evaluation.Results.Any(r => r.TieUnresolved && r.Rank == 1))
         {
             return new AwardMutationResult.InvalidState(
                 "Cannot recommend an award: the top of the ranking is a tie that no tie-break rule resolved. Resolve it with a reason first.");
         }
         var proposal = winner;
-        // T-051: proposals now reach UnderReview and Shortlisted, so eligibility can no longer mean
-        // "still Submitted" - that predicate was written when the middle of the lifecycle was
-        // unreachable and every proposal sat in Submitted until it was awarded. §4.1's award path is
-        // Shortlisted -> AwardOffered -> Awarded; Submitted stays valid for an RFQ that never went
-        // through evaluation intake.
         if (proposal is null || proposal.State is not (ProposalState.Submitted or ProposalState.UnderReview or ProposalState.Shortlisted))
         {
             return new AwardMutationResult.InvalidState("The recommended proposal is not eligible for award.");
@@ -103,11 +130,6 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        // T3-36. §3.1: "Shortlisting | Recommendation | Record recommendation |
-        // `procurement_officer`,`procurement_manager` / `award.recommend`". Same reasoning as
-        // shortlisting: the table names THIS operation's permission for the RFQ's own move, so
-        // recording the recommendation is the trigger. Guarded on Shortlisting, so an RFQ that
-        // reached UnderEvaluation before T3-36 is untouched and still routes directly.
         if (rfq.State == RfqState.Shortlisting)
         {
             rfq.RecordRecommendation();
@@ -122,10 +144,6 @@ public sealed class RecommendAwardHandler(AppDbContext db, IScopeContext scope, 
                 toState: nameof(RfqState.Recommendation), ct: ct);
         }
 
-        // §3.4 "- -> Recommended | In-app to approver" and "Rejected -> Recommended | In-app to
-        // approver". The APPROVER POOL: nothing in the Identity domain resolves a single named
-        // approver from the AwardApprove claim, so this notifies everyone who could approve it.
-        // Reported as the open business question it is.
         NotificationOutbox.EnqueueMany(db,
             action == "award.re_recommended" ? NotificationTypes.AwardReRecommended : NotificationTypes.AwardRecommended,
             await NotificationRecipients.AwardApproversAsync(db, rfq.OrganizationId, ct),

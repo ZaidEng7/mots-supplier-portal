@@ -1,3 +1,39 @@
+// Issuing the award: the winner, the losers, the tender and the integration request, in one commit.
+//
+// One save, so there is never a window in which the winner is awarded but a loser is still under review, or the
+// tender has not moved yet.
+//
+// The comparison snapshot is captured from the same comparison the buyer's own screen builds, frozen as a
+// document on the award at this exact moment, and never re-queried live once the award is issued.
+//
+//
+// THE STATES IN THE LOSERS' QUERY ARE NOT OPTIONAL
+//
+// After evaluation intake, bids sit under review or shortlisted, and a filter on submitted alone would silently
+// leave them in an evaluation state forever while the tender completed around them.
+//
+// The offered state joins the same list, and that one is load-bearing: approval now moves the winner there, so
+// without it the WINNER falls out of this query and is never awarded while the tender completes around it.
+//
+// The third time in three passes that a widened state machine had a query filtering on the states either side of
+// the new one.
+//
+//
+// EVERY BID'S OWN TRANSITION IS AUDITED
+//
+// This loop changes every bid's state, and it used to log nothing under the bid: only the award and the tender
+// were audited, even though the written process names the awarded and not-selected outcomes as their own events.
+//
+//
+// THE EMAILS GO OUT AFTER THE STATE CHANGE PERSISTS
+//
+// Which is the established pattern here.
+//
+// The winner gets an award notice and every non-winning supplier gets a regret notice, and no commercial detail
+// about the winner is ever put in a loser's email: only the fact of the outcome.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -14,14 +50,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Awards;
-
-/// <summary>FEAT-14.4/14.5/14.6/14.7, FR-AWD-004/005/006/008: "execute award" - the whole
-/// win/lose/RFQ/outbox side effect happens inside ONE SaveChangesAsync call, so there is never a
-/// window where the winner is Awarded but a loser is still Submitted, or the RFQ hasn't moved yet.
-/// The comparison snapshot (FEAT-14.7) is captured from the SAME IGetComparisonHandler EPIC-12
-/// already built, frozen as JSON on the Award row at this exact moment - never re-queried live once
-/// Awarded.</summary>
 public sealed class ExecuteAwardHandler(
     AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IGetComparisonHandler comparisonHandler,
     IBackgroundJobClient backgroundJobs)
@@ -46,14 +74,6 @@ public sealed class ExecuteAwardHandler(
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        // The losers. Same widening as the winner's eligibility check above, and for the same
-        // reason: after evaluation intake these sit in UnderReview or Shortlisted, and a filter on
-        // Submitted alone would silently leave them in an evaluation state forever while the RFQ
-        // completed around them.
-        // T-064: AwardOffered joins the predicate, and it is not optional - approve now moves the
-        // winner there, so without it the WINNER falls out of this query and is never awarded while
-        // the RFQ completes around it. Third batch running in which a widened state machine had a
-        // query filtering on the states either side of it.
         var proposals = await db.Proposals
             .Where(p => p.RfqId == rfq.Id
                 && (p.State == ProposalState.Submitted
@@ -63,10 +83,6 @@ public sealed class ExecuteAwardHandler(
             .ToListAsync(ct);
         foreach (var proposal in proposals)
         {
-            // EPIC-13/FEAT-13.3 audit finding: this loop mutates every Proposal's own State but
-            // previously logged nothing under "Proposal" - only the Award and Rfq rows were
-            // audited, even though BUSINESS-PROCESSES.md §4.1 names proposal.awarded/
-            // proposal.not_selected as their own audited events.
             if (proposal.Id == award.WinningProposalId)
             {
                 proposal.Award();
@@ -95,10 +111,6 @@ public sealed class ExecuteAwardHandler(
             fromState: nameof(RfqState.AwardApproval), toState: nameof(RfqState.Awarded), ct: ct);
         await db.SaveChangesAsync(ct);
 
-        // Notify after the state change persists (InviteSupplierHandler's own established
-        // pattern). Winner gets an award notice; every non-winning supplier gets a regret notice -
-        // BRULE-082: no commercial detail of the winner is ever put in the loser's email, only the
-        // fact of the outcome.
         var winnerSupplierId = proposals.First(p => p.Id == award.WinningProposalId).SupplierId;
         var winnerUserId = await db.Users.Where(u => u.SupplierId == winnerSupplierId)
             .Select(u => u.Id).FirstOrDefaultAsync(ct);

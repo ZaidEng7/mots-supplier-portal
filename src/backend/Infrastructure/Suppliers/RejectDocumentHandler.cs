@@ -1,3 +1,13 @@
+// A reviewer refuses one uploaded document, with a reason.
+//
+// The supplier is loaded and tracked so the bumped version can be read back for the response's version
+// header, the same way the approval handler does it.
+//
+// The supplier is then emailed. The filename and the reason both live on the document row, so the job reads
+// them rather than the background-job store holding them.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -7,8 +17,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IRejectDocumentHandler
 {
@@ -36,7 +44,6 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
 
         await auditLogger.LogAsync("SupplierDocument", document.Id, "document_rejected", scope.UserId, referenceCode: document.ReferenceCode, reason: reason, ct: ct);
 
-        // See the approve handler: tracked so the bumped version can be read back for the ETag.
         var supplier = await db.Suppliers.FirstAsync(s => s.Id == document.SupplierId, ct);
         await db.SaveChangesAsync(ct);
 
@@ -44,8 +51,6 @@ public sealed class RejectDocumentHandler(AppDbContext db, IScopeContext scope, 
             .Select(u => (Guid?)u.Id).FirstOrDefaultAsync(ct);
         if (userId is not null)
         {
-            // The filename and the rejection reason are both on the document row, so the job reads
-            // them rather than the job store holding them (MSP-89).
             backgroundJobs.Enqueue<EmailJobs>(job => job.SendDocumentRejectedEmailAsync(userId.Value, document.Id, CancellationToken.None));
         }
 

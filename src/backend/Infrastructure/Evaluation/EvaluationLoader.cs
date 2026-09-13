@@ -1,3 +1,33 @@
+// The shared loads every evaluation handler starts from, and the evaluator's sealed view of the bids.
+//
+// The buyer's load scopes to the caller's own organization through the tender, which is the same shape the
+// tender loader has.
+//
+// The evaluator's load scopes instead to "this caller holds an active assignment on this evaluation", and
+// deliberately not to an organization, because an evaluator need not belong to the procuring organization.
+//
+//
+// THE TWO-ENVELOPE SEAL IS THE PROJECTION, NOT A FILTER APPLIED AFTERWARDS
+//
+// The evaluator's view of the bids is selected in the database and never names a priced line, a currency, a
+// payment term or any other commercial column.
+//
+// So no pricing row is loaded into memory for an evaluator to leak by accident, and adding one would mean
+// editing this projection rather than forgetting a filter. The bid read model's own header makes the same
+// point.
+//
+//
+// DOCUMENTS ARE TECHNICAL ONLY, AND ARE NOT FILTERED ON SCAN STATE
+//
+// That second half is a correction to this method's first version. Bid documents are scanned on first ACCESS,
+// so nothing scans them until a download happens, and filtering the list to scanned-clean files made it
+// permanently empty, in production as well as in the test that caught it.
+//
+// Unscanned means "not yet examined" rather than "suspect". Listing a file is not serving it, and the download
+// route still scans and still refuses.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,15 +47,11 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
 internal static class EvaluationLoader
 {
     public static IQueryable<EvaluationAggregate> IncludeAll(this DbSet<EvaluationAggregate> set) =>
         set.Include(e => e.Criteria).Include(e => e.Assignments).Include(e => e.Scores).Include(e => e.Results).AsSplitQuery();
 
-    /// <summary>Buyer-side: scoped to the caller's own Organization via the bound Rfq, same shape
-    /// as RfqLoader.LoadScopedAsync.</summary>
     public static async Task<(Rfq Rfq, EvaluationAggregate Evaluation)?> LoadScopedByOrgAsync(AppDbContext db, IScopeContext scope, string rfqReferenceCode, CancellationToken ct)
     {
         if (scope.OrganizationId is null) return null;
@@ -35,9 +61,6 @@ internal static class EvaluationLoader
         return evaluation is null ? null : (rfq, evaluation);
     }
 
-    /// <summary>Evaluator-side: scoped to "this caller holds an active assignment on this
-    /// evaluation" - deliberately NOT to OrganizationId (an evaluator need not belong to the
-    /// procuring organization).</summary>
     public static async Task<(Rfq Rfq, EvaluationAggregate Evaluation)?> LoadScopedByAssignmentAsync(AppDbContext db, IScopeContext scope, string rfqReferenceCode, CancellationToken ct)
     {
         if (scope.UserId is null) return null;
@@ -52,23 +75,6 @@ internal static class EvaluationLoader
     public static Task<List<Guid>> SubmittedProposalIdsAsync(AppDbContext db, Guid rfqId, CancellationToken ct) =>
         db.Proposals.Where(p => p.RfqId == rfqId && ProposalStates.InEvaluation.Contains(p.State)).Select(p => p.Id).ToListAsync(ct);
 
-    /// <summary>
-    /// T-067: every bid under evaluation on this RFQ, projected to its TECHNICAL envelope.
-    ///
-    /// <para><b>The seal is the projection, not a filter applied afterwards.</b> This is a
-    /// <c>Select</c> in SQL that never names <c>ProposalItem</c>, <c>CurrencyCode</c>,
-    /// <c>PaymentTerms</c> or any other commercial column - so no pricing row is loaded into memory
-    /// for an evaluator to leak by accident, and adding one would mean editing this projection
-    /// rather than forgetting a filter. Same reasoning as ProposalDtoMapper's note on why the
-    /// two-envelope seal was "not a filter applied to a shared read".</para>
-    ///
-    /// <para>Documents are Technical-envelope only (D-7). They are NOT filtered on scan state, and
-    /// that is a correction to this method's first version: proposal documents are scanned on first
-    /// ACCESS (D-10), so nothing scans them until a download happens - filtering the list to Clean
-    /// made it permanently empty, in production as well as in the test that caught it. PendingScan
-    /// means "not yet examined", not "suspect"; listing a file is not serving it, and the download
-    /// route still scans and still refuses. See DECISIONS-TAKEN.md D-20.</para>
-    /// </summary>
     public static Task<List<EvaluatorBid>> EvaluatorBidsAsync(AppDbContext db, Guid rfqId, CancellationToken ct) =>
         db.Proposals
             .Where(p => p.RfqId == rfqId && ProposalStates.InEvaluation.Contains(p.State))

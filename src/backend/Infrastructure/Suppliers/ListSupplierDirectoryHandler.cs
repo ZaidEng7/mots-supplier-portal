@@ -1,20 +1,44 @@
+// The directory a buyer browses to find a company to invite.
+//
+//
+// APPROVED APPLICATIONS ONLY, AND THAT IS A RULE RATHER THAN A FILTER
+//
+// An invitation can only be sent to an approved supplier, because the invitation handler refuses anything
+// else. A directory listing applicants would be a list of companies a buyer cannot act on.
+//
+// The lifecycle state is shown rather than filtered out, for the opposite reason. A suspended supplier a
+// buyer knows is registered must be findable, with the suspension visible, instead of absent with no
+// explanation.
+//
+//
+// THE THREE FILTERS
+//
+// The category goes through the link table rather than a column, because a supplier carries several
+// categories and they are recorded as links for that reason.
+//
+// The text search covers both display names and the reference code, case-insensitively. A buyer searching
+// for a company types the name they know, which may be in either language, and an officer with a code in an
+// email types the code.
+//
+// The total is counted over the filtered set before the cursor narrows it, and only when asked for.
+//
+//
+// TWO FIGURES ON EACH ROW
+//
+// Only active catalogue entries are counted, because a buyer browsing for capability is asking what this
+// supplier currently offers, and a deactivated entry is one they withdrew.
+//
+// The address is the head office if there is one and any address otherwise. A row showing no city for a
+// company that recorded a branch address reads as missing data.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// SCR-402: the procurement directory.
-///
-/// <para><b>Approved onboarding only, and that is a rule rather than a filter.</b> An invitation can only
-/// be sent to an approved supplier - <c>InviteSupplierHandler</c> refuses anything else - so a directory
-/// listing applicants would be a list of companies a buyer cannot act on. The lifecycle state is listed
-/// rather than filtered out for the opposite reason: a suspended supplier a buyer knows is registered must
-/// be findable, with the suspension visible, instead of absent with no explanation.</para>
-/// </summary>
 public sealed class ListSupplierDirectoryHandler(AppDbContext db) : IListSupplierDirectoryHandler
 {
     public async Task<ListEnvelope<SupplierDirectoryItemDto>> HandleAsync(
@@ -33,16 +57,11 @@ public sealed class ListSupplierDirectoryHandler(AppDbContext db) : IListSupplie
 
         if (category is not null)
         {
-            // Through the link table rather than a column: a supplier carries several categories and
-            // FEAT-04.7 records them as links for that reason.
             query = query.Where(s => db.CategoryLinks.Any(l => l.SupplierId == s.Id && l.CategoryCode == category));
         }
 
         if (!string.IsNullOrWhiteSpace(q))
         {
-            // Both display names and the reference code, case-insensitively. A buyer searching for a
-            // company types the name they know, which may be in either language, and a procurement officer
-            // with a code in an email types the code.
             var pattern = $"%{q.Trim()}%";
             query = query.Where(s =>
                 EF.Functions.ILike(s.DisplayNameEn, pattern)
@@ -50,7 +69,6 @@ public sealed class ListSupplierDirectoryHandler(AppDbContext db) : IListSupplie
                 || EF.Functions.ILike(s.ReferenceCode, pattern));
         }
 
-        // §6.1: counted over the filtered set before the cursor narrows it, and only when asked.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (SupplierDirectoryCursor.TryDecode(cursor, out var from))
@@ -71,11 +89,7 @@ public sealed class ListSupplierDirectoryHandler(AppDbContext db) : IListSupplie
                 s.LifecycleState,
                 CategoryCodes = db.CategoryLinks.Where(l => l.SupplierId == s.Id)
                     .OrderBy(l => l.CategoryCode).Select(l => l.CategoryCode).ToList(),
-                // Active offerings only: a buyer browsing for capability is asking what this supplier
-                // currently offers, and a deactivated row is a catalogue entry they withdrew.
                 OfferingCount = db.Offerings.Count(o => o.SupplierId == s.Id && o.IsActive),
-                // The head office if there is one, otherwise any address. A directory row showing no city
-                // for a company that recorded a branch address reads as missing data.
                 Address = db.Addresses.Where(a => a.SupplierId == s.Id)
                     .OrderBy(a => a.Kind == AddressKind.HeadOffice ? 0 : 1)
                     .Select(a => new { a.City, a.RegionCode })

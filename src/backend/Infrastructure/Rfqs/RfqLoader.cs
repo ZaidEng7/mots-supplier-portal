@@ -1,3 +1,18 @@
+// The shared load every buyer-side tender handler starts from.
+//
+// It scopes to the caller's own organization, because the written rule says a tender is owned by the officer
+// who created it and scoped to their organization, and authoring across organizations is prohibited.
+//
+// A caller with no organization, a supplier or a platform administrator, can never see or touch any tender.
+// That is the same no-scope-no-access shape the supplier side has.
+//
+// The seven child collections are fetched as separate statements rather than one join. Four sibling
+// collections in a single join multiply into a product of rows. That was not the cause of a real concurrency
+// defect found while building this, which the submit handler's own header explains, but it is a real and
+// separate performance concern worth avoiding once this many collections are included together.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,20 +29,8 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>Shared loader: every RFQ handler in this file row-scopes to the caller's own
-/// OrganizationId (BRULE-029: "An RFQ is created and owned by a procurement_officer and is scoped
-/// to their Organization; cross-org authoring is prohibited"). A null scope.OrganizationId (e.g. a
-/// supplier-side or platform caller with no org membership) can never see or touch any RFQ - same
-/// "no scope, no access" pattern as scope.SupplierId is null on the supplier side.</summary>
 internal static class RfqLoader
 {
-    // AsSplitQuery: four sibling collections in one single JOIN query produces a cartesian-product
-    // row multiplication (Items x Requirements x Attachments x Approvals) - not itself the cause
-    // of a real concurrency bug found while building this (see SubmitRfqForReviewHandler's own
-    // comment for that one), but a real, separate performance concern worth avoiding regardless
-    // once four sibling collections are all included together.
     public static IQueryable<Rfq> IncludeAll(this DbSet<Rfq> set) =>
         set.Include(r => r.Items).Include(r => r.Requirements).Include(r => r.Attachments).Include(r => r.Approvals)
             .Include(r => r.Invitations).Include(r => r.Clarifications).Include(r => r.Addenda)

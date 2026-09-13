@@ -1,3 +1,18 @@
+// One bid as buyer staff may see it, which depends on what the tender's state permits.
+//
+// Sealed means sealed: a not-found on the detail rather than an empty shell. An empty shell would confirm the
+// bid exists, which is the fact the seal is protecting.
+//
+// Prices, totals, the currency and the commercial terms appear only once the commercial envelope is open.
+// Quantities and lead times are technical, so they are always there.
+//
+// The three child collections are fetched as separate statements rather than one join. Three siblings in a
+// single join multiply out, so a bid with twenty lines, fifteen answers and five documents costs fifteen
+// hundred rows to read forty entities, with every scalar on the bid repeated in each. Three round trips is the
+// cheaper shape.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
@@ -5,8 +20,6 @@ using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Proposals;
 
 public sealed class GetBuyerProposalHandler(AppDbContext db, IScopeContext scope) : IGetBuyerProposalHandler
 {
@@ -17,13 +30,8 @@ public sealed class GetBuyerProposalHandler(AppDbContext db, IScopeContext scope
             return null;
         }
 
-        // Sealed means sealed: a 404 on the detail, not an empty shell. An empty shell would confirm
-        // the bid exists, which is the fact the tier is protecting.
         if (visibility == BuyerProposalVisibility.Sealed) return null;
 
-        // Split, not one join: three sibling collections in a single query multiply out, so a proposal
-        // with 20 items, 15 requirement answers and 5 documents costs 1,500 rows to read 40 entities,
-        // every scalar on the proposal repeated in each. Three round trips is the cheaper shape.
         var proposal = await db.Proposals.AsNoTracking()
             .AsSplitQuery()
             .Include(p => p.Items)
@@ -56,7 +64,6 @@ public sealed class GetBuyerProposalHandler(AppDbContext db, IScopeContext scope
                 var titles = rfqItems.GetValueOrDefault(i.RfqItemId);
                 return new BuyerProposalItemDto(
                     i.RfqItemId, titles?.TitleAr ?? "", titles?.TitleEn ?? "", i.Quantity,
-                    // Quantity and lead time are technical; price is not.
                     commercial ? i.UnitPrice : null,
                     commercial ? i.LineTotal : null,
                     i.LeadTimeDays, i.NotesAr, i.NotesEn);

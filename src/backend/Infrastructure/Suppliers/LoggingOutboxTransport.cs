@@ -1,19 +1,20 @@
-using Microsoft.Extensions.Logging;
-using MotsSupplierPortal.Application.Common;
+// The stand-in transport for development: it records that a dispatch happened instead of delivering it.
+//
+// Swapped for the real integration when that lands. The durable dispatcher job around it does not change,
+// which is the same shape the logging email sender has for its not-yet-built provider.
+//
+// The payload is logged as a length rather than as content, for the same reason the logging email sender
+// never logs a body. Payloads carry supplier names and reference codes, and this is the one production
+// log-writing call site in the outbox path.
+//
+// The type and the message identifier are enough to trace which event a line is about without putting the
+// payload into the log stream.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
-/// <summary>
-/// Dev-only stand-in transport: logs that a dispatch happened instead of delivering to ERP.
-/// Swapped for the real EPIC-23 integration when it lands; the durable OutboxDispatcher job around
-/// it does not change - same shape as LoggingEmailSender for EPIC-15's not-yet-built provider.
-///
-/// Task #16/BRULE-091: payload is logged as a length, not its content, for the same reason
-/// LoggingEmailSender never logs an email body - PayloadJson carries supplier names and reference
-/// codes (ReviewApplicationHandlers.cs, ComplianceReTrigger.cs), and this is the one production
-/// log-writing call site in the outbox path. Type and message id are enough to trace which event
-/// this line is about without putting the payload's content into the log stream.
-/// </summary>
+using Microsoft.Extensions.Logging;
+using MotsSupplierPortal.Application.Common;
+
 public sealed class LoggingOutboxTransport(ILogger<LoggingOutboxTransport> logger) : IOutboxTransport
 {
     public Task SendAsync(Guid messageId, string type, string payloadJson, CancellationToken ct = default)

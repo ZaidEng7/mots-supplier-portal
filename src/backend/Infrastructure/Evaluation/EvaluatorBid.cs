@@ -1,3 +1,10 @@
+// The loaded technical envelope of one bid, as an evaluator sees it.
+//
+// Internal to this layer, so the internal identifier stays on this side of the boundary and never reaches the
+// read model the evaluator's screen receives.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,10 +24,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>The loaded technical envelope of one bid. Internal to Infrastructure - the GUID stays on
-/// this side of the boundary and never reaches EvaluatorProposalDto.</summary>
 internal sealed record EvaluatorBid(
     Guid ProposalId, string ProposalCode,
     string SupplierReferenceCode, string SupplierDisplayNameAr, string SupplierDisplayNameEn,

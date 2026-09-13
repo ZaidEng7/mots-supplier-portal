@@ -1,3 +1,15 @@
+// A supplier uploads their company logo.
+//
+// It reuses the same size and leading-byte checks the document upload uses, and accepts images only.
+//
+// Logos skip the quarantine and scan queue that documents go through, because a logo is displayed inline
+// rather than reviewed as evidence. That makes this a deliberately lighter path, and it is flagged as one:
+// it is not appropriate to reuse for anything a supplier cannot simply upload again if it is wrong.
+//
+// This is also what connects the domain's logo field to an actual upload path; both had existed unreachable.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -5,13 +17,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.1: wires the previously-dead Supplier.SetLogo/LogoStorageKey to an actual
-/// upload path, reusing the same magic-byte/size validation UploadDocumentHandler uses. Images
-/// only (no PDF) - logos are displayed inline, not reviewed like compliance documents, so this
-/// skips the quarantine+AV-scan queue documents go through; flagged as a lighter-weight path,
-/// not appropriate to reuse verbatim for anything the supplier can't just re-upload if wrong.</summary>
 public sealed class UploadLogoHandler(AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger) : IUploadLogoHandler
 {
     private static readonly HashSet<string> AllowedImageContentTypes = ["image/png", "image/jpeg"];

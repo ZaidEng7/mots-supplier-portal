@@ -1,36 +1,40 @@
+// Shaping a line of mixed Arabic and Latin text into positioned glyphs.
+//
+// The shaping is the text-shaping library's rather than the renderer's. Arabic needs contextual substitution of
+// initial, medial and final forms from the font's own substitution table, and a renderer that maps characters to
+// glyphs one at a time produces disconnected letters that are readable to nobody.
+//
+// Verified during the spike against the shaping library's own reference tool: identical glyph identifiers, with
+// joining-form names.
+//
+// The script and language are guessed from the content rather than assumed from the paragraph, because a Latin run
+// inside an Arabic line must be shaped as Latin or it picks up Arabic shaping rules that do not apply to it.
+//
+// A line is drawn as positioned GLYPHS and never as a string. Handing the text back to the renderer would throw
+// away the shaping and re-map characters to glyphs without the joining forms, which is the one thing this whole
+// path exists to avoid.
+//
+//
+// THE CHEAP CHECK THAT CATCHES THE FAILURE THE SPIKE FOUND
+//
+// A shaped line reports whether any glyph came out as the undefined one, the empty box.
+//
+// Text can be PRESENT in a document's content stream and render as a row of empty boxes. Asserting the string is in
+// the file proves nothing about that; asserting no glyph is the undefined one does.
+
+namespace MotsSupplierPortal.Infrastructure.Exports;
+
 using HarfBuzzSharp;
 using SkiaSharp;
 using Buffer = HarfBuzzSharp.Buffer;
 
-namespace MotsSupplierPortal.Infrastructure.Exports;
-
-/// <summary>One glyph, placed. X grows to the right regardless of the run's direction.</summary>
-/// <param name="GlyphId">Index into <paramref name="Face"/>. 0 is .notdef - the empty box.</param>
 public sealed record PlacedGlyph(ushort GlyphId, float X, float Y, FontFace Face);
 
-/// <summary>A shaped line: its glyphs in visual order, and how wide it is.</summary>
 public sealed record ShapedLine(IReadOnlyList<PlacedGlyph> Glyphs, float Width)
 {
-    /// <summary>
-    /// Whether any glyph came out as .notdef.
-    ///
-    /// <para>This is the cheap mechanical check that catches the failure the EPIC-19 spike found:
-    /// text that is PRESENT in the PDF's content stream and renders as a row of empty boxes.
-    /// Asserting the string is in the file proves nothing about that; asserting no glyph is 0 does.
-    /// </para>
-    /// </summary>
     public bool HasMissingGlyphs => Glyphs.Any(g => g.GlyphId == 0);
 }
 
-/// <summary>
-/// Shapes a line of mixed Arabic and Latin text into positioned glyphs.
-///
-/// <para>Shaping is HarfBuzz's, not Skia's: Arabic needs contextual substitution
-/// (<c>.init</c>/<c>.medi</c>/<c>.fina</c>) from the font's GSUB table, and a renderer that maps
-/// characters to glyphs one at a time produces disconnected letters that are readable to nobody.
-/// Verified in the EPIC-19 spike against the reference <c>hb-shape</c> CLI: identical glyph ids,
-/// with joining-form names.</para>
-/// </summary>
 public sealed class TextShaper(ReportFonts fonts)
 {
     public ShapedLine Shape(string text, RunDirection paragraph, float sizeInPoints)
@@ -44,9 +48,6 @@ public sealed class TextShaper(ReportFonts fonts)
             buffer.AddUtf16(run.Text);
             buffer.Direction = run.Direction == RunDirection.RightToLeft ? Direction.RightToLeft : Direction.LeftToRight;
 
-            // Script and language are guessed from the content rather than assumed from the
-            // paragraph: a Latin run inside an Arabic line must be shaped as Latin, or it picks up
-            // Arabic shaping rules that do not apply to it.
             buffer.GuessSegmentProperties();
 
             run.Face.Font.Shape(buffer);
@@ -70,13 +71,6 @@ public sealed class TextShaper(ReportFonts fonts)
         return new ShapedLine(glyphs, x);
     }
 
-    /// <summary>
-    /// Draws a shaped line at (<paramref name="left"/>, <paramref name="baseline"/>).
-    ///
-    /// <para>Drawn as positioned GLYPHS, never as a string: handing the text back to Skia would
-    /// throw away the shaping and re-map characters to glyphs without the joining forms, which is
-    /// the one thing this whole path exists to avoid.</para>
-    /// </summary>
     public static void Draw(SKCanvas canvas, ShapedLine line, float left, float baseline, float sizeInPoints, SKColor colour)
     {
         using var paint = new SKPaint { Color = colour, IsAntialias = true };

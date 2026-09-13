@@ -1,3 +1,19 @@
+// The list of ministry staff accounts, which did not exist.
+//
+// Staff are the accounts with no company attached, which is the same test the staff invitation draws from the
+// other side.
+//
+// A supplier's own users are administered by that supplier, and mixing the two would put a supplier's team in
+// the platform administrator's list.
+//
+// The cursor type is the supplier-user one, reused rather than copied. The ordering is the same, and a second
+// identical type would be a second thing to keep in step.
+//
+// The total is counted over the filtered set before the cursor narrows it, and only when asked for. Roles come
+// from the identity framework's own join table in one query for the page rather than one per row.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
@@ -6,16 +22,6 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>
-/// T-077/SCR-701. The staff list, which did not exist.
-///
-/// <para>Staff are the accounts with NO SupplierId - the same predicate InviteStaffHandler's own doc
-/// comment describes from the other side. A supplier's users are administered by that supplier
-/// (SCR-160), not from here, and mixing the two would put a supplier's team in the platform
-/// administrator's list.</para>
-/// </summary>
 public sealed class ListStaffHandler(AppDbContext db) : IListStaffHandler
 {
     public async Task<ListEnvelope<StaffAccountDto>> HandleAsync(string? cursor, int? limit, bool withCount, CancellationToken ct)
@@ -23,11 +29,8 @@ public sealed class ListStaffHandler(AppDbContext db) : IListStaffHandler
         var pageSize = ListEnvelope<StaffAccountDto>.ClampPageSize(limit);
         var query = db.Users.Where(u => u.SupplierId == null);
 
-        // §6.1: counted over the filtered set BEFORE the cursor narrows it, and only when asked.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        // The cursor type is the supplier-user one, reused rather than copied: the ordering is the same
-        // (email, id) and a second identical struct would be a second thing to keep in step.
         if (SupplierUserCursor.TryDecode(cursor, out var from))
         {
             query = query.Where(u =>
@@ -53,7 +56,6 @@ public sealed class ListStaffHandler(AppDbContext db) : IListStaffHandler
         var hasMore = rows.Count > pageSize;
         var items = hasMore ? rows[..pageSize] : rows;
 
-        // Roles come from Identity's join table, one query for the page rather than one per row.
         var pageIds = items.Select(r => r.Id).ToList();
         var roleByUser = await db.Set<IdentityUserRole<Guid>>()
             .Where(ur => pageIds.Contains(ur.UserId))

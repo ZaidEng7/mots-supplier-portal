@@ -1,3 +1,11 @@
+// Linking a supplier to a buying body, and unlinking them.
+//
+// Both sides must exist, and a link that already exists is reported as such rather than silently duplicated,
+// because the unique index over the pair would refuse it anyway and a typed answer tells the caller what
+// happened.
+
+namespace MotsSupplierPortal.Infrastructure.Organizations;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Organizations;
@@ -6,8 +14,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Infrastructure.Organizations;
 
 public sealed class ManageSupplierOrgLinkHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageSupplierOrgLinkHandler
 {

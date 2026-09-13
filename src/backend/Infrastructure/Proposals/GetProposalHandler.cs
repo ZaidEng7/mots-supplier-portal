@@ -1,3 +1,7 @@
+// Reading the caller's own bid on a given tender, or nothing if they have not started one.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -11,8 +15,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Infrastructure.Proposals;
 
 public sealed class GetProposalHandler(AppDbContext db, IScopeContext scope) : IGetProposalHandler
 {

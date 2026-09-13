@@ -1,3 +1,30 @@
+// Procurement staff searching catalogue entries across every supplier.
+//
+//
+// THE SUPPLIER'S STATE GATES THE RESULT, NOT ONLY THE ENTRY'S
+//
+// A supplier suspended after listing an entry must disappear from this search even though the entry row
+// itself is untouched by the suspension.
+//
+// There is no navigation between an entry and its supplier, because both are deliberately separate roots, so
+// this is a manual join on the plain identifier rather than an included navigation.
+//
+//
+// THE SEARCH TEXT IS ESCAPED BEFORE IT BECOMES A PATTERN
+//
+// Interpolated raw, the pattern characters in the search box were syntax rather than characters: a lone
+// wildcard matched every row, and a single-character wildcard in the middle of a word matched neighbours.
+//
+// Not an injection, because the value is still a parameter, but the caller's string stopped meaning what it
+// says, which is the same class of surprise.
+//
+// It is also not a disclosure on THIS endpoint today, because searching with no text already returns every
+// active entry, so the widest a wildcard reaches is what the caller could have had anyway. It becomes one
+// the day this search is scoped by row or paged by relevance, and that is the day nobody would think to
+// look here. Found by a filter-guard sweep and fixed while it is still cheap.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,14 +33,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-06.3/FR-OFF-004: procurement staff discovering offerings across all suppliers.
-/// FEAT-06.4/FR-OFF-005: gated on Supplier.LifecycleState == Active, not Offering.IsActive alone -
-/// a supplier suspended after listing an offering must disappear from buyer search even though the
-/// Offering row itself is untouched by suspension. No EF navigation exists between Offering and
-/// Supplier (both are deliberately separate aggregate roots, see Offering.cs's doc comment), so
-/// this is a manual join on the plain SupplierId FK rather than an owned/included navigation.</summary>
 public sealed class SearchBuyerOfferingsHandler(AppDbContext db) : ISearchBuyerOfferingsHandler
 {
     public async Task<IReadOnlyList<BuyerOfferingSearchResultDto>> HandleAsync(string? categoryCode, string? query, CancellationToken ct)
@@ -25,18 +44,6 @@ public sealed class SearchBuyerOfferingsHandler(AppDbContext db) : ISearchBuyerO
         }
         if (!string.IsNullOrWhiteSpace(query))
         {
-            // The caller's text is escaped before it becomes a LIKE PATTERN.
-            //
-            // Interpolated raw, `%` and `_` in the search box were pattern syntax rather than
-            // characters: `?query=%` matched every row and `?query=a_c` matched "abc". Not SQL
-            // injection - the value is still a parameter - but the caller's string stopped meaning
-            // what it says, which is the same class of surprise.
-            //
-            // Not a disclosure on THIS endpoint today, because searching with no query already
-            // returns every active offering, so the widest a wildcard can reach is what the caller
-            // could have had anyway. It becomes one the day this search is row-scoped or paged by
-            // relevance, and that is the day nobody would think to look here. Found by EPIC-19's
-            // filter-guard check and fixed while it is still cheap.
             var pattern = $"%{LikePattern.Escape(query)}%";
             offerings = offerings.Where(o =>
                 EF.Functions.ILike(o.NameEn, pattern, LikePattern.EscapeCharacter)

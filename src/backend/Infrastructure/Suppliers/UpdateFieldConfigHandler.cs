@@ -1,9 +1,14 @@
+// Turning one administrator switch on or off.
+//
+// A switch that does not exist is a not-found rather than a row created on the spot, because the set of
+// switches is defined by the product and seeded, not by whoever calls this.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class UpdateFieldConfigHandler(AppDbContext db) : IUpdateFieldConfigHandler
 {

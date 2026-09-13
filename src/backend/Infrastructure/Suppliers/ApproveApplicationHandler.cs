@@ -1,3 +1,11 @@
+// A reviewer approves a registration.
+//
+// The outbound integration event is written in the same commit as the state change. So approval never waits
+// on the external system being up, and the event cannot exist without the approval or the approval without
+// the event.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -12,8 +20,6 @@ using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
 public sealed class ApproveApplicationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IApproveApplicationHandler
 {
     public async Task<ReviewDecisionResult> HandleAsync(string referenceCode, CancellationToken ct)
@@ -26,9 +32,6 @@ public sealed class ApproveApplicationHandler(AppDbContext db, IScopeContext sco
         try { supplier.Approve(blocking); }
         catch (DomainException ex) { return new ReviewDecisionResult.InvalidState(ex.Message); }
 
-        // FEAT-03.5: Outbox event written in the SAME SaveChangesAsync transaction as the state
-        // change - approval never blocks on ERP being up, and the event is guaranteed atomic
-        // with the approval (docs/architecture/DOMAIN-MODEL.md §5.3).
         var payload = JsonSerializer.Serialize(new
         {
             supplierId = supplier.Id,

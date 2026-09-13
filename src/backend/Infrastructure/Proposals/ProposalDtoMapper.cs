@@ -1,3 +1,13 @@
+// Turning a bid into the read model its own supplier receives.
+//
+// This is the only place the priced-line shape, which is the financial envelope, is ever produced. Every
+// handler that reaches it has already resolved the bid by the caller's own company.
+//
+// That is the two-envelope seal on this side: not a filter applied to a shared read, but the fact that the
+// buyer's reads build a different shape entirely, one whose prices are absent below the commercial tier.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,15 +22,8 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
 internal static class ProposalDtoMapper
 {
-    /// <summary>The ONLY place ProposalItemDto (financial envelope) is ever produced. Every handler
-    /// in this file resolves the caller's own Proposal by their own SupplierId first (see
-    /// ProposalLoader below) - there is no code path anywhere that builds this DTO for a proposal
-    /// that is not the caller's own. That is the two-envelope seal for this epic: not a filter
-    /// applied to a shared read, but the simple fact that no other read exists yet.</summary>
     public static ProposalDto ToDto(Proposal proposal, string rfqReferenceCode) => new(
         proposal.ReferenceCode, rfqReferenceCode, proposal.State,
         proposal.CurrencyCode, proposal.PaymentTerms, proposal.IncotermCode, proposal.DeliveryTermsAr, proposal.DeliveryTermsEn,

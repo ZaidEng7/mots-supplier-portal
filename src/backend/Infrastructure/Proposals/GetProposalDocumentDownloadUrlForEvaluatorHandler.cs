@@ -1,3 +1,23 @@
+// An evaluator opens one document from a bid they are scoring.
+//
+// The list an evaluator reads is built elsewhere; this is the route that opens one of its rows.
+//
+//
+// THE TWO GATES ARE THE LIST'S OWN, RESTATED
+//
+// Restated because a download is reachable by guessing an identifier and a list is not. The caller must hold an
+// ACTIVE assignment on this tender's evaluation, and the document must be in the technical envelope.
+//
+// A commercial document is the same not-found as one that does not exist. An evaluator who learns that a bid
+// has three commercial attachments has learned something about a competitor's pricing before consolidation.
+//
+// The assignment IS the scope, and it is deliberately not also filtered by organization. An assignment is
+// granted per evaluation, so an evaluator holding one is in scope by definition, and adding an organization
+// test would refuse a legitimately borrowed evaluator and would be a second, divergent answer to "may this
+// caller see this evaluation".
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
@@ -6,18 +26,6 @@ using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>
-/// T-067's download half. The list an evaluator reads comes from EvaluationLoader.EvaluatorBidsAsync;
-/// this is the route that opens one of its rows.
-///
-/// <para><b>The two gates are the same two the list applies</b>, restated here because a download is
-/// reachable by guessing an id and a list is not: the caller must hold an ACTIVE assignment on this
-/// RFQ's evaluation, and the document must be in the Technical envelope. A Commercial document is
-/// the same 404 as one that does not exist - an evaluator who learns that a bid has three commercial
-/// attachments has learned something about a competitor's pricing before consolidation.</para>
-/// </summary>
 public sealed class GetProposalDocumentDownloadUrlForEvaluatorHandler(
     AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger,
     AttachmentScanner attachmentScanner)
@@ -37,10 +45,6 @@ public sealed class GetProposalDocumentDownloadUrlForEvaluatorHandler(
             .FirstOrDefaultAsync(ct);
         if (rfqId is null) return new ProposalDocumentDownloadResult.NotFoundOrForbidden();
 
-        // The assignment IS the scope. Deliberately not also filtered by OrganizationId: an
-        // assignment is granted per evaluation, and an evaluator holding one is in scope by
-        // definition - adding an org predicate would refuse a legitimately borrowed evaluator and
-        // would be a second, divergent answer to "may this caller see this evaluation".
         var assigned = await db.Evaluations.AsNoTracking()
             .Where(e => e.RfqId == rfqId)
             .SelectMany(e => e.Assignments)

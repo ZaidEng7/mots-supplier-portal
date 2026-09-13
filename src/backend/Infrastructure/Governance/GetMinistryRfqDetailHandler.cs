@@ -1,3 +1,22 @@
+// One tender as the ministry reads it, with every bid on it.
+//
+//
+// THIS IS WHERE THE DISCLOSURE DECISION ACTUALLY BITES
+//
+// The bids are listed with the bidding supplier NAMED and its total shown, on a tender in any state including one
+// still open.
+//
+// Under the narrower reading that was offered, this list would have been empty until the award. Under the widest,
+// which is what was chosen, it is populated from the first submitted bid.
+//
+// Everything except a draft. A draft bid has not been offered to anybody, and showing it would disclose a
+// supplier's unfinished thinking, which no reading of that decision covers.
+//
+// A bid whose supplier row cannot be resolved renders a dash rather than a blank, so a reader can tell a missing
+// join from a missing value.
+
+namespace MotsSupplierPortal.Infrastructure.Governance;
+
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -11,16 +30,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Governance;
-
-/// <summary>
-/// SCR-606: one tender, read-only, with every bid on it.
-///
-/// <para><b>This is where D-66's scope actually bites.</b> The bids are listed with the bidding supplier
-/// NAMED and its total shown, on a tender in any state including one still open. Under the narrower scope
-/// D-57 offered, this list would have been empty until the award; under the widest, which is what was
-/// chosen, it is populated from the first submitted bid.</para>
-/// </summary>
 public sealed class GetMinistryRfqDetailHandler(AppDbContext db) : IGetMinistryRfqDetailHandler
 {
     public async Task<MinistryRfqDetailDto?> HandleAsync(string referenceCode, CancellationToken ct)
@@ -49,8 +58,6 @@ public sealed class GetMinistryRfqDetailHandler(AppDbContext db) : IGetMinistryR
             .Select(i => new MinistryRfqItemDto(i.TitleAr, i.TitleEn, i.CategoryCode, i.Quantity, i.UnitOfMeasureCode))
             .ToListAsync(ct);
 
-        // Everything except a Draft: a draft bid has not been offered to anybody, and showing it would
-        // disclose a supplier's unfinished thinking - which no reading of D-57 covers.
         var proposals = await db.Proposals.AsNoTracking()
             .Where(p => p.RfqId == rfq.Id && p.State != ProposalState.Draft)
             .Select(p => new { p.Id, p.ReferenceCode, p.SupplierId, p.State, p.SubmittedAt })

@@ -1,10 +1,15 @@
+// Confirming a second-factor enrolment with a code from the authenticator, and issuing recovery codes.
+//
+// The framework persists the enrolment itself, but the audit row is on this context and the logger no longer
+// saves, so without the save here the enrolment would succeed while leaving no record that it happened.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class ConfirmMfaEnrollmentHandler(
     UserManager<AppUser> userManager,
@@ -28,9 +33,6 @@ public sealed class ConfirmMfaEnrollmentHandler(
         var recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
 
         await auditLogger.LogAsync("User", user.Id, "mfa_enrolled", user.Id, user.FullName, ct: ct);
-        // MSP-64: UserManager persists the enrollment itself, but the audit row is on the
-        // AppDbContext and AuditLogger no longer saves. Without this, MFA enrollment would
-        // succeed while leaving no record that it happened.
         await db.SaveChangesAsync(ct);
 
         return new ConfirmMfaEnrollmentResult.Success([.. recoveryCodes ?? []]);

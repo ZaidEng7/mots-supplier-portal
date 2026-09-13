@@ -1,13 +1,16 @@
+// A supplier submits their registration for review.
+//
+// The domain refuses the transition on the server when required fields are missing, so the interface cannot
+// bypass the gate by hiding the button.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>STORY-03.1.1 AC2/AC3: the domain refuses the ProfileInProgress -> Submitted
-/// transition server-side when required fields are missing - the UI cannot bypass this.</summary>
 public sealed class SubmitApplicationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ISubmitApplicationHandler
 {
     public async Task<SubmitApplicationResult> HandleAsync(CancellationToken ct)

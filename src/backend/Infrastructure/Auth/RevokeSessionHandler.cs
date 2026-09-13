@@ -1,9 +1,13 @@
+// Signing out one named session.
+//
+// Scoped to the caller's own sessions, so a family identifier belonging to somebody else simply does not match.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class RevokeSessionHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRevokeSessionHandler
 {

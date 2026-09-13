@@ -1,26 +1,88 @@
+// The administration of all six reference tables, in one handler.
+//
+// The contract's own header explains why this is one handler rather than six.
+//
+//
+// DEACTIVATE, NEVER DELETE
+//
+// There is no delete operation, on purpose. Every one of these tables is referenced BY CODE from live rows, with
+// no cascade and no fallback.
+//
+// Deleting a category a published tender points at would leave that tender describing a category that no longer
+// exists. Deactivating it hides the code from new selections and leaves every existing row intact and readable.
+//
+// Reactivation is the same operation with the flag the other way, and it gets its own distinguishable audit action
+// rather than sharing one. An audit reader asking "when did this stop being offered" should not have to read a
+// boolean out of the row's history.
+//
+// Inactive rows are HIDDEN from the list by default and reachable by asking. An administrator editing the
+// catalogue needs to see what they deactivated; otherwise deactivation looks like deletion and the next
+// administrator re-creates the code, which is the one thing the no-delete rule exists to avoid.
+//
+//
+// EVERY WRITE IS AUDITED
+//
+// Reference data decides what suppliers may register against and which documents they must produce, so "who added
+// this document type, and when" is a governance question rather than a debugging one.
+//
+//
+// EVERY TABLE IS NAMED IN EVERY SWITCH, AND AN UNKNOWN ONE THROWS
+//
+// This file has already paid for the alternative once. Every switch used a catch-all that meant document types, so
+// when a sixth table was added it would have listed, created and deactivated DOCUMENT TYPES while the caller said
+// something else.
+//
+// A failure naming the table is a bug report. A wrong answer that looks right is not. The exception is unreachable
+// by construction and exists to stay that way.
+//
+//
+// CODE LENGTH IS CHECKED HERE, PER TABLE
+//
+// Because the columns genuinely differ: two of the tables carry three-letter international standards and the other
+// four carry this product's own codes and allow fifty.
+//
+// Checked here rather than left to the database, because a too-long code was answering with a server error from a
+// string-truncation failure, which tells an administrator nothing about what to fix.
+//
+// A standards code is upper-cased on the way in, because the standard's own codes are and a bid is matched against
+// them exactly. The same word in two cases naming two rows is the free-text problem this table exists to end,
+// arriving through the administration screen instead of the bid form.
+//
+//
+// THE DEFAULTS ON A NEW DOCUMENT TYPE, AND WHAT AN EDIT MUST NOT CLEAR
+//
+// A new type is not required and not tracked for expiry when the caller says nothing. Required by default would
+// retroactively make every existing supplier's profile incomplete the moment the row is created, which is a live
+// consequence for people who did nothing.
+//
+// It is not award-critical either, matching the migration that added that column. A new type is not award-critical
+// until somebody says it is, and defaulting the other way would suspend suppliers over a type nobody had assessed.
+//
+// On an edit, an omitted flag means unchanged rather than false. A caller fixing an Arabic typo must not silently
+// un-require a document type, and the award-critical flag is the one on this screen whose accidental change
+// suspends live suppliers.
+//
+//
+// THE LIST FILTERS IN THE DATABASE AND PROJECTS AND ORDERS IN MEMORY
+//
+// Deliberate rather than lazy. Projecting to a record with optional constructor parameters and then ordering by one
+// of its properties is exactly the expression that either translates or throws depending on the provider version,
+// and the first version of this method answered with a server error on every list.
+//
+// These are lookup tables of tens of rows, so the round trip is the same either way and this form cannot fail to
+// translate.
+//
+// A write's response is read back through that same list projection, including inactive rows, so it is the same
+// shape the list returns rather than a second hand-built one that could drift from it.
+
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.ReferenceData;
-
-/// <summary>
-/// T-034/T-059: one handler for all five reference tables - see IReferenceDataAdminHandler on why
-/// this is not five handlers.
-///
-/// <para><b>Deactivate, never delete (D-28).</b> There is no delete operation, on purpose. Every one
-/// of these tables is referenced BY CODE from live rows - <c>RfqItem.CategoryCode</c>,
-/// <c>Offering.UnitOfMeasureCode</c>, <c>SupplierDocument</c>'s type - with no cascade and no
-/// nullable fallback. Deleting a Category a published RFQ points at would leave that RFQ describing a
-/// category that no longer exists; deactivating it hides the code from new selections and leaves every
-/// existing row intact and readable.</para>
-///
-/// <para><b>Every write is audited.</b> Reference data decides what suppliers may register against and
-/// which documents they must produce, so "who added this document type, and when" is a governance
-/// question, not a debugging one.</para>
-/// </summary>
 public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IReferenceDataAdminHandler
 {
@@ -28,10 +90,6 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
     {
         if (!ReferenceTables.All.Contains(table)) return null;
 
-        // Inactive rows are HIDDEN by default and reachable by asking. An admin editing the catalogue
-        // needs to see what they deactivated - otherwise deactivation looks like deletion and the next
-        // administrator re-creates the code, which is the one thing D-28's no-delete rule exists to
-        // avoid.
         return table switch
         {
             ReferenceTables.Categories => await Project(db.Set<Category>(), includeInactive,
@@ -44,9 +102,6 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 r => new ReferenceItemDto(r.Code, r.NameAr, r.NameEn, r.IsActive), r => r.IsActive, ct),
             ReferenceTables.Incoterms => await Project(db.Set<Incoterm>(), includeInactive,
                 i => new ReferenceItemDto(i.Code, i.NameAr, i.NameEn, i.IsActive), i => i.IsActive, ct),
-            // Named rather than left as the discard. T-072 added a sixth table and every switch in
-            // this file whose default was DocumentType would have answered with document types for
-            // it - a silent wrong answer, which is worse than the throw below.
             ReferenceTables.DocumentTypes => await Project(db.Set<DocumentType>(), includeInactive,
                 d => new ReferenceItemDto(d.Code, d.NameAr, d.NameEn, d.IsActive, d.IsRequired, d.ExpiryTracked, d.IsAwardCritical),
                 d => d.IsActive, ct),
@@ -54,15 +109,6 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         };
     }
 
-    /// <summary>
-    /// Filters in SQL, then projects and orders IN MEMORY.
-    ///
-    /// <para>Deliberate, not laziness: projecting to a record with optional constructor parameters and
-    /// then ordering by a property of that projection is exactly the kind of expression that either
-    /// translates or throws depending on the provider version, and the first version of this method
-    /// answered 500 on every list. These are lookup tables of tens of rows, so the round trip is the
-    /// same either way and this form cannot fail to translate.</para>
-    /// </summary>
     private static async Task<IReadOnlyList<ReferenceItemDto>> Project<T>(
         IQueryable<T> set, bool includeInactive,
         Func<T, ReferenceItemDto> select,
@@ -81,9 +127,6 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         var code = command.Code.Trim();
         if (code.Length == 0) return new ReferenceDataResult.Invalid("A code is required.");
 
-        // Per-table, because the columns genuinely differ: Currency.Code is 3 (ISO) while the others
-        // are 50. Checked here rather than left to the database - a too-long code was answering 500
-        // from a Postgres 22001, which tells an administrator nothing about what to fix.
         var limit = MaxCodeLength(command.Table);
         if (code.Length > limit)
         {
@@ -108,24 +151,14 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 db.Add(new Region { Id = Guid.CreateVersion7(), Code = code, NameAr = command.NameAr, NameEn = command.NameEn });
                 break;
             case ReferenceTables.Incoterms:
-                // Upper-cased, because the standard's codes are and a proposal is matched against
-                // them exactly. "fob" and "FOB" naming two rows is the free-text problem this table
-                // exists to end, arriving through the admin surface instead of the bid form.
                 db.Add(new Incoterm { Id = Guid.CreateVersion7(), Code = code.ToUpperInvariant(), NameAr = command.NameAr, NameEn = command.NameEn });
                 break;
             case ReferenceTables.DocumentTypes:
-                // A new DocumentType defaults to NOT required and NOT expiry-tracked when the caller
-                // says nothing. Required-by-default would retroactively make every existing supplier's
-                // profile incomplete the moment the row is created, which is a live consequence for
-                // people who did nothing.
                 db.Add(new DocumentType
                 {
                     Id = Guid.CreateVersion7(), Code = code, NameAr = command.NameAr, NameEn = command.NameEn,
                     IsRequired = command.IsRequired ?? false,
                     ExpiryTracked = command.ExpiryTracked ?? false,
-                    // BRULE-023. Defaults to false on create, matching the migration that added the column:
-                    // a new document type is not award-critical until somebody says it is, and defaulting the
-                    // other way would suspend suppliers over a type nobody had assessed.
                     IsAwardCritical = command.IsAwardCritical ?? false,
                 });
                 break;
@@ -154,13 +187,8 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 case DocumentType d:
                     d.NameAr = command.NameAr;
                     d.NameEn = command.NameEn;
-                    // Omitted means unchanged, not false. A caller editing an Arabic typo must not
-                    // silently un-require a document type.
                     if (command.IsRequired is { } required) d.IsRequired = required;
                     if (command.ExpiryTracked is { } tracked) d.ExpiryTracked = tracked;
-                    // Only when SENT. An administrator renaming a document type must not clear the
-                    // award-critical flag by omission - and this is the one flag on this screen whose
-                    // accidental change suspends live suppliers.
                     if (command.IsAwardCritical is { } awardCritical) d.IsAwardCritical = awardCritical;
                     break;
             }
@@ -194,9 +222,6 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
 
         if (!found) return new ReferenceDataResult.NotFound();
 
-        // Reactivation is the same operation with the flag the other way, so it gets a distinguishable
-        // action rather than sharing one - an audit reader asking "when did this stop being offered"
-        // should not have to read a boolean out of the row's history.
         await auditLogger.LogAsync("ReferenceData", Guid.Empty,
             command.IsActive ? $"reference.{command.Table}.reactivated" : $"reference.{command.Table}.deactivated",
             scope.UserId, referenceCode: command.Code, ct: ct);
@@ -205,12 +230,8 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         return await ReadBackAsync(command.Table, command.Code, ct);
     }
 
-    /// <summary>The column's own bound, so a refusal names the limit instead of surfacing a Postgres
-    /// string-too-long as a 500.</summary>
     private static int MaxCodeLength(string table) => table switch
     {
-        // ISO 4217 and Incoterms 2020 are both three-letter standards; the other four tables carry
-        // this product's own codes and allow fifty.
         ReferenceTables.Currencies or ReferenceTables.Incoterms => 3,
         _ => 50,
     };
@@ -226,8 +247,6 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         _ => throw new UnreachableTableException(table),
     };
 
-    /// <summary>Loads the row by code and hands it to <paramref name="mutate"/>. False when there is
-    /// no such code, which the callers turn into a 404.</summary>
     private async Task<bool> ApplyAsync(string table, string code, Action<object> mutate, CancellationToken ct)
     {
         object? item = table switch
@@ -248,21 +267,11 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
 
     private async Task<ReferenceDataResult> ReadBackAsync(string table, string code, CancellationToken ct)
     {
-        // Read back through the LIST projection, including inactive rows, so the response is the same
-        // shape the list returns rather than a second hand-built one that could drift from it.
         var items = await ListAsync(table, includeInactive: true, ct);
         var item = items?.FirstOrDefault(i => i.Code == code);
         return item is null ? new ReferenceDataResult.NotFound() : new ReferenceDataResult.Success(item);
     }
 }
 
-/// <summary>
-/// A table that passed <c>ReferenceTables.All</c> and then reached a switch that does not know it.
-///
-/// <para>Unreachable by construction, and thrown rather than defaulted for a reason this file has
-/// already paid for once: every switch here used <c>_ =&gt;</c> for document types, so T-072's sixth
-/// table would have listed, created and deactivated DOCUMENT TYPES while the caller said
-/// "incoterms". A 500 naming the table is a bug report; a wrong answer that looks right is not.</para>
-/// </summary>
 public sealed class UnreachableTableException(string table)
     : InvalidOperationException($"'{table}' is in ReferenceTables.All but no branch handles it.");

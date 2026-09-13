@@ -1,3 +1,13 @@
+// Pricing and unpricing the lines of a bid: the financial envelope.
+//
+// Nothing here differs structurally from any other draft-only edit. The envelope separation lives in the read
+// models and the schema rather than in extra guards on writes; the read model's own header explains that.
+//
+// The retired per-line routes are superseded by the single partial edit, which is where the duplicate-insert
+// hazard around re-pricing an already-tracked line is explained.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,11 +22,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>FEAT-09.1/FR-PRP-002: the financial envelope. Nothing here differs structurally from any
-/// other Draft-only edit handler - the envelope separation lives in the schema/DTO layer (see
-/// ProposalDtoMapper's own doc comment), not in extra guards on writes.</summary>
 public sealed class ManageProposalItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageProposalItemHandler
 {
     public async Task<ProposalResult> SetAsync(SetItemPricingCommand command, CancellationToken ct)

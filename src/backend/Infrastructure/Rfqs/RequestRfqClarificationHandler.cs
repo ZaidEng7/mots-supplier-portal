@@ -1,3 +1,17 @@
+// A buyer pauses evaluation to ask the bidders for clarification.
+//
+// The same shape as every other transition handler here: load within scope, call the aggregate, translate
+// the two kinds of refusal, audit with the states it moved between, save.
+//
+// Deliberately not a new pattern. Three states becoming reachable is a gap in the machine rather than a
+// reason to invent a second way of moving through it.
+//
+// The invitees are who a clarification is addressed to, and the notification catalogue is where the words
+// live. The moment is part of the de-duplication key, because two clarification rounds on one tender are two
+// pieces of news.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,19 +28,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.6/BUSINESS-PROCESSES.md §3.1: manual early close of the submission window
-/// (the scheduled deadline-driven close is RfqTimelineJob, a system actor, not this handler).</summary>
-/// <summary>
-/// T3-36. §3.1: "UnderEvaluation | Clarification | Request clarification |
-/// `procurement_officer`,`evaluator` / `rfq.clarify` | Reason; targeted supplier(s)".
-///
-/// <para>Same shape as every other transition handler in this file - load scoped, call the
-/// aggregate, catch the two refusal kinds, audit with from/to states, save. Deliberately not a new
-/// pattern: three states becoming reachable is a gap in the machine, not a reason to invent a second
-/// way of moving through it.</para>
-/// </summary>
 public sealed class RequestRfqClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IRequestRfqClarificationHandler
 {
@@ -44,8 +45,6 @@ public sealed class RequestRfqClarificationHandler(AppDbContext db, IScopeContex
             return RfqTransitions.Refusal(rfq, ex, RfqState.Clarification);
         }
 
-        // §3.1's notification column: "Email + in-app to targeted supplier". The invitees are who the
-        // clarification is addressed to, and EPIC-15's catalogue is where the words live.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.RfqClarificationRequested,
             await NotificationRecipients.RfqInviteeUsersAsync(db, rfq.Id, ct),
             $"{NotificationTypes.RfqClarificationRequested}:{rfq.Id}:{DateTimeOffset.UtcNow.Ticks}",

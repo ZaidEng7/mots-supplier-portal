@@ -1,11 +1,15 @@
+// Activating a scoring template, which is what makes it bindable to a tender.
+//
+// The template's own rules decide whether it is ready: the weights have to add up before it can be activated.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 public sealed class ActivateEvaluationTemplateHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IActivateEvaluationTemplateHandler

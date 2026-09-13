@@ -1,3 +1,13 @@
+// An evaluator declares whether they have a conflict of interest.
+//
+// A declared conflict recuses them with their stated reason, reusing the recusal the domain and the audit trail
+// already have. No conflict simply closes the window.
+//
+// The reason is mandatory for a self-recusal for the same purpose it is when a manager recuses somebody: an
+// unexplained withdrawal from a committee is not an audit record.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,12 +27,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>
-/// A-8/BRULE-067: the declaration itself. A conflict recuses the evaluator with their stated reason -
-/// reusing the recusal the domain and the audit trail already have - and no conflict closes the window.
-/// </summary>
 public sealed class DeclareConflictHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IDeclareConflictHandler
 {
@@ -36,8 +40,6 @@ public sealed class DeclareConflictHandler(AppDbContext db, IScopeContext scope,
         {
             if (command.HasConflict)
             {
-                // A self-recusal, and the reason is mandatory for the same purpose it is when a manager
-                // recuses someone: an unexplained withdrawal from a committee is not an audit record.
                 evaluation.RecuseEvaluator(scope.UserId!.Value, command.Reason ?? string.Empty);
             }
             else

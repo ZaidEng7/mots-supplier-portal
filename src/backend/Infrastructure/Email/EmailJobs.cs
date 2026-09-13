@@ -1,54 +1,82 @@
+// Every email the product sends, as background jobs.
+//
+// Each one is queued rather than sent inline, so delivery is durable and retried and never blocks the request
+// that triggered it.
+//
+//
+// EVERY ARGUMENT IS AN IDENTIFIER, AND THAT IS A SECURITY PROPERTY RATHER THAN A STYLE
+//
+// The job framework persists arguments as plain text in its own tables, and those rows outlive the emails they
+// produced, because succeeded jobs are retained on a timer.
+//
+// A security review found a supplier administrator reading fifteen other suppliers' email addresses out of that
+// store, together with live verification and password-reset links. The token in one of them was a working
+// credential.
+//
+// That review restricted the dashboard, which is a rule about who may look. This is the other half: there is
+// nothing there to read. The rule protects one surface; the absence protects every surface, including backups,
+// replicas, a support query, log aggregation, and whatever gets built over the job data later. The written
+// privacy rule reasons about personal data in logs, and this store is far closer to a log than to the audit
+// table.
+//
+//
+// TOKENS ARE ISSUED HERE, NOT PASSED IN
+//
+// A token baked into a job argument is a credential at rest for the whole retention window.
+//
+// Issuing at send time also shortens the window in which the token is useful, and a retry minting a fresh one is
+// correct rather than a side effect: the previous one expires on its own.
+//
+// The same reasoning covers the recipient's language, the tender's public code, a document's filename and a
+// reviewer's annotation. The job resolves its own facts about the user rather than trusting an argument that
+// could go stale between enqueueing and sending, and a filename is still the supplier's data even though it is
+// weaker than an address.
+//
+//
+// ONE ARGUMENT BREAKS THAT RULE, AND IT IS NAMED
+//
+// An information request's reason travels as an argument and lands in the job store, because the supplier's
+// record changes state and the reason reaches only the audit row. Resolving it back out of the audit log by
+// action name would be fragile in a way that fails silently, which is worse than the exposure it removes.
+//
+// It is a reviewer's words about a supplier: not a credential, and not personal data in the sense that review
+// was about, but not nothing either. Persisting it on the record would make it resolvable like the others, and
+// that is a schema change belonging to its own piece of work rather than to a security fix that needs to ship.
+//
+//
+// A RECIPIENT WHO HAS GONE IS SILENCE, NOT A FAILURE
+//
+// A user deleted between enqueueing and sending is not an error worth retrying. The framework would retry to
+// exhaustion and then surface a failed job needing a human to dismiss it.
+//
+// The send is best-effort by construction, and the durable record of what happened is the audit trail rather
+// than the job.
+//
+//
+// EVERY SEND GOES THROUGH THE COPY SOURCE
+//
+// So an administrator's rewording is never inert. The shipped copy is passed as a lambda rather than looked up
+// by key: this method has the typed arguments in hand, so it cannot render the fallback with the wrong ones, and
+// the fallback is only evaluated when no override exists, which is the normal case.
+//
+// A reject reason is only present on a rejection, and an override of the expiry wording that referenced it would
+// have been refused when it was written, because those templates do not declare that token.
+
+namespace MotsSupplierPortal.Infrastructure.Email;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Email;
-
-/// <summary>
-/// Hangfire-invoked job methods. Enqueued via IBackgroundJobClient.Enqueue so the send is a
-/// durable, retried background operation - never inline in the request that triggered it.
-///
-/// <para><b>Every argument here is an identifier, and that is a security property rather than a
-/// style.</b> Hangfire persists job arguments as plaintext JSON in its own tables, and those rows
-/// outlive the emails they produced - succeeded jobs are retained on a timer. MSP-87 found a
-/// supplier_admin reading 15 other suppliers' email addresses out of that store, together with live
-/// verification and password-reset URLs; the token in one of them was a working credential.</para>
-///
-/// <para>MSP-87 restricted the dashboard. That is a rule about who may look. This is the other half:
-/// there is nothing there to read. The rule protects one surface, the absence protects every surface
-/// - backups, replicas, a support query, log aggregation, and whatever gets built over the job data
-/// later. NFR-PRIV-004 reasons about PII in logs, and the Hangfire store is far closer to a log than
-/// to the audit table.</para>
-///
-/// <para><b>Tokens are issued here, not passed in.</b> A token baked into a job argument is a
-/// credential at rest for the whole retention window. Issuing at send time also shortens the window
-/// in which the token is useful, and a retry minting a fresh one is correct rather than a
-/// side effect - the previous one expires on its own.</para>
-///
-/// <para><b>MSP-69.</b> Every composed subject/body now goes through EmailTemplates, keyed on the
-/// recipient's AppUser.Language (resolved here, not passed in - same reasoning as the token: the
-/// job resolves its own facts about the user rather than trusting an argument that could go stale
-/// between enqueue and send). All 11 templates render both ar and en; missing/unrecognized locale
-/// falls back to Arabic, matching AppUser.Language's own default.</para>
-/// </summary>
 public sealed class EmailJobs(
     IEmailSender emailSender,
     AppDbContext db,
     ISecurityTokenService securityTokenService,
     IConfiguration configuration,
-    // T-076: the administrator's wording when there is one, the shipped copy otherwise. Injected rather
-    // than reached for statically, because it reads a table.
     MotsSupplierPortal.Application.Admin.IEmailCopySource copySource)
 {
-    /// <summary>
-    /// T-076. Every send in this class goes through here, so an override is never inert.
-    ///
-    /// <para>The shipped copy is passed as a lambda rather than looked up by key: this method has the typed
-    /// arguments in hand, so it cannot render the fallback with the wrong ones, and the fallback is only
-    /// evaluated when no override exists - the normal case.</para>
-    /// </summary>
     private Task<(string Subject, string Body)> ComposeAsync(
         string key,
         string? locale,
@@ -66,14 +94,6 @@ public sealed class EmailJobs(
         return recipient is null || recipient.Email is null ? null : (recipient.Email, recipient.Language);
     }
 
-    /// <summary>
-    /// Resolves the recipient and sends, or does nothing if the user has gone.
-    ///
-    /// Silence is deliberate. A user deleted between enqueue and send is not an error worth
-    /// retrying - Hangfire would retry it to exhaustion and then surface a failed job that needs a
-    /// human to dismiss. The send is best-effort by construction; the durable record of what
-    /// happened is the audit row the handler already wrote.
-    /// </summary>
     private async Task SendToUserAsync(
         Guid userId,
         string templateKey,
@@ -91,12 +111,6 @@ public sealed class EmailJobs(
 
     private string PublicUrl => configuration["App:PublicUrl"]
         ?? throw new InvalidOperationException("App:PublicUrl is not configured.");
-
-    // ---- token-bearing emails -------------------------------------------------------------
-    //
-    // SECURITY-ARCHITECTURE.md §1.6: the link carries only the opaque token, never the user id -
-    // the token alone resolves the user. That still holds; what changed is that the token is now
-    // minted inside the job instead of being handed to it.
 
     public async Task SendVerificationEmailAsync(Guid userId, CancellationToken ct)
     {
@@ -140,9 +154,6 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
-    /// <summary>Task #28: same shape as SendSupplierUserInviteEmailAsync, distinct accept-invite
-    /// path (/accept-staff-invite, not /accept-invite) since staff and supplier-user invites are
-    /// accepted by different handlers/pages even though the token mechanism is identical.</summary>
     public async Task SendStaffInviteEmailAsync(Guid userId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -157,43 +168,19 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
-    /// <summary>MSP-73/enumeration fix: sent to an ALREADY-registered account when someone submits
-    /// a new registration using its email (or its supplier's registration number). No token - a
-    /// plain link to /login, per the explicit decision to keep this a reminder, not a new
-    /// passwordless-auth mechanism. Helps a legitimate user who forgot they'd already registered,
-    /// while the API response given to whoever submitted the duplicate stays identical to a real
-    /// success (see RegistrationEndpoints.cs) - this email is the ONLY signal that goes anywhere,
-    /// and it goes only to the account's own inbox, never back to the submitter.</summary>
     public Task SendAlreadyRegisteredNoticeEmailAsync(Guid userId, CancellationToken ct) =>
         SendToUserAsync(userId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.AlreadyRegisteredNotice,
             locale => EmailTemplates.AlreadyRegisteredNotice(locale, PublicUrl), ct,
             new() { ["publicUrl"] = PublicUrl });
 
-    // ---- application lifecycle ------------------------------------------------------------
-
     public Task SendApplicationApprovedEmailAsync(Guid userId, CancellationToken ct) =>
         SendToUserAsync(userId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ApplicationApproved, EmailTemplates.ApplicationApproved, ct);
 
-    /// <summary>
-    /// The one remaining free-text argument, and it is stated rather than quietly kept.
-    ///
-    /// <para>The rejection reason is not persisted on the Supplier aggregate - <c>Reject(reason)</c>
-    /// changes state and the reason reaches only the audit row. Resolving it back out of the audit
-    /// log by action name would be fragile in a way that fails silently, which is worse than the
-    /// exposure it removes. So the reason travels as an argument and lands in the job store.</para>
-    ///
-    /// <para>It is a reviewer's words about a supplier, not a credential and not PII in the sense
-    /// MSP-87 was about, but it is not nothing either. Persisting it on the aggregate would make it
-    /// resolvable like the others; that is a schema change and belongs to its own ticket rather than
-    /// to a security fix that needs to ship.</para>
-    /// </summary>
     public Task SendApplicationRejectedEmailAsync(Guid userId, string reason, CancellationToken ct) =>
         SendToUserAsync(userId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.ApplicationRejected,
             locale => EmailTemplates.ApplicationRejected(locale, reason), ct,
             new() { ["reason"] = reason });
 
-    /// <summary>Takes the annotation id: its Reason is persisted, so it is resolved here rather than
-    /// carried through the job store.</summary>
     public async Task SendInfoRequestedEmailAsync(Guid userId, Guid annotationId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -208,9 +195,6 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
-    /// <summary>Goes to a reviewer, not to the supplier. The reference code is resolved from the
-    /// supplier rather than passed - it is the public identifier, but a job argument that can be
-    /// derived is a job argument that can drift.</summary>
     public async Task SendApplicationResubmittedEmailAsync(Guid reviewerUserId, Guid supplierId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(reviewerUserId, ct);
@@ -225,13 +209,6 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(reviewerUserId, recipient.Value.Email, subject, body, ct);
     }
 
-    // ---- RFQ / invitations -----------------------------------------------------------------
-
-    /// <summary>FEAT-08.3/FR-INV-003: recipient is the invited supplier's primary user, resolved
-    /// by InviteSupplierHandler at enqueue time. Takes the RFQ's Guid Id, not its ReferenceCode
-    /// string - MSP-89's job-argument rule (EmailJobArgumentTests) allows only identifiers typed
-    /// Guid, same "resolve inside the job" pattern SendApplicationResubmittedEmailAsync already
-    /// uses to derive a Supplier's ReferenceCode from its Guid Id.</summary>
     public async Task SendRfqInvitationEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -248,12 +225,6 @@ public sealed class EmailJobs(
             new() { ["referenceCode"] = rfq.ReferenceCode, ["rfqTitle"] = title, ["deepLink"] = deepLink }, () => EmailTemplates.RfqInvitation(recipient.Value.Language, rfq.ReferenceCode, title, deepLink), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
-
-    // ---- EPIC-10: clarifications / addenda -------------------------------------------------
-    //
-    // MSP-89: clarificationId/addendumId are here only as lookup keys, same reasoning as
-    // SendDocumentEmailAsync's documentId below - nothing about the question/answer text or the
-    // asker's identity is ever an argument.
 
     public async Task SendClarificationAnsweredEmailAsync(Guid userId, Guid rfqId, Guid clarificationId, CancellationToken ct)
     {
@@ -337,8 +308,6 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
-    // ---- EPIC-09: proposals -----------------------------------------------------------------
-
     public async Task SendProposalSubmittedEmailAsync(Guid userId, Guid proposalId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -355,8 +324,6 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
-    // ---- EPIC-11: evaluation ------------------------------------------------------------------
-
     public async Task SendEvaluatorAssignedEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -368,8 +335,6 @@ public sealed class EmailJobs(
             new() { ["referenceCode"] = rfq }, () => EmailTemplates.EvaluatorAssigned(recipient.Value.Language, rfq), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
-
-    // ---- EPIC-14: award -----------------------------------------------------------------------
 
     public async Task SendAwardIssuedEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
     {
@@ -383,8 +348,6 @@ public sealed class EmailJobs(
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
 
-    /// <summary>BRULE-082: regret notice - never carries the winner's identity or pricing, only the
-    /// fact that this RFQ has been awarded elsewhere.</summary>
     public async Task SendAwardRegretEmailAsync(Guid userId, Guid rfqId, CancellationToken ct)
     {
         var recipient = await RecipientAsync(userId, ct);
@@ -396,12 +359,6 @@ public sealed class EmailJobs(
             new() { ["rfqReferenceCode"] = rfqReferenceCode }, () => EmailTemplates.AwardRegret(recipient.Value.Language, rfqReferenceCode), ct);
         await emailSender.SendAsync(userId, recipient.Value.Email, subject, body, ct);
     }
-
-    // ---- document lifecycle ---------------------------------------------------------------
-    //
-    // These take a document id and resolve the filename from it. MSP-87 found original filenames
-    // exposed by the same dashboard route as the addresses; a filename is weaker than an email but
-    // it is still the supplier's data, and here it costs nothing to stop carrying it.
 
     public Task SendDocumentRejectedEmailAsync(Guid userId, Guid documentId, CancellationToken ct) =>
         SendDocumentEmailAsync(userId, documentId, MotsSupplierPortal.Application.Admin.EmailTemplateKeys.DocumentRejected,
@@ -428,8 +385,6 @@ public sealed class EmailJobs(
             .FirstOrDefaultAsync(ct);
         if (document is null) return;
 
-        // The reject reason is only present on a rejection; an override of the expiry templates that
-        // referenced it would have been refused at write time, because those two do not declare the token.
         var tokens = new Dictionary<string, string> { ["fileName"] = document.OriginalFileName };
         if (document.RejectReason is { } reason) tokens["reason"] = reason;
 

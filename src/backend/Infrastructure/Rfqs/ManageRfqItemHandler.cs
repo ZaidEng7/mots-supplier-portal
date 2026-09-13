@@ -1,3 +1,13 @@
+// Adding, editing and removing the lines a tender is asking to buy.
+//
+// The category and the unit of measure are checked against reference data by code rather than by a database
+// foreign key, which is the same convention the supplier catalogue uses.
+//
+// The edit path repeats those checks. A correction can change either one, and a correction into a code that
+// does not exist is the same defect as a creation into one.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,11 +24,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-07.1/FR-RFQ-002. Category/UoM referential integrity validated against reference
-/// data by code, not a DB FK - same established convention as Offering (see
-/// OfferingContracts.cs's own doc comment).</summary>
 public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRfqItemHandler
 {
     public async Task<RfqMutationResult> AddAsync(AddRfqItemCommand command, CancellationToken ct)
@@ -58,8 +63,6 @@ public sealed class ManageRfqItemHandler(AppDbContext db, IScopeContext scope, I
         var rfq = await RfqLoader.LoadScopedAsync(db, scope, command.ReferenceCode, ct);
         if (rfq is null) return new RfqMutationResult.NotFoundOrOutOfScope();
 
-        // The same reference-data checks the add does. A correction can change the category or the
-        // unit, and a correction into a code that does not exist is the same defect as a create into one.
         if (!await db.Categories.AnyAsync(c => c.Code == command.CategoryCode, ct))
         {
             return new RfqMutationResult.InvalidCategory();

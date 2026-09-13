@@ -1,15 +1,19 @@
+// The paging cursor for notifications.
+//
+// Opaque to the caller on purpose. A cursor that reads as a timestamp invites callers to construct one, and then
+// its format is a contract.
+//
+// It is URL-safe, and an unparseable value is a false rather than an error, which is what makes a hostile token
+// fall back to the first page instead of reaching the database.
+
+namespace MotsSupplierPortal.Infrastructure.Notifications;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Notifications;
-
-/// <summary>
-/// The keyset cursor. Opaque to the client on purpose - a cursor that reads as a timestamp invites
-/// callers to construct one, and then its format is a contract.
-/// </summary>
 internal static class NotificationCursor
 {
     public static string Encode(DateTimeOffset createdAt, Guid id) =>

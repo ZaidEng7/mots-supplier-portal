@@ -1,3 +1,11 @@
+// Turning a catalogue entry into its read model, including its free-form attributes.
+//
+// The attributes column is a plain serialised dictionary. Nothing and an empty dictionary both round-trip to
+// nothing rather than to an empty object, so a caller reads "no attributes set" and "attributes explicitly
+// cleared" the same way either way.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,8 +14,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
 internal static class OfferingDtoMapper
 {
     public static OfferingDto ToDto(Offering o) => new(
@@ -15,9 +21,6 @@ internal static class OfferingDtoMapper
         DeserializeAttributes(o.AttributesJson),
         o.RowVersion);
 
-    /// <summary>FEAT-06.2: the jsonb column is a plain serialized dictionary (see Offering.AttributesJson's
-    /// doc comment) - null/empty round-trips to null, never an empty object, so a caller can tell
-    /// "no attributes set" apart from "attributes explicitly cleared" the same way either way.</summary>
     public static string? SerializeAttributes(IReadOnlyDictionary<string, string>? attributes) =>
         attributes is null || attributes.Count == 0 ? null : JsonSerializer.Serialize(attributes);
 

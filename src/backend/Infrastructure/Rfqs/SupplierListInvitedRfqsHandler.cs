@@ -1,3 +1,24 @@
+// The tenders one supplier has been invited to.
+//
+// The invitation scope and the exclusion of tenders not yet published are applied before the cursor narrows
+// the set, so they hold identically on every page rather than only on the first. A cross-organization test
+// exists to prove exactly that.
+//
+// The total is a second query, off unless asked for, and counted before the cursor narrows anything.
+//
+//
+// NOTHING HERE LOADS A CHILD COLLECTION
+//
+// Every field on a row is either a scalar on the tender or a correlated sub-select: the reader's own
+// invitation status, the buying body's name, the count of requested lines, and whether the reader has a draft
+// bid open.
+//
+// That is the point of the projection. A count of lines becomes a count in the database rather than a
+// materialised list whose length is then read in memory, and the reader's own invitation is selected rather
+// than the whole invitation collection being loaded and filtered afterwards.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -8,8 +29,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
 public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContext scope) : ISupplierListInvitedRfqsHandler
 {
     public async Task<ListEnvelope<SupplierRfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, CancellationToken ct)
@@ -19,16 +38,10 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
 
         var supplierId = scope.SupplierId.Value;
 
-        // The invitation-scoping predicate and the pre-Published exclusion are UNCHANGED, and are
-        // applied before the cursor narrows the set - so they hold identically on every page, not
-        // just the first. CrossOrganizationScopeTests' paging test exists to prove exactly that.
         var query = db.Rfqs
             .Where(r => r.Invitations.Any(i => i.SupplierId == supplierId)
                 && r.State != RfqState.Draft && r.State != RfqState.InternalReview && r.State != RfqState.Approved);
 
-        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
-        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
-        // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (KeysetCursor.TryDecode(cursor, out var from))
@@ -38,18 +51,11 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
                 || (r.CreatedAt == from.At && r.Id.CompareTo(from.Id) < 0));
         }
 
-        // MyInvitationStatus is resolved in SQL by a correlated subquery over this supplier's own
-        // invitation row - the Invitations collection is never loaded, so the previous
-        // `r.Invitations.Single(...)` in-memory filter is gone along with the include.
         var rows = await query
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
             .Select(r => new
             {
                 r.Id,
-                // §12-A/D: §12.4's documented list fields. Every one is a correlated subquery or a
-                // scalar on the row - NOTHING here loads a child collection. That is the whole point
-                // of Batch 0.2's projection work: `r.Items.Count()` becomes a COUNT in SQL, not a
-                // materialised Items list whose Count is then read in memory.
                 Dto = new SupplierRfqListItemDto(
                     r.ReferenceCode, r.TitleAr, r.TitleEn, r.State,
                     r.Invitations.Where(i => i.SupplierId == supplierId).Select(i => i.Status).FirstOrDefault(),
@@ -61,7 +67,6 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
                     db.Proposals.Any(pr => pr.RfqId == r.Id
                         && pr.SupplierId == supplierId
                         && pr.State == ProposalState.Draft),
-                    // T-054: a scalar on the row, so it costs nothing extra in this projection.
                     r.SubmissionClosesAt),
             })
             .Take(size + 1)

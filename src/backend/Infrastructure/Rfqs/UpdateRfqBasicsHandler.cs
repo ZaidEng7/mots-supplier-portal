@@ -1,3 +1,10 @@
+// Editing a tender's titles, descriptions, currency and timeline.
+//
+// The timeline's own consistency, and whether the tender's state still permits an edit, are the domain's to
+// refuse.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -13,8 +20,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
 public sealed class UpdateRfqBasicsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUpdateRfqBasicsHandler
 {

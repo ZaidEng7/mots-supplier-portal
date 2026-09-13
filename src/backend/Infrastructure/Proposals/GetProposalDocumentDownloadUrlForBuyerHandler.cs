@@ -1,3 +1,10 @@
+// Buyer staff open one file from a bid.
+//
+// The visibility test and the scan-then-mint sequence are both shared, so this route adds nothing of its own
+// beyond finding the document.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Proposals;
@@ -5,8 +12,6 @@ using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
-
-namespace MotsSupplierPortal.Infrastructure.Proposals;
 
 public sealed class GetProposalDocumentDownloadUrlForBuyerHandler(
     AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger,

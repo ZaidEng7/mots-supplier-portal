@@ -1,3 +1,31 @@
+// A supplier declines an award they were offered.
+//
+// Supplier-side, so the bid is loaded through the supplier's own scope: declining somebody else's award offer
+// is the same not-found as a code that does not exist.
+//
+//
+// THE TENDER MOVES IN THE SAME COMMIT AS THE BID
+//
+// A declined offer that left the tender awaiting its award decision would be an award nobody could act on: the
+// offer is dead and the officer has no route back to choosing an alternate.
+//
+// Two aggregates in one unit of work, for the same reason the award handlers already do it. A window in which
+// one has moved and the other has not is worse than the coupling.
+//
+// It only returns the tender when the tender is actually awaiting that decision. One that reached its award by
+// the direct path has no offer outstanding, so there is nothing to return.
+//
+//
+// WHO IS TOLD, AND WHAT IS WITHHELD
+//
+// The procuring side. The supplier's own users are not notified: they are the ones who just declined, and a
+// notification is meant to tell somebody something they do not already know.
+//
+// The reason is audited and deliberately kept out of the notification payload, because a supplier's free text
+// does not belong there. The officer reads it on the screen the link opens.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -12,21 +40,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Infrastructure.Proposals;
-
-/// <summary>
-/// T-064, §4.1: <c>AwardOffered -&gt; Declined</c>, "Supplier declines ... Free the award for
-/// alternate; RFQ returns to <c>Recommendation</c>".
-///
-/// <para>Supplier-side, so the proposal is loaded through the supplier's own scope - a decline on
-/// someone else's award offer is the same 404 as a code that does not exist.</para>
-///
-/// <para><b>The RFQ moves in the same SaveChanges as the proposal.</b> A declined offer that left the
-/// RFQ in AwardApproval would be an award nobody could act on: the offer is dead and the officer has
-/// no route back to choosing an alternate. Two aggregates in one unit of work, for the same reason
-/// AwardHandlers already does it - a window in which one has moved and the other has not is worse
-/// than the coupling.</para>
-/// </summary>
 public sealed class DeclineAwardOfferHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : IDeclineAwardOfferHandler
 {
@@ -41,8 +54,6 @@ public sealed class DeclineAwardOfferHandler(AppDbContext db, IScopeContext scop
         {
             proposal.DeclineAward(command.Reason);
 
-            // Only when the RFQ is actually awaiting the award decision. An RFQ that reached Awarded
-            // by the direct path has no offer outstanding, so there is nothing to return.
             if (rfq.State == RfqState.AwardApproval)
             {
                 rfq.ReturnToRecommendation();
@@ -56,9 +67,6 @@ public sealed class DeclineAwardOfferHandler(AppDbContext db, IScopeContext scop
             return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
-        // §4.1: "In-app to procurement". The supplier's own users are NOT notified - they are the
-        // ones who just declined, and BRULE-091's spirit is that a notification tells someone
-        // something they do not already know.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalDeclined,
             await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct),
             $"{NotificationTypes.ProposalDeclined}:{proposal.Id}",
@@ -68,8 +76,6 @@ public sealed class DeclineAwardOfferHandler(AppDbContext db, IScopeContext scop
                 ["proposalCode"] = proposal.ReferenceCode,
             });
 
-        // The reason is audited and deliberately NOT in the notification payload - BRULE-091 keeps a
-        // supplier's free text out of it, and the officer reads it on the screen the link opens.
         await auditLogger.LogAsync("Proposal", proposal.Id, "proposal.declined", scope.UserId,
             referenceCode: proposal.ReferenceCode,
             fromState: nameof(ProposalState.AwardOffered), toState: nameof(ProposalState.Declined),

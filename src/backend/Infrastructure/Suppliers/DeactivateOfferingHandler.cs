@@ -1,3 +1,10 @@
+// Withdrawing a catalogue entry from future buyer searches.
+//
+// It hides the entry and keeps the row and its history. Never a delete, because a buyer who saw it last
+// month should still find the record of what they saw.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,10 +13,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-06.1 AC2: deactivation hides the offering from future buyer discovery but keeps
-/// the row (and its history) - never a delete.</summary>
 public sealed class DeactivateOfferingHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IDeactivateOfferingHandler
 {
     public async Task<OfferingMutationResult> HandleAsync(Guid offeringId, CancellationToken ct)

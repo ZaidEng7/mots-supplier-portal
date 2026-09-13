@@ -1,3 +1,34 @@
+// An evaluator opens their own scoring workspace.
+//
+// Every score is narrowed to this evaluator's own before it leaves the handler, which is what blind scoring
+// means here: one evaluator cannot see another's marks.
+//
+//
+// THIS READ IS ALSO A TRANSITION, AND IT IS NOW AUDITED
+//
+// The first evaluator to open the workspace is what starts scoring, which the written process says plainly.
+// It was a real state change with no audit row at all; the logger was not even a dependency.
+//
+// The prior state is captured before the call, so the audit row is written only when a transition genuinely
+// happened rather than on every later read once scoring is already under way.
+//
+//
+// A READ MUST NOT BE REFUSED BECAUSE THE TRANSITION IS NO LONGER AVAILABLE
+//
+// Once this evaluator had submitted, the evaluation sat one state further on, opening scoring threw, and the
+// read answered with a bad request. So an evaluator could not look at the scores they had just submitted, and
+// their dashboard's own link to the evaluation led nowhere.
+//
+// The same refusal also closed the post-consolidation window in which bidder names are revealed: unreachable,
+// because the read threw before it got there.
+//
+// The transition still happens on exactly the two states it was written for. Every other state reads.
+//
+// The tender's own lines and requirements are loaded explicitly, so an evaluator can read the specification
+// the bids answer. The shared loader fetches the tender bare.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,11 +48,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>The blind-scoring read path (OQ-005/BRULE-058): filters every EvaluatorScore to
-/// `EvaluatorUserId == scope.UserId` before it ever leaves the handler - see
-/// EvaluationDtoMapper.ToMyDto's own filter.</summary>
 public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IGetMyEvaluationHandler
 {
     public async Task<MyEvaluationResult> HandleAsync(string rfqReferenceCode, CancellationToken ct)
@@ -30,20 +56,7 @@ public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope,
         if (loaded is null) return new MyEvaluationResult.NotFoundOrNotAssigned();
         var (rfq, evaluation) = loaded.Value;
 
-        // EPIC-13/FEAT-13.3 audit finding: this GET was a real state mutation (Assigned/NotStarted
-        // -> InProgress, "the first evaluator to open" per BUSINESS-PROCESSES.md §5.1) with zero
-        // audit logging - IAuditLogger wasn't even injected. fromState captured before the call so
-        // the audit row is only written when a transition genuinely happened, not on every
-        // subsequent GET once already InProgress.
         var fromState = evaluation.State;
-        // Opening scoring is a transition, and a READ must not be refused because the transition is no
-        // longer available. Once this evaluator had submitted, the evaluation sat at EvaluatorSubmitted,
-        // OpenScoring threw, and the GET answered 400 - so an evaluator could not look at the scores they
-        // had just submitted, and the dashboard's own "View evaluation" link led nowhere. The same refusal
-        // closed the post-consolidation window this file's own comments describe, where bidder names are
-        // revealed: unreachable, because the read threw before reaching it.
-        //
-        // The transition still happens on exactly the states it was written for. Everything else reads.
         if (evaluation.State is EvaluationState.Assigned or EvaluationState.InProgress)
         {
             try
@@ -62,8 +75,6 @@ public sealed class GetMyEvaluationHandler(AppDbContext db, IScopeContext scope,
         }
         await db.SaveChangesAsync(ct);
 
-        // T-067: the RFQ's own items and requirements, so an evaluator can read the specification
-        // the bids answer. Loaded explicitly because LoadScopedByAssignmentAsync fetches the Rfq bare.
         await db.Entry(rfq).Collection(r => r.Items).LoadAsync(ct);
         await db.Entry(rfq).Collection(r => r.Requirements).LoadAsync(ct);
 

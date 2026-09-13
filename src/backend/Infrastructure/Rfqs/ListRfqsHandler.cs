@@ -1,3 +1,43 @@
+// The buyer's list of their organization's tenders.
+//
+//
+// WHAT THIS USED TO DO
+//
+// It loaded seven child collections for every tender in the organization, unpaged, plus a batched query for
+// supplier names, in order to render three scalar columns.
+//
+// The child collections existed for the DETAIL read model; the list never touched them. It now selects the
+// list's own shape in the database and pages by cursor, which the written contract names as the default for
+// tenders.
+//
+// The organization scope is unchanged and is still the first condition applied. It is part of the same
+// filter the cursor narrows, so it holds on page two exactly as on page one.
+//
+//
+// THE OWNER FILTER
+//
+// The same three-value shape the review queue uses, for the same reasons. "Me" resolves on the server so the
+// interface never needs to know its own user identifier. "Unassigned" surfaces the pool an officer would
+// claim from, which is where every tender predating ownership lives. Anything else is one specific officer,
+// for a manager looking at one person's load.
+//
+// The endpoint refuses an unrecognised value before reaching here.
+//
+//
+// PAGING AND THE OWNER'S NAME
+//
+// Newest first with the identifier as tiebreak. One row beyond the page answers "is there more" without
+// counting the whole filtered set. The total is a second query, off unless asked for, and counted before the
+// cursor narrows anything.
+//
+// The owner's name comes from a correlated sub-select rather than a second round trip, because resolving
+// names afterwards is exactly the per-row query the projection exists to avoid.
+//
+// It is absent when the tender is unowned, and also absent when the identifier points at a user row that is
+// gone. Those are two different facts, and the screen tells them apart by whether the identifier is present.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,20 +54,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>
-/// T2 Item 2 + 3: projected and cursor-paginated.
-///
-/// <para>This previously ran <c>IncludeAll()</c> - seven child collections - plus a batched
-/// supplier-name query, for every RFQ in the organization, unpaginated, to render three scalar
-/// columns. The includes existed for <see cref="RfqDto"/>, the DETAIL shape; the list never touched
-/// them. It now projects <see cref="RfqListItemDto"/> in SQL and pages by keyset per
-/// API-ARCHITECTURE.md §6.1, which names RFQs a cursor-default collection.</para>
-///
-/// <para>Org scoping is unchanged and still the first predicate applied - it is part of the same
-/// WHERE the cursor narrows, so it holds on page two exactly as on page one.</para>
-/// </summary>
 public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : IListRfqsHandler
 {
     public async Task<ListEnvelope<RfqListItemDto>> HandleAsync(string? cursor, int? pageSize, bool withCount, string? owner, CancellationToken ct)
@@ -37,11 +63,6 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
 
         var query = db.Rfqs.Where(r => r.OrganizationId == scope.OrganizationId);
 
-        // A-7: the same three-value shape the review queue's ?assignedTo= already uses, and for the
-        // same reason - "me" resolves server-side so the SPA never needs to know its own user id,
-        // "unassigned" surfaces the pool an officer would claim from (which is where every RFQ that
-        // predates ownership lives), and anything else is a specific officer, for a manager looking
-        // at one person's load. The endpoint refuses an unrecognised value before reaching here.
         if (owner == "me")
         {
             query = query.Where(r => r.OwnerUserId == scope.UserId);
@@ -55,9 +76,6 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
             query = query.Where(r => r.OwnerUserId == ownerUserId);
         }
 
-        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
-        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
-        // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (KeysetCursor.TryDecode(cursor, out var from))
@@ -67,13 +85,8 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
                 || (r.CreatedAt == from.At && r.Id.CompareTo(from.Id) < 0));
         }
 
-        // pageSize + 1: the extra row answers HasMore without a COUNT over the whole filtered set.
         var rows = await query
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
-            // The owner's NAME comes from a correlated sub-select rather than a second round trip:
-            // this is a list path, and resolving N names afterwards is the N+1 the projection above
-            // exists to avoid. Null when unowned, and null when the id points at a user row that is
-            // gone - two different facts the screen distinguishes by the id being present or not.
             .Select(r => new
             {
                 r.Id,

@@ -1,23 +1,21 @@
+// The notification list, and the bell's.
+//
+// Scoped to the caller inside the query. The written rule is that nothing leaks across scope, and the filter IS
+// the enforcement: no code path reads notifications without it, because the recipient test is applied before
+// anything else and no parameter can widen it.
+//
+// Cursor-paged, which the contract names as the default for notifications. Newest first, with the
+// time-ordered identifier as tiebreak so two notifications written in one transaction cannot straddle a page
+// boundary.
+
+namespace MotsSupplierPortal.Infrastructure.Notifications;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Notifications;
-
-/// <summary>
-/// SCR-900's list, and the bell's.
-///
-/// <para><b>Row-scoped to the caller, in the query.</b> UX-WRITING §10: "Never leaks data across
-/// scope (RBAC §6): suppliers see only their own". The WHERE clause is the enforcement - there is no
-/// code path that reads notifications without it, because the recipient predicate is applied before
-/// anything else and no parameter can widen it.</para>
-///
-/// <para>Cursor pagination per §6.1, which names notifications as a cursor-default collection. The
-/// keyset is (CreatedAt desc, Id desc): newest first, with the GUIDv7 id as the tiebreaker so two
-/// notifications written in the same transaction cannot straddle a page boundary.</para>
-/// </summary>
 public sealed class ListNotificationsHandler(AppDbContext db, IScopeContext scope) : IListNotificationsHandler
 {
     public async Task<ListEnvelope<NotificationDto>> HandleAsync(string? cursor, int? pageSize, bool? unreadOnly, CancellationToken ct)

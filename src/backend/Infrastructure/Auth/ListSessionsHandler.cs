@@ -1,9 +1,20 @@
+// The caller's own active sessions, one row per session family, with the current one marked.
+//
+// The families are reduced in the database and the result is a small, per-user-bounded set: a person has a
+// handful of active sessions, not thousands.
+//
+// So the cursor filter runs against that already-materialised list rather than being pushed into the query. The
+// boundary here is the grouping, not the row count.
+//
+// The total is counted over the ordered set before the cursor narrows it, so it is a total rather than how many
+// are left.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : IListSessionsHandler
 {
@@ -17,10 +28,6 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
         var pageSize = ListEnvelope<SessionDto>.ClampPageSize(limit);
         var currentFamilyId = await ResolveCurrentFamilyIdAsync(currentRefreshToken, ct);
 
-        // One row per session family, already reduced to a small, per-user-bounded set (a person
-        // has a handful of active sessions, not thousands) - the keyset filter below runs against
-        // this already-materialized list rather than pushing into SQL, since the boundary here is
-        // the GroupBy-then-First reduction, not the row count.
         var sessions = await db.RefreshTokens
             .Where(t => t.UserId == scope.UserId && t.RevokedAt == null && t.ExpiresAt > DateTimeOffset.UtcNow)
             .GroupBy(t => t.FamilyId)
@@ -32,8 +39,6 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
             .Select(t => new SessionDto(t.FamilyId, t.Ip, t.UserAgent, t.CreatedAt, t.ExpiresAt, t.FamilyId == currentFamilyId))
             .AsEnumerable();
 
-        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the ordered set before
-        // the cursor narrows it, so it is a total rather than "how many are left".
         int? totalCount = withCount ? ordered.Count() : null;
 
         if (KeysetCursor.TryDecode(cursor, out var from))

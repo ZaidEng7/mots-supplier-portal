@@ -1,3 +1,10 @@
+// A reviewer asks a supplier for more information, naming the fields and documents at fault.
+//
+// The request is held in a local so the email job can reference it by identifier. The reason text is
+// persisted here, so the job resolves it rather than carrying it in the job store.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -11,8 +18,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IRequestInfoHandler
 {
@@ -29,8 +34,6 @@ public sealed class RequestInfoHandler(AppDbContext db, IScopeContext scope, IAu
             .Select(t => t.Id)
             .ToListAsync(ct);
 
-        // Held in a local so the enqueue below can reference the annotation by id. The reason text
-        // is persisted here, so the job resolves it rather than carrying it (MSP-89).
         var annotation = new SupplierReviewAnnotation
         {
             Id = Guid.NewGuid(),

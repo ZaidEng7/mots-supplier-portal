@@ -1,3 +1,20 @@
+// A buyer answers a bidder's question.
+//
+// Answers are private by default and publishing to everyone is an explicit second step, which is the interim
+// reading of an open question the ministry has not settled.
+//
+//
+// TWO MESSAGES, BECAUSE THEY ARE TWO DIFFERENT FACTS
+//
+// The asker is told their own question was answered. Every other invitee is told that an answer was
+// published, and that second message must not name the asker.
+//
+// Answering and publishing in one action still only reaches the asker from here. The visibility change has
+// its own notification, which covers the rest, so there is one notification per actual change rather than two
+// emails for the combined action.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,15 +31,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-10.2/FR-CLR-002, OQ-008 interim (private-by-default, explicit publish available):
-/// command.Publish defaults to false at the API layer. Notifies only the asker - a
-/// PublishedToAll answer additionally notifies every other invited supplier via
-/// PublishClarificationHandler below (answering-and-publishing-at-once still only reaches the
-/// asker at answer time here; the visibility flip's own notification covers the rest, kept as one
-/// notification per actual visibility change rather than double-emailing on the combined
-/// action).</summary>
 public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
     : IAnswerClarificationHandler
 {
@@ -46,9 +54,6 @@ public sealed class AnswerClarificationHandler(AppDbContext db, IScopeContext sc
             changes: $"{{\"clarificationId\":\"{command.ClarificationId}\",\"published\":true}}", ct: ct);
         await db.SaveChangesAsync(ct);
 
-        // A-4: the asker is told their own question was answered; every OTHER invitee is told an
-        // answer was published. Two different messages because they are two different facts, and the
-        // second one must not name the asker.
         await NotifyAskerAsync(db, backgroundJobs, clarification.AskedBySupplierId, rfq.Id, clarification.Id, ct);
         await NotifyOtherInviteesAsync(db, backgroundJobs, rfq, clarification.AskedBySupplierId, ct);
 

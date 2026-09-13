@@ -1,19 +1,27 @@
-using System.Security.Cryptography;
-using Microsoft.Extensions.Configuration;
+// Encrypts the few fields that must not be readable in a raw database dump, which today means bank account
+// numbers.
+//
+// It sits on top of whole-disk encryption rather than replacing it: disk encryption protects a stolen
+// drive, and this protects a dump taken by somebody who was allowed to connect.
+//
+// One blob per field, packing the nonce, the authentication tag and the ciphertext together, so an
+// encrypted field needs no extra columns beside it.
+//
+//
+// WHAT PRODUCTION STILL NEEDS
+//
+// The key here is a single symmetric key read from configuration, and in local development an ephemeral
+// one is generated when none is set, the same pattern the token signing key uses.
+//
+// A real deployment must supply a key from a managed key service through a secrets manager rather than a
+// configuration string, and should support rotation: re-encrypt on the next write while still accepting
+// the old key for reads. This version does not do that, which is recorded rather than implied.
 
 namespace MotsSupplierPortal.Infrastructure.Security;
 
-/// <summary>
-/// SECURITY-ARCHITECTURE.md §3.4: application-level field encryption for high-sensitivity fields
-/// (bank account numbers) via a KMS-backed data key [ASSUMPTION] - so a raw DB dump doesn't expose
-/// them, on top of at-rest disk encryption. AES-256-GCM: nonce (12B) + tag (16B) + ciphertext
-/// packed into one blob, so no separate columns needed per encrypted field.
-///
-/// [ASSUMPTION] the data key here is a single symmetric key read from config (dev: generated
-/// ephemeral if unset, same pattern as JwtSigningKeyProvider) - production must supply a real
-/// KMS-issued key via secrets manager, not a config string, and should support key rotation
-/// (re-encrypt on next write, tolerate old key for reads) which this minimal version doesn't yet.
-/// </summary>
+using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
+
 public sealed class FieldEncryptionService
 {
     private readonly byte[] _key;

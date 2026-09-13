@@ -1,9 +1,17 @@
+// Signing out of every session, optionally keeping the one making the request.
+//
+// The current session is identified by hashing the presented token and reading its family, which is the same
+// resolution the password change uses.
+//
+// The count returned is of session families rather than of token rows, because a family is what a person
+// recognises as a session.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class RevokeAllSessionsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRevokeAllSessionsHandler
 {

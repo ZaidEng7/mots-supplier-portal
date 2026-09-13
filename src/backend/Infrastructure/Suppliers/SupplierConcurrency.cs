@@ -1,28 +1,44 @@
+// What makes the supplier record's "somebody else changed this" check real.
+//
+// Before this, the version was mapped and returned in the response, but nothing ever sent it back and no
+// handler set an expected value. So the mapper compared the version it had just read against itself, always
+// matched, and the second of two concurrent writers silently overwrote the first. The token was decoration.
+//
+// Setting the caller's expected version as the original value is what puts it into the update's condition,
+// so the database rather than the application decides whether the row moved underneath us.
+//
+//
+// A WRITE WITH NO EXPECTED VERSION IS ALLOWED THROUGH
+//
+// Deliberate, and worth stating. Rejecting every version-less write would have broken every existing caller
+// on the day it shipped.
+//
+// So the guard is opt-in per caller today, and the interface opts in on the screens where two people
+// realistically edit the same fields. Making it mandatory is a separate decision, once every caller sends
+// the header.
+//
+//
+// WHY THE PERSIST STEP IS PASSED IN RATHER THAN CALLED HERE
+//
+// The audit logger saves on its own, so the guarded update is actually committed inside the audit call. A
+// catch placed after that call never sees the collision.
+//
+// That internal save is a wider wrinkle affecting every audit call site and is deliberately not changed
+// here; a separate piece of work centralises the logger.
+//
+// The winner's current version is re-read on a fresh untracked query, because the failed context still
+// holds the stale value and reading through the tracker would hand the client back the version it already
+// had.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// MSP-65: makes the Supplier row's optimistic concurrency real.
-///
-/// Before this, RowVersion was mapped (`xmin`) and returned in the DTO, but nothing ever sent it
-/// back and no handler set an original value - so EF compared the version it had just read against
-/// itself, always matched, and the second of two concurrent writers silently overwrote the first.
-/// The token was decoration.
-///
-/// Policy on a missing If-Match: the write proceeds. This is deliberate and worth stating, because
-/// the alternative (reject every version-less write) would break every existing client on the day
-/// it shipped. It means the guard is opt-in per caller today; the SPA opts in for the screens where
-/// two people realistically edit the same fields. Tightening to mandatory is a separate decision
-/// once all callers send the header.
-/// </summary>
 internal static class SupplierConcurrency
 {
-    /// <summary>Tells EF to include the caller's expected version in the UPDATE's WHERE clause, so
-    /// the database - not the application - decides whether the row moved underneath us.</summary>
     public static void ApplyExpectedVersion(AppDbContext db, Supplier supplier, IConcurrencyContext concurrency)
     {
         if (concurrency.ExpectedRowVersion is not { } expected) return;
@@ -30,16 +46,6 @@ internal static class SupplierConcurrency
         db.Entry(supplier).Property(s => s.RowVersion).OriginalValue = expected;
     }
 
-    /// <summary>
-    /// Runs the handler's persist step and converts a concurrency collision into a typed result
-    /// rather than an unhandled 500.
-    ///
-    /// Takes the work as a delegate rather than just calling SaveChanges, because
-    /// <see cref="Audit.AuditLogger"/> performs its own SaveChanges internally - so the guarded
-    /// UPDATE is actually committed inside the audit call, and a catch placed after it never sees
-    /// the exception. (That internal SaveChanges is a wider design wrinkle affecting all 55 audit
-    /// call sites; deliberately not changed here - see MSP-64, which will centralize the logger.)
-    /// </summary>
     public static async Task<bool> TryPersistAsync(Func<Task> persist)
     {
         try
@@ -53,9 +59,6 @@ internal static class SupplierConcurrency
         }
     }
 
-    /// <summary>The winner's current version, read on a fresh no-tracking query - the failed
-    /// context still holds the stale value, so re-reading through the tracker would hand the
-    /// client back the version it already had.</summary>
     public static async Task<uint> CurrentVersionAsync(AppDbContext db, Guid supplierId, CancellationToken ct) =>
         await db.Suppliers.AsNoTracking()
             .Where(s => s.Id == supplierId)

@@ -1,3 +1,31 @@
+// A manager approves a recommended award.
+//
+//
+// SEGREGATION OF DUTIES IS ENFORCED HERE FIRST
+//
+// The approver may not be the recommender. This is the primary enforcement point, the one the written actor
+// column names, and it runs before the domain's own repeat of the same check.
+//
+// Its own typed refusal is what lets the endpoint answer with a specific error code rather than a generic domain
+// message.
+//
+// The winning supplier's active status is also checked here, at approval time, which is the written rule's own
+// wording: at the moment of approval.
+//
+//
+// APPROVAL IS WHERE THE OFFER BECOMES TRUE
+//
+// The written process makes the shortlisted bid an offer at this point, and the bid's own method explains why it
+// is not made at recommendation time.
+//
+// Only from shortlisted. A tender that never shortlisted awards directly at execution, which is the path that
+// already existed; forcing every award through the offer would break those, and the written process does not
+// require it.
+//
+// The bid is non-null by the time that runs, because the supplier check above returns early when it is not.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -14,14 +42,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Awards;
-
-/// <summary>FEAT-14.3/FR-AWD-003, BRULE-073/075: segregation of duties (approver != recommender) is
-/// enforced HERE first - the primary, API-policy enforcement point BUSINESS-PROCESSES.md §6.1's own
-/// actor column names - before Award.Approve's own domain-level repeat of the same check ever runs;
-/// a distinct AwardMutationResult.SegregationOfDutiesViolation lets the API return a specific error
-/// code rather than a generic domain-exception message. The winning supplier's Active status is
-/// also checked here, at approval time, per BRULE-075's own "at the moment of approval" wording.</summary>
 public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IApproveAwardHandler
 {
     public async Task<AwardMutationResult> HandleAsync(ApproveAwardCommand command, CancellationToken ct)
@@ -45,15 +65,6 @@ public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IA
         {
             award.Approve(scope.UserId!.Value);
 
-            // T-064/§4.1: "Shortlisted -> AwardOffered | Selected for award ... Mark as award
-            // candidate | Email + in-app to supplier (offer)". Approve is the first point at which the
-            // offer is TRUE - see Proposal.OfferAward on why it is not made at recommend time.
-            //
-            // Only from Shortlisted. An RFQ that never shortlisted awards directly at execute, the
-            // path that already existed; forcing every award through the offer would break those, and
-            // §4.1 does not require it.
-            // proposal is non-null here: the SupplierNotActive guard above returns early when it is,
-            // so reaching this line means both the proposal and its supplier were found.
             if (proposal!.State == ProposalState.Shortlisted)
             {
                 proposal.OfferAward();
@@ -76,7 +87,6 @@ public sealed class ApproveAwardHandler(AppDbContext db, IScopeContext scope, IA
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        // §3.4 "PendingApproval -> Approved | In-app to officer" - A-7: the RFQ's owner.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardApproved,
             await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.AwardApproved}:{award.Id}:{award.RecommendationRevision}",

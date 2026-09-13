@@ -1,3 +1,22 @@
+// The security boundary for every supplier-facing tender read.
+//
+// The tender is resolved by the caller's own supplier and the reference code together, through a real
+// invitation row, and never by the reference code alone.
+//
+// So a supplier who was not invited finds no row and gets the same answer a wrong reference code would.
+// The two cases are indistinguishable from outside, which means this endpoint is no oracle for whether a
+// tender exists.
+//
+// It also requires the tender to be published or later. A draft, one in internal review, or an approved but
+// unpublished one is buyer-internal even to an already-invited supplier: invitations can be created while
+// the tender is still a draft, but visibility only opens at publication, which is what the written process
+// means by generating access at that point.
+//
+// Internal rather than private to this file so the bid handlers can reuse it for "is this caller invited to
+// this tender" rather than reimplementing the same check.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -8,22 +27,8 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-08.6/FR-INV-006: the supplier-facing self-service side of RFQ Invitations - the
-/// security boundary this feature exists for. Every handler here resolves the RFQ by
-/// (SupplierId, ReferenceCode) through a real Invitation row, never by ReferenceCode alone: a
-/// non-invited supplier's request finds no row and gets the same NotFoundOrNotInvited a wrong
-/// reference code would, so the two cases are indistinguishable from outside (no oracle for
-/// "does this RFQ exist").</summary>
-/// <summary>Internal (not file-scoped) so EPIC-09's ProposalHandlers.cs can reuse LoadInvitedAsync
-/// for "is this caller invited to this RFQ" rather than reimplementing the same check.</summary>
 internal static class SupplierRfqLoader
 {
-    /// <summary>Also requires the RFQ to be Published or later - Draft/InternalReview/Approved
-    /// RFQs are buyer-internal even for an already-invited supplier (invitations can be created
-    /// starting in Draft per FEAT-08.1/candidate-identification, but visibility only opens at
-    /// Publish, matching BUSINESS-PROCESSES.md's "Approved -&gt; Published: generate access").</summary>
     public static async Task<(Rfq Rfq, Invitation Invitation)?> LoadInvitedAsync(
         AppDbContext db, IScopeContext scope, string referenceCode, CancellationToken ct)
     {

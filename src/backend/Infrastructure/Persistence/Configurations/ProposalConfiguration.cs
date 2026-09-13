@@ -1,21 +1,37 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a bid maps to its table, and the uniqueness rule that lets a supplier bid again.
+//
+// The two free-text columns share one bound, because both are a person's own explanation of a transition.
+//
+//
+// ONE LIVE BID PER SUPPLIER PER TENDER, NOT ONE BID EVER
+//
+// The unfiltered version of this index made the written process's re-entry impossible at the database
+// level. Re-submission while the window is open means a new draft, which needs a second row, and the
+// index refused one.
+//
+// So it was narrowed rather than dropped. The rule being enforced is one live bid per supplier per
+// tender, which is what uniqueness was always for. A withdrawn bid is a historical record rather than a
+// current one, and any number of them can accumulate if a supplier withdraws repeatedly inside the
+// window.
+//
+// Two later states belong in the same exclusion for the same reason. A supplier whose draft lapsed must
+// be able to bid again if that tender reopens its window, and one whose bid was cancelled along with the
+// tender must not be blocked from a re-tender. Leaving them in would have made the index refuse the
+// second row and surface as a server error on a perfectly legitimate submission, which is exactly how
+// the unfiltered version failed the first time.
+//
+//
+// WHY THE COLUMN NAME INSIDE THE FILTER IS QUOTED
+//
+// This project maps to capitalised column names, and an unquoted name folds to lower case in the
+// database and then does not exist. The first version of this filter failed every migration with an
+// undefined-column error.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Proposals;
 
 internal sealed class ProposalConfiguration : IEntityTypeConfiguration<Proposal>
 {
@@ -35,32 +51,11 @@ internal sealed class ProposalConfiguration : IEntityTypeConfiguration<Proposal>
         entity.Property(p => p.NarrativeAr).HasMaxLength(4000);
         entity.Property(p => p.NarrativeEn).HasMaxLength(4000);
         entity.Property(p => p.WithdrawReason).HasMaxLength(2000);
-        // T-064: same bound, same kind of value - a supplier's free text explaining a transition.
         entity.Property(p => p.DeclineReason).HasMaxLength(2000);
-        // Same bound as WithdrawReason - both are a person's free text explaining a transition.
         entity.Property(p => p.ClarificationReason).HasMaxLength(2000);
         entity.Property(p => p.RowVersion).IsAppManagedVersion();
-        // Unique per (rfq, supplier) among proposals that are NOT withdrawn.
-        //
-        // The unfiltered version made BUSINESS-PROCESSES.md §4.1's re-entry impossible at the
-        // database level: "re-submission allowed while window open (new draft)" needs a second
-        // row, and the index refused one. Narrowed rather than dropped - the rule being enforced
-        // is "one LIVE proposal per supplier per RFQ", which is what uniqueness was always for;
-        // a withdrawn proposal is a historical record, not a current bid, and any number of them
-        // can accumulate if a supplier withdraws repeatedly within the window.
         entity.HasIndex(p => new { p.RfqId, p.SupplierId })
             .IsUnique()
-            // The column name is QUOTED. This project maps to PascalCase columns, and an
-            // unquoted `state` folds to lowercase in Postgres and does not exist - the first
-            // version of this filter failed every migration with 42703.
-            //
-            // A-9 added Lapsed and Cancelled, and both belong in this exclusion for the same
-            // reason Withdrawn does: they are historical records rather than current bids. A
-            // supplier whose draft LAPSED on RFQ-1 must be able to bid again if that RFQ reopens
-            // its window, and one whose proposal was CANCELLED with the RFQ must not be blocked
-            // from a re-tender. Leaving them in would have made the index refuse the second row
-            // and surface as a 500 on a perfectly legitimate submission - which is exactly how
-            // the unfiltered version of this index failed the first time.
             .HasFilter("\"State\" NOT IN ('Withdrawn', 'Lapsed', 'Cancelled')");
         entity.HasIndex(p => new { p.SupplierId, p.State });
         entity.HasIndex(p => new { p.RfqId, p.State });

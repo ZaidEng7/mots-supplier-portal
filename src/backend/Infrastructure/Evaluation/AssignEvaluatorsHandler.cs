@@ -1,3 +1,24 @@
+// A manager seats the evaluation committee.
+//
+// Every evaluator is assigned to every bid on the tender; the assignment record's own header explains why
+// there is no per-evaluator subset of bids.
+//
+// Each newly assigned evaluator is emailed. Before this they only learned of the assignment by independently
+// checking their own dashboard.
+//
+//
+// WHY THE NEW ROWS ARE FORCED TO THE INSERTED STATE
+//
+// The change tracker misclassifies a brand-new child appended to an already-loaded collection as an existing
+// row rather than a new one when the same save also updates the owning evaluation's own state column, which
+// it does here.
+//
+// Setting the state explicitly for the rows this call actually created sidesteps that, rather than relying on
+// the tracker's fixup heuristic to get it right. Several handlers in this folder point back at this
+// explanation.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Globalization;
@@ -17,13 +38,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
-
-/// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1: "— -&gt; Assigned ... procurement_manager
-/// / evaluation.assign". Assigns every candidate to every Submitted proposal on the RFQ - see
-/// EvaluationAssignment.cs's own doc comment on why no per-evaluator proposal subset exists.</summary>
-/// <summary>FEAT-13.3 audit gap fix: notifies each newly-assigned evaluator - previously they only
-/// learned of the assignment by independently checking their own evaluation dashboard.</summary>
 public sealed class AssignEvaluatorsHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs) : IAssignEvaluatorsHandler
 {
     public async Task<EvaluationMutationResult> HandleAsync(AssignEvaluatorsCommand command, CancellationToken ct)
@@ -41,11 +55,6 @@ public sealed class AssignEvaluatorsHandler(AppDbContext db, IScopeContext scope
         {
             return new EvaluationMutationResult.InvalidState(ex.Message);
         }
-        // EF's change-tracker misclassifies a brand-new child appended to an already-Included
-        // collection as Modified (not Added) when the SAME SaveChanges also updates the owning
-        // Evaluation row's own State column (NotStarted -&gt; Assigned here) - forcing the state
-        // explicitly for the rows this call actually created sidesteps that misdetection rather
-        // than relying on DetectChanges' fixup heuristic to get it right.
         foreach (var assignment in evaluation.Assignments.Where(a => !existingAssignmentIds.Contains(a.Id)))
         {
             db.Entry(assignment).State = EntityState.Added;

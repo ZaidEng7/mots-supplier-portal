@@ -1,22 +1,30 @@
+// A user updates their own name and interface language.
+//
+// Two fields, and neither is an authorisation fact: renaming yourself and switching your own language decide
+// nothing about what you may do.
+//
+// Saving the account screen counts as choosing a language, so the first-run chooser does not reappear for
+// somebody who has already been through the settings.
+//
+//
+// WRITTEN THROUGH THE TRACKED ENTITY RATHER THAN A DIRECT UPDATE
+//
+// The row is small and it is one round trip either way, so the reason is the interceptor: the expected-version
+// guard runs on the save and a direct update goes round it.
+//
+// Not for the audit trail. Auditing here is always explicit through the logger and never an interceptor, which
+// was checked rather than assumed after an earlier version of this note claimed otherwise.
+//
+// Renaming yourself is deliberately NOT audited. The written requirement scopes the trail to procurement
+// accountability, and adding identity changes to it is a decision for whoever owns that scope.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Auth;
-
-/// <summary>
-/// SCR-902's update. Two fields, and neither is an authorization fact: renaming yourself and
-/// switching your own interface language decide nothing about what you may do.
-///
-/// <para><b>Written through the tracked entity rather than ExecuteUpdateAsync.</b> The row is small and
-/// the write is one round trip either way, so the reason is the interceptor: ExpectedVersionInterceptor
-/// runs on SaveChangesAsync and enforces the app-managed version guard, and ExecuteUpdateAsync goes round
-/// it. Not for audit - auditing in this codebase is explicit through IAuditLogger, never an interceptor,
-/// which was checked rather than assumed after an earlier version of this comment claimed otherwise.
-/// Renaming yourself is deliberately NOT audited: FR-AUD-001 scopes the trail to procurement
-/// accountability, and adding identity changes to it is a decision for whoever owns that scope.</para>
-/// </summary>
 public sealed class UpdateAccountHandler(AppDbContext db) : IUpdateAccountHandler
 {
     public async Task<AccountDto?> HandleAsync(UpdateAccountCommand command, CancellationToken ct)
@@ -26,8 +34,6 @@ public sealed class UpdateAccountHandler(AppDbContext db) : IUpdateAccountHandle
 
         user.FullName = command.FullName;
         user.Language = command.Language;
-        // Saving the account screen counts as choosing, so the first-run chooser does not reappear for
-        // someone who has already been through the settings.
         user.LanguageChosenAt ??= DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
 

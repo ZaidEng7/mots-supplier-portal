@@ -1,8 +1,10 @@
+// The active supplier categories, for the pickers that offer them.
+
+namespace MotsSupplierPortal.Infrastructure.ReferenceData;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.ReferenceData;
 
 public sealed class GetCategoriesHandler(AppDbContext db) : IGetCategoriesHandler
 {

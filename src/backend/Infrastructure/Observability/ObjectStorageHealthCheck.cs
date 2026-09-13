@@ -1,17 +1,17 @@
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-using MotsSupplierPortal.Infrastructure.Storage;
+// The readiness check for the object store.
+//
+// No existing health-check package for this kind of store is referenced, and this project has already found the
+// store's own client to fail silently against this server version.
+//
+// A health check is exactly the wrong place to add a second, unverified client that could report healthy over a
+// connection that does not actually work, so this reuses the SAME client the application depends on for real
+// uploads and downloads, through its read-only probe.
 
 namespace MotsSupplierPortal.Infrastructure.Observability;
 
-/// <summary>
-/// Task #16/NFR-OBS-006: readiness dimension #3 (docs/architecture/OBSERVABILITY-ARCHITECTURE.md
-/// §5) - "object storage reachable". No existing S3-compatible health check package is
-/// referenced, and this project has already found the third-party MinIO SDK to fail silently
-/// against this MinIO version (MinioFileStorage's own doc comment) - a health check is exactly
-/// the wrong place to add a second, unverified client that could report healthy over a
-/// connection that does not actually work. Reuses the SAME AWSSDK.S3 client the app already
-/// depends on for real uploads/downloads, via MinioFileStorage.PingAsync (read-only).
-/// </summary>
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using MotsSupplierPortal.Infrastructure.Storage;
+
 public sealed class ObjectStorageHealthCheck(MinioFileStorage fileStorage) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)

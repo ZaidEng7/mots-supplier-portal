@@ -1,35 +1,36 @@
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Infrastructure.Persistence;
+// A delivery term on a bid must name a row in the reference table, or the bid is refused.
+//
+//
+// WHAT THIS REPLACES
+//
+// The field was free text whose only guard was its length, so "ASAP", "fob" and a misspelling were all
+// accepted and all printed into the comparison matrix beside the real terms.
+//
+// Two bids using different words for one term compared as different. Two using one word for different terms
+// compared as the same.
+//
+//
+// THREE DELIBERATE EDGES
+//
+// Case is normalised rather than refused. The standard's codes are upper-case and a supplier typing a term in
+// lower case means that term; refusing it would be pedantry, while storing it as typed would put the free-text
+// problem straight back. The stored value is always the table's own.
+//
+// Absent stays allowed. The field is optional in the contract and in the domain, and a domestic service
+// contract may legitimately quote no delivery term at all. This rule governs what a PRESENT value may be.
+//
+// Inactive counts as unknown. A ministry that deactivates a term has decided bids may not quote it, and
+// historical bids keep theirs because nothing rewrites a stored bid.
+//
+// The refusal carries the list a bidder needs in order to correct it.
 
 namespace MotsSupplierPortal.Infrastructure.Proposals;
 
-/// <summary>
-/// T-072: a delivery term on a bid names a row in the Incoterm table, or the bid is refused.
-///
-/// <para><b>What this replaces.</b> <c>Proposal.IncotermCode</c> was a free <c>varchar(10)</c> whose
-/// only guard was its length, so "ASAP", "fob" and "FOP" were all accepted and all printed into the
-/// comparison matrix beside the real terms. Two bids using different words for one term compared as
-/// different; two using one word for different terms compared as the same.</para>
-///
-/// <para><b>Case is normalised rather than refused.</b> The standard's codes are upper-case and a
-/// supplier typing "fob" means FOB - refusing that would be pedantry, while storing it would put the
-/// free-text problem straight back. The stored value is always the table's own.</para>
-///
-/// <para><b>Absent stays allowed.</b> The field is optional in §12.5 and in the aggregate, and a
-/// domestic service contract may legitimately quote no Incoterm at all. This rule governs what a
-/// PRESENT value may be.</para>
-///
-/// <para><b>Inactive is unknown.</b> A ministry that deactivates a term has decided bids may not
-/// quote it; historical proposals keep theirs, because nothing rewrites a stored bid.</para>
-/// </summary>
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Infrastructure.Persistence;
+
 internal static class IncotermRule
 {
-    /// <summary>
-    /// The stored form of a submitted code, or null when the caller sent none.
-    ///
-    /// <para>Returns <c>false</c> with a null code when the value names no active row - the caller
-    /// turns that into the refusal its own contract speaks.</para>
-    /// </summary>
     internal static async Task<(bool Known, string? Code)> ResolveAsync(AppDbContext db, string? submitted, CancellationToken ct)
     {
         var trimmed = submitted?.Trim();
@@ -40,7 +41,6 @@ internal static class IncotermRule
         return known ? (true, upper) : (false, null);
     }
 
-    /// <summary>The refusal's detail, with the list a bidder needs to correct it.</summary>
     internal static async Task<string> RefusalDetailAsync(AppDbContext db, string? submitted, CancellationToken ct)
     {
         var offered = await db.Incoterms.AsNoTracking()

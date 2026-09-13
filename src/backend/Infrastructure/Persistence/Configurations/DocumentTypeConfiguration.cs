@@ -1,21 +1,28 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How a document type maps to its table, and the types the product ships with.
+//
+// The seeded types are generic. No Syrian-specific document rules are invented here, following the same
+// approach the registration fields take.
+//
+//
+// WHY THE AWARD-CRITICAL FLAG IS SEEDED HERE AND NOT IN A DATA MIGRATION
+//
+// It was a migration first, and that only worked while the migration history was replayed from the
+// beginning.
+//
+// A squashed baseline seeds this table from the model, so a flag that lived only in an update step would
+// have come back false, and the rule that suspends a supplier when an award-critical document expires
+// would have gone back to suspending nobody.
+//
+// The seeded value is the product's answer. A buying body that needs a different one changes it on the
+// reference-data screen.
+//
+// Two types are award-critical as shipped. An expired commercial register means the entity is no longer
+// registered to trade. An expired tax card means the company cannot lawfully be paid.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class DocumentTypeConfiguration : IEntityTypeConfiguration<Domain.ReferenceData.DocumentType>
 {
@@ -28,14 +35,6 @@ internal sealed class DocumentTypeConfiguration : IEntityTypeConfiguration<Domai
         entity.Property(d => d.NameAr).HasMaxLength(200).IsRequired();
         entity.Property(d => d.NameEn).HasMaxLength(200).IsRequired();
 
-        // Generic types only - no invented Syrian-specific document rules (FR-REG-006 pattern).
-        //
-        // IsAwardCritical is D-58's ruling, and it belongs HERE rather than in a data migration. It was
-        // a migration first (20260908115449, folded into the squash), and that only worked while the
-        // migration history was replayed from the beginning: a squashed baseline seeds this table from
-        // the model, so a flag that lived only in an UpdateData step would have come back false and
-        // BRULE-023 would have gone back to suspending nobody. The seeded value is the product's
-        // answer; SCR-710 is for a buying body that needs a different one.
         entity.HasData(
             new Domain.ReferenceData.DocumentType
             {
@@ -45,7 +44,6 @@ internal sealed class DocumentTypeConfiguration : IEntityTypeConfiguration<Domai
                 NameEn = "Commercial Registration",
                 IsRequired = true,
                 ExpiryTracked = false,
-                // An expired commercial register means the entity is no longer registered to trade.
                 IsAwardCritical = true,
             },
             new Domain.ReferenceData.DocumentType
@@ -56,7 +54,6 @@ internal sealed class DocumentTypeConfiguration : IEntityTypeConfiguration<Domai
                 NameEn = "Tax Certificate",
                 IsRequired = true,
                 ExpiryTracked = true,
-                // An expired tax card means the company cannot lawfully be paid.
                 IsAwardCritical = true,
             },
             new Domain.ReferenceData.DocumentType

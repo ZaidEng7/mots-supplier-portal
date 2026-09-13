@@ -1,3 +1,34 @@
+// The job that actually delivers what the outbox has been collecting.
+//
+// The outbox table had two writers and no readers anywhere in the codebase, confirmed by searching rather
+// than assumed from the ticket. Rows accumulated forever with nothing ever moving them out of pending.
+//
+// It runs on the recurring schedule, with the same durability model as the other recurring jobs: an
+// interrupted run is retried, and anything already marked sent or failed is skipped next time, because only
+// pending rows are selected.
+//
+// The batch is bounded per run rather than unbounded, on the same reasoning as every paged list here. A
+// batch that grows with the backlog turns one slow run into a longer one instead of many bounded ones, and
+// the schedule already provides the next chance at whatever this run did not reach.
+//
+//
+// TWO KINDS OF MESSAGE, ONE ROAD
+//
+// Notification messages are turned into rows here rather than handed to the integration transport. They are
+// the same kind of thing, work that must survive the commit of the state change that caused it, so they
+// travel the same road; their destination is simply a notification row rather than an outbound integration.
+//
+//
+// FAILURE IS TERMINAL FOR NOW, AND NOT RETRIED
+//
+// The only transport that exists today logs and cannot fail, so this path is currently unreachable in
+// practice. A retry-with-backoff policy would be speculative complexity for a failure nothing can produce.
+//
+// Stated as a limitation rather than built ahead of the real transport that would need it. Revisit when
+// there is one and failure becomes an observable outcome.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MotsSupplierPortal.Application.Common;
@@ -5,37 +36,12 @@ using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// Task #16: the missing dispatcher-shaped hole. Before this, OutboxMessage had exactly 2 write
-/// sites (ReviewApplicationHandlers.SendApplicationApprovedEmailAsync's caller, ComplianceReTrigger)
-/// and 0 read sites anywhere in the codebase (confirmed by grep, not assumed from the ticket
-/// description) - rows accumulated in ops.outbox_log (or wherever the table lives) forever, with
-/// nothing ever setting SyncStatus away from Pending.
-///
-/// <para>Run as a Hangfire recurring job (Program.cs), same durability model as
-/// DocumentExpiryJob/DraftCleanupJob - if a run is interrupted mid-batch, Hangfire retries the job,
-/// and any message already marked Sent/Failed is simply skipped on the next pass (the WHERE clause
-/// only selects Pending rows).</para>
-///
-/// <para><b>Failed is terminal for now, not retried.</b> With LoggingOutboxTransport as the only
-/// transport that exists today, SendAsync never actually fails, so this path is presently
-/// unreachable in practice - a real retry-with-backoff policy is speculative complexity for a
-/// failure mode nothing can currently produce. Left as a stated limitation rather than built ahead
-/// of the real EPIC-23 transport that would need it, per this session's own YAGNI standard - revisit
-/// when EPIC-23 lands and Failed becomes a real, observable outcome.</para>
-/// </summary>
 public sealed class OutboxDispatcher(
     AppDbContext db,
     IOutboxTransport transport,
     INotificationMaterialiser materialiser,
     ILogger<OutboxDispatcher> logger)
 {
-    /// <summary>Bounded per run, not unbounded - the same reasoning as every keyset-paged list in
-    /// this codebase (MSP-66): a batch that grows with the backlog turns one slow run into a
-    /// longer one instead of many bounded ones, and Hangfire's recurring schedule already provides
-    /// the next chance to pick up whatever this run did not reach.</summary>
     public const int BatchSize = 100;
 
     public async Task DispatchPendingAsync(CancellationToken ct = default)
@@ -50,10 +56,6 @@ public sealed class OutboxDispatcher(
         {
             try
             {
-                // EPIC-15: notification messages are MATERIALISED here rather than handed to the ERP
-                // transport. They are the same kind of thing - work that must survive the commit of
-                // the state change that caused it - so they travel the same road; but their
-                // destination is a row in shared.notification, not an outbound integration.
                 if (message.Type == NotificationRequest.OutboxType)
                 {
                     await materialiser.MaterialiseAsync(NotificationRequest.FromPayloadJson(message.PayloadJson), ct);

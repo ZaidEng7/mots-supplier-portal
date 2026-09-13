@@ -1,3 +1,10 @@
+// The shared load every award handler starts from: the tender within the caller's organization, and its award if
+// it has one.
+//
+// It returns the tender even when there is no award yet, because recommending is what creates one.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -13,8 +20,6 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Awards;
 
 internal static class AwardLoader
 {

@@ -1,21 +1,12 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Audit;
-using MotsSupplierPortal.Domain.Awards;
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Evaluation;
-using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Domain.Notifications;
-using MotsSupplierPortal.Domain.Organizations;
-using MotsSupplierPortal.Domain.Proposals;
-using MotsSupplierPortal.Domain.ReferenceData;
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Domain.Suppliers;
+// How an administrator's notification rewording maps to its table.
+//
+// It is deliberately not seeded, for the same reason the settings table is not. An absent row means the
+// shipped wording is in force, so no deployment's words change until somebody changes them.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
+
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
 
 internal sealed class NotificationTemplateConfiguration : IEntityTypeConfiguration<Domain.Notifications.NotificationTemplate>
 {
@@ -31,7 +22,5 @@ internal sealed class NotificationTemplateConfiguration : IEntityTypeConfigurati
         entity.Property(t => t.BodyEn).HasMaxLength(1000).IsRequired();
         entity.HasIndex(t => t.Type).IsUnique();
 
-        // NOT seeded, for the same reason system_setting is not: an absent row means the shipped
-        // catalogue is in force, and no deployment's wording changes until somebody changes it.
     }
 }

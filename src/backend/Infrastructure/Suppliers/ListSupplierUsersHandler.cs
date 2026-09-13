@@ -1,11 +1,20 @@
+// The people who can sign in on behalf of one supplier.
+//
+// Scoped to the caller's own company.
+//
+// Ordered by email address, which is what this list is read by, with the identifier as tiebreak so a page
+// boundary cannot repeat or drop a row.
+//
+// The total is a second query and is off unless asked for, and it is counted before the cursor narrows
+// anything: a count of rows after the cursor is not a total, and would shrink as the caller pages.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.8/MSP-55: row-scoped to the caller's own SupplierId (STORY-01.8.1).</summary>
 public sealed class ListSupplierUsersHandler(AppDbContext db, IScopeContext scope) : IListSupplierUsersHandler
 {
     public async Task<ListEnvelope<SupplierUserDto>> HandleAsync(string? cursor, int? limit, bool withCount, CancellationToken ct)
@@ -15,9 +24,6 @@ public sealed class ListSupplierUsersHandler(AppDbContext db, IScopeContext scop
         var pageSize = ListEnvelope<SupplierUserDto>.ClampPageSize(limit);
         var query = db.Users.Where(u => u.SupplierId == scope.SupplierId);
 
-        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
-        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
-        // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (SupplierUserCursor.TryDecode(cursor, out var from))

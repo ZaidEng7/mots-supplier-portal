@@ -1,3 +1,7 @@
+// Reading one tender as buyer staff, scoped to the caller's own organization.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -13,8 +17,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
 public sealed class GetRfqHandler(AppDbContext db, IScopeContext scope) : IGetRfqHandler
 {

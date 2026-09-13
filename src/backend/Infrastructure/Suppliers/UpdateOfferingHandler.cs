@@ -1,3 +1,10 @@
+// Editing one of a supplier's own catalogue entries.
+//
+// An entry belonging to a different company reads as not-found rather than as forbidden. The caller must not
+// learn that the identifier exists at all.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,16 +13,12 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
 public sealed class UpdateOfferingHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IUpdateOfferingHandler
 {
     public async Task<OfferingMutationResult> HandleAsync(UpdateOfferingCommand command, CancellationToken ct)
     {
         if (scope.SupplierId is null) return new OfferingMutationResult.NotFoundOrOutOfScope();
 
-        // Row-scoping: an offering belonging to a DIFFERENT supplier reads as not-found, never as
-        // forbidden - the caller must not learn that the id exists at all.
         var offering = await db.Offerings.FirstOrDefaultAsync(o => o.Id == command.OfferingId && o.SupplierId == scope.SupplierId, ct);
         if (offering is null) return new OfferingMutationResult.NotFoundOrOutOfScope();
 

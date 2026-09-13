@@ -1,11 +1,13 @@
+// Reading one scoring template with its criteria.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 public sealed class GetEvaluationTemplateHandler(AppDbContext db) : IGetEvaluationTemplateHandler
 {

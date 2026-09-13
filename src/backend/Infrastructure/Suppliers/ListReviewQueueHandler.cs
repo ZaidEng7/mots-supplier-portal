@@ -1,3 +1,51 @@
+// The reviewer's queue: applications waiting for somebody to decide them.
+//
+//
+// WHAT COUNTS AS ENTERING THE QUEUE
+//
+// Not the supplier's creation date. An application can enter the active queue more than once: submitted,
+// resubmitted after an information request, resumed, or pushed back in because a compliance field changed.
+//
+// The queue's age and its service target are measured from the most recent of those, read from the audit
+// trail. Measuring from creation would show a resubmitted application as weeks old on the day it arrived.
+//
+// That is a second small query over the page's own rows rather than a join on the paged query, because at
+// most one page's worth of suppliers need it.
+//
+//
+// THE DEFAULT SET, AND THE DECIDED ONES
+//
+// By default the queue holds the three undecided states. Approved and rejected are reachable only by asking
+// for them by name, which is what lets a reviewer look again at a decision they already made without the
+// queue filling up with finished work.
+//
+// The state names are matched case-sensitively, deliberately, because the endpoint's own list of accepted
+// values is. A map here that accepted a differently-cased name while the endpoint's list did not would put
+// the two out of step in the direction that silently widens.
+//
+//
+// THE ASSIGNMENT FILTER
+//
+// "Me" resolves against the caller, so the interface never needs to know its own user identifier.
+// "Unassigned" surfaces the pool a reviewer would actually claim from. Anything else is treated as a
+// literal reviewer identifier, which is a manager filtering by one person.
+//
+//
+// PAGING
+//
+// Oldest submission first, which is the order a reviewer should work a queue, with the identifier as
+// tiebreak so two registrations in the same tick cannot repeat or vanish across a page boundary.
+//
+// One row beyond the page is fetched to answer "is there more" without counting a queue that new
+// applications are inserted into continuously. The total is a second query and is off unless asked for,
+// and it is counted before the cursor narrows anything: a count of rows after the cursor is not a total,
+// and would shrink as the caller pages.
+//
+// The applied filters are echoed on the envelope, and are null when nothing was filtered, so a caller
+// looking at an empty queue can tell "nothing is queued" from "nothing matched".
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -12,30 +60,19 @@ using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
 public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope, ISystemSettingReader settings) : IListReviewQueueHandler
 {
-    /// <summary>Audit actions that mark an application (re)entering the reviewer's active queue -
-    /// see ReviewQueueItemDto.EnteredQueueAt's own doc comment for why this isn't CreatedAt.</summary>
     private static readonly string[] ReviewQueueEntryActions =
     [
         "application_submitted", "application_resubmitted", "application_review_resumed",
         "compliance_field_changed_review_retriggered",
     ];
 
-    /// <summary>
-    /// Keyed by the same vocabulary the endpoint validates against
-    /// (<see cref="ReviewQueueFilterValues.States"/>), and case-SENSITIVE to match it - a map that
-    /// accepted "underreview" while the endpoint's allow-list did not would put the two out of step
-    /// in the direction that silently widens.
-    /// </summary>
     private static readonly IReadOnlyDictionary<string, SupplierOnboardingState> StateFilterMap = new Dictionary<string, SupplierOnboardingState>(StringComparer.Ordinal)
     {
         ["Submitted"] = SupplierOnboardingState.Submitted,
         ["UnderReview"] = SupplierOnboardingState.UnderReview,
         ["InfoRequested"] = SupplierOnboardingState.InfoRequested,
-        // Decided, and reachable only by asking for them - the default set below is unchanged.
         ["Approved"] = SupplierOnboardingState.Approved,
         ["Rejected"] = SupplierOnboardingState.Rejected,
     };
@@ -49,10 +86,6 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
 
         var query = db.Suppliers.Where(s => states.Contains(s.OnboardingState));
 
-        // FEAT-03.6: "me" resolves against the caller so the frontend never needs to know its own
-        // user id; "unassigned" surfaces the pool a reviewer would actually claim from; anything
-        // else is treated as a literal reviewer user id (a manager filtering by a specific
-        // reviewer).
         if (assignedTo == "me")
         {
             query = query.Where(s => s.AssignedReviewerId == scope.UserId);
@@ -66,23 +99,15 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
             query = query.Where(s => s.AssignedReviewerId == reviewerId);
         }
 
-        // §6.1: "totalCount omitted unless ?withCount=true". Counted over the filtered set BEFORE
-        // the cursor narrows it - a count of "rows after this cursor" is not a total, and would
-        // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
         if (KeysetCursor.TryDecode(cursor, out var from))
         {
-            // Strictly "after" the cursor row in ascending order (oldest submission first, the
-            // order a reviewer should work the queue). The Id tie-break is what keeps this safe
-            // when two suppliers register in the same tick.
             query = query.Where(s =>
                 s.CreatedAt > from.At
                 || (s.CreatedAt == from.At && s.Id.CompareTo(from.Id) > 0));
         }
 
-        // limit + 1: the extra row answers HasMore without a COUNT over a queue new applications
-        // are inserted into continuously.
         var rows = await query
             .OrderBy(s => s.CreatedAt).ThenBy(s => s.Id)
             .Select(s => new { s.Id, s.CreatedAt, s.ReferenceCode, s.DisplayNameAr, s.DisplayNameEn, OnboardingState = s.OnboardingState.ToString(), s.AssignedReviewerId })
@@ -92,9 +117,6 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
         var hasMore = rows.Count > pageSize;
         var items = hasMore ? rows[..pageSize] : rows;
 
-        // FEAT-03.6: most recent "(re)entered the active queue" audit row per supplier on this
-        // page - a second, small query rather than a join on the paged query above, since only
-        // the page's own rows (at most pageSize) need it.
         var pageIds = items.Select(r => r.Id).ToList();
         var enteredQueueAtBySupplier = await db.AuditLogs
             .Where(a => a.AggregateType == "Supplier" && pageIds.Contains(a.AggregateId) && ReviewQueueEntryActions.Contains(a.Action))
@@ -108,7 +130,6 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
             .Select(u => new { u.Id, u.FullName })
             .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
 
-        // A-5: the target, computed once per page from the configured working-day SLA.
         var slaWorkingDays = await settings.GetIntAsync(SystemSettings.ReviewSlaWorkingDays, ct);
 
         var dtos = items
@@ -133,11 +154,6 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
             sort: "createdAt",
             filtersApplied: DescribeFilters(state, assignedTo));
     }
-    /// <summary>
-    /// The filters actually applied, for the envelope's <c>meta.filtersApplied</c> (§5.2, whose
-    /// example renders them as <c>["state=UnderReview,Rejected"]</c>). Null when unfiltered, so a
-    /// caller looking at an empty queue can tell "nothing is queued" from "nothing matched".
-    /// </summary>
     private static IReadOnlyList<string>? DescribeFilters(string? state, string? assignedTo)
     {
         List<string> applied = [];

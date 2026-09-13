@@ -1,3 +1,11 @@
+// A supplier answers one of the tender's written requirements.
+//
+// The new answer is added to the tracked set explicitly. A child created on a tracked aggregate's collection
+// is not necessarily discovered, and a silently unsaved answer surfaces much later as "all mandatory
+// requirements must be answered" at submission.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -11,8 +19,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Infrastructure.Proposals;
 
 public sealed class AnswerRequirementHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IAnswerRequirementHandler
 {

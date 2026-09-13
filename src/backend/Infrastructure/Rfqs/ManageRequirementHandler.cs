@@ -1,3 +1,10 @@
+// Adding, editing and removing a tender's written requirements.
+//
+// A requirement can name a document type and which envelope its answer belongs in, which is what ties the
+// bidder's two-envelope submission back to what was asked for.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -13,8 +20,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
-
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
 
 public sealed class ManageRequirementHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRequirementHandler
 {

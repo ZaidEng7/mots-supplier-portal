@@ -1,17 +1,16 @@
+// Creating or replacing one rewording of an interface string.
+//
+// One operation rather than separate create and update routes. The identity of the thing is the key and the
+// language, and an administrator editing a label does not know or care whether a row already exists. Asking them
+// to would be exposing the storage.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Admin;
-
-/// <summary>
-/// Create or replace one rewording.
-///
-/// <para><b>Upsert rather than separate create and update routes.</b> The unique key is (key, language)
-/// and an administrator editing a label does not know or care whether a row already exists - asking them
-/// to would be exposing the storage. The identity of the thing is the key, not a generated id.</para>
-/// </summary>
 public sealed class UpsertUiStringOverrideHandler(AppDbContext db) : IUpsertUiStringOverrideHandler
 {
     public async Task<UiStringOverrideDto> HandleAsync(UpsertUiStringCommand command, CancellationToken ct)

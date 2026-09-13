@@ -1,3 +1,16 @@
+// Answers what the banner across the top of every screen should say, narrowed to what the caller is
+// entitled to know.
+//
+// Three scopes, one question. A supplier sees only their own award's failure. Buying staff see failures
+// inside their own organization. Nobody sees another organization's, which is the same boundary every
+// other buyer-side read draws.
+//
+// Not configured is not the same as degraded, and it is not shown to everybody. A supplier told that the
+// ministry has no finance-system integration has learned something about the ministry's deployment rather
+// than about their own bid. It goes to the callers who could act on it.
+
+namespace MotsSupplierPortal.Infrastructure.Platform;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Platform;
@@ -7,20 +20,6 @@ using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Platform;
-
-/// <summary>
-/// SCR-045. Three scopes, one question, and the narrowest answer each caller is entitled to.
-///
-/// <para>A supplier sees only their own award's failure. Buyer staff see failures inside their own
-/// organization. Nobody sees another organization's, which is the same boundary BRULE-029 draws for
-/// every other buyer-side read.</para>
-///
-/// <para><b>"Not configured" is not the same as "degraded" and is not shown to everyone.</b> A
-/// supplier told that the ministry has no ERP integration has learned something about the ministry's
-/// deployment, not about their own bid. It goes to callers holding <c>integration.retry</c> — the
-/// people who would act on it.</para>
-/// </summary>
 public sealed class SystemStatusHandler(AppDbContext db, IScopeContext scope, IOutboxTransport transport)
     : ISystemStatusHandler
 {
@@ -41,8 +40,6 @@ public sealed class SystemStatusHandler(AppDbContext db, IScopeContext scope, IO
                      && db.Rfqs.Any(r => r.Id == a.RfqId && r.OrganizationId == organizationId), ct);
         }
 
-        // Same check SCR-700's tile makes, kept in one shape rather than two: a transport that is the
-        // logging stand-in is not an integration (T-089).
         var notConfigured = scope.HasPermission(Permissions.IntegrationRetry)
                             && transport is LoggingOutboxTransport;
 

@@ -1,3 +1,21 @@
+// The outbox monitor: every message, with the payload an operator needs in order to judge a replay.
+//
+// The payload is integration data, which is what was already sent to an external system, and the endpoint is
+// administrator-only. It is returned whole rather than summarised, because a message that cannot be read cannot
+// be judged and the alternative is an operator replaying blind.
+//
+// Every status appears in the counts, including the ones with no rows. An operator who cannot see a zero cannot
+// tell it from a count that failed to load.
+//
+// Several statuses may be requested at once, so asking for failed and pending together is "everything not yet
+// delivered", which is the question an operator actually has. An unrecognised value never reaches here, because
+// the endpoint refuses it first.
+//
+// Failed first, then oldest, which is the order an operator works in. A newest-first list buries the message that
+// has been stuck longest, which is the one that matters.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -9,23 +27,12 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Infrastructure.Admin;
-
-/// <summary>
-/// SCR-722's read: the outbox, per message, with the payload an operator needs to judge a replay.
-///
-/// <para>The payload is integration data - what was already sent to an external system - and the
-/// endpoint is system_admin only. It is returned whole rather than summarised because a message that
-/// cannot be read cannot be judged, and the alternative is an operator replaying blind.</para>
-/// </summary>
 public sealed class GetOutboxMonitorHandler(AppDbContext db) : IGetOutboxMonitorHandler
 {
     private const int PageSize = 100;
 
     public async Task<OutboxMonitorDto> HandleAsync(string? status, CancellationToken ct)
     {
-        // Every status, including the ones with no rows. An operator who cannot see "Failed: 0" cannot
-        // tell it from a count that failed to load.
         var counts = Enum.GetValues<OutboxSyncStatus>().ToDictionary(s => s.ToString(), _ => 0);
         var grouped = await db.OutboxMessages.AsNoTracking()
             .GroupBy(m => m.SyncStatus)
@@ -33,9 +40,6 @@ public sealed class GetOutboxMonitorHandler(AppDbContext db) : IGetOutboxMonitor
             .ToListAsync(ct);
         foreach (var group in grouped) counts[group.Status.ToString()] = group.Count;
 
-        // §6.2's multi-value OR form, so ?status=Failed,Pending is "everything not yet delivered" -
-        // the question an operator actually has. Parsed the same way the endpoint validated it; an
-        // unrecognised token never reaches here, because the endpoint answers 422 first.
         var wanted = (status ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(token => Enum.TryParse<OutboxSyncStatus>(token, ignoreCase: false, out var parsed) ? parsed : (OutboxSyncStatus?)null)
@@ -49,8 +53,6 @@ public sealed class GetOutboxMonitorHandler(AppDbContext db) : IGetOutboxMonitor
             query = query.Where(m => wanted.Contains(m.SyncStatus));
         }
 
-        // Failed first, then oldest: the order an operator works in. A newest-first list buries the
-        // message that has been stuck longest, which is the one that matters.
         var messages = await query
             .OrderBy(m => m.SyncStatus == OutboxSyncStatus.Failed ? 0 : 1)
             .ThenBy(m => m.CreatedAt)

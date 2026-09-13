@@ -1,3 +1,13 @@
+// A supplier withdraws their bid, with a reason.
+//
+// Two groups are told: the supplier's own users, so a colleague sees the withdrawal, and the tender's
+// committee.
+//
+// Whether the window is still open is passed to the domain as a fact, because the rule about when a submitted
+// bid may be withdrawn belongs to the bid rather than to this handler.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using Hangfire;
@@ -11,8 +21,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
-
-namespace MotsSupplierPortal.Infrastructure.Proposals;
 
 public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IWithdrawProposalHandler
 {
@@ -32,8 +40,6 @@ public sealed class WithdrawProposalHandler(AppDbContext db, IScopeContext scope
             return new ProposalResult.InvalidState(ex.Message, fromState);
         }
 
-        // §3.2 "Draft / Submitted -> Withdrawn | In-app to supplier + procurement". Two groups: the
-        // supplier's own users (so a colleague sees the withdrawal) and the RFQ's committee.
         var withdrawRecipients = await NotificationRecipients.SupplierUsersAsync(db, proposal.SupplierId, ct);
         withdrawRecipients.AddRange(await NotificationRecipients.CommitteeAsync(db, rfq.OrganizationId, ct));
         NotificationOutbox.EnqueueMany(db, NotificationTypes.ProposalWithdrawn, withdrawRecipients,

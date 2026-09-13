@@ -1,11 +1,13 @@
+// Creating a scoring template, as a draft with no criteria yet.
+
+namespace MotsSupplierPortal.Infrastructure.Evaluation;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Evaluation;
 
 public sealed class CreateEvaluationTemplateHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : ICreateEvaluationTemplateHandler

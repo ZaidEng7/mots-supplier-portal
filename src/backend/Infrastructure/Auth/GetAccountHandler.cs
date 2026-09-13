@@ -1,9 +1,11 @@
+// Reading the caller's own account: their name, address, language, and whether they have chosen one.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Auth;
 
 public sealed class GetAccountHandler(AppDbContext db) : IGetAccountHandler
 {

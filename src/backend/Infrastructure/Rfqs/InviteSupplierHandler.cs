@@ -1,3 +1,18 @@
+// Inviting one supplier to a tender.
+//
+// The supplier must be active. That is checked here rather than in the domain because it crosses aggregates,
+// and the tender's own method says so.
+//
+// The invited supplier's primary user is emailed. The email goes through the job queue rather than the
+// outbox, for the reason the email jobs explain: the outbox is the road for integration events, and a
+// notification email is a different road.
+//
+// "In-app" here means the invited supplier's own tender list reflecting the new invitation on its next fetch,
+// which is what in-app means for every other transition in this codebase rather than a gap invented for this
+// feature alone.
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
 using System.Text.Json;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
@@ -14,16 +29,6 @@ using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 
-namespace MotsSupplierPortal.Infrastructure.Rfqs;
-
-/// <summary>FEAT-08.1/FR-INV-001/BRULE-032: invite a candidate supplier. Active-only is enforced
-/// here (cross-aggregate - see Rfq.InviteSupplier's own doc comment), not on the domain method.
-/// FEAT-08.3/FR-INV-003: on success, enqueues a real email (not Outbox - see EmailJobs.cs's own
-/// doc comment on why token/notification emails use the Hangfire+IEmailSender path, not the
-/// ERP-integration Outbox) to the invited supplier's primary user. "In-app" is the invited
-/// supplier's own RFQ list reflecting the new invitation on next fetch - the same shape "in-app"
-/// has in every other transition in this codebase (no dedicated Notification entity exists
-/// anywhere yet; EPIC-15 is unbuilt), not a gap invented for this feature alone.</summary>
 public sealed class InviteSupplierHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IBackgroundJobClient backgroundJobs)
     : IInviteSupplierHandler
 {

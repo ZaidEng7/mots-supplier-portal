@@ -1,3 +1,12 @@
+// A manager rejects a recommended award, with a reason.
+//
+// The same segregation rule applies as to approval: the person rejecting may not be the person who recommended.
+//
+// The notification goes to the tender's owner. The reason stays out of the payload and out of the words, and the
+// officer reads it on the award screen.
+
+namespace MotsSupplierPortal.Infrastructure.Awards;
+
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using System.Text.Json;
@@ -13,8 +22,6 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Awards;
 
 public sealed class RejectAwardHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRejectAwardHandler
 {
@@ -38,9 +45,6 @@ public sealed class RejectAwardHandler(AppDbContext db, IScopeContext scope, IAu
             return new AwardMutationResult.InvalidState(ex.Message);
         }
 
-        // §3.4 "PendingApproval -> Rejected | In-app to officer" - A-7: the RFQ's owner. The
-        // rejection REASON stays out of the payload and out of the words (BRULE-091); the officer
-        // reads it on the award screen.
         NotificationOutbox.EnqueueMany(db, NotificationTypes.AwardRejected,
             await NotificationRecipients.RfqOwnerAsync(db, rfq, ct),
             $"{NotificationTypes.AwardRejected}:{award.Id}:{award.RecommendationRevision}",
