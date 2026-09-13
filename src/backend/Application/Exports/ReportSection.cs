@@ -1,4 +1,4 @@
-namespace MotsSupplierPortal.Application.Reporting;
+namespace MotsSupplierPortal.Application.Exports;
 
 /// <summary>
 /// One titled table in a report artefact: a heading, column headers, and rows of already-formatted

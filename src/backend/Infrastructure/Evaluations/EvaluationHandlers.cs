@@ -5,7 +5,7 @@ using System.Text.Json;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Application.Evaluations;
+using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Common;

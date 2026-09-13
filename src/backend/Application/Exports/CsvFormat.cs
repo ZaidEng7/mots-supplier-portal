@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace MotsSupplierPortal.Application.Reporting;
+namespace MotsSupplierPortal.Application.Exports;
 
 /// <summary>
 /// RFC 4180 formatting, shared by every CSV this engine produces.

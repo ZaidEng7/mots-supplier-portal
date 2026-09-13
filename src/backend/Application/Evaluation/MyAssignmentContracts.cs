@@ -1,4 +1,4 @@
-namespace MotsSupplierPortal.Application.Evaluations;
+namespace MotsSupplierPortal.Application.Evaluation;
 
 /// <summary>
 /// One row of SCR-500, the evaluator's own dashboard.

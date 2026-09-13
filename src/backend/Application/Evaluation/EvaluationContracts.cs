@@ -2,7 +2,7 @@ using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 
-namespace MotsSupplierPortal.Application.Evaluations;
+namespace MotsSupplierPortal.Application.Evaluation;
 
 public sealed record EvaluationCriterionDto(
     Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, ScoringType ScoringType, bool IsFinancial,

@@ -1,7 +1,7 @@
 using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Audit;
-using MotsSupplierPortal.Application.Reporting;
+using MotsSupplierPortal.Application.Exports;
 using MotsSupplierPortal.Domain.Identity;
 
 namespace MotsSupplierPortal.Api.Endpoints;

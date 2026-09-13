@@ -1,5 +1,5 @@
 using System.Globalization;
-using MotsSupplierPortal.Application.Reporting;
+using MotsSupplierPortal.Application.Exports;
 
 namespace MotsSupplierPortal.Application.Reports;
 

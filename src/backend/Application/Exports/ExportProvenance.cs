@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace MotsSupplierPortal.Application.Reporting;
+namespace MotsSupplierPortal.Application.Exports;
 
 /// <summary>
 /// What an exported artefact says about itself: when it was produced, under whose scope, and every
