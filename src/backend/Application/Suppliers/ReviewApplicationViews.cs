@@ -51,31 +51,6 @@ public static class ReviewQueueFilterValues
         new HashSet<string>(StringComparer.Ordinal) { "me", "unassigned" };
 }
 
-public interface IListReviewQueueHandler
-{
-    /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.
-    /// MSP-84: keyset-paged (see ReviewQueueCursor for why). FEAT-03.6: state restricts to one of
-    /// the three queue-eligible OnboardingStates; assignedTo accepts "me" (resolved to the
-    /// caller), "unassigned", or a literal reviewer user id - null means no assignment filter.</summary>
-    Task<ListEnvelope<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, bool withCount, string? state, string? assignedTo, CancellationToken ct);
-}
-
-public abstract record ClaimQueueItemResult
-{
-    public sealed record Success(ReviewQueueItemDto Item) : ClaimQueueItemResult;
-    public sealed record NotFound : ClaimQueueItemResult;
-}
-
-public interface IClaimReviewItemHandler
-{
-    Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct);
-}
-
-public interface IUnassignReviewItemHandler
-{
-    Task<ClaimQueueItemResult> HandleAsync(string referenceCode, CancellationToken ct);
-}
-
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);
 
 /// <summary>FEAT-04.10: ERP mapping fields - read-only to staff, never exposed to the supplier
@@ -93,49 +68,3 @@ public sealed record ReviewerSupplierViewDto(
     IReadOnlyList<DocumentTypeStatusDto> Documents,
     IReadOnlyList<ReviewAnnotationDto> AnnotationHistory,
     uint RowVersion);
-
-public interface IGetReviewerSupplierViewHandler
-{
-    Task<ReviewerSupplierViewDto?> HandleAsync(string referenceCode, CancellationToken ct);
-}
-
-public interface IGetOwnActiveAnnotationHandler
-{
-    /// <summary>The supplier's own view of why they're InfoRequested and what's flagged - the
-    /// reviewer-side annotation history is staff-only, but the supplier needs to know what to fix.</summary>
-    Task<ReviewAnnotationDto?> HandleAsync(CancellationToken ct);
-}
-
-public abstract record ReviewDecisionResult
-{
-    public sealed record Success(SupplierDto Supplier) : ReviewDecisionResult;
-    public sealed record NotFound : ReviewDecisionResult;
-    public sealed record InvalidState(string Reason) : ReviewDecisionResult;
-}
-
-public interface IPickUpApplicationHandler
-{
-    Task<ReviewDecisionResult> HandleAsync(string referenceCode, CancellationToken ct);
-}
-
-public interface IApproveApplicationHandler
-{
-    Task<ReviewDecisionResult> HandleAsync(string referenceCode, CancellationToken ct);
-}
-
-public interface IRejectApplicationHandler
-{
-    Task<ReviewDecisionResult> HandleAsync(string referenceCode, string reason, CancellationToken ct);
-}
-
-public sealed record RequestInfoCommand(string ReferenceCode, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes);
-
-public interface IRequestInfoHandler
-{
-    Task<ReviewDecisionResult> HandleAsync(RequestInfoCommand command, CancellationToken ct);
-}
-
-public interface IResubmitApplicationHandler
-{
-    Task<ReviewDecisionResult> HandleAsync(CancellationToken ct);
-}

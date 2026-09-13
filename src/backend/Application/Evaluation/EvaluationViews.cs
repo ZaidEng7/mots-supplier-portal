@@ -33,12 +33,6 @@ public sealed record EvaluationAssignmentDto(
 /// </summary>
 public sealed record EvaluatorCandidateDto(Guid UserId, string FullName, string Email);
 
-public interface IListEvaluatorCandidatesHandler
-{
-    /// <summary>Null when the RFQ is not visible to the caller - §9.2's 404, never a 403.</summary>
-    Task<IReadOnlyList<EvaluatorCandidateDto>?> HandleAsync(string rfqReferenceCode, CancellationToken ct);
-}
-
 /// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
 /// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>
 /// <param name="ProposalCode">
@@ -62,16 +56,6 @@ public sealed record ConsolidatedResultDto(
     Guid ProposalId, string ProposalCode, bool TechnicallyQualified, decimal TechnicalWeightedScore,
     decimal? FinancialWeightedScore, decimal WeightedTotal, int? Rank, bool TieUnresolved = false,
     string? TieResolutionReason = null);
-
-/// <summary>A-1: a person breaks a tie the rules could not, and says why. Addressed by the proposal's
-/// PUBLIC code, not its GUID - §3 keeps internal identifiers out of payloads, and a caller that has
-/// the comparison has the code.</summary>
-public sealed record ResolveEvaluationTieCommand(string RfqReferenceCode, string ProposalCode, string Reason);
-
-public interface IResolveEvaluationTieHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(ResolveEvaluationTieCommand command, CancellationToken ct);
-}
 
 /// <summary>Buyer/manager-facing overview - deliberately excludes every EvaluatorScore row (see
 /// EvaluationAssignmentDto's own doc comment); Results is empty until Consolidate() has run.</summary>
@@ -165,85 +149,6 @@ public sealed record MyEvaluationDto(
     IReadOnlyList<EvaluatorProposalDto> Proposals,
     IReadOnlyList<MyScoreDto> MyScores);
 
-public sealed record OpenEvaluationCommand(string RfqReferenceCode);
-public sealed record AssignEvaluatorsCommand(string RfqReferenceCode, IReadOnlyList<Guid> EvaluatorUserIds);
-public sealed record RecuseEvaluatorCommand(string RfqReferenceCode, Guid EvaluatorUserId, string Reason);
-// T-068: addressed by the proposal's public code. Resolved to its GUID inside the handler, which is
-// also where an unknown code becomes the same 404 as a code belonging to another RFQ.
-public sealed record ScoreCriterionCommand(string RfqReferenceCode, string ProposalCode, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn);
-public sealed record SubmitEvaluatorCommand(string RfqReferenceCode);
-public sealed record ConsolidateEvaluationCommand(string RfqReferenceCode);
-public sealed record FinalizeEvaluationCommand(string RfqReferenceCode);
-public sealed record ReopenEvaluationCommand(string RfqReferenceCode, string Reason);
-
-public abstract record EvaluationMutationResult
-{
-    public sealed record Success(EvaluationDto Evaluation) : EvaluationMutationResult;
-    public sealed record NotFoundOrOutOfScope : EvaluationMutationResult;
-    public sealed record InvalidState(string Message) : EvaluationMutationResult;
-}
-
-/// <summary>Deliberately not reusing EvaluationMutationResult - see SupplierRfqResult's own doc
-/// comment on why a self-service result never shares a type with the buyer-side one: an evaluator
-/// who is not assigned to this evaluation must get the same 404 shape as one that does not exist,
-/// never a shape that could leak whether it exists.</summary>
-public abstract record MyEvaluationResult
-{
-    public sealed record Success(MyEvaluationDto Evaluation) : MyEvaluationResult;
-    public sealed record NotFoundOrNotAssigned : MyEvaluationResult;
-    public sealed record InvalidState(string Message) : MyEvaluationResult;
-}
-
-public interface IOpenEvaluationHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(OpenEvaluationCommand command, CancellationToken ct);
-}
-
-public interface IGetEvaluationHandler
-{
-    Task<EvaluationDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct);
-}
-
-public interface IAssignEvaluatorsHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(AssignEvaluatorsCommand command, CancellationToken ct);
-}
-
-public interface IRecuseEvaluatorHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(RecuseEvaluatorCommand command, CancellationToken ct);
-}
-
-public interface IConsolidateEvaluationHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(ConsolidateEvaluationCommand command, CancellationToken ct);
-}
-
-public interface IFinalizeEvaluationHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(FinalizeEvaluationCommand command, CancellationToken ct);
-}
-
-public interface IReopenEvaluationHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(ReopenEvaluationCommand command, CancellationToken ct);
-}
-
-public interface IGetMyEvaluationHandler
-{
-    Task<MyEvaluationResult> HandleAsync(string rfqReferenceCode, CancellationToken ct);
-}
-
-public interface IScoreCriterionHandler
-{
-    Task<MyEvaluationResult> HandleAsync(ScoreCriterionCommand command, CancellationToken ct);
-}
-
-public interface ISubmitEvaluatorHandler
-{
-    Task<MyEvaluationResult> HandleAsync(SubmitEvaluatorCommand command, CancellationToken ct);
-}
-
 /// <summary>
 /// A-8/BRULE-067: the recusal declaration window. The evaluator sees who the bidders are ONCE, before
 /// scoring, and says whether they have a conflict.
@@ -257,15 +162,3 @@ public sealed record ConflictDeclarationDto(
     IReadOnlyList<DeclarationBidderDto> Bidders);
 
 public sealed record DeclarationBidderDto(string ProposalCode, string SupplierDisplayNameAr, string SupplierDisplayNameEn);
-
-public sealed record DeclareConflictCommand(string RfqReferenceCode, bool HasConflict, string? Reason);
-
-public interface IGetConflictDeclarationHandler
-{
-    Task<ConflictDeclarationDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct);
-}
-
-public interface IDeclareConflictHandler
-{
-    Task<EvaluationMutationResult> HandleAsync(DeclareConflictCommand command, CancellationToken ct);
-}

@@ -36,28 +36,6 @@ public sealed record OutboxMonitorDto(
     IReadOnlyDictionary<string, int> Counts,
     IReadOnlyList<OutboxMessageRowDto> Messages);
 
-public interface IGetJobsMonitorHandler
-{
-    JobsMonitorDto Handle();
-}
-
-public interface ITriggerRecurringJobHandler
-{
-    /// <summary>False when the job is not registered - triggering something Hangfire does not have would
-    /// report success for nothing happening.</summary>
-    bool Handle(string jobId);
-}
-
-public interface IGetOutboxMonitorHandler
-{
-    Task<OutboxMonitorDto> HandleAsync(string? status, CancellationToken ct);
-}
-
-public interface IReplayOutboxMessageHandler
-{
-    Task<bool> HandleAsync(Guid id, CancellationToken ct);
-}
-
 /// <summary>
 /// SCR-723. One award's ERP synchronisation, as an operator needs to judge it.
 ///
@@ -82,11 +60,6 @@ public sealed record ErpSyncMonitorDto(
     bool TransportConfigured,
     IReadOnlyDictionary<string, int> Counts,
     IReadOnlyList<ErpSyncRowDto> Awards);
-
-public interface IGetErpSyncMonitorHandler
-{
-    Task<ErpSyncMonitorDto> HandleAsync(string? status, CancellationToken ct);
-}
 
 /// <summary>
 /// SCR-726. The security policy this deployment is actually running, as an auditor would ask for it.
@@ -127,11 +100,6 @@ public sealed record SessionPolicyDto(int AccessTokenMinutes, int RefreshTokenDa
 
 public sealed record RateLimitPolicyDto(string Policy, int PermitLimit, int WindowSeconds);
 
-public interface IGetSecurityPostureHandler
-{
-    Task<SecurityPostureDto> HandleAsync(CancellationToken ct);
-}
-
 /// <summary>
 /// SCR-725. What this deployment does with uploaded files, and whether the things that store and scan
 /// them are actually reachable.
@@ -156,8 +124,3 @@ public sealed record StorageSettingsDto(
     /// drains is the failure this screen exists to make visible.</summary>
     int DocumentCount,
     int PendingScanCount);
-
-public interface IGetStorageSettingsHandler
-{
-    Task<StorageSettingsDto> HandleAsync(CancellationToken ct);
-}
