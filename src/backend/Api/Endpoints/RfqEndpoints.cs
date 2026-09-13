@@ -40,46 +40,8 @@
 // it must be told the filter is not theirs rather than served a list that quietly ignored it. The supplier's
 // list has no owner to filter on at all, because ownership is a buyer-internal fact that stays inside the
 // buying organization, so it is refused rather than ignored.
-//
-//
-// REQUEST SHAPES WORTH A NOTE
-//
-// Moving a deadline takes the new deadline itself rather than a duration, because a duration needs an anchor
-// and this route would have to pick one. It also takes a mandatory reason. There is no cap on an extension,
-// because a cap would invent a fairness rule; a required reason makes every extension defensible or obviously
-// indefensible without inventing one, and a supplier being told why their deadline moved is simply better
-// than being told that it did.
-//
-// That request deliberately has no must-be-in-the-future rule here. The domain owns it, and duplicating it
-// would give two answers to the same question the day one of them changed.
-//
-// A requirement's expected envelope is optional and only meaningful when the requirement asks for a document.
-//
-// Reassigning a tender takes a mandatory reason, because the audit row is the operation's whole purpose.
-//
-// Submitting for review may name the manager the pass is waiting on. The body is optional, so every existing
-// caller that posted nothing keeps working: naming an approver is an addition to this transition rather than
-// a new requirement of it, and there is no routing rule that would let the server fill it in.
-//
-// Answering a clarification no longer takes a publish flag. Answering publishes to every invitee, so a flag
-// whose only remaining legal value is true would be a lie the caller could tell.
-//
-//
-// THE FOUR REFUSAL SHAPES
-//
-// An illegal state change answers conflict, naming the current state and what may legally follow. Every
-// tender transition answered a plain bad request before that was built.
-//
-// A deadline move the caller is not permitted to make in that direction is refused rather than answered
-// not-found. The caller demonstrably can see this tender, because they reached here holding the edit
-// permission on it, so hiding its existence protects nothing, and hiding the reason would leave an officer
-// unable to tell a wrong direction from something broken.
-//
-// Naming an ineligible new owner is unprocessable. The payload is well-formed and names a real user; what is
-// wrong is a fact about that user the client could not have known.
-//
-// A supplier who was not invited gets not-found and never a refusal, so the API does not reveal that a tender
-// exists.
+// What a caller may send is in RfqRequests, and how a handler's answer becomes a status is in
+// RfqResults. Both used to be in this file, above the routes.
 //
 //
 // TWO INVENTED PATHS, REPORTED AS SUCH
@@ -219,155 +181,8 @@ using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Identity;
 
-public sealed record RfqBasicsRequest(
-    string TitleAr, string TitleEn, string? DescriptionAr, string? DescriptionEn, string CurrencyCode,
-    DateTimeOffset? PublishAt, DateTimeOffset? SubmissionOpensAt, DateTimeOffset? SubmissionClosesAt,
-    DateTimeOffset? ClarificationDeadlineAt, DateTimeOffset? EvaluationTargetDate);
-
-public sealed class RfqBasicsRequestValidator : AbstractValidator<RfqBasicsRequest>
-{
-    public RfqBasicsRequestValidator()
-    {
-        RuleFor(x => x.TitleAr).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.TitleEn).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.CurrencyCode).NotEmpty().MaximumLength(3);
-        RuleFor(x => x.SubmissionClosesAt).GreaterThan(x => x.SubmissionOpensAt)
-            .When(x => x.SubmissionOpensAt is not null && x.SubmissionClosesAt is not null);
-    }
-}
-
-public sealed record ChangeSubmissionDeadlineRequest(DateTimeOffset SubmissionDeadline, string Reason);
-
-public sealed class ChangeSubmissionDeadlineRequestValidator : AbstractValidator<ChangeSubmissionDeadlineRequest>
-{
-    public ChangeSubmissionDeadlineRequestValidator()
-    {
-        RuleFor(x => x.SubmissionDeadline).NotEmpty();
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000);
-    }
-}
-
-public sealed record RfqItemRequest(
-    string TitleAr, string TitleEn, string? SpecificationAr, string? SpecificationEn,
-    string CategoryCode, decimal Quantity, string UnitOfMeasureCode, bool IsUnitPrice, bool IsOptional);
-
-public sealed class RfqItemRequestValidator : AbstractValidator<RfqItemRequest>
-{
-    public RfqItemRequestValidator()
-    {
-        RuleFor(x => x.TitleAr).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.TitleEn).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.CategoryCode).NotEmpty();
-        RuleFor(x => x.UnitOfMeasureCode).NotEmpty();
-        RuleFor(x => x.Quantity).GreaterThan(0);
-    }
-}
-
-public sealed record RequirementRequest(
-    string TextAr, string TextEn, bool IsMandatory, string? DocumentTypeCode,
-    MotsSupplierPortal.Domain.Proposals.ProposalDocumentEnvelope? ExpectedEnvelope = null);
-
-public sealed class RequirementRequestValidator : AbstractValidator<RequirementRequest>
-{
-    public RequirementRequestValidator()
-    {
-        RuleFor(x => x.TextAr).NotEmpty().MaximumLength(2000);
-        RuleFor(x => x.TextEn).NotEmpty().MaximumLength(2000);
-    }
-}
-
-public sealed record BindEvaluationTemplateRequest(Guid EvaluationTemplateId);
-
-public sealed record ReturnForEditsRequest(string Comments);
-
-public sealed class ReturnForEditsRequestValidator : AbstractValidator<ReturnForEditsRequest>
-{
-    public ReturnForEditsRequestValidator() => RuleFor(x => x.Comments).NotEmpty().MaximumLength(2000);
-}
-
-public sealed record ReassignRfqRequest(Guid NewOwnerUserId, string Reason);
-
-public sealed class ReassignRfqRequestValidator : AbstractValidator<ReassignRfqRequest>
-{
-    public ReassignRfqRequestValidator()
-    {
-        RuleFor(x => x.NewOwnerUserId).NotEmpty();
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
-    }
-}
-
-public sealed record SubmitForReviewRequest(Guid? AssignedApproverUserId);
-
-public sealed record CloseSubmissionRequest(string? Reason);
-
-public sealed record CancelRfqRequest(string Reason);
-
-public sealed record RequestClarificationTransitionRequest(string Reason);
-
-public sealed class RequestClarificationTransitionRequestValidator : AbstractValidator<RequestClarificationTransitionRequest>
-{
-    public RequestClarificationTransitionRequestValidator()
-    {
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
-    }
-}
-
-public sealed class CancelRfqRequestValidator : AbstractValidator<CancelRfqRequest>
-{
-    public CancelRfqRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
-}
-
-public sealed record InviteSupplierRequest(Guid SupplierId);
-
-public sealed record AnswerClarificationRequest(string Answer);
-
-public sealed class AnswerClarificationRequestValidator : AbstractValidator<AnswerClarificationRequest>
-{
-    public AnswerClarificationRequestValidator() => RuleFor(x => x.Answer).NotEmpty().MaximumLength(4000);
-}
-
-public sealed record IssueAddendumRequest(string TitleAr, string TitleEn, string DescriptionAr, string DescriptionEn);
-
-public sealed class IssueAddendumRequestValidator : AbstractValidator<IssueAddendumRequest>
-{
-    public IssueAddendumRequestValidator()
-    {
-        RuleFor(x => x.TitleAr).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.TitleEn).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.DescriptionAr).NotEmpty().MaximumLength(4000);
-        RuleFor(x => x.DescriptionEn).NotEmpty().MaximumLength(4000);
-    }
-}
-
 public static class RfqEndpoints
 {
-    private static IResult MapMutation(RfqMutationResult result) => result switch
-    {
-        RfqMutationResult.Success s => Results.Ok(s.Rfq),
-        RfqMutationResult.NotFoundOrOutOfScope => Results.NotFound(),
-        RfqMutationResult.IllegalTransition illegal => IllegalTransitionResult.For(illegal.CurrentState, illegal.Message),
-        RfqMutationResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
-        RfqMutationResult.DeadlineChangeNotPermitted =>
-            Results.Json(new { error = "deadline_change_not_permitted" }, statusCode: StatusCodes.Status403Forbidden),
-
-        RfqMutationResult.IneligibleUser ineligible =>
-            Results.UnprocessableEntity(new { error = "ineligible_user", message = ineligible.Message }),
-
-        RfqMutationResult.InvalidCategory => Results.BadRequest(new { error = "invalid_category" }),
-        RfqMutationResult.InvalidUnitOfMeasure => Results.BadRequest(new { error = "invalid_unit_of_measure" }),
-        RfqMutationResult.InvalidEvaluationTemplate invalid => Results.BadRequest(new { error = "invalid_evaluation_template", message = invalid.Message }),
-        RfqMutationResult.SupplierNotActive => Results.BadRequest(new { error = "supplier_not_active" }),
-        _ => Results.Problem(),
-    };
-
-    private static IResult MapSupplierResult(SupplierRfqResult result) => result switch
-    {
-        SupplierRfqResult.Success s => Results.Ok(s.Rfq),
-        SupplierRfqResult.NotFoundOrNotInvited => Results.NotFound(),
-        SupplierRfqResult.InvalidState invalid => Results.BadRequest(new { error = "invalid_state", message = invalid.Message }),
-        _ => Results.Problem(),
-    };
-
     public static void MapRfqEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/rfqs").WithTags("Rfqs");
@@ -411,7 +226,7 @@ public static class RfqEndpoints
         {
             if (scope.SupplierId is not null)
             {
-                return MapSupplierResult(await supplierHandler.HandleAsync(referenceCode, ct));
+                return RfqResults.MapSupplierResult(await supplierHandler.HandleAsync(referenceCode, ct));
             }
 
             var rfq = await buyerHandler.HandleAsync(referenceCode, ct);
@@ -431,14 +246,14 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapSupplierResult(await handler.HandleAsync(new PostClarificationQuestionCommand(referenceCode, request.Question), ct));
+            return RfqResults.MapSupplierResult(await handler.HandleAsync(new PostClarificationQuestionCommand(referenceCode, request.Question), ct));
         })
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierPostClarification");
 
         group.MapPost("/{referenceCode}/invitations/decline", async (
             string referenceCode, DeclineInvitationRequest request, ISupplierDeclineInvitationHandler handler, CancellationToken ct) =>
-            MapSupplierResult(await handler.HandleAsync(new DeclineInvitationCommand(referenceCode, request.Reason), ct)))
+            RfqResults.MapSupplierResult(await handler.HandleAsync(new DeclineInvitationCommand(referenceCode, request.Reason), ct)))
         .RequirePermission(Permissions.ProposalCreate)
         .WithName("SupplierDeclineInvitation");
 
@@ -455,7 +270,7 @@ public static class RfqEndpoints
                 request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn, request.CurrencyCode,
                 request.PublishAt, request.SubmissionOpensAt, request.SubmissionClosesAt,
                 request.ClarificationDeadlineAt, request.EvaluationTargetDate), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqCreate)
         .WithName("CreateRfq");
@@ -474,7 +289,7 @@ public static class RfqEndpoints
                 referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn,
                 request.CurrencyCode, request.PublishAt, request.SubmissionOpensAt, request.SubmissionClosesAt,
                 request.ClarificationDeadlineAt, request.EvaluationTargetDate), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
@@ -494,7 +309,7 @@ public static class RfqEndpoints
             var result = await handler.AddAsync(new AddRfqItemCommand(
                 referenceCode, request.TitleAr, request.TitleEn, request.SpecificationAr, request.SpecificationEn,
                 request.CategoryCode, request.Quantity, request.UnitOfMeasureCode, request.IsUnitPrice, request.IsOptional), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
@@ -515,7 +330,7 @@ public static class RfqEndpoints
             var result = await handler.UpdateAsync(new UpdateRfqItemCommand(
                 referenceCode, itemId, request.TitleAr, request.TitleEn, request.SpecificationAr, request.SpecificationEn,
                 request.CategoryCode, request.Quantity, request.UnitOfMeasureCode, request.IsUnitPrice, request.IsOptional), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
@@ -524,7 +339,7 @@ public static class RfqEndpoints
 
         group.MapDelete("/{referenceCode}/items/{itemId:guid}", async (
             string referenceCode, Guid itemId, IManageRfqItemHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.RemoveAsync(new RemoveRfqItemCommand(referenceCode, itemId), ct)))
+            RfqResults.MapMutation(await handler.RemoveAsync(new RemoveRfqItemCommand(referenceCode, itemId), ct)))
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
         .WithFreshETag()
@@ -542,7 +357,7 @@ public static class RfqEndpoints
 
             var result = await handler.AddAsync(new AddRequirementCommand(
                 referenceCode, request.TextAr, request.TextEn, request.IsMandatory, request.DocumentTypeCode), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
@@ -563,7 +378,7 @@ public static class RfqEndpoints
             var result = await handler.UpdateAsync(new UpdateRequirementCommand(
                 referenceCode, requirementId, request.TextAr, request.TextEn, request.IsMandatory,
                 request.DocumentTypeCode, request.ExpectedEnvelope), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
@@ -572,7 +387,7 @@ public static class RfqEndpoints
 
         group.MapDelete("/{referenceCode}/requirements/{requirementId:guid}", async (
             string referenceCode, Guid requirementId, IManageRequirementHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.RemoveAsync(new RemoveRequirementCommand(referenceCode, requirementId), ct)))
+            RfqResults.MapMutation(await handler.RemoveAsync(new RemoveRequirementCommand(referenceCode, requirementId), ct)))
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
         .WithFreshETag()
@@ -601,7 +416,7 @@ public static class RfqEndpoints
 
             var result = await handler.AddAsync(new AddRfqAttachmentCommand(
                 referenceCode, storageKey, file.FileName, file.ContentType, string.IsNullOrWhiteSpace(caption) ? null : caption), ct);
-            return MapMutation(result);
+            return RfqResults.MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
@@ -626,7 +441,7 @@ public static class RfqEndpoints
 
         group.MapDelete("/{referenceCode}/attachments/{attachmentId:guid}", async (
             string referenceCode, Guid attachmentId, IManageRfqAttachmentHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.RemoveAsync(new RemoveRfqAttachmentCommand(referenceCode, attachmentId), ct)))
+            RfqResults.MapMutation(await handler.RemoveAsync(new RemoveRfqAttachmentCommand(referenceCode, attachmentId), ct)))
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
         .WithFreshETag()
@@ -634,7 +449,7 @@ public static class RfqEndpoints
 
         group.MapPut("/{referenceCode}/evaluation-template", async (
             string referenceCode, BindEvaluationTemplateRequest request, IBindEvaluationTemplateHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new BindEvaluationTemplateCommand(referenceCode, request.EvaluationTemplateId), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new BindEvaluationTemplateCommand(referenceCode, request.EvaluationTemplateId), ct)))
         .RequirePermission(Permissions.RfqEdit)
         .RequireIfMatch()
         .WithFreshETag()
@@ -648,7 +463,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(
+            return RfqResults.MapMutation(await handler.HandleAsync(
                 new ChangeSubmissionDeadlineCommand(referenceCode, request.SubmissionDeadline, request.Reason), ct));
         })
         .RequireAuthorization()
@@ -659,7 +474,7 @@ public static class RfqEndpoints
 
         group.MapPost("/{referenceCode}/submit-review", async (
             string referenceCode, SubmitForReviewRequest? request, ISubmitRfqForReviewHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(
+            RfqResults.MapMutation(await handler.HandleAsync(
                 new SubmitRfqForReviewCommand(referenceCode, request?.AssignedApproverUserId), ct)))
         .RequirePermission(Permissions.RfqSubmitReview)
         .RequireIfMatch()
@@ -703,7 +518,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(
+            return RfqResults.MapMutation(await handler.HandleAsync(
                 new ReassignRfqCommand(referenceCode, request.NewOwnerUserId, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqReassign)
@@ -721,7 +536,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new ReturnRfqForEditsCommand(referenceCode, request.Comments), ct));
+            return RfqResults.MapMutation(await handler.HandleAsync(new ReturnRfqForEditsCommand(referenceCode, request.Comments), ct));
         })
         .RequirePermission(Permissions.RfqReview)
         .RequireIfMatch()
@@ -730,7 +545,7 @@ public static class RfqEndpoints
 
         group.MapPost("/{referenceCode}/approve", async (
             string referenceCode, IApproveRfqHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new ApproveRfqCommand(referenceCode), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new ApproveRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqApprove)
         .RequireIfMatch()
         .WithFreshETag()
@@ -738,7 +553,7 @@ public static class RfqEndpoints
 
         group.MapPost("/{referenceCode}/publish", async (
             string referenceCode, IPublishRfqHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new PublishRfqCommand(referenceCode), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new PublishRfqCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqPublish)
         .RequireIfMatch()
         .RequireIdempotencyKey()
@@ -747,7 +562,7 @@ public static class RfqEndpoints
 
         group.MapPost("/{referenceCode}/close", async (
             string referenceCode, CloseSubmissionRequest request, ICloseRfqSubmissionHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new CloseRfqSubmissionCommand(referenceCode, request.Reason), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new CloseRfqSubmissionCommand(referenceCode, request.Reason), ct)))
         .RequirePermission(Permissions.RfqClose)
         .RequireIfMatch()
         .WithFreshETag()
@@ -761,14 +576,14 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new RequestRfqClarificationCommand(referenceCode, request.Reason), ct));
+            return RfqResults.MapMutation(await handler.HandleAsync(new RequestRfqClarificationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqClarify)
         .WithName("RequestRfqClarification");
 
         group.MapPost("/{referenceCode}/resolve-clarification", async (
             string referenceCode, IResolveRfqClarificationHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new ResolveRfqClarificationCommand(referenceCode), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new ResolveRfqClarificationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.RfqClarify)
         .WithName("ResolveRfqClarification");
 
@@ -782,7 +597,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new CancelRfqCommand(referenceCode, request.Reason), ct));
+            return RfqResults.MapMutation(await handler.HandleAsync(new CancelRfqCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqCancel)
         .RequireIfMatch()
@@ -791,7 +606,7 @@ public static class RfqEndpoints
 
         group.MapPost("/{referenceCode}/invitations", async (
             string referenceCode, InviteSupplierRequest request, IInviteSupplierHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new InviteSupplierCommand(referenceCode, request.SupplierId), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new InviteSupplierCommand(referenceCode, request.SupplierId), ct)))
         .RequirePermission(Permissions.RfqInvite)
         .RequireIfMatch()
         .WithFreshETag()
@@ -814,7 +629,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer), ct));
+            return RfqResults.MapMutation(await handler.HandleAsync(new AnswerClarificationCommand(referenceCode, clarificationId, request.Answer), ct));
         })
         .RequirePermission(Permissions.ClarificationAnswer)
         .RequireIfMatch()
@@ -823,7 +638,7 @@ public static class RfqEndpoints
 
         group.MapPost("/{referenceCode}/clarifications/{clarificationId:guid}/publish", async (
             string referenceCode, Guid clarificationId, IPublishClarificationHandler handler, CancellationToken ct) =>
-            MapMutation(await handler.HandleAsync(new PublishClarificationCommand(referenceCode, clarificationId), ct)))
+            RfqResults.MapMutation(await handler.HandleAsync(new PublishClarificationCommand(referenceCode, clarificationId), ct)))
         .RequirePermission(Permissions.ClarificationAnswer)
         .RequireIfMatch()
         .WithFreshETag()
@@ -839,7 +654,7 @@ public static class RfqEndpoints
             var validation = await validator.ValidateAsync(request, ct);
             if (!validation.IsValid) return ValidationProblems.From(validation);
 
-            return MapMutation(await handler.HandleAsync(new IssueAddendumCommand(referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn), ct));
+            return RfqResults.MapMutation(await handler.HandleAsync(new IssueAddendumCommand(referenceCode, request.TitleAr, request.TitleEn, request.DescriptionAr, request.DescriptionEn), ct));
         })
         .RequirePermission(Permissions.RfqAddendum)
         .RequireIfMatch()
