@@ -67,34 +67,28 @@ public static class OrganizationEndpoints
 
         group.MapPost("/", async (
             CreateOrganizationRequest request,
-            IValidator<CreateOrganizationRequest> validator,
             ICreateOrganizationHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(
                 new CreateOrganizationCommand(request.LegalNameAr, request.LegalNameEn, request.OrganizationType, request.ContactEmail, request.ContactPhone), ct);
             return MapOrganizationMutation(result);
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
+        .Validate<CreateOrganizationRequest>()
         .WithName("CreateOrganization");
 
         group.MapPost("/{organizationId:guid}/org-units", async (
             Guid organizationId,
             AddOrgUnitRequest request,
-            IValidator<AddOrgUnitRequest> validator,
             IManageOrgUnitHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddOrgUnitCommand(organizationId, request.Name, request.ParentOrgUnitId), ct);
             return MapOrganizationMutation(result);
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
+        .Validate<AddOrgUnitRequest>()
         .WithName("AddOrgUnit");
 
         group.MapDelete("/{organizationId:guid}/org-units/{orgUnitId:guid}", async (Guid organizationId, Guid orgUnitId, IManageOrgUnitHandler handler, CancellationToken ct) =>
@@ -113,13 +107,9 @@ public static class OrganizationEndpoints
         group.MapPost("/supplier-links/{supplierReferenceCode}", async (
             string supplierReferenceCode,
             CreateSupplierOrgLinkRequest request,
-            IValidator<CreateSupplierOrgLinkRequest> validator,
             IManageSupplierOrgLinkHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.CreateAsync(new CreateSupplierOrgLinkCommand(supplierReferenceCode, request.OrganizationId), ct);
             return result switch
             {
@@ -130,6 +120,7 @@ public static class OrganizationEndpoints
             };
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
+        .Validate<CreateSupplierOrgLinkRequest>()
         .WithName("CreateSupplierOrgLink");
 
         group.MapDelete("/supplier-links/{linkId:guid}", async (Guid linkId, IManageSupplierOrgLinkHandler handler, CancellationToken ct) =>

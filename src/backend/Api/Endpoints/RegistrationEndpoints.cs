@@ -182,18 +182,11 @@ public static class RegistrationEndpoints
 
         legacyGroup.MapPost("/resend-verification", async (
             ResendVerificationRequest request,
-            IValidator<ResendVerificationRequest> validator,
             IResendVerificationHandler handler,
             HttpContext httpContext,
             PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid)
-            {
-                return ValidationProblems.From(validation);
-            }
-
             if (!perTargetRateLimiter.TryAcquire("resend-verification", request.Email.Trim().ToLowerInvariant()))
             {
                 return RateLimitResults.TooManyRequests(httpContext);
@@ -202,6 +195,7 @@ public static class RegistrationEndpoints
             await handler.HandleAsync(new ResendVerificationCommand(request.Email), ct);
             return Results.Ok(new { message = "if_account_exists_email_sent" });
         })
+        .Validate<ResendVerificationRequest>()
         .WithName("ResendVerification");
     }
 }

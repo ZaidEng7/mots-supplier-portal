@@ -53,13 +53,10 @@ public static class EmailTemplateEndpoints
         group.MapPut("/{key}", async (
             string key,
             UpsertEmailTemplateRequest request,
-            IValidator<UpsertEmailTemplateRequest> validator,
             IUpsertEmailTemplateHandler handler,
             IScopeContext scope,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
             if (scope.UserId is not { } userId) return Results.Unauthorized();
 
             var result = await handler.HandleAsync(new UpsertEmailTemplateCommand(
@@ -75,6 +72,7 @@ public static class EmailTemplateEndpoints
             };
         })
         .RequirePermission(Permissions.AdminUsersManage)
+        .Validate<UpsertEmailTemplateRequest>()
         .WithName("UpsertEmailTemplate");
 
         group.MapDelete("/{key}", async (

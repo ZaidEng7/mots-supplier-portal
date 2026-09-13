@@ -132,18 +132,15 @@ public static class SupplierEndpoints
 
         group.MapPut("/me/legal-info", async (
             UpdateLegalInfoRequest request,
-            IValidator<UpdateLegalInfoRequest> validator,
             IUpdateLegalInfoHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(new UpdateLegalInfoCommand(request.LegalNameAr, request.LegalNameEn, request.RegistrationNumber, request.TaxId, request.SupplierType, request.EstablishedOn), ct);
 
             return SupplierResults.MapProfileResult(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .Validate<UpdateLegalInfoRequest>()
         .WithFreshETag()
         .WithName("UpdateLegalInfo");
 
@@ -193,36 +190,30 @@ public static class SupplierEndpoints
 
         group.MapPost("/me/representatives", async (
             AddRepresentativeRequest request,
-            IValidator<AddRepresentativeRequest> validator,
             IManageRepresentativeHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddRepresentativeCommand(request.FullName, request.Email, request.Phone, request.Position), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<AddRepresentativeRequest>()
         .WithFreshETag()
         .WithName("AddRepresentative");
 
         group.MapPut("/me/representatives/{representativeId:guid}", async (
             Guid representativeId,
             AddRepresentativeRequest request,
-            IValidator<AddRepresentativeRequest> validator,
             IManageRepresentativeHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.UpdateAsync(new UpdateRepresentativeCommand(representativeId, request.FullName, request.Email, request.Phone, request.Position), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<AddRepresentativeRequest>()
         .WithFreshETag()
         .WithName("UpdateRepresentative");
 
@@ -242,36 +233,30 @@ public static class SupplierEndpoints
 
         group.MapPost("/me/addresses", async (
             AddAddressRequest request,
-            IValidator<AddAddressRequest> validator,
             IManageAddressHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddAddressCommand(request.Kind, request.Line1, request.Line2, request.City, request.RegionCode, request.Country, request.PostalCode, request.Latitude, request.Longitude), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<AddAddressRequest>()
         .WithFreshETag()
         .WithName("AddAddress");
 
         group.MapPut("/me/addresses/{addressId:guid}", async (
             Guid addressId,
             UpdateAddressRequest request,
-            IValidator<UpdateAddressRequest> validator,
             IManageAddressHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.UpdateAsync(new UpdateAddressCommand(addressId, request.Kind, request.Line1, request.Line2, request.City, request.RegionCode, request.Country, request.PostalCode, request.Latitude, request.Longitude), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<UpdateAddressRequest>()
         .WithFreshETag()
         .WithName("UpdateAddress");
 
@@ -284,36 +269,30 @@ public static class SupplierEndpoints
 
         group.MapPost("/me/contacts", async (
             AddContactRequest request,
-            IValidator<AddContactRequest> validator,
             IManageContactHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddContactCommand(request.FullName, request.Email, request.Phone, request.Role), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<AddContactRequest>()
         .WithFreshETag()
         .WithName("AddContact");
 
         group.MapPut("/me/contacts/{contactId:guid}", async (
             Guid contactId,
             AddContactRequest request,
-            IValidator<AddContactRequest> validator,
             IManageContactHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.UpdateAsync(new UpdateContactCommand(contactId, request.FullName, request.Email, request.Phone, request.Role), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<AddContactRequest>()
         .WithFreshETag()
         .WithName("UpdateContact");
 
@@ -326,36 +305,30 @@ public static class SupplierEndpoints
 
         group.MapPost("/me/branches", async (
             AddBranchRequest request,
-            IValidator<AddBranchRequest> validator,
             IManageBranchHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddBranchCommand(request.NameAr, request.NameEn, request.AddressId), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<AddBranchRequest>()
         .WithFreshETag()
         .WithName("AddBranch");
 
         group.MapPut("/me/branches/{branchId:guid}", async (
             Guid branchId,
             UpdateBranchRequest request,
-            IValidator<UpdateBranchRequest> validator,
             IManageBranchHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.UpdateAsync(new UpdateBranchCommand(branchId, request.NameAr, request.NameEn, request.AddressId, request.IsActive), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<UpdateBranchRequest>()
         .WithFreshETag()
         .WithName("UpdateBranch");
 
@@ -368,36 +341,30 @@ public static class SupplierEndpoints
 
         group.MapPost("/me/bank-accounts", async (
             AddBankAccountRequest request,
-            IValidator<AddBankAccountRequest> validator,
             IManageBankAccountHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddBankAccountCommand(request.AccountHolderName, request.BankName, request.BranchName, request.AccountNumber, request.SwiftBic, request.CurrencyCode), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierBankAccountManage)
         .RequireIfMatch()
+        .Validate<AddBankAccountRequest>()
         .WithFreshETag()
         .WithName("AddBankAccount");
 
         group.MapPut("/me/bank-accounts/{bankAccountId:guid}", async (
             Guid bankAccountId,
             UpdateBankAccountRequest request,
-            IValidator<UpdateBankAccountRequest> validator,
             IManageBankAccountHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.UpdateAsync(new UpdateBankAccountCommand(bankAccountId, request.AccountHolderName, request.BankName, request.BranchName, request.AccountNumber, request.SwiftBic, request.CurrencyCode), ct);
             return SupplierResults.MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierBankAccountManage)
         .RequireIfMatch()
+        .Validate<UpdateBankAccountRequest>()
         .WithFreshETag()
         .WithName("UpdateBankAccount");
 

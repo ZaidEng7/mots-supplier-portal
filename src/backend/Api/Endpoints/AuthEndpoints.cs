@@ -205,19 +205,12 @@ public static class AuthEndpoints
 
         group.MapPost("/login", async (
             LoginRequest request,
-            IValidator<LoginRequest> validator,
             ILoginHandler handler,
             HttpContext httpContext,
             IConfiguration configuration,
             PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid)
-            {
-                return ValidationProblems.From(validation);
-            }
-
             if (!perTargetRateLimiter.TryAcquire("login", request.Email.Trim().ToLowerInvariant()))
             {
                 return RateLimitResults.TooManyRequests(httpContext);
@@ -242,7 +235,8 @@ public static class AuthEndpoints
         })
         .WithName("Login")
         .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Validate<LoginRequest>();
 
         group.MapPost("/refresh", async (
             HttpContext httpContext,
@@ -281,18 +275,11 @@ public static class AuthEndpoints
 
         group.MapPost("/forgot-password", async (
             ForgotPasswordRequest request,
-            IValidator<ForgotPasswordRequest> validator,
             IForgotPasswordHandler handler,
             HttpContext httpContext,
             PerTargetRateLimiter perTargetRateLimiter,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid)
-            {
-                return ValidationProblems.From(validation);
-            }
-
             if (!perTargetRateLimiter.TryAcquire("forgot-password", request.Email.Trim().ToLowerInvariant()))
             {
                 return RateLimitResults.TooManyRequests(httpContext);
@@ -303,20 +290,14 @@ public static class AuthEndpoints
         })
         .WithName("ForgotPassword")
         .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Validate<ForgotPasswordRequest>();
 
         group.MapPost("/reset-password", async (
             ResetPasswordRequest request,
-            IValidator<ResetPasswordRequest> validator,
             IResetPasswordHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid)
-            {
-                return ValidationProblems.From(validation);
-            }
-
             var result = await handler.HandleAsync(
                 new ResetPasswordCommand(request.Token, request.NewPassword), ct);
 
@@ -330,18 +311,16 @@ public static class AuthEndpoints
         })
         .WithName("ResetPassword")
         .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Validate<ResetPasswordRequest>();
 
         group.MapPost("/change-password", async (
             ChangePasswordRequest request,
-            IValidator<ChangePasswordRequest> validator,
             IChangePasswordHandler handler,
             IScopeContext scope,
             HttpContext httpContext,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
             if (scope.UserId is not { } userId) return Results.Unauthorized();
 
             httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var currentToken);
@@ -362,6 +341,7 @@ public static class AuthEndpoints
             };
         })
         .RequireAuthorization()
+        .Validate<ChangePasswordRequest>()
         .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
         .WithName("ChangePassword");
 
@@ -376,36 +356,32 @@ public static class AuthEndpoints
 
         group.MapPut("/me", async (
             UpdateAccountRequest request,
-            IValidator<UpdateAccountRequest> validator,
             IUpdateAccountHandler handler,
             IScopeContext scope,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
             if (scope.UserId is not { } userId) return Results.Unauthorized();
 
             var updated = await handler.HandleAsync(new UpdateAccountCommand(userId, request.FullName, request.Language), ct);
             return updated is null ? Results.Unauthorized() : Results.Ok(updated);
         })
         .RequireAuthorization()
+        .Validate<UpdateAccountRequest>()
         .WithName("UpdateAccount");
 
         group.MapPost("/me/language", async (
             ChooseLanguageRequest request,
-            IValidator<ChooseLanguageRequest> validator,
             IChooseLanguageHandler handler,
             IScopeContext scope,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
             if (scope.UserId is not { } userId) return Results.Unauthorized();
 
             var updated = await handler.HandleAsync(new ChooseLanguageCommand(userId, request.Language), ct);
             return updated is null ? Results.Unauthorized() : Results.Ok(updated);
         })
         .RequireAuthorization()
+        .Validate<ChooseLanguageRequest>()
         .WithName("ChooseLanguage");
 
         group.MapGet("/sessions", async (

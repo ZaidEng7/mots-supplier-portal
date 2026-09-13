@@ -192,13 +192,9 @@ public static class ReviewEndpoints
         group.MapPost("/{referenceCode}/reject", async (
             string referenceCode,
             RejectApplicationRequest request,
-            IValidator<RejectApplicationRequest> validator,
             IRejectApplicationHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(referenceCode, request.Reason, ct);
             return result switch
             {
@@ -210,6 +206,7 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierReject)
         .RequireIfMatch()
+        .Validate<RejectApplicationRequest>()
         .WithFreshETag()
 .WithName("RejectApplication");
 
@@ -224,13 +221,9 @@ public static class ReviewEndpoints
             group.MapPost($"/{{referenceCode}}/{segment}", async (
                 string referenceCode,
                 SupplierLifecycleRequest request,
-                IValidator<SupplierLifecycleRequest> validator,
                 ISupplierLifecycleHandler handler,
                 CancellationToken ct) =>
             {
-                var validation = await validator.ValidateAsync(request, ct);
-                if (!validation.IsValid) return ValidationProblems.From(validation);
-
                 var result = await handlerInvoke(handler, new SupplierLifecycleCommand(referenceCode, request.Reason), ct);
                 return result switch
                 {
@@ -241,19 +234,16 @@ public static class ReviewEndpoints
                 };
             })
             .RequirePermission(Permissions.SupplierLifecycleManage)
+            .Validate<SupplierLifecycleRequest>()
             .WithName(name);
         }
 
         group.MapPost("/{referenceCode}/request-info", async (
             string referenceCode,
             RequestInfoRequest request,
-            IValidator<RequestInfoRequest> validator,
             IRequestInfoHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(
                 new RequestInfoCommand(referenceCode, request.Reason, request.FlaggedProfileFields, request.FlaggedDocumentTypeCodes), ct);
             return result switch
@@ -266,6 +256,7 @@ public static class ReviewEndpoints
         })
         .RequirePermission(Permissions.SupplierRequestInfo)
         .RequireIfMatch()
+        .Validate<RequestInfoRequest>()
         .WithFreshETag()
 .WithName("RequestApplicationInfo");
 

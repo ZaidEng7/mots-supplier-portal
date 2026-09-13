@@ -109,29 +109,22 @@ public static class EvaluationTemplateEndpoints
 
         group.MapPost("/", async (
             CreateEvaluationTemplateRequest request,
-            IValidator<CreateEvaluationTemplateRequest> validator,
             ICreateEvaluationTemplateHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(new CreateEvaluationTemplateCommand(request.NameAr, request.NameEn), ct));
         })
         .RequirePermission(Permissions.EvaluationTemplateManage)
+        .Validate<CreateEvaluationTemplateRequest>()
         .WithFreshETag()
         .WithName("CreateEvaluationTemplate");
 
         group.MapPost("/{id:guid}/criteria", async (
             Guid id,
             CriterionRequest request,
-            IValidator<CriterionRequest> validator,
             IManageCriterionHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.AddAsync(new AddCriterionCommand(
                 id, request.NameAr, request.NameEn, request.Dimension, request.Weight, request.MaxScore,
                 request.Threshold, request.ScoringType, request.GuidanceAr, request.GuidanceEn,
@@ -139,6 +132,7 @@ public static class EvaluationTemplateEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.EvaluationTemplateManage)
+        .Validate<CriterionRequest>()
         .WithFreshETag()
         .WithName("AddCriterion");
 
@@ -146,13 +140,9 @@ public static class EvaluationTemplateEndpoints
             Guid id,
             Guid criterionId,
             CriterionRequest request,
-            IValidator<CriterionRequest> validator,
             IManageCriterionHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.UpdateAsync(new UpdateCriterionCommand(
                 id, criterionId, request.NameAr, request.NameEn, request.Dimension, request.Weight, request.MaxScore,
                 request.Threshold, request.ScoringType, request.GuidanceAr, request.GuidanceEn,
@@ -160,6 +150,7 @@ public static class EvaluationTemplateEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.EvaluationTemplateManage)
+        .Validate<CriterionRequest>()
         .WithFreshETag()
         .WithName("UpdateCriterion");
 
