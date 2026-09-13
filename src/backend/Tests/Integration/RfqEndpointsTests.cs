@@ -616,4 +616,36 @@ public sealed class RfqEndpointsTests(PostgresApiFixture fixture)
         ids.Should().NotContain(alreadyInvitedSupplierId, "already-invited suppliers are excluded from suggestions");
         ids.Should().NotContain(noMatchSupplierId, "a supplier with no matching-category offering is not suggested");
     }
+
+    /// <summary>
+    /// A supplier who declared the category and listed no catalogue entry is still a candidate.
+    ///
+    /// <para>Declaring categories is a REQUIRED onboarding step - an application cannot be submitted
+    /// without one - while an offering is the optional catalogue on top. Suggestions matched offerings
+    /// only, so an approved, active supplier with the right category and no catalogue entry appeared
+    /// nowhere, and this screen offers no other way to invite anyone: they could not be invited at
+    /// all. Reported by a buyer who had approved one minutes earlier and could not find them.</para>
+    /// </summary>
+    [Fact]
+    public async Task A_supplier_who_declared_the_category_is_suggested_even_with_no_offering()
+    {
+        var (supplier, supplierId) = await ActiveSupplierAsync($"Declared {Guid.NewGuid():N}"[..30]);
+        var link = await supplier.PostAsJsonAsync("/api/v1/suppliers/me/category-links", new { categoryCode = "catering" });
+        link.StatusCode.Should().Be(HttpStatusCode.OK, await link.Content.ReadAsStringAsync());
+
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+        var created = await officer.PostAsJsonAsync("/api/v1/rfqs", RfqBasics($"Declared category {Guid.NewGuid():N}"[..30]));
+        var referenceCode = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
+        });
+
+        var candidates = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/invitations/candidates");
+
+        candidates.EnumerateArray().Select(c => c.GetProperty("supplierId").GetGuid())
+            .Should().Contain(supplierId);
+    }
 }

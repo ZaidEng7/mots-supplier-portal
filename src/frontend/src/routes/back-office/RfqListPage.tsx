@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {Button, Dialog, Field, Input, ListCard, PageHeading, SegmentedControl, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import { earliestSubmissionInput } from './submissionWindow'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { nextPageParam } from '../../api/listEnvelope'
 import { listRfqs, createRfq, RfqApiError, type RfqOwnerFilter } from '../../api/rfqs'
@@ -130,8 +131,14 @@ export function RfqListPage() {
           <Field label={t('rfq.fields.titleAr')} required>{(p) => <Input {...p} value={titleAr} onChange={(e) => setTitleAr(e.target.value)} />}</Field>
           <Field label={t('rfq.fields.titleEn')} required>{(p) => <Input {...p} value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />}</Field>
           <Field label={t('rfq.fields.currency')} required>{(p) => <Input {...p} value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} />}</Field>
-          <Field label={t('rfq.fields.submissionOpensAt')}>{(p) => <Input {...p} type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} />}</Field>
-          <Field label={t('rfq.fields.submissionClosesAt')}>{(p) => <Input {...p} type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />}</Field>
+          {/*
+            The same floor the tender's own Edit details carries, which this dialog did not: a window
+            opening in the past is accepted here and then refused at submit-for-review with "The
+            submission window has already started", leaving the officer to find Edit details to
+            correct it. The close cannot precede the open either.
+          */}
+          <Field label={t('rfq.fields.submissionOpensAt')}>{(p) => <Input {...p} type="datetime-local" min={earliestSubmissionInput()} value={opensAt} onChange={(e) => setOpensAt(e.target.value)} />}</Field>
+          <Field label={t('rfq.fields.submissionClosesAt')}>{(p) => <Input {...p} type="datetime-local" min={opensAt || earliestSubmissionInput()} value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />}</Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>{t('rfq.cancel')}</Button>
             <Button type="submit" isLoading={createMutation.isPending}>{t('rfq.save')}</Button>

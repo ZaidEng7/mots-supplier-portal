@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearETags, lookupETag } from './etags'
+import { clearETags, forgetETags, lookupETag, rememberETag } from './etags'
 import { getOwnSupplier, updateProfile } from './supplier'
 
 /**
@@ -59,6 +59,28 @@ describe('supplier profile ETag wiring', () => {
     expect(lookupETag('/api/v1/suppliers/me')).toBe('"AAAABw.1bdf128d.abc12345"')
     // And the precondition a child write would actually send resolves to the fresh one.
     expect(lookupETag('/api/v1/suppliers/me/branches')).toBe('"AAAABw.1bdf128d.abc12345"')
+  })
+
+  /**
+   * A write that does NOT return a profile still has to refresh both spellings.
+   *
+   * <p>This is the one the user hit twice: upload a document, then press Accept on the terms, and the
+   * acceptance was refused as a concurrency conflict on a record nobody else had touched. The document
+   * POST goes to `/suppliers/{code}/documents` and answers with a document, so it never reaches
+   * `profileFrom`; the transport filed its fresh version under the `{code}` prefix while
+   * `/suppliers/me/accept-terms` walks up to `/suppliers/me` and found the version from the page's own
+   * read. A reload cleared it, which is why it read as intermittent.</p>
+   */
+  it('keeps both spellings in step after a write that returns no profile', async () => {
+    respondWith('"AAAAAw.1bdf128d.abc12345"')
+    await getOwnSupplier()
+
+    // What apiFetch does for any mutation: forget the stale entries, then file the response's version
+    // under the prefix the precondition came from. Here that prefix is the supplier-code one.
+    forgetETags('/api/v1/suppliers/SUP-2026-000001/documents')
+    rememberETag('/api/v1/suppliers/SUP-2026-000001', '"AAAABA.1bdf128d.abc12345"')
+
+    expect(lookupETag('/api/v1/suppliers/me/accept-terms')).toBe('"AAAABA.1bdf128d.abc12345"')
   })
 
   it('stores the server ETag verbatim, never one rebuilt from rowVersion', async () => {
