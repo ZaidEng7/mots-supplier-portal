@@ -1,0 +1,51 @@
+using System.Text.Json;
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
+using Hangfire;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Rfqs;
+using MotsSupplierPortal.Domain.Evaluation;
+using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Proposals;
+using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
+using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Registrations;
+
+namespace MotsSupplierPortal.Infrastructure.Rfqs;
+
+/// <summary>FEAT-07.1/FR-RFQ-001/BRULE-029.</summary>
+public sealed class CreateRfqHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : ICreateRfqHandler
+{
+    public async Task<RfqMutationResult> HandleAsync(CreateRfqCommand command, CancellationToken ct)
+    {
+        if (scope.OrganizationId is null) return new RfqMutationResult.NotFoundOrOutOfScope();
+
+        var referenceCode = await ReferenceCodeGenerator.NextCodeAsync(db, "RFQ", ct);
+
+        Rfq rfq;
+        try
+        {
+            rfq = Rfq.Create(
+                referenceCode, scope.OrganizationId.Value, command.TitleAr, command.TitleEn,
+                command.DescriptionAr, command.DescriptionEn, command.CurrencyCode,
+                command.PublishAt, command.SubmissionOpensAt, command.SubmissionClosesAt,
+                command.ClarificationDeadlineAt, command.EvaluationTargetDate,
+                // A-7: the creator owns what they created.
+                scope.UserId);
+        }
+        // No IllegalTransition branch here: creation has no current state to report an allowed-next
+        // set against, so every refusal from Rfq.Create is a 400 about the request.
+        catch (DomainException ex)
+        {
+            return new RfqMutationResult.InvalidState(ex.Message);
+        }
+
+        db.Rfqs.Add(rfq);
+        await auditLogger.LogAsync("Rfq", rfq.Id, "rfq_created", scope.UserId, referenceCode: rfq.ReferenceCode, toState: nameof(RfqState.Draft), ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new RfqMutationResult.Success(await RfqDtoMapper.ToDtoAsync(db, rfq, ct));
+    }
+}

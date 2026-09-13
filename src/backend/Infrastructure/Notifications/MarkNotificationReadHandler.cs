@@ -1,0 +1,42 @@
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
+using MotsSupplierPortal.Infrastructure.Persistence;
+
+namespace MotsSupplierPortal.Infrastructure.Notifications;
+
+/// <summary>
+/// Marking read, scoped exactly as reading is.
+///
+/// <para>The scope predicate is part of the LOOKUP, not a check after it: a handler that loads by id
+/// and then compares owners has already read the row, and every difference between "loaded then
+/// refused" and "never found" is a signal. Here the two are the same query.</para>
+/// </summary>
+public sealed class MarkNotificationReadHandler(AppDbContext db, IScopeContext scope) : IMarkNotificationReadHandler
+{
+    public async Task<MarkNotificationReadResult> HandleAsync(Guid notificationId, CancellationToken ct)
+    {
+        if (scope.UserId is not { } userId) return new MarkNotificationReadResult.NotFoundOrOutOfScope();
+
+        var notification = await db.Notifications
+            .FirstOrDefaultAsync(n => n.Id == notificationId && n.RecipientUserId == userId, ct);
+
+        if (notification is null) return new MarkNotificationReadResult.NotFoundOrOutOfScope();
+
+        notification.MarkRead(DateTimeOffset.UtcNow);
+        await db.SaveChangesAsync(ct);
+
+        return new MarkNotificationReadResult.Success(NotificationDtoMapper.ToDto(notification));
+    }
+
+    public async Task<int> MarkAllReadAsync(CancellationToken ct)
+    {
+        if (scope.UserId is not { } userId) return 0;
+
+        var now = DateTimeOffset.UtcNow;
+        return await db.Notifications
+            .Where(n => n.RecipientUserId == userId && n.ReadAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(n => n.ReadAt, now), ct);
+    }
+}
