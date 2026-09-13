@@ -1,3 +1,24 @@
+// The onboarding review queue, a reviewer's read of one application, the four decisions, and the post-approval
+// lifecycle.
+//
+// A queue row carries A-5's review TARGET, in working days from enteredQueueAt per the configured SLA. It is a
+// target and never a breach: BUSINESS-PROCESSES.md §5 runs a timer and names no number.
+//
+// getReviewerSupplierView files its ETag under the SUPPLIER's path as well as its own. The reviewer READS the
+// application at /review/{code} and writes its documents at /suppliers/{code}/documents/{doc}/approve. Both
+// address the same supplier aggregate and both document transitions declare RequireIfMatch, but the ETag store
+// walks a path UPWARDS and never sideways, so a version filed under /review/... is unreachable from a write under
+// /suppliers/... Every document approval and rejection answered 428 for that reason, on the one screen where a
+// reviewer decides on documents. It is filed here rather than in the transport because this function is the only
+// thing that knows the two paths name one resource - the same reasoning as getProposal (D-47) and profileFrom
+// (D-60).
+//
+// THE LIFECYCLE is MSP-63 and FR-ONB-009's post-approval half: suspend and reactivate are reversible, and
+// deactivate is terminal, which the API refuses unless the supplier is already suspended. The server returns 409
+// with the domain's own message for an illegal transition (NFR-CMP-003 and BRULE-097). The UI hides actions that
+// do not apply, but hiding is a convenience - the rule is enforced server-side, and the message is surfaced
+// rather than swallowed.
+
 import { ProblemError } from './problem'
 import { rememberETag } from './etags'
 import { apiFetch } from './auth'
@@ -11,8 +32,6 @@ export interface ReviewQueueItem {
   displayNameEn: string
   onboardingState: string
   enteredQueueAt: string
-  /** A-5: the review TARGET, in working days from `enteredQueueAt` per the configured SLA. A target,
-   * never a breach - BUSINESS-PROCESSES.md §5 runs a timer and names no number. */
   reviewTargetAt: string | null
   assignedReviewerId: string | null
   assignedReviewerName: string | null
@@ -79,15 +98,6 @@ export async function unassignReviewItem(referenceCode: string): Promise<ReviewQ
 
 export async function getReviewerSupplierView(referenceCode: string): Promise<ReviewerSupplierView> {
   const res = await apiFetch(`/api/v1/review/${referenceCode}`)
-  // The reviewer READS the application at /review/{code} and writes its documents at
-  // /suppliers/{code}/documents/{doc}/approve. Both address the same supplier aggregate, and both
-  // document transitions declare RequireIfMatch - but the ETag store walks a path UPWARDS and never
-  // sideways, so a version filed under /review/... is unreachable from a write under /suppliers/...
-  // Every document approval and rejection answered 428 for that reason, on the one screen where a
-  // reviewer decides on documents.
-  //
-  // Filed here rather than in the transport because this function is the only thing that knows the
-  // two paths name one resource - the same reasoning as getProposal (D-47) and profileFrom (D-60).
   rememberETag(`/api/v1/suppliers/${referenceCode}`, res.headers.get('ETag'))
   return parseOrThrow(res)
 }
@@ -125,14 +135,6 @@ export async function requestApplicationInfo(
   return parseOrThrow(res)
 }
 
-/**
- * MSP-63 / FR-ONB-009: post-approval lifecycle. Suspend and reactivate are reversible;
- * deactivate is terminal, and the API refuses it unless the supplier is already suspended.
- *
- * The server returns 409 with the domain's own message for an illegal transition
- * (NFR-CMP-003/BRULE-097). The UI hides actions that do not apply, but hiding is a
- * convenience - the rule is enforced server-side and the message is surfaced, not swallowed.
- */
 export type SupplierLifecycleAction = 'suspend' | 'reactivate' | 'deactivate'
 
 export async function changeSupplierLifecycle(

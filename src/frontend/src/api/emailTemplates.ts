@@ -1,6 +1,18 @@
+// T-076: the admin screen over the 23 transactional emails.
+//
+// Required tokens must appear in both bodies, and the server refuses a save that drops one - an invitation
+// without its link is an invitation nobody can accept. The shipped wording travels with its tokens still in it,
+// so the screen can show what an override replaces.
+//
+// EmailTemplateError declares its fields rather than using parameter properties, which are not available under
+// erasableSyntaxOnly.
+//
+// The token refusals arrive as §7 problem documents with the offending tokens on an extension member, and the
+// screen shows them, because "a token is missing" on its own is not something an administrator can act on. It
+// reads `code` rather than `error`: the middleware reshapes every non-2xx into problem+json.
+
 import { apiFetch } from './auth'
 
-/** T-076. */
 export interface EmailTemplateCopy {
   key: string
   subjectAr: string
@@ -12,16 +24,12 @@ export interface EmailTemplateCopy {
 
 export interface EmailTemplateRow {
   key: string
-  /** Must appear in both bodies. The server refuses a save that drops one — an invitation without its
-   *  link is an invitation nobody can accept. */
   requiredTokens: string[]
   optionalTokens: string[]
   override: EmailTemplateCopy | null
-  /** The shipped wording with its tokens still in it, so the screen can show what an override replaces. */
   shipped: EmailTemplateCopy
 }
 
-/** Parameter properties are not available under `erasableSyntaxOnly`, so the fields are declared. */
 export class EmailTemplateError extends Error {
   readonly reason: string
   readonly tokens: string[]
@@ -50,9 +58,6 @@ export async function upsertEmailTemplate(
   })
   const text = await response.text()
   if (!response.ok) {
-    // The token refusals arrive as §7 problem documents with the offending tokens on an extension member,
-    // and the screen shows them: "a token is missing" is not something an administrator can act on. Read
-    // `code`, not `error` - the middleware reshapes every non-2xx into problem+json.
     const body = text ? (JSON.parse(text) as { code?: string; tokens?: string[] }) : {}
     throw new EmailTemplateError(body.code ?? 'SAVE_FAILED', body.tokens ?? [])
   }

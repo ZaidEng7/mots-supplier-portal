@@ -1,7 +1,21 @@
+// SCR-120: the supplier's own dashboard.
+//
+// The KPI row is SCREEN-SPECIFICATIONS.md §1's, and the action-required strip is §1's too, carried as counts so a
+// chip can say how many.
+//
+// An award row is T-039 and FEAT-16.3's: one resolved bid, won or lost. Its value is the supplier's own priced
+// total, so nothing here crosses the two-envelope line - it is the number they typed - and it is null when the bid
+// was never priced. It also carries the proposal's own state, so this chip and the one on the bid say the same
+// word.
+//
+// A document on the profile-health list carries its own name in both languages. The CODE was reaching the screen,
+// so a supplier saw "commercial_registration" on the one line telling them what to do next.
+//
+// The not-yet-approved flag is §1's own branch: that is a different screen, not this one with empty widgets.
+
 import { apiFetch } from './auth'
 import { ProblemError } from './problem'
 
-/** SCR-120's KPI row (SCREEN-SPECIFICATIONS.md §1). */
 export interface SupplierKpis {
   openInvitations: number
   draftProposals: number
@@ -9,7 +23,6 @@ export interface SupplierKpis {
   documentsNeedingAttention: number
 }
 
-/** §1's action-required strip, as counts so a chip can say how many. */
 export interface ActionRequired {
   expiringDocuments: number
   rejectedDocuments: number
@@ -35,18 +48,11 @@ export interface DashboardProposal {
   validityEnd: string | null
 }
 
-/**
- * T-039/FEAT-16.3: one resolved bid, won or lost.
- *
- * The value is the supplier's own priced total, so nothing here crosses the two-envelope line - it is
- * the number they typed. Null when the bid was never priced.
- */
 export interface DashboardAward {
   rfqReferenceCode: string
   rfqTitleAr: string
   rfqTitleEn: string
   proposalCode: string
-  /** The proposal's own state, so this chip and the one on the bid say the same word. */
   outcome: string
   decidedAt: string | null
   value: number | null
@@ -58,8 +64,6 @@ export interface ProfileHealth {
   requiredDocumentsTotal: number
   requiredDocumentsSupplied: number
   nextRequiredDocumentTypeCode: string | null
-  /** The document's own name, both languages. The CODE was reaching the screen: a supplier saw
-   *  "commercial_registration" on the one line telling them what to do next. */
   nextRequiredDocumentNameAr: string | null
   nextRequiredDocumentNameEn: string | null
 }
@@ -70,7 +74,6 @@ export interface SupplierDashboard {
   displayNameEn: string
   onboardingState: string
   lifecycleState: string
-  /** §1's not-yet-approved branch: a different screen, not this one with empty widgets. */
   isApproved: boolean
   kpis: SupplierKpis
   actionRequired: ActionRequired

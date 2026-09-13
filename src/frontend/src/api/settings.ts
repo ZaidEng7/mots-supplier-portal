@@ -1,3 +1,12 @@
+// The two things a user manages about their own access: MFA enrolment, and the sessions they are signed in on.
+//
+// Enrolment is two calls, because the shared key has to reach the user's authenticator before they can prove they
+// have it. Confirming returns the recovery codes, which are shown once and never fetched again.
+//
+// Sessions are a cursor-paged list carrying isCurrent, so a screen can refuse to let a user revoke the session
+// they are reading it in. Revoking one returns no body; revoking the others returns how many went, which is the
+// only feedback available for an action whose effect is elsewhere.
+
 import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'

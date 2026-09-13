@@ -1,7 +1,17 @@
+// The three buyer-side dashboards: SCR-400's procurement dashboard, the approval queues, and the review
+// dashboard.
+//
+// The KPI row is SCREEN-SPECIFICATIONS.md §10's. The approvals card is §10's "Manager also gets an Approvals
+// card", decided server-side from the permission so the affordance and the API agree about who may approve. Each
+// queue row carries the API path it opens, returned by the server so the queue and the link cannot disagree -
+// which is the defect a queue listing work the caller cannot open reproduces.
+//
+// The review dashboard's aging figure is a DURATION, not a breach. No document defines a review SLA -
+// BUSINESS-PROCESSES §2 names the timer and never its length - so nothing here may imply a threshold.
+
 import { apiFetch } from './auth'
 import { ProblemError } from './problem'
 
-/** SCR-400's KPI row (SCREEN-SPECIFICATIONS.md §10). */
 export interface ProcurementKpis {
   activeRfqs: number
   closingThisWeek: number
@@ -30,7 +40,6 @@ export interface ProcurementDashboard {
   kpis: ProcurementKpis
   pipeline: PipelineColumn[]
   tasks: DashboardTask[]
-  /** §10: "Manager also gets an Approvals card". Decided server-side from the permission. */
   showsApprovals: boolean
 }
 
@@ -40,7 +49,6 @@ export interface ApprovalQueueItem {
   titleEn: string
   state: string
   waitingSince: string | null
-  /** The API path this row opens. Returned by the server so the queue and the link cannot disagree. */
   href: string
 }
 
@@ -64,10 +72,6 @@ export interface ReviewDashboard {
   infoRequested: number
   unassigned: number
   assignedToMe: number
-  /**
-   * A duration, not a breach. No document defines a review SLA - BUSINESS-PROCESSES §2 names the
-   * timer and never its length - so nothing here may imply a threshold.
-   */
   oldestOpenCaseAgeDays: number | null
   expiryWatchlist: ExpiringDocument[]
 }

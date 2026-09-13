@@ -1,3 +1,15 @@
+// The comparison matrix, and the one write on it: resolving a tie.
+//
+// The financial fields - items and grandTotal - and every evaluation-derived field are null until the
+// two-envelope gate opens for that proposal, meaning Consolidated or later AND technically qualified. The exact
+// rule lives in the backend's ComparisonProposalDto. A null here must never be rendered as a zero or an empty
+// cell: the whole point of the gate is that the figure is withheld rather than absent.
+//
+// A rank can carry A-1 and BRULE-069's unresolved-tie marker, which says the rank came from a tie no rule broke.
+// The award flow refuses rank 1 while it is set, so the officer has to be able to see it and resolve it from
+// here. resolveEvaluationTie is A-1's own act: a person breaks a tie the rules could not, and says why. It is
+// gated on evaluation.consolidate - the same permission that produced the ranking.
+
 import { ProblemError, problemMessage, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
@@ -38,9 +50,6 @@ export interface ComparisonCriterionScore {
   metThreshold: boolean | null
 }
 
-/** Financial fields (items/grandTotal) and every evaluation-derived field are null until the
- * two-envelope gate opens for this proposal (Consolidated+ AND technically qualified) - see the
- * backend's ComparisonProposalDto for the exact rule. Never render a null here as zero/empty. */
 export interface ComparisonProposal {
   proposalReferenceCode: string
   supplierId: string
@@ -62,8 +71,6 @@ export interface ComparisonProposal {
   financialWeightedScore: number | null
   weightedTotal: number | null
   rank: number | null
-  /** A-1/BRULE-069: this rank came from a tie no rule broke. The award flow refuses rank 1 while it is
-   * set, so the officer has to be able to see it and resolve it here. */
   tieUnresolved: boolean
   tieResolutionReason: string | null
   criterionScores: ComparisonCriterionScore[] | null
@@ -95,8 +102,6 @@ export async function getComparison(rfqReferenceCode: string): Promise<Compariso
   return body as Comparison
 }
 
-/** A-1: a person breaks a tie the rules could not, and says why. `evaluation.consolidate` gates it -
- * the same permission that produced the ranking. */
 export async function resolveEvaluationTie(
   rfqReferenceCode: string,
   proposalCode: string,

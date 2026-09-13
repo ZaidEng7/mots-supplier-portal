@@ -1,3 +1,46 @@
+// The evaluation, from both sides: the manager's overview and the assigned evaluator's own workspace.
+//
+// A criterion carries the justification flag of T-021 and BRULE-061. It has been on the wire since EPIC-07 and was
+// absent from this interface until SCR-501 needed it - the same shape of drift T-110 found on the supplier
+// profile, where the type and the response had disagreed for two batches. The scoring form still does not read it;
+// the brief does. It also carries SCR-501's guidance: the template author's instruction for that criterion,
+// snapshotted when the RFQ bound the template, and null or absent on a tender that bound one before the field
+// existed.
+//
+// An assignment carries the evaluator's NAME. The table used to render the GUID, so the recuse button beside it
+// named nobody. A consolidated result still emits the internal identifier, read by nothing here per D-69, and
+// carries §3's opaque public identifier - the table used to render the internal GUID on the screen where a manager
+// decides who wins a tender.
+//
+// Evaluation is the buyer and manager-facing overview, and it deliberately never carries a raw EvaluatorScore row,
+// because of blind scoring under OQ-005 and BRULE-058 - see EvaluationDto on the backend. MyEvaluation is the
+// evaluator-facing view, and only ever this evaluator's own scores, for the reason MyEvaluationDto gives. It
+// carries the specification the bids answer (T-067), because an evaluator holds neither rfq.read nor
+// comparison.view and this read is their only window onto it. MyScore identifies its proposal by the public code
+// rather than the GUID (T-068).
+//
+// EvaluatorProposal is T-067's: one bid as an assigned evaluator sees it during scoring - the TECHNICAL envelope
+// only. There is no pricing on this type and none on the wire; a commercial figure reaches a human through the
+// comparison matrix after consolidation and nowhere else. It carries A-8's stable pseudonym, the name a bid is
+// known by while scoring is open - "Bidder A", «مورّد أ» - always present, so a comment can refer to a bid whether
+// or not its owner is revealed. The supplier's identity is NULL while this evaluator's scoring is open, and
+// present both before scoring opens, at the recusal declaration under BRULE-067, and after consolidation. That
+// supersedes D-19.
+//
+// evaluatorProposalDocumentUrl is T-067's signed URL for one technical document on a bid under evaluation, gated
+// on the caller's ACTIVE assignment and on the Technical envelope: a commercial document is the same 404 as one
+// that does not exist.
+//
+// EvaluationApiError carries the xmin RowVersion conflict flag of EPIC-13 and FR-PWF-005 - see RfqApiError, where
+// the reasoning is written out.
+//
+// listEvaluatorCandidates answers who a manager may assign to this evaluation: staff in the RFQ's organisation who
+// hold evaluation.score.
+//
+// getConflictDeclaration is A-8 and BRULE-067's recusal declaration window. The names are here, once, before
+// scoring - and this read deliberately does NOT open scoring, unlike getMyEvaluation. A 404 from it is "not
+// assigned" per §9.2, which the page treats as nothing to declare.
+
 import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { RfqItem, Requirement } from './rfqs'
@@ -16,19 +59,13 @@ export interface EvaluationCriterion {
   threshold: number | null
   scoringType: ScoringType
   isFinancial: boolean
-  /** T-021/BRULE-061. On the wire since EPIC-07 and absent from this interface until SCR-501 needed it —
-   * the same shape of drift T-110 found on the supplier profile, where the type and the response had
-   * disagreed for two batches. The scoring form still does not read it; the brief does. */
   requiresJustification?: boolean
-  /** SCR-501: the template author's instruction for this criterion, snapshotted when the RFQ bound the
-   * template. Null or absent on a tender that bound one before the field existed. */
   guidanceAr?: string | null
   guidanceEn?: string | null
 }
 
 export interface EvaluationAssignment {
   evaluatorUserId: string
-  /** The evaluator's name. The table used to render the GUID, so the recuse button beside it named nobody. */
   evaluatorName: string | null
   assignedAt: string
   submittedAt: string | null
@@ -37,11 +74,8 @@ export interface EvaluationAssignment {
 }
 
 export interface ConsolidatedResult {
-  /** Still emitted, read by nothing here - see D-69. */
   proposalId: string
   proposalCode: string
-  /** §3's opaque public identifier. The table used to render the internal GUID on the screen where a
-   *  manager decides who wins a tender. */
   technicallyQualified: boolean
   technicalWeightedScore: number
   financialWeightedScore: number | null
@@ -49,8 +83,6 @@ export interface ConsolidatedResult {
   rank: number | null
 }
 
-/** Buyer/manager-facing overview - deliberately never carries a raw EvaluatorScore row (blind
- * scoring, OQ-005/BRULE-058) - see EvaluationDto's own doc comment on the backend. */
 export interface Evaluation {
   id: string
   rfqId: string
@@ -62,7 +94,6 @@ export interface Evaluation {
 }
 
 export interface MyScore {
-  /** T-068: the proposal's public code, not its GUID. */
   proposalCode: string
   criterionId: string
   rawScore: number
@@ -86,17 +117,10 @@ export interface RequirementAnswer {
   answerEn: string
 }
 
-/** T-067: one bid as an assigned evaluator sees it during scoring - the TECHNICAL envelope only.
- * There is no pricing on this type and none on the wire; a commercial figure reaches a human through
- * the comparison matrix after consolidation and nowhere else. */
 export interface EvaluatorProposal {
   proposalCode: string
-  /** A-8: the stable pseudonym a bid is known by while scoring is open - "Bidder A", «مورّد أ». Always
-   * present, so a comment can refer to a bid whether or not its owner is revealed. */
   bidderLabelAr: string
   bidderLabelEn: string
-  /** A-8: NULL while this evaluator's scoring is open. Present before scoring opens (the recusal
-   * declaration, BRULE-067) and after consolidation. Supersedes D-19. */
   supplierReferenceCode: string | null
   supplierDisplayNameAr: string | null
   supplierDisplayNameEn: string | null
@@ -107,13 +131,9 @@ export interface EvaluatorProposal {
   technicallyQualified: boolean
 }
 
-/** Evaluator-facing view - only ever this evaluator's own scores, see MyEvaluationDto's own doc
- * comment on the backend for why. */
 export interface MyEvaluation {
   rfqReferenceCode: string
   state: EvaluationState
-  /** T-067: the specification the bids answer. An evaluator holds neither rfq.read nor
-   * comparison.view, so this read is their only window onto it. */
   rfqTitleAr: string
   rfqTitleEn: string
   rfqDescriptionAr: string | null
@@ -126,9 +146,6 @@ export interface MyEvaluation {
   myScores: MyScore[]
 }
 
-/** T-067: the signed URL for one technical document on a bid under evaluation. Gated on the caller's
- * ACTIVE assignment and on the Technical envelope; a commercial document is the same 404 as one that
- * does not exist. */
 export async function evaluatorProposalDocumentUrl(
   rfqReferenceCode: string,
   proposalCode: string,
@@ -143,7 +160,6 @@ export async function evaluatorProposalDocumentUrl(
 }
 
 export class EvaluationApiError extends ProblemError {
-  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict - see RfqApiError's own doc comment. */
   isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
     super(status, body)
@@ -168,7 +184,6 @@ export async function openEvaluation(rfqReferenceCode: string): Promise<Evaluati
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/evaluation/open`, { method: 'POST' }))
 }
 
-/** Who a manager may assign to this evaluation — staff in the RFQ's organisation who hold evaluation.score. */
 export interface EvaluatorCandidate {
   userId: string
   fullName: string
@@ -232,8 +247,6 @@ export async function submitMyEvaluation(rfqReferenceCode: string): Promise<MyEv
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/submit`, { method: 'POST' }))
 }
 
-/** A-8/BRULE-067: the recusal declaration window. The names are here, once, before scoring - and this
- * read deliberately does NOT open scoring, unlike getMyEvaluation. */
 export interface ConflictDeclaration {
   declarationRequired: boolean
   bidders: { proposalCode: string; supplierDisplayNameAr: string; supplierDisplayNameEn: string }[]
@@ -241,7 +254,6 @@ export interface ConflictDeclaration {
 
 export async function getConflictDeclaration(rfqReferenceCode: string): Promise<ConflictDeclaration | null> {
   const response = await apiFetch(`/api/v1/rfqs/${rfqReferenceCode}/my-evaluation/bidders`)
-  // 404 is "not assigned" (§9.2), which the page treats as nothing to declare.
   if (response.status === 404) return null
   if (!response.ok) throw new Error('declaration_unavailable')
   return (await response.json()) as ConflictDeclaration

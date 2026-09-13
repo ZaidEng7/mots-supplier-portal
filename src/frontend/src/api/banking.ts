@@ -1,3 +1,11 @@
+// A supplier's bank accounts, including the audited reveal.
+//
+// On an update, omitting accountNumber - or sending it empty - leaves the existing encrypted value untouched
+// server-side, so a screen editing the label does not have to re-send the number.
+//
+// revealBankAccount is a server-audited reveal under BRULE-014, 090 and 091. The caller must not persist or cache
+// what comes back: display it transiently only, the way BankingPage does with its auto-hide timeout.
+
 import { apiFetch } from './auth'
 import type { SupplierProfile } from './supplier'
 import { SupplierApiError } from './supplier'
@@ -11,7 +19,6 @@ export interface AddBankAccountPayload {
   currencyCode: string
 }
 
-/** accountNumber omitted (or empty) leaves the existing encrypted value untouched server-side. */
 export interface UpdateBankAccountPayload {
   accountHolderName: string
   bankName: string
@@ -56,8 +63,6 @@ export async function setDefaultBankAccount(id: string): Promise<SupplierProfile
   return parseOrThrow(res)
 }
 
-/** Server-audited reveal (BRULE-014/090/091). Caller must not persist/cache the returned value —
- * display it transiently only (see BankingPage's auto-hide-after-timeout usage). */
 export async function revealBankAccount(id: string): Promise<string> {
   const res = await apiFetch(`/api/v1/suppliers/me/bank-accounts/${id}/reveal`, { method: 'POST' })
   const body = await parseOrThrow<{ accountNumber: string }>(res)

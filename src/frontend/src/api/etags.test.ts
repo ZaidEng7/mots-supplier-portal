@@ -1,3 +1,26 @@
+// The ETag store's own behaviour, one property per test.
+//
+// A resource's ETag is sent on a transition underneath it, because §8.1's guarded mutations sit under the resource
+// whose version they assert: POST /proposals/{code}/submit is a transition of /proposals/{code}. The control beside
+// it is that one resource's ETag is never sent for a different resource - without it the prefix walk could pass any
+// stored tag to anything.
+//
+// A version is forgotten once its resource has been mutated: the row has moved on, and replaying the old version
+// would 412 the user's own second edit. A query string is ignored when matching.
+//
+// A child write's fresh version is filed where the precondition it used was stored. That is T-030 split (2), and a
+// latent defect in split (3): a child write forgets every prefix and then files the fresh ETag under the WRITE
+// path, so after editing a contact the version sits at /suppliers/me/contacts, and a write to
+// /suppliers/me/addresses walks to /suppliers/me, finds nothing, and sends no If-Match at all - the server answers
+// 428 and the supplier's second edit fails with nothing on screen to explain it. ownerPrefixOf is what lets the
+// transport put the new version back where the old one lived, without the store having to guess where a resource
+// boundary is inside a path.
+//
+// The last test is the control on that: with nothing read first there is no owner prefix to file against. A guarded
+// write with no prior read is a 428 by design, and the store must not invent a home for a version - filing it at
+// the collection would hand one aggregate's version to another, which is the hazard the prefix walk exists to
+// avoid.
+
 import { beforeEach, describe, expect, it } from 'vitest'
 import { clearETags, forgetETags, lookupETag, ownerPrefixOf, rememberETag } from './etags'
 
@@ -5,8 +28,6 @@ describe('etag store', () => {
   beforeEach(() => clearETags())
 
   it('sends a resource ETag on a transition underneath it', () => {
-    // §8.1's guarded mutations sit under the resource whose version they assert:
-    // POST /proposals/{code}/submit is a transition of /proposals/{code}.
     rememberETag('/api/v1/proposals/PRP-1', '"AAAAAQ"')
 
     expect(lookupETag('/api/v1/proposals/PRP-1/submit')).toBe('"AAAAAQ"')
@@ -14,7 +35,6 @@ describe('etag store', () => {
   })
 
   it('does not send one resource ETag for a different resource', () => {
-    // The control. Without it the prefix walk could pass any stored tag to anything.
     rememberETag('/api/v1/proposals/PRP-1', '"AAAAAQ"')
 
     expect(lookupETag('/api/v1/proposals/PRP-2/submit')).toBeUndefined()
@@ -22,7 +42,6 @@ describe('etag store', () => {
   })
 
   it('forgets a version once its resource has been mutated', () => {
-    // The row has moved on; replaying the old version would 412 the user's own second edit.
     rememberETag('/api/v1/proposals/PRP-1', '"AAAAAQ"')
 
     forgetETags('/api/v1/proposals/PRP-1/submit')
@@ -37,14 +56,6 @@ describe('etag store', () => {
   })
 
   it('files a child write\'s fresh version where the precondition it used was stored', () => {
-    // T-030 split (2), and a latent defect in split (3). A child write forgets every prefix and then
-    // files the fresh ETag under the WRITE path - so after editing a contact the version sits at
-    // `/suppliers/me/contacts`, and a write to `/suppliers/me/addresses` walks to `/suppliers/me`,
-    // finds nothing, and sends no If-Match at all. The server answers 428 and the supplier's second
-    // edit fails with nothing on screen to explain it.
-    //
-    // `ownerPrefixOf` is what lets the transport put the new version back where the old one lived,
-    // without the store having to guess where a resource boundary is inside a path.
     rememberETag('/api/v1/suppliers/me', '"AAAAAQ"')
 
     const owner = ownerPrefixOf('/api/v1/suppliers/me/contacts')
@@ -58,9 +69,6 @@ describe('etag store', () => {
   })
 
   it('has no owner prefix to file against when nothing was read first', () => {
-    // The control. A guarded write with no prior read is a 428 by design, and the store must not
-    // invent a home for a version - filing it at the collection would hand one aggregate's version to
-    // another, which is the hazard the prefix walk exists to avoid.
     expect(ownerPrefixOf('/api/v1/rfqs/RFQ-1/items')).toBeUndefined()
 
     rememberETag('/api/v1/rfqs/RFQ-1', '"AAAAAQ"')

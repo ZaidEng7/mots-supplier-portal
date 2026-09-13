@@ -1,3 +1,10 @@
+// A supplier's contact people.
+//
+// Every call returns the whole SupplierProfile rather than the contact it changed, because the profile is the
+// aggregate and its version moves with every child write - so the caller gets the fresh state and the transport
+// gets the fresh ETag. They throw SupplierApiError for the same reason: to a screen, a refused contact edit is
+// the profile refusing a write.
+
 import { apiFetch } from './auth'
 import type { SupplierProfile } from './supplier'
 import { SupplierApiError } from './supplier'

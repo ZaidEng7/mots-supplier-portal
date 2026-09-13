@@ -1,12 +1,11 @@
+// SCR-500 and FR-DSH-004: the evaluator's own assignments.
+//
+// Scoped server-side by ASSIGNMENT rather than by organization, because an evaluator need not belong to the
+// procuring organization and may have no organization at all. Nothing here passes an org.
+
 import { apiFetch } from './auth'
 import { ProblemError } from './problem'
 
-/**
- * SCR-500 / FR-DSH-004. The evaluator's own assignments.
- *
- * <p>Scoped server-side by ASSIGNMENT, not by organization - an evaluator need not belong to the
- * procuring organization and may have no organization at all. Nothing here passes an org.</p>
- */
 export type MyAssignmentTab = 'Assigned' | 'InProgress' | 'Submitted'
 
 export interface MyAssignment {

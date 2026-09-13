@@ -1,3 +1,19 @@
+// A supplier's offerings - what they sell - and the buyer's search across them.
+//
+// The buyer search result is a distinct shape from the supplier's own Offering: it carries the owning supplier's
+// identity, which is never exposed in the supplier's own CRUD view, and it is already lifecycle-filtered
+// server-side (FEAT-06.4), so nothing here needs an isActive flag. That is FEAT-06.3 and FR-OFF-004.
+//
+// getOffering is the single-offering read, and it exists to ISSUE the precondition the two writes require.
+// PUT /offerings/{id} and POST /offerings/{id}/deactivate both declare RequireIfMatch, and the only route that
+// emits an offering's ETag is this one - the LIST does not, and could not usefully, because a collection's version
+// is not any item's version and filing one under the collection path would produce a 412 rather than a 428.
+// Nothing called it, so every edit and every deactivation from the catalogue answered 428 and nothing saved. This
+// is the batch-3 Offering lesson a second time, from the other side: back then the guard arrived without a route
+// that could satisfy it and the item GET was added to fix that, and the route has been there ever since - the
+// client just never used it. So the two writes read first, for the version: apiFetch files that read's ETag under
+// the offering's own path, which is the prefix the write walks up to.
+
 import { apiFetch } from './auth'
 import { SupplierApiError } from './supplier'
 
@@ -25,9 +41,6 @@ export interface OfferingPayload {
   attributes: Record<string, string> | null
 }
 
-/** FEAT-06.3/FR-OFF-004: a buyer-search result, distinct from Offering above - it carries the
- * owning supplier's identity (never exposed in the supplier's own CRUD view) and is already
- * lifecycle-filtered server-side (FEAT-06.4), so nothing here needs an isActive flag. */
 export interface BuyerOfferingSearchResult {
   id: string
   supplierReferenceCode: string
@@ -64,27 +77,12 @@ export async function createOffering(payload: OfferingPayload): Promise<Offering
   return parseOrThrow(res)
 }
 
-/**
- * The single-offering read, which exists to ISSUE the precondition the two writes below require.
- *
- * <p>`PUT /offerings/{id}` and `POST /offerings/{id}/deactivate` both declare RequireIfMatch, and the
- * only route that emits an offering's ETag is this one - the LIST does not, and could not usefully:
- * a collection's version is not any item's version, so filing one under the collection path would
- * produce a 412 rather than a 428. Nothing called this, so every edit and every deactivation from
- * the catalogue answered 428 and nothing saved.</p>
- *
- * <p>This is the batch-3 Offering lesson a second time, from the other side: back then the guard
- * arrived without a route that could satisfy it, and the item GET was added to fix that. The route
- * has been there ever since; the client just never used it.</p>
- */
 export async function getOffering(offeringId: string): Promise<Offering> {
   const res = await apiFetch(`/api/v1/suppliers/me/offerings/${offeringId}`)
   return parseOrThrow(res)
 }
 
 export async function updateOffering(offeringId: string, payload: OfferingPayload): Promise<Offering> {
-  // Read first, for the version. apiFetch files this read's ETag under the offering's own path, which
-  // is the prefix the write below walks up to.
   await getOffering(offeringId)
   const res = await apiFetch(`/api/v1/suppliers/me/offerings/${offeringId}`, {
     method: 'PUT',

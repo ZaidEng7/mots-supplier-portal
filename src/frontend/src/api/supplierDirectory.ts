@@ -1,15 +1,17 @@
+// SCR-402 and SCR-307: the two reads across the supplier registry.
+//
+// Two functions against two endpoints, rather than one with a role switch. A buyer browsing for capability and a
+// reviewer auditing compliance ask different questions and get different columns - see SupplierDirectoryEndpoints
+// for why the server keeps them apart - and neither response carries the other's fields, so a screen cannot
+// quietly render data its persona should not read.
+//
+// DirectorySupplier is SCR-402's: an approved supplier as a buyer sees it. ComplianceSupplier is SCR-307's: a
+// supplier as the compliance reviewer sees it, with document health attached.
+
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 import { ProblemError } from './problem'
 
-/**
- * SCR-402 and SCR-307: the two reads across the supplier registry.
- *
- * <p>Two functions against two endpoints, not one with a role switch. A buyer browsing for capability and
- * a reviewer auditing compliance ask different questions and get different columns — see
- * `SupplierDirectoryEndpoints` for why the server keeps them apart, and note that neither response carries
- * the other's fields, so a screen cannot quietly render data its persona should not read.</p>
- */
 
 export class SupplierDirectoryApiError extends ProblemError {
   constructor(status: number, body: unknown) {
@@ -17,7 +19,6 @@ export class SupplierDirectoryApiError extends ProblemError {
   }
 }
 
-/** SCR-402: an approved supplier as a buyer sees it. */
 export interface DirectorySupplier {
   supplierCode: string
   displayNameAr: string
@@ -29,7 +30,6 @@ export interface DirectorySupplier {
   regionCode: string | null
 }
 
-/** SCR-307: a supplier as the compliance reviewer sees it, with document health attached. */
 export interface ComplianceSupplier {
   supplierCode: string
   displayNameAr: string

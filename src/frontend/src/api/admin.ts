@@ -1,7 +1,44 @@
+// FR-DSH-006 and SCR-700's platform-administration reads: the overview, the jobs monitor, the outbox, the ERP
+// sync, the security posture and the storage settings.
+//
+// Operational health, not procurement data: nothing here identifies an RFQ, a proposal or a supplier, because
+// system_admin administers the platform and does not evaluate.
+//
+// THE OVERVIEW. The oldest pending outbox age is null when nothing is pending, and null is not zero: an empty
+// queue and a queue whose head arrived this second are different facts, and only the second one can be stuck.
+// The ERP flag is B-1 and BRULE-011's - false when the logging stand-in is registered rather than a real
+// transport. Without it the tile is an artifact asserting something untrue, because a draining outbox reads as
+// "the integration is working" while nothing has left the building.
+//
+// THE JOBS MONITOR is SCR-721: one recurring job as an operator needs to see it. The fault flag is false when
+// this application expects the job and Hangfire does not hold it - the operational fault the overview tile
+// counts, carried per row so it is obvious which one. The last state is Hangfire's own vocabulary - "Succeeded",
+// "Failed" and the rest - not remapped, because a mapping of ours would hide a state nobody anticipated; it is
+// null when the job has never run. triggerRecurringJob is SCR-721's one action, and a 404 from it means Hangfire
+// does not hold the job rather than that the run failed.
+//
+// THE OUTBOX is SCR-722, and it carries every status including the zeroes: "Failed: 0" and a count that failed to
+// load must not look alike. Only a Failed message replays, so a 404 there means there was nothing to replay -
+// see the endpoint.
+//
+// THE ERP SYNC is SCR-723, keyed by RFQ code because an Award has no code of its own, and because that is what
+// the existing retry endpoint takes. The external reference is null until the ERP acknowledges: a Synced row with
+// no reference would mean the adapter reported success without returning anything, which is worth being able to
+// see. The transport flag is BRULE-011's again - false when the logging stand-in is registered, in which case
+// every row below it is the stub talking to itself.
+//
+// THE SECURITY POSTURE is SCR-726, read-only by design - see the endpoint - and policy numbers only, no secrets.
+// The composition requirement is false by design: SECURITY-ARCHITECTURE §1.4 follows NIST 800-63B, which prefers
+// length over composition.
+//
+// THE STORAGE SETTINGS are SCR-725, read-only by design too, because the upload cap and the allow-list are a
+// security control. The allow-list maps an extension to the content type its magic bytes must match, and the
+// PAIRING is the rule. The reachability figure is probed when the request was served rather than read from a
+// cached health snapshot, and the backlog is there because a backlog that never drains is the failure this screen
+// exists to show.
+
 import { apiFetch } from './auth'
 
-/** FR-DSH-006/SCR-700. Operational health, not procurement data: nothing here identifies an RFQ,
- * a proposal or a supplier, because `system_admin` administers the platform and does not evaluate. */
 export interface AdminOverview {
   usersByRole: { role: string; count: number }[]
   totalRoles: number
@@ -9,12 +46,7 @@ export interface AdminOverview {
   outbox: {
     pending: number
     failed: number
-    /** Null when nothing is pending. Null is not zero: an empty queue and a queue whose head arrived
-     * this second are different facts, and only the second one can be stuck. */
     oldestPendingAgeMinutes: number | null
-    /** B-1/BRULE-011: false when the logging stand-in is registered rather than a real ERP transport.
-     * Without it the tile is an artifact asserting something untrue - a draining outbox reads as "the
-     * integration is working" while nothing has left the building. */
     erpTransportConfigured: boolean
   }
   jobs: {
@@ -32,17 +64,12 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   return (await response.json()) as AdminOverview
 }
 
-/** SCR-721. One recurring job as an operator needs to see it. */
 export interface RecurringJobRow {
   id: string
-  /** False when this application expects the job and Hangfire does not hold it — the operational fault
-   *  the overview tile counts, carried per row so it is obvious which one. */
   registered: boolean
   cron: string | null
   lastExecution: string | null
   nextExecution: string | null
-  /** Hangfire's own vocabulary ("Succeeded", "Failed", ...), not remapped: a mapping of ours would hide
-   *  a state nobody anticipated. Null when the job has never run. */
   lastState: string | null
 }
 
@@ -57,13 +84,11 @@ export async function getJobsMonitor(): Promise<JobsMonitor> {
   return (await response.json()) as JobsMonitor
 }
 
-/** SCR-721's one action. 404 means Hangfire does not hold the job — not that the run failed. */
 export async function triggerRecurringJob(jobId: string): Promise<void> {
   const response = await apiFetch(`/api/v1/admin/jobs/${encodeURIComponent(jobId)}/trigger`, { method: 'POST' })
   if (!response.ok) throw new Error(response.status === 404 ? 'job_not_registered' : 'job_trigger_failed')
 }
 
-/** SCR-722. */
 export interface OutboxMessageRow {
   id: string
   type: string
@@ -74,7 +99,6 @@ export interface OutboxMessageRow {
 }
 
 export interface OutboxMonitor {
-  /** Every status including the zeroes: "Failed: 0" and a count that failed to load must not look alike. */
   counts: Record<string, number>
   messages: OutboxMessageRow[]
 }
@@ -86,27 +110,20 @@ export async function getOutboxMonitor(status?: string): Promise<OutboxMonitor> 
   return (await response.json()) as OutboxMonitor
 }
 
-/** Only a Failed message replays. A 404 here means there was nothing to replay — see the endpoint. */
 export async function replayOutboxMessage(id: string): Promise<void> {
   const response = await apiFetch(`/api/v1/admin/outbox/${id}/replay`, { method: 'POST' })
   if (!response.ok) throw new Error('outbox_replay_failed')
 }
 
-/** SCR-723. Keyed by RFQ code because an Award has no code of its own — and because that is what the
- *  existing retry endpoint takes. */
 export interface ErpSyncRow {
   rfqReferenceCode: string
   erpSyncStatus: string
   erpRetryCount: number
   erpSyncedAt: string | null
-  /** Null until the ERP acknowledges. A Synced row with no reference would mean the adapter reported
-   *  success without returning anything, which is worth being able to see. */
   externalPurchaseOrderRef: string | null
 }
 
 export interface ErpSyncMonitor {
-  /** BRULE-011: false when the logging stand-in is registered rather than a real ERP transport. Every
-   *  row below is then the stub talking to itself. */
   transportConfigured: boolean
   counts: Record<string, number>
   awards: ErpSyncRow[]
@@ -119,14 +136,12 @@ export async function getErpSyncMonitor(status?: string): Promise<ErpSyncMonitor
   return (await response.json()) as ErpSyncMonitor
 }
 
-/** SCR-726. Read-only by design — see the endpoint's own comment. Policy numbers only; no secrets. */
 export interface SecurityPosture {
   password: {
     minimumLength: number
     requireDigit: boolean
     requireUppercase: boolean
     requireLowercase: boolean
-    /** False by design: SECURITY-ARCHITECTURE §1.4 follows NIST 800-63B — length over composition. */
     requireNonAlphanumeric: boolean
   }
   lockout: { maxFailedAttempts: number; lockoutMinutes: number }
@@ -142,17 +157,13 @@ export async function getSecurityPosture(): Promise<SecurityPosture> {
   return (await response.json()) as SecurityPosture
 }
 
-/** SCR-725. Read-only by design — the upload cap and the allow-list are a security control. */
 export interface StorageSettings {
   maxUploadBytes: number
-  /** Extension → the content type its magic bytes must match. The pairing is the rule. */
   allowedTypes: Record<string, string>
   bucket: string
-  /** Probed when the request was served, not a cached health snapshot. */
   objectStorageReachable: boolean
   virusScannerReachable: boolean
   documentCount: number
-  /** A backlog that never drains is the failure this screen exists to show. */
   pendingScanCount: number
 }
 

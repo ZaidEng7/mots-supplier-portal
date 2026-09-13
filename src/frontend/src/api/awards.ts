@@ -1,3 +1,12 @@
+// The award: recommend, route for approval, approve or reject, execute, and retry the ERP sync.
+//
+// The comparison snapshot (FEAT-14.7) is only ever non-null once the state is 'Awarded' - it is the frozen award
+// file and is never re-queried live. The internal award identifier is still on the wire and read by nothing, per
+// D-69; what this app reads and posts is the winning bid's public code (T-068).
+//
+// AwardApiError carries the xmin RowVersion conflict flag of EPIC-13 and FR-PWF-005 - see RfqApiError, where the
+// same reasoning is written out.
+
 import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 
@@ -13,15 +22,11 @@ export interface AwardApproval {
   decidedAt: string | null
 }
 
-/** ComparisonSnapshotJson (FEAT-14.7) is only ever non-null once state is 'Awarded' - the frozen
- * award file, never re-queried live. */
 export interface Award {
   id: string
   rfqReferenceCode: string
   state: AwardState
-  /** The internal identifier. Still on the wire, read by nothing - see D-69. */
   winningProposalId: string
-  /** T-068: the winning bid's public code, which is what this app reads and posts. */
   winningProposalCode: string
   justificationAr: string
   justificationEn: string
@@ -38,7 +43,6 @@ export interface Award {
 }
 
 export class AwardApiError extends ProblemError {
-  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict - see RfqApiError's own doc comment. */
   isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
     super(status, body)

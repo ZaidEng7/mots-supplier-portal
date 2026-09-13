@@ -1,12 +1,12 @@
+// T-082 with SCR-430 and SCR-431: the buyer's read of the bids received against their own RFQ.
+//
+// `visibility` is on the wire deliberately. The screen has to say WHY a figure is missing rather than render a
+// blank cell, and the three tiers - Sealed, Technical, Commercial - are a rule the server owns. The client never
+// decides what to hide; it only explains what the server withheld. Below the Commercial tier the totals are
+// null: absent, never zero.
+
 import { apiFetch } from './auth'
 
-/**
- * T-082 / SCR-430, SCR-431. The buyer's read of bids received against their own RFQ.
- *
- * <p>`visibility` is on the wire deliberately: the screen has to say WHY a figure is missing rather
- * than render a blank cell, and the three tiers are a rule the server owns. The client never decides
- * what to hide — it only explains what the server withheld.</p>
- */
 export type BuyerProposalVisibility = 'Sealed' | 'Technical' | 'Commercial'
 
 export interface BuyerProposalListItem {
@@ -18,7 +18,6 @@ export interface BuyerProposalListItem {
   submittedAt: string | null
   itemCount: number
   documentCount: number
-  /** Null below the Commercial tier — absent, never zero. */
   totalValue: number | null
   currencyCode: string | null
 }
