@@ -1,28 +1,30 @@
+// The vocabulary for the evaluator's own dashboard: the evaluations assigned to them, across tenders.
+//
+// Progress is scores recorded over scores expected for this evaluator: how many pairs of bid and technical
+// criterion they are asked to score, and how many they have done.
+//
+// It is two numbers rather than a percentage, because a percentage alone hides whether four fifths means four
+// of five criteria or forty of fifty.
+//
+// The target date is the date the evaluation is expected to be finished by, and it is absent when the tender
+// never set one. Shown as no date rather than invented.
+//
+// Each assignment belongs to one of three tabs: assigned, in progress, and submitted.
+
 namespace MotsSupplierPortal.Application.Evaluation;
 
-/// <summary>
-/// One row of SCR-500, the evaluator's own dashboard.
-///
-/// <para>Progress is scores-recorded over scores-expected for THIS evaluator: the number of
-/// (submitted proposal × technical criterion) pairs they are asked to score, and how many they have.
-/// A percentage alone would hide whether "80%" is four of five criteria or forty of fifty.</para>
-/// </summary>
 public sealed record MyAssignmentDto(
     string RfqReferenceCode,
     string RfqTitleAr,
     string RfqTitleEn,
     string EvaluationState,
-    /// <summary>§3.1's own field: the date the evaluation is expected to be done by. Null when the
-    /// RFQ never set one - shown as "no date" rather than invented.</summary>
     DateTimeOffset? EvaluationTargetDate,
     DateTimeOffset AssignedAt,
     DateTimeOffset? SubmittedAt,
     int ScoresRecorded,
     int ScoresExpected,
-    /// <summary>Which of IA §4.3's three tabs this assignment belongs in.</summary>
     string Tab);
 
-/// <summary>IA §4.3: "My Evaluations → tabs `Assigned · In Progress · Submitted`".</summary>
 public static class MyAssignmentTabs
 {
     public const string Assigned = "Assigned";

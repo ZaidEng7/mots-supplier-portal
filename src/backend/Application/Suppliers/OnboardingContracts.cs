@@ -1,11 +1,25 @@
-using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// The vocabulary for editing a supplier's core profile and for what that edit can answer.
+//
+// Every field is a patch, so a field absent from the request is left untouched while a field present and empty
+// is explicitly cleared. Plain optional fields cannot express that difference.
+//
+//
+// THE THREE REFUSALS
+//
+// Somebody else changed this supplier since the caller read it. The write was refused rather than merged or
+// overwritten, and the version now in the database travels back so a client can re-read and retry
+// deliberately.
+//
+// The field is not one the reviewer's open information request flagged, so the supplier may not currently edit
+// it.
+//
+// And the ordinary not-found, which also covers a supplier outside the caller's scope.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
-/// <summary>PATCH semantics: a field absent from the request is left untouched; a field present
-/// as null is explicitly cleared. Carried as Patch&lt;T&gt; because plain nullables cannot express
-/// that difference (see Patch{T}).</summary>
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed record UpdateProfileCommand(
     Patch<string?> Description,
     Patch<string?> Website,
@@ -18,12 +32,7 @@ public abstract record UpdateProfileResult
     public sealed record Success(SupplierDto Supplier) : UpdateProfileResult;
     public sealed record NotFoundOrOutOfScope : UpdateProfileResult;
     public sealed record InvalidState(string Reason) : UpdateProfileResult;
-    /// <summary>BRULE-098/MSP-65: someone else changed this supplier since the caller read it.
-    /// The write was refused, not merged and not overwritten. <paramref name="CurrentRowVersion"/>
-    /// is the version now in the database so a client can re-read and retry deliberately.</summary>
     public sealed record Conflict(uint CurrentRowVersion) : UpdateProfileResult;
-    /// <summary>MSP-77: refused because the field is not flagged in the reviewer's open
-    /// information request (STORY-03.3.1 AC1).</summary>
     public sealed record NotEditable(string Reason) : UpdateProfileResult;
 }
 

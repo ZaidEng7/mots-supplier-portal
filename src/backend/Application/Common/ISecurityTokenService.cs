@@ -1,6 +1,14 @@
-using MotsSupplierPortal.Domain.Identity;
+// Issuing and spending the single-use tokens behind email-verification and password-reset links.
+//
+// The raw token is the only thing that ever leaves the server, and a link built from it must not also carry
+// a user identifier. The token is the lookup key precisely so it does not have to.
+//
+// Spending one is atomic: a concurrent or repeated call with the same raw token resolves to at most one
+// success.
 
 namespace MotsSupplierPortal.Application.Common;
+
+using MotsSupplierPortal.Domain.Identity;
 
 public abstract record ConsumeSecurityTokenResult
 {
@@ -8,16 +16,9 @@ public abstract record ConsumeSecurityTokenResult
     public sealed record InvalidOrExpired : ConsumeSecurityTokenResult;
 }
 
-/// <summary>
-/// Issues and consumes the opaque, hashed, single-use tokens used for email-verification and
-/// password-reset links (SECURITY-ARCHITECTURE.md §1.6/§1.7). The raw token is the only thing
-/// that ever leaves the server - URLs built from it must not also carry a userId.
-/// </summary>
 public interface ISecurityTokenService
 {
     Task<string> IssueAsync(Guid userId, SecurityTokenPurpose purpose, TimeSpan ttl, CancellationToken ct);
 
-    /// <summary>Atomically validates and marks the token consumed - a concurrent or repeat call
-    /// with the same raw token always resolves to at most one Success (STORY-02.2.1 AC2).</summary>
     Task<ConsumeSecurityTokenResult> ConsumeAsync(string rawToken, SecurityTokenPurpose purpose, CancellationToken ct);
 }

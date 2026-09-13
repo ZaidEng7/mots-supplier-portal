@@ -1,53 +1,43 @@
-using System.Globalization;
-using MotsSupplierPortal.Application.Exports;
+// The comparison matrix as a downloadable file.
+//
+//
+// WHY THE EXPORT CANNOT LEAK WHAT THE SCREEN HIDES
+//
+// This builds its file from a comparison the screen's own handler has already produced. It issues no query
+// of its own, holds no database context, and has no way to reach a bid's prices except through the
+// optional fields the gate leaves empty.
+//
+// So the export cannot become the path that reintroduces what the screen refuses to show. Not because it
+// checks the gate a second time, but because there is nothing here to check it with. A second query,
+// however carefully gated, would be a second place for the gate to be wrong.
+//
+// Absence is rendered as absence. Where a total is empty the cell carries an explicit not-yet-visible
+// marker, never a zero, an empty cell, or a dash a reader could mistake for a submitted price of nothing.
+//
+//
+// THE BEST-VALUE MARKER IS A SYMBOL AND A WORD
+//
+// Colour is never the only carrier of meaning. On a screen that rule is usually met with a badge; in a
+// printed file it is easier to get wrong, because shading the winning column is the obvious way to mark it
+// and that is invisible to anybody printing in grey, reading with low vision, or having the file read
+// aloud.
+//
+// The rank column carries the symbol and the word together, and nothing in this export is distinguished by
+// colour at all.
 
 namespace MotsSupplierPortal.Application.Comparison;
 
-/// <summary>
-/// FR-CMP-005: the comparison matrix as a downloadable artefact. Closes the export deferral EPIC-12
-/// flagged rather than dropped.
-///
-/// <para><b>The two-envelope property is structural and stays structural.</b> This builds its
-/// artefact from a <see cref="ComparisonDto"/> that has ALREADY been produced by the screen's own
-/// handler. It issues no query of its own, holds no DbContext, and has no access to a proposal's
-/// prices except through the nullable members the gate leaves null. So the export cannot become the
-/// path that reintroduces what the screen refuses to show - not because it checks the gate a second
-/// time, but because there is nothing here to check it with. A second query, however carefully
-/// gated, would be a second place for the gate to be wrong.</para>
-///
-/// <para>Absence is rendered as absence. Where <c>Items</c> or <c>GrandTotal</c> is null the cell is
-/// the explicit "not yet visible" marker, never a zero, an empty string, or a dash that a reader
-/// could mistake for a submitted price of nothing.</para>
-/// </summary>
+using System.Globalization;
+using MotsSupplierPortal.Application.Exports;
+
 public static class ComparisonExport
 {
-    /// <summary>
-    /// The best-value marker, as an icon AND a word.
-    ///
-    /// <para>ACCESSIBILITY.md 1.4.1: colour is never the only carrier of meaning. On a screen that
-    /// rule is usually met with a badge; in a PDF it is easier to get wrong, because shading a
-    /// column is the obvious way to mark a winner and it is invisible to anyone who prints in
-    /// greyscale, has low vision, or has the file read to them. The rank column carries the star and
-    /// the word together, and nothing in this export is distinguished by colour at all.</para>
-    /// </summary>
     public const string BestValueMarker = "★";
 
     private static string BestValueLabel(string locale) => locale == "en" ? "Best value" : "أفضل قيمة";
 
-    /// <summary>The marker for a value the two-envelope gate has not opened yet.</summary>
     private static string NotVisible(string locale) => locale == "en" ? "(not yet visible)" : "(غير متاح بعد)";
 
-    /// <summary>
-    /// A proposal with no rank. An em dash in both languages - it is a typographic mark, not a word,
-    /// so there is nothing here to translate.
-    ///
-    /// <para>This was written as a locale ternary returning the same string on both branches, which
-    /// Sonar correctly reports as a BUG (S3923) rather than a style problem: a conditional whose
-    /// branches are identical is either a copy-paste error or a translation someone forgot to
-    /// finish, and there is no way to tell which by reading it. Here it was the latter shape without
-    /// the intent - so the constant says so instead of a condition implying a difference that does
-    /// not exist.</para>
-    /// </summary>
     private const string NotRanked = "—";
 
     public static string Title(ComparisonDto comparison, string locale) =>
@@ -61,13 +51,9 @@ public static class ComparisonExport
         new(generatedAt, scope,
         [
             new ExportFilterValue("rfq", comparison.RfqReferenceCode),
-            // The evaluation state is the reason a column is empty. Without it in the artefact, a
-            // comparison exported before consolidation is indistinguishable from one where every
-            // supplier submitted no prices.
             new ExportFilterValue("evaluationState", comparison.EvaluationState),
         ]);
 
-    /// <summary>Column headers, then one row per proposal, in the export's language.</summary>
     public static IReadOnlyList<string> Columns(string locale) => locale == "en"
         ? ["Supplier", "Proposal", "Submitted", "Rank", "Total", "Weighted score"]
         : ["المورّد", "العرض", "تاريخ التقديم", "الترتيب", "الإجمالي", "الدرجة الموزونة"];
@@ -85,7 +71,6 @@ public static class ComparisonExport
 
     private static string Rank(ComparisonProposalDto proposal, string locale) => proposal.Rank switch
     {
-        // Icon AND text, never one without the other.
         1 => $"{BestValueMarker} 1 — {BestValueLabel(locale)}",
         { } rank => Digits(rank.ToString(CultureInfo.InvariantCulture), locale),
         null => NotRanked,
@@ -103,13 +88,6 @@ public static class ComparisonExport
     private static string Score(decimal? score, string locale) =>
         score is null ? NotVisible(locale) : Digits(score.Value.ToString("N2", CultureInfo.InvariantCulture), locale);
 
-    /// <summary>
-    /// R-1: counts, quantities, currency and scores render in Arabic-Indic digits under Arabic.
-    ///
-    /// <para>Applied to NUMBERS only. A reference code is an identifier, not a quantity, and
-    /// transliterating its digits would produce a string that does not match the record it names -
-    /// which is the same rule the SPA follows.</para>
-    /// </summary>
     private static string Digits(string value, string locale)
     {
         if (locale == "en") return value;

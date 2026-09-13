@@ -1,7 +1,22 @@
-using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// What the document writes can answer: uploading, asking for a download link, and a reviewer's decision.
+//
+// An expiry-date refusal carries the domain's own message, so the uploader is told what is wrong with the date
+// rather than merely that something is.
+//
+//
+// A DECISION RETURNS THE SUPPLIER'S VERSION, NOT THE DOCUMENT'S
+//
+// A document is part of a supplier and carries no version of its own.
+//
+// Both approving and rejecting require the caller to say which version they read, because two reviewers
+// deciding one document is the lost update worth refusing here. The version that guards it is the supplier's,
+// and it is what the reviewer's own read issues, so a reviewer deciding a second document already holds what
+// the next write needs.
 
 namespace MotsSupplierPortal.Application.Suppliers;
+
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Suppliers;
 
 public abstract record UploadDocumentResult
 {
@@ -10,8 +25,6 @@ public abstract record UploadDocumentResult
     public sealed record InvalidDocumentType : UploadDocumentResult;
     public sealed record TooLarge : UploadDocumentResult;
     public sealed record UnsupportedType : UploadDocumentResult;
-    /// <summary>BRULE-020: a type that tracks expiry needs a valid future date. Carries the domain's
-    /// own message so the uploader is told what is wrong, not merely that something is.</summary>
     public sealed record InvalidExpiry(string Message) : UploadDocumentResult;
     public sealed record ContentMismatch : UploadDocumentResult;
     public sealed record NotEditable(string Reason) : UploadDocumentResult;
@@ -25,20 +38,6 @@ public abstract record DocumentDownloadUrlResult
 
 public abstract record ReviewDocumentResult
 {
-    /// <param name="Document">The decided document, which is what the reviewer's screen re-renders.</param>
-    /// <param name="SupplierRowVersion">
-    /// The SUPPLIER aggregate's new version, not the document's - the document is a child and carries none.
-    ///
-    /// <para>P12 item 26's two remaining routes. Both approve and reject require an <c>If-Match</c>, because
-    /// two reviewers deciding one document is the lost update worth refusing on this aggregate; and until now
-    /// neither answered with a version, so a reviewer deciding a second document had no precondition to send
-    /// and met a 428 that only a re-read of <c>GET /review/{referenceCode}</c> could clear. That read is the
-    /// ETag's source, so this is the number it would have returned - the supplier root's.</para>
-    ///
-    /// <para>It travels in the RESULT rather than in the response body on purpose: the body is the document,
-    /// §3 says so, and a version field on a document DTO that is really the supplier's version is a trap for
-    /// the next reader. The endpoint puts it on the ETag header, where §8.1 already says a version lives.</para>
-    /// </param>
     public sealed record Success(SupplierDocumentDto Document, uint SupplierRowVersion) : ReviewDocumentResult;
     public sealed record NotFoundOrForbidden : ReviewDocumentResult;
     public sealed record InvalidState(string Reason) : ReviewDocumentResult;

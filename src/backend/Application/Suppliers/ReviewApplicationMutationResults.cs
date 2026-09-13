@@ -1,6 +1,8 @@
-using MotsSupplierPortal.Application.Common;
+// What claiming a queue item and deciding an application can answer.
 
 namespace MotsSupplierPortal.Application.Suppliers;
+
+using MotsSupplierPortal.Application.Common;
 
 public abstract record ClaimQueueItemResult
 {

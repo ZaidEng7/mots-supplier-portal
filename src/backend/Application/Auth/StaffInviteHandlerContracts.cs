@@ -1,6 +1,14 @@
-using MotsSupplierPortal.Application.Common;
+// What the staff-administration operations are called.
+//
+// The list is paged by cursor on the email address, the same shape the supplier's own team list uses.
+//
+// Resetting somebody's second factor clears the enrolment so the holder enrols again on their next sign-in,
+// and kills every live session. A reset that left the old sessions alive would hand somebody who already has
+// one a way to stay.
 
 namespace MotsSupplierPortal.Application.Auth;
+
+using MotsSupplierPortal.Application.Common;
 
 public interface IInviteStaffHandler
 {
@@ -14,8 +22,6 @@ public interface IAcceptStaffInviteHandler
 
 public interface IListStaffHandler
 {
-    /// <summary>Keyset-paged on (email, id), the same shape as the supplier-user list - MSP-84's
-    /// reasoning applies identically.</summary>
     Task<ListEnvelope<StaffAccountDto>> HandleAsync(string? cursor, int? limit, bool withCount, CancellationToken ct);
 }
 
@@ -31,8 +37,5 @@ public interface IChangeStaffRoleHandler
 
 public interface IResetStaffMfaHandler
 {
-    /// <summary>Clears the authenticator enrolment so the holder re-enrols on next sign-in, and kills
-    /// every live session - a reset that left the old sessions alive would hand an attacker who already
-    /// has one a way to stay.</summary>
     Task<StaffAccountResult> HandleAsync(Guid userId, CancellationToken ct);
 }

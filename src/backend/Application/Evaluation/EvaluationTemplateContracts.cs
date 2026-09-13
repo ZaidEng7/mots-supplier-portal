@@ -1,18 +1,22 @@
-using MotsSupplierPortal.Domain.Evaluation;
+// The vocabulary for the scoring templates: what a template and a criterion look like, what can be asked of
+// them, and what the answers are.
+//
+// Every refusal the domain makes, the weights not summing to a hundred, a template already bound to a tender,
+// a threshold above the maximum score, arrives as one outcome carrying the domain's own message rather than
+// one status code per rule. The message is precise enough to show the caller directly.
 
 namespace MotsSupplierPortal.Application.Evaluation;
+
+using MotsSupplierPortal.Domain.Evaluation;
 
 public sealed record CriterionDto(
     Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore,
     decimal? Threshold, ScoringType ScoringType, string? GuidanceAr, string? GuidanceEn, int SortOrder,
-    // T-021/BRULE-061. Emitted so an evaluator's UI can mark the field required before the score is
-    // refused, rather than after.
     bool RequiresJustification = false);
 
 public sealed record EvaluationTemplateDto(
     Guid Id, Guid FamilyId, int Version, string NameAr, string NameEn, EvaluationTemplateStatus Status,
     bool IsReferenced, IReadOnlyList<CriterionDto> Criteria,
-    // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
     uint RowVersion);
 
 public sealed record CreateEvaluationTemplateCommand(string NameAr, string NameEn);
@@ -33,10 +37,6 @@ public abstract record EvaluationTemplateMutationResult
 {
     public sealed record Success(EvaluationTemplateDto Template) : EvaluationTemplateMutationResult;
     public sealed record NotFound : EvaluationTemplateMutationResult;
-    /// <summary>Wraps every EvaluationTemplate domain-invariant refusal (weight-sum-must-be-100,
-    /// immutable-once-referenced, threshold&gt;maxScore, etc.) with the exact DomainException
-    /// message, rather than one HTTP error code per invariant - the message is precise enough to
-    /// show the caller directly (same pattern as ProfileMutationResult.InvalidState).</summary>
     public sealed record InvalidState(string Message) : EvaluationTemplateMutationResult;
 }
 
@@ -72,9 +72,6 @@ public interface IArchiveEvaluationTemplateHandler
     Task<EvaluationTemplateMutationResult> HandleAsync(Guid id, CancellationToken ct);
 }
 
-/// <summary>The only way to edit a template once it's IsReferenced (EvaluationTemplate.cs's own
-/// doc comment) - creates and persists a brand new version row, leaving the referenced row
-/// untouched.</summary>
 public interface IForkEvaluationTemplateHandler
 {
     Task<EvaluationTemplateMutationResult> HandleAsync(Guid id, CancellationToken ct);

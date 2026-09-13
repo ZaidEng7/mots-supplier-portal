@@ -1,40 +1,46 @@
+// The vocabulary for the ministry's governance overview, which reads across every buying organization.
+//
+//
+// EVERY FIGURE IS AN AGGREGATE, AND THAT IS THE CONTRACT
+//
+// The ministry's grant is read-only, cross-organization access to aggregate figures only. No named supplier,
+// no named tender, no reviewer's free text.
+//
+// Nothing in this shape identifies a row, so there is no per-row filter for a later edit to forget.
+//
+//
+// THE ONE COMMERCIAL FIGURE
+//
+// The total awarded value is absent unless the commercial-visibility setting is switched on, and it ships
+// switched off.
+//
+// It is the only commercial figure in the whole shape, deliberately. One optional field means the policy is
+// answered by flipping a value, whereas a commercial variant of every number would be a second shape nobody
+// could keep in step.
+//
+//
+// TWO DEFINITIONS WORTH STATING
+//
+// The award count is awards that have actually been issued, not award records. A recommendation that has not
+// been approved is a record from the moment it is made, and calling that an award on the ministry's headline
+// figure disagreed with both the value beside it and the screen it drills into, which have always counted
+// issued awards only.
+//
+// The participation figure is bids received per published tender, to one decimal. Whether the market is
+// actually competing is what governance is about.
+
 namespace MotsSupplierPortal.Application.Governance;
 
-/// <summary>One aggregate count, keyed by the state or category it counts.</summary>
 public sealed record GovernanceCountDto(string Key, int Count);
 
-/// <summary>
-/// FR-DSH-005/SCR-600: the Ministry's cross-organization governance overview.
-///
-/// <para><b>Every figure here is an aggregate, and that is the contract, not a coincidence.</b>
-/// BRULE-086 grants the Ministry "read-only, cross-organization access to aggregate/governance
-/// metrics only" - no named supplier, no named RFQ, no reviewer's free text. Nothing on this DTO
-/// identifies a row, so there is no filter to forget.</para>
-///
-/// <para><b><see cref="TotalAwardedValue"/> is null unless the commercial-visibility flag is on</b>
-/// (D-6/BRULE-087, seeded off). It is the ONLY commercial figure in the whole shape, deliberately:
-/// one nullable field is a policy answer flipping a value, whereas a commercial variant of every
-/// number would be a second DTO nobody could keep in step.</para>
-/// </summary>
 public sealed record GovernanceOverviewDto(
     int TotalSuppliers,
     IReadOnlyList<GovernanceCountDto> SuppliersByLifecycleState,
     int TotalRfqs,
     IReadOnlyList<GovernanceCountDto> RfqsByState,
-    /// <summary>Awards in the Awarded state, not Award ROWS. A recommendation that has not been
-    /// approved is a row here from the moment it is made, and calling it an award on the Ministry's
-    /// headline tile disagreed with both the value beside it and the Awards &amp; spend screen it
-    /// drills into, which have always counted Awarded only.</summary>
     int TotalAwards,
-    /// <summary>Proposals received per published RFQ, to one decimal. Participation is the metric
-    /// BRULE-086's "governance" is about - whether the market is actually competing - and it is an
-    /// average, so it names nobody.</summary>
     decimal AverageProposalsPerRfq,
-    /// <summary>Null when the commercial-visibility flag is off, which is its seeded state. Null is
-    /// not zero: "policy withholds this" and "the ministry has awarded nothing" are different facts
-    /// and a reader must be able to tell them apart.</summary>
     decimal? TotalAwardedValue,
-    /// <summary>Echoed so a screen can say WHY a figure is absent rather than rendering a blank.</summary>
     bool CommercialValuesVisible);
 
 public interface IGetGovernanceOverviewHandler

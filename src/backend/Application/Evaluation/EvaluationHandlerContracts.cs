@@ -1,12 +1,17 @@
+// What the evaluation reads and writes are called, split between the people who run an evaluation and the
+// people who score it.
+//
+// The candidate list answers nothing when the tender is not visible to the caller, which is a not-found
+// rather than a refusal, so the API never reveals that a tender exists.
+
+namespace MotsSupplierPortal.Application.Evaluation;
+
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 
-namespace MotsSupplierPortal.Application.Evaluation;
-
 public interface IListEvaluatorCandidatesHandler
 {
-    /// <summary>Null when the RFQ is not visible to the caller - §9.2's 404, never a 403.</summary>
     Task<IReadOnlyList<EvaluatorCandidateDto>?> HandleAsync(string rfqReferenceCode, CancellationToken ct);
 }
 

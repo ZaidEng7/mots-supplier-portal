@@ -1,25 +1,27 @@
-using MotsSupplierPortal.Domain.Proposals;
+// What a bid write can answer.
+//
+// One outcome covers a tender that does not exist, a supplier who was not invited, and a supplier who cannot
+// currently trade. Telling those apart would answer questions the caller is not entitled to ask.
+//
+//
+// THE CURRENT STATE TRAVELS WITH A TRANSITION REFUSAL
+//
+// So the route can name the current state and what may legally follow, rather than answering a bare refusal
+// as every bid route used to.
+//
+// It is optional, because not every refusal is about a transition. Some are shaped like validation, such as a
+// missing withdrawal reason, and have no meaningful set of next states. Those keep the plain refusal they
+// always had; only a lifecycle refusal becomes a conflict, which is what the rule governs.
 
 namespace MotsSupplierPortal.Application.Proposals;
+
+using MotsSupplierPortal.Domain.Proposals;
 
 public abstract record ProposalResult
 {
     public sealed record Success(ProposalDto Proposal) : ProposalResult;
-    /// <summary>Covers "RFQ not found", "not invited", and "not Active" behind one outcome - same
-    /// no-oracle reasoning as SupplierRfqResult.NotFoundOrNotInvited (EPIC-08).</summary>
     public sealed record NotFoundOrNotInvited : ProposalResult;
-    /// <summary>
-    /// T-065: carries the CURRENT STATE so the endpoint can answer §3's 409 with currentState and
-    /// allowedNext, rather than the 400 every proposal endpoint used to return.
-    ///
-    /// <para>Nullable, because not every refusal is a transition refusal - some are shaped like
-    /// validation ("a withdrawal reason is required") and have no meaningful allowed-next set. Those
-    /// keep the 400 they always had; only a state-machine refusal becomes a 409, which is exactly
-    /// what §3 governs.</para>
-    /// </summary>
     public sealed record InvalidState(string Message, ProposalState? CurrentState = null) : ProposalResult;
 
-    /// <summary>T-066: refused because the proposal is incomplete, not because of its state. §12.5
-    /// answers this with 422 and a code naming what is missing.</summary>
     public sealed record Incomplete(string Error, string Message) : ProposalResult;
 }

@@ -1,119 +1,80 @@
+// The shapes an evaluation is read through, on both sides: the buyer's overview and the evaluator's own work.
+//
+//
+// THE ROSTER NEVER CARRIES A SCORE
+//
+// Scoring is blind, so the buyer-facing roster row says who is assigned and whether they have submitted, and
+// never what they scored.
+//
+// It carries the evaluator's own name, because the screen was printing an internal identifier. A manager
+// asking which evaluators are on this tender got a column of raw identifiers, and the button to remove one
+// named nobody.
+//
+//
+// THE CANDIDATE LIST
+//
+// Who a manager may assign. It did not exist, and the screen could not work without it.
+//
+// Assigning an evaluator was a free-text box for a raw identifier, and the only list of staff in the product
+// requires a permission a procurement manager does not hold. So the persona the route names had no way to
+// learn the identifier it demanded. Found by walking a tender through in the browser: the step was unusable
+// without opening the database.
+//
+//
+// A CONSOLIDATED RESULT
+//
+// The unresolved-tie flag says this rank came from a tie no rule broke. The award flow refuses to offer the
+// top rank while it is set, and the screen has to be able to say why.
+//
+// The bid's public code is required rather than optional. It used to be optional, and six of the eight
+// handlers that build this never looked one up, so most responses carried nothing there beside the internal
+// identifier, and the results table fell back to rendering that identifier. Which is the exact failure the
+// code was added to stop. Every handler supplies it now, so there is no fallback left to get wrong.
+//
+// The internal identifier is still on the wire and no longer read by anything. Removing it is a breaking
+// change, which the versioning rules and the contract check both refuse, correctly. The screens no longer
+// read it and the award request no longer takes it, so the defect is closed; the field's removal belongs to
+// whoever opens the next major version.
+//
+//
+// THE BUYER'S OVERVIEW
+//
+// It deliberately excludes every individual score, and the results are empty until the scores have been
+// gathered.
+
+namespace MotsSupplierPortal.Application.Evaluation;
+
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Domain.Evaluation;
 
-namespace MotsSupplierPortal.Application.Evaluation;
-
 public sealed record EvaluationCriterionDto(
     Guid Id, string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold, ScoringType ScoringType, bool IsFinancial,
-    // T-021/BRULE-061: on the evaluator's own view, so the form can mark the comment required
-    // before the score is refused rather than after it.
     bool RequiresJustification = false,
-    // SCR-501: the template author's instruction for THIS criterion, snapshotted when the RFQ bound the
-    // template. Null on a tender that bound one before the field existed - see CriterionSnapshotJson for
-    // why that is reported as absent rather than backfilled from the template's current text.
     string? GuidanceAr = null, string? GuidanceEn = null);
 
-/// <summary>Buyer-facing roster row - never carries a raw score (blind scoring, OQ-005/BRULE-058).</summary>
-/// <param name="EvaluatorName">The evaluator's own name. Added because the screen was printing the GUID:
-/// a manager reading "which evaluators are on this tender" got a column of
-/// 01a07461-fa48-7721-abe2-018baaa84d11, and the recuse button beside it named nobody.</param>
 public sealed record EvaluationAssignmentDto(
     Guid EvaluatorUserId, string? EvaluatorName, DateTimeOffset AssignedAt, DateTimeOffset? SubmittedAt,
     DateTimeOffset? RecusedAt, string? RecusalReason);
 
-/// <summary>
-/// Who a manager may assign to this RFQ's evaluation.
-///
-/// <para><b>This did not exist, and the screen could not work without it.</b> Assigning an evaluator was a
-/// free-text box for a raw user GUID, and the only list of staff in the product requires
-/// <c>admin.users.manage</c> - which a procurement_manager does not hold. So the persona the endpoint names
-/// had no way to learn the id it demanded. Found by walking the tender in the browser: the assign step was
-/// unusable without opening the database.</para>
-/// </summary>
 public sealed record EvaluatorCandidateDto(Guid UserId, string FullName, string Email);
 
-/// <summary>A-1: <paramref name="TieUnresolved"/> says this rank came from a tie that no rule broke.
-/// The award flow refuses rank 1 while it is set, and the screen has to be able to say why.</summary>
-/// <param name="ProposalCode">
-/// §3's opaque public identifier for the bid, and now REQUIRED rather than nullable.
-///
-/// <para><b>T-068.</b> The code was nullable and six of the eight handlers that build this response
-/// never looked one up, so most responses carried a null code beside the GUID - and the results table
-/// fell back to rendering the GUID, which is the exact failure the code was added to stop. Every
-/// handler supplies it now, so there is no fallback left to get wrong.</para>
-/// </param>
-/// <param name="ProposalId">
-/// The internal identifier, still on the wire and no longer read by anything.
-///
-/// <para><b>Why it is still here.</b> T-068 wants it gone, and removing it is a BREAKING change:
-/// API-ARCHITECTURE.md's versioning table names "removing/renaming a field" as a version-bump trigger,
-/// and the contract gate in <c>OpenApiContractTests</c> refuses it - correctly. The screens no longer
-/// read it and the award request no longer takes it, so the defect the entry describes is closed; the
-/// field's removal belongs to whoever opens /api/v2. See DECISIONS-TAKEN.md D-69.</para>
-/// </param>
 public sealed record ConsolidatedResultDto(
     Guid ProposalId, string ProposalCode, bool TechnicallyQualified, decimal TechnicalWeightedScore,
     decimal? FinancialWeightedScore, decimal WeightedTotal, int? Rank, bool TieUnresolved = false,
     string? TieResolutionReason = null);
 
-/// <summary>Buyer/manager-facing overview - deliberately excludes every EvaluatorScore row (see
-/// EvaluationAssignmentDto's own doc comment); Results is empty until Consolidate() has run.</summary>
 public sealed record EvaluationDto(
     Guid Id, Guid RfqId, string RfqReferenceCode, EvaluationState State,
     IReadOnlyList<EvaluationCriterionDto> Criteria, IReadOnlyList<EvaluationAssignmentDto> Assignments, IReadOnlyList<ConsolidatedResultDto> Results,
-    // §8.1: the version this read saw, emitted as the ETag and sent back as If-Match.
     uint RowVersion);
 
-/// <summary>One evaluator's own score for one (Proposal, Criterion) - the row-level unit blind
-/// scoring is enforced against. Never returned for any evaluator other than the caller.
-///
-/// <para>T-068: keyed by the proposal's PUBLIC code. The GUID stays inside the domain, where
-/// ScoreCriterion still takes it.</para></summary>
 public sealed record MyScoreDto(string ProposalCode, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn, DateTimeOffset ScoredAt);
 
-/// <summary>
-/// T-067: one bid, as an assigned evaluator may see it DURING scoring.
-///
-/// <para><b>This is the technical envelope and nothing else.</b> No <c>ProposalItemDto</c>, no
-/// currency, no payment or delivery terms, no totals - the same seal T-028 put on the buyer's
-/// document gate, applied to the read an evaluator actually uses. Pricing reaches a human through
-/// the comparison matrix once the evaluation is Consolidated, and through no other path.</para>
-///
-/// <para><b>The supplier's identity IS here, deliberately.</b> Blindness in this product is
-/// evaluator-to-evaluator (ROADMAP §P7: "each scores blind (cannot see peers)"), never bidder
-/// anonymity - no document asks for anonymised evaluation. And BRULE-067's recusal mechanism is
-/// unusable without it: an evaluator cannot declare a conflict of interest with a supplier whose
-/// name they have never been shown. Withholding it would have been a fail-closed default that
-/// disabled a documented control. See DECISIONS-TAKEN.md D-19.</para>
-///
-/// <para><b>Documents are the Technical envelope only</b> (D-7), and only once scanned clean
-/// (D-10) - an evaluator is not the person to hand an unscanned file to.</para>
-/// </summary>
 public sealed record EvaluatorProposalDto(
     string ProposalCode,
-    /// <summary>
-    /// A-8: a stable per-evaluation pseudonym - "Bidder A", «مورّد أ» - so an evaluator can refer to a
-    /// bid in a comment without knowing whose it is.
-    ///
-    /// <para>Assigned by proposal code order within the evaluation, so it is the same label on every
-    /// read and for every evaluator, which is what makes a committee discussion possible at all.</para>
-    /// </summary>
     string BidderLabelAr,
     string BidderLabelEn,
-    /// <summary>
-    /// A-8: the supplier's identity, and it is NULL while scoring is open.
-    ///
-    /// <para>Revealed once the evaluation is Consolidated or Finalized, and also before the evaluator
-    /// has opened scoring - that earlier window is the recusal declaration (BRULE-067), where the
-    /// evaluator is shown the bidder list once, declares any conflict, and is then recused or proceeds.
-    /// Nobody has to recuse themselves from a bidder they cannot see, because the declaration already
-    /// happened.</para>
-    ///
-    /// <para>This supersedes D-19, which widened the evaluator's view to include the bidder name
-    /// precisely so recusal was possible. A-8 moves recusal earlier instead, which is what makes
-    /// anonymised scoring compatible with BRULE-067 rather than in conflict with it.</para>
-    /// </summary>
     string? SupplierReferenceCode,
     string? SupplierDisplayNameAr,
     string? SupplierDisplayNameEn,
@@ -121,42 +82,19 @@ public sealed record EvaluatorProposalDto(
     string? NarrativeEn,
     IReadOnlyList<RequirementAnswerDto> RequirementAnswers,
     IReadOnlyList<EvaluatorProposalDocumentDto> Documents,
-    /// <summary>This evaluator's own qualification determination for this bid - per evaluator, not
-    /// global, because scoring is independent until Consolidate() runs.</summary>
     bool TechnicallyQualified);
 
-/// <summary>A technical supporting file on a bid, listed for an assigned evaluator. Addressed by the
-/// proposal's code plus this id, and downloadable through the evaluator's own gated route.</summary>
 public sealed record EvaluatorProposalDocumentDto(
     Guid Id, string OriginalFileName, string ContentType, string? Caption, DateTimeOffset UploadedAt);
 
-/// <summary>Evaluator-facing view: this evaluator's own assignment status, the criteria (with
-/// IsFinancial so the UI can grey out pricing pre-qualification), the proposals this evaluator
-/// scores, this evaluator's own qualification determination per proposal, and only this
-/// evaluator's own MyScores - never another evaluator's.</summary>
 public sealed record MyEvaluationDto(
     string RfqReferenceCode, EvaluationState State,
-    // T-067: the SPECIFICATION the bids answer. An evaluator held neither rfq.read nor
-    // comparison.view, so before this they could not see the requirement they were scoring against
-    // any more than they could see the bid. Carried on this read rather than by widening the role,
-    // so one already assignment-scoped handler stays the only door.
     string RfqTitleAr, string RfqTitleEn, string? RfqDescriptionAr, string? RfqDescriptionEn,
     IReadOnlyList<RfqItemDto> RfqItems, IReadOnlyList<RequirementDto> RfqRequirements,
     DateTimeOffset? SubmittedAt, IReadOnlyList<EvaluationCriterionDto> Criteria,
-    // T-067/T-068: the bids themselves, keyed by public code. Replaces `ProposalIds` (raw GUIDs) and
-    // `TechnicallyQualifiedByProposal` (a GUID-keyed dictionary) - the qualification flag now travels
-    // on the bid it describes instead of in a parallel map.
     IReadOnlyList<EvaluatorProposalDto> Proposals,
     IReadOnlyList<MyScoreDto> MyScores);
 
-/// <summary>
-/// A-8/BRULE-067: the recusal declaration window. The evaluator sees who the bidders are ONCE, before
-/// scoring, and says whether they have a conflict.
-///
-/// <para><c>DeclarationRequired</c> is false once they have declared or been recused, and the bidder
-/// list is then empty - the window closes, which is what makes the anonymity during scoring real rather
-/// than decorative.</para>
-/// </summary>
 public sealed record ConflictDeclarationDto(
     bool DeclarationRequired,
     IReadOnlyList<DeclarationBidderDto> Bidders);

@@ -1,13 +1,20 @@
-using MotsSupplierPortal.Application.Common;
+// What the reviewer's reads and writes are called.
+//
+// The queue serves the three states a case can be waiting in, and is paged by cursor like every other growing
+// list.
+//
+// Its assignee filter accepts a word meaning the caller themselves, a word meaning nobody, or a particular
+// reviewer. Absent means no assignment filter at all.
+//
+// The supplier's own view of an open information request exists because the reviewer-side history is staff-only
+// and the supplier still needs to know what to fix.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
+using MotsSupplierPortal.Application.Common;
+
 public interface IListReviewQueueHandler
 {
-    /// <summary>Submitted/UnderReview/Resubmitted applications - the reviewer's work queue.
-    /// MSP-84: keyset-paged (see KeysetCursor for why). FEAT-03.6: state restricts to one of
-    /// the three queue-eligible OnboardingStates; assignedTo accepts "me" (resolved to the
-    /// caller), "unassigned", or a literal reviewer user id - null means no assignment filter.</summary>
     Task<ListEnvelope<ReviewQueueItemDto>> HandleAsync(string? cursor, int? limit, bool withCount, string? state, string? assignedTo, CancellationToken ct);
 }
 
@@ -28,8 +35,6 @@ public interface IGetReviewerSupplierViewHandler
 
 public interface IGetOwnActiveAnnotationHandler
 {
-    /// <summary>The supplier's own view of why they're InfoRequested and what's flagged - the
-    /// reviewer-side annotation history is staff-only, but the supplier needs to know what to fix.</summary>
     Task<ReviewAnnotationDto?> HandleAsync(CancellationToken ct);
 }
 

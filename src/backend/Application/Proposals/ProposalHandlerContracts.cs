@@ -1,6 +1,14 @@
-using MotsSupplierPortal.Domain.Proposals;
+// What the bid reads and writes are called.
+//
+// Starting a bid is keyed on the tender rather than on the bid, because the bid has no code until it exists.
+//
+// Listing a supplier's bids for one tender is also keyed on the tender, and stays that way deliberately. Every
+// other bid route is addressed by the bid's own code, and nothing in the written contract says how a returning
+// supplier discovers that code. This read is the answer, and it is the one the contract already names.
 
 namespace MotsSupplierPortal.Application.Proposals;
+
+using MotsSupplierPortal.Domain.Proposals;
 
 public interface IRequestProposalClarificationHandler
 {
@@ -12,33 +20,16 @@ public interface IReviseProposalHandler
     Task<ProposalResult> HandleAsync(ReviseProposalCommand command, CancellationToken ct);
 }
 
-/// <summary>§12.5: created at <c>POST /rfqs/{rfqCode}/proposals</c>, so this stays keyed on the
-/// RFQ - the proposal has no code until it exists.</summary>
 public interface IStartProposalHandler
 {
     Task<ProposalResult> HandleAsync(string rfqReferenceCode, CancellationToken ct);
 }
 
-/// <summary>
-/// Served at <c>GET /rfqs/{rfqCode}/proposals</c> - §3's named sub-collection
-/// (<c>/rfqs/{rfqCode}/proposals</c>). Deliberately still RFQ-keyed: every other proposal route is
-/// now addressed by <c>{proposalCode}</c>, and nothing in §12 documents how a returning supplier
-/// discovers that code. This route is the answer, and it is the one §3 already names.
-/// </summary>
 public interface IGetProposalHandler
 {
     Task<ProposalResult> HandleAsync(string rfqReferenceCode, CancellationToken ct);
 }
 
-/// <summary>
-/// §12-A/C2: read a proposal by its own public code, the counterpart to §3's
-/// <c>/proposals/{proposalCode}/items</c> and §12.5's <c>PATCH /proposals/{proposalCode}</c>.
-///
-/// <para>Added because without it the code-addressed READ did not exist, and the cross-org negative
-/// for reading another supplier's proposal was passing on a 404 from an unrouted path rather than
-/// from row-scoping - a vacuous test of exactly the kind this program exists to prevent. The
-/// RFQ-scoped <see cref="IGetProposalHandler"/> stays as the discovery route.</para>
-/// </summary>
 public interface IGetProposalByCodeHandler
 {
     Task<ProposalResult> HandleAsync(string proposalReferenceCode, CancellationToken ct);
@@ -88,7 +79,5 @@ public interface IDeclineAwardOfferHandler
 
 public interface IListMyProposalsHandler
 {
-    /// <summary>Null when the caller is not a supplier — §9.2's 404 rather than an empty list, which
-    /// would assert that they have a supplier account with nothing in it.</summary>
     Task<IReadOnlyList<MyProposalListItemDto>?> HandleAsync(CancellationToken ct);
 }

@@ -1,67 +1,48 @@
-using MotsSupplierPortal.Application.Common;
+// The shapes the reviewer's queue and their view of one application are read through.
+//
+//
+// WHEN A CASE ENTERED THE QUEUE
+//
+// It is when the application most recently entered the reviewer's active queue: submitted, resubmitted, resumed
+// after information was provided, or sent back by a compliance re-trigger.
+//
+// It is deliberately not the registration date, which would make a long-registered supplier who has just
+// resubmitted read as stale.
+//
+// It falls back to the registration date only when no such record exists. That should not happen for a case in
+// a queue-eligible state, but a row without one reads as just arrived rather than crashing the queue.
+//
+//
+// THE REVIEW TARGET IS A TARGET
+//
+// Counted in working days from when the case entered the queue.
+//
+// Deliberately not a breach and not a badge. The written process starts, pauses and resumes a review timer and
+// never names a duration, so there is no threshold to be over. Presenting one would invent a commitment nobody
+// made.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
-/// <summary>FEAT-03.6/FR-ONB-012: EnteredQueueAt is when this application most recently entered
-/// the reviewer's active queue (submitted, resubmitted, review resumed after info was provided,
-/// or compliance-retriggered back into UnderReview) - not Supplier.CreatedAt (registration date),
-/// which would make a long-registered supplier who just resubmitted read as stale. Falls back to
-/// CreatedAt only if no such audit row exists (should not happen for a queue-eligible state, but a
-/// row without one reads as "just entered" rather than crashing the queue).</summary>
+using MotsSupplierPortal.Application.Common;
+
 public sealed record ReviewQueueItemDto(
     string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt,
     Guid? AssignedReviewerId, string? AssignedReviewerName,
-    /// <summary>
-    /// A-5: the review TARGET for this case, counted in working days from when it entered the queue.
-    ///
-    /// <para>A target, deliberately not a breach and not a badge: BUSINESS-PROCESSES.md §5 runs an SLA
-    /// timer and names no number, so the product states a configurable default and does not assert a
-    /// commitment the ministry has not made. Null when the case is not waiting on a reviewer.</para>
-    /// </summary>
     DateTimeOffset? ReviewTargetAt = null);
 
-/// <summary>
-/// The review queue's accepted <c>?state=</c> values - a NAMED SUBSET of SupplierOnboardingState,
-/// not the whole enum: the queue is "what is waiting for review", so Approved and Rejected are not
-/// filterable states here.
-///
-/// <para>Exposed on the contract because the endpoint has to reject an unrecognised value (a
-/// dropped value leaves an empty filter, and an empty filter returns the whole queue) and the
-/// handler has to map an accepted one. Two copies of this vocabulary would drift into exactly that
-/// gap.</para>
-/// </summary>
 public static class ReviewQueueFilterValues
 {
-    /// <summary>
-    /// <para><b>Approved and Rejected are filterable, and the queue's DEFAULT still is not.</b> The
-    /// queue answers "what needs me", so it keeps the three reviewable states when no filter is given.
-    /// But a decided application dropped out of every list the moment it was decided, and there was no
-    /// other list carrying it - a reviewer who wanted to look back at their own decision had no route
-    /// to it except typing the supplier's reference code into the address bar. Asking for a decided
-    /// state is now a filter on the same queue rather than a screen of its own.</para>
-    /// </summary>
     public static readonly IReadOnlySet<string> States =
         new HashSet<string>(StringComparer.Ordinal) { "Submitted", "UnderReview", "InfoRequested", "Approved", "Rejected" };
 
-    /// <summary>
-    /// The literal <c>?assignedTo=</c> values. Anything else must be a reviewer's own id; a value
-    /// that is neither is rejected rather than silently applying no assignee filter.
-    /// </summary>
     public static readonly IReadOnlySet<string> AssigneeLiterals =
         new HashSet<string>(StringComparer.Ordinal) { "me", "unassigned" };
 }
 
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);
 
-/// <summary>FEAT-04.10: ERP mapping fields - read-only to staff, never exposed to the supplier
-/// (see SupplierDto's own doc comment for the other half of that split).</summary>
 public sealed record ErpSyncDto(string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt);
 
-/// <param name="RowVersion">The Supplier root's version, lifted to the TOP of this wrapper.
-/// T-030 split (4) needed it there: the ETag filter looks for a <c>RowVersion</c> property on the response
-/// object itself, so a version nested inside <c>Supplier</c> issued no ETag and a reviewer had no way to
-/// obtain the precondition their own decision routes now require. Guarding a write whose precondition
-/// cannot be read is the batch-3 Offering mistake, and this is the read half added in the same change.</param>
 public sealed record ReviewerSupplierViewDto(
     SupplierDto Supplier,
     ErpSyncDto ErpSync,

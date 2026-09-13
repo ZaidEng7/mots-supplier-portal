@@ -1,6 +1,13 @@
-using MotsSupplierPortal.Domain.Suppliers;
+// What the writes to a supplier's attached things are called: one interface per kind, each carrying that
+// kind's add, update and remove.
+//
+// They are grouped per kind rather than one interface per operation, because the three operations on an
+// address are resolved together by the routes that manage addresses, and splitting them would be three
+// registrations for one screen.
 
 namespace MotsSupplierPortal.Application.Suppliers;
+
+using MotsSupplierPortal.Domain.Suppliers;
 
 public interface IManageRepresentativeHandler
 {

@@ -1,6 +1,19 @@
-using MotsSupplierPortal.Domain.Organizations;
+// The vocabulary for buying organizations: what one looks like, what can be asked of it, and what the
+// answers are.
+//
+// An organization carries a department tree, and the shapes here mirror that: the organization itself,
+// one department, and the manual link between a supplier and an organization.
+//
+// Two separate result types rather than one. An organization write can succeed, find nothing, or be
+// refused by a rule. A supplier link can also be refused because the link already exists, which is not
+// a rule violation and is worth saying plainly, so it has its own outcome.
+//
+// Removing a supplier link answers a plain yes or no rather than a result type, because the only two
+// things that can happen are that it was removed or it was not there.
 
 namespace MotsSupplierPortal.Application.Organizations;
+
+using MotsSupplierPortal.Domain.Organizations;
 
 public sealed record OrganizationDto(Guid Id, string LegalNameAr, string LegalNameEn, OrganizationType OrganizationType, string? ContactEmail, string? ContactPhone, bool IsActive, IReadOnlyList<OrgUnitDto> OrgUnits);
 public sealed record OrgUnitDto(Guid Id, Guid OrganizationId, Guid? ParentOrgUnitId, string Name);

@@ -1,16 +1,31 @@
-using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// The shapes a compliance document is read through.
+//
+//
+// THE PUBLIC CODE IS THE ONLY IDENTIFIER
+//
+// Internal identifiers stay out of payloads as well as out of addresses, so the record's own database key is
+// not emitted at all. A client that needs to address a document uses the public code, which is the only
+// identifier the API accepts.
+//
+// Both document shapes spell that field the same way now. They had been naming the same value two different
+// ways.
+//
+//
+// THE SCAN IS PART OF THE STATE
+//
+// The written contract shows the scan status beside the state as two separate fields. This folds the scan into
+// the state machine instead, exactly as the domain does: a document waiting on a scan is in a state that says
+// so.
+//
+// One value rather than two means there is no combination of the two that has to be ruled out, and no way for
+// them to disagree.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed record SupplierDocumentDto(
-    /// <summary>T-010: the public code. §3 keeps internal GUIDs out of payloads as well as URLs, so
-    /// the aggregate's Guid is not emitted at all - a client that needs to address this document
-    /// uses this value, which is the only identifier the API accepts.
-    ///
-    /// <para>Spelled <c>documentId</c> under R-9, matching §12.3 and matching
-    /// SupplierDocumentListItemDto, which already used that name. The two document DTOs had been
-    /// naming the same value two different ways.</para></summary>
     string DocumentId,
     int Version,
     string State,
@@ -22,13 +37,6 @@ public sealed record SupplierDocumentDto(
     string? RejectReason,
     DateTimeOffset UploadedAt,
     DateTimeOffset? ReviewedAt,
-    /// <summary>
-    /// T-015: §12.3 shows <c>scanStatus</c> beside <c>state</c> - <c>{ "state": "Uploaded",
-    /// "scanStatus": "Pending" }</c>. This schema folds the scan into the state machine, exactly as
-    /// it folds expiry in (see SupplierDocumentListItemDto's note on <c>expiryState</c>), so the
-    /// field is DERIVED from the state rather than stored. A second stored copy of a fact the state
-    /// already carries is a second thing to keep in step.
-    /// </summary>
     string ScanStatus = "Clean");
 
 public sealed record DocumentTypeStatusDto(
@@ -40,23 +48,6 @@ public sealed record DocumentTypeStatusDto(
     bool ExpiryTracked,
     SupplierDocumentDto? LatestDocument);
 
-/// <summary>
-/// §12.3's documented row. Field-by-field against that response, with two divergences named rather
-/// than papered over:
-///
-/// <list type="bullet">
-///   <item><b>documentId</b> - RESOLVED (T-010). This now emits <c>DOC-2026-000001</c>, the shape
-///   §12.3 documents. The previous note here claimed §3.1 governs only PATHS and that a Guid in a
-///   body was therefore acceptable; that reading was wrong. §3 principle 3 says internal GUIDs are
-///   "never exposed in URLs, PAYLOADS, or errors", and §12's own checklist repeats it as "Public ids
-///   only in paths/bodies (no GUID/int leakage)".</item>
-///   <item><b>expiryState</b> - §12.3 models expiry as a field orthogonal to <c>state</c>
-///   (<c>"state": "UnderReview"</c> alongside <c>"expiryState": "Valid"</c>). This schema folds
-///   expiry INTO the state machine: ExpiringSoon and Expired are DocumentState members. The field
-///   is therefore derived from the state rather than stored, and is null for a type that does not
-///   track expiry at all.</item>
-/// </list>
-/// </summary>
 public sealed record SupplierDocumentListItemDto(
     string DocumentId,
     string DocumentTypeCode,

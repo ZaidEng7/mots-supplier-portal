@@ -1,7 +1,21 @@
-using MotsSupplierPortal.Domain.Rfqs;
-using MotsSupplierPortal.Application.Common;
+// What the tender reads and writes are called.
+//
+// The lists and the detail reads are split by persona: a buyer's handler and a supplier's handler, each
+// returning its own shape. One route chooses between them, so the route converges while the handlers do not.
+//
+//
+// THE ONE HANDLER THAT CARRIES ITS OWN PERMISSION CHECK
+//
+// Extending a deadline is the officer's, and shortening one requires a manager.
+//
+// That check cannot live on the route, because whether a request is a shortening depends on the tender's
+// current deadline, which only the handler has read. So the handler refuses a shortening from a caller who
+// lacks the permission for it.
 
 namespace MotsSupplierPortal.Application.Rfqs;
+
+using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Application.Common;
 
 public interface IListRfqsHandler
 {
@@ -23,12 +37,6 @@ public interface IUpdateRfqBasicsHandler
     Task<RfqMutationResult> HandleAsync(UpdateRfqBasicsCommand command, CancellationToken ct);
 }
 
-/// <summary>
-/// T-018/BRULE-035. Extension is the officer's; shortening "requires procurement_manager", so the
-/// handler refuses a shortening from a caller without <c>rfq.deadline.shorten</c>. That check cannot
-/// live on the route: whether a request is a shortening depends on the RFQ's current deadline, which
-/// only the handler has read.
-/// </summary>
 public interface IChangeSubmissionDeadlineHandler
 {
     Task<RfqMutationResult> HandleAsync(ChangeSubmissionDeadlineCommand command, CancellationToken ct);

@@ -1,12 +1,18 @@
-using MotsSupplierPortal.Domain.Proposals;
+// What can be asked of a bid: start one, price its lines, set its terms and narrative, answer requirements,
+// attach and remove documents, submit, withdraw, decline an award, and the two halves of a clarification.
+//
+// Requesting a clarification carries a mandatory reason, because the written rule asks for the reason and the
+// specific questions.
+//
+// The supplier's response to a clarification carries nothing but the bid, because the answer is the edit they
+// made to the bid itself.
 
 namespace MotsSupplierPortal.Application.Proposals;
 
-/// <summary>§4.1: UnderReview -&gt; ClarificationRequested. Reason is mandatory per the table's own
-/// guard, "Reason; specific questions".</summary>
+using MotsSupplierPortal.Domain.Proposals;
+
 public sealed record RequestProposalClarificationCommand(string ProposalReferenceCode, string Reason);
 
-/// <summary>§4.1: ClarificationRequested -&gt; Revised, the supplier's response.</summary>
 public sealed record ReviseProposalCommand(string ProposalReferenceCode);
 
 public sealed record SetItemPricingCommand(
@@ -32,5 +38,4 @@ public sealed record SubmitProposalCommand(string ProposalReferenceCode);
 
 public sealed record WithdrawProposalCommand(string ProposalReferenceCode, string Reason);
 
-// T-064: the supplier's own decline of an award offer.
 public sealed record DeclineAwardOfferCommand(string ProposalReferenceCode, string Reason);

@@ -1,20 +1,24 @@
+// One exported audit row, as a line of a spreadsheet file.
+//
+// It is separate from the route so it can be tested without a database.
+//
+// The quoting follows the spreadsheet standard: a field is quoted only when it contains a comma, a quote
+// or a line break, and an embedded quote is doubled.
+//
+// The actor's label is free text, a person's name, and is the one column that realistically needs that.
+// The others are identifiers and fixed values controlled by the system. Every column is escaped the same
+// way regardless, rather than trusting that to stay true.
+//
+// The byte-order mark is the export engine's, re-exposed here so existing callers keep one name for it.
+
+namespace MotsSupplierPortal.Application.Audit;
+
 using System.Globalization;
 using System.Text;
 using MotsSupplierPortal.Application.Exports;
 
-namespace MotsSupplierPortal.Application.Audit;
-
-/// <summary>
-/// MSP-75/FR-AUD-004: CSV formatting for one exported audit row, kept separate from the endpoint so
-/// it is unit-testable without a database. RFC 4180 quoting - a field is quoted only when it
-/// contains a comma, quote, or newline, and an embedded quote is doubled. ActorLabel is free text
-/// (a name, MSP-62) and is the one column that realistically needs this; the others are
-/// system-controlled identifiers/enums, but every column is escaped the same way rather than
-/// trusting that to stay true.
-/// </summary>
 public static class AuditCsvRow
 {
-    /// <summary>The engine's BOM, re-exposed so existing call sites keep one name for it.</summary>
     public static readonly byte[] Utf8Bom = CsvFormat.Utf8Bom;
 
     public static string Format(AuditLogEntryDto entry) => CsvFormat.Row([

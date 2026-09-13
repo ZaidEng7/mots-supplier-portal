@@ -1,3 +1,9 @@
+// What the reference-data administration reads and writes are called.
+//
+// One interface covers all six tables, taking the table as a value, because the four operations are
+// identical across them. The two document-type category reads and writes are separate, because they apply
+// to document types alone.
+
 namespace MotsSupplierPortal.Application.ReferenceData;
 
 public interface IReferenceDataAdminHandler
