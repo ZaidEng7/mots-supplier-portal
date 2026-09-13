@@ -168,6 +168,40 @@
 // write that must not overwrite a concurrent one.
 //
 //
+// WRITE PRECONDITIONS ON THE CHILD WRITES
+//
+// Every buyer-side write that adds or removes a part of the tender, an item, a requirement, an
+// attachment or an invitation, requires the caller to say which version they read, and returns the
+// version it produced.
+//
+// The tender's own version moves either way, so the only question is whether anybody is told. Without
+// the precondition an officer can add an item on top of a tender they never saw: one a manager has just
+// returned for edits, or whose deadline has moved underneath them, and the write succeeds against a
+// state nobody was looking at. On a tender that is exactly the lost update the rule exists to refuse.
+//
+// The precondition is obtainable, which is the test any guard here has to pass: the tender's own read
+// issues the version, and the interface walks up the path to find it.
+//
+// These use the fresh-version filter rather than the read one, because the read filter also answers a
+// conditional read with not-modified, and a not-modified answer on a write that changed the record would
+// be a lie about what happened.
+//
+//
+// FOUR WRITES ON THIS COLLECTION ARE DELIBERATELY LEFT UNGUARDED
+//
+// Creating a tender has no prior version anybody could have read, so requiring one would make authoring
+// impossible.
+//
+// The supplier's two writes, asking a clarification and declining an invitation, are unguarded because
+// the supplier's own view of a tender carries no version at all. That is deliberate: the version belongs
+// to the buyer's record. So the precondition is unobtainable and the guard would refuse every supplier.
+// It would also be guarding the wrong thing, because two invited suppliers asking unrelated questions is
+// not a lost update, and refusing the second is a fairness problem rather than a safety one.
+//
+// The two evaluation-stage clarification transitions are covered above: an evaluator cannot read the
+// tender, so they cannot obtain a precondition either.
+//
+//
 // PRECONDITION RESPONSES
 //
 // Every guarded write and every transition puts the new version on its own response, so the next one has a
@@ -463,36 +497,6 @@ public static class RfqEndpoints
             return MapMutation(result);
         })
         .RequirePermission(Permissions.RfqEdit)
-        /*
-         * T-030 split (2), applied to this and the nine routes below: every buyer-side write that adds
-         * or removes a CHILD of the RFQ requires `If-Match` and returns the version it produced.
-         *
-         * The same argument as split (3) made for the supplier's children, and D-37 states it: the
-         * aggregate's version moves either way, so the only question is whether anyone is told. Without
-         * the precondition, an officer can add an item on top of an RFQ they never saw - one a manager
-         * has just returned for edits, or whose deadline has moved beneath them - and the write
-         * succeeds against a state nobody was looking at. In a tender that is the class of lost update
-         * §8.1 exists to refuse.
-         *
-         * The precondition is obtainable: `GET /api/v1/rfqs/{referenceCode}` issues the ETag, and the
-         * SPA's store walks path prefixes up to it (api/etags.ts). `WithFreshETag` rather than
-         * `WithETag` for the same reason split (3) needed it - `WithETag` also answers 304 to a
-         * conditional read, and a 304 on a POST that changed the row would be a lie.
-         *
-         * FOUR ROUTES ON THIS GROUP ARE DELIBERATELY LEFT UNGUARDED:
-         *
-         *  - `POST /` (CreateRfq): a top-level create has no prior version anyone could have read, and
-         *    requiring one would make authoring impossible (D-37).
-         *
-         *  - `POST /{code}/clarifications` and `POST /{code}/invitations/decline`: the SUPPLIER's two
-         *    writes. `SupplierRfqDto` carries no version - deliberately, it is the buyer aggregate's -
-         *    so the precondition is unobtainable and the guard would 428 every supplier. It would also
-         *    be guarding the wrong thing: two invited suppliers asking unrelated questions is not a
-         *    lost update, and refusing the second is a fairness problem rather than a safety one.
-         *
-         *  - `POST /{code}/request-clarification` and `.../resolve-clarification`: already documented
-         *    below - §3.1 names `evaluator` as an actor and an evaluator cannot GET the RFQ.
-         */
         .RequireIfMatch()
         .WithFreshETag()
         .WithName("AddRfqItem");

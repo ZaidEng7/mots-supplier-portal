@@ -33,6 +33,9 @@
 // instead, where human-readable explanation belongs, and the code falls back to one derived from the
 // status. LooksLikeIdentifier is what tells the two apart: short, and no spaces.
 //
+// A body that is not readable as JSON at all, a bare status with some text, is shaped anyway rather
+// than passed through.
+//
 // Anything else the body carried is kept as an extra field rather than dropped. The standard permits
 // extra fields, and silently losing the list of missing fields would break the registration flow that
 // reads it.
@@ -143,7 +146,7 @@ public sealed class ProblemDetailsMiddleware(RequestDelegate next, ILogger<Probl
         if (!string.IsNullOrWhiteSpace(raw))
         {
             try { source = JsonNode.Parse(raw) as JsonObject; }
-            catch (JsonException) { /* Not JSON - a bare status with a text body. Shape it anyway. */ }
+            catch (JsonException) { }
         }
 
         var code = CodeFrom(source, status);
