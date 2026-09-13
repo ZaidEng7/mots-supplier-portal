@@ -1,16 +1,29 @@
+// Phase 7's re-measurement: the audit's own visual numbers, taken again from computed styles.
+//
+// §D measured twelve screens and found 13px the commonest size on every one, `<h1>` rendering at
+// three sizes for one job, and four spacing values off the 4px grid. Those are the numbers this pass
+// claimed to move, so this takes them the same way rather than asserting from source. Skipped unless
+// CAPTURE=1, like the screenshot driver beside it: it reports rather than asserts, and a suite should
+// not fail because a distribution shifted.
+//
+// Readiness uses waitFor rather than isVisible. isVisible reports the CURRENT state with no auto-wait,
+// so it answered "no" for every screen before any of them had rendered. A screen that still does not
+// render is written into the report rather than skipped silently - a screen the mocked backend cannot
+// draw is a gap in the measurement, and pretending otherwise is how a re-audit flatters itself.
+//
+// Inside the page, INVISIBLE excludes script/style/title and friends. They carry text and no children,
+// so a naive sweep counts them at the browser's default 16px, which is nobody's design decision; the
+// first run of this measurement reported 16px as the commonest size on four screens for exactly that
+// reason.
+//
+// Each screen reports the commonest font size with four examples of what is actually set at it, every
+// distinct `<h1>` size, and the off-grid spacing values with up to six of the elements they come from.
+// The examples are the point: a distribution with no examples cannot tell you whether the number
+// means anything.
+
 import { test } from '@playwright/test'
 import { mockBackend } from './fixtures'
 
-/**
- * Phase 7's re-measurement: the audit's own visual numbers, taken again from computed styles.
- *
- * <p>§D measured twelve screens and found 13px the most common size on every one, `<h1>` rendering at
- * three sizes for one job, and four spacing values off the 4px grid. Those are the numbers this pass
- * claimed to move, so this takes them the same way rather than asserting from source.</p>
- *
- * <p>Skipped unless CAPTURE=1, like the screenshot driver beside it: it reports rather than asserts, and
- * a suite should not fail because a distribution shifted.</p>
- */
 test.skip(!process.env.CAPTURE, 'measurement driver: run with CAPTURE=1')
 
 const SCREENS = [
@@ -38,15 +51,11 @@ test('measure the audit’s own numbers again', async ({ page }) => {
 
   for (const [route, name] of SCREENS) {
     await page.goto(`${route}?lng=en`)
-    // waitFor, not isVisible: isVisible reports the CURRENT state with no auto-wait, so it answered
-    // "no" for every screen before any of them had rendered.
     const rendered = await page.getByRole('heading', { level: 1 })
       .waitFor({ state: 'visible', timeout: 8000 })
       .then(() => true)
       .catch(() => false)
     if (!rendered) {
-      // Reported, not skipped silently: a screen the mocked backend cannot render is a gap in the
-      // measurement, and pretending otherwise is how a re-audit flatters itself.
       report.push(`  ${name.padEnd(24)} DID NOT RENDER under the mocked backend`)
       continue
     }
@@ -55,9 +64,6 @@ test('measure the audit’s own numbers again', async ({ page }) => {
       const sizes: Record<string, number> = {}
       const spacing = new Set<number>()
       const h1 = new Set<string>()
-      // script/style/title carry text and no children, so a naive sweep counts them - at the browser's
-      // default 16px, which is nobody's design decision. The first run of this measurement reported 16px
-      // as the commonest size on four screens for exactly that reason.
       const INVISIBLE = new Set(['SCRIPT', 'STYLE', 'TITLE', 'HEAD', 'META', 'LINK', 'NOSCRIPT'])
       document.querySelectorAll('*').forEach((el) => {
         const cs = getComputedStyle(el)
@@ -71,8 +77,6 @@ test('measure the audit’s own numbers again', async ({ page }) => {
           if (value > 0 && value % 4 !== 0) spacing.add(value)
         }
       })
-      // What is AT the commonest size, and where the off-grid spacing comes from - a distribution with
-      // no examples cannot tell you whether the number means anything.
       const top = Object.entries(sizes).sort((a, b) => b[1] - a[1])[0]
       const examples: string[] = []
       document.querySelectorAll('*').forEach((el) => {
