@@ -1,3 +1,20 @@
+// Task #41: a country-code dropdown and a local-number field, composing into the same +<code><digits> format every
+// phone field already stores - see lib/phoneNumber.ts.
+//
+// value and onChange carry that composed string. The split into code and local number is internal display state
+// only, re-derived from value on every render via parsePhone, so this stays a normal controlled field from the parent
+// form's point of view: wire it with the same watch and setValue pattern used for every other Select-backed field in
+// this codebase, as AddressDialog does for `kind`.
+//
+// The number takes the room the dialling code leaves, and drops to its own line rather than being crushed when there
+// is not enough. On the registration screen this pair sits in a half-width column, and the number field was
+// collapsing to about sixty pixels with its placeholder clipped to "Phon" - the first form a supplier ever fills in,
+// with the field they cannot read what they typed into. An input's intrinsic width is what it shrinks from; nothing
+// was telling it to grow.
+//
+// The dialling code is disabled with the number, because it is half of one value: disabling the number and leaving
+// this operable let a read-only form change +963 to +962 with nothing to save it.
+
 import { useTranslation } from 'react-i18next'
 import { Select } from './Select'
 import { Input } from './Input'
@@ -12,14 +29,6 @@ interface PhoneInputProps {
   'aria-invalid'?: boolean
 }
 
-/**
- * Task #41: country-code dropdown + local-number field, composing into the same `+<code><digits>`
- * format every phone field already stores (see lib/phoneNumber.ts). `value`/`onChange` carry that
- * composed string - the split into code/local number is internal display state only, re-derived
- * from `value` on every render via parsePhone, so this stays a normal controlled field from the
- * parent form's point of view (wire it with the same watch/setValue pattern used for every other
- * Select-backed field in this codebase, e.g. AddressDialog's `kind`).
- */
 export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInputProps) {
   const { t } = useTranslation()
   const { countryCode, localNumber } = parsePhone(value)
@@ -30,11 +39,6 @@ export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInpu
   ]
 
   return (
-    // The number takes the room the dialling code leaves, and drops to its own line rather than being
-    // crushed when there is not enough. On the registration screen this pair sits in a half-width
-    // column, and the number field was collapsing to about sixty pixels with its placeholder clipped
-    // to "Phon" - the first form a supplier ever fills in, with the field they cannot read what they
-    // typed into. An input's intrinsic width is what it shrinks from; nothing was telling it to grow.
     <div className="flex flex-wrap gap-2">
       <div className="w-36 shrink-0">
         <Select
@@ -42,8 +46,6 @@ export function PhoneInput({ id, value, onChange, disabled, ...aria }: PhoneInpu
           onValueChange={(code) => onChange(composePhone(code, localNumber))}
           options={options}
           placeholder={t('phone.countryCode')}
-          // The dialling code is half of one value: disabling the number and leaving this operable let
-          // a read-only form change +963 to +962 with nothing to save it.
           disabled={disabled}
           aria-invalid={aria['aria-invalid']}
         />

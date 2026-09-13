@@ -1,13 +1,14 @@
+// Three counts against the review queue's own at-risk and overdue thresholds. Not a chart, on purpose: three numbers
+// that sum to a total the reader already has are not a distribution worth drawing.
+//
+// Each tile carries a glyph and a word as well as a tone, so a reader who cannot separate amber from red still knows
+// which pile is late.
+//
+// The second story is the queue a reviewer wants to see: nothing late.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ThresholdTiles } from './ThresholdTiles'
 
-/**
- * Three counts against the review queue's own at-risk and overdue thresholds. Not a chart, on purpose:
- * three numbers that sum to a total the reader already has are not a distribution worth drawing.
- *
- * <p>Each tile carries a glyph and a word as well as a tone, so a reader who cannot separate amber
- * from red still knows which pile is late.</p>
- */
 const meta = {
   title: 'Charts/ThresholdTiles',
   component: ThresholdTiles,
@@ -28,7 +29,6 @@ export const Default: Story = {
   },
 }
 
-/** The queue a reviewer wants to see: nothing late. */
 export const AllWithinTarget: Story = {
   args: {
     label: 'Queue ageing',

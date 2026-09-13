@@ -1,20 +1,18 @@
+// What the reader is expected to do, said in a sentence, with the control that does it inside the same box. The
+// control is omitted when the state genuinely asks nothing of this reader.
+//
+// The tender workspace used to answer this with a column of badges naming permitted transitions, and the buttons
+// that performed them lived somewhere else on the page. A badge is a label rather than an instruction, and a reader
+// who saw "Publish" in green still had to go looking for the way to publish.
+//
+// It is tinted rather than bordered like the other cards, because it is the one thing on the rail that asks for
+// something. Every other card there reports.
+
 import type { ReactNode } from 'react'
 
-/**
- * What the reader is expected to do, said in a sentence, with the control that does it inside the
- * same box.
- *
- * <p>The tender workspace used to answer this with a column of badges naming permitted transitions,
- * and the buttons that performed them lived somewhere else on the page. A badge is a label, not an
- * instruction, and a reader who saw "Publish" in green still had to go looking for the way to publish.</p>
- *
- * <p>It is tinted rather than bordered like the other cards, because it is the one thing on the rail
- * that asks for something. Every other card there reports.</p>
- */
 export function NextActionCard({ title, children, action }: Readonly<{
   title: string
   children: ReactNode
-  /** The control that performs it. Omitted when the state genuinely asks nothing of this reader. */
   action?: ReactNode
 }>) {
   return (

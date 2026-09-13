@@ -1,3 +1,27 @@
+// Two groups: what the bar says about where you are, and the narrow-viewport disclosure.
+//
+// The search assertions read what the field asked the ROUTER to do, which is the observable half of a submit.
+//
+// THE TRAIL names the section and lets the page name itself. It picks the deepest section that matches rather than the
+// first: two rows match that path by prefix and the crumb has to pick the one that owns it, which is the same rule that
+// keeps a reference code out of the trail - the leaf is the page's heading. On a page no section owns it shows the trail
+// alone rather than an empty separator.
+//
+// Search is offered only where the shell has somewhere to search. And the control a reader can see is the control they
+// get: this was a Link 260 pixels wide, on the page background, inside an input border, with a magnifier and the word
+// "Search" in it - a text field in every respect a reader can perceive and in none that they can use. Clicking
+// navigated; typing did nothing; the destination was a page whose only content was the box they had just tried to type
+// in. So one test is that it is a field that submits rather than a link wearing the clothes of one, and the next is that
+// an empty search does not submit.
+//
+// THE DISCLOSURE exists because the sidebar is 260px and the reflow floor is a 320px viewport, so at that width the bar
+// carries the navigation instead - a disclosure rather than an overlay: no focus trap, no scroll lock, no escape key. It
+// starts shut and says so; it opens on click and closes when a destination is followed, which is the whole reason it is
+// a disclosure and not a menu, because nothing else dismisses it and a panel left open would cover the page it just
+// took you to; and aria-controls points at a panel that is really in the document while shut, because a control pointing
+// at nothing is a control that says nothing - the panel is hidden rather than unmounted, and `hidden` rather than moved
+// off-screen, so nothing inside it takes focus.
+
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
@@ -5,7 +29,6 @@ import userEvent from '@testing-library/user-event'
 import { List } from 'lucide-react'
 import type { NavGroup, NavItem } from './navigation'
 
-/** What the search field asked the router to do, which is the observable half of a submit. */
 const navigated: Array<Record<string, unknown>> = []
 
 vi.mock('@tanstack/react-router', () => ({
@@ -49,10 +72,6 @@ describe('the top bar says where you are', () => {
     expect(trail).toHaveTextContent('complianceDirectory.title')
   })
 
-  /**
-   * Two rows match this path by prefix, and the crumb has to pick the one that owns it. Longest wins,
-   * which is the same rule that keeps a reference code out of the trail: the leaf is the page's heading.
-   */
   it('picks the deepest section that matches, not the first', () => {
     expect(breadcrumb(GROUPS, '/back-office/review/suppliers')?.to).toBe('/back-office/review/suppliers')
     expect(breadcrumb(GROUPS, '/back-office/review')?.to).toBe('/back-office/review')
@@ -78,14 +97,6 @@ describe('the top bar says where you are', () => {
     expect(screen.getByRole('searchbox', { name: 'search.title' })).toBeInTheDocument()
   })
 
-  /**
-   * The control a reader can see is the control they get.
-   *
-   * <p>This was a `Link` 260 pixels wide, on the page background, inside an input border, with a
-   * magnifier and the word "Search" in it - a text field in every respect a reader can perceive and in
-   * none that they can use. Clicking navigated; typing did nothing; the destination was a page whose
-   * only content was the box they had just tried to type in.</p>
-   */
   it('is a field that submits, not a link wearing the clothes of one', async () => {
     renderBar('/back-office/review', '/back-office/search')
 
@@ -107,10 +118,6 @@ describe('the top bar says where you are', () => {
   })
 })
 
-/**
- * The sidebar is 260px and the reflow floor is a 320px viewport, so at that width the bar carries the
- * navigation instead. A disclosure rather than an overlay: no focus trap, no scroll lock, no escape key.
- */
 describe('the narrow-viewport disclosure', () => {
   it('starts shut, and says so', () => {
     renderBar('/back-office/review')
@@ -127,15 +134,11 @@ describe('the narrow-viewport disclosure', () => {
     await userEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
 
-    // Closing on navigation is the whole reason this is a disclosure and not a menu: nothing else
-    // dismisses it, so a panel left open would cover the page it just took you to.
     await userEvent.click(screen.getAllByRole('link', { name: 'review.title' })[0])
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('points aria-controls at a panel that is really in the document while shut', () => {
-    // A control pointing at nothing is a control that says nothing. The panel is hidden rather than
-    // unmounted, and `hidden` rather than moved off-screen, so nothing inside it takes focus.
     renderBar('/back-office/review')
     const panel = document.getElementById(screen.getByRole('button', { name: 'nav.primaryLabel' }).getAttribute('aria-controls') ?? '')
 

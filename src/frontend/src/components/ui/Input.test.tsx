@@ -1,3 +1,31 @@
+// Three groups: the invalid border, the disabled and read-only states, and the hover state.
+//
+// THE INVALID BORDER is Task #21's. Its colour - --color-danger-solid, fixed for dark-mode AA contrast in that task -
+// is set in three places, the base style, onFocus and onBlur, and only the base style had any test exercising it
+// before this. Blur specifically, because that is the state a field is actually shown in most of the time it is
+// marked invalid; focus is transient. The resting border moved into a custom property so a stylesheet rule can raise
+// it on hover, and the behaviour is the same.
+//
+// THE DISABLED AND READ-ONLY STATES. DESIGN-SYSTEM.md §6.2 requires both, and this component paints its own
+// background and colour inline, which beats the browser's own disabled rendering - so `disabled` was set on every
+// field of a submitted onboarding application and changed nothing anybody could see. A disabled field must LOOK
+// disabled rather than merely behave so, with the control beside it that an enabled field is not styled as disabled:
+// if the assertions matched every input they would pass forever. Read-only drops the border rather than dimming the
+// value, per §6.2, and the value stays the primary colour, because read-only means "not editable here" rather than
+// "inactive". A disabled field takes no focus ring, and a read-only one returns to no border after blur.
+//
+// THE HOVER STATE is the one DESIGN-SYSTEM.md has always required and the component did not have: a resting border
+// that visibly strengthens when a pointer is over an editable field.
+//
+// Why those tests read a stylesheet instead of hovering. jsdom applies no author CSS, so userEvent.hover would
+// dispatch a pointer event and then assert nothing - the rule that does the work lives in index.css, outside the
+// component. What a unit test CAN prove is that the two halves still meet: the element carries the hook the rule
+// selects on, its border reads through the custom property the rule sets, and the rule itself is still present and
+// still guarded. Break either half and hover silently stops working in the browser with every other test in this file
+// green, which is exactly what happened before the property indirection existed. A literal borderColor would win over
+// the rule's custom property and the hover would never be seen, which is the failure that asserts against. And the
+// rule must not fire on a field that cannot be edited, or on a touch device where :hover sticks after a tap.
+
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -5,12 +33,6 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Input } from './Input'
 
-/**
- * Task #21: the invalid-state border color (--color-danger-solid, fixed for dark-mode AA
- * contrast this task) is set in three places - the base style, onFocus, and onBlur - and only
- * the base style had any test exercising it before this. Blur specifically, since that's the
- * state a field is actually shown in most of the time it's marked invalid (focus is transient).
- */
 describe('Input invalid state', () => {
   it('keeps the invalid border color after a blur', async () => {
     render(<Input invalid aria-label="probe" defaultValue="bad value" />)
@@ -19,8 +41,6 @@ describe('Input invalid state', () => {
     await userEvent.click(input)
     await userEvent.tab()
 
-    // The resting border moved into a custom property so a stylesheet rule can raise it on hover; the
-    // behaviour is the same and this is where it now lives.
     expect(input.style.getPropertyValue('--input-border')).toBe('var(--color-danger-solid)')
   })
 
@@ -35,11 +55,6 @@ describe('Input invalid state', () => {
   })
 })
 
-/**
- * DESIGN-SYSTEM.md §6.2 requires a disabled and a read-only state, and this component paints its own
- * background and colour inline — which beats the browser's own disabled rendering. So `disabled` was set
- * on every field of a submitted onboarding application and changed nothing anybody could see.
- */
 describe('Input disabled and read-only states', () => {
   it('a disabled field looks disabled, not merely behaves so', () => {
     render(<Input disabled aria-label="probe" defaultValue="locked" />)
@@ -52,7 +67,6 @@ describe('Input disabled and read-only states', () => {
   })
 
   it('an enabled field is not styled as disabled', () => {
-    // The control: if the assertions above matched every input, they would pass forever.
     render(<Input aria-label="probe" defaultValue="editable" />)
     const input = screen.getByLabelText('probe')
 
@@ -68,7 +82,6 @@ describe('Input disabled and read-only states', () => {
 
     expect(input).toHaveAttribute('readonly')
     expect(input.style.getPropertyValue('--input-border')).toBe('transparent')
-    // The value is still the primary colour: read-only means "not editable here", not "inactive".
     expect(input.style.color).toBe('var(--color-text-primary)')
   })
 
@@ -86,18 +99,6 @@ describe('Input disabled and read-only states', () => {
 })
 
 
-/**
- * The hover state `docs/ux/DESIGN-SYSTEM.md` has always required, and which the component did not
- * have: a resting border that visibly strengthens when a pointer is over an editable field.
- *
- * <p><b>Why this test reads a stylesheet instead of hovering.</b> jsdom applies no author CSS, so
- * `userEvent.hover` here would dispatch a pointer event and then assert nothing — the rule that does
- * the work lives in `index.css`, outside the component. What a unit test *can* prove is that the two
- * halves still meet: the element carries the hook the rule selects on, its border reads through the
- * custom property the rule sets, and the rule itself is still present and still guarded. Break either
- * half and hover silently stops working in the browser with every other test in this file green —
- * which is exactly what happened before the property indirection existed.</p>
- */
 describe('Input hover state', () => {
   const indexCss = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
@@ -105,10 +106,7 @@ describe('Input hover state', () => {
     render(<Input aria-label="probe" />)
     const input = screen.getByLabelText('probe')
 
-    // The hook. Without it the rule in index.css selects nothing.
     expect(input.className).toContain('msp-input')
-    // The indirection. A literal `borderColor` here would win over the rule's custom property and
-    // the hover would never be seen, which is the failure this asserts against.
     expect(input.style.border).toBe('1px solid var(--input-border)')
     expect(input.style.getPropertyValue('--input-border')).toBe('var(--color-border-input)')
   })
@@ -117,10 +115,7 @@ describe('Input hover state', () => {
     const rule = indexCss.match(/\.msp-input[^{]*\{[^}]*\}/)?.[0]
     expect(rule, 'no .msp-input hover rule in index.css').toBeDefined()
 
-    // It must set the same property the component reads, to the stronger token.
     expect(rule).toContain('--input-border: var(--color-border-strong)')
-    // And it must not fire on a field that cannot be edited, or on a touch device where `:hover`
-    // sticks after a tap.
     expect(rule).toContain(':not(:disabled)')
     expect(rule).toContain(':not([readonly])')
     expect(indexCss).toContain('@media (hover: hover) and (pointer: fine)')

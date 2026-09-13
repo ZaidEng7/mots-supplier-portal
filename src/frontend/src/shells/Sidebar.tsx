@@ -1,40 +1,44 @@
+// The sidebar: the mark, every destination this account can reach, and who you are signed in as.
+//
+// It replaces a wrapping row of up to thirty-one identically-coloured links that had no grouping and no current-page
+// marker. The rail is dark in both themes, which is what tells a member of staff at a glance that they are on the
+// internal side of the product rather than the supplier side.
+//
+// CURRENT is matched by PREFIX rather than equality, so a step inside a section still lights the section that owns it -
+// /onboarding/banking marks Complete profile, /back-office/rfqs/RFQ-1/award marks Tenders. `exact` is for the handful of
+// destinations whose path is a prefix of another's, which would otherwise light two rows at once and tell the reader
+// nothing.
+//
+// The rows an account can see are filtered with empty GROUPS DROPPED rather than rendered as bare headings.
+//
+// ONE nav LANDMARK PER GROUP rather than one for the whole list: §D3 settled that a screen-reader user should be able to
+// jump between the named groups the same way a sighted reader jumps between the headings, and a single landmark holding
+// thirty-one rows is the flat list again with a border drawn round it. Following a row calls back, so the
+// narrow-viewport disclosure can close itself.
+//
+// THE FOOT shows who is signed in, and is absent while there is no session. It shows the EMAIL, because that is what the
+// token actually carries: AuthClaims holds a user id, an email and a permission list, and no display name or role name.
+// A foot that read "Procurement officer" would be inventing it from the permission list, and the two can disagree.
+
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Icon } from '../components/ui/Icon'
 import type { NavContext, NavGroup, NavItem } from './navigation'
 
-/**
- * Whether a row is the page you are on.
- *
- * <p>Prefix rather than equality, so a step inside a section still lights the section that owns it -
- * `/onboarding/banking` marks Complete profile, `/back-office/rfqs/RFQ-1/award` marks Tenders. `exact`
- * is for the handful of destinations whose path is a prefix of another's, which would otherwise light
- * two rows at once and tell the reader nothing.</p>
- */
 export function isCurrent(item: NavItem, pathname: string): boolean {
   return item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
-/** The rows a given account can see, with empty groups dropped rather than rendered as bare headings. */
 export function visibleGroups(groups: readonly NavGroup[], context: NavContext): NavGroup[] {
   return groups
     .map((group) => ({ ...group, items: group.items.filter((item) => item.when?.(context) ?? true) }))
     .filter((group) => group.items.length > 0)
 }
 
-/**
- * Every destination this account can reach, grouped and named.
- *
- * <p>One `nav` landmark per group rather than one for the whole list: §D3 settled that a screen-reader
- * user should be able to jump between the named groups the same way a sighted reader jumps between the
- * headings, and a single landmark holding thirty-one rows is the flat list again with a border drawn
- * round it.</p>
- */
 export function NavGroups({ groups, context, pathname, onNavigate }: Readonly<{
   groups: readonly NavGroup[]
   context: NavContext
   pathname: string
-  /** Called after a row is followed, so the narrow-viewport disclosure can close itself. */
   onNavigate?: () => void
 }>) {
   const { t } = useTranslation()
@@ -82,26 +86,12 @@ export function NavGroups({ groups, context, pathname, onNavigate }: Readonly<{
   )
 }
 
-/**
- * The sidebar itself: the mark, every destination, and who you are signed in as.
- *
- * <p>It replaces a wrapping row of up to thirty-one identically-coloured links that had no grouping and
- * no current-page marker. The rail is dark in both themes, which is what tells a member of staff at a
- * glance that they are on the internal side of the product rather than the supplier side.</p>
- */
 export function Sidebar({ groups, context, pathname, title, subtitle, account }: Readonly<{
   groups: readonly NavGroup[]
   context: NavContext
   pathname: string
   title: string
   subtitle: string
-  /**
-   * Who is signed in, shown at the foot. Absent while there is no session.
-   *
-   * <p>The email, because that is what the token actually carries: `AuthClaims` holds a user id, an
-   * email and a permission list, and no display name or role name. A foot that read "Procurement
-   * officer" would be inventing it from the permission list, and the two can disagree.</p>
-   */
   account?: { email: string }
 }>) {
   return (

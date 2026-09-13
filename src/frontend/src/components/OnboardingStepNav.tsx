@@ -1,19 +1,28 @@
+// The five steps of an application, each carrying how it stands.
+//
+// What this replaces. A row of five pills naming the steps and nothing else. A supplier could see where they were and
+// not what was left, so finding the one step still blocking them meant opening all five. The comp gives each step a
+// card with its own answer.
+//
+// THE FIELD MAP is which required fields each step is the place to fix. The values are
+// SupplierDto.missingProfileFields' own strings, from Supplier.cs's GetMissingProfileFields, rather than display keys -
+// the same list OnboardingPage's gate reads, so a step card and the gate can never disagree about what is
+// outstanding. A step with an empty list is genuinely optional, in that nothing on it blocks submission: that is a
+// fact about the server's list rather than a judgement made here, which is why the list is transcribed rather than
+// inferred.
+//
+// It reads the profile ITSELF. Five screens render this, and threading the supplier through all five would have put
+// the same prop in five signatures for one component's benefit. The query key is the one those screens already use, so
+// this is the cached answer rather than a sixth request.
+//
+// Status is about work the supplier can still do. Once an application is with a reviewer, "1 thing left" describes a
+// form they can no longer edit, which is worse than saying nothing.
+
 import { useTranslation } from 'react-i18next'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { getOwnSupplier } from '../api/supplier'
 
-/**
- * Which required fields each step is the place to fix.
- *
- * <p>The values are `SupplierDto.missingProfileFields`' own strings (Domain/Suppliers/Supplier.cs,
- * `GetMissingProfileFields`), not display keys - the same list `OnboardingPage`'s gate reads, so a step
- * card and the gate can never disagree about what is outstanding.</p>
- *
- * <p>A step with an empty list is genuinely optional: nothing on it blocks submission. That is a fact
- * about the server's list, not a judgement made here, which is why the list is transcribed rather than
- * inferred.</p>
- */
 const STEPS = [
   { path: '/onboarding', key: 'company', fields: ['legalInfo', 'currencyCode', 'primaryContactPhone', 'termsAccepted'] },
   { path: '/onboarding/contacts', key: 'contacts', fields: [] },
@@ -24,17 +33,6 @@ const STEPS = [
 
 type StepStatus = { tone: 'warning' | 'success' | 'muted'; label: string }
 
-/**
- * The five steps of an application, each carrying how it stands.
- *
- * <p><b>What this replaces.</b> A row of five pills naming the steps and nothing else. A supplier could
- * see where they were and not what was left, so finding the one step still blocking them meant opening
- * all five. The comp gives each step a card with its own answer.</p>
- *
- * <p><b>It reads the profile itself.</b> Five screens render this, and threading the supplier through
- * all five would have put the same prop in five signatures for one component's benefit. The query key is
- * the one those screens already use, so this is the cached answer rather than a sixth request.</p>
- */
 export function OnboardingStepNav() {
   const { t } = useTranslation()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -42,10 +40,6 @@ export function OnboardingStepNav() {
 
   const profile = profileQuery.data
   const missing = new Set(profile?.missingProfileFields ?? [])
-  /**
-   * Status is about work the supplier can still do. Once an application is with a reviewer, "1 thing
-   * left" describes a form they can no longer edit, which is worse than saying nothing.
-   */
   const isEditable = ['EmailVerified', 'ProfileInProgress', 'InfoRequested'].includes(profile?.onboardingState ?? '')
 
   const statusFor = (fields: readonly string[]): StepStatus | null => {

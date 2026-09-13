@@ -1,3 +1,5 @@
+// The barrel for the ui primitives, so a screen imports what it draws with from one place.
+
 export { Button } from './Button'
 export { Input } from './Input'
 export { PhoneInput } from './PhoneInput'

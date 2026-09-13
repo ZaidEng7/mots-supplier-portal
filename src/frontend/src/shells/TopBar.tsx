@@ -1,3 +1,35 @@
+// Context and controls, never navigation - except at narrow widths, where it carries the navigation because the sidebar
+// cannot.
+//
+// THE NARROW CASE. The sidebar is 260px and the reflow floor is a 320px viewport, so below md it is not drawn and this
+// bar grows a disclosure holding the same list. A disclosure rather than an overlay drawer: an overlay needs a focus
+// trap, a scroll lock and an escape key, which is three new behaviours to get right on every screen in the product, and
+// the content simply moving down the page needs none of them. aria-expanded and aria-controls are the whole
+// interaction. That list is the same one the sidebar draws, in the frame the sidebar cannot use at this width, and it
+// is always in the document so aria-controls points at something whether it is open or shut - `hidden` when shut rather
+// than moved off-screen, so nothing inside it is focusable while invisible.
+//
+// THE BREADCRUMB is the trail from the shell's own front page to where you are. Two levels, and deliberately not three:
+// the section comes from the navigation list, so it cannot disagree with the sidebar, and the leaf is left to the page's
+// own heading rather than invented here - the third level of most of these paths is a reference code, and a crumb
+// reading "RFQ-2026-000001" tells a reader nothing their heading has not already said. The longest matching path wins,
+// so /back-office/review/suppliers is Compliance rather than Review queue. On the shell's own front page the section IS
+// the home crumb, and rendering both read "Dashboard / Dashboard" - a trail that says the same word twice tells a reader
+// less than one that says it once.
+//
+// ACCOUNT CHROME sits here, off the path between a supplier and a tender. It is rendered as TEXT rather than bare icons:
+// an icon-only row of three would need three accessible names to say what three words already say, and these are read
+// rarely enough that the words cost nothing.
+//
+// THE SEARCH CONTROL is a search control. What it replaces: a Link 260 pixels wide, on the page background, inside a
+// --color-border-input border, with a magnifier and the word "Search" in it. It was a text input in every respect a
+// reader can see and in none that they can use - clicking it navigated, typing did nothing, and the destination was a
+// page whose only content was the box they had just tried to type in. Two controls and a page round trip to do what one
+// field does. Now it submits to the same screen with the query in the URL, which is also what makes a search linkable,
+// reloadable and reachable with the back button. The query is NOT sent on every keystroke: that is the search screen's
+// own rule and its reasoning holds here, because three tables per keypress is a load test aimed at the database, and
+// somebody typing a reference code does not want results for its first three characters.
+
 import { useId, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -9,18 +41,9 @@ import { Button } from '../components/ui'
 import { NavGroups, isCurrent } from './Sidebar'
 import type { NavContext, NavGroup, NavItem } from './navigation'
 
-/**
- * The trail from the shell's own front page to where you are.
- *
- * <p>Two levels, and deliberately not three. The section comes from the navigation list, so it cannot
- * disagree with the sidebar, and the leaf is left to the page's own heading rather than invented here:
- * the third level of most of these paths is a reference code, and a crumb reading "RFQ-2026-000001"
- * tells a reader nothing their heading has not already said.</p>
- */
 export function breadcrumb(groups: readonly NavGroup[], pathname: string): NavItem | null {
   const rows = groups.flatMap((group) => group.items)
   const matches = rows.filter((item) => isCurrent(item, pathname))
-  // Longest path wins, so /back-office/review/suppliers is Compliance rather than Review queue.
   return matches.sort((a, b) => b.to.length - a.to.length)[0] ?? null
 }
 
@@ -29,23 +52,11 @@ export interface TopBarProps {
   chrome: readonly NavItem[]
   context: NavContext
   pathname: string
-  /** Where the shell's own front page is, and what it is called. */
   home: { to: string; label: string }
-  /** The shell's search destination, where it has one. The supplier side does not. */
   searchTo?: string
   onLogout: () => void
 }
 
-/**
- * Context and controls, never navigation - except at narrow widths, where it carries the navigation
- * because the sidebar cannot.
- *
- * <p><b>The narrow case.</b> The sidebar is 260px and the reflow floor is a 320px viewport, so below
- * `md` it is not drawn and this bar grows a disclosure holding the same list. A disclosure rather than
- * an overlay drawer: an overlay needs a focus trap, a scroll lock and an escape key, which is three new
- * behaviours to get right on every screen in the product, and the content simply moving down the page
- * needs none of them. `aria-expanded` and `aria-controls` are the whole interaction.</p>
- */
 export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLogout }: Readonly<TopBarProps>) {
   const { t } = useTranslation()
   const [navOpen, setNavOpen] = useState(false)
@@ -74,11 +85,6 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
           <span className="sr-only">{t('nav.primaryLabel')}</span>
         </button>
 
-        {/*
-          On the shell's own front page the section IS the home crumb, and rendering both read
-          "Dashboard / Dashboard" - a trail that says the same word twice tells a reader less than one
-          that says it once.
-        */}
         <nav aria-label={t('nav.breadcrumb')} className="flex min-w-0 items-center gap-1.5 text-[length:var(--text-body-sm)]">
           {here?.to === home.to ? (
             <span aria-current="page" className="truncate font-[var(--fw-medium)]" style={{ color: 'var(--color-text-primary)' }}>
@@ -104,11 +110,6 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
         <div className="ms-auto flex items-center gap-2">
           {searchTo ? <TopBarSearch searchTo={searchTo} /> : null}
 
-          {/*
-            Account chrome, off the path between a supplier and a tender. Rendered as text rather than
-            bare icons: an icon-only row of three would need three accessible names to say what three
-            words already say, and these are read rarely enough that the words cost nothing.
-          */}
           <nav aria-label={t('nav.groupAccount')} className="hidden items-center gap-3 lg:flex">
             {chrome.map((item) => (
               <Link
@@ -131,12 +132,6 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
         </div>
       </header>
 
-      {/*
-        The same list the sidebar draws, in the frame the sidebar cannot use at this width. It is always
-        in the document so `aria-controls` points at something whether it is open or shut, and it is
-        `hidden` when shut rather than moved off-screen, so nothing inside it is focusable while
-        invisible.
-      */}
       <div
         id={navId}
         hidden={!navOpen}
@@ -166,22 +161,6 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
   )
 }
 
-/**
- * The search control, which is a search control.
- *
- * <p><b>What this replaces.</b> A `Link` 260 pixels wide, on the page background, inside a
- * <code>--color-border-input</code> border, with a magnifier and the word "Search" in it. It was a text
- * input in every respect a reader can see and in none that they can use: clicking it navigated, typing
- * did nothing, and the destination was a page whose only content was the box they had just tried to
- * type in. Two controls and a page round trip to do what one field does.</p>
- *
- * <p>Now it submits to the same screen with the query in the URL, which is also what makes a search
- * linkable, reloadable and reachable with the back button.</p>
- *
- * <p>The query is NOT sent on every keystroke. That is the search screen's own rule and its reasoning
- * holds here: three tables per keypress is a load test aimed at the database, and somebody typing a
- * reference code does not want results for its first three characters.</p>
- */
 function TopBarSearch({ searchTo }: Readonly<{ searchTo: string }>) {
   const { t } = useTranslation()
   const navigate = useNavigate()

@@ -1,3 +1,22 @@
+// Two components, both from the tender workspace's rail: the stepper, and the fact list.
+//
+// THE STEPPER is the rail's answer to "how far along is this", which the workspace used to give as a wrapping row of
+// status chips - every stage the same size, every stage equally loud, and the one the tender is actually at findable
+// only by comparing tones.
+//
+// Exactly one step is marked current. The denominator matters: aria-current on every row, or on none, would satisfy a
+// test that only asked whether the current row can be found - and both are exactly the failure this component exists
+// to fix, a tracker where nothing stands out - so the other steps are asserted to be neither current nor equal.
+//
+// Not colour alone. The marks differ in fill as well as hue, but a mark is decorative markup: the state has to reach a
+// screen reader as a word, and one test is that word. The words come from the caller, so they are translated.
+//
+// THE FACT LIST pairs a label with its number - the counts a reader wants before deciding whether to read the page.
+// Every one of these was already on the tender workspace and every one had to be found by scrolling to its card and
+// counting rows. Each fact renders as a term and its description, and the PAIRING is the whole point: a screen reader
+// announces a dd with the dt before it, so a list that rendered the labels and the values as two separate runs would
+// read as four unrelated strings. One test asserts they alternate.
+
 import { describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { Stepper } from './Stepper'
@@ -5,11 +24,6 @@ import { FactList } from './FactList'
 
 const LABELS = { done: 'Done', current: 'Current', todo: 'Not started' } as const
 
-/**
- * The rail's answer to "how far along is this", which the tender workspace used to give as a wrapping
- * row of status chips - every stage the same size, every stage equally loud, and the one the tender is
- * actually at findable only by comparing tones.
- */
 describe('Stepper says where a thing stands', () => {
   const steps = [
     { key: 'Draft', label: 'Draft', state: 'done' as const },
@@ -27,11 +41,6 @@ describe('Stepper says where a thing stands', () => {
     expect(current[0]).toHaveTextContent('Published')
   })
 
-  /**
-   * The denominator. `aria-current` on every row, or on none, would satisfy a test that only asked
-   * whether the current row can be found - and both are exactly the failure this component exists to
-   * fix, which is a tracker where nothing stands out.
-   */
   it('marks the other steps as neither current nor equal', () => {
     render(<Stepper steps={steps} label="Lifecycle stages" stateLabels={LABELS} />)
 
@@ -40,10 +49,6 @@ describe('Stepper says where a thing stands', () => {
     expect(rows.filter((r) => r.getAttribute('aria-current') === 'step')).toHaveLength(1)
   })
 
-  /**
-   * Not colour alone. The marks differ in fill as well as hue, but a mark is decorative markup; the
-   * state has to reach a screen reader as a word, and this is that word.
-   */
   it('names each state in text, not only in a colour', () => {
     render(<Stepper steps={steps} label="Lifecycle stages" stateLabels={LABELS} />)
 
@@ -67,10 +72,6 @@ describe('Stepper says where a thing stands', () => {
   })
 })
 
-/**
- * The counts a reader wants before deciding whether to read the page. Every one of these was already
- * on the tender workspace and every one had to be found by scrolling to its card and counting rows.
- */
 describe('FactList pairs a label with its number', () => {
   const facts = [
     { key: 'invited', label: 'Invited', value: '7' },
@@ -86,11 +87,6 @@ describe('FactList pairs a label with its number', () => {
     expect(screen.getByText('7')).toBeInTheDocument()
   })
 
-  /**
-   * The pairing is the whole point: a screen reader announces a `dd` with the `dt` before it, so a
-   * list that rendered the labels and the values as two separate runs would read as four unrelated
-   * strings. This asserts they alternate.
-   */
   it('keeps every value immediately after its own label', () => {
     const { container } = render(<FactList facts={facts} />)
 

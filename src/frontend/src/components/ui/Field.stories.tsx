@@ -1,3 +1,6 @@
+// Field, with and without its error and hint, so the label-to-control association and the two message slots are
+// visible together.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Field } from './Field'
 import { Input } from './Input'

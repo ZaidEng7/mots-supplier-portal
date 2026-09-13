@@ -1,3 +1,8 @@
+// What a reader sees when a route throws.
+//
+// The status-to-copy mapping is a lookup rather than a chain of ternaries: the mapping is the point, and a table shows
+// it at a glance while a chain makes the reader evaluate conditions to find it.
+
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -6,8 +11,6 @@ interface Props {
 
 export function ErrorBoundaryScreen({ code }: Props) {
   const { t } = useTranslation()
-  // A lookup rather than a chain of ternaries: the mapping is the point, and a table shows it at a
-  // glance while a chain makes the reader evaluate conditions to find it.
   const MESSAGE_KEYS: Record<string, string> = { '404': 'notFound', '403': 'forbidden' }
   const messageKey = MESSAGE_KEYS[code] ?? 'serverError'
 

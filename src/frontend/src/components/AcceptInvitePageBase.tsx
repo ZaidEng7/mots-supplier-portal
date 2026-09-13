@@ -1,3 +1,7 @@
+// Shared by AcceptStaffInvitePage, AcceptTeamInvitePage and ResetPasswordPage. All three are the same screen - a single
+// new-password field, gated by an opaque token read from the URL, with success and invalid states - differing only in
+// copy and in which endpoint consumes the token.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,9 +12,6 @@ import { AuthHeading, Button, Field, Input } from './ui'
 const schema = z.object({ password: z.string().min(12) })
 type FormValues = z.infer<typeof schema>
 
-/** Shared by AcceptStaffInvitePage, AcceptTeamInvitePage, and ResetPasswordPage - all three are
- * the same screen (single new-password field, gated by an opaque token read from the URL, with
- * success/invalid states), differing only in copy and which endpoint consumes the token. */
 export function AcceptInvitePageBase({
   onSubmitToken,
   title,

@@ -1,3 +1,11 @@
+// The button primitive: token-driven, with a focus-visible ring and disabled and loading states.
+//
+// buttonAppearance is everything that makes a control LOOK like a button, without deciding what element it is. It
+// was extracted so a navigation target can wear the same appearance without being a <button>: the buyer's exits to
+// the bids, the comparison and the award used to be a <button> inside an <a href>, which is invalid markup and
+// reloaded the whole application. The fix needs a real link that looks like a button, and that needs this shape
+// shared rather than copied - see ButtonLink.
+
 import { forwardRef } from 'react'
 import type { ButtonHTMLAttributes } from 'react'
 
@@ -23,14 +31,6 @@ const sizeStyle: Record<Size, string> = {
   lg: 'px-5 py-3 text-[length:var(--text-body-lg)]',
 }
 
-/**
- * Everything that makes a control LOOK like a button, without deciding what element it is.
- *
- * <p>Extracted so a navigation target can wear the same appearance without being a `<button>`. The
- * buyer's exits to the bids, the comparison and the award used to be a `<button>` inside an `<a href>`,
- * which is invalid markup and reloaded the whole application; the fix needs a real link that looks like
- * a button, and that needs this shape shared rather than copied.</p>
- */
 export function buttonAppearance(variant: Variant = 'primary', size: Size = 'md') {
   const v = variantStyle[variant]
   return {
@@ -48,7 +48,6 @@ export function buttonAppearance(variant: Variant = 'primary', size: Size = 'md'
   }
 }
 
-/** Reusable button primitive — token-driven, focus-visible ring, disabled/loading states. */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'primary', size = 'md', isLoading = false, disabled, className = '', children, style, ...rest },
   ref,

@@ -1,3 +1,6 @@
+// Dialog, shown with the content a real refusal carries - a reason field and a destructive confirm - because an empty
+// modal says nothing about the spacing or the button order.
+
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ComponentProps } from 'react'

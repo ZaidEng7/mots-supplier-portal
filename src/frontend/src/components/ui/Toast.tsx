@@ -1,3 +1,20 @@
+// The app-wide toast host, on Radix Toast: a polite live region with swipe-to-dismiss. Wrap the app once.
+//
+// The viewport is pinned with a logical end-4, so in Arabic the toast sits on the LEFT. A hardcoded "right" meant the
+// toast had to be swiped away from its own edge, and the enter animation would have travelled in from the opposite
+// side of the screen to the one it sat on. The side is read from the language rather than from useDirection, which
+// also writes the document attributes - one owner for that side effect is enough.
+//
+// Ids come from crypto.randomUUID rather than Date.now() plus Math.random(). This id carries no security property -
+// it keys a toast in a list - so Sonar's weak-PRNG finding is a false positive, but randomUUID is free,
+// collision-free, and removes the ambiguity for the next reader.
+//
+// msp-toast enters and exits along the edge it can be swiped to, in src/index.css, which is what makes
+// swipe-to-dismiss discoverable without being taught.
+//
+// bottom-20 on mobile clears the fixed MobileTabBar, per SupplierShell and DESIGN-SYSTEM.md, and the stack sits above
+// a modal per §4.5, so a confirmation is never hidden behind the dialog that produced it.
+
 import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as RadixToast from '@radix-ui/react-toast'
@@ -25,21 +42,12 @@ const kindColor: Record<ToastKind, string> = {
   danger: 'var(--color-danger-solid)',
 }
 
-/** App-wide toast host on Radix Toast (polite live region, swipe-to-dismiss). Wrap the app once. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
-  // The viewport is pinned with a logical `end-4`, so in Arabic the toast sits on the LEFT. A
-  // hardcoded "right" meant the toast had to be swiped away from its own edge, and the enter
-  // animation would have travelled in from the opposite side of the screen to the one it sat on.
-  // Read from the language rather than from useDirection, which also writes the document attributes -
-  // one owner for that side effect is enough.
   const { i18n } = useTranslation()
   const swipe = RTL_LANGUAGES.has(i18n.language) ? 'left' : 'right'
 
   const notify = useCallback((toast: Omit<ToastItem, 'id'>) => {
-    // crypto.randomUUID rather than Date.now()+Math.random(): this id carries no security
-    // property (it keys a toast in a list), so Sonar's weak-PRNG finding is a false positive -
-    // but randomUUID is free, collision-free, and removes the ambiguity for the next reader.
     setToasts((prev) => [...prev, { ...toast, id: crypto.randomUUID() }])
   }, [])
 
@@ -58,8 +66,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onOpenChange={(open) => {
               if (!open) dismiss(toast.id)
             }}
-            // `msp-toast` enters and exits along the edge it can be swiped to (src/index.css), which
-            // is what makes swipe-to-dismiss discoverable without being taught.
             className="msp-toast rounded-[var(--radius-md)] p-4"
             style={{
               backgroundColor: 'var(--color-bg-surface)',
@@ -77,19 +83,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             ) : null}
           </RadixToast.Root>
         ))}
-        {/* bottom-20 on mobile clears the fixed MobileTabBar (SupplierShell, DESIGN-SYSTEM.md
-            §5.5); back to bottom-4 at md+ where that bar doesn't render. */}
-        {/*
-          max-w-[calc(100%-2rem)], not max-w-full. The viewport is inset 1rem from the end edge, and
-          `max-w-full` measures against the full viewport width without accounting for that inset -
-          so at 320px the toast resolved to 320px wide starting 16px in, and pushed the PAGE 16px
-          sideways. Every route was affected, on the narrowest width ACCESSIBILITY.md supports.
-
-          Found by the 320px reflow check added for the reports screen, which is the first check in
-          this project to look at that width at all. Pre-existing and unrelated to that screen.
-        */}
         <RadixToast.Viewport
-          // §4.5: above a modal, so a confirmation is never hidden behind the dialog that produced it.
           style={{ zIndex: 'var(--z-toast)' }}
           className="fixed bottom-20 end-4 flex w-96 max-w-[calc(100%-2rem)] flex-col gap-2 outline-none md:bottom-4" />
       </RadixToast.Provider>

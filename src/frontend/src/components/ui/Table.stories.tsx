@@ -1,3 +1,6 @@
+// Table with a header row and body rows, which is what most of this product is. It is the surface the type scale, the
+// header treatment and the hover rule are judged on.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from './Table'
 import { Badge } from './Badge'

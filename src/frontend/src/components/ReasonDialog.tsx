@@ -1,12 +1,11 @@
+// MSP-63: suspend, reactivate and deactivate all need a mandatory reason under BRULE-096, which is the same shape as
+// the reject flow. One dialog for all four rather than four copies - and the confirm variant is a prop, because
+// deactivation is terminal and should not look like the reversible two.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog } from './ui'
 
-/**
- * MSP-63: suspend / reactivate / deactivate all need a mandatory reason (BRULE-096), which is the
- * same shape as the reject flow. One dialog for all four rather than four copies - and the confirm
- * variant is a prop because deactivation is terminal and should not look like the reversible two.
- */
 export function ReasonDialog({
   open, onOpenChange, onSubmit, isLoading, title, confirmLabel, variant, warning,
 }: {

@@ -1,3 +1,20 @@
+// SCR-010's one-time language question.
+//
+// The two controls come first: nobody who has already chosen is asked, and nobody who is not signed in is. Without the
+// first, "the dialog appears" would be satisfied by a dialog that always appears - which is the one behaviour this
+// screen must not have.
+//
+// It asks in both languages, because the reader has not said which they read.
+//
+// It cannot be escaped past, because a choice not made is the thing it exists to collect. Phase 4 converted it from a
+// hand-rolled overlay to a Radix dialog with Escape, outside pointer-down and outside interaction all refused, and
+// until now that was a claim in a note. Dismissing it would leave the reader in a language nobody chose, which is the
+// state this screen exists to end.
+//
+// The last test records the choice and closes on the SERVER's answer. The read flips to chosen only AFTER the POST, so
+// it drives the real sequence: the dialog is up, the user picks, the mutation invalidates, the refetch comes back
+// chosen, and the dialog goes. A fixture that answered "chosen" from the start would prove nothing about the click.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -26,8 +43,6 @@ describe('FirstRunLocale', () => {
   })
 
   it('asks nobody who has already chosen', async () => {
-    // The control. Without it, "the dialog appears" below would be satisfied by a dialog that always
-    // appears — which is the one behaviour this screen must not have.
     signedIn()
     restore = mockFetch(account(true))
 
@@ -55,10 +70,6 @@ describe('FirstRunLocale', () => {
   })
 
   it('cannot be escaped past, because a choice not made is the thing it exists to collect', async () => {
-    // Phase 4 converted this from a hand-rolled overlay to a Radix dialog with Escape, outside
-    // pointer-down and outside interaction all refused. Until now that was a claim in a comment.
-    // Dismissing it would leave the reader in a language nobody chose, which is the state this screen
-    // exists to end.
     signedIn()
     restore = mockFetch(account(false))
     renderPage(<FirstRunLocale />)
@@ -72,9 +83,6 @@ describe('FirstRunLocale', () => {
 
   it('records the choice and closes on the server\'s answer', async () => {
     signedIn()
-    // The read flips to chosen only AFTER the POST, so this drives the real sequence: the dialog is up,
-    // the user picks, the mutation invalidates, the refetch comes back chosen, and the dialog goes. A
-    // fixture that answered "chosen" from the start would prove nothing about the click.
     let chosen = false
     const answered = { fullName: 'Nadia Karam', email: 'evaluator@example.test', language: 'en', languageChosen: true }
     const originalFetch = globalThis.fetch

@@ -1,3 +1,24 @@
+// The five steps of an application, each carrying how it stands.
+//
+// What this replaces is a row of five pills naming the steps and nothing else: a supplier could see where they were and
+// not what was left, so finding the one step still blocking them meant opening all five.
+//
+// The first test says what is left on the step that OWNS it, and Complete on the ones that are done. It waits for the
+// status rather than for the card, because the cards render before the profile arrives. Company owns legalInfo and
+// termsAccepted, so two of the three outstanding fields are its; Addresses owns the third, on its own; Offerings owns
+// categoryLink, which is not outstanding.
+//
+// A step with no required field is not complete and not outstanding, it is OPTIONAL - saying "Complete" about a page
+// the supplier has never opened would be a claim about work nobody did.
+//
+// The denominator: status is about work the supplier can still do, so once the application is with a reviewer, "1 thing
+// left" describes a form they can no longer edit, which is worse than saying nothing. A nav that always printed a
+// status would pass every test above and be wrong there. Asserting that absence needs proof the profile ARRIVED, or the
+// test passes on the first render - before any request resolved - and would pass just as happily against a component
+// that never reads the profile at all. The recorded request is that proof.
+//
+// The last test marks the step being looked at, and only that one.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import { renderPage, mockFetch, type RecordedRequest } from '../test/renderPage'
@@ -27,13 +48,6 @@ function supplier(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/**
- * The five steps of an application, each carrying how it stands.
- *
- * <p>What this replaces is a row of five pills naming the steps and nothing else: a supplier could see
- * where they were and not what was left, so finding the one step still blocking them meant opening all
- * five.</p>
- */
 describe('OnboardingStepNav', () => {
   let restore: (() => void) | undefined
   afterEach(() => { restore?.(); restore = undefined })
@@ -47,21 +61,13 @@ describe('OnboardingStepNav', () => {
 
     renderPage(<OnboardingStepNav />)
 
-    // The cards render before the profile arrives, so wait for the status rather than for the card.
     await screen.findByText('2 things left')
 
-    // Company owns legalInfo and termsAccepted: two of the three outstanding fields are its.
     expect(stepCard('Company')).toHaveTextContent('2 things left')
-    // Addresses owns the third, on its own.
     expect(stepCard('Addresses')).toHaveTextContent('1 thing left')
-    // Offerings owns categoryLink, which is not outstanding.
     expect(stepCard('Offerings')).toHaveTextContent('Complete')
   })
 
-  /**
-   * A step with no required field is not complete and not outstanding; it is optional, and saying
-   * "Complete" about a page the supplier has never opened would be a claim about work nobody did.
-   */
   it('calls a step with nothing required optional, rather than complete', async () => {
     restore = mockFetch({ '/api/v1/suppliers/me': supplier({ missingProfileFields: ['legalInfo'] }) })
 
@@ -73,11 +79,6 @@ describe('OnboardingStepNav', () => {
     expect(stepCard('Banking')).toHaveTextContent('Optional')
   })
 
-  /**
-   * The denominator. Status is about work the supplier can still do; once the application is with a
-   * reviewer, "1 thing left" describes a form they can no longer edit, which is worse than saying
-   * nothing. A nav that always printed a status would pass every test above and be wrong here.
-   */
   it('says nothing about a step once the application is no longer editable', async () => {
     const calls: RecordedRequest[] = []
     restore = mockFetch({
@@ -86,9 +87,6 @@ describe('OnboardingStepNav', () => {
 
     renderPage(<OnboardingStepNav />)
 
-    // Asserting an absence needs proof the profile ARRIVED, or this passes on the first render - before
-    // any request resolved - and would pass just as happily against a component that never reads the
-    // profile at all. The recorded request is that proof.
     await waitFor(() => expect(calls.some((c) => c.url.includes('/suppliers/me'))).toBe(true))
     await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(5))
 

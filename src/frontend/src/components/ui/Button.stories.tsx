@@ -1,3 +1,6 @@
+// Button: the four variants, plus the loading and disabled states, so a reviewer can compare weights without hunting
+// for a screen that uses each one.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Button } from './Button'
 

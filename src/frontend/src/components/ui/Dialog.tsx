@@ -1,3 +1,30 @@
+// The accessible modal, built on Radix: focus trap, Escape to close, and labelled-by wiring for free.
+//
+// FOCUS RESTORE is captured by hand, per Task #22 and NFR-A11Y-002. Radix's own focus-restore-on-close only knows
+// what to restore to when the dialog was opened through its own Trigger. Every real call site in this app opens the
+// dialog by flipping external `open` state from a plain Button instead - TeamPage's "Invite member", AddressDialog,
+// BankAccountDialog, PersonDialog, ReasonDialog, none of which pass a trigger - so Radix has no trigger element to
+// remember for any of them and focus fell through to <body> on close. That is a real keyboard and screen-reader
+// disorientation bug rather than a hypothetical one: it was caught by tests/e2e/app-keyboard.spec.ts driving Escape
+// with real keyboard input, not a click. It is captured independently of whether a trigger is used, so this fixes
+// every call site at once rather than only the ones a future caller remembers to wire through Trigger.
+//
+// THE DIALOG IS CAPPED and scrolls its own body, rather than growing until its buttons leave the screen. Found on
+// the offering editor: it carries a repeater for "additional attributes", and five rows pushed Save and Cancel below
+// the fold while clipping the Arabic name field off the top. The form was intact and simply could not be finished or
+// dismissed - a modal traps focus, so scrolling the page behind it is not a way out either. Fixed here rather than on
+// that one page, because any dialog with a repeater in it has the same shape and the next one will be written by
+// somebody who never saw this. Inside, the title and the close button stay put and the form moves.
+//
+// THE ANIMATION. msp-overlay and msp-dialog carry the fade and the 0.96 scale, both in src/index.css. They are
+// keyframes rather than transitions because Radix waits on animationend before it unmounts this subtree, and a
+// transition would play on the way in and be skipped on the way out. The dialog keeps a centred transform-origin: it
+// is not anchored to a trigger the way a popover is, and the translate that centres it is re-stated inside both
+// keyframes, since an animated transform replaces the class's translate wholesale rather than composing with it.
+//
+// The surface is §6.12's radius-xl and shadow-lg, both from the scale rather than Tailwind's own shadow-xl, which is
+// a harder shadow than this design system uses anywhere.
+
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import * as RadixDialog from '@radix-ui/react-dialog'
@@ -12,17 +39,7 @@ interface DialogProps {
   trigger?: ReactNode
 }
 
-/** Accessible modal built on Radix — focus trap, Escape-to-close, and labelled-by wiring for free. */
 export function Dialog({ open, onOpenChange, title, description, children, trigger }: DialogProps) {
-  // Task #22/NFR-A11Y-002: Radix's own focus-restore-on-close only knows what to restore to when
-  // the dialog was opened through its own `Trigger`. Every real call site in this app opens the
-  // dialog by flipping external `open` state from a plain Button instead (TeamPage's "Invite
-  // member", AddressDialog, BankAccountDialog, PersonDialog, ReasonDialog - none of them pass
-  // `trigger`) - Radix has no trigger element to remember for any of them, so focus fell through
-  // to <body> on close, a real keyboard/screen-reader disorientation bug, not a hypothetical one:
-  // caught by tests/e2e/app-keyboard.spec.ts driving Escape with real keyboard input, not a click.
-  // Captured independently of whether `trigger` is used, so this fixes every call site at once
-  // rather than only the ones a future caller remembers to wire through Trigger.
   const previouslyFocused = useRef<HTMLElement | null>(null)
   useEffect(() => {
     if (open) previouslyFocused.current = document.activeElement as HTMLElement | null
@@ -36,28 +53,8 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
           className="msp-overlay fixed inset-0"
           style={{ backgroundColor: 'var(--color-bg-overlay)', zIndex: 'var(--z-modal)' }}
         />
-        {/*
-          * The dialog is capped and scrolls its own body, rather than growing until its buttons leave
-          * the screen.
-          *
-          * Found on the offering editor: it carries a repeater for "additional attributes", and five
-          * rows pushed Save and Cancel below the fold while clipping the Arabic name field off the
-          * top. The form was intact and simply could not be finished or dismissed - a modal traps
-          * focus, so scrolling the page behind it is not a way out either.
-          *
-          * Fixed here rather than on that one page because any dialog with a repeater in it has the
-          * same shape, and the next one will be written by somebody who never saw this.
-          */}
         <RadixDialog.Content
-          // `msp-overlay` and `msp-dialog` carry the fade and the 0.96 scale (src/index.css). They are
-          // keyframes rather than transitions because Radix waits on `animationend` before it unmounts
-          // this subtree; a transition would play on the way in and be skipped on the way out. The
-          // dialog keeps a centred transform-origin: it is not anchored to a trigger the way a popover
-          // is, and the translate that centres it is re-stated inside both keyframes, since an
-          // animated `transform` replaces the class's translate wholesale rather than composing with it.
           className="msp-dialog fixed left-1/2 top-1/2 flex max-h-[calc(100dvh-2rem)] w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-[var(--radius-xl)] p-6"
-          // §6.12: radius-xl and shadow-lg, both from the scale rather than Tailwind's own shadow-xl,
-          // which is a harder shadow than this design system uses anywhere.
           style={{
             backgroundColor: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border)',
@@ -92,7 +89,6 @@ export function Dialog({ open, onOpenChange, title, description, children, trigg
               <X size={18} aria-hidden="true" />
             </RadixDialog.Close>
           </div>
-          {/* The scroll region: the title and the close button stay put, the form moves. */}
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>

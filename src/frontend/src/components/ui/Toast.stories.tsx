@@ -1,3 +1,6 @@
+// Toast, emitted from a control rather than rendered statically, because what matters about it is the enter animation,
+// the swipe direction and where it sits - none of which a still frame shows.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ToastProvider, useToast } from './Toast'
 import { Button } from './Button'
