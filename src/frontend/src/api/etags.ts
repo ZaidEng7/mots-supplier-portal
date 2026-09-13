@@ -26,9 +26,35 @@ function prefixesOf(path: string): string[] {
   return out
 }
 
+/**
+ * Two prefixes that name ONE resource, so a version filed under either is filed under both.
+ *
+ * <p><b>Why the store has to be told.</b> The supplier aggregate answers at two spellings:
+ * `/suppliers/me`, which is what the SPA reads, and `/suppliers/{code}`, which is what the profile
+ * PATCH and the document routes write to. The prefix walk is textual and upward-only, so those are
+ * two unrelated keys holding two versions of one row, and whichever a write refreshed, the next
+ * write through the other spelling asserted the stale one.</p>
+ *
+ * <p>The user met it as "Could not record acceptance" on a record nobody else had touched, twice
+ * from the same screen: upload a document, then press Accept on the terms. A page reload cleared it,
+ * because a reload re-reads and refiles both - which is why it looked intermittent.</p>
+ *
+ * <p>Registered by the one function that can learn the pairing: the profile parser, which sees the
+ * supplier code in the body it just read. Every other caller stays ignorant of it.</p>
+ */
+const aliasOf = new Map<string, string>()
+
+export function aliasETagPaths(one: string, other: string): void {
+  aliasOf.set(one, other)
+  aliasOf.set(other, one)
+}
+
 export function rememberETag(path: string, etag: string | null): void {
   if (!etag) return
-  etags.set(prefixesOf(path)[0] ?? path, etag)
+  const prefix = prefixesOf(path)[0] ?? path
+  etags.set(prefix, etag)
+  const twin = aliasOf.get(prefix)
+  if (twin) etags.set(twin, etag)
 }
 
 export function lookupETag(path: string): string | undefined {
@@ -65,9 +91,17 @@ export function ownerPrefixOf(path: string): string | undefined {
  * no longer has - which would be a 412 the user cannot explain, on their own second edit.
  */
 export function forgetETags(path: string): void {
-  for (const prefix of prefixesOf(path)) etags.delete(prefix)
+  for (const prefix of prefixesOf(path)) {
+    etags.delete(prefix)
+    // The twin holds the same row's version, so leaving it would hand the next write a version the
+    // row no longer has - the 412 this mechanism exists to prevent.
+    const twin = aliasOf.get(prefix)
+    if (twin) etags.delete(twin)
+  }
 }
 
 export function clearETags(): void {
   etags.clear()
+  // The pairing belongs to whoever was signed in: the next session's `me` is a different supplier.
+  aliasOf.clear()
 }

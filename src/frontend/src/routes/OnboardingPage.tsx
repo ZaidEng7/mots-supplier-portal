@@ -34,7 +34,12 @@ const legalSchema = z.object({
   registrationNumber: z.string().optional(),
   taxId: z.string().optional(),
   supplierType: z.enum(SUPPLIER_TYPES),
-  establishedOn: z.string().optional(),
+  // A founding date in the future is not a date anyone can have. The field accepted one - the
+  // picker's own calendar offered next month - and the server stored it.
+  establishedOn: z.string().optional().refine(
+    (value) => !value || value <= new Date().toISOString().slice(0, 10),
+    { message: 'establishedInFuture' },
+  ),
 })
 type LegalFormValues = z.infer<typeof legalSchema>
 
@@ -206,6 +211,12 @@ function DocumentRow({ doc, canEdit, isBlocking, supplierCode }: {
     mutationFn: (file: File) => uploadDocument(supplierCode, doc.documentTypeId, file, undefined, doc.expiryTracked ? expiryDate : undefined),
     onSuccess: () => {
       invalidateQuietly(queryClient, { queryKey: ['own-documents'] })
+      // And the profile, which the upload moved: a document write changes the supplier's row
+      // version, and it answers with a DOCUMENT, so nothing hands the client the aggregate's new
+      // version. Without this re-read the next guarded save on this page - accepting the terms,
+      // most often - had no version to assert and was refused. Reported twice from this screen,
+      // with a page reload as the only way through, because a reload is exactly this re-read.
+      invalidateQuietly(queryClient, { queryKey: ['own-supplier'] })
       notify({ kind: 'success', title: t('onboarding.documentUploaded') })
     },
     onError: (err) => {
@@ -631,6 +642,28 @@ export function OnboardingPage() {
             {t('onboarding.infoRequestedTitle')}
           </h2>
           <p style={{ color: 'var(--color-text-primary)' }}>{annotation.reason}</p>
+
+          {/*
+            WHAT was flagged, named. The banner showed the reviewer's sentence and nothing else, so a
+            supplier read "change this document" with three documents on the page and no way to tell
+            which one - while the product knew exactly, and was already using the same list to decide
+            which rows stay editable. Reported by a buyer watching a supplier try to act on it.
+          */}
+          {flaggedDocCodes.size > 0 || flaggedFields.size > 0 ? (
+            <div className="mt-3">
+              <p className="mb-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
+                {t('onboarding.infoRequestedItems')}
+              </p>
+              <ul className="list-disc ps-5" style={{ color: 'var(--color-text-primary)' }}>
+                {documents
+                  .filter((doc) => flaggedDocCodes.has(doc.code))
+                  .map((doc) => <li key={doc.code}>{isArabic ? doc.nameAr : doc.nameEn}</li>)}
+                {[...flaggedFields].map((field) => (
+                  <li key={field}>{t(`onboarding.sections.${field}`, { defaultValue: field })}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -795,8 +828,22 @@ export function OnboardingPage() {
                 />
               )}
             </Field>
-            <Field label={t('onboarding.fields.establishedOn')}>
-              {(p) => <Input type="date" disabled={!fieldEditable('legalInfo')} {...p} {...legalForm.register('establishedOn')} />}
+            <Field
+              label={t('onboarding.fields.establishedOn')}
+              error={legalForm.formState.errors.establishedOn ? t('onboarding.errors.establishedInFuture') : undefined}
+            >
+              {/* `max` is today's date: a company cannot have been founded tomorrow, and the picker
+                  was offering next month. The schema refuses it as well - `max` only stops the
+                  calendar, and a date typed straight into the field ignores it. */}
+              {(p) => (
+                <Input
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  disabled={!fieldEditable('legalInfo')}
+                  {...p}
+                  {...legalForm.register('establishedOn')}
+                />
+              )}
             </Field>
           </div>
           {!isReadOnly ? (

@@ -72,6 +72,13 @@ public sealed class UpdateLegalInfoRequestValidator : AbstractValidator<UpdateLe
                 context.AddFailure(new ValidationFailure(nameof(request.TaxId), "'Tax Id' must not be empty.") { ErrorCode = "NotEmptyValidator" });
 if (required.Contains("establishedOn") && request.EstablishedOn is null)
                 context.AddFailure(nameof(request.EstablishedOn), "'Established On' must not be empty.");
+
+            // A founding date in the future is not a date any company has. The screen offered one -
+            // the picker's calendar ran into next month - and this validator took it, so the
+            // registry could show a supplier founded after today. Refused here as well as in the
+            // form, because the form is one of several ways in and the ERP import is another.
+            if (request.EstablishedOn is { } founded && founded > DateOnly.FromDateTime(DateTime.UtcNow.Date))
+                context.AddFailure(nameof(request.EstablishedOn), "'Established On' cannot be in the future.");
         });
     }
 }

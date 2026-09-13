@@ -247,6 +247,25 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   }
   rememberETag(path, freshETag)
 
+  // A 412 means the row moved since this tab read it - another tab, another person, or a background
+  // job. The write is correctly refused and is NOT retried here: replaying it would overwrite
+  // whatever moved the row, which is the lost update the precondition exists to prevent.
+  //
+  // What IS done is re-reading the resource, so the version this tab holds is current again and the
+  // user's next attempt succeeds. Without it the tab was stuck: every further save on that screen
+  // asserted the same dead version, and the only way through was a page reload. Reported as "I come
+  // back to the tab and cannot edit anything until I refresh" - with several tabs of this product
+  // open at once, which is exactly how the row moves underneath one of them.
+  if (res.status === 412 && isMutation && preconditionPrefix) {
+    const current = useAuthStore.getState().accessToken
+    const reread = await fetch(`${API_BASE_URL}${preconditionPrefix}`, {
+      credentials: 'include',
+      headers: current ? { Authorization: `Bearer ${current}` } : {},
+      cache: 'no-store',
+    }).catch(() => null)
+    if (reread?.ok) rememberETag(preconditionPrefix, reread.headers.get('ETag'))
+  }
+
   // A 428 means this client failed to send a header it should always send: a bug in the transport
   // above, not a state the user can do anything about. Surfaced loudly rather than folded into the
   // generic error path, where it would reach a supplier as an unexplained failure to save.

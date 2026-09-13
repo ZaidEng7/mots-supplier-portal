@@ -190,6 +190,15 @@ describe('DocumentsPage (SCR-130)', () => {
     // where that client is exercised.
     expect(recorded.some((r) => r.method === 'POST' && r.url.endsWith('/SUP-000001/documents'))).toBe(true)
     expect(await screen.findByText(/document uploaded|تم رفع/i)).toBeInTheDocument()
+
+    // And the profile is re-read. The upload moves the SUPPLIER's row version and answers with a
+    // document, so nothing else hands the client the aggregate's new version - and the next guarded
+    // write on the same screen is refused for want of one. That is the defect a supplier met as
+    // "Could not record acceptance", with a page reload as the only way through.
+    await waitFor(() => {
+      const reads = recorded.filter((r) => r.method === 'GET' && r.url.endsWith('/suppliers/me'))
+      expect(reads.length).toBeGreaterThan(1)
+    })
   })
 
   it("reports why an upload was refused, in the server's own words", async () => {

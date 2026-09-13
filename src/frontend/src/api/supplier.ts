@@ -1,6 +1,6 @@
 import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
-import { rememberETag } from './etags'
+import { aliasETagPaths, rememberETag } from './etags'
 
 export interface LegalInfo {
   legalNameAr: string | null
@@ -175,10 +175,12 @@ export class SupplierApiError extends ProblemError {
 async function profileFrom(res: Response): Promise<SupplierProfile> {
   const etag = res.headers.get('ETag')
   const profile = await parseOrThrow<SupplierProfile>(res)
-  if (etag) {
-    rememberETag(`/api/v1/suppliers/${profile.supplierCode}`, etag)
-    rememberETag('/api/v1/suppliers/me', etag)
-  }
+  // The two spellings are declared to be one resource, once, here - this is the only place that can
+  // know it, because `me` resolves to a code the caller does not learn until the body arrives. After
+  // that the store keeps them in step on its own, including for writes that return a document or a
+  // branch rather than a profile and never reach this function.
+  aliasETagPaths(`/api/v1/suppliers/${profile.supplierCode}`, '/api/v1/suppliers/me')
+  if (etag) rememberETag(`/api/v1/suppliers/${profile.supplierCode}`, etag)
   return profile
 }
 
