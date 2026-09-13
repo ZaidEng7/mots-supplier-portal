@@ -1,12 +1,20 @@
+// The two scoring-template invariants the tender authoring flow depends on.
+//
+// The weights must sum to one hundred before a template can be activated, and a template is immutable once a
+// tender has referenced it, with forking as the only way to change a referenced version.
+//
+// Archiving deliberately does not check whether a template is referenced: a referenced, in-use, active template
+// must still be archivable once it is no longer wanted for future tenders.
+//
+// The fork is genuinely editable even though its source was referenced, and the original, still referenced,
+// remains untouched and still immutable.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07. Covers the two invariants the RFQ
-/// authoring epic depends on: weight-sum-must-equal-100 before Activate, and
-/// immutable-once-referenced (with Fork as the only way to change a referenced version).</summary>
 public class EvaluationTemplateTests
 {
     private static EvaluationTemplate CreateTemplateWithWeights(params decimal[] weights)
@@ -89,8 +97,6 @@ public class EvaluationTemplateTests
 
         addAct.Should().Throw<DomainException>().WithMessage("*immutable*fork*");
         renameAct.Should().Throw<DomainException>().WithMessage("*immutable*fork*");
-        // Archive intentionally does not check IsReferenced - a referenced (in-use) Active template
-        // must still be archivable once no longer wanted for future RFQs.
         archiveAct.Should().NotThrow();
     }
 
@@ -112,11 +118,9 @@ public class EvaluationTemplateTests
         forked.Criteria.Select(c => c.Id).Should().NotIntersectWith(original.Criteria.Select(c => c.Id),
             "forked criteria must be independent rows, not shared with the original version");
 
-        // The fork is genuinely editable even though its source was referenced.
         var act = () => forked.AddCriterion("إضافي", "Extra", CriterionDimension.Delivery, 5m, 5m, null, ScoringType.Boolean, null, null);
         act.Should().NotThrow();
 
-        // And the original, still referenced, remains untouched and still immutable.
         original.Criteria.Should().HaveCount(2);
         var originalStillLocked = () => original.AddCriterion("x", "x", CriterionDimension.Technical, 1m, 1m, null, ScoringType.Numeric, null, null);
         originalStillLocked.Should().Throw<DomainException>();

@@ -1,11 +1,13 @@
-using FluentAssertions;
-using MotsSupplierPortal.Application.Audit;
+// The spreadsheet escaping rules, in isolation from the endpoint and the database.
+//
+// Per the standard: a field is quoted only when it needs to be, and an embedded quote is doubled rather than
+// escaped with a backslash, because this format has no backslash-escape convention.
 
 namespace MotsSupplierPortal.Tests.Unit.Audit;
 
-/// <summary>MSP-75/FR-AUD-004: the CSV escaping rules in isolation from the endpoint/DB, per RFC
-/// 4180 - a field is quoted only when it needs to be, and an embedded quote is doubled rather than
-/// escaped with a backslash (CSV has no backslash-escape convention).</summary>
+using FluentAssertions;
+using MotsSupplierPortal.Application.Audit;
+
 public sealed class AuditCsvRowTests
 {
     private static AuditLogEntryDto Entry(

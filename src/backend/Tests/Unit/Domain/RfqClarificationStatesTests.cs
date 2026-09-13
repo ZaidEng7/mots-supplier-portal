@@ -1,15 +1,30 @@
+// The three tender states the written process defines and no code path could reach.
+//
+// Asserted at the aggregate, because that is where the guards live. The endpoints get their own tests for status
+// codes and permissions; these are about the machine.
+//
+// Each negative has the positive above it as its control.
+//
+// One guard comes from the written process directly: sending a tender for review requires at least one candidate
+// supplier identified.
+//
+//
+// THE BACK-COMPATIBILITY ASSERTION
+//
+// There is no backfill, so tenders written before these states existed sit in the older state and must still
+// route straight to award approval.
+//
+// A guard that only admitted the new path would strand every tender that exists today.
+//
+// Cancellation from any state before an award is asserted through the aggregate rather than only through the map
+// of legal moves.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>
-/// T3-36: the three states BUSINESS-PROCESSES.md §3.1 defines and no code path could reach.
-///
-/// <para>Asserted at the aggregate because that is where the guards live. The endpoints get their own
-/// tests for status codes and permissions; these are about the machine.</para>
-/// </summary>
 public sealed class RfqClarificationStatesTests
 {
     private static Rfq UnderEvaluation()
@@ -19,7 +34,6 @@ public sealed class RfqClarificationStatesTests
 
         rfq.AddItem("بند", "Item", null, null, "catering", 5, "unit", true, false);
         rfq.BindEvaluationTemplate(Guid.NewGuid(), 1, "{}");
-        // §3.1's own guard on Submit for review: "≥1 candidate supplier identified".
         rfq.InviteSupplier(Guid.NewGuid());
         rfq.SubmitForReview();
         rfq.Approve(Guid.NewGuid());
@@ -72,7 +86,6 @@ public sealed class RfqClarificationStatesTests
     [Fact]
     public void The_new_states_cannot_be_entered_out_of_order()
     {
-        // The negatives, each with the positive above as its control.
         var rfq = UnderEvaluation();
 
         var recommendFirst = () => rfq.RecordRecommendation();
@@ -86,11 +99,6 @@ public sealed class RfqClarificationStatesTests
         shortlistFromClarification.Should().Throw<DomainException>().WithMessage("*only 'UnderEvaluation' is valid*");
     }
 
-    /// <summary>
-    /// The back-compatibility assertion the batch asks for: no backfill, so rows written before
-    /// T3-36 sit in UnderEvaluation and must still route straight to AwardApproval. A guard that
-    /// only admitted the new path would strand every RFQ that exists today.
-    /// </summary>
     [Fact]
     public void An_RFQ_in_the_old_state_still_transitions_as_it_did_before()
     {
@@ -104,7 +112,6 @@ public sealed class RfqClarificationStatesTests
     [Fact]
     public void The_new_states_are_all_cancellable()
     {
-        // §3.1: "any pre-Awarded | Cancelled". Asserted through the aggregate, not only the map.
         foreach (var enter in new Action<Rfq>[]
         {
             r => r.RequestClarification("Ask"),

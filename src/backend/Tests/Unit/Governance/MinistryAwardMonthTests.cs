@@ -1,22 +1,33 @@
+// The ministry's spend chart buckets awards by month, and the month has to be the one the rest of the screen is
+// written in.
+//
+//
+// THE DEFECT
+//
+// The bucket key was formatted with no culture, which formats in the current culture's CALENDAR, and this
+// application serves Arabic.
+//
+// So on a machine or request resolving to an Arabic culture the axis read Hijri years, beside a table of
+// Gregorian dates.
+//
+// It shipped because it is unreachable without data: with no awards there are no buckets, and the demonstration
+// database had none until awards were seeded.
+//
+//
+// ASSERTED UNDER A CULTURE THAT CHANGES THE ANSWER
+//
+// Rather than under the invariant one, where every implementation passes.
+//
+// The control is what makes that meaningful: without it, the theory would pass just as well against the original
+// implementation on a machine whose cultures all happen to be Gregorian, which is how a guard ends up asserting
+// nothing on the only machines that run it.
+
+namespace MotsSupplierPortal.Tests.Unit.Governance;
+
 using System.Globalization;
 using FluentAssertions;
 using MotsSupplierPortal.Infrastructure.Governance;
 
-namespace MotsSupplierPortal.Tests.Unit.Governance;
-
-/// <summary>
-/// The Ministry's spend chart buckets awards by month, and the month has to be the one the rest of the
-/// screen is written in.
-///
-/// <para><b>The defect.</b> The bucket key was <c>ToString("yyyy-MM")</c> with no culture. That formats
-/// in the current culture's CALENDAR, and this application serves Arabic, so on a machine or request
-/// resolving to an Arabic culture the axis read "1448-01" and "1448-02" - Hijri years, beside a table of
-/// Gregorian dates. It shipped because it is unreachable without data: with no awards there are no
-/// buckets, and the demonstration database had none until awards were seeded.</para>
-///
-/// <para>Asserted under a culture that actually changes the answer, rather than under the invariant one
-/// where every implementation passes.</para>
-/// </summary>
 public sealed class MinistryAwardMonthTests
 {
     private static readonly DateTimeOffset July2026 = new(2026, 7, 14, 9, 30, 0, TimeSpan.Zero);
@@ -43,9 +54,6 @@ public sealed class MinistryAwardMonthTests
     [Fact]
     public void The_culture_under_test_really_would_have_changed_the_answer()
     {
-        // The control. Without this the theory above would pass just as well against the original
-        // implementation on a machine whose cultures all happen to be Gregorian, which is how a guard
-        // ends up asserting nothing on the only machines that run it.
         var original = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = new CultureInfo("ar-SA");
         try

@@ -1,3 +1,51 @@
+// A signed-in member of staff, for endpoints guarded by a staff permission.
+//
+// This did not exist for a long time, and one suite records the gap explicitly and works around it by driving the
+// domain directly. That workaround is reasonable for domain rules, but it cannot exercise an endpoint's
+// permission guard, its contract, or its status codes.
+//
+// For work that was once reported as built on the strength of an enumeration, testing through the real endpoint
+// with a real permission is the difference between evidence and inference.
+//
+// Staff accounts carry no company, which is what makes them staff to the scope: row scoping treats an absent
+// company as unrestricted.
+//
+//
+// THE ORGANIZATION OVERLOAD IS NOT OPTIONAL FOR TENDER TESTS
+//
+// Tender row-scoping keys on the caller's organization claim, which comes from the account and is issued in the
+// token.
+//
+// A plain staff account has none, which is correct for every non-tender staff test but means no organization, no
+// tender access, in the same shape that no company means no access on the supplier side. Callers testing tender
+// endpoints must pass a real organization.
+//
+// Two further overloads exist because some callers need the account's own identifier: assigning an evaluator, and
+// the lockout guards that are ABOUT the caller's own account.
+//
+//
+// THE SECOND-FACTOR PATH, AND WHY THE CODE IS COMPUTED HERE
+//
+// A role the rules mandate a second factor for cannot sign in through the plain path at all; it is refused with
+// an enrolment requirement. Nothing had exercised such a session through the real sign-in endpoint before.
+//
+// Enrolment is done through the user manager rather than the enrolment endpoint, because that endpoint requires an
+// authenticated session and a not-yet-enrolled administrator cannot obtain one. The same bootstrap gap exists in
+// production, where a real deployment seeds the first administrator's enrolment out of band.
+//
+// The code itself is computed here rather than asked of the framework. Found empirically: the framework's
+// authenticator provider always returns nothing from its generate call, by design, because a real authenticator
+// app computes the code from the shared secret and the server only ever verifies one.
+//
+// So this applies the standard algorithm to the same key the framework hands out, which is the same computation
+// any authenticator app performs, and the sign-in round trip still goes through real HTTP, which preserves the
+// evidence-not-inference reasoning above.
+//
+// The first leg is asserted as the code-needed challenge rather than as success or as an enrolment requirement,
+// which proves the enrolment actually took effect.
+
+namespace MotsSupplierPortal.Tests.Integration;
+
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -10,20 +58,6 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Tests.Integration;
-
-/// <summary>
-/// A logged-in staff (back-office) identity, for endpoints guarded by a staff permission.
-///
-/// This did not exist before MSP-63 - FlaggedFieldEnforcementTests records the gap explicitly and
-/// works around it by driving the domain directly. That workaround is reasonable for domain rules,
-/// but it cannot exercise an endpoint's permission guard, its HTTP contract, or its status codes.
-/// For a ticket that was once reported as built on the strength of an enum, testing through the
-/// real endpoint with a real permission is the difference between evidence and inference.
-///
-/// Staff users have SupplierId = null, which is what makes them "staff" to IScopeContext: the row
-/// scoping treats a null SupplierId as unrestricted (see GetAuditLogHandler for the same rule).
-/// </summary>
 public static class StaffTestClient
 {
     public const string Password = "StaffIntegration#2026!";
@@ -31,16 +65,9 @@ public static class StaffTestClient
     public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role) =>
         await CreateAsync(fixture, role, organizationId: null);
 
-    /// <summary>EPIC-07: RFQ row-scoping keys on the caller's OrganizationId claim (IScopeContext.
-    /// OrganizationId, sourced from AppUser.OrganizationId via LoginHandler ->
-    /// jwtTokenService.IssueAccessToken). A plain CreateAsync staff user has OrganizationId null,
-    /// which is correct for every non-RFQ staff test but means "no organization, no RFQ access" -
-    /// same shape as scope.SupplierId is null meaning "no supplier, no access" on the supplier
-    /// side. Callers testing RFQ endpoints must use this overload with a real Organization's Id.</summary>
     public static async Task<HttpClient> CreateAsync(PostgresApiFixture fixture, string role, Guid? organizationId) =>
         (await CreateWithEmailAsync(fixture, role, organizationId)).Client;
 
-    /// <summary>The same user, with the generated email returned so a caller can resolve its id.</summary>
     public static async Task<(HttpClient Client, string Email)> CreateWithEmailAsync(
         PostgresApiFixture fixture, string role, Guid? organizationId)
     {
@@ -84,9 +111,6 @@ public static class StaffTestClient
         return (client, email);
     }
 
-    /// <summary>EPIC-11: evaluator-assignment tests need the real UserId to assign, not just an
-    /// authenticated client - unlike every other staff test client, whose caller never needs to
-    /// address the user by id.</summary>
     public static async Task<(HttpClient Client, Guid UserId)> CreateWithIdAsync(PostgresApiFixture fixture, string role, Guid? organizationId = null)
     {
         var client = fixture.CreateClient();
@@ -130,32 +154,9 @@ public static class StaffTestClient
         return (client, userId);
     }
 
-    /// <summary>
-    /// As <see cref="CreateAsync"/>, but for a role NFR-SEC-003 mandates MFA for (LoginHandler's
-    /// <c>_mfaRequiredRoles</c> - system_admin by default). Plain <see cref="CreateAsync"/> gets a
-    /// 403 <c>mfa_enrollment_required</c> for these roles, which is MSP-75's own discovery: nothing
-    /// before this ticket had exercised a system_admin session through the real login endpoint.
-    ///
-    /// <para>Enrollment is done directly via <c>UserManager</c> rather than the HTTP enroll
-    /// endpoint, because that endpoint requires an authenticated session and a not-yet-enrolled
-    /// system_admin cannot obtain one - the same bootstrap gap exists in production; a real
-    /// deployment seeds the first system_admin's enrollment out of band.</para>
-    ///
-    /// <para><b>The TOTP code is computed here, not via <c>UserManager.GenerateTwoFactorTokenAsync</c>.</b>
-    /// Found empirically while building this: ASP.NET Core Identity's built-in "Authenticator"
-    /// provider always returns null from <c>GenerateAsync</c> - by design, since a real authenticator
-    /// app computes the code client-side from the shared secret, and the server only ever
-    /// <i>verifies</i> a submitted code, never generates one to send. <see cref="ComputeTotp"/> is
-    /// the standard RFC 6238 algorithm (HMAC-SHA1, 30s step, 6 digits) applied to the same Base32
-    /// key <c>GetAuthenticatorKeyAsync</c> returns - the same computation any real authenticator app
-    /// would perform, and the login round trip itself still goes through real HTTP, preserving the
-    /// "evidence, not inference" reasoning above.</para>
-    /// </summary>
     public static async Task<HttpClient> CreateWithMfaAsync(PostgresApiFixture fixture, string role) =>
         (await CreateWithMfaAndIdAsync(fixture, role)).Client;
 
-    /// <summary>Same client, plus the account's own id - T-077's lockout guards are ABOUT the caller's own
-    /// account, so a test of them has to know which one that is.</summary>
     public static async Task<(HttpClient Client, Guid UserId)> CreateWithMfaAndIdAsync(PostgresApiFixture fixture, string role)
     {
         var client = fixture.CreateClient();
@@ -191,8 +192,6 @@ public static class StaffTestClient
             await userManager.SetTwoFactorEnabledAsync(user, true);
         }
 
-        // First leg: password only. Must come back as the "code needed" challenge, not success or
-        // enrollment-required - proves the enrollment above actually took effect.
         var firstLeg = await client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = Password });
         if (firstLeg.StatusCode != HttpStatusCode.Unauthorized)
         {

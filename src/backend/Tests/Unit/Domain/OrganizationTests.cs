@@ -1,8 +1,13 @@
+// Creating a buying body, and what its type can be.
+//
+// The type is a real enumeration rather than free text, so an invalid value cannot be constructed at all and the
+// compiler already guarantees it. What is worth asserting is that the three real values round-trip correctly.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.Suppliers;
-
-namespace MotsSupplierPortal.Tests.Unit.Domain;
 
 public class OrganizationTests
 {
@@ -43,9 +48,6 @@ public class OrganizationTests
         act.Should().Throw<DomainException>();
     }
 
-    /// <summary>OrganizationType is a real C# enum, not a free string - an invalid value cannot
-    /// be constructed at all, which the compiler already guarantees. What is worth asserting is
-    /// that the three real values round-trip correctly.</summary>
     [Theory]
     [InlineData(OrganizationType.Hotel)]
     [InlineData(OrganizationType.MotBody)]

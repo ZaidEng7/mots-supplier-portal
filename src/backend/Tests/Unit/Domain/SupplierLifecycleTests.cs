@@ -1,16 +1,43 @@
-using FluentAssertions;
-using MotsSupplierPortal.Domain.Suppliers;
+// The supplier's post-approval lifecycle, and the eligibility rule that decides who may be invited.
+//
+// This work was once reported as built when it was not. A search hit the state names and it read as
+// implemented: suspended and deactivated were declared, persisted, and completely unreachable, with no methods,
+// no endpoints and no callers.
+//
+// So these tests assume a feature can look done from the outside, and check the behaviour rather than the shape.
+//
+// Every exit from the terminal state is refused, including the one that looks harmless: going "back" to
+// suspended would make a terminal state merely a slow one.
+//
+// A reason is mandatory on reactivation as well as on suspension and deactivation. The written rule names only
+// the latter two, but an audit trail that records why participation was removed and not why it was restored
+// answers half the question a review would ask.
+//
+//
+// THE ELIGIBILITY RULE IS ENUMERATED EXHAUSTIVELY, AND THAT IS THE POINT
+//
+// Every combination of onboarding and lifecycle state, including the ones that cannot occur today and the ones
+// that are obviously false.
+//
+// When this was written, tenders and bids did not exist, so the rule had no real consumers, and a rule with no
+// callers is trivially correct and untestable in the way that matters. Enumerating every state is what stood in
+// for those features until they arrived; anything less would have been a test that cannot fail.
+//
+// Only one combination is eligible. Two states are excluded from all new selection. One combination is one the
+// aggregate should not produce at all, asserted so that if it ever does, the answer is "not eligible" rather
+// than an accident.
+//
+// The not-yet-approved rows matter most where the lifecycle says active: that is the combination where a
+// lifecycle-only check would wrongly admit an applicant who has not been approved.
+//
+// And a final assertion guards the guard, because a new onboarding state added later would otherwise slip past
+// the enumeration untested and default to whatever the rule happens to do.
 
 namespace MotsSupplierPortal.Tests.Unit.Domain;
 
-/// <summary>
-/// MSP-63: FR-ONB-009 post-approval lifecycle, and the BRULE-006/007/008 eligibility predicate.
-///
-/// This ticket was once reported as built when it was not - a grep hit the enum and it read as
-/// implemented. Suspended and Deactivated were declared, persisted and completely unreachable: no
-/// methods, no endpoints, no callers. So the tests here assume the feature can look done from the
-/// outside and check the behaviour rather than the shape.
-/// </summary>
+using FluentAssertions;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed class SupplierLifecycleTests
 {
     private static Supplier ApprovedActive()
@@ -20,8 +47,6 @@ public sealed class SupplierLifecycleTests
             "approval is what makes a supplier Active; if this changes the rest of the class is testing a fiction");
         return supplier;
     }
-
-    // ---- transitions --------------------------------------------------------------------
 
     [Fact]
     public void Active_suspends_with_a_reason()
@@ -64,8 +89,6 @@ public sealed class SupplierLifecycleTests
         supplier.Suspend("Repeated non-performance");
         supplier.Deactivate("Contract terminated");
 
-        // Every exit, including the one that looks harmless - going "back" to Suspended would make
-        // a terminal state merely a slow one.
         supplier.Invoking(s => s.Reactivate("Change of mind")).Should().Throw<DomainException>();
         supplier.Invoking(s => s.Suspend("Change of mind")).Should().Throw<DomainException>();
         supplier.Invoking(s => s.Deactivate("Again")).Should().Throw<DomainException>();
@@ -89,8 +112,6 @@ public sealed class SupplierLifecycleTests
 
         supplier.Invoking(s => s.Reactivate("Nothing to reactivate")).Should().Throw<DomainException>();
     }
-
-    // ---- BRULE-096: mandatory reason ----------------------------------------------------
 
     [Theory]
     [InlineData("")]
@@ -123,9 +144,6 @@ public sealed class SupplierLifecycleTests
     [InlineData(null)]
     public void Reactivation_requires_a_reason(string? reason)
     {
-        // Reactivation is included deliberately. BRULE-096 names suspend and deactivate, but an
-        // audit trail that records why participation was removed and not why it was restored
-        // answers half the question a review would ask.
         var supplier = ApprovedActive();
         supplier.Suspend("Prior suspension");
 
@@ -133,29 +151,11 @@ public sealed class SupplierLifecycleTests
             .WithMessage("*reason is required*");
     }
 
-    // ---- BRULE-006/007/008: the eligibility predicate ------------------------------------
-
-    /// <summary>
-    /// Every combination of onboarding and lifecycle state, including the ones that cannot occur
-    /// today and the ones that are obviously false.
-    ///
-    /// This exhaustiveness is the point. RFQs and proposals do not exist, so this predicate has no
-    /// real consumers - and a predicate with no callers is trivially correct and untestable in the
-    /// way that matters. Enumerating every state is what stands in for EPIC-08 and EPIC-09 until
-    /// they arrive; anything less would be a test that cannot fail.
-    /// </summary>
     [Theory]
-    // The only eligible combination.
     [InlineData(SupplierOnboardingState.Approved, SupplierLifecycleState.Active, true)]
-    // BRULE-007/008: excluded from all NEW selection.
     [InlineData(SupplierOnboardingState.Approved, SupplierLifecycleState.Suspended, false)]
     [InlineData(SupplierOnboardingState.Approved, SupplierLifecycleState.Deactivated, false)]
-    // Approved but lifecycle never started - a state the aggregate should not produce, asserted so
-    // that if it ever does, the answer is "not eligible" rather than an accident.
     [InlineData(SupplierOnboardingState.Approved, SupplierLifecycleState.None, false)]
-    // BRULE-006: not yet approved is not eligible, whatever the lifecycle field says. The Active
-    // rows here matter most: they are the combination where a lifecycle-only check would wrongly
-    // admit an applicant that has not been approved.
     [InlineData(SupplierOnboardingState.Draft, SupplierLifecycleState.None, false)]
     [InlineData(SupplierOnboardingState.Draft, SupplierLifecycleState.Active, false)]
     [InlineData(SupplierOnboardingState.EmailVerified, SupplierLifecycleState.None, false)]
@@ -184,8 +184,6 @@ public sealed class SupplierLifecycleTests
     [Fact]
     public void Every_onboarding_state_is_covered_by_the_eligibility_theory()
     {
-        // Guards the guard: a new onboarding state added later would otherwise slip past the
-        // theory above untested, and default to whatever the predicate happens to do.
         var covered = new[]
         {
             SupplierOnboardingState.Draft, SupplierOnboardingState.EmailVerified,

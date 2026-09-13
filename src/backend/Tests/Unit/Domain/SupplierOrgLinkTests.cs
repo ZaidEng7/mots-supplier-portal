@@ -1,8 +1,10 @@
+// The link between a supplier and a buying body.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Domain.Suppliers;
-
-namespace MotsSupplierPortal.Tests.Unit.Domain;
 
 public class SupplierOrgLinkTests
 {

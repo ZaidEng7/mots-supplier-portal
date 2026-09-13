@@ -1,15 +1,31 @@
+// The per-target rate limit is a genuinely independent budget, not a duplicate of the per-address one.
+//
+// Two different targets never share a budget, and exhausting one target's limit never blocks another.
+//
+// This cannot be shown end to end over HTTP from a single machine, because both dimensions would exhaust in
+// lockstep when every request shares one source address, so it exercises the class directly.
+//
+// The case that matters is an attacker spread across addresses probing a DIFFERENT account: they are unaffected
+// by the first account's exhausted budget, which is exactly the gap the written security architecture flags an
+// address-only limiter as missing.
+//
+// The same address on a different surface is also a different budget, so one surface being hammered does not lock
+// a legitimate user out of an unrelated one.
+//
+// The iteration tests use the sign-in surface rather than registration, because registration was given its own
+// tighter budget and a ten-iteration loop against it would exhaust that budget early and fail for the wrong
+// reason. Any two different surfaces demonstrate the point; this one keeps the iteration count meaningful
+// against the shared default.
+//
+// And registration's tighter budget is proven directly against the class here, because it is more consequential
+// per request than a sign-in: it writes rows and sends mail. The HTTP-level proof lives in its own suite.
+
+namespace MotsSupplierPortal.Tests.Unit.Authorization;
+
 using FluentAssertions;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Infrastructure.Observability;
 
-namespace MotsSupplierPortal.Tests.Unit.Authorization;
-
-/// <summary>SECURITY-ARCHITECTURE.md §5.1: proves the per-target dimension is a genuinely
-/// independent budget, not just a duplicate of the per-IP middleware policy - two different
-/// targets never share a budget, and hitting one target's limit never blocks another target.
-/// (Can't be shown end-to-end over HTTP from a single test machine/IP - both dimensions would
-/// exhaust in lockstep since every request shares one source IP - so this exercises the class
-/// directly instead.)</summary>
 public sealed class PerTargetRateLimiterTests
 {
     [Fact]
@@ -36,9 +52,6 @@ public sealed class PerTargetRateLimiterTests
         }
         limiter.TryAcquire("login", "victim@example.com").Should().BeFalse("victim@example.com's budget is exhausted");
 
-        // A distributed-IP attacker probing a DIFFERENT account is unaffected by the first
-        // account's exhausted budget - this is exactly the gap SECURITY-ARCHITECTURE §5.1 flags
-        // an IP-only limiter as missing.
         limiter.TryAcquire("login", "someone-else@example.com").Should().BeTrue();
     }
 
@@ -47,28 +60,18 @@ public sealed class PerTargetRateLimiterTests
     {
         using var limiter = new PerTargetRateLimiter(new AppMetrics());
 
-        // "login", not "register": NFR-SEC-009 gave "register" its own tighter 5/min budget, so a
-        // 10-iteration loop against it would no longer prove what this test is about (it would
-        // exhaust the budget early and fail for the wrong reason). Any two DIFFERENT surfaces
-        // demonstrate the point; "login" keeps this test's iteration count meaningful against the
-        // still-10/min default.
         for (var i = 0; i < 10; i++)
         {
             limiter.TryAcquire("login", "shared@example.com").Should().BeTrue();
         }
         limiter.TryAcquire("login", "shared@example.com").Should().BeFalse();
 
-        // Same email, different surface (e.g. resend-verification) - not the same budget, so one
-        // surface being hammered doesn't lock a legitimate user out of an unrelated one.
         limiter.TryAcquire("resend-verification", "shared@example.com").Should().BeTrue();
     }
 
     [Fact]
     public void Registration_surface_has_its_own_tighter_budget()
     {
-        // NFR-SEC-009: registration is more consequential per-request than login (writes rows,
-        // sends email), so it gets a lower budget than the shared 10/min default - proven directly
-        // against the class here, complementing RegistrationRateLimitTests.cs's HTTP-level proof.
         using var limiter = new PerTargetRateLimiter(new AppMetrics());
 
         for (var i = 0; i < 5; i++)

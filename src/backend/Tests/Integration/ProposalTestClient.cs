@@ -1,21 +1,31 @@
-using System.Net.Http.Json;
-using System.Text.Json;
+// Starting a bid, and editing one through the route that now carries those edits.
+//
+// Bids are addressed by their own public code, so a test that acts on one has to know that code. Before that
+// move every route was keyed on the tender code the test already had.
+//
+// One helper rather than the same three lines in nine files, and it reads the code from the CREATE response
+// rather than querying for it, which is how a real client learns it: the contract documents it in the response's
+// location header.
+//
+//
+// THE EDIT HELPERS MODEL THE REAL CLIENT
+//
+// The five per-field edit routes are gone, so these send the equivalent partial update and the suite keeps
+// asserting the same behaviour through the route that now carries it.
+//
+// Pricing MERGES rather than replaces, because the standard replaces an array wholesale and the tests that price
+// two lines do it in two calls.
+//
+// Reading the bid first and sending the full array is exactly what the editor does, so the helper models the real
+// client rather than papering over the semantics.
 
 namespace MotsSupplierPortal.Tests.Integration;
 
-/// <summary>
-/// §12-A/C2: proposals are addressed by their own public code now
-/// (§3 <c>/proposals/{proposalCode}/items</c>, §12.5 <c>POST /proposals/{proposalCode}/submit</c>),
-/// so a test that acts on a proposal has to know that code. Before the move every route was keyed
-/// on the RFQ code the test already had.
-///
-/// <para>One helper rather than the same three lines in nine files - and it returns the code from
-/// the CREATE response rather than querying for it, which is how a real client learns it (§12.5
-/// documents <c>Location: /api/v1/proposals/PRO-2026-000891</c> on create).</para>
-/// </summary>
+using System.Net.Http.Json;
+using System.Text.Json;
+
 internal static class ProposalTestClient
 {
-    /// <summary>Starts a proposal on the given RFQ and returns its public reference code.</summary>
     public static async Task<string> StartProposalAsync(this HttpClient client, string rfqReferenceCode)
     {
         var response = await client.PostAsync($"/api/v1/rfqs/{rfqReferenceCode}/proposals", null);
@@ -25,15 +35,6 @@ internal static class ProposalTestClient
     }
 }
 
-/// <summary>
-/// §12.5 migration helpers. The five per-field edit sub-routes are gone; these send the equivalent
-/// merge patch so the suite keeps asserting the same behaviour through the route that now carries it.
-///
-/// <para>Pricing merges rather than replaces, because RFC 7396 replaces an array wholesale and the
-/// tests that price two lines do it in two calls. Reading the proposal first and sending the full
-/// array is exactly what the editor does, so the helper models the real client rather than papering
-/// over the semantics.</para>
-/// </summary>
 public static class ProposalPatch
 {
     private const string MergePatch = "application/merge-patch+json";
@@ -58,7 +59,6 @@ public static class ProposalPatch
             technicalResponse = new { answers = new[] { new { requirementId, answerAr = ar, answerEn = en } } },
         });
 
-    /// <summary>Prices one line, preserving whatever else is already priced.</summary>
     public static async Task<HttpResponseMessage> PriceItemAsync(
         HttpClient client, string proposalCode, Guid rfqItemId,
         decimal quantity, decimal unitPrice, decimal? discount = null, int? leadTimeDays = null,
@@ -71,7 +71,6 @@ public static class ProposalPatch
         return await SendAsync(client, proposalCode, new { items });
     }
 
-    /// <summary>Removes one line's pricing by sending the array without it.</summary>
     public static async Task<HttpResponseMessage> RemoveItemAsync(HttpClient client, string proposalCode, Guid rfqItemId)
     {
         var items = await CurrentItemsAsync(client, proposalCode);

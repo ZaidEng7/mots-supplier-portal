@@ -1,15 +1,18 @@
+// The redaction stage on the log pipeline actually fires.
+//
+// The deny-list was previously referenced by a comment in the audit difference builder while no pipeline existed
+// at all, so "personal data is redacted in logs" was an assertion nobody had ever executed.
+//
+// Casing and embedding both matter, because the deny-list is a case-insensitive substring match: a property whose
+// name merely CONTAINS a listed term must be caught as surely as one named exactly after it.
+
+namespace MotsSupplierPortal.Tests.Unit.Observability;
+
 using FluentAssertions;
 using MotsSupplierPortal.Infrastructure.Observability;
 using Serilog;
 using Serilog.Events;
 
-namespace MotsSupplierPortal.Tests.Unit.Observability;
-
-/// <summary>
-/// MSP-61: proves the redaction stage actually fires. The deny-list was previously referenced by a
-/// comment in AuditChangeBuilder but no pipeline existed, so "PII is redacted in logs" was an
-/// assertion nobody had ever executed.
-/// </summary>
 public sealed class RedactingEnricherTests
 {
     private static LogEvent CaptureWithProperty(string propertyName, string value)
@@ -36,8 +39,6 @@ public sealed class RedactingEnricherTests
     [InlineData("ClientSecret")]
     [InlineData("Iban")]
     [InlineData("OtpCode")]
-    // Casing and embedding both matter: the deny-list is a case-insensitive substring match, so a
-    // property named e.g. "RefreshTokenHash" must be caught as surely as a bare "token".
     [InlineData("RefreshTokenHash")]
     public void Deny_listed_property_names_are_redacted(string propertyName)
     {

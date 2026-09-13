@@ -1,11 +1,13 @@
-using FluentAssertions;
-using MotsSupplierPortal.Api.Endpoints;
+// Parsing the browser's language header, which is free text a browser controls rather than a clean set of values.
+//
+// This proves the parser handles the shapes real browsers actually send, including quality values, region subtags
+// and multiple entries, and that it defaults safely rather than throwing or guessing at the wrong language.
 
 namespace MotsSupplierPortal.Tests.Unit.Api;
 
-/// <summary>MSP-69: the Accept-Language header is free text a browser controls, not a clean enum -
-/// this proves the parser handles the shapes real browsers actually send (q-values, region subtags,
-/// multiple entries) and defaults safely rather than throwing or guessing at the wrong locale.</summary>
+using FluentAssertions;
+using MotsSupplierPortal.Api.Endpoints;
+
 public sealed class ResolveLocaleTests
 {
     [Theory]

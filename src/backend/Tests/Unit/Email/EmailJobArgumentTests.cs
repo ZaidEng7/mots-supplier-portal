@@ -1,46 +1,58 @@
+// Nothing an email job receives may be an email address or a token.
+//
+//
+// WHY THIS IS A REFLECTION TEST RATHER THAN A SET OF BEHAVIOURAL ONES
+//
+// The job framework persists arguments as plain text, and the exposure is a property of the method SIGNATURES
+// rather than of any single send.
+//
+// A behavioural test proves one path is clean. This proves there is no unclean path to find. It also fails on a
+// method added later, which is the whole point: the finding behind it was not that one job leaked, it was that
+// ten of them did and nobody had looked.
+//
+// This is the principle applied while there is still a choice: a comment saying "pass identifiers, not
+// addresses" is a note for somebody already looking, and this is a control.
+//
+//
+// THERE IS A STRONGER CONTROL THAN THIS ONE, AND IT IS WORTH KNOWING IT IS HERE
+//
+// Reintroducing an address argument does not merely fail this test. It stops the integration project COMPILING,
+// because the behavioural email tests call these methods directly.
+//
+// A compiler that refuses beats a test that fails, because a test can be deleted by somebody who thinks it is
+// noise and a compile error cannot be. Same technique as removing a parameter from an interface outright: make
+// the wrong thing impossible to express.
+//
+// The honest boundary: that mechanism proves SHAPE, never behaviour. It cannot tell you the job mints the right
+// token for the right user. The behavioural tests exist for that, and a coverage floor caught the gap precisely
+// because only the shape half had been built.
+//
+//
+// THE SINGLE DOCUMENTED EXCEPTION
+//
+// A rejection reason is not persisted on the supplier record, so unlike every other value here it cannot be
+// resolved from an identifier.
+//
+// It is kept as an explicit allow-list by name rather than a looser rule, so adding a second text argument
+// anywhere fails this test and forces the same conversation again, which is what a narrow exception is for.
+//
+// Two further assertions guard that guard. Names are checked as well as types, because a text argument would
+// already fail on its type while an identifier named after a URL would not, and would mean somebody had found a
+// way to keep passing the thing around. And if the exception's own parameter ever disappears, because the
+// reason gets persisted and resolved like everything else, the allow-list entry has to go with it rather than
+// sitting here permitting a string nobody needs any more.
+
+namespace MotsSupplierPortal.Tests.Unit.Email;
+
 using System.Reflection;
 using FluentAssertions;
 using MotsSupplierPortal.Infrastructure.Email;
 
-namespace MotsSupplierPortal.Tests.Unit.Email;
-
-/// <summary>
-/// MSP-89: nothing an email job receives may be an email address or a token.
-///
-/// <para><b>Why this is a reflection test rather than a set of behavioural ones.</b> Hangfire
-/// persists job arguments as plaintext JSON, and the exposure is a property of the method
-/// signatures, not of any single send. A behavioural test proves one path is clean; this proves
-/// there is no unclean path to find. It also fails on a method added later, which is the whole
-/// point - MSP-87's finding was not that one job leaked, it was that ten of them did and nobody had
-/// looked.</para>
-///
-/// <para>This is the MSP-88 principle applied while we have the choice: a comment saying "pass ids,
-/// not addresses" is a note for someone already looking. This is a control.</para>
-///
-/// <para><b>There is a stronger control than this one, and it is worth knowing it is here.</b>
-/// Reintroducing an address argument does not merely fail this test - it stops the integration test
-/// project COMPILING, because EmailJobBehaviourTests calls these methods directly. A compiler that
-/// refuses beats a test that fails, because a test can be deleted by someone who thinks it is noise
-/// and a compile error cannot be. Same technique as removing the correlationId parameter from
-/// IAuditLogger outright (MSP-64): make the wrong thing impossible to express.</para>
-///
-/// <para>The honest boundary: that mechanism proves SHAPE, never behaviour. It cannot tell you the
-/// job mints the right token for the right user - EmailJobBehaviourTests exists for that, and the
-/// coverage floor caught the gap precisely because only the shape half had been built.</para>
-/// </summary>
 public sealed class EmailJobArgumentTests
 {
     private static IEnumerable<MethodInfo> JobMethods =>
         typeof(EmailJobs).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-    /// <summary>
-    /// The single documented exception, kept as an explicit allow-list rather than a looser rule.
-    ///
-    /// A rejection reason is not persisted on the Supplier aggregate, so unlike every other value
-    /// here it cannot be resolved from an id. Listing it by name means adding a second string
-    /// argument anywhere fails this test and forces the same conversation again - which is what a
-    /// narrow exception is for. See SendApplicationRejectedEmailAsync for the full reasoning.
-    /// </summary>
     private static readonly (string Method, string Parameter)[] AllowedStringArguments =
     [
         (nameof(EmailJobs.SendApplicationRejectedEmailAsync), "reason"),
@@ -76,10 +88,6 @@ public sealed class EmailJobArgumentTests
     [Fact]
     public void No_job_method_hints_at_carrying_a_url_or_an_address()
     {
-        // Names, not just types. A `string acceptUrl` would already fail the test above, but a
-        // `Guid verifyUrlId` would not - and would mean somebody had found a way to keep passing the
-        // thing around. Cheap to assert, and it fails loudly on the naming rather than quietly on
-        // the intent.
         var suspicious = JobMethods
             .SelectMany(m => m.GetParameters().Select(p => (Method: m.Name, Parameter: p.Name ?? "")))
             .Where(p => p.Parameter.Contains("url", StringComparison.OrdinalIgnoreCase)
@@ -95,9 +103,6 @@ public sealed class EmailJobArgumentTests
     [Fact]
     public void The_allow_list_still_describes_something_real()
     {
-        // A guard on the guard. If SendApplicationRejectedEmailAsync ever loses its reason parameter
-        // - because the reason gets persisted and resolved like everything else - the exception
-        // should go with it rather than sitting here permitting a string nobody needs any more.
         foreach (var (methodName, parameterName) in AllowedStringArguments)
         {
             var method = JobMethods.SingleOrDefault(m => m.Name == methodName);

@@ -1,26 +1,36 @@
+// The number of versioned roots, and the two comments that state it, agree with the code.
+//
+//
+// WHY THIS IS A TEST
+//
+// The versioned-aggregate interface's own comment said nine roots implement it and named them, and the mapping
+// helper said all nine versioned roots. There were thirteen.
+//
+// The four it left out are the configuration roots, added later and correctly given a version, while the prose
+// stayed where it was.
+//
+// A count that is NEARLY right is the harmful kind. A reader auditing "the nine" finds them consistent,
+// concludes the mechanism is sound, and never looks at the other four. That same comment is the first thing this
+// repository's own onboarding tells a newcomer to read.
+//
+// So the number is derived here rather than trusted, and both sentences have to match it. If a fourteenth root
+// is added, this fails and names it.
+//
+// The other direction is checked too, because a comment can also be wrong by naming something that no longer
+// exists, which reads as authoritative and sends a reader looking for a class that is not there.
+//
+// A reflection walk that found no roots would make every check pass, so the non-empty assertion comes first.
+//
+// It walks up from the test binaries to the repository, so this works from the command line, from an editor, and
+// in continuous integration without any of them agreeing on a working directory.
+
+namespace MotsSupplierPortal.Tests.Architecture;
+
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Common;
 
-namespace MotsSupplierPortal.Tests.Architecture;
-
-/// <summary>
-/// The number of versioned roots, and the two comments that state it, agree with the code.
-///
-/// <para><b>Why this is a test.</b> <c>IVersionedAggregate</c>'s own doc comment said "Nine roots
-/// implement it" and named them, and <c>AppManagedVersion</c> said "all nine versioned roots". There
-/// were thirteen. The four it left out are the configuration roots - SystemSetting,
-/// NotificationTemplate, EmailTemplateOverride and UiStringOverride - added later and correctly given
-/// a version, while the prose stayed where it was.</para>
-///
-/// <para>A count that is NEARLY right is the harmful kind. A reader auditing "the nine" finds them
-/// consistent, concludes the mechanism is sound, and never looks at the other four. The same comment
-/// is the first thing this repository's own onboarding tells a newcomer to read.</para>
-///
-/// <para>So the number is derived here rather than trusted, and the sentence has to match it. If a
-/// fourteenth root is added, this fails and names it.</para>
-/// </summary>
 public sealed class VersionedRootCountTests
 {
     private static Type[] VersionedRoots() =>
@@ -34,7 +44,6 @@ public sealed class VersionedRootCountTests
     {
         var roots = VersionedRoots();
 
-        // Non-vacuity: a reflection walk that found none would otherwise make every check below pass.
         roots.Should().HaveCountGreaterThan(5, "the walk must be finding real aggregate roots");
 
         var stated = DocCommentCount("Domain", "Common", "IVersionedAggregate.cs");
@@ -55,8 +64,6 @@ public sealed class VersionedRootCountTests
     [Fact]
     public void Every_named_root_in_the_comment_is_a_real_type()
     {
-        // The other direction. A comment can also be wrong by naming something that no longer exists,
-        // which reads as authoritative and sends a reader looking for a class that is not there.
         var source = File.ReadAllText(SolutionFile("Domain", "Common", "IVersionedAggregate.cs"));
         var listed = Regex.Match(source, @"roots implement it - (?<names>[^<]+?) - and a mutable", RegexOptions.Singleline);
         listed.Success.Should().BeTrue("the comment must still carry the list this check reads");
@@ -74,7 +81,6 @@ public sealed class VersionedRootCountTests
         names.Should().HaveCount(actual.Count, "and it must name all of them, not some");
     }
 
-    /// <summary>The number word a doc comment states, as a number. Only the words this file needs.</summary>
     private static int DocCommentCount(params string[] path)
     {
         var source = File.ReadAllText(SolutionFile(path));
@@ -90,10 +96,6 @@ public sealed class VersionedRootCountTests
         return words[match.Groups[1].Value];
     }
 
-    /// <summary>
-    /// Walks up from the test binaries to the repository, so this works from `dotnet test`, from an
-    /// IDE, and in CI without any of them agreeing on a working directory.
-    /// </summary>
     private static string SolutionFile(params string[] path)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

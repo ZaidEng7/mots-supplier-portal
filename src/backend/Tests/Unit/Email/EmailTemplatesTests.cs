@@ -1,15 +1,21 @@
-using FluentAssertions;
-using MotsSupplierPortal.Infrastructure.Email;
+// Every email template actually branches on language, rather than one arm being unreachable code that happens to
+// compile.
+//
+// The denominator is asserted rather than trusted from the ticket, which said nine hardcoded strings. There are
+// eleven distinct composition sites; one of them is a reviewer-facing email that the count did not obviously
+// include.
+//
+// That assertion is the one that would catch a twelfth template added later with no matching row here, or a row
+// here for a template that no longer exists.
+//
+// An unrecognised or missing language renders Arabic, matching the account setting's own default and the
+// interface's fallback. A missing or garbage value must not silently render English.
 
 namespace MotsSupplierPortal.Tests.Unit.Email;
 
-/// <summary>
-/// MSP-69: proves every one of the 11 templates actually branches on locale rather than one of the
-/// two arms silently being unreachable dead code that happens to compile. Denominator asserted below
-/// rather than trusting the count in the ticket ("9 hardcoded strings") - EmailJobs.cs actually has
-/// 11 distinct composition sites (SendApplicationResubmittedEmailAsync, a reviewer-facing email, is
-/// one that "9" does not obviously include).
-/// </summary>
+using FluentAssertions;
+using MotsSupplierPortal.Infrastructure.Email;
+
 public sealed class EmailTemplatesTests
 {
     public static IEnumerable<object[]> AllTemplates() =>
@@ -30,8 +36,6 @@ public sealed class EmailTemplatesTests
     [Fact]
     public void Eleven_templates_are_covered_by_this_denominator()
     {
-        // The one assertion that would catch a 12th template added later without a matching row
-        // here, or a row here for a template that no longer exists.
         AllTemplates().Should().HaveCount(11);
     }
 
@@ -51,8 +55,6 @@ public sealed class EmailTemplatesTests
     [Fact]
     public void Unrecognized_or_missing_locale_falls_back_to_Arabic()
     {
-        // Matches AppUser.Language's own default ("ar") and the frontend's fallbackLng
-        // (src/frontend/src/i18n/config.ts) - a null/garbage locale must not silently render English.
         EmailTemplates.ApplicationApproved(null).Subject.Should().MatchRegex(@"\p{IsArabic}");
         EmailTemplates.ApplicationApproved("fr").Subject.Should().MatchRegex(@"\p{IsArabic}");
         EmailTemplates.ApplicationApproved("").Subject.Should().MatchRegex(@"\p{IsArabic}");

@@ -1,16 +1,19 @@
+// A real buying body for tender tests to scope a staff client to.
+//
+// No endpoint creates a bare one outside the administration flow that is tested elsewhere, so this creates one
+// through the domain factory directly, which is the same pattern other suites use for setup outside the scope of
+// the test itself.
+//
+// Its public code comes from the real allocator, so a test organization carries a real code and the counter moves
+// the way it does in production. A literal would collide on the unique index the moment two tests ran.
+
+namespace MotsSupplierPortal.Tests.Integration;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Tests.Integration;
-
-/// <summary>EPIC-07: RFQ tests need a real Organization row to scope a procurement staff test
-/// client to (StaffTestClient.CreateAsync(fixture, role, organizationId)) - there is no HTTP
-/// endpoint that creates a bare buying-entity Organization outside the admin
-/// OrganizationEndpoints flow tested elsewhere, so this creates one directly via the domain
-/// factory, same pattern as SupplierLifecycleEndpointTests' direct db manipulation for
-/// out-of-scope-of-the-test-itself setup.</summary>
 public static class OrganizationTestHelper
 {
     public static async Task<Organization> CreateOrganizationAsync(PostgresApiFixture fixture, string? nameEn = null)
@@ -18,9 +21,6 @@ public static class OrganizationTestHelper
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // T-055: through the real allocator, so a test organization carries a real ORG- code and the
-        // counter moves the way it does in production. A literal here would collide on the unique
-        // index the moment two tests ran.
         var org = Organization.Create(
             await MotsSupplierPortal.Infrastructure.Registrations.ReferenceCodeGenerator.NextCodeAsync(db, "ORG", CancellationToken.None),
             "منظمة اختبار", nameEn ?? $"Test Org {Guid.NewGuid():N}", OrganizationType.Hotel);

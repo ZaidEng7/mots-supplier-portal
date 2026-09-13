@@ -1,56 +1,110 @@
+// Every handler that reads a row-scoped table either scopes it to the caller, or is named here with the reason
+// it does not.
+//
+//
+// WHY THIS CHECK EXISTS
+//
+// Row-scoping is the rule this product most depends on. The risk register's only critical entry names this exact
+// leak: a supplier seeing another supplier's bid, or one buying body seeing another's tender.
+//
+// Its stated mitigation is "scoping asserted in a shared query pipeline, not per-endpoint ad hoc". There is no
+// shared pipeline. There is no global query filter anywhere in the database context, no base handler, and no
+// test over the organization.
+//
+// Seventy handlers get it right by hand, and a seventy-first that forgot would fail nothing at all: the build is
+// green, every suite is green, and the rows simply come back.
+//
+//
+// WHAT IT READS
+//
+// Source, matched syntactically, the same way the filter check reads endpoint lambdas: each handler class in the
+// infrastructure layer, whether its body touches one of the row-scoped tables, and whether it mentions one of
+// the scoping constructs anywhere. There is no semantic model, so the match is on spelling.
+//
+// The scoped tables are the ones whose rows belong to somebody. A read of one without a scope is a read of every
+// organization's, or every supplier's.
+//
+// The supplier table is the subtle one. A supplier carries no organization at all, because the registry is
+// national and the link to a buying body is a separate many-to-many. So a buyer-side handler reading it unscoped
+// is usually correct, while a supplier-side one reading it unscoped is a cross-tenant leak. The list names the
+// table; the exemptions carry that distinction, one handler at a time.
+//
+// The scoping vocabulary is three claims from the token, organization, supplier and user, plus the five named
+// helpers that hold a scoping condition on behalf of the handlers that call them. The user claim counts because
+// one family of handlers is scoped by ASSIGNMENT rather than by tenancy: an evaluator may belong to no
+// organization at all, and their assignment list filters on the evaluator, which is a scope in every sense that
+// matters.
+//
+//
+// "MENTIONS A SCOPING CONSTRUCT ANYWHERE" IS DELIBERATELY WEAK
+//
+// The first draft of this check proved why it has to be. A rule of "references the organization claim" reported
+// a handler as unscoped that is scoped, correctly, by delegating to a shared visibility rule which carries the
+// condition in a class of its own.
+//
+// Delegation is the shape the good handlers use. A check that could not see through it would have reported the
+// best-written code in the repository and been switched off within a week.
+//
+// So the rule is "reach for the scope". Proving WHICH rows a handler actually filtered would need dataflow
+// analysis this project does not have.
+//
+// That weakness is worth stating plainly: this catches a handler that never scopes at all, which is the failure
+// that has actually shipped elsewhere in this codebase. It does not catch a handler that scopes one query and
+// forgets a second. The cross-organization integration tests are the other half, with two organizations where
+// the second may not see the first's rows.
+//
+//
+// THE EXEMPTIONS, IN FOUR GROUPS
+//
+// Typed out by hand, one entry per handler, for the reason every exemption list in this repository is: a pattern
+// would let the next one join it silently. Every entry was read before it was written.
+//
+// Cross-organization by grant: the ministry's aggregate view across every buying body, since widened to named
+// rows. Pinning these to one organization would not narrow a leak, it would break the feature.
+//
+// The supplier registry is national, as above, and scoping these to the caller's organization would hide every
+// supplier from every reviewer.
+//
+// No caller to scope to: both of those run before an account exists.
+//
+// Platform administration, gated by permission rather than by scope and deliberately so, because an
+// administrator belongs to no organization and a scope condition would return nothing.
+//
+//
+// THREE CONTROLS
+//
+// Non-vacuity first, because a walk that matched nothing passes in silence, which is how the other instruments
+// in this project came to measure nothing.
+//
+// A stale-exemption check, because the allow-list is the part that rots: an exemption for a handler that no
+// longer exists, or that has since been scoped, is an exemption nobody is reading, and the next handler to take
+// that name inherits a hole.
+//
+// And a revert-to-red, in the shape the real defect takes. Without it the two assertions above would pass just
+// as well against a matcher that had stopped matching anything. It covers the delegation case the first draft
+// got wrong, and the case the first RUN got wrong: a comment is not a scope.
+//
+//
+// COMMENTS ARE STRIPPED BEFORE MATCHING, AND THAT IS NOT HOUSEKEEPING
+//
+// The syntax node's full text includes its leading trivia, and the first run of this check reported the
+// governance overview handler as SCOPED, on the strength of its own doc comment, which read "no organization
+// predicate, the inversion the governance overview documents".
+//
+// The handler is deliberately unscoped and says so, and the check read the saying as the doing.
+//
+// The per-file matcher is separate from the whole-tree scan so the revert-to-red control can run the same
+// matcher over a sample rather than over a second implementation of it.
+
+namespace MotsSupplierPortal.Tests.Architecture;
+
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace MotsSupplierPortal.Tests.Architecture;
-
-/// <summary>
-/// Every handler that reads a row-scoped table either scopes it to the caller, or is named here with
-/// the reason it does not.
-///
-/// <para><b>Why this check exists.</b> Row-scoping is the rule this product most depends on -
-/// <c>RISK-004</c> is the risk register's only Critical entry, and it names this exact leak: "a
-/// supplier sees another supplier's proposal, or one buying entity sees another's RFQ". Its stated
-/// mitigation is "scoping asserted in a shared query pipeline, not per-endpoint ad hoc". There is no
-/// shared pipeline. There is no <c>HasQueryFilter</c> anywhere in <c>AppDbContext</c>, no base
-/// handler, and no test over <c>OrganizationId</c>. Seventy handlers get it right by hand, and a
-/// seventy-first that forgot would fail nothing at all: the build is green, every suite is green, and
-/// the rows simply come back.</para>
-///
-/// <para><b>What it reads.</b> Source, matched syntactically, the same way <c>FilterGuardTests</c>
-/// reads endpoint lambdas: each <c>public sealed class *Handler*</c> in Infrastructure, whether its
-/// body touches one of the row-scoped <see cref="ScopedSets"/>, and whether it mentions one of the
-/// scoping constructs in <see cref="ScopingVocabulary"/> anywhere. There is no semantic model, so the
-/// match is on spelling.</para>
-///
-/// <para><b>"Mentions a scoping construct anywhere" is deliberately weak</b>, and the first draft of
-/// this check proved why it has to be. A rule of "references <c>scope.OrganizationId</c>" reported
-/// <c>ListBuyerProposalsHandler</c> as unscoped - a handler that is scoped, correctly, by delegating
-/// to <c>BuyerProposalVisibilityRule.ResolveAsync</c>, which carries
-/// <c>r.OrganizationId == scope.OrganizationId</c> in a class of its own. Delegation is the shape the
-/// good handlers use; a check that could not see through it would have reported the best-written code
-/// in the repository and been switched off within a week. So the rule is "reach for the scope", and
-/// proving WHICH rows a handler actually filtered would need dataflow analysis this project does not
-/// have.</para>
-///
-/// <para>That weakness is worth stating plainly: this check catches a handler that never scopes at
-/// all, which is the failure that has actually shipped elsewhere in this codebase. It does not catch
-/// a handler that scopes one query and forgets a second. <c>ScopedQueryTests</c> in the integration
-/// suite is the other half - two organisations, and the second may not see the first's rows.</para>
-/// </summary>
 public sealed class RowScopeGuardTests
 {
-    /// <summary>
-    /// The tables whose rows belong to somebody. A read of one of these without a scope is a read of
-    /// every organisation's, or every supplier's.
-    ///
-    /// <para><c>Suppliers</c> is on this list and it is the subtle one: a supplier has no
-    /// <c>OrganizationId</c> at all - the registry is national, and <c>SupplierOrgLink</c> is a
-    /// separate many-to-many. So a buyer-side handler reading <c>db.Suppliers</c> unscoped is usually
-    /// correct, while a SUPPLIER-side one reading it unscoped is a cross-tenant leak. The list names
-    /// the table; the exemptions below carry that distinction, one handler at a time.</para>
-    /// </summary>
     private static readonly string[] ScopedSets =
     [
         "Rfqs", "Proposals", "Suppliers", "Offerings", "Invitations", "SupplierDocuments",
@@ -58,15 +112,6 @@ public sealed class RowScopeGuardTests
         "Representatives", "CategoryLinks",
     ];
 
-    /// <summary>
-    /// What reaching for the caller's scope looks like in this codebase.
-    ///
-    /// <para>Three claims from the token - organisation, supplier, user - and the five named helpers
-    /// that hold a scoping predicate on behalf of the handlers that call them. <c>scope.UserId</c>
-    /// counts because one family of handlers is scoped by ASSIGNMENT rather than by tenancy: an
-    /// evaluator may belong to no organisation at all, and <c>ListMyAssignmentsHandler</c> filters on
-    /// <c>EvaluatorUserId == userId</c>, which is a scope in every sense that matters.</para>
-    /// </summary>
     private static readonly string[] ScopingVocabulary =
     [
         "scope.OrganizationId", "scope.SupplierId", "scope.UserId",
@@ -74,18 +119,8 @@ public sealed class RowScopeGuardTests
         "ScopedQuery", "SupplierCodeScope", "BuyerProposalVisibilityRule",
     ];
 
-    /// <summary>
-    /// The handlers that read a scoped table without scoping it, each with the reason that is right.
-    ///
-    /// <para>Typed out by hand, one entry per handler, for the reason every exemption list in this
-    /// repository is: a pattern would let the next one join it silently. Every entry below was read
-    /// before it was written, and they fall into four groups.</para>
-    /// </summary>
     private static readonly Dictionary<string, string> DeliberatelyUnscoped = new(StringComparer.Ordinal)
     {
-        // ── Cross-organisation by grant. BRULE-086 gives the Ministry an aggregate view across every
-        // buying body, and D-66 widened it to named rows. Pinning these to one organisation would not
-        // narrow a leak, it would break the feature.
         ["GetGovernanceOverviewHandler"] = "BRULE-086: the Ministry's view is cross-organisation by grant",
         ["ListMinistryRfqsHandler"] = "BRULE-086/D-66: every tender in the country, whoever is running it",
         ["ListMinistrySuppliersHandler"] = "BRULE-086: the national supplier registry, not one buyer's list",
@@ -93,9 +128,6 @@ public sealed class RowScopeGuardTests
         ["GetMinistryRfqDetailHandler"] = "D-66: one tender read-only with every bid, cross-organisation",
         ["GetCategoryCoverageHandler"] = "SCR-604: category coverage of the national registry",
 
-        // ── The supplier registry is national. A Supplier carries no OrganizationId; the link to a
-        // buying body is a separate many-to-many that these handlers do not read. Scoping them to the
-        // caller's organisation would hide every supplier from every reviewer.
         ["ListSupplierDirectoryHandler"] = "SCR-601: the national registry; a supplier belongs to no buying body",
         ["ListComplianceDirectoryHandler"] = "compliance is assessed nationally, not per buying body",
         ["ListSupplierDocumentsPagedHandler"] = "reviewer surface over the national registry; the route names the supplier",
@@ -103,12 +135,9 @@ public sealed class RowScopeGuardTests
         ["SearchBuyerOfferingsHandler"] = "the offering catalogue is national; any buyer may search any supplier's",
         ["ComplianceReportHandler"] = "states it on screen: these counts cover every registered supplier",
 
-        // ── No caller to scope to. Both run before an account exists.
         ["RegisterSupplierHandler"] = "anonymous: it creates the supplier the scope would have named",
         ["VerifyEmailHandler"] = "anonymous: a token is the only identity the caller has",
 
-        // ── Platform administration. Gated by permission rather than by scope, and deliberately so:
-        // an administrator belongs to no organisation, so a scope predicate would return nothing.
         ["StorageSettingsHandler"] = "system_admin: storage totals for the deployment, not for a tenant",
         ["GetErpSyncMonitorHandler"] = "system_admin: the ERP queue is one queue for the deployment",
     };
@@ -120,8 +149,6 @@ public sealed class RowScopeGuardTests
     {
         var found = Scan();
 
-        // Non-vacuity, first, because a walk that matched nothing passes in silence - which is how
-        // the other instruments in this project came to measure nothing.
         found.Should().HaveCountGreaterThan(50,
             "the walk must actually be finding handlers; a check that inspects nothing always passes");
         found.Count(h => h.Scoped).Should().BeGreaterThan(40,
@@ -141,9 +168,6 @@ public sealed class RowScopeGuardTests
     [Fact]
     public void Every_exemption_still_names_a_handler_that_reads_a_scoped_table()
     {
-        // The allow-list is the part that rots. An exemption for a handler that no longer exists, or
-        // that has since been scoped, is an exemption nobody is reading - and the next handler to take
-        // that name inherits a hole. Failing on a STALE entry is what stops the list growing quietly.
         var scanned = Scan();
         var unscopedNames = scanned.Where(h => !h.Scoped).Select(h => h.Name).ToHashSet(StringComparer.Ordinal);
 
@@ -157,8 +181,6 @@ public sealed class RowScopeGuardTests
     [Fact]
     public void The_check_can_fail()
     {
-        // Revert-to-red, in the shape the real defect takes. Without this the two tests above would
-        // pass just as well against a matcher that had stopped matching anything at all.
         const string leaks = """
             public sealed class ListEverythingHandler(AppDbContext db)
             {
@@ -178,8 +200,6 @@ public sealed class RowScopeGuardTests
         ScanSource("Leaks.cs", leaks).Should().ContainSingle().Which.Scoped.Should().BeFalse();
         ScanSource("Scopes.cs", scopes).Should().ContainSingle().Which.Scoped.Should().BeTrue();
 
-        // And the delegation case, which the first draft of this check got wrong: a handler that
-        // scopes through a named helper is scoped.
         const string delegates = """
             public sealed class ListViaRuleHandler(AppDbContext db, IScopeContext scope)
             {
@@ -192,7 +212,6 @@ public sealed class RowScopeGuardTests
             """;
         ScanSource("Delegates.cs", delegates).Should().ContainSingle().Which.Scoped.Should().BeTrue();
 
-        // And a comment is not a scope. This is the case the check got wrong on its first run.
         const string saysButDoesNot = """
             /// <summary>No organization predicate - the inversion the governance overview documents.</summary>
             public sealed class ListEverythingAnywayHandler(AppDbContext db)
@@ -223,10 +242,6 @@ public sealed class RowScopeGuardTests
         return results;
     }
 
-    /// <summary>
-    /// One file's handler classes. Separate from <see cref="Scan"/> so the revert-to-red control can
-    /// run the same matcher over a sample rather than over a second implementation of it.
-    /// </summary>
     private static List<HandlerScan> ScanSource(string fileName, string source)
     {
         var root = CSharpSyntaxTree.ParseText(source).GetRoot();
@@ -237,17 +252,6 @@ public sealed class RowScopeGuardTests
             var name = declaration.Identifier.ValueText;
             if (!name.Contains("Handler", StringComparison.Ordinal)) continue;
 
-            // Comments first, and this is not housekeeping. `ToFullString()` includes leading trivia,
-            // and the first run of this check reported GetGovernanceOverviewHandler as SCOPED - on the
-            // strength of its own doc comment, which reads "No organization predicate - the same
-            // inversion the governance overview documents". The handler is deliberately unscoped and
-            // says so, and the check read the saying as the doing.
-            //
-            // Three other guards in this repository have made the identical mistake: a contrast sweep
-            // that measured a colour quoted in prose, a heading sweep that matched the tag it forbids
-            // inside its own comment, and a motion sweep that found a class name in the sentence
-            // explaining its deletion. A parser that cannot tell a usage from a mention of one is not
-            // reading the code.
             var body = StripComments(declaration.ToFullString());
 
             var tables = ScopedSets
@@ -262,7 +266,6 @@ public sealed class RowScopeGuardTests
         return results;
     }
 
-    /// <summary>Source with every comment removed, so prose about scoping cannot pass for scoping.</summary>
     private static string StripComments(string source)
     {
         var root = CSharpSyntaxTree.ParseText(source).GetRoot();
@@ -276,10 +279,6 @@ public sealed class RowScopeGuardTests
         return root.ReplaceTrivia(comments, (_, _) => default).ToFullString();
     }
 
-    /// <summary>
-    /// Walks up from the test binaries to the repository, so this works from `dotnet test`, from an
-    /// IDE, and in CI without any of them agreeing on a working directory.
-    /// </summary>
     private static string InfrastructureDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

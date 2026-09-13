@@ -1,31 +1,39 @@
+// The rate-limit rejection counter actually records a measurement on a real rejection.
+//
+// Captured through a real measurement listener from the base library, with no extra test package, rather than by
+// asserting on internal state. So this proves what an actual metrics exporter would see.
+//
+//
+// THE LISTENER'S LIFETIME IS THE CALLER'S, AND THAT IS NOT A STYLE POINT
+//
+// It must be disposed AFTER the calls expected to record measurements. Disposing it early, for instance through
+// a helper that returns before the real work happens, silently stops listening with no error.
+//
+// That is exactly the defect this shape had on the first pass, and it was caught by the very revert-to-red proof
+// it exists to support: the positive test failed with zero measurements before the fix.
+//
+//
+// IT FILTERS BY METER INSTANCE, NOT BY METER NAME
+//
+// Every test in this class and in the rate-limiter tests constructs its own metrics object, and every one of
+// those meters shares the same name, because the name is a constant.
+//
+// The test runner runs different test classes in parallel by default, so a listener filtering on name alone
+// hears every instance in the process rather than the one this test constructed. This test failed in continuous
+// integration on exactly that, picking up a concurrently running rate-limiter rejection as if it were its own.
+//
+// Comparing the meter object itself scopes the listener to only the instance this test owns, which is what
+// "records a measurement" is actually supposed to mean here.
+
+namespace MotsSupplierPortal.Tests.Unit.Observability;
+
 using System.Diagnostics.Metrics;
 using FluentAssertions;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Infrastructure.Observability;
 
-namespace MotsSupplierPortal.Tests.Unit.Observability;
-
-/// <summary>Task #16/NFR-OBS-006: the rate-limit rejection counter actually records a measurement
-/// on a real rejection - captured via a real MeterListener (BCL, no extra test package) rather
-/// than asserting on internal state, so this proves what an actual OTel exporter would see.</summary>
 public sealed class AppMetricsTests
 {
-    /// <summary>The caller owns the returned listener and must dispose it AFTER making the calls
-    /// expected to record measurements - disposing it early (e.g. via a "using" local to a helper
-    /// that returns before the real work happens) silently stops listening with no error, which is
-    /// exactly the bug this shape had on the first pass (caught by the very revert-to-red proof it
-    /// exists to support: the "positive" test failed with zero measurements before this fix).
-    ///
-    /// <para><b>Task #17: filters by Meter instance, not by Meter.Name.</b> Every test in this class
-    /// and in PerTargetRateLimiterTests constructs its own <c>new AppMetrics()</c>, and every one of
-    /// those Meters shares the same name ("MotsSupplierPortal" - AppMetrics.MeterName is a constant).
-    /// xUnit runs different test classes in parallel by default; a MeterListener filtering on name
-    /// alone hears every AppMetrics instance in the process, not just the one this test constructed -
-    /// this test failed in CI on exactly that, picking up a concurrently-running
-    /// PerTargetRateLimiterTests rejection as if it were its own. Comparing the Meter object itself
-    /// scopes the listener to only the instance this test owns, which is what "records a measurement"
-    /// is actually supposed to mean here.</para>
-    /// </summary>
     private static (MeterListener Listener, List<long> Values, List<IReadOnlyDictionary<string, object?>> Tags) Listen(Meter meter, string instrumentName)
     {
         var values = new List<long>();
@@ -63,7 +71,6 @@ public sealed class AppMetricsTests
         {
             limiter.TryAcquire("register", "metrics-probe@example.com");
         }
-        // The 6th exceeds the 5/min "register" budget - this is the rejection under test.
         limiter.TryAcquire("register", "metrics-probe@example.com");
 
         values.Should().ContainSingle().Which.Should().Be(1);

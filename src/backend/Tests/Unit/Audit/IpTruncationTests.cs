@@ -1,16 +1,22 @@
+// Audit rows record the caller's address truncated to its network rather than in full.
+//
+// The decision and its reasoning live at the call site. These tests pin the behaviour, so a later
+// "simplification" to storing the full address is a failing test rather than a silent privacy regression in a
+// table retained indefinitely.
+//
+// A dual-stack server reports callers arriving over the older protocol in a mapped form. Taking the newer
+// protocol's branch there would mask the wrong bytes and store a value that is neither the right network nor
+// obviously wrong, which is the worst of both.
+//
+// And two addresses on one network must be indistinguishable afterwards. If they are not, the truncation is
+// decorative and the privacy argument for it does not hold.
+
+namespace MotsSupplierPortal.Tests.Unit.Audit;
+
 using System.Net;
 using FluentAssertions;
 using MotsSupplierPortal.Api.Authorization;
 
-namespace MotsSupplierPortal.Tests.Unit.Audit;
-
-/// <summary>
-/// MSP-64: audit rows record caller IP truncated to /24 (IPv4) and /48 (IPv6).
-///
-/// The decision and its reasoning live at the call site; these tests pin the behaviour so a later
-/// "simplification" to storing the full address is a failing test rather than a silent privacy
-/// regression in a table retained indefinitely (ASM-085).
-/// </summary>
 public sealed class IpTruncationTests
 {
     [Theory]
@@ -29,9 +35,6 @@ public sealed class IpTruncationTests
     [Fact]
     public void IPv4_mapped_IPv6_is_unmapped_before_truncation()
     {
-        // A dual-stack Kestrel reports IPv4 callers as ::ffff:203.0.113.5. Taking the IPv6 branch
-        // there would mask the wrong bytes and store a value that is neither the right network nor
-        // obviously wrong - the worst of both.
         HttpAuditContext.Truncate(IPAddress.Parse("::ffff:203.0.113.5"))
             .Should().Be("203.0.113.0/24");
     }
@@ -39,8 +42,6 @@ public sealed class IpTruncationTests
     [Fact]
     public void Truncation_discards_the_host_portion_rather_than_masking_it_in_place()
     {
-        // Two addresses on one /24 must be indistinguishable afterwards. If they are not, the
-        // truncation is decorative and the privacy argument for it does not hold.
         HttpAuditContext.Truncate(IPAddress.Parse("203.0.113.7"))
             .Should().Be(HttpAuditContext.Truncate(IPAddress.Parse("203.0.113.200")));
     }

@@ -1,14 +1,25 @@
-using FluentAssertions;
-using NetArchTest.Rules;
+// The dependency direction between the four layers, enforced rather than described.
+//
+// The domain depends on nothing outward. The application layer depends only on the domain. Only the
+// infrastructure and the web layer may depend on the database mapper or the web framework.
+//
+//
+// ONE RULE HERE FILTERS, SO ITS DENOMINATOR IS ASSERTED FIRST
+//
+// The rule that domain exceptions must be sealed is the only one with a filter, and a rule of this kind whose
+// filter matches nothing PASSES, vacuously, and indistinguishably from passing on real types.
+//
+// Rename the base exception, move it to another assembly, or change what it inherits, and the rule would keep
+// reporting success over an empty set.
+//
+// Five instruments in this repository have already been found reporting on an absent or empty denominator. The
+// non-empty assertion before the rule is the cheapest possible defence against being the sixth.
 
 namespace MotsSupplierPortal.Tests.Architecture;
 
-/// <summary>
-/// Enforces the Clean Architecture dependency direction described in
-/// docs/architecture/00-foundational-decisions.md: Domain has no outward dependencies,
-/// Application depends only on Domain, and only Infrastructure/Api may depend on
-/// EF Core / ASP.NET Core.
-/// </summary>
+using FluentAssertions;
+using NetArchTest.Rules;
+
 public sealed class LayerDependencyTests
 {
     private const string Domain = "MotsSupplierPortal.Domain";
@@ -107,15 +118,6 @@ public sealed class LayerDependencyTests
     [Fact]
     public void Domain_exceptions_should_be_sealed_or_abstract()
     {
-        // The DENOMINATOR, asserted before the rule (Phase 4 sweep, MSP-83).
-        //
-        // This is the only rule in this file with a `.That()` filter, and a NetArchTest rule whose
-        // filter matches nothing passes - vacuously, and indistinguishably from passing on real
-        // types. Rename DomainException, move it to another assembly, or change what it inherits,
-        // and this test keeps reporting success over an empty set.
-        //
-        // Five instruments in this repository have already been found reporting on an empty or
-        // absent denominator. This is the cheapest possible defence against being the sixth.
         var domainExceptions = Types.InAssembly(typeof(Domain.Suppliers.Supplier).Assembly)
             .That()
             .Inherit(typeof(Exception))

@@ -1,3 +1,30 @@
+// A registered, verified, signed-in supplier: the starting position for most integration tests.
+//
+// Extracted because each test class had grown its own near-identical copy of the register, verify, sign-in,
+// attach-token sequence.
+//
+// Each call creates a distinct supplier, so tests sharing the collection's single database do not collide.
+//
+//
+// THE VARIANTS, AND WHY EACH EXISTS
+//
+// One without the automatic version header. The suite's default client sends a current precondition on every
+// mutation, which is what keeps three hundred tests written before that guard passing, and a test about the
+// precondition itself needs a caller that sends exactly what the test says it sends and nothing else.
+//
+// One that also returns the generated address, so a test can sign in again and inspect the sign-in response
+// itself: the refresh cookie is set on that response and is not observable from an already-authenticated client.
+//
+// And a SECOND user belonging to the same supplier, for tests proving a screen is scoped to the company rather
+// than to the person reading it. That one is seeded through the user manager rather than the invitation flow,
+// because the invitation is a separate feature with its own tests and driving it here would make a scoping test
+// fail whenever invitations broke.
+//
+// The verification token is issued through the real token service against the real database. No mocking, and no
+// scraping the link out of a log, which a privacy fix deliberately no longer prints.
+
+namespace MotsSupplierPortal.Tests.Integration;
+
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,27 +33,10 @@ using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Tests.Integration;
-
-/// <summary>
-/// Shared setup for "a registered, email-verified, logged-in supplier" - the starting position for
-/// most integration tests. Extracted because each test class had grown its own near-identical copy
-/// of the register -> issue token -> verify -> login -> attach bearer sequence.
-/// </summary>
 public static class SupplierTestClient
 {
     public const string Password = "IntegrationTest#2026!";
 
-    /// <summary>Returns a client whose Authorization header carries a live access token for a
-    /// freshly registered supplier. Each call creates a distinct supplier, so tests sharing the
-    /// collection's single database do not collide.</summary>
-    /// <summary>
-    /// The same authenticated caller, but on a client that does NOT attach ETags automatically.
-    ///
-    /// <para>The suite's default client sends a current If-Match on every mutation, which is what
-    /// keeps three hundred tests written before §8.1 passing. A test about the precondition itself
-    /// needs a caller that sends exactly what the test says it sends and nothing else.</para>
-    /// </summary>
     public static Task<HttpClient> CloneWithoutETagsAsync(PostgresApiFixture fixture, HttpClient authenticated)
     {
         var raw = fixture.CreateRawClient();
@@ -38,14 +48,6 @@ public static class SupplierTestClient
         return Task.FromResult(raw);
     }
 
-    /// <summary>
-    /// A SECOND user belonging to the same supplier, for the tests that need to prove a screen is
-    /// scoped to the supplier rather than to the person reading it.
-    ///
-    /// <para>Seeded through UserManager rather than the invite flow: the invite is a separate
-    /// feature with its own tests, and driving it here would make a scoping test fail whenever
-    /// invitations broke.</para>
-    /// </summary>
     public static async Task<HttpClient> CreateColleagueAsync(PostgresApiFixture fixture, Guid supplierId)
     {
         var client = fixture.CreateClient();
@@ -88,9 +90,6 @@ public static class SupplierTestClient
     public static async Task<HttpClient> CreateVerifiedSupplierAsync(PostgresApiFixture fixture, string displayNameEn) =>
         (await CreateVerifiedSupplierWithEmailAsync(fixture, displayNameEn)).Client;
 
-    /// <summary>As <see cref="CreateVerifiedSupplierAsync"/>, but also returns the generated email so
-    /// a test can log in again and inspect the login response itself - the refresh cookie is set on
-    /// that response, and is not observable from an already-authenticated client.</summary>
     public static async Task<(HttpClient Client, string Email)> CreateVerifiedSupplierWithEmailAsync(
         PostgresApiFixture fixture, string displayNameEn)
     {
@@ -119,9 +118,6 @@ public static class SupplierTestClient
         return (client, email);
     }
 
-    /// <summary>Issues the same opaque verification token RegisterSupplierHandler issues, using the
-    /// real ISecurityTokenService against the real database - no mocking, and no scraping the link
-    /// out of a log (which the MSP-61 fix deliberately no longer prints).</summary>
     private static async Task VerifyEmailAsync(PostgresApiFixture fixture, HttpClient client, string email)
     {
         using var scope = fixture.Services.CreateScope();
