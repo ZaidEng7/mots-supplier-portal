@@ -50,6 +50,44 @@ describe('If-Match across consecutive child writes', () => {
     expect(calls[2].ifMatch).toBe('"AAAAAg"')
   })
 
+  /**
+   * A refused write leaves the tab able to try again.
+   *
+   * <p>412 means the row moved since this tab read it - another tab of the same product, another
+   * person, or a background job. The write is correctly refused and is NOT replayed, because
+   * replaying it would overwrite whatever moved the row. But the tab used to be left holding the dead
+   * version, so every later save on that screen was refused too and only a page reload helped.
+   * Reported as "I switch away, come back, and cannot edit anything until I refresh".</p>
+   */
+  it('re-reads the resource after a 412 so the next attempt has a live version', async () => {
+    const versions = ['"AAAAAQ"', '"AAAAAw"']
+    let next = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers)
+      const method = init?.method ?? 'GET'
+      calls.push({ url: String(url), ifMatch: headers.get('If-Match') })
+      // The guarded write is refused once; every read answers with the row's current version.
+      if (method === 'PATCH') return new Response('{}', { status: 412 })
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ETag: versions[Math.min(next++, versions.length - 1)] },
+      })
+    }))
+
+    await apiFetch('/api/v1/rfqs/RFQ-1')
+    await apiFetch('/api/v1/rfqs/RFQ-1/items', { method: 'PATCH' })
+
+    // The refusal is followed by a read of the aggregate - that is the recovery.
+    expect(calls.map((c) => c.url)).toContain('http://localhost:5080/api/v1/rfqs/RFQ-1')
+    expect(calls.filter((c) => c.url.endsWith('/rfqs/RFQ-1')).length).toBe(2)
+
+    // And the next attempt carries the version that read returned, not the dead one. Asserted on the
+    // last WRITE: the recovery read is itself a call, and it lands after the write that triggered it.
+    await apiFetch('/api/v1/rfqs/RFQ-1/items', { method: 'PATCH' })
+    const writes = calls.filter((c) => c.url.endsWith('/items'))
+    expect(writes[writes.length - 1].ifMatch).toBe('"AAAAAw"')
+  })
+
   it('still refuses to send one aggregate\'s version for another', async () => {
     // The control. The fix files the fresh version one level up, and the thing that must not happen is
     // it landing at the collection — where RFQ-1's version would become RFQ-2's precondition.

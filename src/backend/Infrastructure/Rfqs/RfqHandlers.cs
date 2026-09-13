@@ -1135,12 +1135,31 @@ public sealed class SuggestInvitationCandidatesHandler(AppDbContext db, IScopeCo
         var alreadyInvited = rfq.Invitations.Select(i => i.SupplierId).ToHashSet();
         if (categoryCodes.Count == 0) return [];
 
-        var matches = await (
+        // Two sources, deliberately, and the second one was missing.
+        //
+        // A supplier declares the categories they work in during onboarding - it is a REQUIRED step,
+        // and the application cannot be submitted without at least one. An OFFERING is the optional
+        // catalogue entry on top of that. Matching only on offerings meant an approved, active
+        // supplier with the right categories and no catalogue entry appeared nowhere in the buyer's
+        // suggestions, and this screen has no other way to invite anybody - so they could not be
+        // invited at all. Reported by a buyer who had just approved one and could not find them.
+        var fromOfferings = await (
             from o in db.Offerings
             where o.IsActive && categoryCodes.Contains(o.CategoryCode)
             select new { o.SupplierId, o.CategoryCode })
             .Distinct()
             .ToListAsync(ct);
+
+        var fromCategories = await (
+            from l in db.Set<CategoryLink>()
+            where categoryCodes.Contains(l.CategoryCode)
+            select new { l.SupplierId, l.CategoryCode })
+            .Distinct()
+            .ToListAsync(ct);
+
+        // Distinct on the PAIR, so a supplier who both declared a category and listed an offering in
+        // it counts once for it - the number beside their name is "categories matched", not "rows".
+        var matches = fromOfferings.Concat(fromCategories).Distinct().ToList();
 
         var candidateIds = matches.Select(m => m.SupplierId).Distinct().Where(id => !alreadyInvited.Contains(id)).ToList();
         if (candidateIds.Count == 0) return [];

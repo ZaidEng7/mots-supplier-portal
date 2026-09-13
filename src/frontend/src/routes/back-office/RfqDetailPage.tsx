@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import type { StepState } from '../../components/ui'
 import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import { earliestSubmissionInput, toLocalInput } from './submissionWindow'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
   getRfq, addRfqItem, removeRfqItem, addRequirement, removeRequirement, bindEvaluationTemplate,
@@ -28,31 +29,6 @@ import { apiErrorMessage } from '../../api/problem'
 /** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
  * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
  * state guard server-side regardless of what this page shows. */
-/**
- * An ISO instant as `<input type="datetime-local">` wants it: local wall time, no zone, no seconds.
- *
- * <p>Slicing the ISO string instead would put UTC into a control the browser reads as local, which
- * shifts every displayed deadline by the offset - three hours here, and silently.</p>
- */
-function toLocalInput(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/**
- * The earliest a submission window may be set to open, as a `datetime-local` value: one hour ahead.
- *
- * <p>Not "now". The domain refuses a window that has already started, and a picker offering the current
- * minute lets somebody choose a time that lapses while they finish the form - which is how a tender came
- * to be refused for a date that had been in the future when it was typed. Read once per render, which is
- * near enough: this is a floor on a control, and the domain is still the rule.</p>
- */
-function earliestSubmissionInput(): string {
-  return toLocalInput(new Date(Date.now() + 60 * 60 * 1000).toISOString())
-}
-
 /** Where one lifecycle stop stands, as the three names the stepper draws. */
 function stepStateOf(stage: { isCurrent: boolean; isCompleted: boolean }): StepState {
   if (stage.isCurrent) return 'current'

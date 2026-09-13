@@ -642,6 +642,28 @@ export function OnboardingPage() {
             {t('onboarding.infoRequestedTitle')}
           </h2>
           <p style={{ color: 'var(--color-text-primary)' }}>{annotation.reason}</p>
+
+          {/*
+            WHAT was flagged, named. The banner showed the reviewer's sentence and nothing else, so a
+            supplier read "change this document" with three documents on the page and no way to tell
+            which one - while the product knew exactly, and was already using the same list to decide
+            which rows stay editable. Reported by a buyer watching a supplier try to act on it.
+          */}
+          {flaggedDocCodes.size > 0 || flaggedFields.size > 0 ? (
+            <div className="mt-3">
+              <p className="mb-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
+                {t('onboarding.infoRequestedItems')}
+              </p>
+              <ul className="list-disc ps-5" style={{ color: 'var(--color-text-primary)' }}>
+                {documents
+                  .filter((doc) => flaggedDocCodes.has(doc.code))
+                  .map((doc) => <li key={doc.code}>{isArabic ? doc.nameAr : doc.nameEn}</li>)}
+                {[...flaggedFields].map((field) => (
+                  <li key={field}>{t(`onboarding.sections.${field}`, { defaultValue: field })}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
