@@ -218,11 +218,11 @@ public sealed partial class PermissionCatalogueTests
         sb.AppendLine("`Roles.DefaultPermissions` and the `RequirePermission` call sites; the test fails when this file");
         sb.AppendLine("drifts from the code. Regenerate with `UPDATE_PERMISSION_CATALOGUE=1 dotnet test`.");
         sb.AppendLine();
-        sb.AppendLine("Every name here is an **invention against codebase convention** — no document in `docs/`");
+        sb.AppendLine("Every name here is an **invention against codebase convention**: no document in `docs/`");
         sb.AppendLine("ratifies a `resource.action` string. That is the point of this file: A-16 asks for one pass in");
         sb.AppendLine("which the whole set can be ratified or renamed, rather than each name staying provisional");
         sb.AppendLine("forever. A permission held by NO role is reachable by nobody, and one gating NO route is");
-        sb.AppendLine("either dead or waiting for a surface — both are called out below.");
+        sb.AppendLine("either dead or waiting for a surface. Both are called out below.");
         sb.AppendLine();
         sb.AppendLine($"{Permissions.All.Count} permissions, {Roles.DefaultPermissions.Count} roles.");
         sb.AppendLine();

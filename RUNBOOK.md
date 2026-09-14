@@ -1,10 +1,10 @@
-# Runbook — running the portal locally
+# Runbook: running the portal locally
 
 > Every command below was executed against a clean database while writing this file. Where a step
 > failed, the fix is in the step rather than in a footnote.
 
 **Prerequisites:** Docker, .NET 10 SDK, **Node 22**. On this machine the SDK is not on `PATH`, so every
-`dotnet` command is prefixed with `DOTNET_ROOT=/Users/zaid/.dotnet` — drop that prefix if yours is.
+`dotnet` command is prefixed with `DOTNET_ROOT=...`; use your own path, or drop the prefix if `dotnet` is already on your PATH.
 
 > **Node 22, not 20.** This said "Node 20+" and Node 20 does not work: vitest, `tsc` and Playwright
 > all fail at startup with `webidl.util.markAsUncloneable is not a function`, which reads as a broken
@@ -22,7 +22,7 @@ docker compose up -d
 Starts postgres (5432), MinIO (9000, console 9001), ClamAV (3310) and MailHog (SMTP 1025, web 8025).
 
 ClamAV downloads its signature database on first run and takes a few minutes to report healthy.
-Nothing in the start-up path waits on it — uploads are what need it.
+Nothing in the start-up path waits on it; uploads are what need it.
 
 ```bash
 docker compose ps --format "table {{.Service}}\t{{.Status}}"
@@ -43,8 +43,8 @@ no connection string and no JWT key:
 DOTNET_ROOT=/Users/zaid/.dotnet dotnet ef database update --project src/backend/Infrastructure --startup-project src/backend/Api
 ```
 
-Compose creates the `mots_supplier_portal` database. Migrations also seed reference data — 6
-categories, 3 document types, 2 currencies, 7 units of measure, 4 regions — and the 8 roles with
+Compose creates the `mots_supplier_portal` database. Migrations also seed reference data: 6
+categories, 3 document types, 2 currencies, 7 units of measure, 4 regions, and the 8 roles with
 their permission claims.
 
 To start over:
@@ -72,7 +72,7 @@ On the run that creates them, the seed credentials are printed once:
 [dev-seed] demo personas: officer@ manager@ evaluator@ ministry@ supplier@ supplier.user@mots.local / motsdemo2026
 ```
 
-Health: `curl http://localhost:5080/health/ready` — postgres, migrations and object storage.
+Health: `curl http://localhost:5080/health/ready`, postgres, migrations and object storage.
 
 ## 5. The SPA
 
@@ -80,16 +80,16 @@ Health: `curl http://localhost:5080/health/ready` — postgres, migrations and o
 cd src/frontend && npm install && npm run dev
 ```
 
-- **SPA — http://localhost:5173** — this is the one to open
+- **SPA, http://localhost:5173** — this is the one to open
 - API http://localhost:5080 · MailHog http://localhost:8025 · MinIO console http://localhost:9001 (minioadmin / minioadmin)
 
 ## 6. Accounts
 
-Seeded automatically at start-up in Development by `DevDataSeeder`. Idempotent — restarting does not
+Seeded automatically at start-up in Development by `DevDataSeeder`. Idempotent: restarting does not
 duplicate anything.
 
 One password across all nine, so a walkthrough never stops to look up which account is the exception.
-The two that used to be exceptions — the onboarding reviewer and the bootstrap admin — are the two a
+The two that used to be exceptions (the onboarding reviewer and the bootstrap admin) are the two a
 walk cannot get past without. Production is unaffected: it supplies `DevSeed:AdminPassword` and never
 reaches the fallback, and system_admin still requires a TOTP code, which is what actually guards it.
 
@@ -105,14 +105,14 @@ reaches the fallback, and system_admin still requires a TOTP code, which is what
 | system_admin | `admin@mots.local` | `motsdemo2026` + **TOTP** |
 | procurement_manager (second) | `manager2@mots.local` | `motsdemo2026` |
 
-**system_admin needs a TOTP code** — it is the only role in `Mfa:RequiredRoles`. Add the printed
+**system_admin needs a TOTP code**: it is the only role in `Mfa:RequiredRoles`. Add the printed
 secret to an authenticator app, or generate a code:
 
 ```bash
 python3 -c "import hmac,hashlib,struct,time,base64;s='PASTE_SECRET_HERE';k=base64.b32decode(s+'='*(-len(s)%8));h=hmac.new(k,struct.pack('>Q',int(time.time())//30),hashlib.sha1).digest();o=h[19]&0xf;print('%06d'%((struct.unpack('>I',h[o:o+4])[0]&0x7fffffff)%1000000))"
 ```
 
-The secret is regenerated on every fresh database — take it from your own start-up log.
+The secret is regenerated on every fresh database, so take it from your own start-up log.
 
 **`ministry_viewer` has no organization, on purpose.** BRULE-086 grants the Ministry
 cross-organization aggregate access, so pinning it to one buying body would be a narrower grant
@@ -132,8 +132,8 @@ Enough that no screen renders an empty state for want of a row:
 | `RFQ-DEMO-0005` | Lift maintenance | UnderEvaluation | `PRP-DEMO-0002` submitted · evaluation part-scored · award **Recommended** |
 | `RFQ-DEMO-0006` | Stationery | Clarification | `PRP-DEMO-0003`, ClarificationRequested |
 
-Plus **5 suppliers** — `SUP-DEMO-0001`..`0005`, at Approved/Active, Submitted, UnderReview,
-Approved/Suspended and ProfileInProgress — and **one evaluation** on `RFQ-DEMO-0005`, assigned,
+Plus **5 suppliers**: `SUP-DEMO-0001`..`0005`, at Approved/Active, Submitted, UnderReview,
+Approved/Suspended and ProfileInProgress, and **one evaluation** on `RFQ-DEMO-0005`, assigned,
 opened and part-scored.
 
 **It stops short of any verdict.** Nothing is consolidated, and the award on `RFQ-DEMO-0005` is
@@ -156,7 +156,7 @@ above.
 
 ## 9. Things that look broken and are not
 
-- **A fresh registration lands on "Your application is under review", not a dashboard.** Correct — a
+- **A fresh registration lands on "Your application is under review", not a dashboard.** Correct: a
   new supplier is in Draft. The seeded `supplier@mots.local` is already Active and does get one.
 - **No real ERP integration is configured.** The admin overview says so. The outbox drains to a log
   line; that is T-089 stating a vacuum rather than a failure.
@@ -169,7 +169,7 @@ above.
 
 ## 10. Three screens have no link to them
 
-Not a "looks broken and is not" — these are genuinely unreachable by clicking, and the only way to
+Not a "looks broken and is not": these are genuinely unreachable by clicking, and the only way to
 open them today is to type the address:
 
 | Screen | Address | Who holds the permission |
@@ -178,7 +178,7 @@ open them today is to type the address:
 | Reviewer dashboard (SCR-300) | `/back-office/review-dashboard` | onboarding_reviewer |
 | Reports (FEAT-19.1/19.2) | `/back-office/reports` | procurement_manager, ministry_viewer |
 
-`/back-office/procurement/approvals` **is** linked — from the procurement dashboard, which is itself
+`/back-office/procurement/approvals` **is** linked, from the procurement dashboard, which is itself
 unlinked, so the manager's approval queue sits behind a page nobody can navigate to.
 
 `/back-office/dashboard` is the landing every back-office persona gets, and it is a placeholder that
