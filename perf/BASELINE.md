@@ -5,8 +5,8 @@ Run: `python3 perf/baseline.py --iterations 30`
 ## What this is
 
 The documented targets — **p95 < 300 ms reads, < 800 ms writes** — appear in four documents and had
-never been measured against anything. `COMPLETION-INVENTORY.md` §3.3 recorded that plainly and said no
-claim should be made either way. This is the first measurement, so the number stops being unknown.
+never been measured against anything, and no claim was made either way while that was true. This is the
+first measurement, so the number stops being unknown.
 
 18 read endpoints, one persona each, 30 samples after 3 discarded warm-up requests. Milliseconds,
 nearest-rank percentiles (not interpolated — with 30 samples an interpolated p95 invents a value between

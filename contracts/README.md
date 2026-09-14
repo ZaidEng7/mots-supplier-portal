@@ -12,8 +12,7 @@ narrowed type, a removed enum value, a changed response code. Additive changes p
 It does **not** check three of the four documentation requirements §11 also lists: every endpoint naming its
 permission, its error `type`s and its pagination mode. That half is a sweep across 228 operations, not a
 switch, and turning on a style gate that fails on day one for all of them would produce 228 hurried
-annotations rather than accurate ones. It is recorded as the remaining half in `COMPLETION-INVENTORY.md` §3.4
-rather than half-done here.
+annotations rather than accurate ones. It is left as a named remaining half rather than half-done here.
 
 The fourth — **whether an operation needs `If-Match`** — is now in the document, and was not annotated by
 anybody: `RequireIfMatch()` attaches endpoint metadata and an OpenAPI operation transformer turns it into a

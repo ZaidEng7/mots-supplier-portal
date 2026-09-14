@@ -2,9 +2,9 @@
 
 <!-- impeccable:product-schema 1 -->
 
-> **Draft, 2026-09-09.** Every fact below is drawn from the repository, `docs/`, `DECISIONS-TAKEN.md`
-> (D-1…D-68) and the Rams audit in `DESIGN-IS-2026-09-09/`. Items marked **[inferred]** were not
-> confirmed by the product owner and are the ones to correct first.
+> **Draft, 2026-09-09.** Every fact below is drawn from the repository, `docs/` and
+> `DECISIONS-TAKEN.md` (D-1…D-68). Items marked **[inferred]** were not confirmed by the product
+> owner and are the ones to correct first.
 
 ## Platform
 
@@ -89,11 +89,9 @@ to off. The mechanism a neighbouring product could not truthfully copy is that i
 
 ## Evidence on Hand
 
-- `DESIGN-IS-2026-09-09/` — the full Rams audit: scope, evidence with file:line citations, scorecard
-  (12/30), verdict, handoff, and 16 screenshots of real screens rendered through the e2e mock harness.
-- `DECISIONS-TAKEN.md` — 68 recorded decisions, several of which constrain the interface directly.
-- `WALKTHROUGH-FINDINGS.md` — 13 defects found by a person driving the product by hand.
-- `MOTS-PROGRESS.md` — the state of the product, produced from source.
+- `DOCUMENTATION.md` — the whole product in one file: what it does, how it is built, what is open.
+- `DECISIONS-TAKEN.md` — the recorded decisions, several of which constrain the interface directly.
+- `docs/ux/` — the specification set the interface is built against.
 - **Absences that must not be invented:** no real suppliers, no real bids, no production traffic, no
   usability sessions with actual Ministry staff or actual suppliers, no load-test environment.
 

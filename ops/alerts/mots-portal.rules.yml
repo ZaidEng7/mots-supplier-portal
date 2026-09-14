@@ -126,5 +126,5 @@ groups:
           description: >-
             Tagged by surface (login, register, ...) and layer (per-ip, per-target). A spike on `login`
             per-target is somebody being attacked; per-ip is usually one misbehaving client. Note that a
-            rate-limited login answers 429 and NOT "invalid email or password" — D-62 in
-            COMPLETION-INVENTORY §5.1 records why that distinction matters to the user.
+            rate-limited login answers 429 and NOT "invalid email or password", so that a
+            rejected attempt never reveals whether the account exists.
