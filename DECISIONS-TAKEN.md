@@ -837,7 +837,7 @@ Each says plainly below what still has to happen before it is safe to treat as s
 
 | | |
 |---|---|
-| **What was undecided** | Every Arabic string written by this work carries a `[drafted]` marker, meaning: written to §7's style by someone who is not a native reviewer, and awaiting one. There are **262 markers in `i18n/config.ts`** and **118 in `ARABIC-REVIEW.md`**. |
+| **What was undecided** | Every Arabic string written by this work carries a `[drafted]` marker, meaning: written to §7's style by someone who is not a native reviewer, and awaiting one. There were **262 markers in `i18n/config.ts`** and a further **118** in the review queue kept alongside it at the time. |
 | **What was decided** | Accepted. The markers come off. |
 | **Why** | Relayed as the owner's answer after review of the drafted copy. |
 | **What it costs if wrong** | Wording in the product that a native speaker would not have chosen. Recoverable at any time, and cheaply - SCR-716 lets an administrator reword any string in the product without a release, which is the surface this ruling leans on. |
@@ -888,7 +888,7 @@ which is the reason Part D exists rather than an edit to Part C.
 | **Why** | Relayed as the owner's answer: a half-marked catalogue is worse than a fully-marked one, which is D-62's own argument, and holding the pass for sixty strings would have left the file in exactly that state. |
 | **Who accepted it** | **Zaid Abdulkarim, 8 September 2026**, recorded as the accepting reviewer and named in the commit that removes the markers - which is what D-62 asked for. |
 | **Two tiers, and the difference is deliberate** | The strings that existed when D-62 was recorded are **reviewed and accepted**. The roughly sixty added afterwards by phases 1 to 4 - the five new screens and the four Ministry screens - are **accepted for the demonstration build without a line-by-line read**. They ship; they are not marked as reviewed, and this row is the record of which is which. |
-| **What must still happen** | A proper read of the newer sections **before any real tender runs on this system**. `ARABIC-REVIEW.md` lists them under their own phase headings so a reviewer can start there rather than re-reading the whole catalogue. |
+| **What must still happen** | A proper read of the newer sections **before any real tender runs on this system**: the five screens and four Ministry screens added by phases 1 to 4. A reviewer can start from those rather than re-reading the whole catalogue. |
 | **What it costs if wrong** | Wording a native speaker would not have chosen, in copy that now carries no marker saying so. Recoverable through SCR-716, which lets an administrator reword any string in the product without a release. |
 
 ---

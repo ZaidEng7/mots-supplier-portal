@@ -2,7 +2,7 @@
 //
 // Every string in this product is compiled into i18n/config.ts, so correcting a single word meant a code change and a
 // deployment - the wrong shape for copy, since the people who own the wording are not the people who own releases.
-// ARABIC-REVIEW.md is a long list of exactly such corrections waiting.
+// Corrections of exactly that kind accumulate faster than releases do.
 //
 // MERGED, NOT REPLACED. addResourceBundle with deep and overwrite layers the overrides on top, so an override for one key
 // leaves every other string alone. Replacing the bundle would mean an administrator who reworded one label blanked the rest of

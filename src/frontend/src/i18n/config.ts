@@ -16,8 +16,7 @@
 // reviewed line by line. The tagged blocks these replace marked each string as authored or as reused from an approved one
 // elsewhere in this file, kept identical for consistency.
 //
-// DRAFTED AND NOT YET APPROVED: the same thing without the acceptance, logged in ARABIC-REVIEW.md's pile and flagged rather
-// than presented as settled. The audit explorer (SCR-720), the supplier profile screens (SCR-121 to 126) and the reports
+// DRAFTED AND NOT YET APPROVED: the same thing without the acceptance, flagged here rather than presented as settled. The audit explorer (SCR-720), the supplier profile screens (SCR-121 to 126) and the reports
 // screen are of this kind. The reports screen is the furthest from a document of anything here: no specification describes it
 // at all, so every string is an invention, none of it is a §7 label set, and the Arabic needs a native review before it ships.
 //
