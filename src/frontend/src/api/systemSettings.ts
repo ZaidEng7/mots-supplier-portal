@@ -31,10 +31,6 @@ export async function getSystemSettings(): Promise<SystemSetting[]> {
   return (await response.json()) as SystemSetting[]
 }
 
-export interface SettingUpdateFailure {
-  reason: string
-}
-
 export async function updateSystemSetting(key: string, value: string): Promise<SystemSetting> {
   const response = await apiFetch(`/api/v1/admin/settings/${encodeURIComponent(key)}`, {
     method: 'PUT',

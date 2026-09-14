@@ -164,8 +164,6 @@ public sealed class SetCommercialTermsRequestValidator : AbstractValidator<SetCo
     }
 }
 
-public sealed record SetNarrativeRequest(string? NarrativeAr, string? NarrativeEn);
-
 public sealed record AnswerRequirementRequest(string AnswerAr, string AnswerEn);
 
 public sealed class AnswerRequirementRequestValidator : AbstractValidator<AnswerRequirementRequest>

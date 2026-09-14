@@ -25,6 +25,4 @@ public sealed record InviteStaffCommand(string Email, string FullName, string Ro
 
 public sealed record AcceptStaffInviteCommand(string Token, string Password);
 
-public sealed record StaffAccountCommand(Guid UserId);
-
 public sealed record ChangeStaffRoleCommand(Guid UserId, string Role);

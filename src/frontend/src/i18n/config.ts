@@ -274,7 +274,6 @@ const resources = {
         clear: 'إلغاء التصفية',
         export: 'تصدير (CSV)',                               // [reused] matches the supplier's own export
         loadMore: 'عرض المزيد',                              // [reused]
-        retry: 'إعادة المحاولة',                             // [reused]
         empty: 'لا توجد سجلات',
         emptyFiltered: 'لا توجد سجلات تطابق عوامل التصفية',
         filtersApplied: 'عوامل التصفية المطبَّقة: {{filters}}',
@@ -324,7 +323,6 @@ const resources = {
         created: 'تمت إضافة الرمز',
         renamed: 'تم حفظ الاسم',
         empty: 'لا توجد رموز في هذا الجدول',
-        retry: 'إعادة المحاولة',                              // [reused]
         noDeleteNotice: 'لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة.',  // D-28
         inactiveNotice: 'تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها.',  // D-28
         errors: {
@@ -583,9 +581,7 @@ const resources = {
       },
       dashboard: {
         welcome: 'مرحباً، {{email}}',
-        supplierId: 'رقم المورد',
         permission: 'الصلاحية الحالية',
-        placeholder: 'سيتم عرض ملخص الطلبات والعقود هنا لاحقاً.',
       },
       onboarding: {
         title: 'استكمال بيانات المورد',
@@ -905,7 +901,6 @@ const resources = {
       charts: {
         nothingToPlot: 'لا توجد أرقام قابلة للرسم. الجدول أدناه يعرض المتاح منها.',
         coverageCanTrade: 'يمكنه التقديم اليوم',
-        coverageApproved: 'معتمد',
         coverageSuspended: 'معتمد، لا يمكنه التقديم اليوم',
         coverageReadout: '{{covered}} من {{total}}',
       },
@@ -1005,7 +1000,7 @@ const resources = {
         searchPlaceholder: 'ابحث بالاسم…',
         empty: 'لا توجد نتائج',
         supplier: 'المورد',
-        fields: { name: 'الاسم', category: 'الفئة', unit: 'وحدة القياس', price: 'السعر', attributes: 'خصائص إضافية' },
+        fields: { name: 'الاسم', category: 'الفئة', price: 'السعر', attributes: 'خصائص إضافية' },
       },
       evaluationTemplates: {
         title: 'قوالب التقييم',
@@ -1088,10 +1083,7 @@ const resources = {
           settings: 'الإعدادات',
         },
         groups: {
-          tender: 'الطلب',
-          suppliers: 'الموردون',
           decisions: 'القرارات',
-          managing: 'إدارة الطلب',
         },
         cancelTitle: 'إلغاء الطلب',
         cancelWarning: 'الإلغاء نهائي. يُبلَّغ الموردون المدعوون بإلغاء الطلب، ولا يمكن إعادة فتحه.',
@@ -1169,7 +1161,6 @@ const resources = {
           publish: 'نشر للجميع',
           published: 'منشور للجميع',
           private: 'خاص بالسائل',
-          publishNow: 'نشر مباشرة',
           broadcastNotice: 'يُرسل الجواب إلى جميع المدعوين دون ذكر السائل.',
           errors: { answerFailed: 'تعذر حفظ الإجابة' },
         },
@@ -1276,7 +1267,6 @@ const resources = {
         open: 'عرض',                                         // [reused]
         close: 'إغلاق',                                      // [reused]
         empty: 'لم يُقدَّم أي عرض',
-        retry: 'إعادة المحاولة',                              // [reused]
         sealedTitle: 'العروض مغلقة حتى انتهاء فترة التقديم',
         sealedBody: 'لا تُعرض هوية مقدّمي العروض قبل إغلاق باب التقديم. يظهر العدد فقط.',
         sealedCount: 'عدد العروض المقدَّمة حتى الآن: {{count}}',
@@ -1684,7 +1674,6 @@ const resources = {
         closedTitle: 'التسجيل مغلق حالياً',
         closedBody: 'التسجيل الذاتي مغلق حالياً. يرجى التواصل مع الوزارة لإتمام التسجيل.',
         checkEmail: 'تحقق من بريدك الإلكتروني لتفعيل الحساب. رقم المرجع الخاص بك:',
-        duplicateEmail: 'يوجد حساب مسجل بهذا البريد الإلكتروني بالفعل',
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
         failed: 'تعذر إنشاء الحساب',
       },
@@ -2182,7 +2171,6 @@ const resources = {
         clear: 'Clear filters',
         export: 'Export (CSV)',
         loadMore: 'Load more',
-        retry: 'Try again',
         empty: 'No audit rows',
         emptyFiltered: 'No audit rows match these filters',
         filtersApplied: 'Filters applied: {{filters}}',
@@ -2232,7 +2220,6 @@ const resources = {
         created: 'Code added',
         renamed: 'Name saved',
         empty: 'This table has no codes',
-        retry: 'Try again',
         noDeleteNotice: 'Codes cannot be deleted. A code is referenced by existing records; deactivating it keeps it out of new selections without changing what those records say.',
         inactiveNotice: 'Deactivated codes stay listed here, so deactivation does not read as deletion.',
         errors: {
@@ -2488,9 +2475,7 @@ const resources = {
       },
       dashboard: {
         welcome: 'Welcome, {{email}}',
-        supplierId: 'Supplier ID',
         permission: 'Current permission',
-        placeholder: 'Order and contract summaries will appear here.',
       },
       onboarding: {
         title: 'Complete your supplier profile',
@@ -2807,7 +2792,6 @@ const resources = {
       charts: {
         nothingToPlot: 'No figures available to chart. The table below carries what there is.',
         coverageCanTrade: 'Can trade today',
-        coverageApproved: 'Approved',
         coverageSuspended: 'Approved, cannot trade today',
         coverageReadout: '{{covered}} of {{total}}',
       },
@@ -2907,7 +2891,7 @@ const resources = {
         searchPlaceholder: 'Search by name…',
         empty: 'No results',
         supplier: 'Supplier',
-        fields: { name: 'Name', category: 'Category', unit: 'Unit', price: 'Price', attributes: 'Additional attributes' },
+        fields: { name: 'Name', category: 'Category', price: 'Price', attributes: 'Additional attributes' },
       },
       evaluationTemplates: {
         title: 'Evaluation Templates',
@@ -2990,10 +2974,7 @@ const resources = {
           settings: 'Settings',
         },
         groups: {
-          tender: 'The tender',
-          suppliers: 'Suppliers',
           decisions: 'Decisions',
-          managing: 'Managing this tender',
         },
         cancelTitle: 'Cancel tender',
         cancelWarning: 'Cancelling is final. Invited suppliers are told the tender is cancelled, and it cannot be reopened.',
@@ -3071,7 +3052,6 @@ const resources = {
           publish: 'Publish to all',
           published: 'Published to all',
           private: 'Private to asker',
-          publishNow: 'Publish immediately',
           broadcastNotice: 'The answer goes to every invited supplier. The asker is not named.',
           errors: { answerFailed: 'Could not save the answer' },
         },
@@ -3178,7 +3158,6 @@ const resources = {
         open: 'Open',
         close: 'Close',
         empty: 'No proposals were submitted',
-        retry: 'Try again',
         sealedTitle: 'Bids stay sealed until the window closes',
         sealedBody: 'Who has bid is not shown while suppliers can still submit. Only the count is.',
         sealedCount: 'Proposals submitted so far: {{count}}',
@@ -3586,7 +3565,6 @@ const resources = {
         closedTitle: 'Registration is closed',
         closedBody: 'Self-registration is currently closed. Contact the Ministry to be onboarded.',
         checkEmail: 'Check your email to verify your account. Your reference code:',
-        duplicateEmail: 'An account with that email already exists',
         weakPassword: "Password doesn't meet the strength requirements",
         failed: 'Could not create the account',
       },
