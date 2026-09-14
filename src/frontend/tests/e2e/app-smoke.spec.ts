@@ -1,9 +1,16 @@
+// The smoke test: docs/backlog gap item 3, a Playwright pass against the app as it actually runs.
+//
+// Four things, all reachable without a login: a protected route redirects to /login, an unknown
+// route lands on the 404 boundary, the login form renders both of its fields, and the language
+// switch changes the document direction. Together they prove the real route tree is wired - not a
+// mocked router, the one the app ships.
+//
+// A full authenticated login is deliberately not here. It needs a seeded backend user, which is
+// what the integration suite has and a frontend dev server does not; this file's whole value is
+// that it runs against `npm run dev` and nothing else.
+
 import { test, expect } from '@playwright/test'
 
-/** docs/backlog gap item 3: Playwright smoke test against the running app. Exercises the
- * real route tree — unauthenticated redirect, 404 boundary, and login-page rendering.
- * A full authenticated login is covered by manual/CI integration tests since it needs a
- * seeded backend user; this smoke test only needs the frontend dev server. */
 test('unauthenticated visit to a protected route redirects to /login', async ({ page }) => {
   await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/login/)

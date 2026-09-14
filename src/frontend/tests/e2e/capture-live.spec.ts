@@ -1,25 +1,30 @@
+// Captures the LIVE application against the real database, not the mocked fixtures.
+//
+// Every other capture driver in this suite intercepts `/api/v1/**` and answers from fixtures.ts,
+// which is right for an accessibility scan: it makes each route render deterministically without a
+// backend. It is wrong for an audit of how the product reads, because those fixtures return one row
+// where the seeded database now holds thirty-one suppliers and twenty-five tenders, and a list with
+// one row cannot show whether a list works. So this one signs in for real and photographs what a
+// person would actually see. It needs the API and the database up, and it is skipped unless asked
+// for: `CAPTURE=1 npx playwright test capture-live --project=capture`.
+//
+// OFFICER_SCREENS is the buyer's side, as a Ministry procurement officer works it all day.
+// SUPPLIER_SCREENS is the supplier's side, used a few times a year under deadline. The last test
+// opens one tender in full - workspace, suppliers, bids, comparison, award, settings - which is where
+// the officer spends that day; the tender code is read off the first link in the list rather than
+// hard-coded, so it follows whatever the database holds.
+//
+// signIn waits for the redirect off /login, because that is the proof the session took. A screenshot
+// of the login form filed under the officer's dashboard would be exactly the wrong evidence.
+
 import { expect, test } from '@playwright/test'
 
-/**
- * Captures the LIVE application against the real database, not the mocked fixtures.
- *
- * <p>Every other capture driver in this suite intercepts `/api/v1/**` and answers from `fixtures.ts`,
- * which is right for an accessibility scan: it makes each route render deterministically without a
- * backend. It is wrong for an audit of how the product reads, because those fixtures return one row
- * where the seeded database now holds thirty-one suppliers and twenty-five tenders. A list with one
- * row cannot show whether a list works.</p>
- *
- * <p>So this one signs in for real and photographs what a person would actually see. It needs the API
- * and the database up. Run it on purpose:
- * `CAPTURE=1 npx playwright test capture-live --project=capture`.</p>
- */
 const OUT = '../../DESIGN-IS-2026-09-10/shots'
 
 test.skip(!process.env.CAPTURE, 'capture driver: run with CAPTURE=1')
 
 const PASSWORD = 'motsdemo2026'
 
-/** The buyer's side, as a Ministry procurement officer works it all day. */
 const OFFICER_SCREENS = [
   ['/back-office/dashboard', 'officer-dashboard'],
   ['/back-office/rfqs', 'officer-tender-list'],
@@ -35,7 +40,6 @@ const OFFICER_SCREENS = [
   ['/back-office/notifications', 'officer-notifications'],
 ] as const
 
-/** The supplier's side, used a few times a year under deadline. */
 const SUPPLIER_SCREENS = [
   ['/dashboard', 'supplier-dashboard'],
   ['/rfqs', 'supplier-tenders'],
@@ -53,8 +57,6 @@ async function signIn(page: import('@playwright/test').Page, email: string) {
   await page.getByLabel(/email/i).fill(email)
   await page.getByLabel(/password/i).fill(PASSWORD)
   await page.getByRole('button', { name: /sign in|log in/i }).click()
-  // The redirect off /login is the proof the session took. A screenshot of the login form filed under
-  // the officer's dashboard would be exactly the wrong evidence.
   await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 })
 }
 
@@ -75,7 +77,6 @@ for (const [persona, email, screens] of [
   })
 }
 
-/** One tender opened in full, which is where the officer spends the day. */
 test('capture a tender workspace against the real database', async ({ page }) => {
   test.setTimeout(180_000)
   await page.setViewportSize({ width: 1440, height: 1000 })
