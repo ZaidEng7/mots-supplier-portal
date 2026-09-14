@@ -67,6 +67,12 @@
 // Reading code with the prose removed also makes the bound mean what it looks like it means: characters of
 // CODE between a gate and its name, not characters of either.
 //
+// The variable-name form of the pair - the lifecycle family's `.WithName(name)` - allowed only whitespace
+// between the two calls until the same lesson reached it. The day a `.Validate<T>()` was declared between
+// the gate and the name it silently stopped matching, and the catalogue dropped all four of
+// `supplier.lifecycle.manage`'s routes, reporting a live permission as reaching none. Caught, again, only
+// by diffing the regenerated file. It now allows the same bounded run of code the named form does.
+//
 // TWO forms, because two passes want different things. The group-gate scan indexes into the text and reads
 // forward from that offset, so it needs positions preserved and comments are blanked in place rather than
 // removed, with newlines kept so line-based reasoning still holds. The gate-and-name pair does not care about
@@ -380,6 +386,6 @@ public sealed partial class PermissionCatalogueTests
     [GeneratedRegex(@"HasPermission\(Permissions\.(?<permission>\w+)\)|\?\s*Permissions\.(?<alternative>\w+)\s*:\s*Permissions\.\w+")]
     private static partial Regex HandlerCheck();
 
-    [GeneratedRegex(@"RequirePermission\(Permissions\.(?<permission>\w+)\)\s*\.WithName\((?!"")\w+\)", RegexOptions.Singleline)]
+    [GeneratedRegex(@"RequirePermission\(Permissions\.(?<permission>\w+)\)(?<between>[^;]{0,600}?)\.WithName\((?!"")\w+\)", RegexOptions.Singleline)]
     private static partial Regex GateAndVariableName();
 }

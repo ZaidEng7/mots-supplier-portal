@@ -64,13 +64,9 @@ public static class SupplierUserEndpoints
 
         group.MapPost("/", async (
             InviteSupplierUserRequest request,
-            IValidator<InviteSupplierUserRequest> validator,
             IInviteSupplierUserHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(new InviteSupplierUserCommand(request.Email, request.FullName), ct);
             return result switch
             {
@@ -81,6 +77,7 @@ public static class SupplierUserEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierUserManage)
+        .Validate<InviteSupplierUserRequest>()
         .WithName("InviteSupplierUser");
 
         group.MapPost("/{userId:guid}/disable", async (Guid userId, IDisableSupplierUserHandler handler, CancellationToken ct) =>
@@ -98,13 +95,9 @@ public static class SupplierUserEndpoints
 
         app.MapPost("/api/v1/supplier-users/accept-invite", async (
             AcceptSupplierUserInviteRequest request,
-            IValidator<AcceptSupplierUserInviteRequest> validator,
             IAcceptSupplierUserInviteHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(new AcceptSupplierUserInviteCommand(request.Token, request.Password), ct);
             return result switch
             {
@@ -117,6 +110,7 @@ public static class SupplierUserEndpoints
         .WithTags("SupplierUsers")
         .WithName("AcceptSupplierUserInvite")
         .RequireRateLimiting("auth-strict")
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Validate<AcceptSupplierUserInviteRequest>();
     }
 }

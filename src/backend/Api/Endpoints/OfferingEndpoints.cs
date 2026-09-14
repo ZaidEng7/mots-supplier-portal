@@ -82,36 +82,30 @@ public static class OfferingEndpoints
 
         group.MapPost("/", async (
             CreateOfferingRequest request,
-            IValidator<CreateOfferingRequest> validator,
             ICreateOfferingHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(
                 new CreateOfferingCommand(request.NameAr, request.NameEn, request.Description, request.CategoryCode, request.UnitOfMeasureCode, request.PriceAmount, request.CurrencyCode, request.Attributes), ct);
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
+        .Validate<CreateOfferingRequest>()
         .WithName("CreateOffering");
 
         group.MapPut("/{offeringId:guid}", async (
             Guid offeringId,
             CreateOfferingRequest request,
-            IValidator<CreateOfferingRequest> validator,
             IUpdateOfferingHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(
                 new UpdateOfferingCommand(offeringId, request.NameAr, request.NameEn, request.Description, request.CategoryCode, request.UnitOfMeasureCode, request.PriceAmount, request.CurrencyCode, request.Attributes), ct);
             return MapMutation(result);
         })
         .RequirePermission(Permissions.SupplierEdit)
         .RequireIfMatch()
+        .Validate<CreateOfferingRequest>()
         .WithETag()
         .WithFreshETag()
 .WithName("UpdateOffering");

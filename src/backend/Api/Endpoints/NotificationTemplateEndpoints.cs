@@ -45,16 +45,13 @@ public static class NotificationTemplateEndpoints
 
         group.MapPut("/{type}", async (
             string type, NotificationTemplateRequest request,
-            IValidator<NotificationTemplateRequest> validator,
             INotificationTemplateAdminHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return Map(await handler.UpdateAsync(new UpdateNotificationTemplateCommand(
                 type, request.TitleAr, request.TitleEn, request.BodyAr, request.BodyEn), ct));
         })
         .RequirePermission(Permissions.ReferenceDataManage)
+        .Validate<NotificationTemplateRequest>()
         .WithName("UpdateNotificationTemplate");
 
         group.MapDelete("/{type}", async (

@@ -65,13 +65,10 @@ public static class UiStringEndpoints
             string language,
             string key,
             UpsertUiStringRequest request,
-            IValidator<UpsertUiStringRequest> validator,
             IUpsertUiStringOverrideHandler handler,
             IScopeContext scope,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
             if (!SupportedLanguages.Contains(language)) return Results.NotFound();
             if (scope.UserId is not { } userId) return Results.Unauthorized();
 
@@ -79,6 +76,7 @@ public static class UiStringEndpoints
             return Results.Ok(updated);
         })
         .RequirePermission(Permissions.AdminUsersManage)
+        .Validate<UpsertUiStringRequest>()
         .WithName("UpsertUiStringOverride");
 
         admin.MapDelete("/{language}/{*key}", async (

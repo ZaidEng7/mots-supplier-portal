@@ -401,17 +401,14 @@ public static class ProposalEndpoints
 
         group.MapPost("/decline", async (
             string referenceCode, DeclineAwardOfferRequest request,
-            IValidator<DeclineAwardOfferRequest> validator,
             IDeclineAwardOfferHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapResult(await handler.HandleAsync(
                 new DeclineAwardOfferCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.ProposalDecline)
         .RequireIfMatch()
+        .Validate<DeclineAwardOfferRequest>()
         .WithETag()
         .WithFreshETag()
 .WithName("DeclineAwardOffer");
@@ -427,34 +424,28 @@ public static class ProposalEndpoints
         group.MapPost("/withdraw", async (
             string referenceCode,
             WithdrawProposalRequest request,
-            IValidator<WithdrawProposalRequest> validator,
             IWithdrawProposalHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapResult(await handler.HandleAsync(new WithdrawProposalCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.ProposalWithdraw)
         .RequireIfMatch()
+        .Validate<WithdrawProposalRequest>()
         .WithFreshETag()
 .WithName("WithdrawProposal");
 
         group.MapPost("/request-clarification", async (
             string referenceCode,
             WithdrawProposalRequest request,
-            IValidator<WithdrawProposalRequest> validator,
             IRequestProposalClarificationHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapResult(await handler.HandleAsync(
                 new RequestProposalClarificationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.RfqClarify)
+        .Validate<WithdrawProposalRequest>()
         .WithName("RequestProposalClarification");
 
         group.MapPost("/revise", async (

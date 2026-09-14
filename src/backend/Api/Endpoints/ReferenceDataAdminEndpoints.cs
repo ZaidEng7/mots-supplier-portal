@@ -79,16 +79,13 @@ public static class ReferenceDataAdminEndpoints
 
         group.MapPost("/{code}", async (
             string table, string code, ReferenceItemRequest request,
-            IValidator<ReferenceItemRequest> validator,
             IReferenceDataAdminHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return Map(await handler.CreateAsync(new CreateReferenceItemCommand(
                 table, code, request.NameAr, request.NameEn, request.IsRequired, request.ExpiryTracked, request.IsAwardCritical), ct));
         })
         .RequirePermission(Permissions.ReferenceDataManage)
+        .Validate<ReferenceItemRequest>()
         .WithName("CreateReferenceItem");
 
         app.MapGet("/api/v1/admin/document-type-categories", async (
@@ -122,16 +119,13 @@ public static class ReferenceDataAdminEndpoints
 
         group.MapPut("/{code}", async (
             string table, string code, ReferenceItemRequest request,
-            IValidator<ReferenceItemRequest> validator,
             IReferenceDataAdminHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return Map(await handler.UpdateAsync(new UpdateReferenceItemCommand(
                 table, code, request.NameAr, request.NameEn, request.IsRequired, request.ExpiryTracked, request.IsAwardCritical), ct));
         })
         .RequirePermission(Permissions.ReferenceDataManage)
+        .Validate<ReferenceItemRequest>()
         .WithName("UpdateReferenceItem");
 
         group.MapPost("/{code}/deactivate", async (

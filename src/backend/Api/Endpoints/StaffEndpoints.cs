@@ -98,13 +98,9 @@ public static class StaffEndpoints
     {
         app.MapPost("/api/v1/staff/invite", async (
             InviteStaffRequest request,
-            IValidator<InviteStaffRequest> validator,
             IInviteStaffHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(new InviteStaffCommand(request.Email, request.FullName, request.Role, request.OrganizationId), ct);
             return result switch
             {
@@ -116,6 +112,7 @@ public static class StaffEndpoints
         })
         .WithTags("Staff")
         .RequirePermission(Permissions.AdminUsersManage)
+        .Validate<InviteStaffRequest>()
         .WithName("InviteStaff");
 
         var admin = app.MapGroup("/api/v1/staff").WithTags("Staff");
@@ -144,15 +141,13 @@ public static class StaffEndpoints
         .WithName("ReactivateStaff");
 
         admin.MapPut("/{userId:guid}/role", async (
-            Guid userId, ChangeStaffRoleRequest request, IValidator<ChangeStaffRoleRequest> validator,
+            Guid userId, ChangeStaffRoleRequest request, 
             IChangeStaffRoleHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return Map(await handler.HandleAsync(new ChangeStaffRoleCommand(userId, request.Role), ct));
         })
         .RequirePermission(Permissions.AdminUsersManage)
+        .Validate<ChangeStaffRoleRequest>()
         .WithName("ChangeStaffRole");
 
         admin.MapPost("/{userId:guid}/reset-mfa", async (Guid userId, IResetStaffMfaHandler handler, CancellationToken ct) =>
@@ -162,13 +157,9 @@ public static class StaffEndpoints
 
         app.MapPost("/api/v1/staff/accept-invite", async (
             AcceptStaffInviteRequest request,
-            IValidator<AcceptStaffInviteRequest> validator,
             IAcceptStaffInviteHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(new AcceptStaffInviteCommand(request.Token, request.Password), ct);
             return result switch
             {
@@ -181,6 +172,7 @@ public static class StaffEndpoints
         .WithTags("Staff")
         .WithName("AcceptStaffInvite")
         .RequireRateLimiting("auth-strict")
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .Validate<AcceptStaffInviteRequest>();
     }
 }

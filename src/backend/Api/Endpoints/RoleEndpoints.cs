@@ -32,13 +32,9 @@ public static class RoleEndpoints
         group.MapPut("/{roleName}/permissions", async (
             string roleName,
             UpdateRolePermissionsRequest request,
-            IValidator<UpdateRolePermissionsRequest> validator,
             IUpdateRolePermissionsHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             var result = await handler.HandleAsync(new UpdateRolePermissionsCommand(roleName, request.Permissions), ct);
             return result switch
             {
@@ -50,6 +46,7 @@ public static class RoleEndpoints
             };
         })
         .RequirePermission(Permissions.AdminRolesManage)
+        .Validate<UpdateRolePermissionsRequest>()
         .WithName("UpdateRolePermissions");
     }
 }
