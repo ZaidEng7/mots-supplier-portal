@@ -736,6 +736,22 @@ That dark palette exists and is contrast-checked pair by pair. It is worth being
 about its status: nothing in the application currently switches it on. It is defined, verified, and
 photographed, waiting for the day someone wires a toggle to it.
 
+### What the design commits to
+
+Three commitments sit behind the tokens, and each is held to rather than aspired to.
+
+The token layer in `src/frontend/src/styles/tokens.css` is binding. It is not a suggestion a screen can
+depart from when a design looks better without it: `tokenConformance.test.ts` fails the build when a
+component reaches past the semantic layer for a raw value.
+
+The back-office chrome is dark in both themes, deliberately, so that staff working across both sides of
+the product can tell at a glance which one they are in.
+
+And the product speaks for a Ministry. It does not sell, does not exaggerate, and does not use urgency
+as a device. There are no countdown pressures, no manufactured scarcity, and no confirmshaming in a
+cancel path. An external audit looked for dark patterns and found none, which is a commitment being
+kept rather than a happy accident.
+
 ---
 
 ## 14. Integration with ERPNext
@@ -877,6 +893,22 @@ real scoring has begun.
 An ASVS Level 2 review, a full manual WCAG audit, and load testing are all deferred to a later pass,
 by decision rather than by oversight. Performance targets (p95 under 300ms for reads, 800ms for
 writes, LCP under 2.5 seconds) are specified and not yet verified under load.
+
+### What has not happened yet, and must not be inferred
+
+The system runs today in a demonstration environment against seeded data. Stating the absences plainly
+matters, because each one is a thing somebody could otherwise assume from the fact that the product
+works.
+
+No real supplier has registered. No real bid has ever been held in it. There has been no production
+traffic. No usability session has been run with an actual Ministry officer or an actual supplier, so
+every claim about how the product feels to use is reasoned rather than observed. And there is no
+load-test environment, which is why the performance targets above remain unverified rather than merely
+unmet.
+
+Some statements throughout this document about intent, rather than about behaviour, were drawn from the
+specifications and the code rather than confirmed by the product owner. Where the difference matters
+for a decision, the questions above are the ones to settle first.
 
 ---
 

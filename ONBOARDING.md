@@ -21,8 +21,8 @@ decision follows from the difference between them:
 - **A supplier company** uses it a few times a year, under deadline, to complete a legal application
   and bid.
 
-Both languages ship together, Arabic and English, with full right-to-left support. `PRODUCT.md` is the
-shortest honest description of scope; `docs/product/` holds the specification.
+Both languages ship together, Arabic and English, with full right-to-left support. `DOCUMENTATION.md` is
+the shortest honest description of scope; `docs/product/` holds the specification.
 
 ---
 
@@ -173,7 +173,7 @@ coverage must clear 45%, a floor that goes up and never down.
 | Question | Read |
 | --- | --- |
 | How do I run it? | `RUNBOOK.md` |
-| What is it for? | `PRODUCT.md`, then `docs/product/` |
+| What is it for? | `DOCUMENTATION.md`, then `docs/product/` |
 | Who can do X? | `PERMISSIONS.md` (generated) |
 | Why is it like this? | `DECISIONS-TAKEN.md`, and the comment above the line |
 | What is not finished? | `DOCUMENTATION.md` §17, the boundaries and open decisions |
