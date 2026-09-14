@@ -1,19 +1,61 @@
+// The buyer's side of a tender: authoring it, its items, requirements and attachments, the review and publish
+// chain, ownership, invitations, clarifications, addenda and the deadline.
+//
+// RfqListItem is the buyer LIST row - the projected shape, not the detail Rfq. Its owner is A-7's: null means
+// unassigned, a row anyone holding the permission may claim, which is where every RFQ created before ownership
+// existed lives. The owner's name is null when unowned and also null when the id points at a user row that is
+// gone; the two are told apart by whether ownerUserId is set.
+//
+// A requirement carries A-2's expected envelope: which envelope a document answering it belongs in. It is
+// advisory - it tells the supplier what the buyer expects and does NOT override the tag on the file, because what
+// a file contains is known by whoever attached it.
+//
+// Clarification here is the BUYER-facing shape and always carries the real asker, for the audit. The supplier's
+// shape, which carries no asker at all, is in api/supplierRfqs.ts.
+//
+// The detail Rfq carries A-7's two people: the owning officer, and the manager the CURRENT review pass is waiting
+// on - the latter null when the pass named nobody, which is the normal case while approval routing is undecided.
+//
+// RFQAPIERROR reads both refusal shapes: the backend returns { error, message } for domain-invariant refusals
+// (RfqMutationResult.InvalidState) and a bare { error } for reference-data validation - the same shape and
+// reasoning as EvaluationTemplateApiError. Its concurrency flag is EPIC-13 and FR-PWF-005's xmin RowVersion
+// conflict; §8.1 under T3-34 moved that from the API's own { error: "concurrency_conflict" } 409 to the documented
+// 412 ETAG_MISMATCH, because a lost update is a failed precondition rather than one of §7.1's three conflicts.
+// Every caller still checks the one flag rather than string-matching a message.
+//
+// The owner FILTER mirrors the review queue's assignedTo: "me" resolves server-side, so this client never needs to
+// know the caller's own user id (A-7).
+//
+// getRfqAttachmentDownloadUrl is SCR-142 and SCR-414's. The route is rfq.read, which BOTH supplier roles hold
+// (§12-A/C1), so an invited supplier downloads the tender documents through the same path a buyer does -
+// row-scoped by the handler rather than by which client is asking.
+//
+// submitRfqForReview takes an optional approver, because there is no routing rule to fall back on - see
+// Rfq.SubmitForReview - and omitting the body entirely keeps the pool notified, as before (A-7).
+//
+// listRfqAssignees answers who this RFQ may be handed to, in the two senses it can be: an owner and an approver.
+// Id and name only; nothing else about a colleague is needed to choose between them. reassignRfq hands the RFQ to
+// another officer, and its reason is mandatory - the audit row is the point (A-7).
+//
+// changeSubmissionDeadline serves both directions, because T-018 and BRULE-035 make extension the officer's and
+// shortening the manager's: the server decides which from the direction, so one function covers both and a 403
+// means "not your direction". Its reason is mandatory (A-6), because BRULE-035 leaves an extension uncapped, so
+// the reason is what makes it defensible - and the supplier reads it on the RFQ, where the deadline is.
+//
+// answerClarification publishes to every invitee with the asker anonymised (A-4), so there is no publish argument
+// to pass. publishClarification is the legacy-row path.
+
 import { ProblemError, hasCode, type ProblemDetails } from './problem'
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 
-/** The buyer list row - the projected shape, not the detail `Rfq`. */
 export interface RfqListItem {
   referenceCode: string
   titleAr: string
   titleEn: string
   state: RfqState
   createdAt: string
-  /** A-7. Null means unassigned - a row anyone holding the permission may claim, which is where every
-   * RFQ created before ownership existed lives. */
   ownerUserId: string | null
-  /** Null when unowned, and also null when the id points at a user row that is gone - the two are told
-   * apart by whether `ownerUserId` is set. */
   ownerName: string | null
 }
 
@@ -42,9 +84,6 @@ export interface Requirement {
   textEn: string
   isMandatory: boolean
   documentTypeCode: string | null
-  /** A-2: which envelope a document answering this belongs in. Advisory - it tells the supplier what the
-   * buyer expects and does NOT override the tag on the file, because what a file contains is known by
-   * whoever attached it. */
   expectedEnvelope: 'Technical' | 'Commercial' | null
 }
 
@@ -87,7 +126,6 @@ export interface InvitationCandidate {
 
 export type ClarificationVisibility = 'PrivateToAsker' | 'PublishedToAll'
 
-/** Buyer-facing shape - always carries the real asker (audit). */
 export interface Clarification {
   id: string
   askedBySupplierId: string
@@ -133,11 +171,8 @@ export interface Rfq {
   invitations: Invitation[]
   clarifications: Clarification[]
   addenda: Addendum[]
-  /** A-7: the owning officer. */
   ownerUserId: string | null
   ownerName: string | null
-  /** A-7: the manager the CURRENT review pass is waiting on. Null when the pass named nobody, which is
-   * the normal case while approval routing is undecided. */
   assignedApproverUserId: string | null
   assignedApproverName: string | null
 }
@@ -174,14 +209,7 @@ export interface RequirementPayload {
   documentTypeCode: string | null
 }
 
-/** Backend returns { error, message } for domain-invariant refusals (RfqMutationResult.InvalidState)
- * and a bare { error } for reference-data validation - same shape/reasoning as
- * EvaluationTemplateApiError. */
 export class RfqApiError extends ProblemError {
-  /** EPIC-13/FR-PWF-005: xmin (RowVersion) conflict. §8.1 (T3-34) moved this from the API's own
-   * { error: "concurrency_conflict" } 409 to the documented 412 ETAG_MISMATCH - a lost update is a
-   * failed precondition, not one of §7.1's three conflicts. Every caller still checks the one flag
-   * rather than string-matching a message. */
   isConcurrencyConflict: boolean
   constructor(status: number, body: unknown) {
     super(status, body)
@@ -196,8 +224,6 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-/** A-7's `owner` filter mirrors the review queue's `assignedTo`: "me" resolves server-side, so this
- * client never needs to know the caller's own user id. */
 export type RfqOwnerFilter = 'me' | 'unassigned'
 
 export async function listRfqs(cursor?: string | null, owner?: RfqOwnerFilter): Promise<ListEnvelope<RfqListItem>> {
@@ -275,9 +301,6 @@ export async function addRfqAttachment(referenceCode: string, file: File, captio
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/attachments`, { method: 'POST', body: form }))
 }
 
-/** SCR-142/SCR-414. The route is `rfq.read`, which BOTH supplier roles hold (§12-A/C1), so an
- * invited supplier downloads the tender documents through the same path a buyer does - row-scoped by
- * the handler, not by which client is asking. */
 export async function getRfqAttachmentDownloadUrl(referenceCode: string, attachmentId: string): Promise<string> {
   const res = await apiFetch(`/api/v1/rfqs/${referenceCode}/attachments/${attachmentId}/download-url`)
   const body = await parseOrThrow<{ url: string }>(res)
@@ -296,8 +319,6 @@ export async function bindEvaluationTemplate(referenceCode: string, evaluationTe
   }))
 }
 
-/** A-7: naming the approver is optional, because there is no routing rule to fall back on - see
- * `Rfq.SubmitForReview`. Omitting the body entirely keeps the pool notified, as before. */
 export async function submitRfqForReview(referenceCode: string, assignedApproverUserId?: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/submit-review`, {
     method: 'POST',
@@ -311,8 +332,6 @@ export interface RfqAssignee {
   fullName: string
 }
 
-/** A-7: who this RFQ may be handed to, in the two senses it can be - an owner and an approver. Id and
- * name only; nothing else about a colleague is needed to choose between them. */
 export interface RfqAssignees {
   owners: RfqAssignee[]
   approvers: RfqAssignee[]
@@ -322,7 +341,6 @@ export async function listRfqAssignees(referenceCode: string): Promise<RfqAssign
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/assignees`))
 }
 
-/** A-7: hand the RFQ to another officer. The reason is mandatory - the audit row is the point. */
 export async function reassignRfq(referenceCode: string, newOwnerUserId: string, reason: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/reassign`, {
     method: 'POST',
@@ -347,10 +365,6 @@ export async function publishRfq(referenceCode: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/publish`, { method: 'POST' }))
 }
 
-/** T-018/BRULE-035: extension is the officer's, shortening the manager's - the server decides which
- * from the direction, so this one function serves both and a 403 means "not your direction". */
-/** A-6: the reason is mandatory. BRULE-035 leaves an extension uncapped, so the reason is what makes it
- * defensible - and the supplier reads it on the RFQ, where the deadline is. */
 export async function changeSubmissionDeadline(referenceCode: string, submissionDeadline: string, reason: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/deadline`, {
     method: 'POST',
@@ -387,8 +401,6 @@ export async function suggestInvitationCandidates(referenceCode: string): Promis
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/invitations/candidates`))
 }
 
-/** A-4: answering publishes to every invitee with the asker anonymised, so there is no `publish`
- * argument to pass. See `publishClarification` for the legacy-row path. */
 export async function answerClarification(referenceCode: string, clarificationId: string, answer: string): Promise<Rfq> {
   return parseOrThrow(await apiFetch(`/api/v1/rfqs/${referenceCode}/clarifications/${clarificationId}/answer`, {
     method: 'POST',

@@ -1,3 +1,10 @@
+// A supplier's own category links: the sectors they declare they can serve.
+//
+// Both calls return the whole SupplierProfile rather than the link they changed, because the profile is the
+// aggregate and its version moves with every child write - so the caller gets the fresh state and the transport
+// gets the fresh ETag. They throw SupplierApiError for the same reason: to a screen, a refused category link is
+// the profile refusing a write.
+
 import { apiFetch } from './auth'
 import type { SupplierProfile } from './supplier'
 import { SupplierApiError } from './supplier'

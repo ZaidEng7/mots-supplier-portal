@@ -1,7 +1,13 @@
+// FR-ADM-007 and SCR-715: the admin screen over the 29 notification texts.
+//
+// The shipped words travel with the current ones, so the screen can show what an override replaced and offer a
+// revert that is not guesswork. Each row also carries the tokens that type's payload can fill: a template may
+// use any subset of them and no others.
+//
+// revertNotificationTemplate removes the override, restoring the shipped copy.
+
 import { apiFetch } from './auth'
 
-/** FR-ADM-007/SCR-715. The shipped words travel with the current ones so the screen can show what an
- * override replaced and offer a revert that is not guesswork. */
 export interface NotificationTemplate {
   type: string
   titleAr: string
@@ -14,7 +20,6 @@ export interface NotificationTemplate {
   shippedBodyEn: string
   isOverridden: boolean
   updatedAt: string | null
-  /** Tokens this type's payload can fill. A template may use any subset and no others. */
   availableTokens: string[]
 }
 
@@ -47,7 +52,6 @@ export async function updateNotificationTemplate(
   return (await response.json()) as NotificationTemplate
 }
 
-/** Removes the override, restoring the shipped copy. */
 export async function revertNotificationTemplate(type: string): Promise<NotificationTemplate> {
   const response = await apiFetch(`/api/v1/admin/notification-templates/${encodeURIComponent(type)}`, {
     method: 'DELETE',

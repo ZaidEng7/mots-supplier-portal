@@ -1,3 +1,16 @@
+// The reference catalogues a form needs: currencies, regions, categories, units of measure and Incoterms. Plus
+// the readiness check behind the system banner.
+//
+// The Incoterms list is T-072's: the delivery terms a bid may quote - Incoterms 2020, minus whatever the ministry
+// has deactivated. It is the same list the server validates a submitted bid against, so a term offered here
+// cannot be refused on save.
+//
+// fetchHealth calls /health/ready. The combined /health endpoint was split into /health/live and /health/ready
+// under Task #16 and NFR-OBS-006, and this call was never updated, so it hit a route that no longer exists and
+// fell through to the deny-by-default auth fallback - a 401 regardless of actual backend health. /health/ready is
+// the meaningful one for an "is the system usable" banner: it also checks Postgres, pending migrations, object
+// storage and Hangfire storage, rather than only process-alive.
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
 
 export interface Currency {
@@ -59,11 +72,6 @@ export interface Incoterm {
   nameEn: string
 }
 
-/**
- * T-072. The delivery terms a bid may quote - Incoterms 2020, minus whatever the ministry has
- * deactivated. The same list the server validates a submitted bid against, so a term offered here
- * cannot be refused on save.
- */
 export async function fetchIncoterms(): Promise<Incoterm[]> {
   const res = await fetch(`${API_BASE_URL}/api/v1/reference/incoterms`)
   if (!res.ok) throw new Error(`Failed to fetch incoterms: ${res.status}`)
@@ -71,11 +79,6 @@ export async function fetchIncoterms(): Promise<Incoterm[]> {
 }
 
 export async function fetchHealth(): Promise<string> {
-  // The combined /health endpoint was split into /health/live and /health/ready (Task #16 /
-  // NFR-OBS-006) - this call was never updated, so it hit a route that no longer exists and fell
-  // through to the deny-by-default auth fallback (401) regardless of actual backend health.
-  // /health/ready is the meaningful one for a "is the system usable" banner: it also checks
-  // Postgres, pending migrations, object storage, and Hangfire storage, not just process-alive.
   const res = await fetch(`${API_BASE_URL}/health/ready`)
   if (!res.ok) throw new Error(`Health check failed: ${res.status}`)
   return res.text()

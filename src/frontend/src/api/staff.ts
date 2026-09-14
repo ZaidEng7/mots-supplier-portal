@@ -1,3 +1,19 @@
+// T-077 with SCR-701 and SCR-702: the platform's own staff accounts, as an administrator sees and administers
+// them.
+//
+// mfaEnabled and activeSessionCount are the two facts that make a row actionable rather than decorative: a
+// system_admin who lost their authenticator is a real lockout, and a deactivation that left sessions alive would
+// only stop the NEXT sign-in. The buying body is null for ministry_viewer and system_admin, which have none by
+// design.
+//
+// acceptStaffInvite sends no auth header, because the invitee has no session yet - the same reasoning as
+// acceptTeamInvite in api/team.ts.
+//
+// listStaff is keyset-paged on (email, id), like every other list here.
+//
+// resetStaffMfa clears the authenticator enrolment and every live session. It is an administrator action on
+// someone ELSE's account: a self-service reset would be a way past the second factor.
+
 import { apiFetch } from './auth'
 import { SupplierApiError } from './supplier'
 
@@ -8,10 +24,6 @@ export interface Staff {
   role: string
 }
 
-/** T-077/SCR-701: one staff account as an administrator sees it. `mfaEnabled` and
- * `activeSessionCount` are the two facts that make the row actionable rather than decorative - a
- * `system_admin` who lost their authenticator is a real lockout, and a deactivation that left sessions
- * alive would only stop the NEXT sign-in. */
 export interface StaffAccount {
   userId: string
   email: string
@@ -27,7 +39,6 @@ export interface InviteStaffPayload {
   email: string
   fullName: string
   role: string
-  /** The buying body. Null for `ministry_viewer` and `system_admin`, which have none by design. */
   organizationId?: string | null
 }
 
@@ -49,7 +60,6 @@ export async function inviteStaff(payload: InviteStaffPayload): Promise<Staff> {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
 
-/** No auth header - the invitee has no session yet, same as acceptTeamInvite (api/team.ts). */
 export async function acceptStaffInvite(token: string, password: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/staff/accept-invite`, {
     method: 'POST',
@@ -62,7 +72,6 @@ export async function acceptStaffInvite(token: string, password: string): Promis
   }
 }
 
-/** T-077/SCR-701. Keyset-paged on (email, id) like every other list here. */
 export async function listStaff(cursor?: string): Promise<{ data: StaffAccount[]; pagination: { hasMore: boolean; nextCursor: string | null } }> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
   return parseOrThrow(await apiFetch(`/api/v1/staff${query}`))
@@ -81,8 +90,6 @@ export async function changeStaffRole(userId: string, role: string): Promise<Sta
   }))
 }
 
-/** Clears the authenticator enrolment and every live session. An administrator action on someone
- * ELSE's account - a self-service reset would be a way past the second factor. */
 export async function resetStaffMfa(userId: string): Promise<StaffAccount> {
   return parseOrThrow(await apiFetch(`/api/v1/staff/${userId}/reset-mfa`, { method: 'POST' }))
 }

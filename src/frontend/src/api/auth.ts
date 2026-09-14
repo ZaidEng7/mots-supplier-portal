@@ -1,3 +1,73 @@
+// Authentication, the account a user owns about themselves, and apiFetch - the transport every other module in
+// this folder goes through.
+//
+// LOGIN. totpCode is omitted on the first call; if the account has MFA enabled the API answers 401 with
+// { error: 'mfa_required' } and the same credentials are re-posted with the code the user enters next. There is
+// no separate verify endpoint - AuthEndpoints.cs's /login is itself the seam.
+//
+// REFRESH treats an unreachable API the same as "not authenticated": a network failure here must not hang the
+// caller - the router's auth guard, for instance - forever waiting on an uncaught rejection.
+//
+// CHANGEPASSWORD is SCR-903, a signed-in user changing their own password. It is separate from resetPassword
+// deliberately: a reset proves identity with a token from an email, a change proves it with the current
+// password, and before this the only path was signing out and using the recovery flow to do routine work.
+// Credentials are included by apiFetch, which matters here - the refresh cookie is how the server knows which
+// session made the change, so that this one survives while the others are revoked.
+//
+// THE ACCOUNT is SCR-902: the facts a user owns about themselves. Roles and permissions are deliberately NOT
+// here - those come from the access token's claims, see authStore - because a second copy would be a second
+// source of truth for authorization. hasChosenLanguage is SCR-010's, false until the user has picked a language
+// themselves: the stored default cannot say this on its own, since "ar" is both the default and a legitimate
+// choice. chooseLanguage is SCR-010's first-run choice, one field, and it stamps the account as having chosen.
+//
+// REGISTERSUPPLIER returns a null supplierCode when the email or registration number was already taken
+// (MSP-73). The response is otherwise identical to a genuine success - same status, same shape - so a caller
+// cannot tell the two apart. The existing account gets a "you already have an account" email directly, and
+// nothing here reveals that to whoever submitted the duplicate.
+//
+// APIFETCH is the fetch wrapper: it attaches the in-memory access token and retries once via the httpOnly
+// refresh cookie on a 401 before giving up, which is ASVS L2 token handling.
+//
+// The idempotency key is T-053 and §8.2.5: "the SPA generates one key per user submission intent (e.g. per
+// 'Submit' click) via crypto.randomUUID()". It is generated ONCE, outside doFetch, and that placement is the
+// whole point - doFetch is called again after a 401 refresh, and a key regenerated on the retry would be a
+// second intent, so the server would process the submission twice, which is the exact failure the header exists
+// to prevent. It is sent on every mutation rather than only on the three §8.2 requires: harmless where the
+// server does not read it, and it means a route that starts requiring one does not silently 428 the SPA.
+//
+// The precondition's origin prefix is captured BEFORE the write clears it (T-030 split (2)), so the response's
+// fresh version can go back to the same place and a sibling child collection can still find it - see
+// ownerPrefixOf in etags.ts for the defect that closes. §8.1's own half: the version this caller last read
+// travels back as If-Match on a mutation, attached here rather than at each call site, and an explicit If-Match
+// always wins, so a caller that has just reconciled a 412 can send the version it chose.
+//
+// A failed refresh calls expireSession rather than clearSession, per SCR-040. A refresh that fails under a
+// working session is an expiry the user needs told about over whatever they were doing; a plain clear would drop
+// them at the login screen and take their unsaved work with it.
+//
+// After a successful mutation the order is FORGET first, then put the response's version back in BOTH places -
+// T-030 splits (3) and (2). A mutation moves the resource on, so the version cached before it is stale, and
+// keeping it would turn the caller's next save into a 412 nobody can explain; but the child-write routes now
+// return the version the write produced, see WithFreshETag, and dropping THAT would make a supplier editing two
+// contacts in a row hit 428 on the second until a re-read landed. So the order matters: clear the old, then keep
+// the new when there is one. Split (2) added the second rememberETag. Filing the fresh version only under the
+// WRITE path left it invisible to a sibling child collection: after adding an RFQ item the version sat at
+// /rfqs/RFQ-1/items, and adding a requirement walked up to /rfqs/RFQ-1, found the entry deleted, and sent no
+// If-Match at all - a 428 on the officer's second edit. Writing it back to the prefix the precondition came from
+// keeps the aggregate's version reachable from every child of it.
+//
+// A 412 means the row moved since this tab read it - another tab, another person, or a background job. The write
+// is correctly refused and is NOT retried here, because replaying it would overwrite whatever moved the row,
+// which is the lost update the precondition exists to prevent. What IS done is re-reading the resource, so the
+// version this tab holds is current again and the user's next attempt succeeds. Without that the tab was stuck:
+// every further save on that screen asserted the same dead version, and the only way through was a page reload.
+// Reported as "I come back to the tab and cannot edit anything until I refresh" - with several tabs of this
+// product open at once, which is exactly how the row moves underneath one of them.
+//
+// A 428 means this client failed to send a header it should always send: a bug in the transport above, not a
+// state the user can do anything about. It is surfaced loudly rather than folded into the generic error path,
+// where it would reach a supplier as an unexplained failure to save.
+
 import { forgetETags, lookupETag, ownerPrefixOf, rememberETag } from './etags'
 import { useAuthStore } from '../lib/authStore'
 
@@ -26,10 +96,6 @@ async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-/** totpCode is omitted on the first call; if the account has MFA enabled the API answers
- * 401 { error: 'mfa_required' } and the same credentials are re-posted with the code the user
- * enters next (Api/Endpoints/AuthEndpoints.cs `/login` - no separate verify endpoint exists,
- * the login endpoint itself is the seam). */
 export async function login(email: string, password: string, totpCode?: string): Promise<TokenResponse> {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
     method: 'POST',
@@ -40,8 +106,6 @@ export async function login(email: string, password: string, totpCode?: string):
   return parseJsonOrThrow<TokenResponse>(res)
 }
 
-/** Treats an unreachable API the same as "not authenticated" - a network failure here must not
- * hang the caller (e.g. the router's auth guard) forever waiting on an uncaught rejection. */
 export async function refresh(): Promise<TokenResponse | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
@@ -77,15 +141,6 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await parseJsonOrThrow(res)
 }
 
-/** SCR-903: a signed-in user changing their own password.
- *
- * <p>Separate from `resetPassword` above and deliberately so: a reset proves identity with a token
- * from an email, a change proves it with the current password. Before this the only path was signing
- * out and using the recovery flow to do routine work.</p>
- *
- * <p>`credentials` are included by `apiFetch`, which matters here — the refresh cookie is how the
- * server knows which session made the change, so that this one survives while the others are
- * revoked.</p> */
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   const res = await apiFetch('/api/v1/auth/change-password', {
     method: 'POST',
@@ -98,15 +153,10 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 }
 
-/** SCR-902. The account facts a user owns about themselves. Roles and permissions are deliberately
- *  NOT here - those come from the access token's claims (see authStore), and a second copy would be a
- *  second source of truth for authorization. */
 export interface Account {
   fullName: string
   email: string
   language: string
-  /** SCR-010: false until the user has picked a language themselves. The stored default cannot say
-   *  this on its own - "ar" is both the default and a legitimate choice. */
   languageChosen: boolean
 }
 
@@ -128,7 +178,6 @@ export async function updateAccount(fullName: string, language: string): Promise
   return JSON.parse(text) as Account
 }
 
-/** SCR-010's first-run choice. One field, and it stamps the account as having chosen. */
 export async function chooseLanguage(language: string): Promise<Account> {
   const res = await apiFetch('/api/v1/auth/me/language', {
     method: 'POST',
@@ -159,10 +208,6 @@ export interface RegisterSupplierPayload {
   password: string
 }
 
-/** MSP-73: supplierCode is null when the email/registration number was already taken - the
- * response is otherwise identical to a genuine success (same status, same shape) so a caller
- * cannot tell the two apart. The existing account gets a "you already have an account" email
- * directly; nothing here reveals that to whoever submitted the duplicate. */
 export async function registerSupplier(payload: RegisterSupplierPayload): Promise<{ supplierCode: string | null }> {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
     method: 'POST',
@@ -172,37 +217,17 @@ export async function registerSupplier(payload: RegisterSupplierPayload): Promis
   return parseJsonOrThrow(res)
 }
 
-/** fetch wrapper that attaches the in-memory access token and retries once via the
- * httpOnly refresh cookie on a 401 before giving up (docs/architecture ASVS L2 token handling). */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const method = (init.method ?? 'GET').toUpperCase()
   const isMutation = method !== 'GET' && method !== 'HEAD'
 
-  /*
-   * T-053/§8.2.5: "The SPA generates one key per user submission intent (e.g. per 'Submit' click) via
-   * crypto.randomUUID()".
-   *
-   * Generated ONCE here, outside doFetch, and that placement is the whole point: doFetch is called
-   * again after a 401 refresh, and a key regenerated on the retry would be a second intent - the
-   * server would process the submission twice, which is the exact failure this header exists to
-   * prevent.
-   *
-   * Sent on every mutation rather than only on the three §8.2 requires. Harmless where the server does
-   * not read it, and it means a route that starts requiring one does not silently 428 the SPA.
-   */
   const idempotencyKey = isMutation ? crypto.randomUUID() : undefined
 
-  // T-030 split (2): where this write's precondition came from, captured BEFORE the write clears it.
-  // The response's fresh version goes back to the same place, so a sibling child collection can still
-  // find it - see ownerPrefixOf for the defect this closes.
   const preconditionPrefix = isMutation ? ownerPrefixOf(path) : undefined
 
   const doFetch = () => {
     const token = useAuthStore.getState().accessToken
 
-    // §8.1: the version this caller last read travels back as If-Match on a mutation. Attached here
-    // rather than at each call site - see api/etags.ts. An explicit If-Match always wins, so a
-    // caller that has just reconciled a 412 can send the version it chose.
     const ifMatch = isMutation ? lookupETag(path) : undefined
     const headers: Record<string, string> = {
       ...(init.headers as Record<string, string> | undefined ?? {}),
@@ -221,25 +246,9 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       useAuthStore.getState().setSession(refreshed.accessToken)
       res = await doFetch()
     } else {
-      // SCR-040: `expireSession`, not `clearSession`. A refresh that fails under a working session is
-      // an expiry the user needs told about over whatever they were doing; a plain clear would drop
-      // them at the login screen and take their unsaved work with it.
       useAuthStore.getState().expireSession()
     }
   }
-  // T-030 splits (3) and (2): FORGET first, then put the response's version back in BOTH places.
-  //
-  // A mutation moves the resource on, so the version cached before it is stale - keeping it would turn
-  // the caller's next save into a 412 nobody can explain. But the child-write routes now return the
-  // version the write produced (see WithFreshETag), and dropping THAT would make a supplier editing two
-  // contacts in a row hit 428 on the second until a re-read landed. So the order matters: clear the old,
-  // then keep the new when there is one.
-  //
-  // Split (2) added the second `rememberETag`. Filing the fresh version only under the WRITE path left
-  // it invisible to a sibling child collection: after adding an RFQ item the version sat at
-  // `/rfqs/RFQ-1/items`, and adding a requirement walked up to `/rfqs/RFQ-1`, found the entry deleted,
-  // and sent no If-Match at all - a 428 on the officer's second edit. Writing it back to the prefix the
-  // precondition came from keeps the aggregate's version reachable from every child of it.
   const freshETag = res.headers.get('ETag')
   if (isMutation && res.ok) {
     forgetETags(path)
@@ -247,15 +256,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   }
   rememberETag(path, freshETag)
 
-  // A 412 means the row moved since this tab read it - another tab, another person, or a background
-  // job. The write is correctly refused and is NOT retried here: replaying it would overwrite
-  // whatever moved the row, which is the lost update the precondition exists to prevent.
-  //
-  // What IS done is re-reading the resource, so the version this tab holds is current again and the
-  // user's next attempt succeeds. Without it the tab was stuck: every further save on that screen
-  // asserted the same dead version, and the only way through was a page reload. Reported as "I come
-  // back to the tab and cannot edit anything until I refresh" - with several tabs of this product
-  // open at once, which is exactly how the row moves underneath one of them.
   if (res.status === 412 && isMutation && preconditionPrefix) {
     const current = useAuthStore.getState().accessToken
     const reread = await fetch(`${API_BASE_URL}${preconditionPrefix}`, {
@@ -266,9 +266,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     if (reread?.ok) rememberETag(preconditionPrefix, reread.headers.get('ETag'))
   }
 
-  // A 428 means this client failed to send a header it should always send: a bug in the transport
-  // above, not a state the user can do anything about. Surfaced loudly rather than folded into the
-  // generic error path, where it would reach a supplier as an unexplained failure to save.
   if (res.status === 428) {
     console.error(`[concurrency] ${method} ${path} was refused for a missing If-Match. ` +
       'The resource was mutated without a prior read, or its ETag was never stored.')

@@ -1,3 +1,11 @@
+// A supplier's authorised representatives, including which one is primary.
+//
+// Every call returns the whole SupplierProfile rather than the representative it changed, because the profile is
+// the aggregate and its version moves with every child write - so the caller gets the fresh state and the
+// transport gets the fresh ETag. Setting the primary is a POST to the representative rather than a field on an
+// update, because it moves a flag off whichever representative held it, which is a change to the aggregate and
+// not to one row.
+
 import { apiFetch } from './auth'
 import type { SupplierProfile } from './supplier'
 import { SupplierApiError } from './supplier'

@@ -1,3 +1,12 @@
+// A supplier administering their own team: who is on it, inviting someone, and disabling them.
+//
+// The list is cursor-paged. Disabling is a POST rather than a DELETE, because the account is the actor on audit
+// rows and deactivation is not deletion.
+//
+// acceptTeamInvite is the one call here that does NOT go through apiFetch, and it has its own base URL for that
+// reason: it is how someone with no session at all sets their password from an invitation token, so attaching a
+// token it does not have would be meaningless and the expiry overlay must not fire over a public page.
+
 import { apiFetch } from './auth'
 import type { ListEnvelope } from './listEnvelope'
 import { SupplierApiError } from './supplier'

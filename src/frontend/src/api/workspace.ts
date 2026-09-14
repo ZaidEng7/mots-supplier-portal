@@ -1,16 +1,23 @@
+// FEAT-13.1 and FR-PWF-001: the tender workspace, a read-side aggregation over Rfq, Proposal, Evaluation and
+// Award with no new persisted state.
+//
+// These interfaces mirror the backend's WorkspaceDto, WorkspaceStageDto and WorkspaceActionDto. Only the 10
+// RfqState values any domain method can actually reach are ever listed as stages - see the backend handler, which
+// explains why. An action's `permitted` already reflects BOTH the caller's own permission claim and the domain
+// precondition, resolved server-side: the frontend never re-derives it.
+//
+// A cancelled RFQ carries isCancelled true with empty stages and next actions rather than a guessed stage
+// position, for the reason the backend handler gives.
+
 import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 
-/** FEAT-13.1/FR-PWF-001: mirrors WorkspaceStageDto - only the 10 RfqState values any domain method
- * can actually reach are ever listed (see the backend handler's own doc comment). */
 export interface WorkspaceStage {
   key: string
   isCurrent: boolean
   isCompleted: boolean
 }
 
-/** Mirrors WorkspaceActionDto. `permitted` already reflects BOTH the caller's own permission claim
- * and the domain precondition, resolved server-side - the frontend never re-derives this. */
 export interface WorkspaceAction {
   action: string
   labelAr: string
@@ -20,9 +27,6 @@ export interface WorkspaceAction {
   blockedReasonEn: string | null
 }
 
-/** Mirrors WorkspaceDto - a read-side aggregation over Rfq + Proposal + Evaluation + Award, no new
- * persisted state. Cancelled RFQs carry `isCancelled: true` with empty stages/nextActions rather
- * than a guessed stage position - see the backend handler's own doc comment on why. */
 export interface Workspace {
   rfqReferenceCode: string
   rfqState: string

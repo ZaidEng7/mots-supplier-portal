@@ -1,3 +1,12 @@
+// The buying bodies, their internal units, and the links between an organization and a supplier.
+//
+// Admin-only, and the link calls are the point of the surface: a SupplierOrgLink is only ever created by the
+// explicit call here, never as a side effect of registration, onboarding or approval. Suppliers are addressed by
+// reference code and organizations by id, because that is what the endpoints take.
+//
+// removeSupplierOrgLink accepts a 204 alongside a 2xx explicitly, because a delete that succeeded has no body to
+// parse.
+
 import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 

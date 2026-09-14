@@ -1,3 +1,12 @@
+// A supplier's addresses and branches. Both return the whole SupplierProfile, because the profile is the
+// aggregate whose version moves with every child write.
+//
+// Add and update take genuinely different shapes server-side, per SupplierEndpoints.cs: AddBranchRequest has no
+// IsActive, because a new branch is always active, while UpdateBranchRequest requires it. The API's JSON binding
+// rejects unmapped properties outright - Program.cs sets UnmappedMemberHandling to Disallow - so sending
+// isActive on an add does not just get ignored, it 500s the request. One shared type with an optional field is
+// what let that happen unnoticed, which is why there are two types here.
+
 import { apiFetch } from './auth'
 import type { SupplierProfile } from './supplier'
 import { SupplierApiError } from './supplier'
@@ -14,11 +23,6 @@ export interface AddressPayload {
   longitude?: number | null
 }
 
-// Add and update take genuinely different shapes server-side (Api/Endpoints/SupplierEndpoints.cs):
-// AddBranchRequest has no IsActive - a new branch is always active - while UpdateBranchRequest
-// requires it. The API's JSON binding rejects unmapped properties outright (Program.cs
-// UnmappedMemberHandling = Disallow), so sending isActive on add doesn't just get ignored, it
-// 500s the request. One shared type with an optional field is what let that happen unnoticed.
 export interface AddBranchPayload {
   nameAr: string
   nameEn: string

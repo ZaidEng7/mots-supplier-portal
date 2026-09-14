@@ -1,6 +1,26 @@
+// Two audit reads: the supplier's own trail, and T-079's staff explorer.
+//
+// THE SUPPLIER'S OWN TRAIL is B-1 and FR-AUD-003's. GET /suppliers/me/audit and its CSV export have existed since
+// EPIC-01 and NOTHING called either - a compliance affordance that shipped unreachable, which is what the phase
+// 12a sweep found. It is strictly reverse-chronological, because the endpoint whitelists no other order.
+//
+// Both exports are FETCHED rather than linked, because they need the Authorization header: a plain anchor would
+// arrive unauthenticated and answer 401, which is why an export that "exists" was never reachable from a screen.
+// The blob is revoked immediately after the click, since an object URL left alive keeps the whole file in memory
+// for the life of the document.
+//
+// THE STAFF EXPLORER is T-079 and SCR-720, behind audit.read. It is separate from the supplier's own trail
+// deliberately: that one takes no filters and needs none, because a supplier's trail is bounded by being theirs.
+// This one is the whole platform's, so the filters are the screen, and every one of them is applied server-side.
+// MSP-75 refuses an unrecognised value with a 422 naming the field rather than answering with an unfiltered list,
+// which is the failure a client-side filter would silently reintroduce - and AuditApiError carries §7's code, so
+// the screen can say WHICH filter the server refused.
+//
+// The filtered export takes the same filters with no page limit, because an export is "everything the filter
+// matches".
+
 import { apiFetch } from './auth'
 
-/** B-1/FR-AUD-003: one row of the supplier's own activity trail. */
 export interface AuditEntry {
   id: string
   occurredAt: string
@@ -12,13 +32,6 @@ export interface AuditEntry {
   actorLabel: string | null
 }
 
-/**
- * The supplier's own trail.
- *
- * <p>`GET /suppliers/me/audit` and its CSV export have existed since EPIC-01 and NOTHING called either -
- * a compliance affordance that shipped unreachable, which is what the phase 12a sweep found. Strictly
- * reverse-chronological: the endpoint whitelists no other order.</p>
- */
 export async function listOwnAuditTrail(cursor?: string): Promise<{
   data: AuditEntry[]
   pagination: { hasMore: boolean; nextCursor: string | null }
@@ -29,14 +42,6 @@ export async function listOwnAuditTrail(cursor?: string): Promise<{
   return (await response.json()) as { data: AuditEntry[]; pagination: { hasMore: boolean; nextCursor: string | null } }
 }
 
-/**
- * Fetches the CSV export and hands it to the browser.
- *
- * <p>Fetched rather than linked, because the export needs the Authorization header - a plain anchor would
- * arrive unauthenticated and answer 401, which is why an export that "exists" was never reachable from a
- * screen. The blob is revoked immediately after the click: an object URL left alive keeps the whole file
- * in memory for the life of the document.</p>
- */
 export async function downloadOwnAuditTrail(): Promise<void> {
   const response = await apiFetch('/api/v1/suppliers/me/audit/export')
   if (!response.ok) throw new Error('audit_export_failed')
@@ -55,15 +60,6 @@ export async function downloadOwnAuditTrail(): Promise<void> {
   }
 }
 
-/**
- * T-079/SCR-720: the STAFF audit explorer, behind `audit.read`.
- *
- * <p>Separate from the supplier's own trail above, and deliberately so: that one takes no filters and
- * needs none — a supplier's trail is bounded by being theirs. This one is the whole platform's, so the
- * filters are the screen, and every one of them is applied server-side. `MSP-75` refuses an
- * unrecognised value with a 422 naming the field rather than answering with an unfiltered list, which
- * is the failure a client-side filter would silently reintroduce.</p>
- */
 export interface AuditSearchFilters {
   aggregateType?: string
   aggregateId?: string
@@ -79,7 +75,6 @@ export interface AuditPage {
   meta: { filtersApplied: string[] | null }
 }
 
-/** §7's code, carried so the screen can say WHICH filter the server refused. */
 export class AuditApiError extends Error {
   status: number
   code?: string
@@ -111,12 +106,6 @@ export async function searchAuditLog(filters: AuditSearchFilters, cursor?: strin
   return body as AuditPage
 }
 
-/**
- * The filtered export. Same filters, no page limit — an export is "everything the filter matches".
- *
- * <p>Fetched rather than linked, for the same reason the supplier's is: it needs the Authorization
- * header, and a plain anchor would arrive unauthenticated and answer 401.</p>
- */
 export async function downloadAuditLog(filters: AuditSearchFilters): Promise<void> {
   const response = await apiFetch(`/api/v1/audit/export${auditQuery(filters)}`)
   if (!response.ok) throw new AuditApiError(response.status, null)

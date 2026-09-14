@@ -1,11 +1,28 @@
+// The evaluation templates: create a draft, add and remove criteria, then activate, archive or fork.
+//
+// EvaluationTemplateApiError reads the precise message rather than only the code. The backend returns
+// { error: "invalid_state", message: "<precise domain message>" } for every EvaluationTemplate invariant refusal -
+// EvaluationTemplateMutationResult.InvalidState - and unlike SupplierApiError's error-only convention the message
+// is the useful part here, because these are dynamic domain-exception texts rather than a small enum of known
+// codes.
+//
+// Every response's ETag is filed under the TEMPLATE's own path. activate, archive and fork all declare
+// RequireIfMatch, and nothing gave the client a version to send: the list GET carries no ETag, and a create or a
+// criteria write stores its fresh tag under the path it was written to - the collection, or the criteria sub-path -
+// never under the template. The store climbs a path but not sideways, so activate found nothing and answered 428
+// every time, and activating a template through the interface was simply not possible. Same treatment as the
+// supplier profile, and for the same reason: only these functions know that the body they just parsed is the
+// resource a later write will address by id.
+//
+// removeCriterion takes one criterion off a Draft template. The route has existed since the template work landed
+// and nothing in the SPA called it, so a criterion added by mistake was permanent: weights could never be brought
+// back to 100, the template could never be activated, and the only way out was to abandon it and start another.
+// Found by adding one with the wrong dimension while walking the product.
+
 import { ProblemError } from './problem'
 import { apiFetch } from './auth'
 import { rememberETag } from './etags'
 
-/** Backend returns { error: "invalid_state", message: "<precise domain message>" } for every
- * EvaluationTemplate invariant refusal (EvaluationTemplateMutationResult.InvalidState) - unlike
- * SupplierApiError's `.error`-only convention, the precise message is the useful part here since
- * these are dynamic domain-exception texts, not a small enum of known codes. */
 export class EvaluationTemplateApiError extends ProblemError {
   constructor(status: number, body: unknown) {
     super(status, body)
@@ -60,18 +77,6 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T
 }
 
-/**
- * Files a template response's ETag under the TEMPLATE's own path.
- *
- * `activate`, `archive` and `fork` all declare RequireIfMatch, and nothing gave the client a version
- * to send: the list GET carries no ETag, and a create or a criteria write stores its fresh tag under
- * the path it was written to - the collection, or the criteria sub-path - never under the template.
- * The store climbs a path but not sideways, so activate found nothing and answered 428 every time.
- * Activating a template through the interface was simply not possible.
- *
- * Same treatment as the supplier profile, and for the same reason: only these functions know that the
- * body they just parsed is the resource a later write will address by id.
- */
 async function templateFrom(res: Response): Promise<EvaluationTemplate> {
   const etag = res.headers.get('ETag')
   const template = await parseOrThrow<EvaluationTemplate>(res)
@@ -99,14 +104,6 @@ export async function addCriterion(templateId: string, payload: CriterionPayload
   }))
 }
 
-/**
- * Removes one criterion from a Draft template.
- *
- * <p>The route has existed since the template work landed; nothing in the SPA called it. So a
- * criterion added by mistake was permanent: weights could never be brought back to 100, the template
- * could never be activated, and the only way out was to abandon it and start another. Found by adding
- * one with the wrong dimension while walking the product.</p>
- */
 export async function removeCriterion(templateId: string, criterionId: string): Promise<EvaluationTemplate> {
   return templateFrom(await apiFetch(`/api/v1/evaluation-templates/${templateId}/criteria/${criterionId}`, {
     method: 'DELETE',

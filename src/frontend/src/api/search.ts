@@ -1,11 +1,17 @@
+// EPIC-20 and SCR-906: the cross-entity search.
+//
+// A hit's kind is "rfq", "supplier" or "offering" - typed as a string rather than a union, because a new
+// searchable entity is an additive wire change and a union here would make the client the thing that has to be
+// redeployed. The public code is null for an offering, which has none of its own; its supplier's code is in the
+// context instead.
+//
+// The results say when the cap cut them off, and that is shown, because a search that missed the row must not
+// look like a search that found nothing.
+
 import { apiFetch } from './auth'
 
-/** EPIC-20/SCR-906. */
 export interface SearchHit {
-  /** "rfq" | "supplier" | "offering" — a string, not a union, because a new searchable entity is an
-   *  additive wire change and a union here would make the client the thing that has to be redeployed. */
   kind: string
-  /** Null for an offering, which has no public code of its own; its supplier's code is in `context`. */
   referenceCode: string | null
   titleAr: string
   titleEn: string
@@ -16,8 +22,6 @@ export interface SearchHit {
 export interface SearchResults {
   query: string
   hits: SearchHit[]
-  /** True when the cap cut results off. Shown, because a search that missed the row must not look like a
-   *  search that found nothing. */
   truncated: boolean
 }
 
